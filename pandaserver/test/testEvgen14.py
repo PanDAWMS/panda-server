@@ -11,7 +11,7 @@ else:
     site = None
 
 datasetName = 'testpanda.destDB.%s' % commands.getoutput('uuidgen')
-destName    = None
+destName    = 'BNL_SE'
 
 jobList = []
 
@@ -27,7 +27,7 @@ for i in range(1):
     job.currentPriority   = 1000
     job.prodSourceLabel   = 'test'
     job.computingSite     = site
-    job.cloud             = 'US' 
+    job.processingType    = 'test'
     
     file = FileSpec()
     file.lfn = "%s.evgen.pool.root" % job.jobName

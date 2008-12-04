@@ -2,6 +2,8 @@ import os
 import re
 import sys
 import time
+import fcntl
+import shelve
 import random
 import datetime
 import commands
@@ -15,6 +17,7 @@ from brokerage.SiteMapper import SiteMapper
 from dataservice.Adder import Adder
 from dataservice.Finisher import Finisher
 import brokerage.broker_util
+import brokerage.broker
 import taskbuffer.ErrorCode
 
 # password
@@ -62,7 +65,7 @@ _memoryCheck("start")
 # kill old process
 try:
     # time limit
-    timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
+    timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=4)
     # get process list
     scriptName = sys.argv[0]
     out = commands.getoutput('ps axo user,pid,lstart,args | grep %s' % scriptName)
@@ -145,8 +148,8 @@ else:
                 # metadata
                 status,meta = proxyS.querySQLS("SELECT metaData from metaTable WHERE PandaID=%s" % id)
                 if len(meta) != 0:
-                    proxyN.querySQLS("INSERT INTO %s (PandaID,metaData) VALUE(%s,'%s')" %
-                                     (metaATableName,id,meta[0][0]))
+                    proxyN.querySQLwList("INSERT INTO "+ metaATableName+" (PandaID,metaData) VALUE(%s,%s)",
+                                         (id,meta[0][0]))
                     _logger.debug("meta INSERT %s " % id)
 
                 _logger.debug("INSERT %s " % id)
@@ -467,6 +470,37 @@ while True:
         time.sleep(60)
 
                         
+# reassign reprocessing jobs in defined table
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=8)
+status,res = proxyS.querySQLS("SELECT PandaID,transformation,processingType FROM jobsDefined4 WHERE jobStatus='assigned' AND prodSourceLabel='managed' AND modificationTime<'%s' ORDER BY PandaID"
+                              % timeLimit.strftime('%Y-%m-%d %H:%M:%S'))
+jobs=[]
+if res != None:
+    # tmp class to adjust API
+    class Tmp:
+        pass
+    for id,trf,processingType in res:
+        # check trf. Should be changed once a proper flag is defined in prodDB
+        tmpObj = Tmp()
+        tmpObj.transformation = trf
+        tmpObj.processingType = processingType
+        if brokerage.broker._isReproJob(tmpObj):
+            jobs.append(id)
+# reassign
+if len(jobs):
+    nJob = 100
+    iJob = 0
+    while iJob < len(jobs):
+        eraseDispDatasets(jobs[iJob:iJob+nJob])
+        # reassign jobs one by one to break dis dataset formation
+        for job in jobs[iJob:iJob+nJob]:
+            _logger.debug('reassignJobs in Pepro (%s)' % [job])
+            Client.reassignJobs([job])
+            time.sleep(5)            
+        iJob += nJob
+        time.sleep(60)
+
+
 # reassign long-waiting jobs in defined table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
 status,res = proxyS.querySQLS("SELECT PandaID from jobsDefined4 WHERE prodSourceLabel='managed' AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM' AND modificationTime<'%s' ORDER BY PandaID"
@@ -550,6 +584,31 @@ if len(jobs):
         iJob += nJob
         time.sleep(60)
 
+# kill too long running jobs
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=21)
+status,res = proxyS.querySQLS("SELECT PandaID FROM jobsActive4 WHERE creationTime<'%s'"
+                              % timeLimit.strftime('%Y-%m-%d %H:%M:%S'))
+jobs = []
+if res != None:
+    for (id,) in res:
+        jobs.append(id)
+# kill
+if len(jobs):
+    nJob = 100
+    iJob = 0
+    while iJob < len(jobs):
+        # set tobekill
+        _logger.debug('killJobs for Running (%s)' % jobs[iJob:iJob+nJob])
+        Client.killJobs(jobs[iJob:iJob+nJob],2)
+        # run watcher
+        for id in jobs[iJob:iJob+nJob]:
+            thr = Watcher(taskBuffer,id,single=True,sitemapper=siteMapper,sleepTime=60*24*21)
+            thr.start()
+            thr.join()
+            time.sleep(1)
+        iJob += nJob
+        time.sleep(10)
+
 # kill too long waiting ddm jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=5)
 status,res = proxyS.querySQLS("SELECT PandaID FROM jobsActive4 WHERE prodSourceLabel='ddm' AND creationTime<'%s'"
@@ -565,14 +624,6 @@ if len(jobs):
 
 _memoryCheck("closing")
 
-# delete old records
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=3)
-proxyS.querySQLS("DELETE from PANDALOG WHERE BINTIME<'%s'" % timeLimit.strftime('%Y-%m-%d %H:%M:%S'))
-
-# delete old records
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=3)
-proxyS.querySQLS("DELETE from PANDALOG WHERE BINTIME<'%s' AND TYPE='updateJob'" % timeLimit.strftime('%Y-%m-%d %H:%M:%S'))
-
 # time limit for dataset closing
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
 
@@ -585,6 +636,13 @@ while True:
         _logger.debug("# of datasets to be closed: %s" % len(res))
     if res==None or len(res)==0:
         break
+    # update to prevent other process from picking up
+    for (vuid,name,modDate) in res:
+        # convert string to datetime
+        datetimeTime = datetime.datetime(*time.strptime(modDate,'%Y-%m-%d %H:%M:%S')[:6])
+        # delete
+        if datetimeTime < timeLimit:
+            proxyS.querySQLS("UPDATE Datasets SET modificationdate=UTC_TIMESTAMP() WHERE vuid='%s'" % vuid)
     for (vuid,name,modDate) in res:
         # convert string to datetime
         datetimeTime = datetime.datetime(*time.strptime(modDate,'%Y-%m-%d %H:%M:%S')[:6])
@@ -599,7 +657,6 @@ while True:
                    out.find("DQUnknownDatasetException") == -1 and out.find("DQSecurityException") == -1 and \
                    out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1:
                 _logger.error(out)
-                proxyS.querySQLS("UPDATE Datasets SET modificationdate=UTC_TIMESTAMP() WHERE vuid='%s'" % vuid)
             else:
                 proxyS.querySQLS("UPDATE Datasets SET status='completed',modificationdate=UTC_TIMESTAMP() WHERE vuid='%s'" % vuid)
                 if name.startswith('testpanda.ddm.'):
@@ -653,6 +710,9 @@ for i in range(100):
         _logger.debug("# of datasets to be frozen: %s" % len(res))
     if res==None or len(res)==0:
         break
+    # update to prevent other process from picking up
+    for (vuid,name,modDate) in res:
+        proxyS.querySQLS("UPDATE Datasets SET modificationdate=UTC_TIMESTAMP() WHERE vuid='%s'" % vuid)
     if len(res) != 0:
         for (vuid,name,modDate) in res:
             _logger.debug("start %s %s" % (modDate,name))
@@ -671,7 +731,6 @@ for i in range(100):
                            out.find("DQUnknownDatasetException") == -1 and out.find("DQSecurityException") == -1 and \
                            out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1:
                         _logger.error(out)
-                        proxyS.querySQLS("UPDATE Datasets SET modificationdate=UTC_TIMESTAMP() WHERE vuid='%s'" % vuid)
                     else:
                         proxyS.querySQLS("UPDATE Datasets SET status='completed',modificationdate=UTC_TIMESTAMP() WHERE vuid='%s'" \
                                          % vuid)
@@ -784,15 +843,28 @@ for ii in range(1000):
             # get LFN list
             lfns  = []
             guids = []
+            nTokens = 0
             for file in job.Files:
                 # only output files are checked
                 if file.type == 'output' or file.type == 'log':
                     lfns.append(file.lfn)
                     guids.append(file.GUID)
+                    nTokens += len(file.destinationDBlockToken.split(','))
             # get files in LRC
             _logger.debug("Cloud:%s DQ2URL:%s" % (job.cloud,dq2URL))
-            okFiles = brokerage.broker_util.getFilesFromLRC(lfns,dq2URL,guids,dq2SE)
-            if len(lfns) == len(okFiles):
+            okFiles = brokerage.broker_util.getFilesFromLRC(lfns,dq2URL,guids,dq2SE,getPFN=True)
+            # count files
+            nOkTokens = 0
+            for okLFN,okPFNs in okFiles.iteritems():
+                nOkTokens += len(okPFNs)
+            # FIXME : space tokens are not yet ready in US
+            if job.cloud in ['US']:
+                # use the number of LFNs instead of PFNs for checking
+                nTokens   = len(lfns)
+                nOkTokens = len(okFiles)
+            # check all files are ready    
+            _logger.debug(" nToken:%s nOkToken:%s" % (nTokens,nOkTokens))
+            if nTokens <= nOkTokens:
                 _logger.debug("Finisher : Finish %s" % job.PandaID)
                 for file in job.Files:
                     if file.type == 'output' or file.type == 'log':
@@ -805,7 +877,7 @@ for ii in range(1000):
                     endTime = job.startTime
                 # priority-dependent timeout
                 tmpCloudSpec = siteMapper.getCloud(job.cloud)
-                if job.currentPriority > 900:
+                if job.currentPriority >= 900:
                     if tmpCloudSpec.has_key('transtimehi'):
                         timeOutValue = tmpCloudSpec['transtimehi']
                     else:
@@ -865,7 +937,44 @@ for ii in range(1000):
             fThr.start()
             fThr.join()
         _logger.debug("done")
-        
+
+# update email DB        
+_memoryCheck("email")
+_logger.debug("Update emails")
+
+# lock file
+_lockGetMail = open(panda_config.lockfile_getMail, 'w')
+# lock email DB
+fcntl.flock(_lockGetMail.fileno(), fcntl.LOCK_EX)
+# open email DB
+pDB = shelve.open(panda_config.emailDB)
+# read
+mailMap = {}
+for name,addr in pDB.iteritems():
+    mailMap[name] = addr
+# close DB
+pDB.close()
+# release file lock
+fcntl.flock(_lockGetMail.fileno(), fcntl.LOCK_UN)
+# connect to MetaDB
+proxyM = DBProxy()
+proxyM.connect(panda_config.logdbhost,panda_config.logdbpasswd,panda_config.logdbuser,'PandaMetaDB')
+# set email address
+for name,addr in mailMap.iteritems():
+    # remove _
+    name = re.sub('_$','',name)
+    status,res = proxyM.querySQLS("SELECT email FROM users WHERE name='%s'" % name)
+    # failed or not found
+    if status == -1 or len(res) == 0:
+        _logger.error("%s not found in user DB" % name)
+        continue
+    # already set
+    if res[0][0] != '':
+        continue
+    # update email
+    _logger.debug("set '%s' to %s" % (name,addr))
+    status,res = proxyM.querySQLS("UPDATE users SET email='%s' WHERE name='%s'" % (addr,name))
+
 _memoryCheck("end")
 
 _logger.debug("===================== end =====================")

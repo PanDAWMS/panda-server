@@ -15,11 +15,23 @@ import cPickle as pickle
 try:
     baseURL = os.environ['PANDA_URL']
 except:
-    baseURL = 'http://pandadev01.usatlas.bnl.gov:26080/server/panda'
+    baseURL = 'http://pandasrv.usatlas.bnl.gov:25080/server/panda'
 try:
     baseURLSSL = os.environ['PANDA_URL_SSL']
 except:
-    baseURLSSL = 'https://pandadev01.usatlas.bnl.gov:26443/server/panda'
+    baseURLSSL = 'https://pandasrv.usatlas.bnl.gov:25443/server/panda'
+try:
+    baseURLDQ2 = os.environ['PANDA_URL_DQ2']
+except:
+    baseURLDQ2 = 'http://dms02.usatlas.bnl.gov:80/dq2'
+try:
+    baseURLDQ2LRC = os.environ['PANDA_URL_DQ2LRC']
+except:
+    baseURLDQ2LRC = 'http://dms02.usatlas.bnl.gov:8000/dq2/lrc'
+try:
+    baseURLSUB = os.environ['PANDA_URL_SUB']
+except:
+    baseURLSUB = 'https://gridui01.usatlas.bnl.gov:24443/dav/test'
 
 
 # exit code
@@ -34,6 +46,9 @@ serverURLs = {'default' : {'URL'    : baseURL,
               'BNL'     : {'URL'    : 'http://pandasrv.usatlas.bnl.gov:25080/server/panda',
                            'URLSSL' : 'https://pandasrv.usatlas.bnl.gov:25443/server/panda'},
               }
+
+# bamboo
+baseURLBAMBOO = 'http://lxmrrb5310.cern.ch:25080/bamboo/bamboo'
 
 
 # get URL
@@ -296,6 +311,25 @@ def getAssigningTask():
         return EC_Failed,output+'\n'+errStr
 
 
+# get assigned cloud for tasks
+def seeCloudTask(ids):
+    # serialize
+    strIDs = pickle.dumps(ids)
+    # instantiate curl
+    curl = _Curl()
+    # execute
+    url = baseURL + '/seeCloudTask'
+    data = {'ids':strIDs}
+    status,output = curl.post(url,data)
+    try:
+        return status,pickle.loads(output)
+    except:
+        type, value, traceBack = sys.exc_info()
+        errStr = "ERROR seeCloudTask : %s %s" % (type,value)
+        print errStr
+        return EC_Failed,output+'\n'+errStr
+
+
 # kill jobs
 def killJobs(ids,code=None,verbose=False,srvID=None):
     # serialize
@@ -358,15 +392,37 @@ def queryPandaIDs(ids):
         return EC_Failed,output+'\n'+errStr
 
 
+# query job info per cloud
+def queryJobInfoPerCloud(cloud,schedulerID=None):
+    # instantiate curl
+    curl = _Curl()
+    # execute
+    url = baseURL + '/queryJobInfoPerCloud'
+    data = {'cloud':cloud}
+    if schedulerID != None:
+        data['schedulerID'] = schedulerID
+    status,output = curl.post(url,data)
+    try:
+        return status,pickle.loads(output)
+    except:
+        type, value, traceBack = sys.exc_info()
+        errStr = "ERROR queryJobInfoPerCloud : %s %s" % (type,value)
+        print errStr
+        return EC_Failed,output+'\n'+errStr
+
+    
 # get job statistics
-def getJobStatistics():
+def getJobStatistics(sourcetype=None):
     # instantiate curl
     curl = _Curl()
     # execute
     ret = {}
     for srvID in getPandas():
         url = _getURL('URL',srvID) + '/getJobStatistics'
-        status,output = curl.get(url,{})
+        data = {}
+        if sourcetype != None:
+            data['sourcetype'] = sourcetype            
+        status,output = curl.get(url,data)
         try:
             tmpRet = status,pickle.loads(output)
             if status != 0:
@@ -524,6 +580,45 @@ def deleteFile(file):
     return curl.post(url,data)
 
 
+# query files in dataset
+def queryFilesInDataset(name):
+    # instantiate curl
+    curl = _Curl()
+    # get VUID
+    url = baseURLDQ2 + '/repository/dataset'
+    data = {'name':name,'version':0}
+    status,out = curl.get(url,data)
+    if status != 0:
+        print "ERROR : could not get VUID"
+        print status,out
+        return {}
+    # parse
+    match = re.findall('(\w+-\w+-\w+-\w+-\w+$)',out)
+    if len(match) != 1:
+        print "ERROR : could not find VUID"        
+        print status,out
+        return {}
+    vuid = match[0]
+    # get files
+    url = baseURLDQ2 + '/content/files'
+    data = {'vuid':vuid}
+    status,out =  curl.get(url,data)
+    if status != 0:
+        print "ERROR : could not get files: VUID=%s" % vuid
+        print status,out
+        return {}
+    # parse
+    ret = {}
+    for line in out.split('\n'):
+        item = line.split()
+        if len(item) != 2:
+            print "ERROR : could not parse files"
+            print status,out
+            return {}
+        ret[item[1]] = item[0]
+    return ret            
+
+
 # resubmit jobs
 def resubmitJobs(ids):
     # serialize
@@ -589,3 +684,21 @@ def runBrokerage(sites,atlasRelease,cmtConfig=None):
     if cmtConfig != None:
         data['cmtConfig'] = cmtConfig
     return curl.get(url,data)
+
+
+# get RW
+def getRW(priority=0):
+    # instantiate curl
+    curl = _Curl()
+    # execute
+    url = baseURLBAMBOO + '/getRW'
+    # get RWs for high priority tasks
+    data = {'priority':priority}        
+    status,output = curl.get(url,data)
+    try:
+        return status,pickle.loads(output)
+    except:
+        type, value, traceBack = sys.exc_info()
+        errStr = "ERROR getRW : %s %s" % (type,value)
+        print errStr
+        return EC_Failed,output+'\n'+errStr

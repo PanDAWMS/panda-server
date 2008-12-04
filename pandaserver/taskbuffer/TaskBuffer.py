@@ -1,8 +1,9 @@
 import re
 from DBProxyPool import DBProxyPool
 from LogDBProxyPool import LogDBProxyPool
-
+from brokerage.SiteMapper import SiteMapper
 from dataservice.Setupper import Setupper
+from dataservice.TaLauncher import TaLauncher
 
 
 class TaskBuffer:
@@ -25,11 +26,13 @@ class TaskBuffer:
 
 
     # store Jobs into DB
-    def storeJobs(self,jobs,user,joinThr=False,forkSetupper=False):
+    def storeJobs(self,jobs,user,joinThr=False,forkSetupper=False,fqans=[]):
         # check quota for priority calculation
-        weight     = 0.0
-        userJobID  = -1
-        userStatus = True
+        weight         = 0.0
+        userJobID      = -1
+        userStatus     = True
+        priorityOffset = 0
+        userVO         = 'atlas'
         if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda']):
             # get DB proxy
             proxy = self.logProxyPool.getProxy()
@@ -39,9 +42,53 @@ class TaskBuffer:
             userJobID,userStatus = proxy.getUserParameter(user,jobs[0].jobDefinitionID)
             # release proxy
             self.logProxyPool.putProxy(proxy)
+            # get site spec
+            siteMapper  = SiteMapper(self)
+            tmpSiteSpec = siteMapper.getSite(jobs[0].computingSite)
+            # check allowed groups
+            if hasattr(tmpSiteSpec,'allowedgroups') and (not tmpSiteSpec.allowedgroups in ['',None]):
+                # set status to False when allowedgroups is defined
+                userStatus = False
+                # loop over all groups
+                for tmpGroup in tmpSiteSpec.allowedgroups.split(','):
+                    if tmpGroup == '':
+                        continue
+                    # loop over all FQANs
+                    for tmpFQAN in fqans:
+                        if re.search('^%s/' % tmpGroup,tmpFQAN) != None:
+                            userStatus = True
+                            break
+                    # escape
+                    if userStatus:
+                        break
+            # get priority offset
+            if hasattr(tmpSiteSpec,'priorityoffset') and (not tmpSiteSpec.priorityoffset in ['',None]):
+                # loop over all groups
+                for tmpGP in tmpSiteSpec.priorityoffset.split(','):
+                    if tmpGP == '':
+                        continue
+                    # get group and offset
+                    tmpGroup = tmpGP.split(':')[0]
+                    try:
+                        tmpOffset = int(tmpGP.split(':')[-1])
+                    except:
+                        tmpOffset = 0
+                    # loop over all FQANs
+                    for tmpFQAN in fqans:
+                        if re.search('^%s/' % tmpGroup,tmpFQAN) != None:
+                            # use the largest offset
+                            if tmpOffset > priorityOffset:
+                                priorityOffset = tmpOffset
+                            break
         # return if DN is blocked
         if not userStatus:
             return []
+        # extract VO
+        for tmpFQAN in fqans:
+            match = re.search('^/([^/]+)/',tmpFQAN)
+            if match != None:
+                userVO = match.group(1)
+                break
         # get DB proxy
         proxy = self.proxyPool.getProxy()
         # get number of jobs currently in PandaDB
@@ -62,7 +109,7 @@ class TaskBuffer:
             if job.computingSite != 'NULL':
                 job.relocationFlag = 1
             # insert job to DB
-            if not proxy.insertNewJob(job,user,serNum,weight):
+            if not proxy.insertNewJob(job,user,serNum,weight,priorityOffset,userVO):
                 # reset if failed
                 job.PandaID = None
             else:
@@ -191,16 +238,25 @@ class TaskBuffer:
 
     # get jobs
     def getJobs(self,nJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-                atlasRelease,prodUserID):
+                atlasRelease,prodUserID,getProxyKey):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get waiting jobs
-        jobs = proxy.getJobs(nJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-                             atlasRelease,prodUserID)
+        jobs,nSent = proxy.getJobs(nJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
+                                   atlasRelease,prodUserID)
         # release proxy
         self.proxyPool.putProxy(proxy)
+        # get Proxy Key
+        proxyKey = {}
+        if getProxyKey and len(jobs) > 0:
+            # get MetaDB proxy
+            proxy = self.logProxyPool.getProxy()
+            # get Proxy Key
+            proxyKey = proxy.getProxyKey(jobs[0].prodUserID)
+            # release proxy
+            self.logProxyPool.putProxy(proxy)
         # return
-        return jobs
+        return jobs+[nSent,proxyKey]
         
 
     # run task assignment
@@ -225,7 +281,7 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         # run setupper
         if newJobs != []:
-            Setupper(self,newJobs,forkRun=True,onlyTA=True).start()
+            TaLauncher(self,newJobs).start()
         # return clouds
         return retList
 
@@ -280,13 +336,13 @@ class TaskBuffer:
     
 
     # kill jobs
-    def killJobs(self,ids,user,code):
+    def killJobs(self,ids,user,code,prodManager):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         rets = []
         # kill jobs
         for id in ids:
-            ret = proxy.killJob(id,user,code)
+            ret = proxy.killJob(id,user,code,prodManager)
             rets.append(ret)
         # release proxy
         self.proxyPool.putProxy(proxy)
@@ -369,6 +425,18 @@ class TaskBuffer:
         return pandaIDs
 
 
+    # query job info per cloud
+    def queryJobInfoPerCloud(self,cloud,schedulerID=None):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # query job info
+        ret = proxy.queryJobInfoPerCloud(cloud,schedulerID)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+    
     # get PandaIDs to be updated in prodDB
     def getPandaIDsForProdDB(self,limit,lockedby):
         # get DBproxy
@@ -589,6 +657,30 @@ class TaskBuffer:
         return retList
 
 
+    # get destinationDBlockToken for a dataset
+    def getDestTokens(self,dsname):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get token
+        ret = proxy.getDestTokens(dsname)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+    
+    # get destinationSE for a dataset
+    def getDestSE(self,dsname):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get token
+        ret = proxy.getDestSE(dsname)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+    
     # get job statistics
     def getJobStatistics(self,archived=False,predefined=False):
         # get DBproxy
@@ -602,11 +694,11 @@ class TaskBuffer:
 
 
     # get job statistics for ExtIF
-    def getJobStatisticsForExtIF(self):
+    def getJobStatisticsForExtIF(self,sourcetype=None):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get serial number
-        ret = proxy.getJobStatisticsForExtIF()
+        ret = proxy.getJobStatisticsForExtIF(sourcetype)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -637,6 +729,18 @@ class TaskBuffer:
         return ret
 
 
+    # update transfer status for a dataset
+    def updateTransferStatus(self,datasetname,bitMap):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # update
+        ret = proxy.updateTransferStatus(datasetname,bitMap)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+    
     # get CloudTask
     def getCloudTask(self,tid):
         # get DBproxy
@@ -655,6 +759,18 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # count
         ret = proxy.setCloudTask(cloudTask)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # see CloudTask
+    def seeCloudTask(self,tid):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # count
+        ret = proxy.seeCloudTask(tid)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -686,11 +802,11 @@ class TaskBuffer:
 
 
     # get site info
-    def getSiteInfo(self,site):
+    def getSiteInfo(self):
         # get DBproxy
         proxy = self.logProxyPool.getProxy()
         # get site info
-        ret = proxy.getSiteInfo(site)
+        ret = proxy.getSiteInfo()
         # release proxy
         self.logProxyPool.putProxy(proxy)
         # return
@@ -707,6 +823,43 @@ class TaskBuffer:
         self.logProxyPool.putProxy(proxy)
         # return
         return ret
+
+
+    # get email address
+    def getEmailAddr(self,name):
+        # get DBproxy
+        proxy = self.logProxyPool.getProxy()
+        # get 
+        ret = proxy.getEmailAddr(name)
+        # release proxy
+        self.logProxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # register proxy key
+    def registerProxyKey(self,params):
+        # get DBproxy
+        proxy = self.logProxyPool.getProxy()
+        # register proxy key
+        ret = proxy.registerProxyKey(params)
+        # release proxy
+        self.logProxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # get proxy key
+    def getProxyKey(self,dn):
+        # get DBproxy
+        proxy = self.logProxyPool.getProxy()
+        # get proxy key
+        ret = proxy.getProxyKey(dn)
+        # release proxy
+        self.logProxyPool.putProxy(proxy)
+        # return
+        return ret
+    
 
 # Singleton
 taskBuffer = TaskBuffer()

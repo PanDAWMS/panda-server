@@ -57,20 +57,29 @@ class JobDipatcher:
 
     # get job
     def getJob(self,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-               atlasRelease,prodUserID):
+               atlasRelease,prodUserID,getProxyKey):
         jobs = []
         # wrapper function for timeout
         tmpWrapper = _TimedMethod(self.taskBuffer.getJobs,timeout)
         tmpWrapper.run(1,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-                       atlasRelease,prodUserID)
+                       atlasRelease,prodUserID,getProxyKey)
         if isinstance(tmpWrapper.result,types.ListType):
             jobs = jobs + tmpWrapper.result
         # make response
+        if len(jobs) > 0:
+            proxyKey = jobs[-1]
+            nSent    = jobs[-2]
+            jobs     = jobs[:-2]
         if len(jobs) != 0:
             # succeed
             response=Protocol.Response(Protocol.SC_Success)
             # append Job
             response.appendJob(jobs[0])
+            # append nSent
+            response.appendNode('nSent',nSent)
+            # set proxy key
+            if getProxyKey:
+                response.setProxyKey(proxyKey)
         else:
             if tmpWrapper.result == Protocol.TimeOutToken:
                 # timeout
@@ -202,19 +211,63 @@ web service interface
 
 # get job
 def getJob(req,siteName,timeout=60,cpu=None,mem=None,diskSpace=None,prodSourceLabel=None,node=None,
-           computingElement=None,AtlasRelease=None,prodUserID=None):
+           computingElement=None,AtlasRelease=None,prodUserID=None,getProxyKey=None):
+    # get FQANs
+    fqans = []
+    for tmpKey,tmpVal in req.subprocess_env.iteritems():
+        # compact credentials
+        if tmpKey.startswith('GRST_CRED_'):
+            # VOMS attribute
+            if tmpVal.startswith('VOMS'):
+                # FQAN
+                fqan = tmpVal.split()[-1]
+                # append
+                fqans.append(fqan)
+    # check production role
+    prodManager = False
+    for fqan in fqans:
+        # check atlas/usatlas production role
+        for rolePat in ['/atlas/usatlas/Role=production',
+                        '/atlas/usatlas/Role=pilot',                        
+                        '/atlas/Role=production',
+                        '/atlas/Role=pilot']:
+            if fqan.startswith(rolePat):
+                prodManager = True
+                break
+        # escape
+        if prodManager:
+            break
+    # get DN
+    realDN = None
+    if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        realDN = req.subprocess_env['SSL_CLIENT_S_DN']
+        # remove redundant CN
+        realDN = re.sub('/CN=limited proxy','',realDN)
+        realDN = re.sub('/CN=proxy(/CN=proxy)+','/CN=proxy',realDN)        
+    # set DN for non-production user
+    if not prodManager:
+        prodUserID = realDN
+    # allow getProxyKey for production role
+    if getProxyKey == 'True' and prodManager:
+        getProxyKey = True
+    else:
+        getProxyKey = False
     # convert mem and diskSpace
     try:
         mem = int(float(mem))
         if mem < 0:
             mem = 0
+    except:
+        mem = 0        
+    try:
         diskSpace = int(float(diskSpace))
         if diskSpace < 0:
             diskSpace = 0
     except:
-        pass
-    _logger.debug("getJob(%s,%s,%s,%s,%s,%s,%s,%s,%s)" % (siteName,cpu,mem,diskSpace,prodSourceLabel,node,
-                                                          computingElement,AtlasRelease,prodUserID))
+        diskSpace = 0        
+    _logger.debug("getJob(%s) %s" % (siteName,realDN))
+    _logger.debug("getJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)" % (siteName,cpu,mem,diskSpace,prodSourceLabel,node,
+                                                             computingElement,AtlasRelease,prodUserID,getProxyKey))
     # logging
     try:
         # make message
@@ -232,7 +285,7 @@ def getJob(req,siteName,timeout=60,cpu=None,mem=None,diskSpace=None,prodSourceLa
         pass
     # invoke JD
     return jobDispatcher.getJob(siteName,prodSourceLabel,cpu,mem,diskSpace,node,int(timeout),
-                                computingElement,AtlasRelease,prodUserID)
+                                computingElement,AtlasRelease,prodUserID,getProxyKey)
     
 
 # update job status

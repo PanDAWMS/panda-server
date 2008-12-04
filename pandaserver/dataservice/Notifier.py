@@ -59,6 +59,11 @@ class Notifier (threading.Thread):
                 _logger.error("could not find email address for %s" % self.job.prodUserID)
                 _logger.debug("%s end" % self.job.PandaID)
                 return
+            # not send 
+            if mailAddr == 'notsend':
+                _logger.debug("not send to %s" % self.job.prodUserID)
+                _logger.debug("%s end" % self.job.PandaID)
+                return
             # get IDs
             ids = self.taskBuffer.queryPandaIDwithDataset(self.datasets)
             _logger.debug("%s IDs: %s" % (self.job.PandaID,ids))
@@ -69,6 +74,7 @@ class Notifier (threading.Thread):
                 nTotal     = len(jobs)
                 nSucceeded = 0
                 nFailed    = 0
+                nPartial   = 0
                 # job ID
                 jobID = self.job.jobDefinitionID
                 # time info
@@ -91,7 +97,16 @@ class Notifier (threading.Thread):
                     if job == None:
                         continue
                     if job.jobStatus == 'finished':
-                        nSucceeded += 1
+                        # check all files were used
+                        allUses = True
+                        for file in job.Files:
+                            if file.type == 'input' and file.status in ['skipped']:
+                                allUses = False
+                                break
+                        if allUses:
+                            nSucceeded += 1
+                        else:
+                            nPartial += 1
                     elif job.jobStatus == 'failed':
                         nFailed += 1
                 # make message
@@ -103,15 +118,16 @@ To: %s
 
 Summary of JobID : %s
 
-Created : %s
-Ended   : %s
+Created : %s (UTC)
+Ended   : %s (UTC)
 
 Site    : %s
 
 Total Number of Jobs : %s
            Succeeded : %s
+           Partial   : %s
            Failed    : %s
-""" % (jobID,fromadd,mailAddr,jobID,creationTime,endTime,siteName,nTotal,nSucceeded,nFailed)
+""" % (jobID,fromadd,mailAddr,jobID,creationTime,endTime,siteName,nTotal,nSucceeded,nPartial,nFailed)
                 for iDS in iDSList:
                     message += \
 """
@@ -161,13 +177,19 @@ https://savannah.cern.ch/projects/panda/
                 distinguishedName = ''
         # use short name
         if distinguishedName == "":
-            distinguishedName = shortName 
+            distinguishedName = shortName
+        # remove _
+        distinguishedName = re.sub('_$','',distinguishedName)
         _logger.debug("DN = %s" % distinguishedName)
         if distinguishedName == "":
             _logger.error("cannot get DN for %s" % dn)
             return ""
-        # get email from DB
-        mailAddr = ""
+        # get email from MetaDB
+        mailAddr = self.taskBuffer.getEmailAddr(distinguishedName)
+        if mailAddr != "":
+            _logger.debug("email from MetaDB : '%s'" % mailAddr)
+            return mailAddr
+        # get email from local DB
         try:
             # lock DB
             fcntl.flock(_lockGetMail.fileno(), fcntl.LOCK_EX)
@@ -181,7 +203,7 @@ https://savannah.cern.ch/projects/panda/
             fcntl.flock(_lockGetMail.fileno(), fcntl.LOCK_UN)
         # return
         if mailAddr != "":
-            _logger.debug("email from DB : %s" % mailAddr)
+            _logger.debug("email from local DB : '%s'" % mailAddr)
             return mailAddr
         
         # get email from CERN/xwho
@@ -245,7 +267,7 @@ https://savannah.cern.ch/projects/panda/
                     adder = match.group(1)
                     if not adder in emails:
                         emails.append(adder)
-        _logger.debug("emails from xwho : %s" % emails)
+        _logger.debug("emails from xwho : '%s'" % emails)
         # failure
         if len(emails) != 1:
             _logger.error("non unique address : %s" % emails)

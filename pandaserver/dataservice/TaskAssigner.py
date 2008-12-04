@@ -7,11 +7,27 @@ import re
 import sys
 import time
 import random
+import commands
 import brokerage.broker_util
+from DDM import ddm
+from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
 
 # logger
 _logger = PandaLogger().getLogger('TaskAssigner')
+
+# cutoff for RW
+thr_RW_low  = 1000
+thr_RW_high = 1500
+
+# cutoff for disk
+thr_space_low = (1 * 1024)
+
+# task types using MC share
+taskTypesMcShare = ['evgen']
+
+# task types for subscriptions
+taskTypesSub = ['simul']
 
 
 class TaskAssigner:
@@ -22,6 +38,7 @@ class TaskAssigner:
         self.taskID     = taskID
         self.cloudTask  = None
         self.prodSourceLabel = prodSourceLabel
+
 
     # check cloud
     def checkCloud(self):
@@ -41,40 +58,104 @@ class TaskAssigner:
             return ""
         except:
             type, value, traceBack = sys.exc_info()
-            _logger.error("checkCloud : %s %s" % (type,value))
+            _logger.error("%s checkCloud : %s %s" % (self.taskID,type,value))
             return None
 
 
     # set cloud
-    def setCloud(self,lfns,guids,locations={}):
+    def setCloud(self,lfns,guids,locations={},metadata=None):
         try:
-            _logger.debug('%s setCloud' % self.taskID)        
+            _logger.debug('%s setCloud' % self.taskID)
+            _logger.debug('%s metadata="%s"' % (self.taskID,metadata))
+            taskType = None
+            RWs      = {}
+            expRWs   = {}
+            highRWs  = {}
+            prioMap  = {}
+            fullRWs  = {}
+            try:
+                # parse metadata
+                if not metadata in (None,'NULL'):
+                    # task type
+                    taskType = metadata.split(';')[0]
+                    # RWs
+                    exec "RWs = %s" % metadata.split(';')[1]
+                    # expected RWs
+                    exec "expRWs = %s" % metadata.split(';')[2]
+                    # RWs for high priority tasks
+                    exec "prioMap = %s" % metadata.split(';')[3]
+                    # full RWs for space calcuration
+                    exec "fullRWs = %s" % metadata.split(';')[4]
+            except:
+                pass
+            message = '%s taskType=%s priority=%s' % (self.taskID,taskType,prioMap[self.taskID])
+            _logger.debug(message)
+            self.sendMesg(message)
+            _logger.debug('%s RWs     =%s' % (self.taskID,str(RWs)))
+            _logger.debug('%s expRWs  =%s' % (self.taskID,str(expRWs)))
+            _logger.debug('%s prioMap =%s' % (self.taskID,str(prioMap)))            
+            _logger.debug('%s fullRWs =%s' % (self.taskID,str(fullRWs)))            
             # get cloud list
             cloudList = self.siteMapper.getCloudList()
             # get pilot statistics
             nWNmap = self.taskBuffer.getCurrentSiteData()
-            # remove offline clouds, or non-validation cloud if validation
+            # recalculate RWs
+            for tmpTaskID,tmpExpRW in expRWs.iteritems():
+                # get cloud from DB
+                tmpCloudInDB = self.taskBuffer.seeCloudTask(tmpTaskID)
+                # not assigned
+                if tmpCloudInDB == '':
+                    continue
+                # increase full RW
+                if not fullRWs.has_key(tmpCloudInDB):
+                    fullRWs[tmpCloudInDB] = 0
+                fullRWs[tmpCloudInDB] += tmpExpRW
+                # no priority info
+                if not prioMap.has_key(tmpTaskID):
+                    continue
+                # lower priority
+                if prioMap[tmpTaskID] < prioMap[self.taskID]:
+                    continue
+                # increase RW
+                if not RWs.has_key(tmpCloudInDB):
+                    RWs[tmpCloudInDB] = 0
+                RWs[tmpCloudInDB] += tmpExpRW
+            _logger.debug('%s newRWs  =%s' % (self.taskID,str(RWs)))
+            _logger.debug('%s fullRWs =%s' % (self.taskID,str(fullRWs)))            
+            # remove offline clouds and check validation/fasttrack
             tmpCloudList = []
             for tmpCloudName in cloudList:
                 # get cloud
                 tmpCloud = self.siteMapper.getCloud(tmpCloudName)
-                # skip offline  clouds
-                if tmpCloud['status'] in ['offline']:
-                    _logger.debug('%s skip %s status:%s' % (self.taskID,tmpCloudName,tmpCloud['status']))
+                # skip offline clouds
+                if not tmpCloud['status'] in ['online']:
+                    message = '%s    %s skip : status=%s' % (self.taskID,tmpCloudName,tmpCloud['status'])
+                    _logger.debug(message)
+                    self.sendMesg(message)
                     continue
                 # skip non-validation cloud if validation
                 if self.prodSourceLabel in ['validation'] and tmpCloud['validation'] != 'true':
-                    _logger.debug("%s skip %s validation:'%s'" % (self.taskID,tmpCloudName,tmpCloud['validation']))
+                    message = "%s    %s skip : validation='%s'" % (self.taskID,tmpCloudName,tmpCloud['validation'])
+                    _logger.debug(message)
+                    self.sendMesg(message)
+                    continue
+                # check fast track
+                if taskType in ['evgen'] and prioMap[self.taskID] > 700 and tmpCloud['fasttrack'] != 'true':
+                    message = "%s    %s skip : fasttrack='%s'" % (self.taskID,tmpCloudName,tmpCloud['fasttrack'])
+                    _logger.debug(message)
+                    self.sendMesg(message)
                     continue
                 # append
                 tmpCloudList.append(tmpCloudName)
             cloudList = tmpCloudList
             # DQ2 location info
             _logger.debug('%s DQ2 locations %s' % (self.taskID,str(locations)))
+            removedDQ2Map = {}
             incompleteClouds = []
             if locations != {}:
                 removedCloud = []
                 for dataset,sites in locations.iteritems():
+                    removedDQ2Map[dataset] = []
                     _logger.debug('%s DS:%s' % (self.taskID,dataset)) 
                     for tmpCloudName in cloudList:
                         tmpCloud = self.siteMapper.getCloud(tmpCloudName)
@@ -92,6 +173,8 @@ class TaskAssigner:
                             _logger.debug('%s   removed %s' % (self.taskID,tmpCloudName))
                             if not tmpCloudName in removedCloud:
                                 removedCloud.append(tmpCloudName)
+                            if not tmpCloudName in removedDQ2Map[dataset]:
+                                removedDQ2Map[dataset].append(tmpCloudName)
                         else:
                             # check incomplete or not
                             tmpStat = sites[foundSE][-1]
@@ -105,13 +188,22 @@ class TaskAssigner:
                         cloudList.remove(tmpCloudName)
             _logger.debug('%s new locations after DQ2 filter %s' % (self.taskID,str(cloudList)))
             if cloudList == []:
-                raise RuntimeError, 'cloud list is empty after DQ2 filter'
+                # make subscription to empty cloud
+                if taskType in taskTypesSub:
+                    _logger.debug('%s makeSubscription start' % self.taskID)                    
+                    retSub = self.makeSubscription(removedDQ2Map,RWs,fullRWs,expRWs)
+                    _logger.debug('%s makeSubscription end with %s' % (self.taskID,retSub))
+                message = '%s no input data locations' % self.taskID
+                self.sendMesg(message,msgType='error')
+                raise RuntimeError, '%s cloud list is empty after DQ2 filter' % self.taskID
             # list of completed cloud
             completedCloud = []
             for tmpCloudName in cloudList:
                 if not tmpCloudName in incompleteClouds:
                     completedCloud.append(tmpCloudName)
-            _logger.debug('%s comp clouds %s' % (self.taskID,str(completedCloud)))
+            message = '%s input data locations %s' % (self.taskID,str(cloudList))
+            _logger.debug(message)
+            self.sendMesg(message)
             # calculate # of loops
             nFile = 200
             nLoop = len(guids) / nFile
@@ -165,6 +257,8 @@ class TaskAssigner:
                                     completedCloud.remove(tmpCloudName)
                                 # fail if no completedCloud
                                 if True: # if completedCloud == []: # TEMP disabled to fail for any LFC/LRC error
+                                    message = '%s %s failed to access LFC/LRC' % (self.taskID,tmpCloudName)
+                                    self.sendMesg(message,msgType='error')
                                     raise RuntimeError, 'invalid return from getFilesFromLRC'
                                 else:
                                     skipFlag = True
@@ -184,8 +278,8 @@ class TaskAssigner:
                     del weightParams[tmpCloudName]
                     continue
                 _logger.debug('%s  # of files  %s' % (self.taskID,weightParams[tmpCloudName]['nFiles']))
-                # get number of running jobs
-                nPilot = 0
+                # get number of running jobs. Initially set 1 to avoid zero dividing
+                nPilot = 1
                 for siteName in tmpCloud['sites']:
                     if nWNmap.has_key(siteName):
                         nPilot += (nWNmap[siteName]['getJob'] + nWNmap[siteName]['updateJob'])
@@ -193,11 +287,15 @@ class TaskAssigner:
                 _logger.debug('%s  # of pilots %s' % (self.taskID,nPilot))
                 # available space
                 weightParams[tmpCloudName]['space'] = tmpT1Site.space
-                _logger.debug('%s  T1 space    %s' % (self.taskID,tmpT1Site.space))                
+                _logger.debug('%s  T1 space    %s' % (self.taskID,tmpT1Site.space))
+                # MC share
+                weightParams[tmpCloudName]['mcshare'] = tmpCloud['mcshare']
+                _logger.debug('%s  MC share    %s' % (self.taskID,tmpCloud['mcshare']))                
             # compare parameters
             definedCloud = "US"
             maxNFiles = 0
             maxClouds = []
+            useMcShare = False
             for cloudName,params in weightParams.iteritems():
                 # compare # of files
                 if params['nFiles'] > maxNFiles:
@@ -205,51 +303,104 @@ class TaskAssigner:
                     maxClouds = [cloudName]
                 elif params['nFiles'] == maxNFiles:
                     maxClouds.append(cloudName)
-            # space check
-            if len(maxClouds) > 1:
-                tmpMaxClouds = []
-                for cloudName in maxClouds:
-                    # ignore non-active cloud
-                    if weightParams[cloudName]['nPilot'] == 0:
-                        _logger.debug('%s    %s skip : 0 pilots' % (self.taskID,cloudName))
-                        continue
-                    # calculate space per 1000 CPU's
-                    aveSpace = weightParams[cloudName]['space'] * 1000 / weightParams[cloudName]['nPilot']
-                    # no task is assigned if available space is less than 10TB per 1000 CPU's
-                    if aveSpace < (10 * 1024):
-                        _logger.debug('%s    %s skip : space=%s total=%s' % \
-                                      (self.taskID,cloudName,aveSpace,weightParams[cloudName]['space']))
-                        continue
-                    else:
-                        _logger.debug('%s    %s pass : space=%s total=%s' % \
-                                      (self.taskID,cloudName,aveSpace,weightParams[cloudName]['space']))
-                        tmpMaxClouds.append(cloudName)
-                # use new maxCloud
-                if tmpMaxClouds != []:
-                    _logger.debug('%s    use new clouds after space checking' % self.taskID)
-                    maxClouds = tmpMaxClouds
+            # logging
+            _logger.debug('%s check nFiles' % self.taskID)            
+            for cloudName,params in weightParams.iteritems():
+                if not cloudName in maxClouds:
+                    message = '%s    %s skip : nFiles=%s<%s' % \
+                              (self.taskID,cloudName,params['nFiles'],maxNFiles)
+                    _logger.debug(message)
+                    self.sendMesg(message)
+                    time.sleep(2)                    
+            # check space/RW
+            _logger.debug('%s check space/RW' % self.taskID)                
+            tmpMaxClouds = []
+            tmpInfClouds = []
+            for cloudName in maxClouds:
+                # add missing cloud in RWs
+                if not RWs.has_key(cloudName):
+                    RWs[cloudName] = 0
+                if not fullRWs.has_key(cloudName):
+                    fullRWs[cloudName] = 0
+                # calculate available space = totalT1space - ((RW(cloud)+RW(thistask))*GBperSI2kday))
+                aveSpace = self.getAvailableSpace(weightParams[cloudName]['space'],
+                                                  fullRWs[cloudName],
+                                                  expRWs[self.taskID])
+                # no task is assigned if available space is less than 1TB
+                if aveSpace < thr_space_low:
+                    message = '%s    %s skip : space=%s total=%s' % \
+                              (self.taskID,cloudName,aveSpace,weightParams[cloudName]['space'])
+                    _logger.debug(message)
+                    self.sendMesg(message,msgType='warning')
+                    continue
                 else:
-                    _logger.debug('%s    use old clouds' % self.taskID)
+                    _logger.debug('%s    %s pass : space=%s total=%s' % \
+                                  (self.taskID,cloudName,aveSpace,weightParams[cloudName]['space']))
+                    tmpMaxClouds.append(cloudName)
+                # not assign tasks when RW is too high
+                if RWs.has_key(cloudName) and RWs[cloudName] > thr_RW_high*weightParams[cloudName]['mcshare']:
+                    message = '%s    %s skip : too high RW=%s > %s' % \
+                              (self.taskID,cloudName,RWs[cloudName],thr_RW_high*weightParams[cloudName]['mcshare'])
+                    _logger.debug(message)
+                    self.sendMesg(message)
+                    tmpMaxClouds.remove(cloudName)
+                    continue
+                # set weight to infinite when RW is too low
+                if not taskType in taskTypesMcShare:
+                    if RWs[cloudName] < thr_RW_low:
+                        message = '%s    %s infinite weight : RW=%s < %s' % \
+                                  (self.taskID,cloudName,RWs[cloudName],thr_RW_low)
+                        _logger.debug(message)
+                        self.sendMesg(message)
+                        tmpInfClouds.append(cloudName)
+            # use new list
+            if tmpInfClouds != []:
+                _logger.debug('%s use infinite clouds after space/RW checking' % self.taskID)
+                maxClouds  = tmpInfClouds
+                useMcShare = True
+            elif tmpMaxClouds != []:
+                _logger.debug('%s use new clouds after space/RW checking' % self.taskID)
+                maxClouds = tmpMaxClouds
+            else:
+                # make subscription to empty cloud
+                if taskType in taskTypesSub:
+                    _logger.debug('%s makeSubscription start' % self.taskID)                    
+                    retSub = self.makeSubscription(removedDQ2Map,RWs,fullRWs,expRWs)
+                    _logger.debug('%s makeSubscription end with %s' % (self.taskID,retSub))
+                message = '%s no candidates left' % self.taskID
+                self.sendMesg(message,msgType='error')
+                raise RuntimeError, message
             # choose one
+            message = '%s candidates %s' % (self.taskID,str(maxClouds))
+            _logger.debug(message)
+            self.sendMesg(message)
             if len(maxClouds) == 1:
                 definedCloud = maxClouds[0]
             elif len(maxClouds) > 1:
-                nPilotList = []
-                totalRequest = 0
+                # choose cloud according to weight
+                nWeightList = []
+                totalWeight = 0
                 for cloudName in maxClouds:
-                    # choose cloud according to # of pilot requests
-                    nPilot = weightParams[cloudName]['nPilot']
-                    if nPilot == 0:
-                        nPilot = 1
-                    nPilotList.append(nPilot)
-                    totalRequest += nPilot
+                    if (taskType in taskTypesMcShare):
+                        # use MC share for evgen
+                        tmpWeight = float(weightParams[cloudName]['mcshare'])
+                    else:
+                        # use nPilot/fullRW*MCshare
+                        tmpWeight = float(weightParams[cloudName]['nPilot']) / float(1+fullRWs[cloudName])
+                    nWeightList.append(tmpWeight)
+                    totalWeight += tmpWeight
+                # check total weight
+                if totalWeight == 0:
+                    raise RuntimeError, 'totalWeight=0'
                 # determin cloud using random number
-                rNumber = random.randint(1,totalRequest)
+                _logger.debug('%s weights %s' % (self.taskID,str(nWeightList)))
+                rNumber = random.random() * totalWeight
+                _logger.debug('%s    totalW   %s' % (self.taskID,totalWeight))                
                 _logger.debug('%s    rNumber  %s' % (self.taskID,rNumber))
-                for index,nPilot in enumerate(nPilotList):
-                    rNumber -= nPilot
-                    _logger.debug('%s    rNumber  %s : Cloud=%s nPilot=%s' % 
-                                  (self.taskID,rNumber,maxClouds[index],nPilot))
+                for index,tmpWeight in enumerate(nWeightList):
+                    rNumber -= tmpWeight
+                    _logger.debug('%s    rNumber  %s : Cloud=%s weight=%s' % 
+                                  (self.taskID,rNumber,maxClouds[index],tmpWeight))
                     if rNumber <= 0:
                         definedCloud = maxClouds[index]
                         break
@@ -259,11 +410,244 @@ class TaskAssigner:
             if retCloudTask == None:
                 _logger.error('%s cannot set CloudTask' % self.taskID)
                 return None
-            _logger.debug('%s set Cloud -> %s' % (self.taskID,retCloudTask.cloud))
+            message = '%s set Cloud -> %s' % (self.taskID,retCloudTask.cloud)
+            _logger.debug(message)
+            self.sendMesg(message)
             # return
             return retCloudTask.cloud
         except:
             type, value, traceBack = sys.exc_info()
-            _logger.error("setCloud : %s %s" % (type,value))
+            _logger.error("%s setCloud : %s %s" % (self.taskID,type,value))
             return None
             
+
+    # send message to logger
+    def sendMesg(self,message,msgType=None):
+        try:
+            # get logger
+            tmpPandaLogger = PandaLogger()
+            # lock HTTP handler
+            tmpPandaLogger.lock()
+            tmpPandaLogger.setParams({'Type':'taskbrokerage'})
+            # use bamboo for loggername 
+            tmpLogger = tmpPandaLogger.getHttpLogger('bamboo')
+            # add message
+            if msgType=='error':
+                tmpLogger.error(message)
+            elif msgType=='warning':
+                tmpLogger.warning(message)
+            elif msgType=='info':
+                tmpLogger.info(message)
+            else:
+                tmpLogger.debug(message)                
+            # release HTTP handler
+            tmpPandaLogger.release()
+        except:
+            pass
+        time.sleep(1)
+
+
+    # get available space
+    def getAvailableSpace(self,space,fullRW,expRW):
+        # calculate available space = totalT1space - ((RW(cloud)+RW(thistask))*GBperSI2kday))   
+        aveSpace = space - (fullRW+expRW)*1
+        return aveSpace
+
+
+    # make subscription
+    def makeSubscription(self,dsCloudMap,RWs,fullRWs,expRWs):
+        nDDMtry = 3
+        cloudList = []
+        # collect clouds which don't hold datasets
+        for tmpDS,tmpClouds in dsCloudMap.iteritems():
+            for tmpCloud in tmpClouds:
+                if not tmpCloud in cloudList:
+                    cloudList.append(tmpCloud)
+        if cloudList == []:
+            _logger.debug('%s no candidates for subscription' % self.taskID)
+            return False
+        # get DN
+        com = 'unset LD_LIBRARY_PATH; unset PYTHONPATH; export PATH=/usr/local/bin:/bin:/usr/bin; '
+        com+= 'source %s; voms-proxy-info -acsubject' % panda_config.glite_source
+        status,DN = commands.getstatusoutput(com)
+        _logger.debug('%s %s' % (self.taskID,DN))
+        # ignore AC issuer
+        if re.search('WARNING: Unable to verify signature!',DN) != None:
+            status = 0
+        DN = DN.split('\n')[-1]
+        if status != 0:
+            _logger.error('%s could not get DN %s:%s' % (self.taskID,status,DN))
+            return False
+        # loop over all datasets
+        runningSub = {}
+        for tmpDS,tmpClouds in dsCloudMap.iteritems():
+            # get running subscriptions
+            runningSub[tmpDS] = []
+            _logger.debug('%s listSubscriptions(%s)' % (self.taskID,tmpDS))
+            iTry = 0
+            while True:
+                status,outLoc = ddm.DQ2.listSubscriptions(tmpDS)
+                # succeed
+                if status == 0:
+                    break
+                # failed
+                iTry += 1
+                if iTry < nDDMtry:
+                    time.sleep(30)
+                else:
+                    _logger.error('%s %s' % (self.taskID,outLoc))
+                    return False
+            _logger.debug('%s %s %s' % (self.taskID,status,outLoc))                
+            time.sleep(1)
+            # get subscription metadata
+            exec "outLoc = %s" % outLoc
+            for tmpLocation in outLoc:
+                t1Flag = False
+                # check T1 or not
+                for tmpCloudName4T1 in self.siteMapper.getCloudList():
+                    if tmpLocation in self.siteMapper.getCloud(tmpCloudName4T1)['tier1SE']:
+                        t1Flag = True
+                        break
+                # skip non-T1
+                if not t1Flag:
+                    continue
+                _logger.debug('%s listSubscriptionInfo(%s,%s)' % (self.taskID,tmpDS,tmpLocation))
+                iTry = 0
+                while True:
+                    status,outMeta = ddm.DQ2.listSubscriptionInfo(tmpDS,tmpLocation,0)
+                    # succeed
+                    if status == 0:
+                        break
+                    # skip non-existing ID
+                    if re.search('not a Tiers of Atlas Destination',outMeta) != None:
+                        _logger.debug('%s ignore %s' % (self.taskID,outMeta.split('\n')[-1]))
+                        status = 0
+                        outMeta = "()"
+                        break
+                    # failed
+                    iTry += 1
+                    if iTry < nDDMtry:
+                        time.sleep(30)
+                    else:
+                        _logger.error('%s %s' % (self.taskID,outMeta))
+                        return False
+                _logger.debug('%s %s %s' % (self.taskID,status,outMeta))
+                time.sleep(1)                
+                # look for DN in metadata
+                exec "outMeta = %s" % outMeta
+                if DN in outMeta:
+                    # get corrosponding cloud
+                    for tmpCloudName in self.siteMapper.getCloudList():
+                        tmpCloudSpec = self.siteMapper.getCloud(tmpCloudName)
+                        if tmpLocation in tmpCloudSpec['tier1SE']:
+                            # append
+                            if not tmpCloudName in runningSub[tmpDS]:
+                                runningSub[tmpDS].append(tmpCloudName)
+                            break
+        _logger.debug('%s runningSub=%s' % (self.taskID,runningSub))
+        # doesn't make subscriptions when another subscriptions is in process
+        subThr = 1
+        for tmpDS,tmpClouds in runningSub.iteritems():
+            if len(tmpClouds) > 0:
+                _logger.debug('%s subscription:%s in process' % (self.taskID,tmpDS))
+                return False
+        # get size of datasets
+        dsSizeMap = {}
+        for tmpDS in dsCloudMap.keys():
+            _logger.debug('%s listFilesInDataset(%s)' % (self.taskID,tmpDS))
+            iTry = 0
+            while True:
+                status,outList = ddm.DQ2.listFilesInDataset(tmpDS)
+                # succeed
+                if status == 0:
+                    break
+                # failed
+                iTry += 1
+                if iTry < nDDMtry:
+                    time.sleep(30)
+                else:
+                    _logger.error('%s %s %s' % (self.taskID,status,outList))
+                    return False
+            _logger.debug('%s %s' % (self.taskID,outList))
+            # get total size
+            dsSizeMap[tmpDS] = 0
+            exec "outList = %s" % outList
+            for guid,vals in outList[0].iteritems():
+                try:
+                    dsSizeMap[tmpDS] += long(vals['filesize'])
+                except:
+                    pass
+            # GB
+            _logger.debug('%s %s %sB' % (self.taskID,tmpDS,dsSizeMap[tmpDS]))
+            dsSizeMap[tmpDS] /= (1024*1024*1024)
+        _logger.debug('%s dsSize=%s' % (self.taskID,dsSizeMap))
+        # check space and RW
+        minRW    = None
+        minCloud = None
+        for tmpCloudName in cloudList:
+            # get cloud spec
+            tmpCloudSpec = self.siteMapper.getCloud(tmpCloudName)
+            # get T1 site
+            tmpT1Site = self.siteMapper.getSite(tmpCloudSpec['source'])
+            # calculate available space
+            if not fullRWs.has_key(tmpCloudName):
+                fullRWs[tmpCloudName] = 0
+            aveSpace = self.getAvailableSpace(tmpT1Site.space,
+                                              fullRWs[tmpCloudName],
+                                              expRWs[self.taskID])
+            # reduce requred space
+            for tmpDS,tmpClouds in dsCloudMap.iteritems():
+                if tmpCloudName in tmpClouds:
+                    aveSpace -= dsSizeMap[tmpDS]
+            # check space
+            if aveSpace < thr_space_low:
+                _logger.debug('%s    %s skip : space=%s' % (self.taskID,tmpCloudName,aveSpace))
+                continue
+            _logger.debug('%s    %s pass : space=%s' % (self.taskID,tmpCloudName,aveSpace))
+            # get minimum RW
+            if not RWs.has_key(tmpCloudName):
+                RWs[tmpCloudName] = 0
+            if minRW == None or minRW > RWs[tmpCloudName]:
+                minRW    = RWs[tmpCloudName]
+                minCloud = tmpCloudName
+        # check RW
+        if minCloud == None or minRW > thr_RW_low:
+            _logger.debug('%s no empty cloud : %s minRW=%s>%s' % (self.taskID,minCloud,minRW,thr_RW_low))
+            return False
+        _logger.debug('%s %s for subscription : minRW=%s' % (self.taskID,minCloud,minRW))        
+        # get cloud spec for subscription
+        tmpCloudSpec = self.siteMapper.getCloud(minCloud)
+        # get T1 site
+        tmpT1Site = self.siteMapper.getSite(tmpCloudSpec['source'])
+        # dest DQ2 ID
+        dq2ID = tmpT1Site.ddm
+        # make subscription
+        for tmpDS,tmpClouds in dsCloudMap.iteritems():
+            # skip if the dataset already exists in the cloud
+            if not minCloud in tmpClouds:
+                _logger.debug('%s %s already exists in %s' % (self.taskID,tmpDS,minCloud))
+                continue
+            # register subscription
+            optSrcPolicy = 001000 | 010000
+            _logger.debug(('registerDatasetSubscription',tmpDS,dq2ID,0,0,{},{},optSrcPolicy,0,None,0,"production"))
+            iTry = 0
+            while True:
+                # execute
+                status,out = ddm.DQ2.main('registerDatasetSubscription',tmpDS,dq2ID,0,0,{},{},optSrcPolicy,0,None,0,"production")
+                # succeed
+                if status == 0:
+                    break
+                # failed
+                iTry += 1
+                if iTry < nDDMtry:
+                    time.sleep(30)
+                else:
+                    _logger.error('%s %s %s' % (self.taskID,status,out))
+                    return False
+            _logger.debug('%s %s %s' % (self.taskID,status,out))
+            message = '%s registered %s %s:%s' % (self.taskID,tmpDS,minCloud,dq2ID)
+            _logger.debug(message)
+            self.sendMesg(message)
+            time.sleep(1)
+        # completed
+        return True

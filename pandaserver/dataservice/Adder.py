@@ -41,6 +41,7 @@ class Adder (threading.Thread):
         self.siteMapper = siteMapper
         self.addToTopOnly = False
         self.goToTransferring = False
+        self.subscriptionMap = {}
         # dump Catalog into file
         if xmlFile=='':
             self.xmlFile = '%s/%s_%s_%s' % (panda_config.logdir,jobID,jobStatus,commands.getoutput('uuidgen'))
@@ -129,6 +130,7 @@ class Adder (threading.Thread):
                         re.search('could not register subscription',self.job.ddmErrorDiag) != None) and \
                         re.search('DQClosedDatasetException',self.job.ddmErrorDiag) == None and \
                         re.search('DQFrozenDatasetException',self.job.ddmErrorDiag) == None and \
+                        re.search('DQFileMetaDataMismatchException',self.job.ddmErrorDiag) == None and \
                         re.search('KeyError',self.job.ddmErrorDiag) == None:                       
                     _logger.debug('%s : ignore %s ' % (self.jobID,self.job.ddmErrorDiag))
                     _logger.debug('%s escape' % self.jobID)
@@ -148,6 +150,7 @@ class Adder (threading.Thread):
                     if self.ignoreDDMError and re.search('could not add files',self.job.ddmErrorDiag) != None \
                            and re.search('DQClosedDatasetException',self.job.ddmErrorDiag) == None \
                            and re.search('DQFrozenDatasetException',self.job.ddmErrorDiag) == None \
+                           and re.search('DQFileMetaDataMismatchException',self.job.ddmErrorDiag) == None \
                            and re.search('KeyError',self.job.ddmErrorDiag) == None:                           
                         _logger.debug('%s : ignore %s ' % (self.jobID,self.job.ddmErrorDiag))
                         _logger.debug('%s escape' % self.jobID)
@@ -171,14 +174,17 @@ class Adder (threading.Thread):
                     self.job.jobDispatcherErrorDiag = 'NULL'
                     # set job status
                     hasOutput = False
-                    if self.goToTransferring:
+                    if self.goToTransferring or self.subscriptionMap != {}:
                         # set status to transferring
                         for file in self.job.Files:
-                            if file.type == 'output' or file.type == 'log':
+                            if file.type == 'output' or file.type == 'log' or \
+                               self.subscriptionMap.has_key(file.destinationDBlock):
                                 file.status = 'transferring'
                                 hasOutput = True
                         if hasOutput:                  
                             self.job.jobStatus = 'transferring'
+                            # propagate transition to prodDB
+                            self.job.stateChangeTime = time.strftime('%Y-%m-%d %H:%M:%S',time.gmtime())
                     # endtime
                     if self.job.endTime=='NULL':
                         self.job.endTime = time.strftime('%Y-%m-%d %H:%M:%S',time.gmtime())
@@ -240,6 +246,11 @@ class Adder (threading.Thread):
             _logger.debug("%s has no outputs" % self.jobID)            
             _logger.debug("%s addFiles end" % self.jobID)
             return
+        # get input files
+        inputLFNs = []
+        for file in self.job.Files:
+            if file.type == 'input':
+                inputLFNs.append(file.lfn)
         # parse XML
         lfns    = []
         guids   = []
@@ -275,7 +286,7 @@ class Adder (threading.Thread):
                     elif name == 'adler32':
                         adler32 = str(meta.getAttribute('att_value'))
                 # error check
-                if fsize == None or (md5sum == None and adler32 == None):
+                if (not lfn in inputLFNs) and (fsize == None or (md5sum == None and adler32 == None)):
                     raise RuntimeError, 'fsize/md5sum/adler32=None'
                 # append
                 lfns.append(lfn)
@@ -310,7 +321,11 @@ class Adder (threading.Thread):
         fileList = []
         subMap = {}        
         for file in self.job.Files:
-            if file.type == 'output' or file.type == 'log':
+            if file.type == 'input' and self.job.prodSourceLabel in ['user','panda']:
+                # skipped file
+                if file.lfn in lfns:
+                    file.status = 'skipped'
+            elif file.type == 'output' or file.type == 'log':
                 # append to fileList
                 fileList.append(file.lfn)
                 # add only log file for failed jobs
@@ -365,29 +380,74 @@ class Adder (threading.Thread):
                                     tmpDstDDM = self.siteMapper.getSite(file.destinationSE).ddm
                                     tmpSrcSEs = brokerage.broker_util.getSEfromSched(self.siteMapper.getSite(self.job.computingSite).se)
                                     tmpDstSEs = brokerage.broker_util.getSEfromSched(self.siteMapper.getSite(file.destinationSE).se)
-                                    # if src != dest
-                                    if tmpSrcDDM != tmpDstDDM and tmpSrcSEs != tmpDstSEs:
+                                    # if src != dest or multi-token
+                                    if (tmpSrcDDM != tmpDstDDM and tmpSrcSEs != tmpDstSEs) or \
+                                       (tmpSrcDDM == tmpDstDDM and file.destinationDBlockToken.count(',') != 0):
                                         optSub = {'DATASET_COMPLETE_EVENT' : ['https://%s:%s/server/panda/datasetCompleted' % \
                                                                               (panda_config.pserverhost,panda_config.pserverport)]}
                                         # append
                                         if not subMap.has_key(file.destinationDBlock):
-                                            dq2ID = tmpDstDDM
+                                            subMap[file.destinationDBlock] = []
+                                            # sources
+                                            optSource = {}
+                                            # FIXME : only NL/FR for UK emergency
+                                            if self.job.cloud in ['NL','FR']:
+                                                if file.destinationDBlockToken in ['NULL','']:
+                                                    # use default DQ2 ID as source
+                                                    optSource[tmpSrcDDM] = {'policy' : 0}
+                                                else:
+                                                    # convert token to DQ2 ID
+                                                    dq2ID = tmpSrcDDM
+                                                    # use the first token's location as source for T1D1
+                                                    tmpSrcToken = file.destinationDBlockToken.split(',')[0]
+                                                    if self.siteMapper.getSite(self.job.computingSite).setokens.has_key(tmpSrcToken):
+                                                        dq2ID = self.siteMapper.getSite(self.job.computingSite).setokens[tmpSrcToken]
+                                                    optSource[dq2ID] = {'policy' : 0}                                                    
                                             # use another location when token is set
                                             if not file.destinationDBlockToken in ['NULL','']:
-                                                if self.siteMapper.getSite(file.destinationSE).setokens.has_key(file.destinationDBlockToken):
-                                                    dq2ID = self.siteMapper.getSite(file.destinationSE).setokens[file.destinationDBlockToken]
-                                            subMap[file.destinationDBlock] = (dq2ID,optSub)
+                                                tmpDQ2IDList = []
+                                                tmpDstTokens = file.destinationDBlockToken.split(',')
+                                                # remove the first one because it is already used as a location
+                                                if tmpSrcDDM == tmpDstDDM:
+                                                    tmpDstTokens = tmpDstTokens[1:]
+                                                # loop over all tokens
+                                                for idxToken,tmpDstToken in enumerate(tmpDstTokens):
+                                                    dq2ID = tmpDstDDM
+                                                    if self.siteMapper.getSite(file.destinationSE).setokens.has_key(tmpDstToken):
+                                                        dq2ID = self.siteMapper.getSite(file.destinationSE).setokens[tmpDstToken]
+                                                    # keep the fist destination for multi-hop
+                                                    if idxToken == 0:
+                                                        firstDestDDM = dq2ID
+                                                    else:
+                                                        # use the fist destination as source for T1D1
+                                                        optSource = {}                                                        
+                                                        optSource[firstDestDDM] = {'policy' : 0}
+                                                    # remove looping subscription
+                                                    if dq2ID == tmpSrcDDM:
+                                                        continue
+                                                    # avoid duplication
+                                                    if not dq2ID in tmpDQ2IDList:
+                                                        subMap[file.destinationDBlock].append((dq2ID,optSub,optSource))
+                                            else:
+                                                # use default DDM
+                                                dq2ID = tmpDstDDM
+                                                subMap[file.destinationDBlock].append((dq2ID,optSub,optSource))
                 except:
                     # status
                     file.status = 'failed'
                     type, value, traceBack = sys.exc_info()
                     _logger.error("%s : %s %s" % (self.jobID,type,value))
+        # cleanup submap
+        tmpKeys = subMap.keys()
+        for tmpKey in tmpKeys:
+            if subMap[tmpKey] == []:
+                del subMap[tmpKey]
         # return if PandaDDM is used
         if self.pandaDDM:
             return
         # check consistency between XML and filesTable
         for lfn in lfns:
-            if not lfn in fileList:
+            if (not lfn in fileList) and (not lfn in inputLFNs):
                 _logger.error("%s %s is not found in filesTable" % (self.jobID,lfn))
                 self.job.jobStatus = 'failed'
                 self.job.ddmErrorCode = ErrorCode.EC_Adder
@@ -420,19 +480,21 @@ class Adder (threading.Thread):
             status,out =  ddm.DQ2.main('registerFilesInDatasets',idMap)
             isFailed = False
             if status != 0 and out.find('DQFileExistsInDatasetException') == -1 \
-                   and out.find('The file LFN or GUID is already registered') == -1:
+                   and (out.find('The file LFN or GUID is already registered') == -1 or \
+                        out.find('already registered in vuid') == -1):
                 isFailed = True
-            else:
-                _logger.debug(out)
+            if not isFailed:
+                _logger.debug('%s %s' % (self.jobID,out))
             # failed
             if isFailed:
-                _logger.error(out)
+                _logger.error('%s %s' % (self.jobID,out))
                 if (iTry+1) == nTry or out.find('DQClosedDatasetException') != 0 or \
-                       out.find('DQFrozenDatasetException') != 0:
+                       out.find('DQFrozenDatasetException') != 0 or \
+                       out.find('DQFileMetaDataMismatchException') != 0:
                     self.job.jobStatus = 'failed'
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
                     errMsg = "Adder._updateOutputs() could not add files to %s\n" % idMap.keys()
-                    self.job.ddmErrorDiag = errMsg + out
+                    self.job.ddmErrorDiag = errMsg + out.split('\n')[-1]
                     return
                 _logger.error("%s Try:%s" % (self.jobID,iTry))
                 # sleep
@@ -441,25 +503,27 @@ class Adder (threading.Thread):
                 break
         # register dataset subscription
         for tmpName,tmpVal in subMap.iteritems():
-            dq2ID,optSub = tmpVal
-            _logger.debug((self.jobID,'registerDatasetSubscription',tmpName,dq2ID,0,0,optSub,{},001000 | 010000,0,None,0,"production"))
-            for iDDMTry in range(3):                                                        
-                status,out = ddm.DQ2.main('registerDatasetSubscription',tmpName,dq2ID,0,0,optSub,{},001000 | 010000,0,None,0,"production")
-                if (status != 0 or out.find("DQ2 internal server exception") != -1 \
-                       or out.find("An error occurred on the central catalogs") != -1 \
-                       or out.find("MySQL server has gone away") != -1) and \
-                       out.find('DQSubscriptionExistsException') == -1:
-                    time.sleep(60)
-                else:
-                    break
-            _logger.debug(out)                                                        
-            if status != 0 and (out != 'None' and out.find('DQSubscriptionExistsException') == -1):
-                _logger.error(out)
-                self.job.ddmErrorCode = ErrorCode.EC_Adder                
-                self.job.ddmErrorDiag = "Adder._updateOutputs() could not register subscription : %s" % tmpName
-                return
-            # set dataset status
-            self.datasetMap[tmpName].status = 'running'
+            for dq2ID,optSub,optSource in tmpVal:
+                _logger.debug((self.jobID,'registerDatasetSubscription',tmpName,dq2ID,0,0,optSub,optSource,001000 | 010000,0,None,0,"production"))
+                for iDDMTry in range(3):                                                        
+                    status,out = ddm.DQ2.main('registerDatasetSubscription',tmpName,dq2ID,0,0,optSub,optSource,001000 | 010000,0,None,0,"production")
+                    if (status != 0 or out.find("DQ2 internal server exception") != -1 \
+                           or out.find("An error occurred on the central catalogs") != -1 \
+                           or out.find("MySQL server has gone away") != -1) and \
+                           out.find('DQSubscriptionExistsException') == -1:
+                        time.sleep(60)
+                    else:
+                        break
+                if status != 0 and (out != 'None' and out.find('DQSubscriptionExistsException') == -1):
+                    _logger.error('%s %s' % (self.jobID,out))
+                    self.job.ddmErrorCode = ErrorCode.EC_Adder                
+                    self.job.ddmErrorDiag = "Adder._updateOutputs() could not register subscription : %s" % tmpName
+                    return
+                _logger.debug('%s %s' % (self.jobID,out))                                                        
+                # set dataset status
+                self.datasetMap[tmpName].status = 'running'
+        # keep subscriptions
+        self.subscriptionMap = subMap
         # properly finished    
         _logger.debug("%s addFiles end" % self.jobID)
 
@@ -480,6 +544,9 @@ class Adder (threading.Thread):
                 if not shadowDS in shadowList:
                     shadowList.append(shadowDS)
             elif file.type == 'input':
+                # remove skipped files
+                if file.status in ['skipped']:
+                    continue
                 # ignore lib.tgz
                 if re.search('lib\.tgz\.*\d*',file.lfn) != None:
                     continue
@@ -531,19 +598,21 @@ class Adder (threading.Thread):
             status,out =  ddm.DQ2.main('registerFilesInDatasets',idMap)
             isFailed = False
             if status != 0 and out.find('DQFileExistsInDatasetException') == -1 \
-                   and out.find('The file LFN or GUID is already registered') == -1:
+                   and (out.find('The file LFN or GUID is already registered') == -1 or \
+                        out.find('already registered in vuid') == -1):
                 isFailed = True
-            else:
-                _logger.debug(out)
+            if not isFailed:
+                _logger.debug('%s %s' % (self.jobID,out))
             # failed
             if isFailed:
-                _logger.error(out)
+                _logger.error('%s %s' % (self.jobID,out))
                 if (iTry+1) == nTry or out.find('DQClosedDatasetException') != 0 or \
-                       out.find('DQFrozenDatasetException') != 0:
+                       out.find('DQFrozenDatasetException') != 0 or \
+                       out.find('DQFileMetaDataMismatchException') != 0:
                     self.job.jobStatus = 'failed'
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
                     errMsg = "Adder._updateOutputs() could not add files to %s\n" % idMap.keys()
-                    self.job.ddmErrorDiag = errMsg + out
+                    self.job.ddmErrorDiag = errMsg + out.split('\n')[-1]
                     return
                 _logger.error("%s shadow Try:%s" % (self.jobID,iTry))
                 # sleep

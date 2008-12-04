@@ -7,7 +7,7 @@ import re
 import sys
 import time
 
-import MySQLdb
+import cx_Oracle
 
 from pandalogger.PandaLogger import PandaLogger
 from config import panda_config
@@ -39,9 +39,13 @@ class LogDBProxy:
             self.dbname    = dbname
         # connect    
         try:
-            self.conn = MySQLdb.connect(host=self.dbhost,user=self.dbuser,
-                                        passwd=self.dbpasswd,db=self.dbname)
+            self.conn = cx_Oracle.connect(dsn=self.dbhost,user=self.dbuser,
+                                          password=self.dbpasswd,threaded=True)
             self.cur=self.conn.cursor()
+            # set TZ
+            self.cur.execute("ALTER SESSION SET TIME_ZONE='UTC'")
+            # set DATE format
+            self.cur.execute("ALTER SESSION SET NLS_DATE_FORMAT='YYYY/MM/DD HH24:MI:SS'")
             return True
         except:
             type, value, traceBack = sys.exc_info()
@@ -52,10 +56,11 @@ class LogDBProxy:
 
 
     # query an SQL   
-    def querySQL(self,sql):
+    def querySQL(self,sql,arraySize=1000):
         try:
             # begin transaction
-            self.cur.execute("START TRANSACTION")
+            self.conn.begin()
+            self.cur.arraysize = arraySize            
             self.cur.execute(sql)
             res = self.cur.fetchall()
             # commit
@@ -74,8 +79,9 @@ class LogDBProxy:
         sql = "SELECT SITE,getJob,updateJob FROM SiteData WHERE FLAG='production' and HOURS=3"
         try:
             # set autocommit on
-            self.cur.execute("SET AUTOCOMMIT=1")
+            self.conn.begin()
             # select
+            self.cur.arraysize = 10000
             self.cur.execute(sql)
             res = self.cur.fetchall()
             # commit
@@ -99,9 +105,10 @@ class LogDBProxy:
         _logger.debug("getSiteList start")
         try:
             # set autocommit on
-            self.cur.execute("SET AUTOCOMMIT=1")
+            self.conn.begin()
             # select
-            sql = "SELECT siteid,nickname FROM schedconfig WHERE siteid<>''"
+            sql = "SELECT siteid,nickname FROM schedconfig WHERE siteid IS NOT NULL"
+            self.cur.arraysize = 10000            
             self.cur.execute(sql)
             res = self.cur.fetchall()
             # commit
@@ -110,6 +117,9 @@ class LogDBProxy:
             retMap = {}
             if res != None and len(res) != 0:
                 for siteid,nickname in res:
+                    # skip invalid siteid                    
+                    if siteid in [None,'']:
+                        continue
                     # append
                     if not retMap.has_key(siteid):
                         retMap[siteid] = []
@@ -130,12 +140,13 @@ class LogDBProxy:
         _logger.debug("getSiteInfo start")
         try:
             # set autocommit on
-            self.cur.execute("SET AUTOCOMMIT=1")
+            self.conn.begin()
             # select
             sql = "SELECT nickname,dq2url,cloud,ddm,lfchost,se,gatekeeper,releases,memory,"
             sql+= "maxtime,status,space,retry,cmtconfig,setokens,seprodpath,glexec,"
             sql+= "priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue "            
-            sql+= "FROM schedconfig WHERE siteid<>''"
+            sql+= "FROM schedconfig WHERE siteid IS NOT NULL"
+            self.cur.arraysize = 10000            
             self.cur.execute(sql)
             resList = self.cur.fetchall()
             # commit
@@ -145,10 +156,19 @@ class LogDBProxy:
             if resList != None:
                 # loop over all results
                 for res in resList:
+                    # change None to ''
+                    resTmp = []
+                    for tmpItem in res:
+                        if tmpItem == None:
+                            tmpItem = ''
+                        resTmp.append(tmpItem)
                     nickname,dq2url,cloud,ddm,lfchost,se,gatekeeper,releases,memory,\
                        maxtime,status,space,retry,cmtconfig,setokens,seprodpath,glexec,\
                        priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue \
-                       = res
+                       = resTmp
+                    # skip invalid siteid
+                    if siteid in [None,'']:
+                        continue
                     # instantiate SiteSpec
                     ret = SiteSpec.SiteSpec()
                     ret.sitename   = siteid
@@ -222,20 +242,28 @@ class LogDBProxy:
         _logger.debug("getCloudList start")        
         try:
             # set autocommit on
-            self.cur.execute("SET AUTOCOMMIT=1")
+            self.conn.begin()
             # select
             sql  = "SELECT name,tier1,tier1SE,relocation,weight,server,status,transtimelo,"
-            sql += "transtimehi,waittime,validation,mcshare,countries,fasttrack "            
+            sql += "transtimehi,waittime,validation,mcshare,countries,fasttrack "
             sql+= "FROM cloudconfig"
+            self.cur.arraysize = 10000            
             self.cur.execute(sql)
-            res = self.cur.fetchall()
+            resList = self.cur.fetchall()
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
             ret = {}
-            if res != None and len(res) != 0:
-                for name,tier1,tier1SE,relocation,weight,server,status,transtimelo,transtimehi,\
-                        waittime,validation,mcshare,countries,fasttrack in res:
+            if resList != None and len(resList) != 0:
+                for res in resList:
+                    # change None to ''
+                    resTmp = []
+                    for tmpItem in res:
+                        if tmpItem == None:
+                            tmpItem = ''
+                        resTmp.append(tmpItem)
+                    name,tier1,tier1SE,relocation,weight,server,status,transtimelo,transtimehi,\
+                        waittime,validation,mcshare,countries,fasttrack = resTmp 
                     # instantiate CloudSpec
                     tmpC = CloudSpec.CloudSpec()
                     tmpC.name = name
@@ -302,11 +330,14 @@ class LogDBProxy:
         _logger.debug("checkQuota %s" % dn)
         try:
             # set autocommit on
-            self.cur.execute("SET AUTOCOMMIT=1")
+            self.conn.begin()
             # select
             name = self.cleanUserID(dn)
-            sql = "SELECT cpua1,cpua7,cpua30,quotaa1,quotaa7,quotaa30 FROM users WHERE name = '%s'" % name
-            self.cur.execute(sql)
+            sql = "SELECT cpua1,cpua7,cpua30,quotaa1,quotaa7,quotaa30 FROM users WHERE name = :name"
+            varMap = {}
+            varMap[':name'] = name
+            self.cur.arraysize = 10            
+            self.cur.execute(sql,varMap)
             res = self.cur.fetchall()
             # commit
             if not self._commit():
@@ -346,11 +377,14 @@ class LogDBProxy:
         _logger.debug("getUserParameter %s %s" % (dn,jobID))
         try:
             # set autocommit on
-            self.cur.execute("SET AUTOCOMMIT=1")
+            self.conn.begin()
             # select
             name = self.cleanUserID(dn)
-            sql = "SELECT jobid,status FROM users WHERE name = '%s'" % name
-            self.cur.execute(sql)
+            sql = "SELECT jobid,status FROM users WHERE name = :name"
+            varMap = {}
+            varMap[':name'] = name
+            self.cur.execute(sql,varMap)
+            self.cur.arraysize = 10            
             res = self.cur.fetchall()
             # commit
             if not self._commit():
@@ -385,10 +419,13 @@ class LogDBProxy:
         _logger.debug("get email for %s" % name) 
         try:
             # set autocommit on
-            self.cur.execute("SET AUTOCOMMIT=1")
+            self.conn.begin()
             # select
-            sql = "SELECT email FROM users WHERE name='%s'" % name
-            self.cur.execute(sql)
+            sql = "SELECT email FROM users WHERE name=:name"
+            varMap = {}
+            varMap[':name'] = name
+            self.cur.execute(sql,varMap)
+            self.cur.arraysize = 10            
             res = self.cur.fetchall()
             # commit
             if not self._commit():
@@ -404,26 +441,26 @@ class LogDBProxy:
             self._rollback()
             return ""
 
-
+        
     # register proxy key
     def registerProxyKey(self,params):
         _logger.debug("register ProxyKey %s" % str(params))
         try:
             # set autocommit on
-            self.cur.execute("SET AUTOCOMMIT=1")
+            self.conn.begin()
             # construct SQL
             sql0 = 'INSERT INTO proxykey ('
             sql1 = 'VALUES ('
-            vals = []
+            vals = {}
             for key,val in params.iteritems():
-                sql0 += '%s,' % key
-                sql1 += '%s,'
-                vals.append(val)
+                sql0 += '%s,'  % key
+                sql1 += ':%s,' % key
+                vals[':%s' % key] = val
             sql0 = sql0[:-1]
             sql1 = sql1[:-1]            
             sql = sql0 + ') ' + sql1 + ') '
             # insert
-            self.cur.execute(sql,tuple(vals))
+            self.cur.execute(sql,vals)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -442,11 +479,13 @@ class LogDBProxy:
         _logger.debug("get ProxyKey %s" % dn)
         try:
             # set autocommit on
-            self.cur.execute("SET AUTOCOMMIT=1")
+            self.conn.begin()
             # construct SQL
-            sql = 'SELECT credname,expires,origin,myproxy FROM proxykey WHERE dn=%s ORDER BY expires DESC'
+            sql = 'SELECT credname,expires,origin,myproxy FROM proxykey WHERE dn=:dn ORDER BY expires DESC'
+            varMap = {}
+            varMap[':dn'] = dn
             # select
-            self.cur.execute(sql,(dn,))
+            self.cur.execute(sql,varMap)
             res = self.cur.fetchall()            
             # commit
             if not self._commit():
@@ -474,7 +513,7 @@ class LogDBProxy:
         for iTry in range(5):
             try:
                 # check if the connection is working
-                self.conn.ping()
+                self.cur.execute("select user from dual")
                 return
             except:
                 type, value, traceBack = sys.exc_info()

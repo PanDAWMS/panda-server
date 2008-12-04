@@ -61,7 +61,7 @@ def _getFilesLFC(files,lfcHost,storages,verbose=False):
     retLFNs = {}
     for guid,lfn in files.iteritems():
         if guid in pfnMap.keys():
-            retLFNs[lfn] = pfnMap[guid][0]
+            retLFNs[lfn] = pfnMap[guid]
     # return
     return retLFNs
     

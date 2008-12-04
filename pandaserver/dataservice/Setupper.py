@@ -57,7 +57,11 @@ class Setupper (threading.Thread):
         self.forkRun = forkRun
         # run task assignment only
         self.onlyTA = onlyTA
-        
+        # location map
+        self.replicaMap  = {}
+        # all replica locations
+        self.allReplicaMap = {}
+
 
     # main
     def run(self):
@@ -120,6 +124,7 @@ class Setupper (threading.Thread):
         prodList    = []
         prodError   = {}
         dispSiteMap = {}
+        dispError   = {}
         # extract prodDBlock
         for job in self.jobs:
             # ignore failed jobs
@@ -206,12 +211,40 @@ class Setupper (threading.Thread):
                                 fileList[job.dispatchDBlock]['chksums'].append(None)
                             else:
                                 fileList[job.dispatchDBlock]['chksums'].append(file.checksum)
+                        # get replica locations
+                        if not self.replicaMap.has_key(job.dispatchDBlock):
+                            self.replicaMap[job.dispatchDBlock] = {}
+                        if not self.allReplicaMap.has_key(file.dataset):
+                            for iDDMTry in range(3):
+                                _logger.debug(('listDatasetReplicas',file.dataset))
+                                status,out = ddm.DQ2.main('listDatasetReplicas',file.dataset)
+                                if status != 0 or out.find("DQ2 internal server exception") != -1 \
+                                       or out.find("An error occurred on the central catalogs") != -1 \
+                                       or out.find("MySQL server has gone away") != -1 \
+                                       or out == '()':
+                                    time.sleep(60)
+                                else:
+                                    break
+                            _logger.debug(out)
+                            if status != 0 or out.startswith('Error'):
+                                dispError[job.dispatchDBlock] = 'could not get locations for %s' % file.dataset
+                                _logger.error(dispError[job.dispatchDBlock])
+                            else:
+                                tmpRepSites = {}
+                                try:
+                                    # convert res to map
+                                    exec "tmpRepSites = %s" % out
+                                    self.allReplicaMap[file.dataset] = tmpRepSites
+                                except:
+                                    dispError[job.dispatchDBlock] = 'could not convert HTTP-res to replica map for %s' % file.dataset
+                                    _logger.error(dispError[job.dispatchDBlock])
+                                    _logger.error(out)
+                        if self.allReplicaMap.has_key(file.dataset):
+                            self.replicaMap[job.dispatchDBlock][file.dataset] = self.allReplicaMap[file.dataset]
         # register dispatch dataset
         _logger.debug('%s 5' % self.timestamp)                                
         dispList = []
-        dispError = {}
         for dispatchDBlock in fileList.keys():
-            dispError[dispatchDBlock] = ''
             # ignore empty dataset
             if len(fileList[dispatchDBlock]['lfns']) == 0:
                 continue
@@ -402,31 +435,51 @@ class Setupper (threading.Thread):
                             # conversion is needed for unknown sites
                             tmpSrcDDM = self.siteMapper.getSite(computingSite).ddm
                             tmpDstDDM = self.siteMapper.getSite(file.destinationSE).ddm
+                            tmpTokenList = file.destinationDBlockToken.split(',')
                             if name == originalName or tmpSrcDDM != tmpDstDDM or \
-                                   job.prodSourceLabel == 'panda':
-                                # register location
+                                   job.prodSourceLabel == 'panda' or len(tmpTokenList) > 1:
                                 time.sleep(1)
-                                dq2ID = self.siteMapper.getSite(computingSite).ddm
+                                # register location
+                                dq2IDList = [self.siteMapper.getSite(computingSite).ddm]
                                 # use another location when token is set
                                 if not file.destinationDBlockToken in ['NULL','']:
-                                    if self.siteMapper.getSite(computingSite).setokens.has_key(file.destinationDBlockToken):
-                                        dq2ID = self.siteMapper.getSite(computingSite).setokens[file.destinationDBlockToken]
-                                _logger.debug(('registerDatasetLocation',name,dq2ID))
-                                for iDDMTry in range(3):                            
-                                    status,out = ddm.DQ2.main('registerDatasetLocation',name,dq2ID)
-                                    if status != 0 and out.find('DQLocationExistsException') != -1:
+                                    dq2IDList = []
+                                    for tmpToken in tmpTokenList:
+                                        # set default
+                                        dq2ID = self.siteMapper.getSite(computingSite).ddm
+                                        # convert token to DQ2ID
+                                        if self.siteMapper.getSite(computingSite).setokens.has_key(tmpToken):
+                                            dq2ID = self.siteMapper.getSite(computingSite).setokens[tmpToken]
+                                        # replace or append    
+                                        if len(tmpTokenList) <= 1 or name != originalName:
+                                            # use location consistent with token
+                                            dq2IDList = [dq2ID]
+                                            break
+                                        else:
+                                            # use multiple locations for _tid
+                                            if not dq2ID in dq2IDList:
+                                                dq2IDList.append(dq2ID)
+                                # loop over all locations
+                                for dq2ID in dq2IDList:
+                                    _logger.debug(('registerDatasetLocation',name,dq2ID))
+                                    for iDDMTry in range(3):                            
+                                        status,out = ddm.DQ2.main('registerDatasetLocation',name,dq2ID)
+                                        if status != 0 and out.find('DQLocationExistsException') != -1:
+                                            break
+                                        elif status != 0 or out.find("DQ2 internal server exception") != -1 \
+                                                 or out.find("An error occurred on the central catalogs") != -1 \
+                                                 or out.find("MySQL server has gone away") != -1:
+                                            time.sleep(60)
+                                        else:
+                                            break
+                                    _logger.debug(out)
+                                    # ignore "already exists at location XYZ"
+                                    if out.find('DQLocationExistsException') != -1:
+                                        _logger.debug('ignored ERROR')
+                                        status,out = 0,''
+                                    # failed
+                                    if status != 0 or out.find('Error') != -1:
                                         break
-                                    elif status != 0 or out.find("DQ2 internal server exception") != -1 \
-                                             or out.find("An error occurred on the central catalogs") != -1 \
-                                             or out.find("MySQL server has gone away") != -1:
-                                        time.sleep(60)
-                                    else:
-                                        break
-                                _logger.debug(out)
-                                # ignore "already exists at location XYZ"
-                                if out.find('DQLocationExistsException') != -1:
-                                    _logger.debug('ignored ERROR')
-                                    status,out = 0,''                                    
                             else:
                                 # skip registerDatasetLocations
                                 status,out = 0,''
@@ -442,8 +495,10 @@ class Setupper (threading.Thread):
                                 dq2ID = self.siteMapper.getSite(file.destinationSE).ddm
                                 # use another location when token is set
                                 if not file.destinationDBlockToken in ['NULL','']:
-                                    if self.siteMapper.getSite(file.destinationSE).setokens.has_key(file.destinationDBlockToken):
-                                        dq2ID = self.siteMapper.getSite(file.destinationSE).setokens[file.destinationDBlockToken]
+                                    # register only the first token becasue it is used as the location
+                                    tmpFirstToken = file.destinationDBlockToken.split(',')[0] 
+                                    if self.siteMapper.getSite(file.destinationSE).setokens.has_key(tmpFirstToken):
+                                        dq2ID = self.siteMapper.getSite(file.destinationSE).setokens[tmpFirstToken]
                                 _logger.debug(('setMetaDataAttribute',name,'origin',dq2ID))
                                 for iDDMTry in range(3):
                                     status,out = ddm.DQ2.main('setMetaDataAttribute',name,'origin',dq2ID)
@@ -558,19 +613,51 @@ class Setupper (threading.Thread):
                        and (job.prodSourceLabel != 'ddm') and (not job.computingSite.endswith("_REPRO")):
                     # look for replica
                     dq2ID = srcDQ2ID
+                    dq2IDList = []
                     # register replica
                     if dq2ID != dstDQ2ID:
-                        time.sleep(1)
-                        _logger.debug(('registerDatasetLocation',job.dispatchDBlock,dq2ID,0,1))
-                        for iDDMTry in range(3):                                            
-                            status,out = ddm.DQ2.main('registerDatasetLocation',job.dispatchDBlock,dq2ID,0,1)
-                            if status != 0 or out.find("DQ2 internal server exception") != -1 \
-                                   or out.find("An error occurred on the central catalogs") != -1 \
-                                   or out.find("MySQL server has gone away") != -1:
-                                time.sleep(60)
+                        # make list
+                        if self.replicaMap.has_key(job.dispatchDBlock):
+                            # set DQ2 ID for DISK 
+                            if job.cloud in ['NL']:
+                                # split T1
+                                diskID = 'NIKHEF-ELPROD_DATADISK'
+                                tapeID = 'NIKHEF-ELPROD_DATATAPE'                                
                             else:
+                                # others
+                                diskID = re.sub('_MCDISK','_DATADISK',srcDQ2ID)
+                                tapeID = re.sub('_MCDISK','_DATATAPE',srcDQ2ID)                                
+                            for tmpDataset,tmpRepMap in self.replicaMap[job.dispatchDBlock].iteritems():
+                                if tmpRepMap.has_key(srcDQ2ID):
+                                    # MCDISK
+                                    if not srcDQ2ID in dq2IDList:
+                                        dq2IDList.append(srcDQ2ID)
+                                elif tmpRepMap.has_key(diskID):
+                                    # DATADISK
+                                    if not diskID in dq2IDList:
+                                        dq2IDList.append(diskID)
+                                elif tmpRepMap.has_key(tapeID):
+                                    # DATATAPE
+                                    if not tapeID in dq2IDList:
+                                        dq2IDList.append(tapeID)
+                        # use default location if empty
+                        if dq2IDList == []:
+                            dq2IDList = [dq2ID]
+                        for dq2ID in dq2IDList:
+                            time.sleep(1)
+                            _logger.debug(('registerDatasetLocation',job.dispatchDBlock,dq2ID,0,1))
+                            for iDDMTry in range(3):                                            
+                                status,out = ddm.DQ2.main('registerDatasetLocation',job.dispatchDBlock,dq2ID,0,1)
+                                if status != 0 or out.find("DQ2 internal server exception") != -1 \
+                                       or out.find("An error occurred on the central catalogs") != -1 \
+                                       or out.find("MySQL server has gone away") != -1:
+                                    time.sleep(60)
+                                else:
+                                    break
+                            _logger.debug(out)
+                            # failure
+                            if status != 0 or out.find('Error') != -1:
                                 break
-                        _logger.debug(out)                    
                     else:
                         # skip registerDatasetLocations
                         status,out = 0,''
@@ -587,12 +674,20 @@ class Setupper (threading.Thread):
                         dq2ID = dstDQ2ID
                         # prestaging
                         if srcDQ2ID == dstDQ2ID:
+                            # stage-in callback
+                            optSub['DATASET_STAGED_EVENT'] = ['https://%s:%s/server/panda/datasetCompleted' % \
+                                                              (panda_config.pserverhost,panda_config.pserverport)]
                             # use ATLASDATATAPE
                             seTokens = self.siteMapper.getSite(job.computingSite).setokens
                             if seTokens.has_key('ATLASDATATAPE'):
                                 dq2ID = seTokens['ATLASDATATAPE']
                             optSrcPolicy = 000010
                             optSource[dq2ID] = {'policy' : 0}
+                        else:
+                            # FIXME : only NL/FR for UK emergency
+                            if job.cloud in ['NL','FR']:
+                                for tmpDQ2ID in dq2IDList:
+                                    optSource[tmpDQ2ID] = {'policy' : 0}
                         _logger.debug(('registerDatasetSubscription',job.dispatchDBlock,dq2ID,0,0,optSub,optSource,optSrcPolicy,0,None,0,"production"))
                         for iDDMTry in range(3):                                                                
                             status,out = ddm.DQ2.main('registerDatasetSubscription',job.dispatchDBlock,dq2ID,0,0,optSub,optSource,optSrcPolicy,0,None,0,"production")
@@ -681,9 +776,10 @@ class Setupper (threading.Thread):
                     lfnsStr = lfnsStr[:-1]
                     if srcDQ2ID != dstDQ2ID:
                         # get destination dir
-                        destDir = brokerage.broker_util._getDefaultStorage(self.siteMapper.getSite(job.computingSite).dq2url)
+                        tmpSpec = self.siteMapper.getSite(job.computingSite)
+                        destDir = brokerage.broker_util._getDefaultStorage(tmpSpec.dq2url,tmpSpec.se,tmpSpec.seprodpath)
                         if destDir == '':
-                            err = "could not get default storage for %s" % self.siteMapper.getSite(job.computingSite).dq2url
+                            err = "could not get default storage for %s" % job.computingSite
                             _logger.error(err)
                             dispError[disp] = err
                             continue
@@ -813,7 +909,7 @@ class Setupper (threading.Thread):
                             tmpGUIDs = []
                             # set cloud
                             _logger.debug("set cloud for %s" % job.taskID)                        
-                            retCloud = cloudResolver.setCloud(tmpLFNs,tmpGUIDs)
+                            retCloud = cloudResolver.setCloud(tmpLFNs,tmpGUIDs,metadata=job.metadata)
                             _logger.debug("setCloud() -> %s" % retCloud)
                             if retCloud == None:
                                 _logger.error("failed to set cloud for %s" % job.taskID)
@@ -962,7 +1058,7 @@ class Setupper (threading.Thread):
                             tmpReLoc[dataset] = replicaMap[dataset] 
                         # set cloud
                         _logger.debug("set cloud for %s" % job.taskID)                        
-                        retCloud = cloudResolver.setCloud(tmpLFNs,tmpGUIDs,tmpReLoc)
+                        retCloud = cloudResolver.setCloud(tmpLFNs,tmpGUIDs,tmpReLoc,metadata=job.metadata)
                         _logger.debug("setCloud() -> %s" % retCloud)
                         if retCloud == None:
                             _logger.error("failed to set cloud for %s" % job.taskID)
@@ -1059,7 +1155,7 @@ class Setupper (threading.Thread):
         tmpJobList = tuple(jobsProcessed)
         for job in tmpJobList:
             # check only production/test jobs
-            if not job.prodSourceLabel in ['managed','test']:
+            if not job.prodSourceLabel in ['managed','test','software']:
                 continue
             missingFlag = False
             for file in job.Files:
