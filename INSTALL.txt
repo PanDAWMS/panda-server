@@ -1,0 +1,63 @@
+Installation Instructions for Panda Server component.
+-----------------------------------------------------
+
+Dependencies
+--------------------
+
+Project dependencies
+
+* panda-common project
+
+Typical system dependencies
+
+* httpd
+* mod_python
+* mod_ssl
+* curl
+* MySQL-python
+
+Specialized dependencies
+
+* gridsite (for mod_gridsite). e.g. gridsite-1.1.14-1.i386.rpm
+* DQ2 installation (/opt/dq2)
+
+
+Install Steps
+--------------------
+
+First, checkout panda-server.
+
+$ svn co https://svn.usatlas.bnl.gov/svn/panda/panda-server
+$ cd panda-server 
+$ python setup.py install --prefix=/path/to/app/root
+
+Then, edit /path/to/app/root/etc/panda/panda_server.cfg.
+
+$ vi /path/to/app/root/etc/panda/panda_server.cfg
+
+Finally, install server.key/cert.
+
+$ cd /path/to/app/root/etc/panda
+$ /usr/bin/openssl genrsa -des3 1024 > server.key
+$ /usr/bin/openssl req -new -key server.key -x509 -days 365 -out server.crt
+$ cp server.key server.key.org
+$ /usr/bin/openssl/openssl rsa -in server.key.org -out server.key
+
+
+Start the server
+--------------------
+
+Add the following to crontab.
+
+0-59/5 * * * * /path/to/app/root/usr/bin/panda_server-add.sh > /dev/null 2>&1
+15 0-21/3 * * * /path/to/app/root/usr/bin/panda_server-copyArchive.sh > /dev/null 2>&1
+
+Then run the server.
+
+$ /path/to/app/root/etc/init.d/panda_server-ctl start
+
+
+
+
+
+

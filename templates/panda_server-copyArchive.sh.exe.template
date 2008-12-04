@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# Panda home
+export PANDA_HOME=@@install_dir@@
+
+# for python
+export PYTHONPATH=@@install_purelib@@/pandacommon:@@install_purelib@@/pandaserver
+
+python @@install_purelib@@/pandaserver/test/copyArchive.py

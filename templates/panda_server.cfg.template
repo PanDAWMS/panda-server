@@ -1,0 +1,197 @@
+[server]
+
+
+##########################
+#
+# Logger parameters
+#
+
+# log directory
+logdir=@@install_dir@@/var/log/panda
+
+# logger name
+loggername = prod
+
+
+
+##########################
+#
+# Transaction parameters
+#
+
+# lock file for getJobs
+lockfile_getJobs = %(logdir)s/getJobs.lock
+
+# lock file for getSerialNumber
+lockfile_getSN = %(logdir)s/getSN.lock
+
+# lock file for accessing email DB
+lockfile_getMail = %(logdir)s/getMail.lock
+
+# lock file for updateDatasetStatus
+lockfile_setDS = %(logdir)s/setDS.lock
+
+# lock file for getCloudTask
+lockfile_getCT = %(logdir)s/getCT.lock
+
+# lock file for uuidgen
+lockfile_getUU = %(logdir)s/getUU.lock
+
+
+
+##########################
+#
+# DA parameters
+#
+
+# cache space
+cache_dir = @@install_dir@@/var/pandaserver/cache
+
+
+
+##########################
+#
+# DDM parameters
+#
+
+# dq2 dir
+dq2_dir = /opt/dq2
+
+# globus dir
+globus_dir = /opt/globus
+
+# path to native python 
+native_python = /usr/bin
+
+# path to 32 bit python for for lfc client
+native_python32 = /usr/bin
+
+# glite source file
+glite_source = /opt/glite/etc/profile.d/grid-env.sh
+
+# location for Panda common
+pandaCommon_dir = @@install_purelib@@/pandacommon
+
+# location for Panda server
+pandaPython_dir = @@install_purelib@@/pandaserver
+
+# location for LFCclient
+lfcClient_dir = %(pandaPython_dir)s/brokerage
+
+
+
+##########################
+#
+# Database parameters
+#
+
+# host
+dbhost = dbpro.usatlas.bnl.gov
+
+# user
+dbuser = panda-developer
+
+# password
+dbpasswd = FIXME
+
+# database
+dbname = PandaDB
+
+# number of connections
+nDBConnection = 3
+
+
+
+##########################
+#
+# Log Database parameters
+#
+
+# host
+logdbhost = dbarch3.usatlas.bnl.gov
+
+# user
+logdbuser = panda-developer
+
+# password
+logdbpasswd = FIXME
+
+# database
+logdbname = PandaMetaDB
+
+# number of connections
+nLogDBConnection = 3
+
+
+
+##########################
+#
+# Archive Database parameters
+#
+
+# host
+archivedbhost = dbarch3.usatlas.bnl.gov
+
+# user
+archivedbuser = panda-developer
+
+# password
+archivedbpasswd = FIXME
+
+# database
+archivedbname = PandaArchiveDB
+
+# number of connections
+nArchiveDBConnection = 1
+
+
+
+##########################
+#
+# Panda server parameters
+#
+
+# host
+pserverhost = @@hostname@@
+
+# port
+pserverport = 25443
+
+
+
+##########################
+#
+# proxy parameters
+#
+
+# http 
+httpProxy = ""
+
+
+
+##########################
+#
+# E-mail DB parameters
+#
+
+emailDB = %(logdir)s/email_db
+
+
+
+##########################
+#
+# parameters for dynamic task assignment 
+#
+
+# enable dynamic task assignment 
+enableDynamicTA = True
+
+
+
+##########################
+#
+# parameters for redirection service
+#
+
+# enable redirection service
+enableRedirection = False

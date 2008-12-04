@@ -1,0 +1,15 @@
+# Configuration file for the httpd service.
+
+OPTIONS="-f @@install_dir@@/etc/panda/panda_server-httpd.conf"
+
+# for DQ2
+export X509_CERT_DIR=/etc/grid-security/certificates
+
+# panda home
+export PANDA_HOME=@@install_dir@@
+
+# timezone
+export TZ=UTC
+
+# import panda modules
+export PYTHONPATH=@@install_purelib@@/pandacommon:@@install_purelib@@/pandaserver

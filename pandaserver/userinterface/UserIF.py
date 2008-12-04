@@ -1,0 +1,421 @@
+'''
+provide web interface to users
+
+'''
+
+import sys
+import types
+import cPickle as pickle
+import jobdispatcher.Protocol as Protocol
+import brokerage.broker
+from config import panda_config
+from taskbuffer.JobSpec import JobSpec
+from brokerage.SiteMapper import SiteMapper
+from pandalogger.PandaLogger import PandaLogger
+
+# logger
+_logger = PandaLogger().getLogger('UserIF')
+
+
+class UserIF:
+    # constructor
+    def __init__(self):
+        self.taskBuffer = None
+        
+
+    # initialize
+    def init(self,taskBuffer):
+        self.taskBuffer = taskBuffer
+
+
+    # submit jobs
+    def submitJobs(self,jobsStr,user,host):
+        try:
+            # deserialize jobspecs
+            jobs = pickle.loads(jobsStr)
+            _logger.debug("submitJobs %s len : %s" % (user,len(jobs)))
+            maxJobs = 2000
+            if len(jobs) > maxJobs:
+                _logger.error("too may jobs more than %s" % maxJobs)
+                jobs = jobs[:maxJobs]
+        except:
+            type, value, traceBack = sys.exc_info()
+            _logger.error("submitJobs : %s %s" % (type,value))
+            jobs = []
+        # store jobs
+        ret = self.taskBuffer.storeJobs(jobs,user,forkSetupper=True)
+        # logging
+        try:
+            # make message
+            message = '%s - PandaID =' % host
+            for iret in ret:
+                message += ' %s' % iret[0]
+            # get logger
+            _pandaLogger = PandaLogger()            
+            _pandaLogger.lock()
+            _pandaLogger.setParams({'Type':'submitJobs','User':user})
+            logger = _pandaLogger.getHttpLogger(panda_config.loggername)
+            # add message
+            logger.info(message)
+            # release HTTP handler
+            _pandaLogger.release()
+        except:
+            pass
+        # serialize 
+        return pickle.dumps(ret)
+
+
+    # run task assignment
+    def runTaskAssignment(self,jobsStr):
+        try:
+            # deserialize jobspecs
+            jobs = pickle.loads(jobsStr)
+        except:
+            type, value, traceBack = sys.exc_info()
+            _logger.error("runTaskAssignment : %s %s" % (type,value))
+            jobs = []
+        # run
+        ret = self.taskBuffer.runTaskAssignment(jobs)
+        # serialize 
+        return pickle.dumps(ret)
+
+
+    # get job status
+    def getJobStatus(self,idsStr):
+        try:
+            # deserialize jobspecs
+            ids = pickle.loads(idsStr)
+            _logger.debug("getJobStatus len   : %s" % len(ids))
+            maxIDs = 1000
+            if len(ids) > maxIDs:
+                _logger.error("too long ID list more than %s" % maxIDs)
+                ids = ids[:maxIDs]
+        except:
+            type, value, traceBack = sys.exc_info()
+            _logger.error("getJobStatus : %s %s" % (type,value))
+            ids = []
+        _logger.debug("getJobStatus start : %s" % ids)       
+        # peek jobs
+        ret = self.taskBuffer.peekJobs(ids)
+        _logger.debug("getJobStatus end")
+        # serialize 
+        return pickle.dumps(ret)
+
+
+    # get assigning task
+    def getAssigningTask(self):
+        # run
+        ret = self.taskBuffer.getAssigningTask()
+        # serialize 
+        return pickle.dumps(ret)
+
+    
+    # get job statistics
+    def getJobStatistics(self):
+        # get job statistics
+        ret = self.taskBuffer.getJobStatisticsForExtIF()
+        # serialize 
+        return pickle.dumps(ret)
+        
+
+    # get job statistics per site
+    def getJobStatisticsPerSite(self,predefined=False):
+        # get job statistics
+        ret = self.taskBuffer.getJobStatistics(archived=True,predefined=predefined)
+        # serialize 
+        return pickle.dumps(ret)
+
+
+    # query PandaIDs
+    def queryPandaIDs(self,idsStr):
+        # deserialize IDs
+        ids = pickle.loads(idsStr)
+        # query PandaIDs 
+        ret = self.taskBuffer.queryPandaIDs(ids)
+        # serialize 
+        return pickle.dumps(ret)
+
+
+    # query PandaIDs at site
+    def getPandaIDsSite(self,site,status,limit):
+        # query PandaIDs 
+        ret = self.taskBuffer.getPandaIDsSite(site,status,limit)
+        # serialize 
+        return pickle.dumps(ret)
+
+
+    # get PandaIDs to be updated in prodDB
+    def getJobsToBeUpdated(self,limit,lockedby):
+        # query PandaIDs 
+        ret = self.taskBuffer.getPandaIDsForProdDB(limit,lockedby)
+        # serialize 
+        return pickle.dumps(ret)
+
+
+    # update prodDBUpdateTimes
+    def updateProdDBUpdateTimes(self,paramsStr):
+        # deserialize IDs
+        params = pickle.loads(paramsStr)
+        # get jobs
+        ret = self.taskBuffer.updateProdDBUpdateTimes(params)
+        # serialize 
+        return pickle.dumps(True)
+
+
+    # query last files in datasets
+    def queryLastFilesInDataset(self,datasetStr):
+        # deserialize names
+        datasets = pickle.loads(datasetStr)
+        # get files
+        ret = self.taskBuffer.queryLastFilesInDataset(datasets)
+        # serialize 
+        return pickle.dumps(ret)
+
+
+    # kill jobs
+    def killJobs(self,idsStr,user,host,code):
+        # deserialize IDs
+        ids = pickle.loads(idsStr)
+        if not isinstance(ids,types.ListType):
+            ids = [ids]
+        _logger.debug("killJob : %s %s" % (code,ids))
+        # kill jobs
+        ret = self.taskBuffer.killJobs(ids,user,code)
+        # logging
+        try:
+            # make message
+            message = '%s - PandaID =' % host
+            for id in ids:
+                message += ' %s' % id
+            # get logger
+            _pandaLogger = PandaLogger()            
+            _pandaLogger.lock()
+            _pandaLogger.setParams({'Type':'killJobs','User':user})
+            logger = _pandaLogger.getHttpLogger(panda_config.loggername)
+            # add message
+            logger.info(message)
+            # release HTTP handler
+            _pandaLogger.release()
+        except:
+            pass
+        # serialize 
+        return pickle.dumps(ret)
+
+
+    # reassign jobs
+    def reassignJobs(self,idsStr,user,host):
+        # deserialize IDs
+        ids = pickle.loads(idsStr)
+        # reassign jobs
+        ret = self.taskBuffer.reassignJobs(ids,forkSetupper=True)
+        # logging
+        try:
+            # make message
+            message = '%s - PandaID =' % host
+            for id in ids:
+                message += ' %s' % id
+            # get logger
+            _pandaLogger = PandaLogger()            
+            _pandaLogger.lock()
+            _pandaLogger.setParams({'Type':'reassignJobs','User':user})
+            logger = _pandaLogger.getHttpLogger(panda_config.loggername)
+            # add message
+            logger.info(message)
+            # release HTTP handler
+            _pandaLogger.release()
+        except:
+            pass
+        # serialize 
+        return pickle.dumps(ret)
+        
+
+    # resubmit jobs
+    def resubmitJobs(self,idsStr):
+        # deserialize IDs
+        ids = pickle.loads(idsStr)
+        # kill jobs
+        ret = self.taskBuffer.resubmitJobs(ids)
+        # serialize 
+        return pickle.dumps(ret)
+
+
+    # get list of site spec
+    def getSiteSpecs(self):
+        # get analysis site list
+        specList = {}
+        siteMapper = SiteMapper(self.taskBuffer)
+        for id,spec in siteMapper.siteSpecList.iteritems():
+            if spec.type == 'analysis':
+                # convert to map
+                tmpSpec = {}
+                for attr in spec._attributes:
+                    tmpSpec[attr] = getattr(spec,attr)
+                specList[id] = tmpSpec
+        # serialize
+        return pickle.dumps(specList)
+
+
+    # get list of cloud spec
+    def getCloudSpecs(self):
+        # get cloud list
+        siteMapper = SiteMapper(self.taskBuffer)
+        # serialize
+        return pickle.dumps(siteMapper.cloudSpec)
+
+
+    # run brokerage
+    def runBrokerage(self,sitesStr,cmtConfig,atlasRelease):
+        ret = 'NULL'
+        try:
+            # deserialize sites
+            sites = pickle.loads(sitesStr)
+            # instantiate siteMapper
+            siteMapper = SiteMapper(self.taskBuffer)
+            # instantiate job
+            job = JobSpec()
+            job.AtlasRelease = atlasRelease
+            job.cmtConfig    = cmtConfig
+            # run brokerage
+            brokerage.broker.schedule([job],self.taskBuffer,siteMapper,True,sites)
+            # get computingSite
+            ret = job.computingSite
+        except:
+            type, value, traceBack = sys.exc_info()
+            _logger.error("runBrokerage : %s %s" % (type,value))
+        return ret
+
+
+# Singleton
+userIF = UserIF()
+del UserIF
+
+
+"""
+web service interface
+
+"""
+
+# submit jobs
+def submitJobs(req,jobs):
+    # check security
+    if not Protocol.isSecure(req):
+        return False
+    # get DN
+    user = None
+    if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        user = req.subprocess_env['SSL_CLIENT_S_DN']
+    # hostname
+    host = req.get_remote_host()
+    return userIF.submitJobs(jobs,user,host)
+
+
+# run task assignment
+def runTaskAssignment(req,jobs):
+    # check security
+    if not Protocol.isSecure(req):
+        return "False"
+    return userIF.runTaskAssignment(jobs)
+
+
+# get job status
+def getJobStatus(req,ids):
+    return userIF.getJobStatus(ids)
+
+
+# get assigning task
+def getAssigningTask(req):
+    return userIF.getAssigningTask()
+
+
+# query PandaIDs
+def queryPandaIDs(req,ids):
+    return userIF.queryPandaIDs(ids)
+
+
+# get PandaIDs at site
+def getPandaIDsSite(req,site,status,limit=500):
+    return userIF.getPandaIDsSite(site,status,limit)
+
+
+# get PandaIDs to be updated in prodDB
+def getJobsToBeUpdated(req,limit=5000,lockedby=''):
+    limit = int(limit)
+    return userIF.getJobsToBeUpdated(limit,lockedby)
+
+
+# update prodDBUpdateTimes
+def updateProdDBUpdateTimes(req,params):
+    # check security
+    if not Protocol.isSecure(req):
+        return False
+    return userIF.updateProdDBUpdateTimes(params)
+
+
+# get job statistics
+def getJobStatistics(req):
+    return userIF.getJobStatistics()
+
+
+# get job statistics per site
+def getJobStatisticsPerSite(req,predefined='False'):
+    if predefined=='True':
+        predefined=True
+    else:
+        predefined=False
+    return userIF.getJobStatisticsPerSite(predefined)
+
+
+# query last files in datasets
+def queryLastFilesInDataset(req,datasets):
+    return userIF.queryLastFilesInDataset(datasets)
+
+
+# kill jobs
+def killJobs(req,ids,code=None):
+    # check security
+    if not Protocol.isSecure(req):
+        return False
+    # get DN
+    user = None
+    if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        user = req.subprocess_env['SSL_CLIENT_S_DN']
+    # hostname
+    host = req.get_remote_host()
+    return userIF.killJobs(ids,user,host,code)
+
+
+# reassign jobs
+def reassignJobs(req,ids):
+    # check security
+    if not Protocol.isSecure(req):
+        return False
+    # get DN
+    user = None
+    if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        user = req.subprocess_env['SSL_CLIENT_S_DN']
+    # hostname
+    host = req.get_remote_host()
+    return userIF.reassignJobs(ids,user,host)
+
+
+# resubmit jobs
+def resubmitJobs(req,ids):
+    # check security
+    if not Protocol.isSecure(req):
+        return False
+    return userIF.resubmitJobs(ids)
+
+
+# get list of site spec
+def getSiteSpecs(req):
+    return userIF.getSiteSpecs()
+
+
+# get list of cloud spec
+def getCloudSpecs(req):
+    return userIF.getCloudSpecs()
+
+
+# run brokerage
+def runBrokerage(req,sites,cmtConfig=None,atlasRelease=None):
+    return userIF.runBrokerage(sites,cmtConfig,atlasRelease)

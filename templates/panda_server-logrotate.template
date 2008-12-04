@@ -1,0 +1,10 @@
+@@install_dir@@/var/log/panda/*log {
+    missingok
+    notifempty
+    sharedscripts
+    daily       
+    postrotate
+        /bin/kill -USR1 `cat @@install_dir@@/var/log/panda/panda_server_httpd.pid 2>/dev/n
+ull` 2> /dev/null || true
+    endscript
+}
