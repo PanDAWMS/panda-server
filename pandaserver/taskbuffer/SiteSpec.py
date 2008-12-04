@@ -7,7 +7,8 @@ class SiteSpec(object):
     # attributes
     _attributes = ('sitename','nickname','dq2url','cloud','ddm','lfchost','se','type','gatekeeper',
                    'releases','memory','maxtime','status','space','retry','cmtconfig','setokens',
-                   'seprodpath','glexec')
+                   'seprodpath','glexec','priorityoffset','allowedgroups','defaulttoken','queue',
+                   'localqueue')
     # slots
     __slots__ = _attributes
     

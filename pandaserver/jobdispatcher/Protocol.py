@@ -84,7 +84,7 @@ class Response:
                     logGUID = file.GUID
                 if strDestToken != '':
                     strDestToken += ','
-                strDestToken += file.destinationDBlockToken
+                strDestToken += file.destinationDBlockToken.split(',')[0]
         # inFiles
         self.data['inFiles'] = strIFiles
         # dispatch DBlock
@@ -119,7 +119,19 @@ class Response:
         self.data['maxDiskCount'] = job.maxDiskCount
         # cmtconfig
         self.data['cmtConfig'] = job.cmtConfig
+        # processingType
+        self.data['processingType'] = job.processingType
             
+
+    # set proxy key
+    def setProxyKey(self,proxyKey):
+        names = ['credname','myproxy']
+        for name in names:
+            if proxyKey.has_key(name):
+                self.data[name] = proxyKey[name]
+            else:
+                self.data[name] = ''
+                
 
 # check if secure connection
 def isSecure(req):

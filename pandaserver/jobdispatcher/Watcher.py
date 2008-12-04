@@ -4,6 +4,7 @@ watch job
 '''
 
 import re
+import sys
 import time
 import commands
 import datetime
@@ -49,8 +50,9 @@ class Watcher (threading.Thread):
                                                                    str(job.modificationTime),
                                                                    str(job.endTime)))
                     destDBList = []
-                    # reset sent job
-                    if job.jobStatus == 'sent':
+                    # reset sent job for analysis
+                    if job.jobStatus == 'sent' and job.commandToPilot != 'tobekilled' and \
+                           (not job.prodSourceLabel in ['managed']):
                         _logger.debug(' -> reset Sent job : PandaID:%s' % job.PandaID)
                         job.jobStatus = 'activated'
                         job.startTime = None
@@ -94,11 +96,15 @@ class Watcher (threading.Thread):
                                 file.lfn = "%s.%d" % (file.lfn,job.attemptNr)
                                 newName  = file.lfn
                                 # modify jobParameters
-                                job.jobParameters = re.sub("'%s'" % oldName ,"'%s'" % newName,
-                                                           job.jobParameters)
+                                sepPatt = "(\'|\"|%20)" + oldName + "(\'|\"|%20)"
+                                matches = re.findall(sepPatt,job.jobParameters)
+                                for match in matches:
+                                    oldPatt = match[0]+oldName+match[-1]
+                                    newPatt = match[0]+newName+match[-1]
+                                    job.jobParameters = re.sub(oldPatt,newPatt,job.jobParameters)
                     # hold production jobs         
                     elif job.prodSourceLabel=='managed' and job.commandToPilot != 'tobekilled' \
-                             and job.jobStatus != 'holding' \
+                             and (not job.jobStatus in ['holding','sent']) \
                              and (self.siteMapper==None or self.siteMapper.getSite(job.computingSite).retry):
                         _logger.debug(' -> hold Prod job : PandaID:%s' % job.PandaID)
                         job.jobStatus = 'holding'
@@ -108,9 +114,11 @@ class Watcher (threading.Thread):
                             # normal lost heartbeat
                             job.endTime = job.modificationTime
                     else:
-                        # set job status
-                        job.jobStatus = 'failed'
-                        if job.exeErrorDiag == 'NULL' and job.pilotErrorDiag == 'NULL':
+                        if job.jobStatus == 'sent':
+                            # sent job didn't receive reply from pilot within 30 min
+                            job.jobDispatcherErrorCode = ErrorCode.EC_SendError
+                            job.jobDispatcherErrorDiag = "Sent job didn't receive reply from pilot within 30 min"
+                        elif job.exeErrorDiag == 'NULL' and job.pilotErrorDiag == 'NULL':
                             # lost heartbeat
                             job.jobDispatcherErrorCode = ErrorCode.EC_Watcher
                             if job.jobDispatcherErrorDiag == 'NULL':
@@ -124,6 +132,9 @@ class Watcher (threading.Thread):
                             # job recovery failed
                             job.jobDispatcherErrorCode = ErrorCode.EC_Recovery
                             job.jobDispatcherErrorDiag = 'job recovery failed for %s hours' % (self.sleepTime/60)
+                        # set job status
+                        job.jobStatus = 'failed'
+                        # set endTime for lost heartbeat
                         if job.endTime == 'NULL':
                             # normal lost heartbeat
                             job.endTime = job.modificationTime
@@ -148,4 +159,6 @@ class Watcher (threading.Thread):
                 # sleep
                 time.sleep(60*self.sleepTime)
         except:
+            type, value, traceBack = sys.exc_info()
+            _logger.error("run() : %s %s" % (type,value))
             return

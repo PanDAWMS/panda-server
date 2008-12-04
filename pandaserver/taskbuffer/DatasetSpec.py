@@ -6,7 +6,7 @@ dataset specification
 class DatasetSpec(object):
     # attributes
     _attributes = ('vuid','name','version','type','status','numberfiles','currentfiles','creationdate',
-                   'modificationdate','MoverID')
+                   'modificationdate','MoverID','transferStatus')
     # slots
     __slots__ = _attributes
     

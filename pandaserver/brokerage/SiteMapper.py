@@ -17,6 +17,8 @@ defSite.dq2url     = 'http://dms02.usatlas.bnl.gov:8000/dq2/'
 defSite.ddm        = 'BNLPANDA'
 defSite.type       = 'production'
 defSite.gatekeeper = 'gridgk01.racf.bnl.gov'
+defSite.status     = 'online'
+defSite.setokens   = {}
 
 
 ########################################################################
@@ -54,19 +56,27 @@ class SiteMapper:
             # get list of PandaIDs
             siteIDsList = taskBuffer.getSiteList()
             firstDefault = True
+            # read full list from DB
+            siteFullList = taskBuffer.getSiteInfo()
             # read DB to produce paramters in siteinfo dynamically
             for tmpID,tmpNicknameList in siteIDsList.iteritems():
                 for tmpNickname in tmpNicknameList:
-                    # read from DB
-                    ret = taskBuffer.getSiteInfo(tmpNickname)
+                    # invalid nickname
+                    if not siteFullList.has_key(tmpNickname):
+                        continue
+                    # get full spec
+                    ret = siteFullList[tmpNickname]
                     # append
                     if ret == None:
                         _logger.error('Could not read site info for %s:%s' % (tmpID,tmpNickname))
-                    elif (firstDefault and tmpID == defSite.sitename) or (not self.siteSpecList.has_key(tmpID)):
-                        # overwrite default
+                    elif (firstDefault and tmpID == defSite.sitename) or (not self.siteSpecList.has_key(tmpID)) \
+                             or (self.siteSpecList.has_key(tmpID) and self.siteSpecList[tmpID].status in ['offline','']):
+                        # overwrite default or remove existing offline 
                         if firstDefault and tmpID == defSite.sitename:
                             del self.siteSpecList[tmpID]
                             firstDefault = False
+                        elif self.siteSpecList.has_key(tmpID) and self.siteSpecList[tmpID].status in ['offline','']:
+                            del self.siteSpecList[tmpID]
                         # append
                         if not self.siteSpecList.has_key(tmpID):
                             # determine type following a convention
@@ -86,7 +96,7 @@ class SiteMapper:
                                 self.siteSpecList[tmpID] = ret
                     else:
                         # overwrite status
-                        if not ret.status in ['offline']:
+                        if not ret.status in ['offline','']:
                             self.siteSpecList[tmpID].status = ret.status
             # make cloudSpec
             for siteSpec in self.siteSpecList.values():

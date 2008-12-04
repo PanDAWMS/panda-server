@@ -18,16 +18,17 @@ _logger = PandaLogger().getLogger('DDMHandler')
 
 class DDMHandler (threading.Thread):
     # constructor
-    def __init__(self,taskBuffer,vuid):
+    def __init__(self,taskBuffer,vuid,site=None):
         threading.Thread.__init__(self)
-        self.vuid    = vuid
+        self.vuid       = vuid
         self.taskBuffer = taskBuffer
+        self.site       = site
 
 
     # main
     def run(self):
         # query dataset
-        _logger.debug("start: %s" % self.vuid)
+        _logger.debug("start: %s %s" % (self.vuid,self.site))
         dataset = self.taskBuffer.queryDatasetWithMap({'vuid':self.vuid})
         if dataset == None:
             _logger.error("Not found : %s" % self.vuid)
@@ -39,7 +40,5 @@ class DDMHandler (threading.Thread):
             Activator(self.taskBuffer,dataset).start()
         if dataset.type == 'output':
             # finish transferring jobs
-            Finisher(self.taskBuffer,dataset).start()
-            # awake jobs in jobsWaiting
-            #Waker(self.taskBuffer,dataset).start()
+            Finisher(self.taskBuffer,dataset,site=self.site).start()
         _logger.debug("end: %s" % self.vuid)

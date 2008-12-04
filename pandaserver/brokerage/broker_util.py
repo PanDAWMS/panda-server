@@ -42,27 +42,46 @@ class _Curl:
 
 
 # get default storage
-def _getDefaultStorage(baseURL):
-    _log.debug('_getDefaultStorage')
-    # check port to set proxy
-    useProxy = False
-    if panda_config.httpProxy != '':
-        pMatch = re.search('http://[^:/]+:*(\d+)/',baseURL)
-        if pMatch == None:
-            # default port
-            useProxy = True
-        elif pMatch.group(1) == '80':
-            # standard port
-            useProxy = True        
-    # instantiate curl
-    curl = _Curl(useProxy)
-    # get default storage
-    url = baseURL + 'storages/default'
-    status,out = curl.get(url)
-    _log.debug(out)    
-    if status != 0:
-        _log.error("could not get default storage from %s:%s" % (baseURL,status))
-        return ""
+def _getDefaultStorage(baseURL,sePath=None,seProdPath={}):
+    _log.debug('_getDefaultStorage (%s %s %s)' % (baseURL,sePath,seProdPath))
+    # use se+seprodpath when baseURL=''
+    if baseURL=='':
+        # get token
+        match = re.search('^token:([^:]+):',sePath)
+        if match == None:
+            _log.error("could not get token from %s" % sePath)
+            return ""
+        token = match.group(1)
+        # get corresponding path
+        if not seProdPath.has_key(token):
+            _log.error("could not find path for % in %s" % (token,seProdPath))
+            return ""
+        # set se+seprodpath
+        out = sePath+seProdPath[token]
+        # append /
+        if not out.endswith('/'):
+            out += '/'
+        _log.debug(out)    
+    else:
+        # check port to set proxy
+        useProxy = False
+        if panda_config.httpProxy != '':
+            pMatch = re.search('http://[^:/]+:*(\d+)/',baseURL)
+            if pMatch == None:
+                # default port
+                useProxy = True
+            elif pMatch.group(1) == '80':
+                # standard port
+                useProxy = True        
+        # instantiate curl
+        curl = _Curl(useProxy)
+        # get default storage
+        url = baseURL + 'storages/default'
+        status,out = curl.get(url)
+        _log.debug(out)    
+        if status != 0:
+            _log.error("could not get default storage from %s:%s" % (baseURL,status))
+            return ""
     # parse
     match = re.search('^[^/]+://[^/]+(/.+)$',out)
     if match == None:
@@ -236,6 +255,21 @@ def _getPFNFromLFC(lfns,dq2url,guids,storageName):
                 outStr += output
             else:
                 _log.error("_getPFNFromLFC : %s %s %s" % (dq2url,status,output))
+                # send message to logger
+                try:
+                    # make message
+                    message = 'LFC access : %s %s %s' % (dq2url,status,output)
+                    # get logger
+                    _pandaLogger = PandaLogger()
+                    _pandaLogger.lock()
+                    _pandaLogger.setParams({'Type':'broker_util'})
+                    logger = _pandaLogger.getHttpLogger(panda_config.loggername)
+                    # add message
+                    logger.error(message)
+                    # release HTTP handler
+                    _pandaLogger.release()
+                except:
+                    pass
                 return status
             # reset
             strLFNs  = ''
@@ -267,8 +301,8 @@ def getFilesFromLRC(files,url,guids=[],storageName=[],terminateWhenFailed=False,
             try:
                 if not outSTR in ['',None]:
                     root  = xml.dom.minidom.parseString(outSTR)
-                    files = root.getElementsByTagName('File')
-                    for file in files:
+                    fileNodes = root.getElementsByTagName('File')
+                    for file in fileNodes:
                         # get PFN and LFN nodes
                         physical = file.getElementsByTagName('physical')[0]
                         pfnNode  = physical.getElementsByTagName('pfn')[0]
@@ -278,7 +312,9 @@ def getFilesFromLRC(files,url,guids=[],storageName=[],terminateWhenFailed=False,
                         pfn = str(pfnNode.getAttribute('name'))
                         lfn = str(lfnNode.getAttribute('name'))
                         # assign
-                        outPFN[lfn] = pfn
+                        if not outPFN.has_key(lfn):
+                            outPFN[lfn] = []
+                        outPFN[lfn].append(pfn)
             except:
                 type, value, traceBack = sys.exc_info()
                 _log.error(outSTR)

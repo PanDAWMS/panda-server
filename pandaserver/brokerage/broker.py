@@ -5,7 +5,6 @@ import commands
 import ErrorCode
 import broker_util
 import PandaSiteIDs
-import VomsResolver
 from config import panda_config
 
 from pandalogger.PandaLogger import PandaLogger
@@ -71,7 +70,9 @@ def _getOkFiles(v_ce,v_files,v_guids):
 # check reprocessing or not
 def _isReproJob(tmpJob):
     if tmpJob != None:
-        if tmpJob.transformation in ['csc_cosmics_trf.py','csc_BSreco_trf.py']:
+        if tmpJob.processingType in ['reprocessing']:
+            return True
+        if tmpJob.transformation in ['csc_cosmics_trf.py','csc_BSreco_trf.py','BStoESDAODDPD_trf.py']:
             return True
     return False
 
@@ -80,15 +81,27 @@ def _isReproJob(tmpJob):
 def _setReadyToFiles(tmpJob,okFiles,siteMapper):
     allOK = True
     tmpSiteSpec = siteMapper.getSite(tmpJob.computingSite)
+    tmpSrcSpec  = siteMapper.getSite(siteMapper.getCloud(tmpJob.cloud)['source'])
     _log.debug(tmpSiteSpec.seprodpath)
     for tmpFile in tmpJob.Files:
         if tmpFile.type == 'input':
-            if (tmpJob.computingSite.endswith('_REPRO') or tmpJob.computingSite == siteMapper.getCloud(tmpJob.cloud)['source']) \
+            if (tmpJob.computingSite.endswith('_REPRO') or tmpJob.computingSite == siteMapper.getCloud(tmpJob.cloud)['source'] \
+                or tmpSiteSpec.ddm == tmpSrcSpec.ddm) \
                    and (not tmpJob.computingSite in prestageSites):
                 # EGEE T1. use DQ2 prestage only for on-tape files
-                if tmpSiteSpec.seprodpath.has_key('ATLASDATATAPE') and okFiles.has_key(tmpFile.lfn) \
-                   and okFiles[tmpFile.lfn].find(tmpSiteSpec.seprodpath['ATLASDATATAPE'])!=-1:
-                    allOK = False  
+                if tmpSiteSpec.seprodpath.has_key('ATLASDATATAPE') and okFiles.has_key(tmpFile.lfn):
+                    tapeOnly = True
+                    for okPFN in okFiles[tmpFile.lfn]:
+                        # there is on-disk one
+                        if re.search(tmpSiteSpec.seprodpath['ATLASDATATAPE'],okPFN) == None:
+                            tapeOnly = False
+                            break
+                    # set ready
+                    if tapeOnly:
+                        allOK = False
+                    else:
+                        tmpFile.status = 'ready'
+                        tmpFile.dispatchDBlock = 'NULL'                                
                 else:
                     # set ready anyway even if LFC is down. i.e. okFiles doesn't contain the file
                     tmpFile.status = 'ready'
@@ -213,7 +226,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                             _log.debug(" skip: %s doesn't exist in DB" % site)
                             continue
                         # check status
-                        if tmpSiteSpec.status in ['offline']:
+                        if tmpSiteSpec.status in ['offline','brokeroff','test']:
                             _log.debug(' skip: status %s' % tmpSiteSpec.status)
                             continue
                         # change NULL cmtconfig to slc3
@@ -224,7 +237,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                         # check release and cmtconfig
                         _log.debug('   %s' % str(tmpSiteSpec.releases))
                         _log.debug('   %s' % str(tmpSiteSpec.cmtconfig))                        
-                        if (prevRelease != None and tmpSiteSpec.releases != [] and \
+                        if (prevRelease != None and (tmpSiteSpec.releases != [] and previousCloud != 'US') and \
                             (not _checkRelease(prevRelease,tmpSiteSpec.releases))) or \
                             (tmpCmtConfig != None and tmpSiteSpec.cmtconfig != [] and \
                              (not tmpCmtConfig in tmpSiteSpec.cmtconfig)):
@@ -266,6 +279,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                             nPilots = 0
                         # if no pilots
                         if nPilots == 0 and nWNmap != {}:
+                            _log.debug(" skip: %s no pilot" % site)                            
                             continue
                         # if no jobs in jobsActive/jobsDefined
                         if not jobStatistics.has_key(site):
@@ -447,25 +461,9 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                     jobStatistics[job.computingSite] = {'assigned':0,'activated':0,'running':0}
                 jobStatistics[job.computingSite]['assigned'] += 1
                 _log.debug('PandaID:%s -> preset site:%s' % (job.PandaID,chosen_ce.sitename))
-            # check voms for analysis jobs
-            if False: # FIXME job.prodSourceLabel in ['user','panda']:
-                # FIXME
-                voms = '/atlas'
-                # run resolver
-                if vomsOK == None:
-                    # instantiate resolver
-                    vomsResolver = VomsResolver.VomsResolver()
-                    # set OK for unsupported voms anyway
-                    if not vomsResolver.checkVoms(voms):
-                        vomsOK = True
-                    else:
-                        vomsOK = vomsResolver.checkUser(voms,job.prodUserID)
-                # reject if voms doesn't allow the user
-                if not vomsOK:
-                    job.jobStatus          = 'failed'
-                    job.brokerageErrorCode = ErrorCode.EC_Voms
-                    job.brokerageErrorDiag = 'VOMS authentication failure : %s' % voms
-                    continue
+                # set cloud
+                if job.cloud in ['NULL',None,'']:
+                    job.cloud = chosen_ce.cloud
             # set destinationSE
             destSE = job.destinationSE
             if siteMapper.checkCloud(job.cloud):

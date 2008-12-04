@@ -3,7 +3,9 @@ provide web interface to users
 
 '''
 
+import re
 import sys
+import time
 import types
 import cPickle as pickle
 import jobdispatcher.Protocol as Protocol
@@ -29,11 +31,11 @@ class UserIF:
 
 
     # submit jobs
-    def submitJobs(self,jobsStr,user,host):
+    def submitJobs(self,jobsStr,user,host,userFQANs):
         try:
             # deserialize jobspecs
             jobs = pickle.loads(jobsStr)
-            _logger.debug("submitJobs %s len : %s" % (user,len(jobs)))
+            _logger.debug("submitJobs %s len:%s FQAN:%s" % (user,len(jobs),str(userFQANs)))
             maxJobs = 2000
             if len(jobs) > maxJobs:
                 _logger.error("too may jobs more than %s" % maxJobs)
@@ -43,7 +45,8 @@ class UserIF:
             _logger.error("submitJobs : %s %s" % (type,value))
             jobs = []
         # store jobs
-        ret = self.taskBuffer.storeJobs(jobs,user,forkSetupper=True)
+        ret = self.taskBuffer.storeJobs(jobs,user,forkSetupper=True,fqans=userFQANs)
+        _logger.debug("submitJobs %s ->:%s" % (user,len(ret)))
         # logging
         try:
             # make message
@@ -86,7 +89,7 @@ class UserIF:
             # deserialize jobspecs
             ids = pickle.loads(idsStr)
             _logger.debug("getJobStatus len   : %s" % len(ids))
-            maxIDs = 1000
+            maxIDs = 2500
             if len(ids) > maxIDs:
                 _logger.error("too long ID list more than %s" % maxIDs)
                 ids = ids[:maxIDs]
@@ -102,6 +105,26 @@ class UserIF:
         return pickle.dumps(ret)
 
 
+    # get assigned cloud for tasks
+    def seeCloudTask(self,idsStr):
+        try:
+            # deserialize jobspecs
+            ids = pickle.loads(idsStr)
+        except:
+            type, value, traceBack = sys.exc_info()
+            _logger.error("seeCloudTask : %s %s" % (type,value))
+            ids = []
+        _logger.debug("seeCloudTask start : %s" % ids)       
+        # peek jobs
+        ret = {}
+        for id in ids:
+            tmpRet = self.taskBuffer.seeCloudTask(id)
+            ret[id] = tmpRet
+        _logger.debug("seeCloudTask end")
+        # serialize 
+        return pickle.dumps(ret)
+
+
     # get assigning task
     def getAssigningTask(self):
         # run
@@ -111,9 +134,9 @@ class UserIF:
 
     
     # get job statistics
-    def getJobStatistics(self):
+    def getJobStatistics(self,sourcetype=None):
         # get job statistics
-        ret = self.taskBuffer.getJobStatisticsForExtIF()
+        ret = self.taskBuffer.getJobStatisticsForExtIF(sourcetype)
         # serialize 
         return pickle.dumps(ret)
         
@@ -136,6 +159,14 @@ class UserIF:
         return pickle.dumps(ret)
 
 
+    # query job info per cloud
+    def queryJobInfoPerCloud(self,cloud,schedulerID):
+        # query PandaIDs 
+        ret = self.taskBuffer.queryJobInfoPerCloud(cloud,schedulerID)
+        # serialize 
+        return pickle.dumps(ret)
+
+    
     # query PandaIDs at site
     def getPandaIDsSite(self,site,status,limit):
         # query PandaIDs 
@@ -173,14 +204,14 @@ class UserIF:
 
 
     # kill jobs
-    def killJobs(self,idsStr,user,host,code):
+    def killJobs(self,idsStr,user,host,code,prodManager):
         # deserialize IDs
         ids = pickle.loads(idsStr)
         if not isinstance(ids,types.ListType):
             ids = [ids]
-        _logger.debug("killJob : %s %s" % (code,ids))
+        _logger.debug("killJob : %s %s %s %s" % (user,code,prodManager,ids))
         # kill jobs
-        ret = self.taskBuffer.killJobs(ids,user,code)
+        ret = self.taskBuffer.killJobs(ids,user,code,prodManager)
         # logging
         try:
             # make message
@@ -285,9 +316,42 @@ class UserIF:
         return ret
 
 
+    # register proxy key
+    def registerProxyKey(self,params):
+        # register
+        ret = self.taskBuffer.registerProxyKey(params)
+        # return
+        return ret
+
+
+    # get proxy key
+    def getProxyKey(self,dn):
+        # get files
+        ret = self.taskBuffer.getProxyKey(dn)
+        # serialize 
+        return pickle.dumps(ret)
+
+
 # Singleton
 userIF = UserIF()
 del UserIF
+
+
+# get FQANs
+def _getFQAN(req):
+    fqans = []
+    for tmpKey,tmpVal in req.subprocess_env.iteritems():
+        # compact credentials
+        if tmpKey.startswith('GRST_CRED_'):
+            # VOMS attribute
+            if tmpVal.startswith('VOMS'):
+                # FQAN
+                fqan = tmpVal.split()[-1]
+                # append
+                fqans.append(fqan)
+    # return
+    return fqans
+    
 
 
 """
@@ -304,9 +368,11 @@ def submitJobs(req,jobs):
     user = None
     if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
         user = req.subprocess_env['SSL_CLIENT_S_DN']
+    # get FQAN
+    fqans = _getFQAN(req)
     # hostname
     host = req.get_remote_host()
-    return userIF.submitJobs(jobs,user,host)
+    return userIF.submitJobs(jobs,user,host,fqans)
 
 
 # run task assignment
@@ -327,9 +393,19 @@ def getAssigningTask(req):
     return userIF.getAssigningTask()
 
 
+# get assigned cloud for tasks
+def seeCloudTask(req,ids):
+    return userIF.seeCloudTask(ids)
+
+
 # query PandaIDs
 def queryPandaIDs(req,ids):
     return userIF.queryPandaIDs(ids)
+
+
+# query job info per cloud
+def queryJobInfoPerCloud(req,cloud,schedulerID=None):
+    return userIF.queryJobInfoPerCloud(cloud,schedulerID)
 
 
 # get PandaIDs at site
@@ -352,8 +428,8 @@ def updateProdDBUpdateTimes(req,params):
 
 
 # get job statistics
-def getJobStatistics(req):
-    return userIF.getJobStatistics()
+def getJobStatistics(req,sourcetype=None):
+    return userIF.getJobStatistics(sourcetype)
 
 
 # get job statistics per site
@@ -379,9 +455,23 @@ def killJobs(req,ids,code=None):
     user = None
     if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
         user = req.subprocess_env['SSL_CLIENT_S_DN']
+    # check role
+    prodManager = False
+    # get FQANs
+    fqans = _getFQAN(req)
+    # loop over all FQANs
+    for fqan in fqans:
+        # check production role
+        for rolePat in ['/atlas/usatlas/Role=production','/atlas/Role=production']:
+            if fqan.startswith(rolePat):
+                prodManager = True
+                break
+        # escape
+        if prodManager:
+            break
     # hostname
     host = req.get_remote_host()
-    return userIF.killJobs(ids,user,host,code)
+    return userIF.killJobs(ids,user,host,code,prodManager)
 
 
 # reassign jobs
@@ -419,3 +509,50 @@ def getCloudSpecs(req):
 # run brokerage
 def runBrokerage(req,sites,cmtConfig=None,atlasRelease=None):
     return userIF.runBrokerage(sites,cmtConfig,atlasRelease)
+
+
+# register proxy key
+def registerProxyKey(req,credname,origin,myproxy):
+    # check security
+    if not Protocol.isSecure(req):
+        return False
+    # get DN
+    if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        return False
+    # get expiration date
+    if not req.subprocess_env.has_key('SSL_CLIENT_V_END'):
+        return False
+    params = {}
+    params['dn'] = req.subprocess_env['SSL_CLIENT_S_DN']
+    # set parameters
+    params['credname'] = credname
+    params['origin']   = origin
+    params['myproxy']  = myproxy
+    # convert SSL_CLIENT_V_END
+    try:
+        expTime = req.subprocess_env['SSL_CLIENT_V_END']
+        # remove redundant white spaces
+        expTime = re.sub('\s+',' ',expTime)
+        # convert to timestamp
+        expTime = time.strptime(expTime,'%b %d %H:%M:%S %Y %Z')
+        params['expires']  = time.strftime('%Y-%m-%d %H:%M:%S',expTime)
+    except:
+        _logger.error("registerProxyKey : failed to convert %s" % \
+                      req.subprocess_env['SSL_CLIENT_V_END'])
+    # execute
+    return userIF.registerProxyKey(params)
+
+
+# register proxy key
+def getProxyKey(req):
+    # check security
+    if not Protocol.isSecure(req):
+        return False
+    # get DN
+    if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        return False
+    dn = req.subprocess_env['SSL_CLIENT_S_DN']
+    # execute
+    return userIF.getProxyKey(dn)
+
+

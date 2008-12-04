@@ -13,29 +13,30 @@ else:
 
 datasetName = 'testpanda.destDB.%s' % commands.getoutput('uuidgen')
 destName    = 'BNL_ATLAS_2'
-#destName    = 'BU_ATLAS_Tier2'
 
 files = {
-    'mc11.007204.singlepart_mu4.evgen.EVNT.v11000302._00037.pool.root.1':None,
-    'mc11.007204.singlepart_mu4.evgen.EVNT.v11000302._00038.pool.root.1':None,    
+    'EVNT.019128._00011.pool.root.1':None,
     }
 
 jobList = []
 
+index = 0
 for lfn in files.keys():
+    index += 1
     job = JobSpec()
     job.jobDefinitionID   = int(time.time()) % 10000
-    job.jobName           = commands.getoutput('uuidgen') 
-    job.AtlasRelease      = 'Atlas-11.0.3'
-    job.homepackage       = 'JobTransforms-11-00-03-02'
-    job.transformation    = 'share/csc.simul.trf'
+    job.jobName           = "%s_%d" % (commands.getoutput('uuidgen'),index)
+    job.AtlasRelease      = 'Atlas-13.0.40'
+    job.homepackage       = 'AtlasProduction/13.0.40.3'
+    job.transformation    = 'csc_simul_trf.py'
     job.destinationDBlock = datasetName
     job.destinationSE     = destName
     job.computingSite     = site
-    job.prodDBlock        = 'mc11.007204.singlepart_mu4.evgen.EVNT.v11000302'
+    job.prodDBlock        = 'valid1.005001.pythia_minbias.evgen.EVNT.e306_tid019128'
     
-    job.prodSourceLabel   = 'test'
-    job.currentPriority   = 1000
+    job.prodSourceLabel   = 'test'    
+    job.currentPriority   = 10000
+    job.cloud             = 'IT'
 
     fileI = FileSpec()
     fileI.dataset    = job.prodDBlock
@@ -44,32 +45,32 @@ for lfn in files.keys():
     fileI.type = 'input'
     job.addFile(fileI)
 
+    fileD = FileSpec()
+    fileD.dataset    = 'ddo.000001.Atlas.Ideal.DBRelease.v040701'
+    fileD.prodDBlock = 'ddo.000001.Atlas.Ideal.DBRelease.v030101'
+    fileD.lfn = 'DBRelease-4.7.1.tar.gz'
+    fileD.type = 'input'
+    job.addFile(fileD)
+
     fileOE = FileSpec()
-    fileOE.lfn = "%s.HITS.pool.root" % commands.getoutput('uuidgen') 
+    fileOE.lfn = "%s.HITS.pool.root" % job.jobName
     fileOE.destinationDBlock = job.destinationDBlock
     fileOE.destinationSE     = job.destinationSE
     fileOE.dataset           = job.destinationDBlock
     fileOE.type = 'output'
+    fileOE.destinationDBlockToken = "ATLASMCDISK"
     job.addFile(fileOE)
 
-    fileOA = FileSpec()
-    fileOA.lfn = "%s.RDO.pool.root" % commands.getoutput('uuidgen') 
-    fileOA.destinationDBlock = job.destinationDBlock
-    fileOA.destinationSE     = job.destinationSE
-    fileOA.dataset           = job.destinationDBlock
-    fileOA.type = 'output'
-    job.addFile(fileOA)
-
     fileOL = FileSpec()
-    fileOL.lfn = "%s.job.log.tgz" % commands.getoutput('uuidgen') 
+    fileOL.lfn = "%s.job.log.tgz" % job.jobName
     fileOL.destinationDBlock = job.destinationDBlock
     fileOL.destinationSE     = job.destinationSE
     fileOL.dataset           = job.destinationDBlock
     fileOL.type = 'log'
     job.addFile(fileOL)
 
-    job.jobParameters="%s %s %s  100 700 2158" % (fileI.lfn,fileOE.lfn,fileOA.lfn)
-
+    job.jobParameters="%s %s NONE 1 3250 55866 ATLAS-CSC-02-01-00 55866 55866 QGSP_EMV None %s DEFAULT" % \
+                       (fileI.lfn,fileOE.lfn,fileD.lfn)
     jobList.append(job)
     
 s,o = Client.submitJobs(jobList)
