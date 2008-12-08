@@ -141,6 +141,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
     prevRelease    = None
     prevMemory     = None
     prevCmtConfig  = None
+    prevProType    = None
+    
     nWNmap = {}
     indexJob = 0
     vomsOK = None
@@ -170,12 +172,13 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                    or (computingSite in ['RAL_REPRO','INFN-T1_REPRO'] and len(fileList)>=2):
                 if indexJob > 1:
                     _log.debug('new bunch')
-                    _log.debug('  iJob          %s'    % iJob)
-                    _log.debug('  cloud         %s' % previousCloud)
-                    _log.debug('  rel           %s' % prevRelease)
-                    _log.debug('  cmtConfig     %s' % prevCmtConfig)
-                    _log.debug('  prodDBlock    %s' % prodDBlock)
-                    _log.debug('  computingSite %s' % computingSite)
+                    _log.debug('  iJob           %s'    % iJob)
+                    _log.debug('  cloud          %s' % previousCloud)
+                    _log.debug('  rel            %s' % prevRelease)
+                    _log.debug('  cmtConfig      %s' % prevCmtConfig)
+                    _log.debug('  prodDBlock     %s' % prodDBlock)
+                    _log.debug('  computingSite  %s' % computingSite)
+                    _log.debug('  processingType %s' % prevProType)                    
                 # determine site
                 if iJob == 0 or chosen_ce != 'TOBEDONE':
                      # file scan for pre-assigned jobs
@@ -226,9 +229,13 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                             _log.debug(" skip: %s doesn't exist in DB" % site)
                             continue
                         # check status
-                        if tmpSiteSpec.status in ['offline','brokeroff','test']:
+                        if tmpSiteSpec.status in ['offline','brokeroff']:
                             _log.debug(' skip: status %s' % tmpSiteSpec.status)
                             continue
+                        if tmpSiteSpec.status == 'test' and (not prevProType in ['prod_test']):
+                            _log.debug(' skip: status %s for %s' % (tmpSiteSpec.status,prevProType))
+                            continue
+                        _log.debug('   status=%s' % tmpSiteSpec.status)
                         # change NULL cmtconfig to slc3
                         if prevCmtConfig in ['NULL','',None]:
                             tmpCmtConfig = 'i686-slc3-gcc323-opt'
@@ -447,6 +454,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
             prevRelease   = job.AtlasRelease
             prevMemory    = job.minRamCount
             prevCmtConfig = job.cmtConfig
+            prevProType   = job.processingType
             # assign site
             if chosen_ce != 'TOBEDONE':
                 job.computingSite = chosen_ce.sitename
