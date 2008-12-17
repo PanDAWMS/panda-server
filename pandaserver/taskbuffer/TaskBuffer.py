@@ -813,18 +813,6 @@ class TaskBuffer:
         return ret
 
 
-    # count pilot requests
-    def countPilotRequests(self,ids):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # count
-        ret = proxy.countPilotRequests(ids)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
-
     # update transfer status for a dataset
     def updateTransferStatus(self,datasetname,bitMap):
         # get DBproxy

@@ -3,9 +3,17 @@ file specification
 
 """
 
+# only server requires cx_Oracle for pickle 
+try:
+    import cx_Oracle
+    import datetime
+except:
+    pass
+
+
 class FileSpec(object):
     # attributes
-    _attributes = ('rowID','PandaID','GUID','lfn','type','dataset','status','prodDBlock',
+    _attributes = ('row_ID','PandaID','GUID','lfn','type','dataset','status','prodDBlock',
                    'prodDBlockToken','dispatchDBlock','dispatchDBlockToken','destinationDBlock',
                    'destinationDBlockToken','destinationSE','fsize','md5sum','checksum')
     # slots
@@ -49,6 +57,17 @@ class FileSpec(object):
         return tuple(ret)
 
 
+    # return map of values
+    def valuesMap(self):
+        ret = {}
+        for attr in self._attributes:
+            val = getattr(self,attr)
+            if val == 'NULL':
+                val = None
+            ret[':%s' % attr] = val
+        return ret
+
+
     # pack tuple into FileSpec
     def pack(self,values):
         for i in range(len(self._attributes)):
@@ -62,6 +81,10 @@ class FileSpec(object):
         state = []
         for attr in self._attributes:
             val = getattr(self,attr)
+            # convert cx_Oracle.Timestamp to datetime. this is not needed since python 2.4 
+            if isinstance(val,cx_Oracle.Timestamp):
+                val = datetime.datetime(val.year,val.month,val.day,
+                                        val.hour,val.minute,val.second)
             state.append(val)
         # append owner info
         state.append(self._owner)
@@ -101,6 +124,17 @@ class FileSpec(object):
     valuesExpression = classmethod(valuesExpression)
 
 
+    # return expression of bind variables for INSERT
+    def bindValuesExpression(cls):
+        ret = "VALUES("
+        for attr in cls._attributes:
+            ret += ":%s," % attr
+        ret = ret[:-1]
+        ret += ")"            
+        return ret
+    bindValuesExpression = classmethod(bindValuesExpression)
+
+    
     # return an expression for UPDATE
     def updateExpression(cls):
         ret = ""
@@ -110,6 +144,17 @@ class FileSpec(object):
                 ret += ","
         return ret
     updateExpression = classmethod(updateExpression)
+
+
+    # return an expression of bind variables for UPDATE
+    def bindUpdateExpression(cls):
+        ret = ""
+        for attr in cls._attributes:
+            ret += '%s=:%s,' % (attr,attr)
+        ret  = ret[:-1]
+        ret += ' '
+        return ret
+    bindUpdateExpression = classmethod(bindUpdateExpression)
 
 
         

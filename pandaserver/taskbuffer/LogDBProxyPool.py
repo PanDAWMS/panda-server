@@ -6,7 +6,7 @@ pool for LogDBProxies
 import time
 import Queue
 import random
-import LogDBProxy
+import OraLogDBProxy as LogDBProxy
 from config import panda_config
 
 from pandalogger.PandaLogger import PandaLogger

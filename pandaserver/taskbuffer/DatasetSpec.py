@@ -9,6 +9,9 @@ class DatasetSpec(object):
                    'modificationdate','MoverID','transferStatus')
     # slots
     __slots__ = _attributes
+    # attributes which have 0 by default
+    _zeroAttrs = ('MoverID','transferStatus')
+
     
 
     # constructor
@@ -35,6 +38,20 @@ class DatasetSpec(object):
         return tuple(ret)
 
 
+    # return map of values
+    def valuesMap(self):
+        ret = {}
+        for attr in self._attributes:
+            val = getattr(self,attr)
+            if val == 'NULL':
+                if attr in self._zeroAttrs:
+                    val = 0
+                else:
+                    val = None
+            ret[':%s' % attr] = val
+        return ret
+
+    
     # pack tuple into DatasetSpec
     def pack(self,values):
         for i in range(len(self._attributes)):
@@ -66,6 +83,17 @@ class DatasetSpec(object):
     valuesExpression = classmethod(valuesExpression)
 
 
+    # return expression of bind values for INSERT
+    def bindValuesExpression(cls):
+        ret = "VALUES("
+        for attr in cls._attributes:
+            ret += ":%s," % attr
+        ret = ret[:-1]
+        ret += ")"            
+        return ret
+    bindValuesExpression = classmethod(bindValuesExpression)
+
+    
     # return an expression for UPDATE
     def updateExpression(cls):
         ret = ""
@@ -76,6 +104,15 @@ class DatasetSpec(object):
         return ret
     updateExpression = classmethod(updateExpression)
 
+
+    # return an expression of bind variables for UPDATE
+    def bindUpdateExpression(cls):
+        ret = ""
+        for attr in cls._attributes:
+            ret += '%s=:%s,' % (attr,attr)
+        ret = ret[:-1]
+        return ret
+    bindUpdateExpression = classmethod(bindUpdateExpression)
 
         
 

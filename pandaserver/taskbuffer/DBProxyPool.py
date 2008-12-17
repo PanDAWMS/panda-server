@@ -4,7 +4,7 @@ pool for DBProxies
 """
 
 import Queue
-import DBProxy
+import OraDBProxy as DBProxy
 import time
 import random
 

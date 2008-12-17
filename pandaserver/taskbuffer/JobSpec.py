@@ -21,7 +21,12 @@ class JobSpec(object):
                    'jobExecutionID','VO','pilotTiming','workingGroup','processingType')
     # slots
     __slots__ = _attributes+('Files',)
-
+    # attributes which have 0 by default
+    _zeroAttrs = ('assignedPriority','currentPriority','attemptNr','maxAttempt','maxCpuCount','maxDiskCount',
+                  'minRamCount','cpuConsumptionTime','pilotErrorCode','exeErrorCode','supErrorCode','ddmErrorCode',
+                  'brokerageErrorCode','jobDispatcherErrorCode','taskBufferErrorCode','nEvents','relocationFlag',
+                  'jobExecutionID')
+    
 
     # constructor
     def __init__(self):
@@ -63,6 +68,20 @@ class JobSpec(object):
             val = getattr(self,attr)
             ret.append(val)
         return tuple(ret)
+
+
+    # return map of values
+    def valuesMap(self):
+        ret = {}
+        for attr in self._attributes:
+            val = getattr(self,attr)
+            if val == 'NULL':
+                if attr in self._zeroAttrs:
+                    val = 0
+                else:
+                    val = None
+            ret[':%s' % attr] = val
+        return ret
 
 
     # return state values to be pickled
@@ -110,6 +129,17 @@ class JobSpec(object):
     valuesExpression = classmethod(valuesExpression)
 
 
+    # return expression of bind values for INSERT
+    def bindValuesExpression(cls):
+        ret = "VALUES("
+        for attr in cls._attributes:
+            ret += ":%s," % attr
+        ret = ret[:-1]
+        ret += ")"            
+        return ret
+    bindValuesExpression = classmethod(bindValuesExpression)
+
+
     # return an expression for UPDATE
     def updateExpression(cls):
         ret = ""
@@ -119,6 +149,17 @@ class JobSpec(object):
                 ret += ","
         return ret
     updateExpression = classmethod(updateExpression)
+
+
+    # return an expression of bind variables for UPDATE
+    def bindUpdateExpression(cls):
+        ret = ""
+        for attr in cls._attributes:
+            ret += '%s=:%s,' % (attr,attr)
+        ret = ret[:-1]
+        ret += ' '        
+        return ret
+    bindUpdateExpression = classmethod(bindUpdateExpression)
 
 
     # comparison function for sort
