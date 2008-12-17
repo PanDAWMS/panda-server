@@ -15,6 +15,9 @@ from config import panda_config
 import SiteSpec
 import CloudSpec
 
+from JobSpec  import JobSpec
+from FileSpec import FileSpec
+
 # logger
 _logger = PandaLogger().getLogger('LogDBProxy')
 
@@ -506,6 +509,176 @@ class LogDBProxy:
             # roll back
             self._rollback()
             return {}
+
+        
+    # get list of archived tables
+    def getArchiveTables(self):
+        tables = []
+        cdate = datetime.datetime.utcnow()
+        for iCycle in range(2): # 2 = (1 months + 2 just in case)/2
+            if cdate.month==1:
+                cdate = cdate.replace(year = (cdate.year-1))
+                cdate = cdate.replace(month = 12, day = 1)
+            else:
+                cdate = cdate.replace(month = (cdate.month/2)*2, day = 1)
+            tableName = "jobsArchived_%s%s" % (cdate.strftime('%b'),cdate.year)
+            if not tableName in tables:
+                tables.append(tableName)
+            # one older table
+            if cdate.month > 2:
+                cdate = cdate.replace(month = (cdate.month-2))
+            else:
+                cdate = cdate.replace(year = (cdate.year-1), month = 12)
+        # return
+        return tables
+    
+
+    # get JobIDs in a time range
+    def getJobIDsInTimeRange(self,dn,timeRange,retJobIDs):
+        comment = ' /* LogDBProxy.getJobIDsInTimeRange */'                        
+        _logger.debug("getJobIDsInTimeRange : %s %s" % (dn,timeRange.strftime('%Y-%m-%d %H:%M:%S')))
+        try:
+            # get list of archived tables
+            tables = self.getArchiveTables()
+            # select
+            for table in tables:
+                # make sql
+                sql  = "SELECT jobDefinitionID FROM %s " % table
+                sql += "WHERE prodUserID=:prodUserID AND modificationTime>:modificationTime "
+                sql += "AND prodSourceLabel='user' GROUP BY jobDefinitionID"
+                varMap = {}
+                varMap[':prodUserID'] = dn
+                varMap[':modificationTime'] = timeRange
+                # start transaction
+                self.conn.begin()
+                # select
+                self.cur.arraysize = 10000                
+                _logger.debug(sql+comment+str(varMap))
+                self.cur.execute(sql+comment, varMap)
+                resList = self.cur.fetchall()
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                # append
+                for tmpID, in resList:
+                    if not tmpID in retJobIDs:
+                        retJobIDs.append(tmpID)
+            _logger.debug("getJobIDsInTimeRange : %s" % str(retJobIDs))
+            return retJobIDs
+        except:
+            # roll back
+            self._rollback()
+            type, value, traceBack = sys.exc_info()
+            _logger.error("getJobIDsInTimeRange : %s %s" % (type,value))
+            # return empty list
+            return retJobIDs
+
+        
+    # get PandaIDs for a JobID
+    def getPandIDsWithJobID(self,dn,jobID,idStatus,nJobs):
+        comment = ' /* LogProxy.getPandIDsWithJobID */'                        
+        _logger.debug("getPandIDsWithJobID : %s %s" % (dn,jobID))
+        try:
+            # get list of archived tables
+            tables = self.getArchiveTables()
+            # select
+            for table in tables:
+                # skip if all jobs have already been gotten
+                if nJobs > 0 and len(idStatus) >= nJobs:
+                    continue
+                # make sql
+                sql  = "SELECT PandaID,jobStatus,commandToPilot FROM %s " % table                
+                sql += "WHERE prodUserID=:prodUserID AND jobDefinitionID=:jobDefinitionID "
+                sql += "AND prodSourceLabel in ('user','panda') "                
+                varMap = {}
+                varMap[':prodUserID'] = dn
+                varMap[':jobDefinitionID'] = jobID
+                # start transaction
+                self.conn.begin()
+                # select
+                self.cur.arraysize = 5000
+                # select
+                _logger.debug(sql+comment+str(varMap))
+                self.cur.execute(sql+comment, varMap)
+                resList = self.cur.fetchall()
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                # append
+                for tmpID,tmpStatus,tmpCommand in resList:
+                    if not idStatus.has_key(tmpID):
+                        idStatus[tmpID] = (tmpStatus,tmpCommand)
+            _logger.debug("getPandIDsWithJobID : %s" % str(idStatus))
+            return idStatus
+        except:
+            # roll back
+            self._rollback()
+            type, value, traceBack = sys.exc_info()
+            _logger.error("getPandIDsWithJobID : %s %s" % (type,value))
+            # return empty list
+            return {}
+
+        
+    # peek at job 
+    def peekJob(self,pandaID):
+        comment = ' /* LogDBProxy.peekJob */'                        
+        _logger.debug("peekJob : %s" % pandaID)
+        # return None for NULL PandaID
+        if pandaID in ['NULL','','None',None]:
+            return None
+        sql1_0 = "SELECT %s FROM %s "
+        sql1_1 = "WHERE PandaID=:PandaID"
+        # select
+        varMap = {}
+        varMap[':PandaID'] = pandaID
+        try:
+            # get list of archived tables
+            tables = self.getArchiveTables()
+            # select
+            for table in tables:
+                # start transaction
+                self.conn.begin()
+                # select
+                sql = sql1_0 % (JobSpec.columnNames(),table) + sql1_1
+                self.cur.arraysize = 10                                        
+                self.cur.execute(sql+comment, varMap)
+                res = self.cur.fetchall()
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                if len(res) != 0:
+                    # Job
+                    job = JobSpec()
+                    job.pack(res[0])
+                    # Files
+                    # start transaction
+                    self.conn.begin()
+                    # select
+                    fileTableName = re.sub('jobsArchived','filesTable',table)
+                    sqlFile = "SELECT %s " % FileSpec.columnNames()
+                    sqlFile+= "FROM %s " % fileTableName
+                    sqlFile+= "WHERE PandaID=:PandaID"
+                    self.cur.arraysize = 10000
+                    self.cur.execute(sqlFile+comment, varMap)
+                    resFs = self.cur.fetchall()
+                    # commit
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+                    # set files
+                    for resF in resFs:
+                        file = FileSpec()
+                        file.pack(resF)
+                        job.addFile(file)
+                    return job
+            _logger.debug("peekJob() : PandaID %s not found" % pandaID)
+            return None
+        except:
+            # roll back
+            self._rollback()
+            type, value, traceBack = sys.exc_info()
+            _logger.error("peekJob : %s %s" % (type,value))
+            # return None
+            return None
 
         
     # wake up connection

@@ -1,6 +1,8 @@
 import re
+import datetime
 from DBProxyPool import DBProxyPool
 from LogDBProxyPool import LogDBProxyPool
+from ArchiveDBProxyPool import ArchiveDBProxyPool
 from brokerage.SiteMapper import SiteMapper
 from dataservice.Setupper import Setupper
 from dataservice.TaLauncher import TaLauncher
@@ -23,6 +25,8 @@ class TaskBuffer:
         self.proxyPool = DBProxyPool(dbname,dbpass,nDBConnection)
         # create Proxy Pool for Log DB
         self.logProxyPool = LogDBProxyPool()
+        # create Proxy Pool for Archive DB
+        self.archiveProxyPool = ArchiveDBProxyPool()
 
 
     # store Jobs into DB
@@ -103,7 +107,7 @@ class TaskBuffer:
         for job in jobs:
             # set JobID. keep original JobID when retry
             if userJobID != -1 and job.prodSourceLabel in ['user','panda'] \
-                   and job.attemptNr in [0,'0','NULL']:
+                   and (job.attemptNr in [0,'0','NULL'] or (not job.jobExecutionID in [0,'0','NULL'])):
                 job.jobDefinitionID = userJobID
             # set relocation flag
             if job.computingSite != 'NULL':
@@ -333,8 +337,100 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         # return
         return retJobs
+
+
+    # get JobIDs in a time range
+    def getJobIDsInTimeRange(self,dn,timeRangeStr):
+        # check DN
+        if dn in ['NULL','','None',None]:
+            return []
+        # check timeRange
+        match = re.match('^(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)$',timeRangeStr)
+        if match == None:
+            return []
+        timeRange = datetime.datetime(year   = int(match.group(1)),
+                                      month  = int(match.group(2)),
+                                      day    = int(match.group(3)),
+                                      hour   = int(match.group(4)),
+                                      minute = int(match.group(5)),
+                                      second = int(match.group(6)))
+        # max range is 3 months
+        maxRange = datetime.datetime.utcnow() - datetime.timedelta(days=30)
+        if timeRange < maxRange:
+            timeRange = maxRange
+        retJobIDs = []
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get JobIDs
+        retJobIDs = proxy.getJobIDsInTimeRange(dn,timeRange,retJobIDs)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # get ArchiveDBproxy
+        proxy = self.archiveProxyPool.getProxy()
+        # get JobIDs
+        retJobIDs = proxy.getJobIDsInTimeRange(dn,timeRange,retJobIDs)
+        # release proxy
+        self.archiveProxyPool.putProxy(proxy)
+        # return
+        return retJobIDs
+
+
+    # get PandaIDs for a JobID
+    def getPandIDsWithJobID(self,dn,jobID,nJobs):
+        idStatus = {}
+        # check DN
+        if dn in ['NULL','','None',None]:
+            return idStatus
+        # check JobID
+        try:
+            jobID = long(jobID)
+            nJobs = long(nJobs)
+        except:
+            return idStatus
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get IDs
+        idStatus = proxy.getPandIDsWithJobID(dn,jobID,idStatus,nJobs)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # get ArchiveDBproxy
+        proxy = self.archiveProxyPool.getProxy()
+        # get IDs
+        idStatus = proxy.getPandIDsWithJobID(dn,jobID,idStatus,nJobs)        
+        # release proxy
+        self.archiveProxyPool.putProxy(proxy)
+        # return
+        return idStatus
     
 
+    # get full job status
+    def getFullJobStatus(self,jobIDs):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        retJobMap = {}
+        # peek at job
+        for jobID in jobIDs:
+            res = proxy.peekJob(jobID,True,True,True,True,True)
+            retJobMap[jobID] = res
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # get ArchiveDBproxy
+        proxy = self.archiveProxyPool.getProxy()
+        # get IDs
+        for jobID in jobIDs:
+            if retJobMap[jobID] == None:
+                res = proxy.peekJob(jobID)
+                retJobMap[jobID] = res
+        # release proxy
+        self.archiveProxyPool.putProxy(proxy)
+        # sort
+        retJobs = []
+        for jobID in jobIDs:
+            retJobs.append(retJobMap[jobID])
+        # return
+        return retJobs
+
+    
     # kill jobs
     def killJobs(self,ids,user,code,prodManager):
         # get DBproxy

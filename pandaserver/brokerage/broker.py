@@ -184,7 +184,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                      # file scan for pre-assigned jobs
                      jobsInBunch = jobs[indexJob-iJob-1:indexJob-1]
                      if jobsInBunch != [] and fileList != [] and (not computingSite in prestageSites) \
-                            and (jobsInBunch[0].prodSourceLabel in ['managed'] or \
+                            and (jobsInBunch[0].prodSourceLabel in ['managed','software'] or \
                                  re.search('test',jobsInBunch[0].prodSourceLabel) != None):
                          # get site spec
                          tmp_chosen_ce = siteMapper.getSite(computingSite)

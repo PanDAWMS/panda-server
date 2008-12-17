@@ -1456,7 +1456,7 @@ class DBProxy:
         
 
     # peek at job 
-    def peekJob(self,pandaID,fromDefined,fromActive,fromArchived,fromWaiting):
+    def peekJob(self,pandaID,fromDefined,fromActive,fromArchived,fromWaiting,forAnal=False):
         comment = ' /* DBProxy.peekJob */'                        
         _logger.debug("peekJob : %s" % pandaID)
         # return None for NULL PandaID
@@ -1503,7 +1503,7 @@ class DBProxy:
                     self.cur.execute(sqlFile+comment, varMap)
                     resFs = self.cur.fetchall()
                     # metadata
-                    if table == 'jobsArchived4':
+                    if table == 'jobsArchived4' and (not forAnal):
                         # read metadata only for finished/failed jobs
                         sqlMeta = "SELECT metaData FROM metaTable WHERE PandaID=:PandaID"
                         self.cur.arraysize = 10                        
@@ -1530,6 +1530,9 @@ class DBProxy:
             self._rollback()
             type, value, traceBack = sys.exc_info()
             _logger.error("peekJob : %s %s" % (type,value))
+            # return None for analysis
+            if forAnal:
+                return None
             # return 'unknown'
             job = JobSpec()
             job.PandaID = pandaID
@@ -1537,6 +1540,90 @@ class DBProxy:
             return job
 
 
+    # get JobIDs in a time range
+    def getJobIDsInTimeRange(self,dn,timeRange,retJobIDs):
+        comment = ' /* DBProxy.getJobIDsInTimeRange */'                        
+        _logger.debug("getJobIDsInTimeRange : %s %s" % (dn,timeRange.strftime('%Y-%m-%d %H:%M:%S')))
+        try:
+            tables = ['jobsArchived4','jobsActive4','jobsWaiting4','jobsDefined4']
+            # select
+            for table in tables:
+                # make sql
+                sql  = "SELECT jobDefinitionID FROM %s " % table
+                sql += "WHERE prodUserID=:prodUserID AND modificationTime>:modificationTime "
+                sql += "AND prodSourceLabel='user' GROUP BY jobDefinitionID"
+                varMap = {}
+                varMap[':prodUserID'] = dn
+                varMap[':modificationTime'] = timeRange
+                # start transaction
+                self.conn.begin()
+                # select
+                self.cur.arraysize = 10000                
+                _logger.debug(sql+comment+str(varMap))
+                self.cur.execute(sql+comment, varMap)
+                resList = self.cur.fetchall()
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                # append
+                for tmpID, in resList:
+                    if not tmpID in retJobIDs:
+                        retJobIDs.append(tmpID)
+            _logger.debug("getJobIDsInTimeRange : %s" % str(retJobIDs))
+            return retJobIDs
+        except:
+            # roll back
+            self._rollback()
+            type, value, traceBack = sys.exc_info()
+            _logger.error("getJobIDsInTimeRange : %s %s" % (type,value))
+            # return empty list
+            return []
+
+
+    # get PandaIDs for a JobID
+    def getPandIDsWithJobID(self,dn,jobID,idStatus,nJobs):
+        comment = ' /* DBProxy.getPandIDsWithJobID */'                        
+        _logger.debug("getPandIDsWithJobID : %s %s" % (dn,jobID))
+        try:
+            tables = ['jobsArchived4','jobsActive4','jobsWaiting4','jobsDefined4']
+            # select
+            for table in tables:
+                # skip if all jobs have already been gotten
+                if nJobs > 0 and len(idStatus) >= nJobs:
+                    continue
+                # make sql
+                sql  = "SELECT PandaID,jobStatus,commandToPilot FROM %s " % table                
+                sql += "WHERE prodUserID=:prodUserID AND jobDefinitionID=:jobDefinitionID "
+                sql += "AND prodSourceLabel in ('user','panda') "                
+                varMap = {}
+                varMap[':prodUserID'] = dn
+                varMap[':jobDefinitionID'] = jobID
+                # start transaction
+                self.conn.begin()
+                # select
+                self.cur.arraysize = 5000
+                # select
+                _logger.debug(sql+comment+str(varMap))
+                self.cur.execute(sql+comment, varMap)
+                resList = self.cur.fetchall()
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                # append
+                for tmpID,tmpStatus,tmpCommand in resList:
+                    if not idStatus.has_key(tmpID):
+                        idStatus[tmpID] = (tmpStatus,tmpCommand)
+            _logger.debug("getPandIDsWithJobID : %s" % str(idStatus))
+            return idStatus
+        except:
+            # roll back
+            self._rollback()
+            type, value, traceBack = sys.exc_info()
+            _logger.error("getPandIDsWithJobID : %s %s" % (type,value))
+            # return empty list
+            return {}
+
+        
     # query PandaID
     def queryPandaID(self,jobDefID):
         comment = ' /* DBProxy.queryPandaID */'                

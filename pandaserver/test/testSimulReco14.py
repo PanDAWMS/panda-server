@@ -13,6 +13,12 @@ else:
     site = None
     cloud = 'US'
 
+    
+
+#cloud = 'TW'
+#Recent changes (BNL migration to LFC?) forvce the cloud to be specified
+cloud = 'US'
+
 datasetName = 'testpanda.destDB.%s' % commands.getoutput('uuidgen')
 destName    = 'BNL_ATLAS_2'
 

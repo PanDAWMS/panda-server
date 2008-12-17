@@ -55,6 +55,7 @@ job.destinationDBlock = 'testpanda.%s' % job.jobName
 job.currentPriority   = 10000
 job.prodSourceLabel   = 'software'
 job.computingSite     = siteName
+job.cloud             = 'US'
     
 fileOL = FileSpec()
 fileOL.lfn = "%s.job.log.tgz" % job.jobName

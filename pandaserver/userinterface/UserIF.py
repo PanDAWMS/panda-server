@@ -332,6 +332,41 @@ class UserIF:
         return pickle.dumps(ret)
 
 
+    # get JobIDs in a time range
+    def getJobIDsInTimeRange(self,dn,timeRange):
+        # get IDs
+        ret = self.taskBuffer.getJobIDsInTimeRange(dn,timeRange)
+        # serialize 
+        return pickle.dumps(ret)
+
+
+    # get PandaIDs for a JobID
+    def getPandIDsWithJobID(self,dn,jobID,nJobs):
+        # get IDs
+        ret = self.taskBuffer.getPandIDsWithJobID(dn,jobID,nJobs)
+        # serialize 
+        return pickle.dumps(ret)
+
+
+    # get full job status
+    def getFullJobStatus(self,idsStr,dn):
+        try:
+            # deserialize jobspecs
+            ids = pickle.loads(idsStr)
+            # truncate
+            ids = ids[:2]
+        except:
+            type, value, traceBack = sys.exc_info()
+            _logger.error("getFullJobStatus : %s %s" % (type,value))
+            ids = []
+        _logger.debug("getFullJobStatus start : %s %s" % (dn,str(ids)))
+        # peek jobs
+        ret = self.taskBuffer.getFullJobStatus(ids)
+        _logger.debug("getFullJobStatus end")
+        # serialize 
+        return pickle.dumps(ret)
+
+
 # Singleton
 userIF = UserIF()
 del UserIF
@@ -554,5 +589,47 @@ def getProxyKey(req):
     dn = req.subprocess_env['SSL_CLIENT_S_DN']
     # execute
     return userIF.getProxyKey(dn)
+
+
+# get JobIDs in a time range
+def getJobIDsInTimeRange(req,timeRange,dn=None):
+    # check security
+    if not Protocol.isSecure(req):
+        return False
+    # get DN
+    if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        return False
+    if dn == None:
+        dn = req.subprocess_env['SSL_CLIENT_S_DN']
+    _logger.debug("getJobIDsInTimeRange %s %s" % (dn,timeRange))
+    # execute
+    return userIF.getJobIDsInTimeRange(dn,timeRange)
+
+
+# get PandaIDs for a JobID
+def getPandIDsWithJobID(req,jobID,nJobs,dn=None):
+    # check security
+    if not Protocol.isSecure(req):
+        return False
+    # get DN
+    if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        return False
+    if dn == None:
+        dn = req.subprocess_env['SSL_CLIENT_S_DN']
+    _logger.debug("getPandIDsWithJobID %s JobID=%s nJobs=%s" % (dn,jobID,nJobs))
+    # execute
+    return userIF.getPandIDsWithJobID(dn,jobID,nJobs)
+
+
+# get full job status
+def getFullJobStatus(req,ids):
+    # check security
+    if not Protocol.isSecure(req):
+        return False
+    # get DN
+    if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        return False
+    dn = req.subprocess_env['SSL_CLIENT_S_DN']
+    return userIF.getFullJobStatus(ids,dn)
 
 
