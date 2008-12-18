@@ -12,7 +12,7 @@ node={}
 node['siteName']=sys.argv[1]
 node['mem']=1000
 #node['prodSourceLabel']='user'
-url='https://localhost:26443/server/panda/getJob'
+url='https://localhost:25443/server/panda/getJob'
 #url='https://.usatlas.bnl.gov:25443/server/panda/getJob'
 
 match = re.search('[^:/]+://([^/]+)(/.+)',url)

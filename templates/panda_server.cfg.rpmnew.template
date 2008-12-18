@@ -61,10 +61,10 @@ dq2_dir = /opt/dq2
 globus_dir = /opt/globus
 
 # path to native python 
-native_python = /usr/bin
+native_python = /data/atlpan/bin
 
 # path to 32 bit python for for lfc client
-native_python32 = /usr/bin
+native_python32 = /data/atlpan/bin
 
 # glite source file
 glite_source = /opt/glite/etc/profile.d/grid-env.sh
@@ -86,10 +86,10 @@ lfcClient_dir = %(pandaPython_dir)s/brokerage
 #
 
 # host
-dbhost = dbpro.usatlas.bnl.gov
+dbhost = INTR
 
 # user
-dbuser = panda-developer
+dbuser = ATLAS_PANDA_W
 
 # password
 dbpasswd = FIXME
@@ -98,7 +98,7 @@ dbpasswd = FIXME
 dbname = PandaDB
 
 # number of connections
-nDBConnection = 3
+nDBConnection = 2
 
 
 
@@ -108,10 +108,10 @@ nDBConnection = 3
 #
 
 # host
-logdbhost = dbarch3.usatlas.bnl.gov
+logdbhost = INTR
 
 # user
-logdbuser = panda-developer
+logdbuser = ATLAS_PANDA_W
 
 # password
 logdbpasswd = FIXME
@@ -120,7 +120,7 @@ logdbpasswd = FIXME
 logdbname = PandaMetaDB
 
 # number of connections
-nLogDBConnection = 3
+nLogDBConnection = 2
 
 
 
@@ -130,10 +130,10 @@ nLogDBConnection = 3
 #
 
 # host
-archivedbhost = dbarch3.usatlas.bnl.gov
+archivedbhost = INTR
 
 # user
-archivedbuser = panda-developer
+archivedbuser = ATLAS_PANDA_W
 
 # password
 archivedbpasswd = FIXME

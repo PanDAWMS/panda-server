@@ -1,9 +1,6 @@
 #!/bin/bash
 
-# Panda home
-export PANDA_HOME=@@install_dir@@
-
-# for python
-export PYTHONPATH=@@install_purelib@@/pandacommon:@@install_purelib@@/pandaserver
+# import env vars from sysconfig
+source @@install_dir@@/etc/sysconfig/panda_server-sysconfig
 
 python @@install_purelib@@/pandaserver/test/add.py

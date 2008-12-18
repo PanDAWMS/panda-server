@@ -1,47 +1,70 @@
-Installation Instructions for Panda Server component.
------------------------------------------------------
-
-Dependencies
+Installation
 --------------------
 
-Project dependencies
+1. Checkout panda-common and panda-server.
 
-* panda-common project
+$ svn co http://svn.usatlas.bnl.gov/svn/panda/panda-common/tags/0.0.X panda-common
+$ svn co http://svn.usatlas.bnl.gov/svn/panda/panda-server/tags/0.0.X panda-server
 
-Typical system dependencies
+* For RPM installation
 
-* httpd
-* mod_python
-* mod_ssl
-* curl
-* MySQL-python
+$ cd panda-common
+$ python setup.py install --prefix=INSTALLDIR
+$ cd ../panda-server 
+$ python setup.py install --prefix=INSTALLDIR
 
-Specialized dependencies
+where INSTALLDIR is /data/atlpan/panda, for example.
 
-* gridsite (for mod_gridsite). e.g. gridsite-1.1.14-1.i386.rpm
-* DQ2 installation (/opt/dq2)
+* For RPM installation
+
+$ cd panda-common
+$ python setup.py bdist_rpm
+$ sudo rpm -Uvh dist/panda-common-*.noarch.rpm
+$ cd ../panda-server 
+$ python setup.py bdist_rpm
+$ sudo rpm -Uvh dist/panda-server-*.noarch.rpm
+
+INSTALLDIR is set to /data/atlpan/panda automatically for RPMs
 
 
-Install Steps
---------------------
+2. Modify config files
 
-First, checkout panda-server.
+$ cd INSTALLDIR/etc/panda
+$ mv panda_common.cfg.rpmnew panda_common.cfg
+$ mv panda_server.cfg.rpmnew panda_server.cfg       
+$ mv panda_server-httpd.conf.rpmnew panda_server-httpd.conf        
+$ emacs -nw panda_server.cfg
 
-$ svn co https://svn.usatlas.bnl.gov/svn/panda/panda-server
-$ cd panda-server 
-$ python setup.py install --prefix=/path/to/app/root
+fix FIXME
 
-Then, edit /path/to/app/root/etc/panda/panda_server.cfg.
+$ emacs -nw panda_server-httpd.conf
 
-$ vi /path/to/app/root/etc/panda/panda_server.cfg
+SSLCertificateFile      InstallDir/etc/panda/server.crt
+SSLCertificateKeyFile   InstallDir/etc/panda/server.key
 
-Finally, install server.key/cert.
+->
 
-$ cd /path/to/app/root/etc/panda
-$ /usr/bin/openssl genrsa -des3 1024 > server.key
-$ /usr/bin/openssl req -new -key server.key -x509 -days 365 -out server.crt
-$ cp server.key server.key.org
-$ /usr/bin/openssl/openssl rsa -in server.key.org -out server.key
+SSLCertificateFile      /etc/httpd/conf/ssl.crt/server.crt
+SSLCertificateKeyFile   /etc/httpd/conf/ssl.key/server.key
+
+$ cd INSTALLDIR/etc/sysconfig
+$ mv panda_server-sysconfig.rpmnew panda_server-sysconfig
+$ emacs -nw panda_server-sysconfig
+
+add
+
+export X509_USER_PROXY=/data/atlpan/x509up_u25606
+
+3. Add .gacl
+
+$ cd INSTALLDIR/lib/python*/site-packages/pandaserver/server/
+$ emacs -nw .gacl
+<gacl>
+<entry>
+  <any-user/>
+  <allow><read/><list/></allow>
+</entry>
+</gacl>
 
 
 Start the server
@@ -49,12 +72,12 @@ Start the server
 
 Add the following to crontab.
 
-0-59/5 * * * * /path/to/app/root/usr/bin/panda_server-add.sh > /dev/null 2>&1
-15 0-21/3 * * * /path/to/app/root/usr/bin/panda_server-copyArchive.sh > /dev/null 2>&1
+0-59/5 * * * * INSTALLDIR/usr/bin/panda_server-add.sh > /dev/null 2>&1
+15 0-21/3 * * * INSTALLDIR/usr/bin/panda_server-copyArchive.sh > /dev/null 2>&1
 
 Then run the server.
 
-$ /path/to/app/root/etc/init.d/panda_server-ctl start
+$ INSTALLDIR/etc/init.d/panda_server-ctl start
 
 
 

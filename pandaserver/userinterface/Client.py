@@ -15,11 +15,11 @@ import cPickle as pickle
 try:
     baseURL = os.environ['PANDA_URL']
 except:
-    baseURL = 'http://pandasrv.usatlas.bnl.gov:25080/server/panda'
+    baseURL = 'http://localhost:25080/server/panda'
 try:
     baseURLSSL = os.environ['PANDA_URL_SSL']
 except:
-    baseURLSSL = 'https://pandasrv.usatlas.bnl.gov:25443/server/panda'
+    baseURLSSL = 'https://localhost:25443/server/panda'
 try:
     baseURLDQ2 = os.environ['PANDA_URL_DQ2']
 except:
