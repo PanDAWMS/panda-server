@@ -3,12 +3,13 @@
 # Setup prog for Panda Server
 #
 #
-release_version='0.0.1'
+release_version='0.0.2'
 
 import re
 import sys
 import commands
 from distutils.core import setup
+from distutils.command.install import install as install_org
 from distutils.command.install_data import install_data as install_data_org
 
 # get panda specific params
@@ -39,6 +40,13 @@ while idx < len(sys.argv):
         newArgv.append(tmpArg)
 # set new argv
 sys.argv = newArgv
+
+
+# set overall prefix for bdist_rpm
+class install_panda(install_org):
+    def initialize_options (self):
+        install_org.initialize_options(self)
+        self.prefix = '/data/atlpan/panda'
 
 
 # generates files using templates and install them
@@ -154,7 +162,7 @@ setup(
                                ]
                  ),
                 # sysconfig
-                ('etc/sysconfig', ['templates/panda_server-sysconfig.template',
+                ('etc/sysconfig', ['templates/panda_server-sysconfig.rpmnew.template',
                                    ]
                  ),
                 # logrotate
@@ -174,5 +182,6 @@ setup(
                 ('var/log/panda', []),
                 ('var/cache/pandaserver', []),                
                 ],
-    cmdclass={'install_data': install_data_panda}
+    cmdclass={'install': install_panda,
+              'install_data': install_data_panda}
 )
