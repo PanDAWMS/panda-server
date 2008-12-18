@@ -1,5 +1,6 @@
 import re
 import sys
+import commands
 from liveconfigparser.LiveConfigParser import LiveConfigParser
 
 # get ConfigParser
@@ -23,3 +24,6 @@ for tmpKey,tmpVal in tmpDict.iteritems():
         tmpVal = int(tmpVal)
     # update dict
     tmpSelf.__dict__[tmpKey] = tmpVal
+
+# set hostname
+tmpSelf.__dict__['pserverhost'] = commands.getoutput('hostname -f')

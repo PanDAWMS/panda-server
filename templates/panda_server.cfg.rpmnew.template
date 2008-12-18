@@ -151,9 +151,6 @@ nArchiveDBConnection = 1
 # Panda server parameters
 #
 
-# host
-pserverhost = @@hostname@@
-
 # port
 pserverport = 25443
 
