@@ -162,7 +162,7 @@ setup(
                                ]
                  ),
                 # sysconfig
-                ('etc/sysconfig', ['templates/panda_server-sysconfig.template',
+                ('etc/sysconfig', ['templates/panda_server-sysconfig.rpmnew.template',
                                    ]
                  ),
                 # logrotate
