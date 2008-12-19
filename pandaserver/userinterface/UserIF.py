@@ -386,7 +386,18 @@ def _getFQAN(req):
                 fqans.append(fqan)
     # return
     return fqans
-    
+
+
+# get DN
+def _getDN(req):
+    realDN = ''
+    if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        realDN = req.subprocess_env['SSL_CLIENT_S_DN']
+        # remove redundant CN
+        realDN = re.sub('/CN=limited proxy','',realDN)
+        realDN = re.sub('/CN=proxy(/CN=proxy)+','/CN=proxy',realDN)
+    return realDN
+                                        
 
 
 """
@@ -402,7 +413,7 @@ def submitJobs(req,jobs):
     # get DN
     user = None
     if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
-        user = req.subprocess_env['SSL_CLIENT_S_DN']
+        user = _getDN(req)
     # get FQAN
     fqans = _getFQAN(req)
     # hostname
@@ -489,7 +500,7 @@ def killJobs(req,ids,code=None):
     # get DN
     user = None
     if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
-        user = req.subprocess_env['SSL_CLIENT_S_DN']
+        user = _getDN(req)        
     # check role
     prodManager = False
     # get FQANs
@@ -517,7 +528,7 @@ def reassignJobs(req,ids):
     # get DN
     user = None
     if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
-        user = req.subprocess_env['SSL_CLIENT_S_DN']
+        user = _getDN(req)
     # hostname
     host = req.get_remote_host()
     return userIF.reassignJobs(ids,user,host)
@@ -558,7 +569,7 @@ def registerProxyKey(req,credname,origin,myproxy):
     if not req.subprocess_env.has_key('SSL_CLIENT_V_END'):
         return False
     params = {}
-    params['dn'] = req.subprocess_env['SSL_CLIENT_S_DN']
+    params['dn'] = _getDN(req)
     # set parameters
     params['credname'] = credname
     params['origin']   = origin
@@ -586,7 +597,7 @@ def getProxyKey(req):
     # get DN
     if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
         return False
-    dn = req.subprocess_env['SSL_CLIENT_S_DN']
+    dn = _getDN(req)
     # execute
     return userIF.getProxyKey(dn)
 
@@ -600,7 +611,7 @@ def getJobIDsInTimeRange(req,timeRange,dn=None):
     if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
         return False
     if dn == None:
-        dn = req.subprocess_env['SSL_CLIENT_S_DN']
+        dn = _getDN(req)
     _logger.debug("getJobIDsInTimeRange %s %s" % (dn,timeRange))
     # execute
     return userIF.getJobIDsInTimeRange(dn,timeRange)
@@ -615,7 +626,7 @@ def getPandIDsWithJobID(req,jobID,nJobs,dn=None):
     if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
         return False
     if dn == None:
-        dn = req.subprocess_env['SSL_CLIENT_S_DN']
+        dn = _getDN(req)
     _logger.debug("getPandIDsWithJobID %s JobID=%s nJobs=%s" % (dn,jobID,nJobs))
     # execute
     return userIF.getPandIDsWithJobID(dn,jobID,nJobs)
@@ -629,7 +640,7 @@ def getFullJobStatus(req,ids):
     # get DN
     if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
         return False
-    dn = req.subprocess_env['SSL_CLIENT_S_DN']
+    dn = _getDN(req)
     return userIF.getFullJobStatus(ids,dn)
 
 

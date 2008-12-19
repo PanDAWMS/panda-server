@@ -1079,7 +1079,8 @@ class DBProxy:
                                 if retU != 0:
                                     # get nSent for production jobs
                                     if prodSourceLabel in [None,'managed']:
-                                        self.cur.execute(sqlSent+comment)
+                                        _logger.debug(sqlSent+comment+str(varMapSent))                                        
+                                        self.cur.execute(sqlSent+comment, varMapSent)
                                         resSent = self.cur.fetchone()
                                         if resSent != None:
                                             nSent, = resSent

@@ -1,5 +1,6 @@
 import sys
 import time
+import commands
 import threading
 import urllib2,urllib
 
@@ -11,6 +12,7 @@ import os
 node={}
 node['siteName']=sys.argv[1]
 node['mem']=1000
+node['node']=commands.getoutput('hostname -f')
 #node['prodSourceLabel']='user'
 url='https://localhost:25443/server/panda/getJob'
 #url='https://.usatlas.bnl.gov:25443/server/panda/getJob'
