@@ -46,7 +46,7 @@ sys.argv = newArgv
 class install_panda(install_org):
     def initialize_options (self):
         install_org.initialize_options(self)
-        self.prefix = '/data/atlpan/panda'
+        self.prefix = '/data/atlpan/srv'
 
 
 # generates files using templates and install them

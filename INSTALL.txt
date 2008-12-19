@@ -13,7 +13,7 @@ $ python setup.py install --prefix=INSTALLDIR
 $ cd ../panda-server 
 $ python setup.py install --prefix=INSTALLDIR
 
-where INSTALLDIR is /data/atlpan/panda, for example.
+where INSTALLDIR is /data/atlpan/testsrv, for example.
 
 * For RPM installation
 
@@ -24,7 +24,7 @@ $ cd ../panda-server
 $ python setup.py bdist_rpm
 $ sudo rpm -Uvh dist/panda-server-*.noarch.rpm
 
-INSTALLDIR is set to /data/atlpan/panda automatically for RPMs
+INSTALLDIR is set to /data/atlpan/srv automatically for RPMs
 
 
 2. Modify config files
