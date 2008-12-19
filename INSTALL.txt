@@ -8,9 +8,9 @@ $ svn co http://svn.usatlas.bnl.gov/svn/panda/panda-server/tags/A.B.C panda-serv
 
 * For tar-ball installation
 
-$ cd panda-common-*
+$ cd panda-common
 $ python setup.py install --prefix=INSTALLDIR
-$ cd ../panda-server-*
+$ cd ../panda-server
 $ python setup.py install --prefix=INSTALLDIR
 
 where INSTALLDIR is /data/atlpan/testsrv, for example.
