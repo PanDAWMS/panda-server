@@ -8,9 +8,9 @@ $ svn co http://svn.usatlas.bnl.gov/svn/panda/panda-server/tags/A.B.C panda-serv
 
 * For tar-ball installation
 
-$ cd panda-common
+$ cd panda-common-*
 $ python setup.py install --prefix=INSTALLDIR
-$ cd ../panda-server 
+$ cd ../panda-server-*
 $ python setup.py install --prefix=INSTALLDIR
 
 where INSTALLDIR is /data/atlpan/testsrv, for example.
@@ -36,6 +36,12 @@ $ mv panda_server-httpd.conf.rpmnew panda_server-httpd.conf
 $ emacs -nw panda_server.cfg
 
 fix FIXME
+
+dq2_dir = /opt/dq2
+
+->
+
+dq2_dir = /data/atlpan/DQ2Clients/DQ2Clients
 
 $ emacs -nw panda_server-httpd.conf
 
