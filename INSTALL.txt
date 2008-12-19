@@ -61,6 +61,7 @@ add
 
 export X509_USER_PROXY=/data/atlpan/x509up_u25606
 
+
 3. Add .gacl
 
 $ cd INSTALLDIR/lib/python*/site-packages/pandaserver/server/
@@ -71,6 +72,26 @@ $ emacs -nw .gacl
   <allow><read/><list/></allow>
 </entry>
 </gacl>
+
+
+4. Add grid-env.sh if needed
+
+e.g.,
+$ cat INSTALLDIR/etc/grid-env.sh
+export LD_LIBRARY_PATH=/opt/glite/lib64:/opt/globus/lib:/opt/lcg/lib64:$LD_LIBRARY_PATH
+export PYTHONPATH=/opt/glite/lib64/python:/opt/lcg/lib64/python:$PYTHONPATH
+export PATH=/opt/edg/bin:/opt/glite/bin:/opt/globus/bin:/opt/lcg/bin:$PATH
+
+and modify panda_common.cfg
+
+$ emacs -nw INSTALLDIR/etc/panda/panda_common.cfg
+
+glite_source = /opt/glite/etc/profile.d/grid-env.sh
+
+->
+
+glite_source = INSTALLDIR/etc/grid-env.sh
+
 
 
 Start the server
