@@ -784,7 +784,7 @@ class Setupper (threading.Thread):
                             dispError[disp] = err
                             continue
                         # normal jobs
-                        argStr = "-t 1080 -n 3 -s %s -r %s --guids %s --lfns %s --callBack %s -d %spanda/dis/%s%s %s" % \
+                        argStr = "-t 7200 -n 3 -s %s -r %s --guids %s --lfns %s --callBack %s -d %spanda/dis/%s%s %s" % \
                                  (srcDQ2ID,dstDQ2ID,guidStr,lfnsStr,callBackURL,destDir,
                                   time.strftime('%y/%m/%d/'),job.dispatchDBlock,job.dispatchDBlock)
                     else:
