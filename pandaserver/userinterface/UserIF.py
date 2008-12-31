@@ -354,7 +354,10 @@ class UserIF:
             # deserialize jobspecs
             ids = pickle.loads(idsStr)
             # truncate
-            ids = ids[:2]
+            maxIDs = 2500
+            if len(ids) > maxIDs:
+                _logger.error("too long ID list more than %s" % maxIDs)
+                ids = ids[:maxIDs]
         except:
             type, value, traceBack = sys.exc_info()
             _logger.error("getFullJobStatus : %s %s" % (type,value))
