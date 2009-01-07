@@ -1894,7 +1894,7 @@ class DBProxy:
                 # insert
                 varMap = {}
                 varMap[':PandaID'] = pandaID
-                varMap[':metaData'] = metadata[:4096*2]
+                varMap[':metaData'] = metadata
                 self.cur.execute(sql1+comment, varMap)
                 # commit
                 if not self._commit():
