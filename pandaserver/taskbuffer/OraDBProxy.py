@@ -1504,14 +1504,14 @@ class DBProxy:
                     self.cur.execute(sqlFile+comment, varMap)
                     resFs = self.cur.fetchall()
                     # metadata
+                    resMeta = None
                     if table == 'jobsArchived4' and (not forAnal):
                         # read metadata only for finished/failed jobs
                         sqlMeta = "SELECT metaData FROM metaTable WHERE PandaID=:PandaID"
-                        self.cur.arraysize = 10                        
                         self.cur.execute(sqlMeta+comment, varMap)
-                        resMeta = self.cur.fetchone()
-                    else:
-                        resMeta = None
+                        for clobMeta, in self.cur:
+                            resMeta = clobMeta.read()
+                            break
                     # commit
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
@@ -1522,7 +1522,7 @@ class DBProxy:
                         job.addFile(file)
                     # set metadata
                     if resMeta != None:
-                        job.metadata = resMeta[0]
+                        job.metadata = resMeta
                     return job
             _logger.debug("peekJob() : PandaID %s not found" % pandaID)
             return None
@@ -1894,7 +1894,7 @@ class DBProxy:
                 # insert
                 varMap = {}
                 varMap[':PandaID'] = pandaID
-                varMap[':metaData'] = metadata
+                varMap[':metaData'] = metadata[:4096*2]
                 self.cur.execute(sql1+comment, varMap)
                 # commit
                 if not self._commit():
