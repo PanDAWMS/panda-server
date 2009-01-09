@@ -23,7 +23,7 @@ from userinterface.UserIF import userIF
 userIF.init(taskBuffer)
 
 # import web I/F
-from taskbuffer.Utils            import isAlive,putFile,deleteFile,getServer
+from taskbuffer.Utils            import isAlive,putFile,deleteFile,getServer,updateLog,fetchLog
 from dataservice.DataService     import datasetCompleted
 from jobdispatcher.JobDispatcher import getJob,updateJob,isThereAnalysisJob,getStatus
 from userinterface.UserIF        import submitJobs,getJobStatus,queryPandaIDs,killJobs,reassignJobs,\
