@@ -446,6 +446,45 @@ def getJobStatistics(sourcetype=None):
                     else:
                         ret[tmpCloud][tmpStatus] = tmpCount    
     return 0,ret
+
+
+# get job statistics for Bamboo
+def getJobStatisticsForBamboo():
+    # instantiate curl
+    curl = _Curl()
+    # execute
+    ret = {}
+    for srvID in getPandas():
+        url = _getURL('URL',srvID) + '/getJobStatisticsForBamboo'
+        data = {}
+        status,output = curl.get(url,data)
+        try:
+            tmpRet = status,pickle.loads(output)
+            if status != 0:
+                return tmpRet
+        except:
+            print output
+            type, value, traceBack = sys.exc_info()
+            errStr = "ERROR getJobStatisticsForBamboo : %s %s" % (type,value)
+            print errStr
+            return EC_Failed,output+'\n'+errStr
+        # gather
+        for tmpCloud,tmpMap in tmpRet[1].iteritems():
+            if not ret.has_key(tmpCloud):
+                # append cloud values
+                ret[tmpCloud] = tmpMap
+            else:
+                # sum statistics
+                for tmpPType,tmpVal in tmpMap.iteritems():
+                    if not ret[tmpCloud].has_key(tmpPType):
+                        ret[tmpCloud][tmpPType] = tmpVal
+                    else:
+                        for tmpStatus,tmpCount in tmpVal.iteritems():
+                            if ret[tmpCloud][tmpPType].has_key(tmpStatus):
+                                ret[tmpCloud][tmpPType][tmpStatus] += tmpCount 
+                            else:
+                                ret[tmpCloud][tmpPType][tmpStatus] = tmpCount    
+    return 0,ret
  
 
 # get jobs updated recently

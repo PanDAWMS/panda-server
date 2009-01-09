@@ -801,6 +801,18 @@ class TaskBuffer:
         return ret
 
 
+    # get job statistics for Bamboo
+    def getJobStatisticsForBamboo(self):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get serial number
+        ret = proxy.getJobStatisticsPerProcessingType()
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
     # get number of activated analysis jobs
     def getNAnalysisJobs(self,nProcesses):
         # get DBproxy

@@ -139,6 +139,14 @@ class UserIF:
         ret = self.taskBuffer.getJobStatisticsForExtIF(sourcetype)
         # serialize 
         return pickle.dumps(ret)
+
+
+    # get job statistics for Bamboo
+    def getJobStatisticsForBamboo(self):
+        # get job statistics
+        ret = self.taskBuffer.getJobStatisticsForBamboo()
+        # serialize 
+        return pickle.dumps(ret)
         
 
     # get job statistics per site
@@ -479,6 +487,11 @@ def updateProdDBUpdateTimes(req,params):
 # get job statistics
 def getJobStatistics(req,sourcetype=None):
     return userIF.getJobStatistics(sourcetype)
+
+
+# get job statistics for Babmoo
+def getJobStatisticsForBamboo(req):
+    return userIF.getJobStatisticsForBamboo()
 
 
 # get job statistics per site

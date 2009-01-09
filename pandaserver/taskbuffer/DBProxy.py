@@ -2767,6 +2767,46 @@ class DBProxy:
             return {}
 
 
+    # get job statistics per processingType
+    def getJobStatisticsPerProcessingType(self):
+        comment = ' /* DBProxy.getJobStatisticsPerProcessingType */'                
+        _logger.debug("getJobStatisticsPerProcessingType()")
+        sql0  = "SELECT jobStatus,COUNT(*),cloud,processingType FROM %s "
+        sql0 += "WHERE prodSourceLabel='managed' GROUP BY jobStatus,cloud,processingType"
+        ret = {}
+        try:
+            for table in ('jobsActive4','jobsWaiting4','jobsArchived4','jobsDefined4'):
+                # set autocommit on
+                self.cur.execute("SET AUTOCOMMIT=1")
+                # select
+                self.cur.execute((sql0+comment) % table)
+                res = self.cur.fetchall()
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                # create map
+                for jobStatus,count,cloud,processingType in res:
+                    # add cloud
+                    if not ret.has_key(cloud):
+                        ret[cloud] = {}
+                    # add processingType
+                    if not ret[cloud].has_key(processingType):
+                        ret[cloud][processingType] = {}
+                    # this is needed for auto_increment of InnoDB
+                    if not ret[cloud][processingType].has_key(jobStatus):
+                        ret[cloud][processingType][jobStatus] = count
+            # return
+            _logger.debug("getJobStatisticsPerProcessingType() : %s" % str(ret))
+            return ret
+        except:
+            # roll back
+            self._rollback()
+            # error
+            type, value, traceBack = sys.exc_info()
+            _logger.error("getJobStatisticsPerProcessingType : %s %s" % (type, value))
+            return {}
+
+
     # get number of activated analysis jobs
     def getNAnalysisJobs(self,nProcesses):
         comment = ' /* DBProxy.getNAnalysisJobs */'        
