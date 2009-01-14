@@ -88,7 +88,8 @@ class TaskAssigner:
                     exec "fullRWs = %s" % metadata.split(';')[4]
             except:
                 pass
-            message = '%s taskType=%s priority=%s' % (self.taskID,taskType,prioMap[self.taskID])
+            message = '%s taskType=%s prio=%s RW=%s' % (self.taskID,taskType,prioMap[self.taskID],
+                                                        expRWs[self.taskID])
             _logger.debug(message)
             self.sendMesg(message)
             _logger.debug('%s RWs     =%s' % (self.taskID,str(RWs)))
@@ -342,7 +343,7 @@ class TaskAssigner:
                     message = '%s    %s skip : too high RW=%s > %s' % \
                               (self.taskID,cloudName,RWs[cloudName],thr_RW_high*weightParams[cloudName]['mcshare'])
                     _logger.debug(message)
-                    self.sendMesg(message)
+                    self.sendMesg(message,msgType='warning')
                     tmpMaxClouds.remove(cloudName)
                     continue
                 # set weight to infinite when RW is too low
@@ -362,14 +363,20 @@ class TaskAssigner:
                 _logger.debug('%s use new clouds after space/RW checking' % self.taskID)
                 maxClouds = tmpMaxClouds
             else:
+                messageEnd = '%s no candidates left' % self.taskID
+                self.sendMesg(messageEnd,msgType='warning')
                 # make subscription to empty cloud
                 if taskType in taskTypesSub:
                     _logger.debug('%s makeSubscription start' % self.taskID)                    
                     retSub = self.makeSubscription(removedDQ2Map,RWs,fullRWs,expRWs)
                     _logger.debug('%s makeSubscription end with %s' % (self.taskID,retSub))
-                message = '%s no candidates left' % self.taskID
-                self.sendMesg(message,msgType='error')
-                raise RuntimeError, message
+                    if retSub:
+                        message = '%s made subscription' % self.taskID
+                        self.sendMesg(message,msgType='info')                        
+                    else:
+                        message = "%s didn't make subscription" % self.taskID
+                        self.sendMesg(message,msgType='warning')                                                
+                raise RuntimeError, messageEnd
             # choose one
             message = '%s candidates %s' % (self.taskID,str(maxClouds))
             _logger.debug(message)
@@ -463,8 +470,11 @@ class TaskAssigner:
             for tmpCloud in tmpClouds:
                 if not tmpCloud in cloudList:
                     cloudList.append(tmpCloud)
+        message = '%s candidates for subscription : %s' % (self.taskID,str(cloudList))
+        _logger.debug(message)
+        self.sendMesg(message)
         if cloudList == []:
-            _logger.debug('%s no candidates for subscription' % self.taskID)
+            _logger.debug('%s no candidates for subscription' % self.taskID)            
             return False
         # get DN
         com = 'unset LD_LIBRARY_PATH; unset PYTHONPATH; export PATH=/usr/local/bin:/bin:/usr/bin; '
@@ -549,7 +559,9 @@ class TaskAssigner:
         subThr = 1
         for tmpDS,tmpClouds in runningSub.iteritems():
             if len(tmpClouds) > 0:
-                _logger.debug('%s subscription:%s in process' % (self.taskID,tmpDS))
+                message = '%s subscription:%s to %s in process' % (self.taskID,tmpDS,str(tmpClouds))
+                _logger.debug(message)
+                self.sendMesg(message)
                 return False
         # get size of datasets
         dsSizeMap = {}
@@ -601,9 +613,13 @@ class TaskAssigner:
                     aveSpace -= dsSizeMap[tmpDS]
             # check space
             if aveSpace < thr_space_low:
-                _logger.debug('%s    %s skip : space=%s' % (self.taskID,tmpCloudName,aveSpace))
+                message = '%s    %s skip : space=%s total=%s' % (self.taskID,tmpCloudName,aveSpace,
+                                                                 tmpT1Site.space)
+                _logger.debug(message)
+                self.sendMesg(message,msgType='warning')                
                 continue
-            _logger.debug('%s    %s pass : space=%s' % (self.taskID,tmpCloudName,aveSpace))
+            _logger.debug('%s    %s pass : space=%s total=%s' % (self.taskID,tmpCloudName,aveSpace,
+                                                                 tmpT1Site.space))
             # get minimum RW
             if not RWs.has_key(tmpCloudName):
                 RWs[tmpCloudName] = 0
@@ -611,10 +627,19 @@ class TaskAssigner:
                 minRW    = RWs[tmpCloudName]
                 minCloud = tmpCloudName
         # check RW
-        if minCloud == None or minRW > thr_RW_low:
-            _logger.debug('%s no empty cloud : %s minRW=%s>%s' % (self.taskID,minCloud,minRW,thr_RW_low))
+        if minCloud == None:
+            message = '%s no candidates left for subscription' % self.taskID
+            _logger.debug(message)
+            self.sendMesg(message)
             return False
-        _logger.debug('%s %s for subscription : minRW=%s' % (self.taskID,minCloud,minRW))        
+        if minRW > thr_RW_low:
+            message = '%s no empty cloud : %s minRW=%s>%s' % (self.taskID,minCloud,minRW,thr_RW_low)
+            _logger.debug(message)
+            self.sendMesg(message)
+            return False
+        message = '%s %s for subscription : minRW=%s' % (self.taskID,minCloud,minRW)
+        _logger.debug(message)
+        self.sendMesg(message)
         # get cloud spec for subscription
         tmpCloudSpec = self.siteMapper.getCloud(minCloud)
         # get T1 site
