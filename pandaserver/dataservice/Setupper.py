@@ -862,7 +862,8 @@ class Setupper (threading.Thread):
         lfnMap = {}
         valMap = {}
         prodError = {}
-        jobsWaiting = []
+        jobsWaiting   = []
+        jobsFailed    = []
         jobsProcessed = []
         allLFNs  = {}
         allGUIDs = {}
@@ -1099,9 +1100,13 @@ class Setupper (threading.Thread):
                             file.checksum = file.checksum.strip()
                     else:
                         # append job to waiting list
-                        _logger.debug("GUID for %s not found" % file.lfn)
+                        errMsg = "GUID for %s not found in DQ2" % file.lfn
+                        _logger.debug(errMsg)
                         file.status = 'missing'
-                        jobsWaiting.append(job)
+                        job.jobStatus    = 'failed'                        
+                        job.ddmErrorCode = ErrorCode.EC_GUID
+                        job.ddmErrorDiag = errMsg
+                        jobsFailed.append(job)
                         isFailed = True
                         break
                     # add to allLFNs/allGUIDs
@@ -1174,7 +1179,9 @@ class Setupper (threading.Thread):
                                     break
         # send jobs to jobsWaiting
         self.taskBuffer.keepJobs(jobsWaiting)
-        # remove waiting jobs
+        # update failed job
+        self.taskBuffer.updateJobs(jobsFailed,True)        
+        # remove waiting/failed jobs
         self.jobs = jobsProcessed
         # delete huge variables
         del lfnMap
