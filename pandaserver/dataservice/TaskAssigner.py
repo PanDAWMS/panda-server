@@ -457,7 +457,7 @@ class TaskAssigner:
     # get available space
     def getAvailableSpace(self,space,fullRW,expRW):
         # calculate available space = totalT1space - ((RW(cloud)+RW(thistask))*GBperSI2kday))   
-        aveSpace = space - (fullRW+expRW)*1
+        aveSpace = space - (fullRW+expRW)*0.2
         return aveSpace
 
 
