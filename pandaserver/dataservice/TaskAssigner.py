@@ -17,7 +17,7 @@ from pandalogger.PandaLogger import PandaLogger
 _logger = PandaLogger().getLogger('TaskAssigner')
 
 # cutoff for RW
-thr_RW_low  = 1000
+thr_RW_low  = 200
 thr_RW_high = 2000
 
 # cutoff for disk
@@ -348,9 +348,9 @@ class TaskAssigner:
                     continue
                 # set weight to infinite when RW is too low
                 if not taskType in taskTypesMcShare:
-                    if RWs[cloudName] < thr_RW_low:
+                    if RWs[cloudName] < thr_RW_low*weightParams[cloudName]['mcshare']:
                         message = '%s    %s infinite weight : RW=%s < %s' % \
-                                  (self.taskID,cloudName,RWs[cloudName],thr_RW_low)
+                                  (self.taskID,cloudName,RWs[cloudName],thr_RW_low*weightParams[cloudName]['mcshare'])
                         _logger.debug(message)
                         self.sendMesg(message)
                         tmpInfClouds.append(cloudName)
@@ -620,11 +620,15 @@ class TaskAssigner:
                 continue
             _logger.debug('%s    %s pass : space=%s total=%s' % (self.taskID,tmpCloudName,aveSpace,
                                                                  tmpT1Site.space))
+            # get cloud spec
+            tmpCloudSpec = self.siteMapper.getCloud(tmpCloudName)
             # get minimum RW
             if not RWs.has_key(tmpCloudName):
                 RWs[tmpCloudName] = 0
-            if minRW == None or minRW > RWs[tmpCloudName]:
-                minRW    = RWs[tmpCloudName]
+            _logger.debug('%s    %s RW=%s Thr=%s' % (self.taskID,tmpCloudName,RWs[tmpCloudName],
+                                                     tmpCloudSpec['mcshare']*thr_RW_low))
+            if minRW == None or minRW > RWs[tmpCloudName]/tmpCloudSpec['mcshare']/thr_RW_low:
+                minRW    = RWs[tmpCloudName]/tmpCloudSpec['mcshare']/thr_RW_low
                 minCloud = tmpCloudName
         # check RW
         if minCloud == None:
@@ -632,8 +636,12 @@ class TaskAssigner:
             _logger.debug(message)
             self.sendMesg(message)
             return False
-        if minRW > thr_RW_low:
-            message = '%s no empty cloud : %s minRW=%s>%s' % (self.taskID,minCloud,minRW,thr_RW_low)
+        # get cloud spec
+        tmpCloudSpec = self.siteMapper.getCloud(minCloud)
+        # check threshold
+        if minRW > 1.0:
+            message = '%s no empty cloud : %s minRW=%s>%s' % \
+                      (self.taskID,minCloud,RWs[minCloud],thr_RW_low*tmpCloudSpec['mcshare'])
             _logger.debug(message)
             self.sendMesg(message)
             return False
