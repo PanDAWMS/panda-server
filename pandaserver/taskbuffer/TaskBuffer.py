@@ -104,6 +104,7 @@ class TaskBuffer:
         ret =[]
         newJobs=[]
         usePandaDDM = False
+        firstLiveLog = True
         for job in jobs:
             # set JobID. keep original JobID when retry
             if userJobID != -1 and job.prodSourceLabel in ['user','panda'] \
@@ -117,6 +118,19 @@ class TaskBuffer:
                 # reset if failed
                 job.PandaID = None
             else:
+                # live log
+                if job.prodSourceLabel in ['user','panda']:
+                    if ' --liveLog ' in job.jobParameters:
+                        # enable liveLog only for the first one
+                        if firstLiveLog:
+                            # set file name
+                            repPatt = ' --liveLog stdout.%s ' % job.PandaID
+                        else:
+                            # remove the option
+                            repPatt = ' '
+                        job.jobParameters = re.sub(' --liveLog ',repPatt,job.jobParameters)
+                        firstLiveLog = False
+                # append
                 newJobs.append(job)
             ret.append((job.PandaID,job.jobDefinitionID,job.jobName))
             serNum += 1

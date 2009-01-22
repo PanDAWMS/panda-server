@@ -66,20 +66,20 @@ def updateLog(req,file):
 
 
 # fetch stdout
-def fetchLog(req,PandaID,offset=0):
-    _logger.debug("fetchLog : %s start offset=%s" % (PandaID,offset))
+def fetchLog(req,logName,offset=0):
+    _logger.debug("fetchLog : %s start offset=%s" % (logName,offset))
     # stdout name
-    logName  = '%s/stdout.%s' % (panda_config.cache_dir,PandaID)
+    fullLogName  = '%s/%s' % (panda_config.cache_dir,logName)
     # put dummy char to avoid Internal Server Error
     retStr = ' '
     try:
         # read
-        ft = open(logName,'r')
+        ft = open(fullLogName,'r')
         ft.seek(long(offset))
         retStr += ft.read()
         ft.close()
     except:
         type, value, traceBack = sys.exc_info()
         _logger.error("fetchLog : %s %s" % (type,value))
-    _logger.debug("fetchLog : %s end read=%s" % (PandaID,len(retStr)))
+    _logger.debug("fetchLog : %s end read=%s" % (logName,len(retStr)))
     return retStr
