@@ -391,9 +391,14 @@ class TaskAssigner:
                     if (taskType in taskTypesMcShare):
                         # use MC share for evgen
                         tmpWeight = float(weightParams[cloudName]['mcshare'])
+                        message = "%s %s weight=%s" % (self.taskID,cloudName,weightParams[cloudName]['mcshare'])
                     else:
                         # use nPilot/fullRW*MCshare
                         tmpWeight = float(weightParams[cloudName]['nPilot']) / float(1+fullRWs[cloudName])
+                        message = "%s %s weight=%s/%s" % (self.taskID,cloudName,
+                                                          weightParams[cloudName]['nPilot'],
+                                                          1+fullRWs[cloudName])
+                    self.sendMesg(message)
                     nWeightList.append(tmpWeight)
                     totalWeight += tmpWeight
                 # check total weight
