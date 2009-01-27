@@ -279,12 +279,12 @@ class UserIF:
 
 
     # get list of site spec
-    def getSiteSpecs(self):
+    def getSiteSpecs(self,siteType='analysis'):
         # get analysis site list
         specList = {}
         siteMapper = SiteMapper(self.taskBuffer)
         for id,spec in siteMapper.siteSpecList.iteritems():
-            if spec.type == 'analysis':
+            if siteType == 'all' or spec.type == siteType:
                 # convert to map
                 tmpSpec = {}
                 for attr in spec._attributes:
@@ -559,9 +559,11 @@ def resubmitJobs(req,ids):
 
 
 # get list of site spec
-def getSiteSpecs(req):
-    return userIF.getSiteSpecs()
-
+def getSiteSpecs(req,siteType=None):
+    if siteType != None:
+        return userIF.getSiteSpecs(siteType)
+    else:
+        return userIF.getSiteSpecs()
 
 # get list of cloud spec
 def getCloudSpecs(req):
