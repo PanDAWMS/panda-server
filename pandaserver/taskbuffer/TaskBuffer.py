@@ -827,6 +827,31 @@ class TaskBuffer:
         return ret
 
 
+    # get number of analysis jobs per user
+    def getNUserJobs(self,siteName,nJobs):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get number of analysis jobs per user
+        tmpRet = proxy.getNUserJobs(siteName,nJobs)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # get log proxy
+        proxy = self.logProxyPool.getProxy()
+        # get Proxy Key
+        ret = {}
+        for userID,nJobs in tmpRet.iteritems():
+            proxyKey = proxy.getProxyKey(userID)
+            if proxyKey != {}:
+                # add nJobs
+                proxyKey['nJobs'] = nJobs
+                # append
+                ret[userID] = proxyKey
+        # release proxy
+        self.logProxyPool.putProxy(proxy)
+        # return
+        return ret
+
+    
     # get number of activated analysis jobs
     def getNAnalysisJobs(self,nProcesses):
         # get DBproxy

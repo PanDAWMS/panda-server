@@ -167,6 +167,14 @@ class UserIF:
         return pickle.dumps(ret)
 
 
+    # get number of analysis jobs per user  
+    def getNUserJobs(self,siteName,nJobs):
+        # get 
+        ret = self.taskBuffer.getNUserJobs(siteName,nJobs)
+        # serialize 
+        return pickle.dumps(ret)
+
+
     # query job info per cloud
     def queryJobInfoPerCloud(self,cloud,schedulerID):
         # query PandaIDs 
@@ -661,4 +669,33 @@ def getFullJobStatus(req,ids):
     dn = _getDN(req)
     return userIF.getFullJobStatus(ids,dn)
 
+
+# get number of analysis jobs per user  
+def getNUserJobs(req,siteName,nJobs=100):
+    # check security
+    prodManager = False
+    if not Protocol.isSecure(req):
+        return "Failed : HTTPS connection is required"
+    # get FQANs
+    fqans = _getFQAN(req)
+    # loop over all FQANs
+    for fqan in fqans:
+        # check production role
+        for rolePat in ['/atlas/usatlas/Role=production','/atlas/Role=production']:
+            if fqan.startswith(rolePat):
+                prodManager = True
+                break
+        # escape
+        if prodManager:
+            break
+    # only prod managers can use this method
+    if not prodManager:
+        return "Failed : VOMS authorization failure"
+    # convert nJobs to int
+    try:
+        nJobs = int(nJobs)
+    except:
+        nJobs = 100
+    # execute
+    return userIF.getNUserJobs(siteName,nJobs)
 

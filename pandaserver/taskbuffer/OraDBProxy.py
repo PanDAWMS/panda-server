@@ -2936,6 +2936,42 @@ class DBProxy:
             return {}
 
         
+    # get number of analysis jobs per user
+    def getNUserJobs(self,siteName,nJobs):
+        comment = ' /* DBProxy.getNUserJobs */'        
+        _logger.debug("getNUserJobs(%s)" % siteName)
+        sql0 = "SELECT * FROM (SELECT prodUserID FROM jobsActive4 WHERE jobStatus='activated' AND prodSourceLabel in ('user','panda') AND computingSite=:computingSite ORDER BY currentPriority DESC) WHERE rownum<=:nJobs" % (siteName,nJobs)
+        varMap = {}
+        varMap[':computingSite'] = siteName
+        varMap[':nJobs'] = nJobs
+        ret = {}
+        try:
+            # start transaction
+            self.conn.begin()
+            # select
+            self.cur.arraysize = 10000            
+            self.cur.execute(sql0+comment, varMap)
+            res = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # create map
+            for prodUserID, in res:
+                if not ret.has_key(prodUserID):
+                    ret[prodUserID] = 0
+                ret[prodUserID] += 1
+            # return
+            _logger.debug("getNUserJobs() : %s" % str(ret))
+            return ret
+        except:
+            # roll back
+            self._rollback()
+            # error
+            type, value, traceBack = sys.exc_info()
+            _logger.error("getNUserJobs : %s %s" % (type, value))
+            return {}
+
+        
     # get number of activated analysis jobs
     def getNAnalysisJobs(self,nProcesses):
         comment = ' /* DBProxy.getNAnalysisJobs */'        
