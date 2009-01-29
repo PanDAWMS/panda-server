@@ -162,6 +162,10 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
             # set computingSite to T1 for reprocessing in EGEE
             if _isReproJob(job) and job.computingSite == 'NULL' and (not job.cloud in ['US']):
                 job.computingSite = siteMapper.getCloud(job.cloud)['source']
+            # set computingSite to T1 for high priority jobs
+            if job != None and job.currentPriority >= 900 and job.computingSite == 'NULL' \
+                   and job.prodSourceLabel in ('test','managed'):
+                job.computingSite = siteMapper.getCloud(job.cloud)['source']                
             overwriteSite = False
             # new bunch or terminator
             if job == None or len(fileList) >= nFile \
