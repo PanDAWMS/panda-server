@@ -163,7 +163,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
             if _isReproJob(job) and job.computingSite == 'NULL' and (not job.cloud in ['US']):
                 job.computingSite = siteMapper.getCloud(job.cloud)['source']
             # set computingSite to T1 for high priority jobs
-            if job != None and job.currentPriority >= 900 and job.computingSite == 'NULL' \
+            if job != None and job.currentPriority >= 950 and job.computingSite == 'NULL' \
                    and job.prodSourceLabel in ('test','managed'):
                 job.computingSite = siteMapper.getCloud(job.cloud)['source']                
             overwriteSite = False
@@ -429,8 +429,17 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                 okFiles  = {}
                 # create new dispDBlock
                 if job.prodDBlock != 'NULL':
-                    #dispatchDBlock = "%s_dis%s" % (job.prodDBlock,job.PandaID)
-                    dispatchDBlock = "panda.%s_dis%s" % (commands.getoutput('uuidgen'),job.PandaID)
+                    # get datatype
+                    try:
+                        tmpDataType = job.prodDBlock.split('.')[-2]
+                    except:
+                        # default
+                        tmpDataType = 'Unknown'                        
+                    if len(tmpDataType) > 10:
+                        # avoid too long name
+                        tmpDataType = 'Unknown'
+                    dispatchDBlock = "panda.%s.%s.%s_dis%s" % (tmpDataType,job.taskID,
+                                                               commands.getoutput('uuidgen'),job.PandaID)
                     _log.debug('New dispatchDBlock: %s' % dispatchDBlock)                    
                 prodDBlock = job.prodDBlock
                 # already define computingSite
