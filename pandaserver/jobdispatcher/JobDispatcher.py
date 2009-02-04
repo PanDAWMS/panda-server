@@ -292,11 +292,12 @@ def getJob(req,siteName,timeout=60,cpu=None,mem=None,diskSpace=None,prodSourceLa
 def updateJob(req,jobId,state,transExitCode=None,pilotErrorCode=None,pilotErrorDiag=None,timestamp=None,timeout=60,
               xml='',node=None,workdir=None,cpuConsumptionTime=None,cpuConsumptionUnit=None,remainingSpace=None,
               schedulerID=None,pilotID=None,siteName=None,messageLevel=None,pilotLog='',metaData='',
-              cpuConversionFactor=None,exeErrorCode=None,exeErrorDiag=None,pilotTiming=None):
-    _logger.debug("updateJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n==XML==\n%s\n==LOG==\n%s\n==Meta==\n%s)" %
+              cpuConversionFactor=None,exeErrorCode=None,exeErrorDiag=None,pilotTiming=None,computingElement=None):
+    _logger.debug("updateJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n==XML==\n%s\n==LOG==\n%s\n==Meta==\n%s)" %
                   (jobId,state,transExitCode,pilotErrorCode,pilotErrorDiag,node,workdir,cpuConsumptionTime,
                    cpuConsumptionUnit,remainingSpace,schedulerID,pilotID,siteName,messageLevel,
-                   cpuConversionFactor,exeErrorCode,exeErrorDiag,pilotTiming,xml,pilotLog,metaData))
+                   cpuConversionFactor,exeErrorCode,exeErrorDiag,pilotTiming,computingElement,
+                   xml,pilotLog,metaData))
     # remaining space
     if remainingSpace != None and state != 'running':
         try:
@@ -382,6 +383,8 @@ def updateJob(req,jobId,state,transExitCode=None,pilotErrorCode=None,pilotErrorD
         param['cpuConversion']=cpuConversionFactor
     if pilotTiming != None:
         param['pilotTiming']=pilotTiming
+    if computingElement != None:
+        param['computingElement']=computingElement
     # invoke JD
     return jobDispatcher.updateJob(int(jobId),state,int(timeout),xml,siteName,param,metaData)
 
