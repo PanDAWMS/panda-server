@@ -247,8 +247,12 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                             tmpCmtConfig = prevCmtConfig
                         # check release and cmtconfig
                         _log.debug('   %s' % str(tmpSiteSpec.releases))
-                        _log.debug('   %s' % str(tmpSiteSpec.cmtconfig))                        
-                        if (prevRelease != None and (tmpSiteSpec.releases != [] and previousCloud != 'US') and \
+                        _log.debug('   %s' % str(tmpSiteSpec.cmtconfig))
+                        if forAnalysis and tmpSiteSpec.cloud in ['US']:
+                            # doesn't check releases for US analysis
+                            _log.debug(' skip release check')
+                            pass
+                        elif (prevRelease != None and (tmpSiteSpec.releases != [] and previousCloud != 'US') and \
                             (not _checkRelease(prevRelease,tmpSiteSpec.releases))) or \
                             (tmpCmtConfig != None and tmpSiteSpec.cmtconfig != [] and \
                              (not tmpCmtConfig in tmpSiteSpec.cmtconfig)):
