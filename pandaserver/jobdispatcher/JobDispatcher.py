@@ -322,6 +322,10 @@ def updateJob(req,jobId,state,transExitCode=None,pilotErrorCode=None,pilotErrorD
     # aborting message
     if jobId=='NULL':
         return Protocol.Response(Protocol.SC_Success).encode()
+    # check status
+    if not state in ['running','failed','finished','holding','starting']:
+        _logger.error("invalid state=%s for updateJob" % state)
+        return Protocol.Response(Protocol.SC_Success).encode()        
     # pilot log
     if pilotLog != '':
         try:
