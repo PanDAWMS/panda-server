@@ -240,6 +240,8 @@ def _checkRole(fqans,dn,jdCore):
         # check
         if dn in tokenDN.values():
             prodManager = True
+    # FIXME once all schedulres use genPilotToken
+    prodManager = True
     # return
     return prodManager
 
