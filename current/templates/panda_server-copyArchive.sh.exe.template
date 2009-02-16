@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# import env vars from sysconfig
+source @@install_dir@@/etc/sysconfig/panda_server-sysconfig
+
+python @@install_purelib@@/pandaserver/test/copyArchive.py
