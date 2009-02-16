@@ -1,5 +1,9 @@
 Release Note
 
+* current
+  * GSI authentication for pilots
+  * tag-based security mechanism for scheduler-pilot-server chain
+
 * 0.0.3 2/16/2009
   * sync to production version
 

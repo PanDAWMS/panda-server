@@ -16,6 +16,8 @@ SC_NoJobs    = 20
 SC_Failed    = 30
 # Not secure connection
 SC_NonSecure = 40
+# invalid token
+SC_Invalid   = 50
 
 
 # response

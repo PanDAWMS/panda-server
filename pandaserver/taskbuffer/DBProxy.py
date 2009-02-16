@@ -2912,6 +2912,68 @@ class DBProxy:
             return ret
 
 
+    # generate pilot token
+    def genPilotToken(self,schedulerhost,scheduleruser,schedulerid):
+        comment = ' /* DBProxy.genPilotToken */'                    
+        try:
+            _logger.debug("genPilotToken(%s,%s,%s)" % (schedulerhost,scheduleruser,schedulerid))
+            token = commands.getoutput('uuidgen')
+            timeNow = datetime.datetime.utcnow()
+            timeExp = timeNow + datetime.timedelta(days=4)
+            sql  = "INSERT INTO pilottoken (token,schedulerhost,scheduleruser,schedulerid,created,expires) "
+            sql += "VALUES (%s,%s,%s,%s,%s,%s)"
+            # set autocommit on
+            self.cur.execute("SET AUTOCOMMIT=1")
+            # execute
+            self.cur.execute(sql+comment,(token,schedulerhost,scheduleruser,schedulerid,
+                                          timeNow.strftime('%Y-%m-%d %H:%M:%S'),
+                                          timeExp.strftime('%Y-%m-%d %H:%M:%S')))
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # return
+            retVal = "token=%s,created=%s,expires=%s" % (token,timeNow.strftime('%Y-%m-%d %H:%M:%S'),
+                                                         timeExp.strftime('%Y-%m-%d %H:%M:%S'))
+            _logger.debug("genPilotToken -> %s" % retVal)
+            return retVal
+        except:
+            # roll back
+            self._rollback()
+            # error
+            type, value, traceBack = sys.exc_info()
+            _logger.error("genPilotToken : %s %s" % (type, value))
+            return None
+
+        
+    # get list of scheduler users
+    def getListSchedUsers(self):
+        comment = ' /* DBProxy.getListSchedUsers */'                    
+        try:
+            _logger.debug("getListSchedUsers")
+            sql  = "SELECT token,scheduleruser FROM pilottoken WHERE expires>UTC_TIMESTAMP()"
+            # set autocommit on
+            self.cur.execute("SET AUTOCOMMIT=1")
+            # execute
+            self.cur.execute(sql+comment)
+            res = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # return
+            retVal = {}
+            for token,scheduleruser in res:
+                retVal[token] = scheduleruser
+            _logger.debug("getListSchedUsers->%s" % str(retVal))
+            return retVal
+        except:
+            # roll back
+            self._rollback()
+            # error
+            type, value, traceBack = sys.exc_info()
+            _logger.error("getListSchedUsers : %s %s" % (type, value))
+            return {}
+
+        
     # wake up connection
     def wakeUp(self):
         for iTry in range(5):

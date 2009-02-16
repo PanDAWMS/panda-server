@@ -42,18 +42,20 @@ class JobDipatcher:
     def __init__(self):
         # taskbuffer
         self.taskBuffer = None
-        # number of activated analysis jobs
-        self.nAnalysisJobs = {}
+        # DN/token map
+        self.tokenDN = {}
         # datetime of last updated
         self.lastUpdated = datetime.datetime.utcnow()
-        # how frequently update nAnalysisJobs
+        # how frequently update DN/token map
         self.timeInterval = datetime.timedelta(seconds=180)
 
     
     # set task buffer
     def init(self,taskBuffer):
         self.taskBuffer = taskBuffer
-
+        # update DN/token map
+        self.tokenDN = self.taskBuffer.getListSchedUsers()
+        
 
     # get job
     def getJob(self,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
@@ -174,29 +176,25 @@ class JobDipatcher:
         return response.encode()
 
 
-    # check if there is activated analysis job
-    def isThereAnalysisJob(self,siteName):
+    # get DN/token map
+    def getDnTokenMap(self):
         # get current datetime
         current = datetime.datetime.utcnow()
         if current-self.lastUpdated > self.timeInterval:
-            # get number of processes
-            nProcesses = float(commands.getoutput(
-                'ps aux|grep httpd|grep %s|grep -v grep|wc -l' % panda_config.loggername))-1.0
-            # get numbers of analysis jobs
-            self.nAnalysisJobs = self.taskBuffer.getNAnalysisJobs(nProcesses)
-            # set datetime
+            # get new map
+            self.tokenDN = self.taskBuffer.getListSchedUsers()
+            # reset
             self.lastUpdated = current
-        # no jobs at the site
-        if not self.nAnalysisJobs.has_key(siteName):
-            return False
-        nJob = self.nAnalysisJobs[siteName]
-        # no remaining jobs
-        if nJob < 0.0:
-            return False
-        # decrement
-        nJob -= 1.0
-        self.nAnalysisJobs[siteName] = nJob
-        return True
+        return self.tokenDN
+
+
+    # generate pilot token
+    def genPilotToken(self,schedulerhost,scheduleruser,schedulerid):
+        retVal = self.taskBuffer.genPilotToken(schedulerhost,scheduleruser,schedulerid)
+        # failed
+        if retVal == None:
+            return "ERROR : failed to generate token"
+        return "SUCCEEDED : " + retVal
     
         
 # Singleton
@@ -204,15 +202,8 @@ jobDispatcher = JobDipatcher()
 del JobDipatcher
 
 
-"""
-web service interface
-
-"""
-
-# get job
-def getJob(req,siteName,timeout=60,cpu=None,mem=None,diskSpace=None,prodSourceLabel=None,node=None,
-           computingElement=None,AtlasRelease=None,prodUserID=None,getProxyKey=None):
-    # get FQANs
+# get FQANs
+def _getFQAN(req):
     fqans = []
     for tmpKey,tmpVal in req.subprocess_env.iteritems():
         # compact credentials
@@ -223,7 +214,12 @@ def getJob(req,siteName,timeout=60,cpu=None,mem=None,diskSpace=None,prodSourceLa
                 fqan = tmpVal.split()[-1]
                 # append
                 fqans.append(fqan)
-    # check production role
+    # return
+    return fqans
+
+
+# check role
+def _checkRole(fqans,dn,jdCore):
     prodManager = False
     for fqan in fqans:
         # check atlas/usatlas production role
@@ -237,13 +233,58 @@ def getJob(req,siteName,timeout=60,cpu=None,mem=None,diskSpace=None,prodSourceLa
         # escape
         if prodManager:
             break
-    # get DN
+    # check of list of submitter
+    if not prodManager:
+        # get map
+        tokenDN = jdCore.getDnTokenMap()
+        # check
+        if dn in tokenDN.values():
+            prodManager = True
+    # return
+    return prodManager
+
+
+# get DN
+def _getDN(req):
     realDN = None
     if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
         realDN = req.subprocess_env['SSL_CLIENT_S_DN']
         # remove redundant CN
         realDN = re.sub('/CN=limited proxy','',realDN)
-        realDN = re.sub('/CN=proxy(/CN=proxy)+','/CN=proxy',realDN)        
+        realDN = re.sub('/CN=proxy(/CN=proxy)+','/CN=proxy',realDN)
+    # return
+    return realDN
+
+
+# check token
+def _checkToken(token,jdCore):
+    # not check None until all pilots are updated
+    if token == None:
+        return True
+    # get map
+    tokenDN = jdCore.getDnTokenMap()
+    # return
+    return tokenDN.has_key(token)
+    
+
+
+"""
+web service interface
+
+"""
+
+# get job
+def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,prodSourceLabel=None,node=None,
+           computingElement=None,AtlasRelease=None,prodUserID=None,getProxyKey=None):
+    _logger.debug("getJob(%s)" % siteName)
+    # get DN
+    realDN = _getDN(req)
+    # get FQANs
+    fqans = _getFQAN(req)
+    # check production role
+    prodManager = _checkRole(fqans,realDN,jobDispatcher)
+    # check token
+    validToken = _checkToken(token,jobDispatcher)
     # set DN for non-production user
     if not prodManager:
         prodUserID = realDN
@@ -265,9 +306,14 @@ def getJob(req,siteName,timeout=60,cpu=None,mem=None,diskSpace=None,prodSourceLa
             diskSpace = 0
     except:
         diskSpace = 0        
-    _logger.debug("getJob(%s) %s" % (siteName,realDN))
-    _logger.debug("getJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)" % (siteName,cpu,mem,diskSpace,prodSourceLabel,node,
-                                                             computingElement,AtlasRelease,prodUserID,getProxyKey))
+    _logger.debug("getJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s)" \
+                  % (siteName,cpu,mem,diskSpace,prodSourceLabel,node,
+                     computingElement,AtlasRelease,prodUserID,getProxyKey,
+                     realDN,prodManager,token,validToken,str(fqans)))
+    # invalid token
+    if not validToken:
+        _logger.warning("getJob(%s) : invalid token" % siteName)    
+        return Protocol.Response(Protocol.SC_Invalid).encode()        
     # logging
     try:
         # make message
@@ -289,15 +335,28 @@ def getJob(req,siteName,timeout=60,cpu=None,mem=None,diskSpace=None,prodSourceLa
     
 
 # update job status
-def updateJob(req,jobId,state,transExitCode=None,pilotErrorCode=None,pilotErrorDiag=None,timestamp=None,timeout=60,
+def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,pilotErrorDiag=None,timestamp=None,timeout=60,
               xml='',node=None,workdir=None,cpuConsumptionTime=None,cpuConsumptionUnit=None,remainingSpace=None,
               schedulerID=None,pilotID=None,siteName=None,messageLevel=None,pilotLog='',metaData='',
               cpuConversionFactor=None,exeErrorCode=None,exeErrorDiag=None,pilotTiming=None,computingElement=None):
-    _logger.debug("updateJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n==XML==\n%s\n==LOG==\n%s\n==Meta==\n%s)" %
+    _logger.debug("updateJob(%s)" % jobId)
+    # get DN
+    realDN = _getDN(req)
+    # get FQANs
+    fqans = _getFQAN(req)
+    # check production role
+    prodManager = _checkRole(fqans,realDN,jobDispatcher)
+    # check token
+    validToken = _checkToken(token,jobDispatcher)
+    _logger.debug("updateJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s\n==XML==\n%s\n==LOG==\n%s\n==Meta==\n%s)" %
                   (jobId,state,transExitCode,pilotErrorCode,pilotErrorDiag,node,workdir,cpuConsumptionTime,
                    cpuConsumptionUnit,remainingSpace,schedulerID,pilotID,siteName,messageLevel,
                    cpuConversionFactor,exeErrorCode,exeErrorDiag,pilotTiming,computingElement,
-                   xml,pilotLog,metaData))
+                   realDN,prodManager,token,validToken,str(fqans),xml,pilotLog,metaData))
+    # invalid token
+    if not validToken:
+        _logger.warning("updateJob(%s) : invalid token" % jobId)
+        return Protocol.Response(Protocol.SC_Invalid).encode()        
     # remaining space
     if remainingSpace != None and state != 'running':
         try:
@@ -324,7 +383,7 @@ def updateJob(req,jobId,state,transExitCode=None,pilotErrorCode=None,pilotErrorD
         return Protocol.Response(Protocol.SC_Success).encode()
     # check status
     if not state in ['running','failed','finished','holding','starting']:
-        _logger.error("invalid state=%s for updateJob" % state)
+        _logger.warning("invalid state=%s for updateJob" % state)
         return Protocol.Response(Protocol.SC_Success).encode()        
     # pilot log
     if pilotLog != '':
@@ -399,8 +458,21 @@ def getStatus(req,ids,timeout=60):
     return jobDispatcher.getStatus(ids,int(timeout))
 
 
-# check if there is activated analysis job
-def isThereAnalysisJob(req,siteName):
-    # invoke JD    
-    return str(jobDispatcher.isThereAnalysisJob(siteName))
+# generate pilot token
+def genPilotToken(req,schedulerid,host=None):
+    # get DN
+    realDN = _getDN(req)
+    # get FQANs
+    fqans = _getFQAN(req)
+    # check production role
+    prodManager = _checkRole(fqans,realDN,jobDispatcher)
+    if not prodManager:
+        return "ERROR : production or pilot role is required"
+    if realDN == None:
+        return "ERROR : failed to retrive DN"
+    # hostname
+    if host == None:
+        host = req.get_remote_host()
+    # return
+    return jobDispatcher.genPilotToken(host,realDN,schedulerid)
         

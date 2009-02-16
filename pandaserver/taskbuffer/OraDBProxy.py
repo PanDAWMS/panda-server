@@ -3003,6 +3003,69 @@ class DBProxy:
             return {}
 
 
+    # generate pilot token
+    def genPilotToken(self,schedulerhost,scheduleruser,schedulerid):
+        comment = ' /* DBProxy.genPilotToken */'                    
+        try:
+            _logger.debug("genPilotToken(%s,%s,%s)" % (schedulerhost,scheduleruser,schedulerid))
+            token = commands.getoutput('uuidgen')
+            timeNow = datetime.datetime.utcnow()
+            timeExp = timeNow + datetime.timedelta(days=4)
+            sql  = "INSERT INTO pilottoken (token,schedulerhost,scheduleruser,schedulerid,created,expires) "
+            sql += "VALUES (:token,:schedulerhost,:scheduleruser,:schedulerid,:created,:expires)"
+            # start transaction
+            self.conn.begin()
+            # execute
+            varMap = {':token':token,':schedulerhost':schedulerhost,':scheduleruser':scheduleruser,
+                      ':schedulerid':schedulerid,':created':timeNow,':expires':timeExp}
+            self.cur.execute(sql+comment,varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # return
+            retVal = "token=%s,created=%s,expires=%s" % (token,timeNow.strftime('%Y-%m-%d %H:%M:%S'),
+                                                         timeExp.strftime('%Y-%m-%d %H:%M:%S'))
+            _logger.debug("genPilotToken -> %s" % retVal)
+            return retVal
+        except:
+            # roll back
+            self._rollback()
+            # error
+            type, value, traceBack = sys.exc_info()
+            _logger.error("genPilotToken : %s %s" % (type, value))
+            return None
+
+        
+    # get list of scheduler users
+    def getListSchedUsers(self):
+        comment = ' /* DBProxy.getListSchedUsers */'                    
+        try:
+            _logger.debug("getListSchedUsers")
+            sql  = "SELECT token,scheduleruser FROM pilottoken WHERE expires>SYSDATE"
+            # start transaction
+            self.conn.begin()
+            # execute
+            self.cur.arraysize = 100
+            self.cur.execute(sql+comment)
+            res = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # return
+            retVal = {}
+            for token,scheduleruser in res:
+                retVal[token] = scheduleruser
+            _logger.debug("getListSchedUsers->%s" % str(retVal))
+            return retVal
+        except:
+            # roll back
+            self._rollback()
+            # error
+            type, value, traceBack = sys.exc_info()
+            _logger.error("getListSchedUsers : %s %s" % (type, value))
+            return {}
+
+        
     # wake up connection
     def wakeUp(self):
         for iTry in range(5):
