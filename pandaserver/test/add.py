@@ -5,7 +5,7 @@ import time
 import random
 import datetime
 import commands
-from taskbuffer.DBProxy import DBProxy
+from taskbuffer.OraDBProxy import DBProxy
 from taskbuffer.TaskBuffer import taskBuffer
 from pandalogger.PandaLogger import PandaLogger
 from dataservice.Adder import Adder
@@ -55,13 +55,14 @@ proxyS.connect(panda_config.dbhost,panda_config.dbpasswd,panda_config.dbuser,pan
 
 # delete
 _logger.debug("Del session")
-status,retSel = proxyS.querySQLS("SELECT MAX(PandaID) FROM jobsDefined4")
+status,retSel = proxyS.querySQLS("SELECT MAX(PandaID) FROM jobsDefined4",{})
 if status == 1 and retSel != None:
     try:
         maxID = retSel[0][0]
         _logger.debug("maxID : %s" % maxID)
         if maxID != None:
-            status,retDel = proxyS.querySQLS("DELETE FROM jobsDefined4 WHERE PandaID<%s AND (jobStatus='activated' OR jobStatus='waiting' OR jobStatus='failed')" % maxID)
+            varMap = {':maxID':maxID} 
+            status,retDel = proxyS.querySQLS("DELETE FROM jobsDefined4 WHERE PandaID<:maxID AND (jobStatus='activated' OR jobStatus='waiting' OR jobStatus='failed')",varMap)
     except:
         pass
     
@@ -73,7 +74,7 @@ aSiteMapper = SiteMapper(taskBuffer)
 
 # get buildJobs in the holding state
 holdingAna = []
-status,res = proxyS.querySQLS("SELECT PandaID from jobsActive4 WHERE prodSourceLabel='panda' AND jobStatus='holding'")
+status,res = proxyS.querySQLS("SELECT PandaID from jobsActive4 WHERE prodSourceLabel='panda' AND jobStatus='holding'",{})
 if res != None:
     for id, in res:
         holdingAna.append(id)
