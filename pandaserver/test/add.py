@@ -56,7 +56,7 @@ proxyS.connect(panda_config.dbhost,panda_config.dbpasswd,panda_config.dbuser,pan
 # delete
 _logger.debug("Del session")
 status,retSel = proxyS.querySQLS("SELECT MAX(PandaID) FROM jobsDefined4",{})
-if status == 1 and retSel != None:
+if retSel != None:
     try:
         maxID = retSel[0][0]
         _logger.debug("maxID : %s" % maxID)
