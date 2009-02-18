@@ -114,7 +114,8 @@ class DBProxy:
             self.conn.begin()
             self.cur.arraysize = arraySize
             ret = self.cur.execute(sql+comment,varMap)
-            if sql.startswith('INSERT') or sql.startswith('UPDATE'):
+            if sql.startswith('INSERT') or sql.startswith('UPDATE') or \
+                   sql.startswith('DELETE'):
                 res = self.cur.rowcount
             else:
                 res = self.cur.fetchall()
