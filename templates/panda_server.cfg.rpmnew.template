@@ -63,11 +63,11 @@ globus_dir = /opt/globus
 # path to native python 
 native_python = /data/atlpan/bin
 
-# path to 32 bit python for for lfc client
+# path to python for lfc client
 native_python32 = /data/atlpan/bin
 
 # glite source file
-glite_source = /opt/glite/etc/profile.d/grid-env.sh
+glite_source = @@install_dir@@/etc/sysconfig/panda_server-grid-env.sh
 
 # location for Panda common
 pandaCommon_dir = @@install_purelib@@/pandacommon

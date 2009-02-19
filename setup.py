@@ -163,6 +163,7 @@ setup(
                  ),
                 # sysconfig
                 ('etc/sysconfig', ['templates/panda_server-sysconfig.rpmnew.template',
+                                   'templates/panda_server-grid-env.sh.template',
                                    ]
                  ),
                 # logrotate

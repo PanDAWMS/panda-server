@@ -5,6 +5,7 @@ Release Note
   * tag-based security mechanism for scheduler-pilot-server chain
   * fixed test/add.py to use Oracle instead of MySQL
   * fixed querySQLS for DELETE
+  * added panda_server-grid-env.sh
 
 * 0.0.3 2/16/2009
   * sync to production version
