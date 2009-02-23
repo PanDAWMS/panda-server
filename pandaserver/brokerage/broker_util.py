@@ -245,7 +245,7 @@ def _getPFNFromLFC(lfns,dq2url,guids,storageName):
             strStorage = strStorage[:-1]
             com = 'unset LD_LIBRARY_PATH; unset PYTHONPATH; export PATH=/usr/local/bin:/bin:/usr/bin; '
             com+= 'source %s; %s/python -Wignore %s/LFCclient.py -i %s -g %s -l %s -s %s' % \
-                  (panda_config.glite_source,panda_config.native_python,panda_config.lfcClient_dir,
+                  (panda_config.glite_source,panda_config.native_python32,panda_config.lfcClient_dir,
                    strLFNs,strGUIDs,lfcHost,strStorage)
             _log.debug(com)
             # exeute

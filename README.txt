@@ -1,5 +1,8 @@
 Release Note
 
+* current
+  * fixed broker_util to use proper python
+
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots
   * tag-based security mechanism for scheduler-pilot-server chain
