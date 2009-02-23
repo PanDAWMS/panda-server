@@ -2095,7 +2095,7 @@ class DBProxy:
             self.conn.begin()
             retTransSt = 0
             # update bitmap
-            sqlU = "UPDATE ATLAS_PANDA.Datasets SET transferStatus=BITOR(transferStatus,:bitMap) WHERE name=:name"
+            sqlU = "UPDATE ATLAS_PANDA.Datasets SET transferStatus=ATLAS_PANDA.BITOR(transferStatus,:bitMap) WHERE name=:name"
             varMap = {}
             varMap[':bitMap'] = bitMap
             varMap[':name'] = datasetname
