@@ -1,8 +1,7 @@
 import re
 import datetime
+from threading import Lock
 from DBProxyPool import DBProxyPool
-from LogDBProxyPool import LogDBProxyPool
-from ArchiveDBProxyPool import ArchiveDBProxyPool
 from brokerage.SiteMapper import SiteMapper
 from dataservice.Setupper import Setupper
 from dataservice.TaLauncher import TaLauncher
@@ -16,17 +15,19 @@ class TaskBuffer:
 
     # constructor 
     def __init__(self):
-        pass
+        self.proxyPool = None
+        self.lock = Lock()
 
 
     # initialize
     def init(self,dbname,dbpass,nDBConnection=10):
+        # lock
+        self.lock.acquire()
         # create Proxy Pool
-        self.proxyPool = DBProxyPool(dbname,dbpass,nDBConnection)
-        # create Proxy Pool for Log DB
-        self.logProxyPool = LogDBProxyPool()
-        # create Proxy Pool for Archive DB
-        self.archiveProxyPool = ArchiveDBProxyPool()
+        if self.proxyPool == None:
+            self.proxyPool = DBProxyPool(dbname,dbpass,nDBConnection)
+        # release
+        self.lock.release()
 
 
     # store Jobs into DB
@@ -39,13 +40,13 @@ class TaskBuffer:
         userVO         = 'atlas'
         if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda']):
             # get DB proxy
-            proxy = self.logProxyPool.getProxy()
+            proxy = self.proxyPool.getProxy()
             # check quota
             weight = proxy.checkQuota(user)
             # get JobID and status
             userJobID,userStatus = proxy.getUserParameter(user,jobs[0].jobDefinitionID)
             # release proxy
-            self.logProxyPool.putProxy(proxy)
+            self.proxyPool.putProxy(proxy)
             # get site spec
             siteMapper  = SiteMapper(self)
             tmpSiteSpec = siteMapper.getSite(jobs[0].computingSite)
@@ -268,11 +269,11 @@ class TaskBuffer:
         proxyKey = {}
         if getProxyKey and len(jobs) > 0:
             # get MetaDB proxy
-            proxy = self.logProxyPool.getProxy()
+            proxy = self.proxyPool.getProxy()
             # get Proxy Key
             proxyKey = proxy.getProxyKey(jobs[0].prodUserID)
             # release proxy
-            self.logProxyPool.putProxy(proxy)
+            self.proxyPool.putProxy(proxy)
         # return
         return jobs+[nSent,proxyKey]
         
@@ -380,11 +381,11 @@ class TaskBuffer:
         # release proxy
         self.proxyPool.putProxy(proxy)
         # get ArchiveDBproxy
-        proxy = self.archiveProxyPool.getProxy()
+        proxy = self.proxyPool.getProxy()
         # get JobIDs
-        retJobIDs = proxy.getJobIDsInTimeRange(dn,timeRange,retJobIDs)
+        retJobIDs = proxy.getJobIDsInTimeRangeLog(dn,timeRange,retJobIDs)
         # release proxy
-        self.archiveProxyPool.putProxy(proxy)
+        self.proxyPool.putProxy(proxy)
         # return
         return retJobIDs
 
@@ -408,11 +409,11 @@ class TaskBuffer:
         # release proxy
         self.proxyPool.putProxy(proxy)
         # get ArchiveDBproxy
-        proxy = self.archiveProxyPool.getProxy()
+        proxy = self.proxyPool.getProxy()
         # get IDs
-        idStatus = proxy.getPandIDsWithJobID(dn,jobID,idStatus,nJobs)        
+        idStatus = proxy.getPandIDsWithJobIDLog(dn,jobID,idStatus,nJobs)        
         # release proxy
-        self.archiveProxyPool.putProxy(proxy)
+        self.proxyPool.putProxy(proxy)
         # return
         return idStatus
     
@@ -429,14 +430,14 @@ class TaskBuffer:
         # release proxy
         self.proxyPool.putProxy(proxy)
         # get ArchiveDBproxy
-        proxy = self.archiveProxyPool.getProxy()
+        proxy = self.proxyPool.getProxy()
         # get IDs
         for jobID in jobIDs:
             if retJobMap[jobID] == None:
-                res = proxy.peekJob(jobID)
+                res = proxy.peekJobLog(jobID)
                 retJobMap[jobID] = res
         # release proxy
-        self.archiveProxyPool.putProxy(proxy)
+        self.proxyPool.putProxy(proxy)
         # sort
         retJobs = []
         for jobID in jobIDs:
@@ -836,7 +837,7 @@ class TaskBuffer:
         # release proxy
         self.proxyPool.putProxy(proxy)
         # get log proxy
-        proxy = self.logProxyPool.getProxy()
+        proxy = self.proxyPool.getProxy()
         # get Proxy Key
         ret = {}
         for userID,nJobs in tmpRet.iteritems():
@@ -847,7 +848,7 @@ class TaskBuffer:
                 # append
                 ret[userID] = proxyKey
         # release proxy
-        self.logProxyPool.putProxy(proxy)
+        self.proxyPool.putProxy(proxy)
         # return
         return ret
 
@@ -915,11 +916,11 @@ class TaskBuffer:
     # get current site data
     def getCurrentSiteData(self):
         # get DBproxy
-        proxy = self.logProxyPool.getProxy()
+        proxy = self.proxyPool.getProxy()
         # get serial number
         ret = proxy.getCurrentSiteData()
         # release proxy
-        self.logProxyPool.putProxy(proxy)
+        self.proxyPool.putProxy(proxy)
         # return
         return ret
 
@@ -927,11 +928,11 @@ class TaskBuffer:
     # get site list
     def getSiteList(self):
         # get DBproxy
-        proxy = self.logProxyPool.getProxy()
+        proxy = self.proxyPool.getProxy()
         # get site info
         ret = proxy.getSiteList()
         # release proxy
-        self.logProxyPool.putProxy(proxy)
+        self.proxyPool.putProxy(proxy)
         # return
         return ret
 
@@ -939,11 +940,11 @@ class TaskBuffer:
     # get site info
     def getSiteInfo(self):
         # get DBproxy
-        proxy = self.logProxyPool.getProxy()
+        proxy = self.proxyPool.getProxy()
         # get site info
         ret = proxy.getSiteInfo()
         # release proxy
-        self.logProxyPool.putProxy(proxy)
+        self.proxyPool.putProxy(proxy)
         # return
         return ret
 
@@ -951,11 +952,11 @@ class TaskBuffer:
     # get cloud list
     def getCloudList(self):
         # get DBproxy
-        proxy = self.logProxyPool.getProxy()
+        proxy = self.proxyPool.getProxy()
         # get cloud list
         ret = proxy.getCloudList()
         # release proxy
-        self.logProxyPool.putProxy(proxy)
+        self.proxyPool.putProxy(proxy)
         # return
         return ret
 
@@ -963,11 +964,11 @@ class TaskBuffer:
     # get email address
     def getEmailAddr(self,name):
         # get DBproxy
-        proxy = self.logProxyPool.getProxy()
+        proxy = self.proxyPool.getProxy()
         # get 
         ret = proxy.getEmailAddr(name)
         # release proxy
-        self.logProxyPool.putProxy(proxy)
+        self.proxyPool.putProxy(proxy)
         # return
         return ret
 
@@ -975,11 +976,11 @@ class TaskBuffer:
     # register proxy key
     def registerProxyKey(self,params):
         # get DBproxy
-        proxy = self.logProxyPool.getProxy()
+        proxy = self.proxyPool.getProxy()
         # register proxy key
         ret = proxy.registerProxyKey(params)
         # release proxy
-        self.logProxyPool.putProxy(proxy)
+        self.proxyPool.putProxy(proxy)
         # return
         return ret
 
@@ -987,11 +988,11 @@ class TaskBuffer:
     # get proxy key
     def getProxyKey(self,dn):
         # get DBproxy
-        proxy = self.logProxyPool.getProxy()
+        proxy = self.proxyPool.getProxy()
         # get proxy key
         ret = proxy.getProxyKey(dn)
         # release proxy
-        self.logProxyPool.putProxy(proxy)
+        self.proxyPool.putProxy(proxy)
         # return
         return ret
 

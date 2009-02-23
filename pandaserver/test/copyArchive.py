@@ -94,11 +94,7 @@ except:
     
 # instantiate DB proxies
 proxyS = DBProxy()
-proxyN = DBProxy()
-proxyD = DBProxy()
 proxyS.connect(panda_config.dbhost,panda_config.dbpasswd,panda_config.dbuser,panda_config.dbname)
-proxyN.connect(panda_config.logdbhost,panda_config.logdbpasswd,panda_config.logdbuser,'PandaArchiveDB')
-proxyD.connect(panda_config.logdbhost,panda_config.logdbpasswd,panda_config.logdbuser,'PandaLogDB')
 
 # table names
 cdate = datetime.datetime.utcnow()
@@ -126,7 +122,7 @@ timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=3)
 
 # get PandaIDs and endTimes from source
 _logger.debug("get PandaIDs from Archive")
-status,res = proxyS.querySQLS("SELECT PandaID,modificationTime from jobsArchived4 ORDER BY PandaID",{})
+status,res = proxyS.querySQLS("SELECT PandaID,modificationTime from ATLAS_PANDA.jobsArchived4 ORDER BY PandaID",{})
 if res == None:
     _logger.debug("total %s " % res)
 else:
@@ -138,38 +134,38 @@ else:
             sql = "SELECT PandaID from %s WHERE PandaID=:PandaID" % jobATableName
             varMap = {}
             varMap[':PandaID'] = id
-            status,check = proxyN.querySQLS(sql,varMap)
+            status,check = proxyS.querySQLS(sql,varMap)
             sql = "SELECT PandaID from %s WHERE PandaID=:PandaID" % oldJobAtableName
-            statusOld,checkOld = proxyN.querySQLS(sql,varMap)
+            statusOld,checkOld = proxyS.querySQLS(sql,varMap)
             # copy
             if len(check) == 0 and len(checkOld) == 0:
                 # get jobs
                 job = proxyS.peekJob(id,False,False,True,False)
                 # insert to dest
-                proxyN.insertJobSimple(job,jobATableName,filesATableName)
+                proxyS.insertJobSimple(job,jobATableName,filesATableName)
                 # metadata
-                status,meta = proxyS.querySQLS("SELECT metaData from metaTable WHERE PandaID=:PandaID",varMap)
+                status,meta = proxyS.querySQLS("SELECT metaData from ATLAS_PANDA.metaTable WHERE PandaID=:PandaID",varMap)
                 if len(meta) != 0:
                     varMap = {}
                     varMap[':PandaID']  = id
                     varMap[':metaData'] = meta[0][0]
-                    proxyN.querySQLS("INSERT INTO %s (PandaID,metaData) VALUES(:PandaID,:metaData)" %
+                    proxyS.querySQLS("INSERT INTO %s (PandaID,metaData) VALUES(:PandaID,:metaData)" %
                                      metaATableName,varMap)
                     _logger.debug("meta INSERT %s " % id)
 
                 _logger.debug("INSERT %s " % id)
             # delete
             if srcEndTime==None or srcEndTime < timeLimit:
-                sql = 'DELETE from jobsArchived4 WHERE PandaID=:PandaID'
+                sql = 'DELETE from ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID'
                 varMap = {}
                 varMap[':PandaID']  = id
                 proxyS.querySQLS(sql,varMap)
                 _logger.debug("DEL %s : endTime %s" % (id,srcEndTime))
                 # delete files
-                status,retDel = proxyS.querySQLS("DELETE from filesTable4 WHERE PandaID=:PandaID",varMap)
+                status,retDel = proxyS.querySQLS("DELETE from ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID",varMap)
                 _logger.debug("DEL Files for %s " % id)
                 # delete metadata
-                status,retDel = proxyS.querySQLS("DELETE from metaTable WHERE PandaID=:PandaID",varMap)
+                status,retDel = proxyS.querySQLS("DELETE from ATLAS_PANDA.metaTable WHERE PandaID=:PandaID",varMap)
                 _logger.debug("DEL metadata for %s " % id)
             else:
                 pass
@@ -186,7 +182,7 @@ siteMapper = SiteMapper(taskBuffer)
 # increase priorities for long-waiting analysis jobs
 _logger.debug("Analysis Priorities")
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
-sql = "UPDATE jobsActive4 SET currentPriority=currentPriority+40,modificationTime=CURRENT_DATE WHERE jobStatus='activated' "
+sql = "UPDATE ATLAS_PANDA.jobsActive4 SET currentPriority=currentPriority+40,modificationTime=CURRENT_DATE WHERE jobStatus='activated' "
 sql+= "AND modificationTime<:modificationTime AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM' AND prodSourceLabel='user' "
 varMap = {}
 varMap[':modificationTime'] = timeLimit
@@ -198,7 +194,7 @@ time.sleep(1)
 timeLimit  = datetime.datetime.utcnow() - datetime.timedelta(days=60)
 timeLimitA = datetime.datetime.utcnow() - datetime.timedelta(days=90)
 for dsType,dsPrefix in [('output','sub'),('dispatch','dis'),('','')]:
-    sql = "SELECT vuid,name,modificationdate FROM Datasets "
+    sql = "SELECT vuid,name,modificationdate FROM ATLAS_PANDA.Datasets "
     if dsType != '':
         # dis or sub
         sql+= "WHERE type=:type AND modificationdate<:modificationdate AND REGEXP_LIKE(name,'_%s[[:digit:]]+$') AND rownum <= 50" \
@@ -227,14 +223,14 @@ for dsType,dsPrefix in [('output','sub'),('dispatch','dis'),('','')]:
                     logger.error("cannot find %s " % name)
                     continue
                 # insert to archived
-                ret = proxyD.insertDataset(ds,dsATableName)
+                ret = proxyS.insertDataset(ds,dsATableName)
                 if not ret:
                     _logger.error("cannot insert %s into dsATableName" % (name,dsATableName))
                     continue
                 # delete
                 varMap = {}
                 varMap[':vuid'] = vuid
-                retDel,resDel = proxyS.querySQLS("DELETE FROM Datasets WHERE vuid=:vuid",varMap)
+                retDel,resDel = proxyS.querySQLS("DELETE FROM ATLAS_PANDA.Datasets WHERE vuid=:vuid",varMap)
                 if not retDel:
                     _logger.error("cannot delete %s " % name)
                     continue
@@ -247,7 +243,7 @@ _memoryCheck("watcher")
 _logger.debug("Watcher session")
 # check heartbeat for analysis jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=2)
-status,res = proxyS.querySQLS("SELECT PandaID FROM jobsActive4 WHERE (prodSourceLabel='panda' OR prodSourceLabel='user') AND (jobStatus='running' OR jobStatus='starting' OR jobStatus='stagein' OR jobStatus='stageout') AND modificationTime<:modificationTime AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM'",
+status,res = proxyS.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE (prodSourceLabel='panda' OR prodSourceLabel='user') AND (jobStatus='running' OR jobStatus='starting' OR jobStatus='stagein' OR jobStatus='stageout') AND modificationTime<:modificationTime AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM'",
                               {':modificationTime':timeLimit})
 if res == None:
     _logger.debug("# of Anal Watcher : %s" % res)
@@ -262,7 +258,7 @@ else:
 
 # check heartbeat for sent jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
-status,res = proxyS.querySQLS("SELECT PandaID FROM jobsActive4 WHERE jobStatus='sent' AND modificationTime<:modificationTime AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM'",
+status,res = proxyS.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus='sent' AND modificationTime<:modificationTime AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM'",
                               {':modificationTime':timeLimit})
 if res == None:
     _logger.debug("# of Sent Watcher : %s" % res)
@@ -285,7 +281,7 @@ for file in xmlFiles:
     if match != None:
         id = match.group(1)
         xmlIDs.append(int(id))
-sql = "SELECT PandaID FROM jobsActive4 WHERE jobStatus='holding' AND (modificationTime<:modificationTime OR (endTime IS NOT NULL AND endTime<:endTime)) AND (prodSourceLabel='panda' OR prodSourceLabel='user' OR prodSourceLabel='ddm')"
+sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus='holding' AND (modificationTime<:modificationTime OR (endTime IS NOT NULL AND endTime<:endTime)) AND (prodSourceLabel='panda' OR prodSourceLabel='user' OR prodSourceLabel='ddm')"
 varMap = {}
 varMap[':modificationTime'] = timeLimit
 varMap[':endTime'] = timeLimit
@@ -307,7 +303,7 @@ else:
 # check heartbeat for production jobs
 timeOutVal = 48
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=timeOutVal)
-sql = "SELECT PandaID FROM jobsActive4 WHERE jobStatus='holding' AND (modificationTime<:modificationTime OR (endTime IS NOT NULL AND endTime<:endTime)) AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM'"
+sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus='holding' AND (modificationTime<:modificationTime OR (endTime IS NOT NULL AND endTime<:endTime)) AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM'"
 varMap = {}
 varMap[':modificationTime'] = timeLimit
 varMap[':endTime'] = timeLimit
@@ -325,7 +321,7 @@ else:
 
 # check heartbeat for ddm jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=2)
-status,res = proxyS.querySQLS("SELECT PandaID FROM jobsActive4 WHERE (jobStatus='running' OR jobStatus='starting' OR jobStatus='stagein' OR jobStatus='stageout') AND modificationTime<:modificationTime AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM' AND prodSourceLabel='ddm'",
+status,res = proxyS.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE (jobStatus='running' OR jobStatus='starting' OR jobStatus='stagein' OR jobStatus='stageout') AND modificationTime<:modificationTime AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM' AND prodSourceLabel='ddm'",
                               {':modificationTime':timeLimit})
 if res == None:
     _logger.debug("# of DDM Watcher : %s" % res)
@@ -340,7 +336,7 @@ else:
 
 # check heartbeat for production jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
-status,res = proxyS.querySQLS("SELECT PandaID FROM jobsActive4 WHERE (jobStatus='running' OR jobStatus='starting' OR jobStatus='stagein' OR jobStatus='stageout') AND modificationTime<:modificationTime AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM'",
+status,res = proxyS.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE (jobStatus='running' OR jobStatus='starting' OR jobStatus='stagein' OR jobStatus='stageout') AND modificationTime<:modificationTime AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM'",
                               {':modificationTime':timeLimit})
 if res == None:
     _logger.debug("# of General Watcher : %s" % res)
@@ -385,7 +381,7 @@ def eraseDispDatasets(ids):
 
 # kill long-waiting jobs in defined table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=7)
-status,res = proxyS.querySQLS("SELECT PandaID from jobsDefined4 WHERE creationTime<:creationTime",
+status,res = proxyS.querySQLS("SELECT PandaID from ATLAS_PANDA.jobsDefined4 WHERE creationTime<:creationTime",
                               {':creationTime':timeLimit})
 jobs=[]
 if res != None:
@@ -398,7 +394,7 @@ if len(jobs):
 
 # kill long-waiting jobs in active table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=7)
-status,res = proxyS.querySQLS("SELECT PandaID from jobsActive4 WHERE jobStatus='activated' AND creationTime<:creationTime",
+status,res = proxyS.querySQLS("SELECT PandaID from ATLAS_PANDA.jobsActive4 WHERE jobStatus='activated' AND creationTime<:creationTime",
                               {':creationTime':timeLimit})                              
 jobs=[]
 if res != None:
@@ -413,7 +409,7 @@ if len(jobs):
 # kill long-waiting ddm jobs for dispatch
 _logger.debug("kill PandaMovers")
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
-sql = "SELECT PandaID from jobsActive4 WHERE prodSourceLabel='ddm' AND transferType='dis' AND creationTime<:creationTime"
+sql = "SELECT PandaID from ATLAS_PANDA.jobsActive4 WHERE prodSourceLabel='ddm' AND transferType='dis' AND creationTime<:creationTime"
 varMap = {}
 varMap[':creationTime'] = timeLimit
 _logger.debug(sql+str(varMap))
@@ -429,7 +425,7 @@ if len(jobs):
 
 # kill hang-up movers
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
-sql = "SELECT PandaID from jobsActive4 WHERE prodSourceLabel='ddm' AND transferType='dis' AND jobStatus='running' AND startTime<:startTime"
+sql = "SELECT PandaID from ATLAS_PANDA.jobsActive4 WHERE prodSourceLabel='ddm' AND transferType='dis' AND jobStatus='running' AND startTime<:startTime"
 varMap = {}
 varMap[':startTime'] = timeLimit
 _logger.debug(sql+str(varMap))
@@ -441,12 +437,12 @@ if res != None:
     for id, in res:
         movers.append(id)
         # get dispatch dataset
-        sql = 'SELECT name FROM Datasets WHERE MoverID=:MoverID'
+        sql = 'SELECT name FROM ATLAS_PANDA.Datasets WHERE MoverID=:MoverID'
         stDS,resDS = proxyS.querySQLS(sql,{':MoverID':id})
         if resDS != None:
             disDS = resDS[0][0]
             # get PandaIDs associated to the dis dataset
-            sql = "SELECT PandaID FROM jobsDefined4 WHERE jobStatus='assigned' AND dispatchDBlock=:dispatchDBlock"
+            sql = "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE jobStatus='assigned' AND dispatchDBlock=:dispatchDBlock"
             stP,resP = proxyS.querySQLS(sql,{':dispatchDBlock':disDS})
             if resP != None:
                 for pandaID, in resP:
@@ -469,7 +465,7 @@ if len(jobs):
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=4)
 while True:
     # get PandaIDs
-    status,res = proxyS.querySQLS("SELECT PandaID from jobsDefined4 where jobStatus='defined' and modificationTime<:modificationTime and prodSourceLabel='managed' AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM' ORDER BY PandaID",
+    status,res = proxyS.querySQLS("SELECT PandaID from ATLAS_PANDA.jobsDefined4 where jobStatus='defined' and modificationTime<:modificationTime and prodSourceLabel='managed' AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM' ORDER BY PandaID",
                                   {':modificationTime':timeLimit})                                  
     # escape
     if res == None or len(res) == 0:
@@ -490,7 +486,7 @@ while True:
                         
 # reassign reprocessing jobs in defined table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=8)
-status,res = proxyS.querySQLS("SELECT PandaID,transformation,processingType FROM jobsDefined4 WHERE jobStatus='assigned' AND prodSourceLabel='managed' AND modificationTime<'%s' ORDER BY PandaID"
+status,res = proxyS.querySQLS("SELECT PandaID,transformation,processingType FROM ATLAS_PANDA.jobsDefined4 WHERE jobStatus='assigned' AND prodSourceLabel='managed' AND modificationTime<'%s' ORDER BY PandaID"
                               % timeLimit.strftime('%Y-%m-%d %H:%M:%S'))
 jobs=[]
 if res != None:
@@ -521,7 +517,7 @@ if len(jobs):
 
 # reassign long-waiting jobs in defined table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
-status,res = proxyS.querySQLS("SELECT PandaID from jobsDefined4 WHERE prodSourceLabel='managed' AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM' AND modificationTime<:modificationTime ORDER BY PandaID",
+status,res = proxyS.querySQLS("SELECT PandaID from ATLAS_PANDA.jobsDefined4 WHERE prodSourceLabel='managed' AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM' AND modificationTime<:modificationTime ORDER BY PandaID",
                               {':modificationTime':timeLimit})
 jobs=[]
 if res != None:
@@ -541,7 +537,7 @@ if len(jobs):
 
 # reassign too long-standing jobs in active table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=2)
-status,res = proxyS.querySQLS("SELECT PandaID FROM jobsActive4 WHERE jobStatus='activated' AND prodSourceLabel='managed' AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM' AND modificationTime<:modificationTime ORDER BY PandaID",
+status,res = proxyS.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus='activated' AND prodSourceLabel='managed' AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM' AND modificationTime<:modificationTime ORDER BY PandaID",
                               {':modificationTime':timeLimit})
 jobs = []
 if res != None:
@@ -560,7 +556,7 @@ if len(jobs):
 
 # kill too long-standing analysis jobs in active table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=7)
-status,res = proxyS.querySQLS("SELECT PandaID FROM jobsActive4 WHERE (prodSourceLabel='test' OR prodSourceLabel='panda' OR prodSourceLabel='user') AND modificationTime<:modificationTime AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM' ORDER BY PandaID",
+status,res = proxyS.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE (prodSourceLabel='test' OR prodSourceLabel='panda' OR prodSourceLabel='user') AND modificationTime<:modificationTime AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM' ORDER BY PandaID",
                               {':modificationTime':timeLimit})
 jobs = []
 if res != None:
@@ -573,7 +569,7 @@ if len(jobs):
 
 # kill too long waiting jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=1)
-status,res = proxyS.querySQLS("SELECT PandaID FROM jobsWaiting4 WHERE creationTime<:creationTime",
+status,res = proxyS.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsWaiting4 WHERE creationTime<:creationTime",
                               {':creationTime':timeLimit})
 jobs = []
 if res != None:
@@ -587,7 +583,7 @@ if len(jobs):
 
 # reassign long waiting jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=7)
-status,res = proxyS.querySQLS("SELECT PandaID FROM jobsWaiting4 WHERE prodSourceLabel='managed' AND modificationTime<:modificationTime ORDER BY PandaID",
+status,res = proxyS.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsWaiting4 WHERE prodSourceLabel='managed' AND modificationTime<:modificationTime ORDER BY PandaID",
                               {':modificationTime':timeLimit})
 jobs = []
 if res != None:
@@ -604,7 +600,7 @@ if len(jobs):
 
 # kill too long running jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=21)
-status,res = proxyS.querySQLS("SELECT PandaID FROM jobsActive4 WHERE creationTime<:creationTime",
+status,res = proxyS.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE creationTime<:creationTime",
                               {':creationTime':timeLimit})
 jobs = []
 if res != None:
@@ -629,7 +625,7 @@ if len(jobs):
 
 # kill too long waiting ddm jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=5)
-status,res = proxyS.querySQLS("SELECT PandaID FROM jobsActive4 WHERE prodSourceLabel='ddm' AND creationTime<:creationTime",
+status,res = proxyS.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE prodSourceLabel='ddm' AND creationTime<:creationTime",
                               {':creationTime':timeLimit})
 jobs = []
 if res != None:
@@ -647,7 +643,7 @@ timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
 
 # close datasets
 while True:
-    status,res = proxyS.querySQLS("SELECT vuid,name,modificationdate FROM Datasets WHERE type='output' and status='tobeclosed' and modificationdate<:modificationdate AND rownum <= 10",
+    status,res = proxyS.querySQLS("SELECT vuid,name,modificationdate FROM ATLAS_PANDA.Datasets WHERE type='output' and status='tobeclosed' and modificationdate<:modificationdate AND rownum <= 10",
                                   {':modificationdate':timeLimit})
     if res == None:
         _logger.debug("# of datasets to be closed: %s" % res)
@@ -718,7 +714,7 @@ _memoryCheck("freezing")
 
 # freeze dataset
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=4)
-sql = "SELECT vuid,name,modificationdate FROM Datasets " + \
+sql = "SELECT vuid,name,modificationdate FROM ATLAS_PANDA.Datasets " + \
       "WHERE type='output' AND (status='running' OR status='created' OR status='defined') " + \
       "AND modificationdate<:modificationdate AND REGEXP_LIKE(name,'_sub[[:digit:]]+$') AND rownum <= 20"
 for i in range(100):
@@ -735,7 +731,7 @@ for i in range(100):
     if len(res) != 0:
         for (vuid,name,modDate) in res:
             _logger.debug("start %s %s" % (modDate,name))
-            retF,resF = proxyS.querySQLS("SELECT lfn FROM filesTable4 WHERE destinationDBlock=:destinationDBlock",
+            retF,resF = proxyS.querySQLS("SELECT lfn FROM ATLAS_PANDA.filesTable4 WHERE destinationDBlock=:destinationDBlock",
                                          {':destinationDBlock':name})
             if retF<0 or retF == None or retF!=len(resF):
                 _logger.error("SQL error")
@@ -816,7 +812,7 @@ _memoryCheck("finisher")
 # finish transferring jobs
 timeNow   = datetime.datetime.utcnow()
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
-sql = "SELECT PandaID FROM jobsActive4 WHERE jobStatus='transferring' AND modificationTime<:modificationTime AND rownum<=20"
+sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus='transferring' AND modificationTime<:modificationTime AND rownum<=20"
 for ii in range(1000):
     ret,res = proxyS.querySQLS(sql, {':modificationTime':timeLimit})
     if res == None:
@@ -975,14 +971,11 @@ for name,addr in pDB.iteritems():
 pDB.close()
 # release file lock
 fcntl.flock(_lockGetMail.fileno(), fcntl.LOCK_UN)
-# connect to MetaDB
-proxyM = DBProxy()
-proxyM.connect(panda_config.logdbhost,panda_config.logdbpasswd,panda_config.logdbuser,'PandaMetaDB')
 # set email address
 for name,addr in mailMap.iteritems():
     # remove _
     name = re.sub('_$','',name)
-    status,res = proxyM.querySQLS("SELECT email FROM users WHERE name='%s'" % name)
+    status,res = proxyS.querySQLS("SELECT email FROM ATLAS_PANDAMETA.users WHERE name=:name",{':name':name})
     # failed or not found
     if status == -1 or len(res) == 0:
         _logger.error("%s not found in user DB" % name)
@@ -992,7 +985,7 @@ for name,addr in mailMap.iteritems():
         continue
     # update email
     _logger.debug("set '%s' to %s" % (name,addr))
-    status,res = proxyM.querySQLS("UPDATE users SET email='%s' WHERE name='%s'" % (addr,name))
+    status,res = proxyS.querySQLS("UPDATE ATLAS_PANDAMETA.users SET email=:addr WHERE name=:name",{':addr':addr,':name':name})
 
 _memoryCheck("end")
 

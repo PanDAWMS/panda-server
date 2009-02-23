@@ -55,14 +55,14 @@ proxyS.connect(panda_config.dbhost,panda_config.dbpasswd,panda_config.dbuser,pan
 
 # delete
 _logger.debug("Del session")
-status,retSel = proxyS.querySQLS("SELECT MAX(PandaID) FROM jobsDefined4",{})
+status,retSel = proxyS.querySQLS("SELECT MAX(PandaID) FROM ATLAS_PANDA.jobsDefined4",{})
 if retSel != None:
     try:
         maxID = retSel[0][0]
         _logger.debug("maxID : %s" % maxID)
         if maxID != None:
             varMap = {':maxID':maxID} 
-            status,retDel = proxyS.querySQLS("DELETE FROM jobsDefined4 WHERE PandaID<:maxID AND (jobStatus='activated' OR jobStatus='waiting' OR jobStatus='failed')",varMap)
+            status,retDel = proxyS.querySQLS("DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID<:maxID AND (jobStatus='activated' OR jobStatus='waiting' OR jobStatus='failed')",varMap)
     except:
         pass
     
@@ -74,7 +74,7 @@ aSiteMapper = SiteMapper(taskBuffer)
 
 # get buildJobs in the holding state
 holdingAna = []
-status,res = proxyS.querySQLS("SELECT PandaID from jobsActive4 WHERE prodSourceLabel='panda' AND jobStatus='holding'",{})
+status,res = proxyS.querySQLS("SELECT PandaID from ATLAS_PANDA.jobsActive4 WHERE prodSourceLabel='panda' AND jobStatus='holding'",{})
 if res != None:
     for id, in res:
         holdingAna.append(id)

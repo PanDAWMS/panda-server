@@ -16,11 +16,23 @@ LoadModule gridsite_module modules/mod_gridsite.so
 User  @@username@@
 Group @@usergroup@@
 
+<IfModule prefork.c>
 StartServers         50
 MinSpareServers      50
 MaxSpareServers      50
 MaxClients           50
 MaxRequestsPerChild  0
+</IfModule>
+
+<IfModule worker.c>
+ServerLimit          10
+StartServers         10
+MaxClients           50
+MinSpareThreads      50
+MaxSpareThreads      50
+ThreadsPerChild      5
+MaxRequestsPerChild  0
+</IfModule>
 
 ServerName @@hostname@@
 

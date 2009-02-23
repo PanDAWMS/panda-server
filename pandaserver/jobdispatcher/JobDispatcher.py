@@ -9,6 +9,7 @@ import threading
 import Protocol
 import datetime
 import commands
+from threading import Lock
 from config import panda_config
 from dataservice.Adder import Adder
 from pandalogger.PandaLogger import PandaLogger
@@ -23,7 +24,7 @@ class _TimedMethod:
         self.method  = method
         self.timeout = timeout
         self.result  = Protocol.TimeOutToken
-
+        
     # method emulation    
     def __call__(self,*var):
         self.result = apply(self.method,var)
@@ -43,18 +44,27 @@ class JobDipatcher:
         # taskbuffer
         self.taskBuffer = None
         # DN/token map
-        self.tokenDN = {}
+        self.tokenDN = None
         # datetime of last updated
         self.lastUpdated = datetime.datetime.utcnow()
         # how frequently update DN/token map
         self.timeInterval = datetime.timedelta(seconds=180)
+        # lock
+        self.lock = Lock()
 
     
     # set task buffer
     def init(self,taskBuffer):
-        self.taskBuffer = taskBuffer
+        # lock
+        self.lock.acquire()
+        # set TB
+        if self.taskBuffer == None:
+            self.taskBuffer = taskBuffer
         # update DN/token map
-        self.tokenDN = self.taskBuffer.getListSchedUsers()
+        if self.tokenDN == None:
+            self.tokenDN = self.taskBuffer.getListSchedUsers()
+        # release
+        self.lock.release()
         
 
     # get job
@@ -180,11 +190,17 @@ class JobDipatcher:
     def getDnTokenMap(self):
         # get current datetime
         current = datetime.datetime.utcnow()
+        # lock
+        self.lock.acquire()
+        # update DN map if old 
         if current-self.lastUpdated > self.timeInterval:
             # get new map
             self.tokenDN = self.taskBuffer.getListSchedUsers()
             # reset
             self.lastUpdated = current
+        # release
+        self.lock.release()
+        # return
         return self.tokenDN
 
 

@@ -89,7 +89,7 @@ lfcClient_dir = %(pandaPython_dir)s/brokerage
 dbhost = INTR
 
 # user
-dbuser = ATLAS_PANDA_W
+dbuser = ATLAS_PANDA_WRITER
 
 # password
 dbpasswd = FIXME
@@ -98,51 +98,7 @@ dbpasswd = FIXME
 dbname = PandaDB
 
 # number of connections
-nDBConnection = 2
-
-
-
-##########################
-#
-# Log Database parameters
-#
-
-# host
-logdbhost = INTR
-
-# user
-logdbuser = ATLAS_PANDA_W
-
-# password
-logdbpasswd = FIXME
-
-# database
-logdbname = PandaMetaDB
-
-# number of connections
-nLogDBConnection = 2
-
-
-
-##########################
-#
-# Archive Database parameters
-#
-
-# host
-archivedbhost = INTR
-
-# user
-archivedbuser = ATLAS_PANDA_W
-
-# password
-archivedbpasswd = FIXME
-
-# database
-archivedbname = PandaArchiveDB
-
-# number of connections
-nArchiveDBConnection = 1
+nDBConnection = 3
 
 
 

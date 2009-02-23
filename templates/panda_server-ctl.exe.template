@@ -40,7 +40,7 @@ ARGV="$@"
 # --------------------                              --------------------
 # 
 # the path to your httpd binary, including options if necessary
-HTTPD='/usr/sbin/httpd'
+HTTPD='/usr/sbin/httpd.worker'
 
 #
 # a command that outputs a formatted text version of the HTML at the

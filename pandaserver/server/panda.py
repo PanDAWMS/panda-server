@@ -6,6 +6,10 @@ entry point
 # config file
 from config import panda_config
 
+# initialize cx_Oracle using dummy connection
+from taskbuffer.Initializer import initializer
+initializer.init()
+
 # initialzie TaskBuffer
 from taskbuffer.TaskBuffer import taskBuffer
 taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,panda_config.nDBConnection)
