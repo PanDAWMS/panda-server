@@ -18,6 +18,8 @@ SC_Failed    = 30
 SC_NonSecure = 40
 # invalid token
 SC_Invalid   = 50
+# invalid role
+SC_Role      = 60
 
 
 # response
