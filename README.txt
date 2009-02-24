@@ -2,6 +2,7 @@ Release Note
 
 * current
   * fixed broker_util to use proper python
+  * use jobParamsTable
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots

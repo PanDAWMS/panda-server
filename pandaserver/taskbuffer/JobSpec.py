@@ -80,6 +80,9 @@ class JobSpec(object):
                     val = 0
                 else:
                     val = None
+            # jobParameters moved to another table        
+            if attr in ['jobParameters']:
+                val = None
             ret[':%s' % attr] = val
         return ret
 

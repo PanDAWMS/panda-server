@@ -188,6 +188,19 @@ class DBProxy:
                 self.cur.execute(sqlFile+comment, varMap)
                 # get rowID
                 file.row_ID = long(varMap[':newRowID'].getvalue())
+            # metadata
+            if job.prodSourceLabel in ['user','panda']:
+                sqlMeta = "INSERT INTO ATLAS_PANDA.metaTable (PandaID,metaData) VALUES (:PandaID,:metaData)"
+                varMap = {}
+                varMap[':PandaID']  = job.PandaID
+                varMap[':metaData'] = job.metadata
+                self.cur.execute(sqlMeta+comment, varMap)
+            # job parameters
+            sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters) VALUES (:PandaID,:param)"
+            varMap = {}
+            varMap[':PandaID'] = job.PandaID
+            varMap[':param']   = job.jobParameters
+            self.cur.execute(sqlJob+comment, varMap)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -282,6 +295,12 @@ class DBProxy:
                             varMap = file.valuesMap()
                             varMap[':row_ID'] = file.row_ID
                             self.cur.execute(sqlF+comment, varMap)
+                        # job parameters
+                        sqlJob = "UPDATE ATLAS_PANDA.jobParamsTable SET jobParameters=:param WHERE PandaID=:PandaID"
+                        varMap = {}
+                        varMap[':PandaID'] = job.PandaID
+                        varMap[':param']   = job.jobParameters
+                        self.cur.execute(sqlJob+comment, varMap)
                 else:
                     # update job
                     sqlJ = ("UPDATE ATLAS_PANDA.jobsDefined4 SET %s " % JobSpec.bindUpdateExpression()) + \
@@ -301,6 +320,12 @@ class DBProxy:
                             varMap = file.valuesMap()
                             varMap[':row_ID'] = file.row_ID
                             self.cur.execute(sqlF+comment, varMap)
+                        # job parameters
+                        sqlJob = "UPDATE ATLAS_PANDA.jobParamsTable SET jobParameters=:param WHERE PandaID=:PandaID"
+                        varMap = {}
+                        varMap[':PandaID'] = job.PandaID
+                        varMap[':param']   = job.jobParameters
+                        self.cur.execute(sqlJob+comment, varMap)
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
@@ -444,7 +469,7 @@ class DBProxy:
                             dJob.pack(resJob[0])
                             # delete
                             self.cur.execute(sqlDJD+comment, varMap)
-                            retD = self.cur.rowcount                                            
+                            retD = self.cur.rowcount
                             if retD == 0:
                                 continue
                             # error code
@@ -757,6 +782,12 @@ class DBProxy:
                         varMap = file.valuesMap()
                         varMap[':row_ID'] = file.row_ID
                         self.cur.execute(sqlF+comment, varMap)
+                    # update job parameters
+                    sqlJobP = "UPDATE ATLAS_PANDA.jobParamsTable SET jobParameters=:param WHERE PandaID=:PandaID"
+                    varMap = {}
+                    varMap[':PandaID'] = job.PandaID
+                    varMap[':param']   = job.jobParameters
+                    self.cur.execute(sqlJobP+comment, varMap)
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
@@ -806,6 +837,14 @@ class DBProxy:
                      and job.attemptNr < 2) or (job.prodSourceLabel == 'ddm' and job.cloud == 'CA' and job.attemptNr <= 10)) \
                      and job.commandToPilot != 'tobekilled':
                     _logger.debug(' -> reset PandaID:%s #%s' % (job.PandaID,job.attemptNr))
+                    # job parameters
+                    sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
+                    varMap = {}
+                    varMap[':PandaID'] = job.PandaID
+                    self.cur.execute(sqlJobP+comment, varMap)
+                    for clobJobP, in self.cur:
+                        job.jobParameters = clobJobP.read()
+                        break
                     # reset job
                     job.jobStatus = 'activated'
                     job.startTime = None
@@ -859,6 +898,12 @@ class DBProxy:
                     varMap = job.valuesMap()
                     varMap[':PandaID'] = job.PandaID
                     self.cur.execute(sql2+comment, varMap)
+                    # update job parameters
+                    sqlJobP = "UPDATE ATLAS_PANDA.jobParamsTable SET jobParameters=:param WHERE PandaID=:PandaID"
+                    varMap = {}
+                    varMap[':PandaID'] = job.PandaID
+                    varMap[':param']   = job.jobParameters
+                    self.cur.execute(sqlJobP+comment, varMap)
                     # set return
                     retValue = True
                 # commit
@@ -1135,6 +1180,14 @@ class DBProxy:
                 self.cur.arraysize = 10000                                
                 self.cur.execute(sqlFile+comment, varMap)
                 resFs = self.cur.fetchall()
+                # job parameters
+                sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
+                varMap = {}
+                varMap[':PandaID'] = job.PandaID
+                self.cur.execute(sqlJobP+comment, varMap)
+                for clobJobP, in self.cur:
+                    job.jobParameters = clobJobP.read()
+                    break
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
@@ -1487,6 +1540,8 @@ class DBProxy:
                 self.conn.begin()
                 # select
                 sql = sql1_0 % (JobSpec.columnNames(),table) + sql1_1
+                if table == 'ATLAS_PANDA.jobsArchived4':
+                    sql += " AND modificationTime>(SYSDATE-3)"
                 self.cur.arraysize = 10                                        
                 self.cur.execute(sql+comment, varMap)
                 res = self.cur.fetchall()
@@ -1508,13 +1563,21 @@ class DBProxy:
                     resFs = self.cur.fetchall()
                     # metadata
                     resMeta = None
-                    if table == 'ATLAS_PANDA.jobsArchived4' and (not forAnal):
-                        # read metadata only for finished/failed jobs
+                    if table == 'ATLAS_PANDA.jobsArchived4' or forAnal:
+                        # read metadata only for finished/failed production jobs
                         sqlMeta = "SELECT metaData FROM ATLAS_PANDA.metaTable WHERE PandaID=:PandaID"
                         self.cur.execute(sqlMeta+comment, varMap)
                         for clobMeta, in self.cur:
                             resMeta = clobMeta.read()
                             break
+                    # job parameters
+                    sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
+                    varMap = {}
+                    varMap[':PandaID'] = job.PandaID
+                    self.cur.execute(sqlJobP+comment, varMap)
+                    for clobJobP, in self.cur:
+                        job.jobParameters = clobJobP.read()
+                        break
                     # commit
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
@@ -1598,7 +1661,9 @@ class DBProxy:
                 # make sql
                 sql  = "SELECT PandaID,jobStatus,commandToPilot FROM %s " % table                
                 sql += "WHERE prodUserID=:prodUserID AND jobDefinitionID=:jobDefinitionID "
-                sql += "AND prodSourceLabel in ('user','panda') "                
+                sql += "AND prodSourceLabel in ('user','panda')"
+                if table == 'ATLAS_PANDA.jobsArchived4':
+                    sel += " AND modificationTime>(SYSDATE-3)"
                 varMap = {}
                 varMap[':prodUserID'] = dn
                 varMap[':jobDefinitionID'] = jobID
@@ -1634,7 +1699,8 @@ class DBProxy:
         _logger.debug("queryPandaID : %s" % jobDefID)
         sql0 = "SELECT PandaID,attemptNr FROM %s WHERE attemptNr=("
         sql0+= "SELECT MAX(attemptNr) FROM %s"
-        sql1= " WHERE prodSourceLabel='managed' AND jobDefinitionID=:jobDefinitionID=) AND prodSourceLabel=:'managed' AND jobDefinitionID=:jobDefinitionID"
+        sql1= " WHERE prodSourceLabel='managed' AND jobDefinitionID=:jobDefinitionID)"
+        sql1+=" AND prodSourceLabel=:'managed' AND jobDefinitionID=:jobDefinitionID"
         try:
             ids = []
             # select
@@ -1645,6 +1711,8 @@ class DBProxy:
                 self.conn.begin()
                 # select
                 sql = sql0 % (table,table) + sql1
+                if table == 'ATLAS_PANDA.jobsArchived4':
+                    sql += " AND modificationTime>(SYSDATE-3)"
                 self.cur.arraysize = 10
                 self.cur.execute(sql+comment, varMap)
                 res = self.cur.fetchall()
@@ -1748,7 +1816,9 @@ class DBProxy:
             # SQL
             sql  = "SELECT PandaID FROM %s " % table
             sql += "WHERE computingSite=:computingSite AND jobStatus=:jobStatus AND prodSourceLabel='managed' "
-            sql += "rownum<=:limit"
+            if table == 'ATLAS_PANDA.jobsArchived4':
+                sql += "AND modificationTime>(SYSDATE-3) "
+            sql += "AND rownum<=:limit"    
             # start transaction
             self.conn.begin()
             # select
@@ -1781,7 +1851,7 @@ class DBProxy:
         sql0 = "SELECT PandaID,jobStatus,stateChangeTime,attemptNr,jobDefinitionID,jobExecutionID FROM %s "
         sql0+= "WHERE prodSourceLabel='managed' AND lockedby=:lockedby "
         sql0+= "AND stateChangeTime>prodDBUpdateTime "
-        sql0+= "AND rownum<=:limit "
+        sql1 = "AND rownum<=:limit "
         varMap = {}
         varMap[':lockedby'] = lockedby
         varMap[':limit'] = limit
@@ -1794,6 +1864,9 @@ class DBProxy:
                 self.conn.begin()
                 # select
                 sql = sql0 % table
+                if table == 'ATLAS_PANDA.jobsArchived4':
+                    sql += "AND modificationTime>(SYSDATE-3) "
+                sql += sql1    
                 self.cur.arraysize = limit                
                 self.cur.execute(sql+comment, varMap)
                 res = self.cur.fetchall()
@@ -1832,7 +1905,7 @@ class DBProxy:
         _logger.debug("updateProdDBUpdateTime %s" % str(param))
         sql0 = "UPDATE %s "
         sql0+= "SET prodDBUpdateTime=TO_TIMESTAMP(:prodDBUpdateTime,'YYYY-MM-DD HH24:MI:SS') "
-        sql0+= "WHERE PandaID=:PandaID AND jobStatus=:jobStatus AND stateChangeTime=TO_TIMESTAMP(:stateChangeTime,'YYYY-MM-DD HH24:MI:SS')"
+        sql0+= "WHERE PandaID=:PandaID AND jobStatus=:jobStatus AND stateChangeTime=TO_TIMESTAMP(:stateChangeTime,'YYYY-MM-DD HH24:MI:SS') "
         varMap = {}
         varMap[':prodDBUpdateTime'] = param['stateChangeTime']
         varMap[':PandaID']          = param['PandaID']
@@ -1854,6 +1927,8 @@ class DBProxy:
             self.conn.begin()
             # update
             sql = sql0 % table
+            if table == 'ATLAS_PANDA.jobsArchived4':
+                sql += "AND modificationTime>(SYSDATE-3) "
             _logger.debug(sql+comment+str(varMap))
             self.cur.execute(sql+comment, varMap)
             retU = self.cur.rowcount
@@ -2903,15 +2978,18 @@ class DBProxy:
         comment = ' /* DBProxy.getJobStatisticsPerProcessingType */'                
         _logger.debug("getJobStatisticsPerProcessingType()")
         sql0  = "SELECT jobStatus,COUNT(*),cloud,processingType FROM %s "
-        sql0 += "WHERE prodSourceLabel='managed' GROUP BY jobStatus,cloud,processingType"
+        sql0 += "WHERE prodSourceLabel='managed' GROUP BY jobStatus,cloud,processingType "
         ret = {}
         try:
             for table in ('ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4','ATLAS_PANDA.jobsArchived4','ATLAS_PANDA.jobsDefined4'):
                 # start transaction
                 self.conn.begin()
                 # select
-                self.cur.arraysize = 10000                    
-                self.cur.execute((sql0+comment) % table)
+                self.cur.arraysize = 10000
+                sql = sql0
+                if table == 'ATLAS_PANDA.jobsArchived4':
+                    sql += "AND modificationTime>(SYSDATE-3) "
+                self.cur.execute((sql+comment) % table)
                 res = self.cur.fetchall()
                 # commit
                 if not self._commit():
@@ -3090,7 +3168,6 @@ class DBProxy:
             ret = {}
             for item in res:
                 ret[item[0]] = {'getJob':item[1],'updateJob':item[2]}
-            _logger.debug(ret)
             return ret
         except:
             type, value, traceBack = sys.exc_info()
@@ -3124,7 +3201,6 @@ class DBProxy:
                     if not retMap.has_key(siteid):
                         retMap[siteid] = []
                     retMap[siteid].append(nickname)
-            _logger.debug(retMap)
             _logger.debug("getSiteList done")            
             return retMap
         except:
@@ -3510,24 +3586,8 @@ class DBProxy:
         
     # get list of archived tables
     def getArchiveTables(self):
-        tables = []
-        cdate = datetime.datetime.utcnow()
-        for iCycle in range(2): # 2 = (1 months + 2 just in case)/2
-            if cdate.month==1:
-                cdate = cdate.replace(year = (cdate.year-1))
-                cdate = cdate.replace(month = 12, day = 1)
-            else:
-                cdate = cdate.replace(month = (cdate.month/2)*2, day = 1)
-            tableName = "jobsArchived_%s%s" % (cdate.strftime('%b'),cdate.year)
-            if not tableName in tables:
-                tables.append(tableName)
-            # one older table
-            if cdate.month > 2:
-                cdate = cdate.replace(month = (cdate.month-2))
-            else:
-                cdate = cdate.replace(year = (cdate.year-1), month = 12)
         # return
-        return tables
+        return ['ATLAS_PANDA.jobsArchived4']
     
 
     # get JobIDs in a time range
@@ -3586,7 +3646,7 @@ class DBProxy:
                 # make sql
                 sql  = "SELECT PandaID,jobStatus,commandToPilot FROM %s " % table                
                 sql += "WHERE prodUserID=:prodUserID AND jobDefinitionID=:jobDefinitionID "
-                sql += "AND prodSourceLabel in ('user','panda') "                
+                sql += "AND prodSourceLabel in ('user','panda') AND modificationTime>(SYSDATE-30) "
                 varMap = {}
                 varMap[':prodUserID'] = dn
                 varMap[':jobDefinitionID'] = jobID
@@ -3624,7 +3684,7 @@ class DBProxy:
         if pandaID in ['NULL','','None',None]:
             return None
         sql1_0 = "SELECT %s FROM %s "
-        sql1_1 = "WHERE PandaID=:PandaID"
+        sql1_1 = "WHERE PandaID=:PandaID AND modificationTime>(SYSDATE-30) "
         # select
         varMap = {}
         varMap[':PandaID'] = pandaID
@@ -3658,6 +3718,20 @@ class DBProxy:
                     self.cur.arraysize = 10000
                     self.cur.execute(sqlFile+comment, varMap)
                     resFs = self.cur.fetchall()
+                    # metadata
+                    sqlMeta = "SELECT metaData FROM ATLAS_PANDA.metaTable WHERE PandaID=:PandaID"
+                    self.cur.execute(sqlMeta+comment, varMap)
+                    for clobMeta, in self.cur:
+                        job.metadata = clobMeta.read()
+                        break
+                    # job parameters
+                    sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
+                    varMap = {}
+                    varMap[':PandaID'] = job.PandaID
+                    self.cur.execute(sqlJobP+comment, varMap)
+                    for clobJobP, in self.cur:
+                        job.jobParameters = clobJobP.read()
+                        break
                     # commit
                     if not self._commit():
                         raise RuntimeError, 'Commit error'

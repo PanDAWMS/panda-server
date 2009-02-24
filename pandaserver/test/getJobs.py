@@ -9,13 +9,14 @@ import httplib
 import re
 import os
 
+from userinterface.Client import baseURLSSL
+
 node={}
 node['siteName']=sys.argv[1]
 node['mem']=1000
 node['node']=commands.getoutput('hostname -f')
 #node['prodSourceLabel']='user'
-url='https://localhost:25443/server/panda/getJob'
-#url='https://.usatlas.bnl.gov:25443/server/panda/getJob'
+url='%s/getJob' % baseURLSSL
 
 match = re.search('[^:/]+://([^/]+)(/.+)',url)
 host = match.group(1)

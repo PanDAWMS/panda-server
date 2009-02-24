@@ -1,8 +1,12 @@
+import os
+import re
 import sys
 import urllib2,urllib
 
 import userinterface.Client as Client
+from userinterface.Client import baseURLSSL
 
+import httplib
 import commands
 
 id = sys.argv[1]
@@ -48,10 +52,22 @@ node['metaData']='finished'
 node['siteName']='BNL_ATLAS_test'
 
 node['xml']=xml
-url='https://localhost:26443/server/panda/updateJob'
+url='%s/updateJob' % baseURLSSL
+
+match = re.search('[^:/]+://([^/]+)(/.+)',url)
+host = match.group(1)
+path = match.group(2)
+
+if os.environ.has_key('X509_USER_PROXY'):
+    certKey = os.environ['X509_USER_PROXY']
+else:
+    certKey = '/tmp/x509up_u%s' % os.getuid()
+
 rdata=urllib.urlencode(node)
-req=urllib2.Request(url)
-fd=urllib2.urlopen(req,rdata)
-data = fd.read()
+
+conn = httplib.HTTPSConnection(host,key_file=certKey,cert_file=certKey)
+conn.request('POST',path,rdata)
+resp = conn.getresponse()
+data = resp.read()
 
 print data
