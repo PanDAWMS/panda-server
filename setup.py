@@ -159,11 +159,11 @@ setup(
                 # config files 
                 ('etc/panda', ['templates/panda_server-httpd.conf.rpmnew.template',
                                'templates/panda_server.cfg.rpmnew.template',                               
+                               'templates/panda_server-grid-env.sh.template',
                                ]
                  ),
                 # sysconfig
                 ('etc/sysconfig', ['templates/panda_server-sysconfig.rpmnew.template',
-                                   'templates/panda_server-grid-env.sh.template',
                                    ]
                  ),
                 # logrotate
