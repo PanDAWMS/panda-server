@@ -230,6 +230,12 @@ def _getFQAN(req):
                 fqan = tmpVal.split()[-1]
                 # append
                 fqans.append(fqan)
+        # old style         
+        elif tmpKey.startswith('GRST_CONN_'):
+            tmpItems = tmpVal.split(':')
+            # FQAN
+            if len(tmpItems)==2 and tmpItems[0]=='fqan':
+                fqans.append(tmpItems[-1])
     # return
     return fqans
 
@@ -332,7 +338,7 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
     # invalid role
     if (not prodManager) and (not prodSourceLabel in ['user']):
         _logger.warning("getJob(%s) : invalid role" % siteName)
-        #return Protocol.Response(Protocol.SC_Role).encode()        
+        return Protocol.Response(Protocol.SC_Role).encode()        
     # invalid token
     if not validToken:
         _logger.warning("getJob(%s) : invalid token" % siteName)    
@@ -379,7 +385,7 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
     # invalid role
     if not prodManager:
         _logger.warning("updateJob(%s) : invalid role" % jobId)
-        #return Protocol.Response(Protocol.SC_Role).encode()        
+        return Protocol.Response(Protocol.SC_Role).encode()        
     # invalid token
     if not validToken:
         _logger.warning("updateJob(%s) : invalid token" % jobId)

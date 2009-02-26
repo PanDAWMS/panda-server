@@ -4,6 +4,8 @@ Release Note
   * fixed broker_util to use proper python
   * use jobParamsTable
   * fixed python path to use 64bit glite
+  * fixed for ArchivedDB
+  * fixed FQAN extraction for GRST_CONN
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots

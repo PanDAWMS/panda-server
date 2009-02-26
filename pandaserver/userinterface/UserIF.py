@@ -403,6 +403,12 @@ def _getFQAN(req):
                 fqan = tmpVal.split()[-1]
                 # append
                 fqans.append(fqan)
+        # old style         
+        elif tmpKey.startswith('GRST_CONN_'):
+            tmpItems = tmpVal.split(':')
+            # FQAN
+            if len(tmpItems)==2 and tmpItems[0]=='fqan':
+                fqans.append(tmpItems[-1])
     # return
     return fqans
 
