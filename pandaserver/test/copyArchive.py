@@ -72,7 +72,7 @@ try:
     for line in out.split('\n'):
         items = line.split()
         # owned process
-        if not items[0] in ['sm','atlpan']: # ['os.getlogin()']: doesn't work in cron
+        if not items[0] in ['sm','atlpan','root']: # ['os.getlogin()']: doesn't work in cron
             continue
         # look for python
         if re.search('python',line) == None:
@@ -97,25 +97,11 @@ proxyS = DBProxy()
 proxyS.connect(panda_config.dbhost,panda_config.dbpasswd,panda_config.dbuser,panda_config.dbname)
 
 # table names
-cdate = datetime.datetime.utcnow()
-if cdate.month==1:
-    cdate = cdate.replace(year = (cdate.year-1))
-    cdate = cdate.replace(month = 12, day = 1)
-else:
-    cdate = cdate.replace(month = (cdate.month/2)*2, day = 1)
-jobATableName   = "jobsArchived_%s%s" % (cdate.strftime('%b'),cdate.year)
-filesATableName = "filesTable_%s%s" % (cdate.strftime('%b'),cdate.year)
-metaATableName  = "metaTable_%s%s" % (cdate.strftime('%b'),cdate.year)
-dsATableName    = "Datasets_%s%s" % (cdate.strftime('%b'),cdate.year)
-
-if cdate.month > 2:
-    odate = cdate.replace(month = (cdate.month-2))
-else:
-    odate = cdate.replace(year = (cdate.year-1), month = 12)
-oldJobAtableName = "jobsArchived_%s%s" % (odate.strftime('%b'),odate.year)
-
-_logger.debug("Tables : %s %s %s %s %s" %
-              (jobATableName,filesATableName,metaATableName,oldJobAtableName,dsATableName))
+jobATableName   = "ATLAS_PANDA_ARCH.jobsArchived"
+filesATableName = "ATLAS_PANDA_ARCH.filesTable"
+paramATableName = "ATLAS_PANDA_ARCH.jobParamsTable"
+metaATableName  = "ATLAS_PANDA_ARCH.metaTable"
+dsATableName    = "ATLAS_PANDA_ARCH.Datasets"
 
 # time limit
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=3)
@@ -141,18 +127,16 @@ else:
             if len(check) == 0 and len(checkOld) == 0:
                 # get jobs
                 job = proxyS.peekJob(id,False,False,True,False)
-                # insert to dest
-                proxyS.insertJobSimple(job,jobATableName,filesATableName)
+                # job parameters
+                status,jobParams = proxyS.getClobObj("SELECT jobParameters from ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID",varMap)
+                job.jobParameters = jobParams[0][0]
                 # metadata
-                status,meta = proxyS.querySQLS("SELECT metaData from ATLAS_PANDA.metaTable WHERE PandaID=:PandaID",varMap)
+                metadata = None
+                status,meta = proxyS.getClobObj("SELECT metaData from ATLAS_PANDA.metaTable WHERE PandaID=:PandaID",varMap)
                 if len(meta) != 0:
-                    varMap = {}
-                    varMap[':PandaID']  = id
-                    varMap[':metaData'] = meta[0][0]
-                    proxyS.querySQLS("INSERT INTO %s (PandaID,metaData) VALUES(:PandaID,:metaData)" %
-                                     metaATableName,varMap)
-                    _logger.debug("meta INSERT %s " % id)
-
+                    metadata = meta[0][0]
+                # insert to archived
+                proxyS.insertJobSimple(job,jobATableName,filesATableName,paramATableName,metaATableName,metadata)
                 _logger.debug("INSERT %s " % id)
             # delete
             if srcEndTime==None or srcEndTime < timeLimit:
@@ -167,6 +151,9 @@ else:
                 # delete metadata
                 status,retDel = proxyS.querySQLS("DELETE from ATLAS_PANDA.metaTable WHERE PandaID=:PandaID",varMap)
                 _logger.debug("DEL metadata for %s " % id)
+                # delete job parameters
+                status,retDel = proxyS.querySQLS("DELETE from ATLAS_PANDA.jobParamsTabl WHERE PandaID=:PandaID",varMap)
+                _logger.debug("DEL jobParams for %s " % id)
             else:
                 pass
         except:

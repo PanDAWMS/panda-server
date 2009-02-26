@@ -134,6 +134,35 @@ class DBProxy:
             return -1,None
 
 
+    # get CLOB
+    def getClobObj(self,sql,varMap,arraySize=10000):
+        comment = ' /* DBProxy.getClobObj */'            
+        try:
+            # begin transaction
+            self.conn.begin()
+            self.cur.arraysize = arraySize
+            ret = self.cur.execute(sql+comment,varMap)
+            res = []
+            for items in self.cur:
+                resItem = []
+                for item in items:
+                    # read CLOB
+                    resItem.append(item.read())
+                # append    
+                res.append(resItem)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            return ret,res
+        except:
+            # roll back
+            self._rollback()
+            type, value, traceBack = sys.exc_info()
+            _logger.error("getClobObj : %s %s" % (sql,str(varMap)))
+            _logger.error("getClobObj : %s %s" % (type,value))
+            return -1,None
+
+
     # insert job to jobsDefined
     def insertNewJob(self,job,user,serNum,weight=0.0,priorityOffset=0,userVO=None):
         comment = ' /* DBProxy.insertNewJob */'                    
@@ -215,7 +244,7 @@ class DBProxy:
 
 
     # simply insert job to a table
-    def insertJobSimple(self,job,table,fileTable):
+    def insertJobSimple(self,job,table,fileTable,jobParamsTable,metaTable,metadata):
         comment = ' /* DBProxy.insertJobSimple */'                            
         _logger.debug("insertJobSimple : %s" % job.PandaID)
         sql1 = "INSERT INTO %s (%s) " % (table,JobSpec.columnNames())
@@ -231,6 +260,21 @@ class DBProxy:
             sqlFile+= FileSpec.bindValuesExpression()
             for file in job.Files:
                 self.cur.execute(sqlFile+comment, file.valuesMap())
+            # job parameters
+            sqlJob = "INSERT INTO %s (PandaID,jobParameters) VALUES (:PandaID,:param)" \
+                     % jobParamsTable
+            varMap = {}
+            varMap[':PandaID'] = job.PandaID
+            varMap[':param']   = job.jobParameters
+            self.cur.execute(sqlJob+comment, varMap)
+            # metadata
+            if metadata != None:
+                sqlMeta = "INSERT INTO %s (PandaID,metaData) VALUES(:PandaID,:metaData)" \
+                          % metaTable
+                varMap = {}
+                varMap[':PandaID']  = id
+                varMap[':metaData'] = metadata
+                self.cur.execute(sqlMeta+comment,varMap)            
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -1540,8 +1584,6 @@ class DBProxy:
                 self.conn.begin()
                 # select
                 sql = sql1_0 % (JobSpec.columnNames(),table) + sql1_1
-                if table == 'ATLAS_PANDA.jobsArchived4':
-                    sql += " AND modificationTime>(SYSDATE-3)"
                 self.cur.arraysize = 10                                        
                 self.cur.execute(sql+comment, varMap)
                 res = self.cur.fetchall()
@@ -1662,8 +1704,6 @@ class DBProxy:
                 sql  = "SELECT PandaID,jobStatus,commandToPilot FROM %s " % table                
                 sql += "WHERE prodUserID=:prodUserID AND jobDefinitionID=:jobDefinitionID "
                 sql += "AND prodSourceLabel in ('user','panda')"
-                if table == 'ATLAS_PANDA.jobsArchived4':
-                    sel += " AND modificationTime>(SYSDATE-3)"
                 varMap = {}
                 varMap[':prodUserID'] = dn
                 varMap[':jobDefinitionID'] = jobID
@@ -1711,8 +1751,6 @@ class DBProxy:
                 self.conn.begin()
                 # select
                 sql = sql0 % (table,table) + sql1
-                if table == 'ATLAS_PANDA.jobsArchived4':
-                    sql += " AND modificationTime>(SYSDATE-3)"
                 self.cur.arraysize = 10
                 self.cur.execute(sql+comment, varMap)
                 res = self.cur.fetchall()
@@ -1816,8 +1854,6 @@ class DBProxy:
             # SQL
             sql  = "SELECT PandaID FROM %s " % table
             sql += "WHERE computingSite=:computingSite AND jobStatus=:jobStatus AND prodSourceLabel='managed' "
-            if table == 'ATLAS_PANDA.jobsArchived4':
-                sql += "AND modificationTime>(SYSDATE-3) "
             sql += "AND rownum<=:limit"    
             # start transaction
             self.conn.begin()
@@ -1864,8 +1900,6 @@ class DBProxy:
                 self.conn.begin()
                 # select
                 sql = sql0 % table
-                if table == 'ATLAS_PANDA.jobsArchived4':
-                    sql += "AND modificationTime>(SYSDATE-3) "
                 sql += sql1    
                 self.cur.arraysize = limit                
                 self.cur.execute(sql+comment, varMap)
@@ -1927,8 +1961,6 @@ class DBProxy:
             self.conn.begin()
             # update
             sql = sql0 % table
-            if table == 'ATLAS_PANDA.jobsArchived4':
-                sql += "AND modificationTime>(SYSDATE-3) "
             _logger.debug(sql+comment+str(varMap))
             self.cur.execute(sql+comment, varMap)
             retU = self.cur.rowcount
@@ -2987,8 +3019,6 @@ class DBProxy:
                 # select
                 self.cur.arraysize = 10000
                 sql = sql0
-                if table == 'ATLAS_PANDA.jobsArchived4':
-                    sql += "AND modificationTime>(SYSDATE-3) "
                 self.cur.execute((sql+comment) % table)
                 res = self.cur.fetchall()
                 # commit
@@ -3092,7 +3122,7 @@ class DBProxy:
             token = commands.getoutput('uuidgen')
             timeNow = datetime.datetime.utcnow()
             timeExp = timeNow + datetime.timedelta(days=4)
-            sql  = "INSERT INTO ATLAS_PANDAMETA.pilottoken (token,schedulerhost,scheduleruser,schedulerid,created,expires) "
+            sql  = "INSERT INTO ATLAS_PANDA.pilottoken (token,schedulerhost,scheduleruser,schedulerid,created,expires) "
             sql += "VALUES (:token,:schedulerhost,:scheduleruser,:schedulerid,:created,:expires)"
             # start transaction
             self.conn.begin()
@@ -3122,7 +3152,7 @@ class DBProxy:
         comment = ' /* DBProxy.getListSchedUsers */'                    
         try:
             _logger.debug("getListSchedUsers")
-            sql  = "SELECT token,scheduleruser FROM ATLAS_PANDAMETA.pilottoken WHERE expires>SYSDATE"
+            sql  = "SELECT token,scheduleruser FROM ATLAS_PANDA.pilottoken WHERE expires>SYSDATE"
             # start transaction
             self.conn.begin()
             # execute
@@ -3154,7 +3184,7 @@ class DBProxy:
     # get site data
     def getCurrentSiteData(self):
         _logger.debug("getCurrentSiteData")
-        sql = "SELECT SITE,getJob,updateJob FROM SiteData WHERE FLAG='production' and HOURS=3"
+        sql = "SELECT SITE,getJob,updateJob FROM ATLAS_PANDAMETA.SiteData WHERE FLAG='production' and HOURS=3"
         try:
             # set autocommit on
             self.conn.begin()
@@ -3213,6 +3243,7 @@ class DBProxy:
 
     # get site info
     def getSiteInfo(self):
+        comment = ' /* DBProxy.getSiteInfo */'
         _logger.debug("getSiteInfo start")
         try:
             # set autocommit on
@@ -3223,7 +3254,7 @@ class DBProxy:
             sql+= "priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue "            
             sql+= "FROM ATLAS_PANDAMETA.schedconfig WHERE siteid IS NOT NULL"
             self.cur.arraysize = 10000            
-            self.cur.execute(sql)
+            self.cur.execute(sql+comment)
             resList = self.cur.fetchall()
             # commit
             if not self._commit():
@@ -3315,6 +3346,7 @@ class DBProxy:
 
     # get cloud list
     def getCloudList(self):
+        comment = ' /* DBProxy.getCloudList */'        
         _logger.debug("getCloudList start")        
         try:
             # set autocommit on
@@ -3324,7 +3356,7 @@ class DBProxy:
             sql += "transtimehi,waittime,validation,mcshare,countries,fasttrack "
             sql+= "FROM ATLAS_PANDAMETA.cloudconfig"
             self.cur.arraysize = 10000            
-            self.cur.execute(sql)
+            self.cur.execute(sql+comment)
             resList = self.cur.fetchall()
             # commit
             if not self._commit():
@@ -3403,17 +3435,18 @@ class DBProxy:
     
     # check quota
     def checkQuota(self,dn):
+        comment = ' /* DBProxy.checkQuota */'
         _logger.debug("checkQuota %s" % dn)
         try:
             # set autocommit on
             self.conn.begin()
             # select
             name = self.cleanUserID(dn)
-            sql = "SELECT cpua1,cpua7,cpua30,quotaa1,quotaa7,quotaa30 FROM ATLAS_PANDAMETA.users WHERE name = :name"
+            sql = "SELECT cpua1,cpua7,cpua30,quotaa1,quotaa7,quotaa30 FROM ATLAS_PANDAMETA.users WHERE name=:name"
             varMap = {}
             varMap[':name'] = name
             self.cur.arraysize = 10            
-            self.cur.execute(sql,varMap)
+            self.cur.execute(sql+comment,varMap)
             res = self.cur.fetchall()
             # commit
             if not self._commit():
@@ -3450,16 +3483,17 @@ class DBProxy:
 
     # get serialize JobID and status
     def getUserParameter(self,dn,jobID):
+        comment = ' /* DBProxy.getUserParameter */'                            
         _logger.debug("getUserParameter %s %s" % (dn,jobID))
         try:
             # set autocommit on
             self.conn.begin()
             # select
             name = self.cleanUserID(dn)
-            sql = "SELECT jobid,status FROM ATLAS_PANDAMETA.users WHERE name = :name"
+            sql = "SELECT jobid,status FROM ATLAS_PANDAMETA.users WHERE name=:name"
             varMap = {}
             varMap[':name'] = name
-            self.cur.execute(sql,varMap)
+            self.cur.execute(sql+comment,varMap)
             self.cur.arraysize = 10            
             res = self.cur.fetchall()
             # commit
@@ -3478,8 +3512,11 @@ class DBProxy:
                 if dbJobID >= int(retJobID):
                     retJobID = dbJobID+1
                 # update DB
-                sql = "UPDATE users SET jobid=%d WHERE name = '%s'" % (retJobID,name)
-                self.cur.execute(sql)
+                varMap = {}
+                varMap[':name'] = name
+                varMap[':jobid'] = retJobID
+                sql = "UPDATE ATLAS_PANDAMETA.users SET jobid=:jobid WHERE name=:name"
+                self.cur.execute(sql+comment,varMap)
                 _logger.debug("getUserParameter set JobID=%s for %s" % (retJobID,dn))
             return retJobID,retStatus
         except:
@@ -3492,6 +3529,7 @@ class DBProxy:
         
     # get email address for a user
     def getEmailAddr(self,name):
+        comment = ' /* DBProxy.getEmailAddr */'
         _logger.debug("get email for %s" % name) 
         try:
             # set autocommit on
@@ -3500,7 +3538,7 @@ class DBProxy:
             sql = "SELECT email FROM ATLAS_PANDAMETA.users WHERE name=:name"
             varMap = {}
             varMap[':name'] = name
-            self.cur.execute(sql,varMap)
+            self.cur.execute(sql+comment,varMap)
             self.cur.arraysize = 10            
             res = self.cur.fetchall()
             # commit
@@ -3520,6 +3558,7 @@ class DBProxy:
         
     # register proxy key
     def registerProxyKey(self,params):
+        comment = ' /* DBProxy.registerProxyKey */'
         _logger.debug("register ProxyKey %s" % str(params))
         try:
             # set autocommit on
@@ -3536,7 +3575,7 @@ class DBProxy:
             sql1 = sql1[:-1]            
             sql = sql0 + ') ' + sql1 + ') '
             # insert
-            self.cur.execute(sql,vals)
+            self.cur.execute(sql+comment,vals)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -3552,6 +3591,7 @@ class DBProxy:
 
     # get proxy key
     def getProxyKey(self,dn):
+        comment = ' /* DBProxy.getProxyKey */'        
         _logger.debug("get ProxyKey %s" % dn)
         try:
             # set autocommit on
@@ -3561,7 +3601,7 @@ class DBProxy:
             varMap = {}
             varMap[':dn'] = dn
             # select
-            self.cur.execute(sql,varMap)
+            self.cur.execute(sql+comment,varMap)
             res = self.cur.fetchall()            
             # commit
             if not self._commit():
@@ -3587,7 +3627,7 @@ class DBProxy:
     # get list of archived tables
     def getArchiveTables(self):
         # return
-        return ['ATLAS_PANDA.jobsArchived4']
+        return ['ATLAS_PANDA_ARH.jobsArchived']
     
 
     # get JobIDs in a time range
