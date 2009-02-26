@@ -97,11 +97,11 @@ proxyS = DBProxy()
 proxyS.connect(panda_config.dbhost,panda_config.dbpasswd,panda_config.dbuser,panda_config.dbname)
 
 # table names
-jobATableName   = "ATLAS_PANDA_ARCH.jobsArchived"
-filesATableName = "ATLAS_PANDA_ARCH.filesTable"
-paramATableName = "ATLAS_PANDA_ARCH.jobParamsTable"
-metaATableName  = "ATLAS_PANDA_ARCH.metaTable"
-dsATableName    = "ATLAS_PANDA_ARCH.Datasets"
+jobATableName   = "ATLAS_PANDAARCH.jobsArchived"
+filesATableName = "ATLAS_PANDAARCH.filesTable"
+paramATableName = "ATLAS_PANDAARCH.jobParamsTable"
+metaATableName  = "ATLAS_PANDAARCH.metaTable"
+dsATableName    = "ATLAS_PANDAARCH.Datasets"
 
 # time limit
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=3)

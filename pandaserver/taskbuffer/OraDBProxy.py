@@ -3627,7 +3627,7 @@ class DBProxy:
     # get list of archived tables
     def getArchiveTables(self):
         # return
-        return ['ATLAS_PANDA_ARH.jobsArchived']
+        return ['ATLAS_PANDAARCH.jobsArchived']
     
 
     # get JobIDs in a time range
