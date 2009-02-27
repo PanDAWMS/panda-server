@@ -2026,6 +2026,7 @@ class DBProxy:
     def insertDataset(self,dataset,tablename="ATLAS_PANDA.Datasets"):
         comment = ' /* DBProxy.insertDataset */'        
         _logger.debug("insertDataset(%s)" % dataset.name)
+        sql0 = "SELECT COUNT(*) FROM %s WHERE vuid=:vuid" % tablename
         sql1 = "INSERT INTO %s " % tablename
         sql1+= "(%s) " % DatasetSpec.columnNames()
         sql1+= DatasetSpec.bindValuesExpression()
@@ -2035,8 +2036,16 @@ class DBProxy:
         try:
             # begin transaction
             self.conn.begin()
-            # insert
-            self.cur.execute(sql1+comment, dataset.valuesMap())
+            # check if it already exists
+            varMap = {}
+            varMap[':vuid'] = dataset.vuid
+            self.cur.execute(sql0+comment, varMap)
+            nDS, = self.cur.fetchone()
+            _logger.debug("insertDataset nDS=%s with %s" % (nDS,dataset.vuid))
+            if nDS == 0:
+                # insert
+                _logger.debug("insertDataset insert %s" % dataset.name)
+                self.cur.execute(sql1+comment, dataset.valuesMap())
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
