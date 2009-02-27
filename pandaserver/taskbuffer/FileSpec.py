@@ -18,6 +18,8 @@ class FileSpec(object):
                    'destinationDBlockToken','destinationSE','fsize','md5sum','checksum')
     # slots
     __slots__ = _attributes+('_owner',)
+    # attributes which have 0 by default
+    _zeroAttrs = ('fsize',)
 
 
     # constructor
@@ -63,7 +65,10 @@ class FileSpec(object):
         for attr in self._attributes:
             val = getattr(self,attr)
             if val == 'NULL':
-                val = None
+                if attr in self._zeroAttrs:
+                    val = 0
+                else:
+                    val = None
             ret[':%s' % attr] = val
         return ret
 
