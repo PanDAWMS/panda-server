@@ -56,6 +56,7 @@ class Response:
         strIFiles = ''
         strOFiles = ''
         strDispatch = ''
+        strDisToken = ''        
         strDestination = ''
         strRealDataset = ''
         strDestToken = ''
@@ -70,6 +71,9 @@ class Response:
                 if strDispatch != '':
                     strDispatch += ','
                 strDispatch += file.dispatchDBlock
+                if strDisToken != '':
+                    strDisToken += ','
+                strDisToken += file.dispatchDBlockToken
                 if strGUID != '':
                     strGUID += ','
                 strGUID += file.GUID
@@ -93,6 +97,8 @@ class Response:
         self.data['inFiles'] = strIFiles
         # dispatch DBlock
         self.data['dispatchDblock'] = strDispatch
+        # dispatch DBlock space token
+        self.data['dispatchDBlockToken'] = strDisToken
         # outFiles
         self.data['outFiles'] = strOFiles
         # destination DBlock

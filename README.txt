@@ -6,6 +6,7 @@ Release Note
   * fixed python path to use 64bit glite
   * fixed for ArchivedDB
   * fixed FQAN extraction for GRST_CONN
+  * dispatchDBlockToken
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots

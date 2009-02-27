@@ -96,10 +96,11 @@ def _setReadyToFiles(tmpJob,okFiles,siteMapper):
                         if re.search(tmpSiteSpec.seprodpath['ATLASDATATAPE'],okPFN) == None:
                             tapeOnly = False
                             break
-                    # set ready
-                    if tapeOnly:
+                    # trigger prestage when disk copy doesn't exist or token is TAPE
+                    if tapeOnly or tmpFile.dispatchDBlockToken in ['ATLASDATATAPE']:
                         allOK = False
                     else:
+                        # set ready                        
                         tmpFile.status = 'ready'
                         tmpFile.dispatchDBlock = 'NULL'                                
                 else:
