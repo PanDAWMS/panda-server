@@ -12,7 +12,7 @@ else:
     site = None
 
 datasetName = 'testpanda.destDB.%s' % commands.getoutput('uuidgen')
-destName    = 'BNL_ATLAS_2'
+destName    = None
 
 files = {
     'misal1_mc12.005802.JF17_pythia_jet_filter.digit.RDO.v12000601_tid008610._11615.pool.root.1':None,
