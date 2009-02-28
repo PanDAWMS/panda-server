@@ -108,6 +108,7 @@ timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=3)
 
 # get PandaIDs and endTimes from source
 _logger.debug("get PandaIDs from Archive")
+"""
 status,res = proxyS.querySQLS("SELECT PandaID,modificationTime from ATLAS_PANDA.jobsArchived4 ORDER BY PandaID",{})
 if res == None:
     _logger.debug("total %s " % res)
@@ -159,9 +160,11 @@ else:
         except:
             pass
 
+del res
+"""
+                
 # instantiate TB
 taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
-del res
 
 # instantiate sitemapper
 siteMapper = SiteMapper(taskBuffer)
@@ -178,6 +181,7 @@ _logger.debug("increased priority for %s" % status)
 time.sleep(1)
         
 # archive dataset
+"""
 timeLimit  = datetime.datetime.utcnow() - datetime.timedelta(days=60)
 timeLimitA = datetime.datetime.utcnow() - datetime.timedelta(days=90)
 for dsType,dsPrefix in [('output','sub'),('dispatch','dis'),('','')]:
@@ -212,7 +216,7 @@ for dsType,dsPrefix in [('output','sub'),('dispatch','dis'),('','')]:
                 # insert to archived
                 ret = proxyS.insertDataset(ds,dsATableName)
                 if not ret:
-                    _logger.error("cannot insert %s into dsATableName" % (name,dsATableName))
+                    _logger.error("cannot insert %s into %s" % (name,dsATableName))
                     continue
                 # delete
                 varMap = {}
@@ -223,7 +227,7 @@ for dsType,dsPrefix in [('output','sub'),('dispatch','dis'),('','')]:
                     continue
                 _logger.debug("done %s %s" % (modDate,name))                
         time.sleep(2)
-
+"""
 
 _memoryCheck("watcher")
 
