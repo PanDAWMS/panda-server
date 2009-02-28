@@ -1946,6 +1946,12 @@ class DBProxy:
         varMap[':jobStatus']        = param['jobStatus']
         varMap[':stateChangeTime']  = param['stateChangeTime']
         try:
+            # convert to string
+            if isinstance(varMap[':prodDBUpdateTime'],datetime.datetime):
+                varMap[':prodDBUpdateTime'] = varMap[':prodDBUpdateTime'].strftime('%Y-%m-%d %H:%M:%S')
+            if isinstance(varMap[':stateChangeTime'],datetime.datetime):
+                varMap[':stateChangeTime'] = varMap[':stateChangeTime'].strftime('%Y-%m-%d %H:%M:%S')
+            # set table
             if param['jobStatus'] in ['defined','assigned']:
                 table = 'ATLAS_PANDA.jobsDefined4'
             elif param['jobStatus'] in ['waiting']:

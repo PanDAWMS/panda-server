@@ -7,6 +7,7 @@ Release Note
   * fixed for ArchivedDB
   * fixed FQAN extraction for GRST_CONN
   * dispatchDBlockToken
+  * converted datetime to str for stateChangeTime
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots
