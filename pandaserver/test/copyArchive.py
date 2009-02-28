@@ -645,13 +645,19 @@ while True:
     # update to prevent other process from picking up
     for (vuid,name,modDate) in res:
         # convert string to datetime
-        datetimeTime = datetime.datetime(*time.strptime(modDate,'%Y-%m-%d %H:%M:%S')[:6])
+        if re.search('^\d+/\d+/\d+',modDate) != None:
+            datetimeTime = datetime.datetime(*time.strptime(modDate,'%Y/%m/%d %H:%M:%S')[:6])
+        else:
+            datetimeTime = datetime.datetime(*time.strptime(modDate,'%Y-%m-%d %H:%M:%S')[:6])
         # delete
         if datetimeTime < timeLimit:
-            proxyS.querySQLS("UPDATE Datasets SET modificationdate=CURRENT_DATE WHERE vuid=:vuid", {':vuid':vuid})
+            proxyS.querySQLS("UPDATE ATLAS_PANDA.Datasets SET modificationdate=SYSDATE WHERE vuid=:vuid", {':vuid':vuid})
     for (vuid,name,modDate) in res:
         # convert string to datetime
-        datetimeTime = datetime.datetime(*time.strptime(str(modDate),'%Y-%m-%d %H:%M:%S')[:6])
+        if re.search('^\d+/\d+/\d+',modDate) != None:
+            datetimeTime = datetime.datetime(*time.strptime(modDate,'%Y/%m/%d %H:%M:%S')[:6])
+        else:
+            datetimeTime = datetime.datetime(*time.strptime(modDate,'%Y-%m-%d %H:%M:%S')[:6])
         # delete
         if datetimeTime < timeLimit:
             _logger.debug("Close %s %s" % (modDate,name))
@@ -664,7 +670,7 @@ while True:
                    out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1:
                 _logger.error(out)
             else:
-                proxyS.querySQLS("UPDATE Datasets SET status='completed',modificationdate=CURRENT_DATE WHERE vuid=:vuid", {':vuid':vuid})
+                proxyS.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status='completed',modificationdate=SYSDATE WHERE vuid=:vuid", {':vuid':vuid})
                 if name.startswith('testpanda.ddm.'):
                     continue
                 # count # of files
@@ -718,13 +724,13 @@ for i in range(100):
         break
     # update to prevent other process from picking up
     for (vuid,name,modDate) in res:
-        proxyS.querySQLS("UPDATE Datasets SET modificationdate=CURRENT_DATE WHERE vuid=:vuid", {':vuid':vuid})
+        proxyS.querySQLS("UPDATE ATLAS_PANDA.Datasets SET modificationdate=SYSDATE WHERE vuid=:vuid", {':vuid':vuid})
     if len(res) != 0:
         for (vuid,name,modDate) in res:
             _logger.debug("start %s %s" % (modDate,name))
             retF,resF = proxyS.querySQLS("SELECT lfn FROM ATLAS_PANDA.filesTable4 WHERE destinationDBlock=:destinationDBlock",
                                          {':destinationDBlock':name})
-            if retF<0 or retF == None or retF!=len(resF):
+            if retF<0:
                 _logger.error("SQL error")
             else:
                 # no files in filesTable
@@ -739,7 +745,7 @@ for i in range(100):
                            out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1:
                         _logger.error(out)
                     else:
-                        proxyS.querySQLS("UPDATE Datasets SET status='completed',modificationdate=CURRENT_DATE WHERE vuid=:vuid",
+                        proxyS.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status='completed',modificationdate=SYSDATE WHERE vuid=:vuid",
                                          {':vuid':vuid})
                         if name.startswith('testpanda.ddm.'):
                             continue
@@ -761,7 +767,7 @@ for i in range(100):
                                 pass
                 else:
                     _logger.debug("wait %s " % name)
-                    proxyS.querySQLS("UPDATE Datasets SET modificationdate=CURRENT_DATE WHERE vuid=:vuid", {':vuid':vuid})
+                    proxyS.querySQLS("UPDATE ATLAS_PANDA.Datasets SET modificationdate=SYSDATE WHERE vuid=:vuid", {':vuid':vuid})
             _logger.debug("end %s " % name)
             time.sleep(1)
 
