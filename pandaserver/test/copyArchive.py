@@ -477,8 +477,8 @@ while True:
                         
 # reassign reprocessing jobs in defined table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=8)
-status,res = proxyS.querySQLS("SELECT PandaID,transformation,processingType FROM ATLAS_PANDA.jobsDefined4 WHERE jobStatus='assigned' AND prodSourceLabel='managed' AND modificationTime<'%s' ORDER BY PandaID"
-                              % timeLimit.strftime('%Y-%m-%d %H:%M:%S'))
+status,res = proxyS.querySQLS("SELECT PandaID,transformation,processingType FROM ATLAS_PANDA.jobsDefined4 WHERE jobStatus='assigned' AND prodSourceLabel='managed' AND modificationTime<:modificationTime ORDER BY PandaID",
+                              {':modificationTime':timeLimit})
 jobs=[]
 if res != None:
     # tmp class to adjust API
