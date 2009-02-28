@@ -1613,6 +1613,7 @@ class DBProxy:
                             resMeta = clobMeta.read()
                             break
                     # job parameters
+                    job.jobParameters = None
                     sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
                     varMap = {}
                     varMap[':PandaID'] = job.PandaID
@@ -1629,8 +1630,7 @@ class DBProxy:
                         file.pack(resF)
                         job.addFile(file)
                     # set metadata
-                    if resMeta != None:
-                        job.metadata = resMeta
+                    job.metadata = resMeta
                     return job
             _logger.debug("peekJob() : PandaID %s not found" % pandaID)
             return None
@@ -3768,12 +3768,14 @@ class DBProxy:
                     self.cur.execute(sqlFile+comment, varMap)
                     resFs = self.cur.fetchall()
                     # metadata
+                    job.metadata = None
                     sqlMeta = "SELECT metaData FROM ATLAS_PANDA.metaTable WHERE PandaID=:PandaID"
                     self.cur.execute(sqlMeta+comment, varMap)
                     for clobMeta, in self.cur:
                         job.metadata = clobMeta.read()
                         break
                     # job parameters
+                    job.jobParameters = None
                     sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
                     varMap = {}
                     varMap[':PandaID'] = job.PandaID
