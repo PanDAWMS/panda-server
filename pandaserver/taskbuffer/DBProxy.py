@@ -2771,15 +2771,23 @@ class DBProxy:
     def getJobStatisticsPerProcessingType(self):
         comment = ' /* DBProxy.getJobStatisticsPerProcessingType */'                
         _logger.debug("getJobStatisticsPerProcessingType()")
+        timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
         sql0  = "SELECT jobStatus,COUNT(*),cloud,processingType FROM %s "
-        sql0 += "WHERE prodSourceLabel='managed' GROUP BY jobStatus,cloud,processingType"
+        sql0 += "WHERE prodSourceLabel='managed' "
+        sqlT  = "AND modificationTime>'%s' " % timeLimit.strftime('%Y-%m-%d %H:%M:%S')
+        sql1  = "GROUP BY jobStatus,cloud,processingType"
+        sqlN  = sql0 + sql1
+        sqlA  = sql0 + sqlT + sql1
         ret = {}
         try:
             for table in ('jobsActive4','jobsWaiting4','jobsArchived4','jobsDefined4'):
                 # set autocommit on
                 self.cur.execute("SET AUTOCOMMIT=1")
                 # select
-                self.cur.execute((sql0+comment) % table)
+                if table == 'jobsArchived4':
+                    self.cur.execute((sqlA+comment) % table)
+                else:
+                    self.cur.execute((sqlN+comment) % table)                    
                 res = self.cur.fetchall()
                 # commit
                 if not self._commit():
