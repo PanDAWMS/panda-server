@@ -8,6 +8,7 @@ Release Note
   * fixed FQAN extraction for GRST_CONN
   * dispatchDBlockToken
   * converted datetime to str for stateChangeTime
+  * use 12hr limit in getJobStatisticsForBamboo
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots

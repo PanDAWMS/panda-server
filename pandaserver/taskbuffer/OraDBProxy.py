@@ -3023,9 +3023,14 @@ class DBProxy:
     # get job statistics per processingType
     def getJobStatisticsPerProcessingType(self):
         comment = ' /* DBProxy.getJobStatisticsPerProcessingType */'                
+        timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
         _logger.debug("getJobStatisticsPerProcessingType()")
         sql0  = "SELECT jobStatus,COUNT(*),cloud,processingType FROM %s "
-        sql0 += "WHERE prodSourceLabel='managed' GROUP BY jobStatus,cloud,processingType "
+        sql0 += "WHERE prodSourceLabel='managed' "
+        sqlT  = "AND modificationTime>:modificationTime "
+        sql1  = "GROUP BY jobStatus,cloud,processingType"
+        sqlN  = sql0 + sql1
+        sqlA  = sql0 + sqlT + sql1
         ret = {}
         try:
             for table in ('ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4','ATLAS_PANDA.jobsArchived4','ATLAS_PANDA.jobsDefined4'):
@@ -3033,8 +3038,11 @@ class DBProxy:
                 self.conn.begin()
                 # select
                 self.cur.arraysize = 10000
-                sql = sql0
-                self.cur.execute((sql+comment) % table)
+                # select
+                if table == 'ATLAS_PANDA.jobsArchived4':
+                    self.cur.execute((sqlA+comment) % table, {':modificationTime':timeLimit})
+                else:
+                    self.cur.execute((sqlN+comment) % table)                    
                 res = self.cur.fetchall()
                 # commit
                 if not self._commit():
