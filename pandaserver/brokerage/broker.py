@@ -91,13 +91,16 @@ def _setReadyToFiles(tmpJob,okFiles,siteMapper):
                 # EGEE T1. use DQ2 prestage only for on-tape files
                 if tmpSiteSpec.seprodpath.has_key('ATLASDATATAPE') and okFiles.has_key(tmpFile.lfn):
                     tapeOnly = True
+                    tapeCopy = False
                     for okPFN in okFiles[tmpFile.lfn]:
-                        # there is on-disk one
                         if re.search(tmpSiteSpec.seprodpath['ATLASDATATAPE'],okPFN) == None:
+                            # there is a disk copy
                             tapeOnly = False
-                            break
+                        else:
+                            # there is a tape copy
+                            tapeCopy = True
                     # trigger prestage when disk copy doesn't exist or token is TAPE
-                    if tapeOnly or tmpFile.dispatchDBlockToken in ['ATLASDATATAPE']:
+                    if tapeOnly or (tapeCopy and tmpFile.dispatchDBlockToken in ['ATLASDATATAPE']):
                         allOK = False
                     else:
                         # set ready                        
