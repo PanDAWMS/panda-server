@@ -153,7 +153,7 @@ else:
                 status,retDel = proxyS.querySQLS("DELETE from ATLAS_PANDA.metaTable WHERE PandaID=:PandaID",varMap)
                 _logger.debug("DEL metadata for %s " % id)
                 # delete job parameters
-                status,retDel = proxyS.querySQLS("DELETE from ATLAS_PANDA.jobParamsTabl WHERE PandaID=:PandaID",varMap)
+                status,retDel = proxyS.querySQLS("DELETE from ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID",varMap)
                 _logger.debug("DEL jobParams for %s " % id)
             else:
                 pass
