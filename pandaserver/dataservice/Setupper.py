@@ -681,6 +681,21 @@ class Setupper (threading.Thread):
                             seTokens = self.siteMapper.getSite(job.computingSite).setokens
                             if seTokens.has_key('ATLASDATATAPE'):
                                 dq2ID = seTokens['ATLASDATATAPE']
+                                # for CERN
+                                if job.cloud == 'CERN' and self.replicaMap.has_key(job.dispatchDBlock):
+                                    setNewIDflag = False
+                                    for tmpDataset,tmpRepMap in self.replicaMap[job.dispatchDBlock].iteritems():
+                                        if not tmpRepMap.has_key(dq2ID):
+                                            # look for another id
+                                            cernIDs = ['CERN-PROD_DAQ','CERN-PROD_TZERO']
+                                            for cernID in cernIDs:
+                                                if tmpRepMap.has_key(cernID):
+                                                    dq2ID = cernID
+                                                    setNewIDflag = True
+                                                    break
+                                            # break
+                                            if setNewIDflag:
+                                                break
                             optSrcPolicy = 000010
                             optSource[dq2ID] = {'policy' : 0}
                         else:
