@@ -11,6 +11,7 @@ Release Note
   * use 12hr limit in getJobStatisticsForBamboo
   * use CERN-PROD_DAQ for prestaging when _DATATAPE is not a location
   * ignore token=ATLASDATATAPE when no tape copy
+  * pandasrv -> pandaserver
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots

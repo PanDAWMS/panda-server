@@ -41,8 +41,8 @@ EC_Failed = 255
 # URLs
 serverURLs = {'default' : {'URL'    : baseURL,
                            'URLSSL' : baseURLSSL},
-              'CERN'    : {'URL'    : 'http://pandasrv.cern.ch:25080/server/panda',
-                           'URLSSL' : 'https://pandasrv.cern.ch:25443/server/panda'},
+              'CERN'    : {'URL'    : 'http://pandaserver.cern.ch:25080/server/panda',
+                           'URLSSL' : 'https://pandaserver.cern.ch:25443/server/panda'},
               'BNL'     : {'URL'    : 'http://pandasrv.usatlas.bnl.gov:25080/server/panda',
                            'URLSSL' : 'https://pandasrv.usatlas.bnl.gov:25443/server/panda'},
               }
