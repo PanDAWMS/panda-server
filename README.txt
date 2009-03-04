@@ -16,6 +16,7 @@ Release Note
   * fixed copyArchived for ArchiveDB
   * added _zStr/_nullAttrs in JobSpec
   * fixed getJobStatisticsForExtIF()
+  * fixed for schedID/pilotID
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots
