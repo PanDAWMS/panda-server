@@ -217,7 +217,7 @@ class Setupper (threading.Thread):
                         if not self.allReplicaMap.has_key(file.dataset):
                             for iDDMTry in range(3):
                                 _logger.debug(('listDatasetReplicas',file.dataset))
-                                status,out = ddm.DQ2.main('listDatasetReplicas',file.dataset)
+                                status,out = ddm.DQ2.main('listDatasetReplicas',file.dataset,0,None,False)
                                 if status != 0 or out.find("DQ2 internal server exception") != -1 \
                                        or out.find("An error occurred on the central catalogs") != -1 \
                                        or out.find("MySQL server has gone away") != -1 \
@@ -1004,7 +1004,7 @@ class Setupper (threading.Thread):
                     if self.onlyTA and prodError[dataset] == '' and (not replicaMap.has_key(dataset)):
                         for iDDMTry in range(3):
                             _logger.debug(('listDatasetReplicas',dataset))
-                            status,out = ddm.DQ2.main('listDatasetReplicas',dataset)
+                            status,out = ddm.DQ2.main('listDatasetReplicas',dataset,0,None,False)
                             if status != 0 or out.find("DQ2 internal server exception") != -1 \
                                    or out.find("An error occurred on the central catalogs") != -1 \
                                    or out.find("MySQL server has gone away") != -1 \

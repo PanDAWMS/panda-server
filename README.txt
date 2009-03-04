@@ -12,6 +12,7 @@ Release Note
   * use CERN-PROD_DAQ for prestaging when _DATATAPE is not a location
   * ignore token=ATLASDATATAPE when no tape copy
   * pandasrv -> pandaserver
+  * set old=False for listDatasetReplicas
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots
