@@ -13,6 +13,9 @@ Release Note
   * ignore token=ATLASDATATAPE when no tape copy
   * pandasrv -> pandaserver
   * set old=False for listDatasetReplicas
+  * fixed copyArchived for ArchiveDB
+  * added _zStr/_nullAttrs in JobSpec
+  * fixed getJobStatisticsForExtIF()
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots

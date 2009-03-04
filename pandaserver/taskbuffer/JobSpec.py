@@ -26,7 +26,10 @@ class JobSpec(object):
                   'minRamCount','cpuConsumptionTime','pilotErrorCode','exeErrorCode','supErrorCode','ddmErrorCode',
                   'brokerageErrorCode','jobDispatcherErrorCode','taskBufferErrorCode','nEvents','relocationFlag',
                   'jobExecutionID')
-    
+    # attribtes to use string NULL
+    _nullAttrs = ('transExitCode','prodDBlock')
+    # attribtes to use string 0
+    _zStrAttrs = ('maxCpuUnit','maxDiskUnit','minRamUnit','cpuConsumptionUnit')
 
     # constructor
     def __init__(self):
@@ -78,6 +81,10 @@ class JobSpec(object):
             if val == 'NULL':
                 if attr in self._zeroAttrs:
                     val = 0
+                elif attr in self._zStrAttrs:
+                    val = '0'
+                elif attr in self._nullAttrs:
+                    pass
                 else:
                     val = None
             # jobParameters moved to another table        

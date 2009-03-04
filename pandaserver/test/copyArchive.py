@@ -98,17 +98,15 @@ proxyS.connect(panda_config.dbhost,panda_config.dbpasswd,panda_config.dbuser,pan
 
 # table names
 jobATableName   = "ATLAS_PANDAARCH.jobsArchived"
-filesATableName = "ATLAS_PANDAARCH.filesTable"
-paramATableName = "ATLAS_PANDAARCH.jobParamsTable"
-metaATableName  = "ATLAS_PANDAARCH.metaTable"
-dsATableName    = "ATLAS_PANDAARCH.Datasets"
+filesATableName = "ATLAS_PANDAARCH.filesTable_ARCH"
+paramATableName = "ATLAS_PANDAARCH.jobParamsTable_ARCH"
+metaATableName  = "ATLAS_PANDAARCH.metaTable_ARCH"
 
 # time limit
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=3)
 
 # get PandaIDs and endTimes from source
 _logger.debug("get PandaIDs from Archive")
-"""
 status,res = proxyS.querySQLS("SELECT PandaID,modificationTime from ATLAS_PANDA.jobsArchived4 ORDER BY PandaID",{})
 if res == None:
     _logger.debug("total %s " % res)
@@ -122,47 +120,40 @@ else:
             varMap = {}
             varMap[':PandaID'] = id
             status,check = proxyS.querySQLS(sql,varMap)
-            sql = "SELECT PandaID from %s WHERE PandaID=:PandaID" % oldJobAtableName
-            statusOld,checkOld = proxyS.querySQLS(sql,varMap)
             # copy
-            if len(check) == 0 and len(checkOld) == 0:
+            copyFound = True
+            if len(check) == 0:
+                copyFound = False
                 # get jobs
                 job = proxyS.peekJob(id,False,False,True,False)
-                # job parameters
-                status,jobParams = proxyS.getClobObj("SELECT jobParameters from ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID",varMap)
-                job.jobParameters = jobParams[0][0]
-                # metadata
-                metadata = None
-                status,meta = proxyS.getClobObj("SELECT metaData from ATLAS_PANDA.metaTable WHERE PandaID=:PandaID",varMap)
-                if len(meta) != 0:
-                    metadata = meta[0][0]
                 # insert to archived
-                proxyS.insertJobSimple(job,jobATableName,filesATableName,paramATableName,metaATableName,metadata)
+                proxyS.insertJobSimple(job,jobATableName,filesATableName,paramATableName,metaATableName)
                 _logger.debug("INSERT %s " % id)
             # delete
             if srcEndTime==None or srcEndTime < timeLimit:
-                sql = 'DELETE from ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID'
-                varMap = {}
-                varMap[':PandaID']  = id
-                proxyS.querySQLS(sql,varMap)
-                _logger.debug("DEL %s : endTime %s" % (id,srcEndTime))
-                # delete files
-                status,retDel = proxyS.querySQLS("DELETE from ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID",varMap)
-                _logger.debug("DEL Files for %s " % id)
-                # delete metadata
-                status,retDel = proxyS.querySQLS("DELETE from ATLAS_PANDA.metaTable WHERE PandaID=:PandaID",varMap)
-                _logger.debug("DEL metadata for %s " % id)
-                # delete job parameters
-                status,retDel = proxyS.querySQLS("DELETE from ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID",varMap)
-                _logger.debug("DEL jobParams for %s " % id)
+                if not copyFound:
+                    _logger.error("No backup for %s" % id)
+                else:
+                    sql = 'DELETE from ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID'
+                    varMap = {}
+                    varMap[':PandaID']  = id
+                    proxyS.querySQLS(sql,varMap)
+                    _logger.debug("DEL %s : endTime %s" % (id,srcEndTime))
+                    # delete files
+                    status,retDel = proxyS.querySQLS("DELETE from ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID",varMap)
+                    _logger.debug("DEL Files for %s " % id)
+                    # delete metadata
+                    status,retDel = proxyS.querySQLS("DELETE from ATLAS_PANDA.metaTable WHERE PandaID=:PandaID",varMap)
+                    _logger.debug("DEL metadata for %s " % id)
+                    # delete job parameters
+                    status,retDel = proxyS.querySQLS("DELETE from ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID",varMap)
+                    _logger.debug("DEL jobParams for %s " % id)
             else:
                 pass
         except:
             pass
-
 del res
-"""
-                
+
 # instantiate TB
 taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
 
@@ -179,55 +170,7 @@ varMap[':modificationTime'] = timeLimit
 status,res = proxyS.querySQLS(sql,varMap)
 _logger.debug("increased priority for %s" % status)
 time.sleep(1)
-        
-# archive dataset
-"""
-timeLimit  = datetime.datetime.utcnow() - datetime.timedelta(days=60)
-timeLimitA = datetime.datetime.utcnow() - datetime.timedelta(days=90)
-for dsType,dsPrefix in [('output','sub'),('dispatch','dis'),('','')]:
-    sql = "SELECT vuid,name,modificationdate FROM ATLAS_PANDA.Datasets "
-    if dsType != '':
-        # dis or sub
-        sql+= "WHERE type=:type AND modificationdate<:modificationdate AND REGEXP_LIKE(name,'_%s[[:digit:]]+$') AND rownum <= 50" \
-              % dsPrefix
-        varMap = {}
-        varMap[':type'] = dsType
-        varMap[':modificationdate'] = timeLimit
-    else:
-        # delete datasets older than 3 months
-        sql+= "WHERE creationdate<:creationdate AND rownum <= 50"
-        varMap = {}
-        varMap[':creationdate'] = timeLimit
-    for i in range(100000):
-        ret,res = proxyS.querySQLS(sql,varMap)
-        if res == None:
-            _logger.debug("# of datasets to be archived: %s" % res)
-        else:
-            _logger.debug("# of datasets to be archived: %s" % len(res))
-        if res==None or len(res)==0:
-            break
-        if len(res) != 0:
-            for (vuid,name,modDate) in res:
-                _logger.debug("move %s %s" % (modDate,name))
-                ds = proxyS.queryDatasetWithMap({'vuid':vuid})
-                if ds == None:
-                    logger.error("cannot find %s " % name)
-                    continue
-                # insert to archived
-                ret = proxyS.insertDataset(ds,dsATableName)
-                if not ret:
-                    _logger.error("cannot insert %s into %s" % (name,dsATableName))
-                    continue
-                # delete
-                varMap = {}
-                varMap[':vuid'] = vuid
-                retDel,resDel = proxyS.querySQLS("DELETE FROM ATLAS_PANDA.Datasets WHERE vuid=:vuid",varMap)
-                if not retDel:
-                    _logger.error("cannot delete %s " % name)
-                    continue
-                _logger.debug("done %s %s" % (modDate,name))                
-        time.sleep(2)
-"""
+
 
 _memoryCheck("watcher")
 

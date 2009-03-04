@@ -244,7 +244,7 @@ class DBProxy:
 
 
     # simply insert job to a table
-    def insertJobSimple(self,job,table,fileTable,jobParamsTable,metaTable,metadata):
+    def insertJobSimple(self,job,table,fileTable,jobParamsTable,metaTable):
         comment = ' /* DBProxy.insertJobSimple */'                            
         _logger.debug("insertJobSimple : %s" % job.PandaID)
         sql1 = "INSERT INTO %s (%s) " % (table,JobSpec.columnNames())
@@ -268,12 +268,12 @@ class DBProxy:
             varMap[':param']   = job.jobParameters
             self.cur.execute(sqlJob+comment, varMap)
             # metadata
-            if metadata != None:
+            if not job.metadata in [None,'NULL','']:
                 sqlMeta = "INSERT INTO %s (PandaID,metaData) VALUES(:PandaID,:metaData)" \
                           % metaTable
                 varMap = {}
-                varMap[':PandaID']  = id
-                varMap[':metaData'] = metadata
+                varMap[':PandaID']  = job.PandaID
+                varMap[':metaData'] = job.metadata
                 self.cur.execute(sqlMeta+comment,varMap)            
             # commit
             if not self._commit():
@@ -2966,7 +2966,7 @@ class DBProxy:
         else:
             sql0 = "SELECT jobStatus,COUNT(*),cloud FROM %s WHERE prodSourceLabel='managed' GROUP BY jobStatus,cloud"
             sqlA = "SELECT jobStatus,COUNT(*),cloud FROM %s WHERE prodSourceLabel='managed' "
-        sqlA+= "AND modificationTime>'%s' GROUP BY jobStatus,cloud" % (timeLimit.strftime('%Y-%m-%d %H:%M:%S'))
+        sqlA+= "AND modificationTime>:modificationTime GROUP BY jobStatus,cloud"
         ret = {}
         try:
             for table in ('ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4','ATLAS_PANDA.jobsArchived4','ATLAS_PANDA.jobsDefined4'):
