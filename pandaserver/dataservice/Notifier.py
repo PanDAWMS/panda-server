@@ -110,7 +110,7 @@ class Notifier (threading.Thread):
                     elif job.jobStatus == 'failed':
                         nFailed += 1
                 # make message
-                fromadd = "panda@bnl.gov"
+                fromadd = panda_config.emailSender
                 message = \
 """Subject: PANDA notification for JobID : %s
 From: %s
@@ -139,14 +139,22 @@ Out : %s""" % oDS
                 message += \
 """
 
-Report Panda problems of any sort to the Savannah
-https://savannah.cern.ch/projects/panda/
+Report Panda problems of any sort to
+
+  the eGroup for help request
+    hn-atlas-dist-analysis-help@cern.ch
+
+  the Savannah for software bug
+    https://savannah.cern.ch/projects/panda/
 """
 
                 # send mail
                 _logger.debug("%s send to %s\n%s" % (self.job.PandaID,mailAddr,message))
-                server = smtplib.SMTP('smail.bnl.gov')
+                server = smtplib.SMTP(panda_config.emailSMTPsrv)
                 server.set_debuglevel(1)
+                server.ehlo()
+                server.starttls()
+                server.login(panda_config.emailLogin,panda_config.emailPass)
                 out = server.sendmail(fromadd,mailAddr,message)
                 _logger.debug(out)
                 server.quit()
@@ -216,7 +224,10 @@ https://savannah.cern.ch/projects/panda/
             encodedDN = encodedDN.replace('_',' ')            
             encodedDN = encodedDN.replace(' ','%20')
             url = 'http://consult.cern.ch/xwho?'+encodedDN
-            proxies = proxies={'http': panda_config.httpProxy}
+            if panda_config.httpProxy != '':
+                proxies = proxies={'http': panda_config.httpProxy}
+            else:
+                proxies = proxies={}
             opener = urllib.FancyURLopener(proxies)
             fd=opener.open(url)
             data = fd.read()
@@ -252,7 +263,10 @@ https://savannah.cern.ch/projects/panda/
                 link = match.group(1)
                 try:
                     url = 'http://consult.cern.ch'+link
-                    proxies = proxies={'http': panda_config.httpProxy}
+                    if panda_config.httpProxy != '':                    
+                        proxies = proxies={'http': panda_config.httpProxy}
+                    else:
+                        proxies = proxies={}
                     opener = urllib.FancyURLopener(proxies)
                     fd=opener.open(url)
                     data = fd.read()

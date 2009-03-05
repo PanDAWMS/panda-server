@@ -2660,7 +2660,7 @@ class DBProxy:
                 self.cur.arraysize = 10000
                 varMap = {}
                 varMap[':destinationDBlock'] = dataset
-                self.cur.execute(sql1+comment)
+                self.cur.execute(sql1+comment,varMap)
                 res = self.cur.fetchall()
                 # commit
                 if not self._commit():

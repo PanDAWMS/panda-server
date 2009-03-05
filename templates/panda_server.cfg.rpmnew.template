@@ -127,7 +127,20 @@ httpProxy = ""
 # E-mail DB parameters
 #
 
+# database name for local caching
 emailDB = %(logdir)s/email_db
+
+# SMTP server
+emailSMTPsrv = smtp.cern.ch
+
+# sender address for notification
+emailSender = atlpan@cern.ch
+
+# login name for SMTP
+emailLogin  = atlpan
+
+# login password for SMTP
+emailPass = FIXME
 
 
 
