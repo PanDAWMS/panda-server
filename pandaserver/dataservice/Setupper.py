@@ -789,6 +789,12 @@ class Setupper (threading.Thread):
                         guidStr += '%s,' % tmpGUID
                     guidStr = guidStr[:-1]
                     lfnsStr = lfnsStr[:-1]
+                    # check input token
+                    moverUseTape = False
+                    for tmpFile in job.Files:
+                        if tmpFile.type == 'input' and tmpFile.dispatchDBlockToken in ['ATLASDATATAPE']:
+                            moverUseTape = True
+                            break
                     if srcDQ2ID != dstDQ2ID:
                         # get destination dir
                         tmpSpec = self.siteMapper.getSite(job.computingSite)
@@ -799,13 +805,19 @@ class Setupper (threading.Thread):
                             dispError[disp] = err
                             continue
                         # normal jobs
-                        argStr = "-t 7200 -n 3 -s %s -r %s --guids %s --lfns %s --callBack %s -d %spanda/dis/%s%s %s" % \
-                                 (srcDQ2ID,dstDQ2ID,guidStr,lfnsStr,callBackURL,destDir,
-                                  time.strftime('%y/%m/%d/'),job.dispatchDBlock,job.dispatchDBlock)
+                        argStr = ""
+                        if moverUseTape:
+                            argStr += "--useTape "
+                        argStr += "-t 7200 -n 3 -s %s -r %s --guids %s --lfns %s --callBack %s -d %spanda/dis/%s%s %s" % \
+                                  (srcDQ2ID,dstDQ2ID,guidStr,lfnsStr,callBackURL,destDir,
+                                   time.strftime('%y/%m/%d/'),job.dispatchDBlock,job.dispatchDBlock)
                     else:
                         # prestaging jobs
-                        argStr = "-t 540 -n 2 -s %s -r %s --guids %s --lfns %s --callBack %s --prestage --cloud %s %s" % \
-                                 (srcDQ2ID,dstDQ2ID,guidStr,lfnsStr,callBackURL,job.cloud,job.dispatchDBlock)
+                        argStr = ""
+                        if moverUseTape:
+                            argStr += "--useTape "
+                        argStr += "-t 540 -n 2 -s %s -r %s --guids %s --lfns %s --callBack %s --prestage --cloud %s %s" % \
+                                  (srcDQ2ID,dstDQ2ID,guidStr,lfnsStr,callBackURL,job.cloud,job.dispatchDBlock)
                     # set job parameters
                     ddmjob.jobParameters = argStr
                     _logger.debug('pdq2_cr %s' % ddmjob.jobParameters)

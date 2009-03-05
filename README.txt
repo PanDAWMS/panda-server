@@ -19,6 +19,7 @@ Release Note
   * fixed for schedID/pilotID
   * removed redundant debug message
   * fixed for Notification
+  * input token for mover
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots
