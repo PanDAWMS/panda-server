@@ -17,6 +17,7 @@ Release Note
   * added _zStr/_nullAttrs in JobSpec
   * fixed getJobStatisticsForExtIF()
   * fixed for schedID/pilotID
+  * removed redundant debug message
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots

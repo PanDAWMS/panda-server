@@ -351,7 +351,6 @@ class DBProxy:
                            "WHERE PandaID=:PandaID AND (jobStatus='assigned' OR jobStatus='defined')"
                     varMap = job.valuesMap()
                     varMap[':PandaID'] = job.PandaID
-                    _logger.debug(sqlJ+comment+str(varMap))                    
                     self.cur.execute(sqlJ+comment, varMap)
                     n = self.cur.rowcount
                     if n==0:
