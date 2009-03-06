@@ -27,7 +27,8 @@ class JobSpec(object):
                   'brokerageErrorCode','jobDispatcherErrorCode','taskBufferErrorCode','nEvents','relocationFlag',
                   'jobExecutionID')
     # attribtes to use string NULL
-    _nullAttrs = ('transExitCode','prodDBlock','schedulerID','pilotID')
+    _nullAttrs = ('creationHost','AtlasRelease','transformation','homepackage','transExitCode','prodDBlock',
+                  'schedulerID','pilotID')
     # attribtes to use string 0
     _zStrAttrs = ('maxCpuUnit','maxDiskUnit','minRamUnit','cpuConsumptionUnit','ipConnectivity')
 

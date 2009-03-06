@@ -20,6 +20,7 @@ Release Note
   * removed redundant debug message
   * fixed for Notification
   * input token for mover
+  * set NULL for creationHost,AtlasRelease,transformation,homepackage
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots
