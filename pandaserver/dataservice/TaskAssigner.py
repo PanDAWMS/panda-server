@@ -19,6 +19,7 @@ _logger = PandaLogger().getLogger('TaskAssigner')
 # cutoff for RW
 thr_RW_low  = 200
 thr_RW_high = 2000
+thr_RW_sub  = 200
 
 # cutoff for disk
 thr_space_low = (1 * 1024)
@@ -631,9 +632,9 @@ class TaskAssigner:
             if not RWs.has_key(tmpCloudName):
                 RWs[tmpCloudName] = 0
             _logger.debug('%s    %s RW=%s Thr=%s' % (self.taskID,tmpCloudName,RWs[tmpCloudName],
-                                                     tmpCloudSpec['mcshare']*thr_RW_low))
-            if minRW == None or minRW > RWs[tmpCloudName]/tmpCloudSpec['mcshare']/thr_RW_low:
-                minRW    = RWs[tmpCloudName]/tmpCloudSpec['mcshare']/thr_RW_low
+                                                     tmpCloudSpec['mcshare']*thr_RW_sub))
+            if minRW == None or minRW > RWs[tmpCloudName]/tmpCloudSpec['mcshare']/thr_RW_sub:
+                minRW    = RWs[tmpCloudName]/tmpCloudSpec['mcshare']/thr_RW_sub
                 minCloud = tmpCloudName
         # check RW
         if minCloud == None:
@@ -646,7 +647,7 @@ class TaskAssigner:
         # check threshold
         if minRW > 1.0:
             message = '%s no empty cloud : %s minRW=%s>%s' % \
-                      (self.taskID,minCloud,RWs[minCloud],thr_RW_low*tmpCloudSpec['mcshare'])
+                      (self.taskID,minCloud,RWs[minCloud],thr_RW_sub*tmpCloudSpec['mcshare'])
             _logger.debug(message)
             self.sendMesg(message)
             return False
