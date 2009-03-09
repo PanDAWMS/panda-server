@@ -768,6 +768,9 @@ class Setupper (threading.Thread):
                         continue
                     ddmjob.prodSourceLabel   = 'ddm'
                     ddmjob.transferType      = 'dis'
+                    # set processingType
+                    if job.processingType in ['reprocessing']:
+                        ddmjob.processingType = 'reprocessing'
                     # append log file
                     fileOL = FileSpec()
                     fileOL.lfn = "%s.job.log.tgz.%s" % (ddmjob.destinationDBlock,ddmjob.attemptNr)
