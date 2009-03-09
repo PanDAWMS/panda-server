@@ -21,6 +21,7 @@ Release Note
   * fixed for Notification
   * input token for mover
   * set NULL for creationHost,AtlasRelease,transformation,homepackage
+  * use sequences directly for PandaID and row_ID
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots

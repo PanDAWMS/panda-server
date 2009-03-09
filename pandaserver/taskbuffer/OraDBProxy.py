@@ -167,7 +167,7 @@ class DBProxy:
     def insertNewJob(self,job,user,serNum,weight=0.0,priorityOffset=0,userVO=None):
         comment = ' /* DBProxy.insertNewJob */'                    
         sql1 = "INSERT INTO ATLAS_PANDA.jobsDefined4 (%s) " % JobSpec.columnNames()
-        sql1+= JobSpec.bindValuesExpression()
+        sql1+= JobSpec.bindValuesExpression(useSeq=True)
         sql1+= " RETURNING PandaID INTO :newPandaID"
         # make sure PandaID is NULL
         job.PandaID = None
@@ -196,7 +196,7 @@ class DBProxy:
             # begin transaction
             self.conn.begin()
             # insert
-            varMap = job.valuesMap()
+            varMap = job.valuesMap(useSeq=True)
             varMap[':newPandaID'] = self.cur.var(cx_Oracle.NUMBER)
             retI = self.cur.execute(sql1+comment, varMap)
             # set PandaID
@@ -204,7 +204,7 @@ class DBProxy:
             # insert files
             _logger.debug("insertNewJob : %s Label : %s ret : %s" % (job.PandaID,job.prodSourceLabel,retI))
             sqlFile = "INSERT INTO ATLAS_PANDA.filesTable4 (%s) " % FileSpec.columnNames()
-            sqlFile+= FileSpec.bindValuesExpression()
+            sqlFile+= FileSpec.bindValuesExpression(useSeq=True)
             sqlFile+= " RETURNING row_ID INTO :newRowID"
             for file in job.Files:
                 file.row_ID = None
@@ -212,7 +212,7 @@ class DBProxy:
                     file.status='unknown'
                 # replace $PANDAID with real PandaID
                 file.lfn = re.sub('\$PANDAID', '%05d' % job.PandaID, file.lfn)
-                varMap = file.valuesMap()
+                varMap = file.valuesMap(useSeq=True)
                 varMap[':newRowID'] = self.cur.var(cx_Oracle.NUMBER)
                 self.cur.execute(sqlFile+comment, varMap)
                 # get rowID

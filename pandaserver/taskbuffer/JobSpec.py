@@ -31,6 +31,9 @@ class JobSpec(object):
                   'schedulerID','pilotID')
     # attribtes to use string 0
     _zStrAttrs = ('maxCpuUnit','maxDiskUnit','minRamUnit','cpuConsumptionUnit','ipConnectivity')
+    # mapping between sequence and attr
+    _seqAttrMap = {'PandaID':'ATLAS_PANDA.JOBSDEFINED4_PANDAID_SEQ.nextval'}
+
 
     # constructor
     def __init__(self):
@@ -75,9 +78,11 @@ class JobSpec(object):
 
 
     # return map of values
-    def valuesMap(self):
+    def valuesMap(self,useSeq=False):
         ret = {}
         for attr in self._attributes:
+            if useSeq and self._seqAttrMap.has_key(attr):
+                continue
             val = getattr(self,attr)
             if val == 'NULL':
                 if attr in self._zeroAttrs:
@@ -141,10 +146,13 @@ class JobSpec(object):
 
 
     # return expression of bind values for INSERT
-    def bindValuesExpression(cls):
+    def bindValuesExpression(cls,useSeq=False):
         ret = "VALUES("
         for attr in cls._attributes:
-            ret += ":%s," % attr
+            if useSeq and cls._seqAttrMap.has_key(attr):
+                ret += "%s," % cls._seqAttrMap[attr]
+            else:
+                ret += ":%s," % attr
         ret = ret[:-1]
         ret += ")"            
         return ret

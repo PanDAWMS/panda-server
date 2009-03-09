@@ -20,6 +20,8 @@ class FileSpec(object):
     __slots__ = _attributes+('_owner',)
     # attributes which have 0 by default
     _zeroAttrs = ('fsize',)
+    # mapping between sequence and attr
+    _seqAttrMap = {'row_ID':'ATLAS_PANDA.FILESTABLE4_ROW_ID_SEQ.nextval'}
 
 
     # constructor
@@ -60,9 +62,11 @@ class FileSpec(object):
 
 
     # return map of values
-    def valuesMap(self):
+    def valuesMap(self,useSeq=False):
         ret = {}
         for attr in self._attributes:
+            if useSeq and self._seqAttrMap.has_key(attr):
+                continue
             val = getattr(self,attr)
             if val == 'NULL':
                 if attr in self._zeroAttrs:
@@ -130,10 +134,13 @@ class FileSpec(object):
 
 
     # return expression of bind variables for INSERT
-    def bindValuesExpression(cls):
+    def bindValuesExpression(cls,useSeq=False):
         ret = "VALUES("
         for attr in cls._attributes:
-            ret += ":%s," % attr
+            if useSeq and cls._seqAttrMap.has_key(attr):
+                ret += "%s," % cls._seqAttrMap[attr]
+            else:
+                ret += ":%s," % attr
         ret = ret[:-1]
         ret += ")"            
         return ret
