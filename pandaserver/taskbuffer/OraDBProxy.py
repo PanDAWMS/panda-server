@@ -2473,7 +2473,7 @@ class DBProxy:
     # count the number of files with map
     def countFilesWithMap(self,map):
         comment = ' /* DBProxy.countFilesWithMap */'        
-        sql1 = "SELECT COUNT(*) FROM ATLAS_PANDA.filesTable4"
+        sql1 = "SELECT /*+index(t FILESTABLE4_DESTDBLOCK_IDX)*/ COUNT(*) FROM ATLAS_PANDA.filesTable4"
         varMap = {}
         for key in map.keys():
             if len(varMap)==0:
@@ -3066,7 +3066,7 @@ class DBProxy:
     def getNUserJobs(self,siteName,nJobs):
         comment = ' /* DBProxy.getNUserJobs */'        
         _logger.debug("getNUserJobs(%s)" % siteName)
-        sql0 = "SELECT * FROM (SELECT prodUserID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus='activated' AND prodSourceLabel in ('user','panda') AND computingSite=:computingSite ORDER BY currentPriority DESC) WHERE rownum<=:nJobs" % (siteName,nJobs)
+        sql0 = "SELECT * FROM (SELECT prodUserID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus='activated' AND prodSourceLabel in ('user','panda') AND computingSite=:computingSite ORDER BY currentPriority DESC) WHERE rownum<=:nJobs"
         varMap = {}
         varMap[':computingSite'] = siteName
         varMap[':nJobs'] = nJobs
@@ -3579,8 +3579,8 @@ class DBProxy:
             # set autocommit on
             self.conn.begin()
             # construct SQL
-            sql0 = 'INSERT INTO ATLAS_PANDAMETA.proxykey ('
-            sql1 = 'VALUES ('
+            sql0 = 'INSERT INTO ATLAS_PANDAMETA.proxykey (id,'
+            sql1 = 'VALUES (ATLAS_PANDAMETA.PROXYKEY_ID_SEQ.nextval,'
             vals = {}
             for key,val in params.iteritems():
                 sql0 += '%s,'  % key
