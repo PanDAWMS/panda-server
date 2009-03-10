@@ -22,6 +22,7 @@ Release Note
   * input token for mover
   * set NULL for creationHost,AtlasRelease,transformation,homepackage
   * use sequences directly for PandaID and row_ID
+  * use SUBCOUNTER_SUBID_SEQ directly
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots

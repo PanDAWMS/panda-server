@@ -2182,16 +2182,9 @@ class DBProxy:
             else:
                 freshFlag = True
             # get serial number
-            sql = "INSERT INTO ATLAS_PANDA.subCounter (subID) VALUES (NULL) RETURNING subID INTO :newSubID"
-            varMap = {}
-            varMap[':newSubID'] = self.cur.var(cx_Oracle.NUMBER)
-            self.cur.execute(sql+comment, varMap)
-            sn = long(varMap[':newSubID'].getvalue())
-            # delete. '<' is needed for auto_incr of InnoDB
-            sql = "DELETE FROM ATLAS_PANDA.subCounter where subID<:subID"
-            varMap = {}
-            varMap[':subID'] = sn
-            self.cur.execute(sql+comment, varMap)
+            sql = "SELECT ATLAS_PANDA.SUBCOUNTER_SUBID_SEQ.nextval FROM dual";
+            self.cur.execute(sql+comment, {})
+            sn, = self.cur.fetchone()            
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -2284,7 +2277,7 @@ class DBProxy:
             cloudTask = CloudTaskSpec()
             cloudTask.taskid = tid
             cloudTask.status = 'defined' 
-            sql = "INSERT INTO cloudtasks (taskid,status,tmod,tenter) VALUES(:taskid,:status,CURRENT_DATE,CURRENT_DATE)"
+            sql = "INSERT INTO cloudtasks (id,taskid,status,tmod,tenter) VALUES(ATLAS_PANDA.CLOUDTASKS_ID_SEQ.nextval,:taskid,:status,CURRENT_DATE,CURRENT_DATE)"
             sql+= " RETURNING id INTO :newID"          
             varMap = {}
             varMap[':taskid'] = cloudTask.taskid
@@ -3174,7 +3167,7 @@ class DBProxy:
         comment = ' /* DBProxy.getListSchedUsers */'                    
         try:
             _logger.debug("getListSchedUsers")
-            sql  = "SELECT token,scheduleruser FROM ATLAS_PANDA.pilottoken WHERE expires>SYSDATE"
+            sql  = "SELECT token,scheduleruser FROM ATLAS_PANDA.pilottoken WHERE expires>CURRENT_DATE"
             # start transaction
             self.conn.begin()
             # execute
@@ -3708,7 +3701,7 @@ class DBProxy:
                 # make sql
                 sql  = "SELECT PandaID,jobStatus,commandToPilot FROM %s " % table                
                 sql += "WHERE prodUserID=:prodUserID AND jobDefinitionID=:jobDefinitionID "
-                sql += "AND prodSourceLabel in ('user','panda') AND modificationTime>(SYSDATE-30) "
+                sql += "AND prodSourceLabel in ('user','panda') AND modificationTime>(CURRENT_DATE-30) "
                 varMap = {}
                 varMap[':prodUserID'] = dn
                 varMap[':jobDefinitionID'] = jobID
@@ -3746,7 +3739,7 @@ class DBProxy:
         if pandaID in ['NULL','','None',None]:
             return None
         sql1_0 = "SELECT %s FROM %s "
-        sql1_1 = "WHERE PandaID=:PandaID AND modificationTime>(SYSDATE-30) "
+        sql1_1 = "WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-30) "
         # select
         varMap = {}
         varMap[':PandaID'] = pandaID
