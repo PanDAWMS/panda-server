@@ -594,7 +594,7 @@ while True:
             datetimeTime = datetime.datetime(*time.strptime(modDate,'%Y-%m-%d %H:%M:%S')[:6])
         # delete
         if datetimeTime < timeLimit:
-            proxyS.querySQLS("UPDATE ATLAS_PANDA.Datasets SET modificationdate=SYSDATE WHERE vuid=:vuid", {':vuid':vuid})
+            proxyS.querySQLS("UPDATE ATLAS_PANDA.Datasets SET modificationdate=CURRENT_DATE WHERE vuid=:vuid", {':vuid':vuid})
     for (vuid,name,modDate) in res:
         # convert string to datetime
         if re.search('^\d+/\d+/\d+',modDate) != None:
@@ -613,7 +613,7 @@ while True:
                    out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1:
                 _logger.error(out)
             else:
-                proxyS.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status='completed',modificationdate=SYSDATE WHERE vuid=:vuid", {':vuid':vuid})
+                proxyS.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status='completed',modificationdate=CURRENT_DATE WHERE vuid=:vuid", {':vuid':vuid})
                 if name.startswith('testpanda.ddm.'):
                     continue
                 # count # of files
@@ -667,7 +667,7 @@ for i in range(100):
         break
     # update to prevent other process from picking up
     for (vuid,name,modDate) in res:
-        proxyS.querySQLS("UPDATE ATLAS_PANDA.Datasets SET modificationdate=SYSDATE WHERE vuid=:vuid", {':vuid':vuid})
+        proxyS.querySQLS("UPDATE ATLAS_PANDA.Datasets SET modificationdate=CURRENT_DATE WHERE vuid=:vuid", {':vuid':vuid})
     if len(res) != 0:
         for (vuid,name,modDate) in res:
             _logger.debug("start %s %s" % (modDate,name))
@@ -688,7 +688,7 @@ for i in range(100):
                            out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1:
                         _logger.error(out)
                     else:
-                        proxyS.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status='completed',modificationdate=SYSDATE WHERE vuid=:vuid",
+                        proxyS.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status='completed',modificationdate=CURRENT_DATE WHERE vuid=:vuid",
                                          {':vuid':vuid})
                         if name.startswith('testpanda.ddm.'):
                             continue
@@ -710,7 +710,7 @@ for i in range(100):
                                 pass
                 else:
                     _logger.debug("wait %s " % name)
-                    proxyS.querySQLS("UPDATE ATLAS_PANDA.Datasets SET modificationdate=SYSDATE WHERE vuid=:vuid", {':vuid':vuid})
+                    proxyS.querySQLS("UPDATE ATLAS_PANDA.Datasets SET modificationdate=CURRENT_DATE WHERE vuid=:vuid", {':vuid':vuid})
             _logger.debug("end %s " % name)
             time.sleep(1)
 
