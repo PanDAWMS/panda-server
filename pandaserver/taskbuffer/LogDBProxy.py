@@ -229,7 +229,7 @@ class LogDBProxy:
             self.cur.execute("SET AUTOCOMMIT=1")
             # select
             sql  = "SELECT name,tier1,tier1SE,relocation,weight,server,status,transtimelo,"
-            sql += "transtimehi,waittime,validation,mcshare,countries,fasttrack "            
+            sql += "transtimehi,waittime,validation,mcshare,countries,fasttrack,nprestage "            
             sql+= "FROM cloudconfig"
             self.cur.execute(sql)
             res = self.cur.fetchall()
@@ -239,7 +239,7 @@ class LogDBProxy:
             ret = {}
             if res != None and len(res) != 0:
                 for name,tier1,tier1SE,relocation,weight,server,status,transtimelo,transtimehi,\
-                        waittime,validation,mcshare,countries,fasttrack in res:
+                        waittime,validation,mcshare,countries,fasttrack,nprestage in res:
                     # instantiate CloudSpec
                     tmpC = CloudSpec.CloudSpec()
                     tmpC.name = name
@@ -256,6 +256,7 @@ class LogDBProxy:
                     tmpC.mcshare     = mcshare
                     tmpC.countries   = countries
                     tmpC.fasttrack   = fasttrack
+                    tmpC.nprestage   = nprestage
                     # append
                     ret[name] = tmpC
             _logger.debug("getCloudList done")

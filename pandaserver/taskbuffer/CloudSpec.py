@@ -6,7 +6,7 @@ cloud specification
 class CloudSpec(object):
     # attributes
     _attributes = ('name','tier1','tier1SE','relocation','weight','server','status','transtimelo',
-                   'transtimehi','waittime','validation','mcshare','countries','fasttrack')
+                   'transtimehi','waittime','validation','mcshare','countries','fasttrack','nprestage')
     # slots
     __slots__ = _attributes
     
