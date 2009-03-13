@@ -2473,7 +2473,7 @@ class DBProxy:
     # count the number of files with map
     def countFilesWithMap(self,map):
         comment = ' /* DBProxy.countFilesWithMap */'        
-        sql1 = "SELECT /*+index(t FILESTABLE4_DESTDBLOCK_IDX)*/ COUNT(*) FROM ATLAS_PANDA.filesTable4"
+        sql1 = "SELECT /*+index(t FILESTABLE4_DESTDBLOCK_IDX)*/ COUNT(*) FROM ATLAS_PANDA.filesTable4 t"
         varMap = {}
         for key in map.keys():
             if len(varMap)==0:
@@ -2487,7 +2487,7 @@ class DBProxy:
                 # start transaction
                 self.conn.begin()
                 # select
-                _logger.debug("countFilesWithMap() : %s" % str(map))
+                _logger.debug("countFilesWithMap() : %s %s" % (sql1,str(map)))
                 self.cur.arraysize = 10                
                 retS = self.cur.execute(sql1+comment, varMap)
                 res = self.cur.fetchone()

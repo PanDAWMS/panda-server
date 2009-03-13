@@ -25,6 +25,9 @@ Release Note
   * use SUBCOUNTER_SUBID_SEQ directly
   * added a hint to countFilesWithMap
   * fixed getNUserJobs
+  * removed log/cache dirs making
+  * put alias to filesTable4 in countFilesWithMap
+  * introduced PANDA_URL_MAP
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots
