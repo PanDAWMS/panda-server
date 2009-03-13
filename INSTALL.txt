@@ -95,8 +95,8 @@ glite_source = INSTALLDIR/etc/grid-env.sh
 
 5. Make log and cache dirs, and change owner if RPM is used 
 
-make -p INSTALLDIR/var/log/panda
-make -p INSTALLDIR/var/cache/pandaserver
+mkdir -p INSTALLDIR/var/log/panda
+mkdir -p INSTALLDIR/var/cache/pandaserver
 chown atlpan:zp INSTALLDIR/var/log/panda
 chown atlpan:zp INSTALLDIR/var/cache/pandaserver
 
