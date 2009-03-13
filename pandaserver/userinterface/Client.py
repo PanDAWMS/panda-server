@@ -20,32 +20,35 @@ try:
     baseURLSSL = os.environ['PANDA_URL_SSL']
 except:
     baseURLSSL = 'https://localhost:25443/server/panda'
-try:
-    baseURLDQ2 = os.environ['PANDA_URL_DQ2']
-except:
-    baseURLDQ2 = 'http://dms02.usatlas.bnl.gov:80/dq2'
-try:
-    baseURLDQ2LRC = os.environ['PANDA_URL_DQ2LRC']
-except:
-    baseURLDQ2LRC = 'http://dms02.usatlas.bnl.gov:8000/dq2/lrc'
-try:
-    baseURLSUB = os.environ['PANDA_URL_SUB']
-except:
-    baseURLSUB = 'https://gridui01.usatlas.bnl.gov:24443/dav/test'
 
 
 # exit code
 EC_Failed = 255
 
 
-# URLs
-serverURLs = {'default' : {'URL'    : baseURL,
-                           'URLSSL' : baseURLSSL},
-              'CERN'    : {'URL'    : 'http://pandaserver.cern.ch:25080/server/panda',
-                           'URLSSL' : 'https://pandaserver.cern.ch:25443/server/panda'},
-              'BNL'     : {'URL'    : 'http://pandasrv.usatlas.bnl.gov:25080/server/panda',
-                           'URLSSL' : 'https://pandasrv.usatlas.bnl.gov:25443/server/panda'},
-              }
+# panda server URLs
+if os.environ.has_key('PANDA_URL_MAP'):
+    serverURLs = {'default' : {'URL'    : baseURL,
+                               'URLSSL' : baseURLSSL},
+                  }
+    # decode envvar to map
+    try:
+        for tmpCompStr in os.environ['PANDA_URL_MAP'].split('|'):
+            tmpKey,tmpURL,tmpURLSSL = tmpCompStr.split(',')
+            # append
+            serverURLs[tmpKey] = {'URL'    : tmpURL,
+                                  'URLSSL' : tmpURLSSL}
+    except:
+        pass
+else:
+    # default
+    serverURLs = {'default' : {'URL'    : baseURL,
+                               'URLSSL' : baseURLSSL},
+                  'CERN'    : {'URL'    : 'http://pandaserver.cern.ch:25080/server/panda',
+                               'URLSSL' : 'https://pandaserver.cern.ch:25443/server/panda'},
+                  'BNL'     : {'URL'    : 'http://pandasrv.usatlas.bnl.gov:25080/server/panda',
+                               'URLSSL' : 'https://pandasrv.usatlas.bnl.gov:25443/server/panda'},
+                  }
 
 # bamboo
 baseURLBAMBOO = 'http://lxmrrb5310.cern.ch:25080/bamboo/bamboo'
@@ -617,45 +620,6 @@ def deleteFile(file):
     url = baseURLSSL + '/deleteFile'
     data = {'file':file}
     return curl.post(url,data)
-
-
-# query files in dataset
-def queryFilesInDataset(name):
-    # instantiate curl
-    curl = _Curl()
-    # get VUID
-    url = baseURLDQ2 + '/repository/dataset'
-    data = {'name':name,'version':0}
-    status,out = curl.get(url,data)
-    if status != 0:
-        print "ERROR : could not get VUID"
-        print status,out
-        return {}
-    # parse
-    match = re.findall('(\w+-\w+-\w+-\w+-\w+$)',out)
-    if len(match) != 1:
-        print "ERROR : could not find VUID"        
-        print status,out
-        return {}
-    vuid = match[0]
-    # get files
-    url = baseURLDQ2 + '/content/files'
-    data = {'vuid':vuid}
-    status,out =  curl.get(url,data)
-    if status != 0:
-        print "ERROR : could not get files: VUID=%s" % vuid
-        print status,out
-        return {}
-    # parse
-    ret = {}
-    for line in out.split('\n'):
-        item = line.split()
-        if len(item) != 2:
-            print "ERROR : could not parse files"
-            print status,out
-            return {}
-        ret[item[1]] = item[0]
-    return ret            
 
 
 # resubmit jobs
