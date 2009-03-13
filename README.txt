@@ -28,6 +28,10 @@ Release Note
   * removed log/cache dirs making
   * put alias to filesTable4 in countFilesWithMap
   * introduced PANDA_URL_MAP
+  * suppressed meta in JobSpec
+  * error handling in Adder
+  * fixed enddate in Notifier
+  * use CURRENT_DATE in copyArch
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots
