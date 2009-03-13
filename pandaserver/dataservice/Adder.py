@@ -190,7 +190,20 @@ class Adder (threading.Thread):
                         self.job.endTime = time.strftime('%Y-%m-%d %H:%M:%S',time.gmtime())
                 # update job
                 retU = self.taskBuffer.updateJobs([self.job],False)
-                _logger.debug("%s retU: %s" % (self.jobID,retU))                
+                _logger.debug("%s retU: %s" % (self.jobID,retU))
+                # failed
+                if not retU[0]:
+                    _logger.error('failed to update DB for %s' % self.jobID)
+                    # unlock XML
+                    try:
+                        fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
+                        self.lockXML.close()                            
+                    except:
+                        type, value, traceBack = sys.exc_info()
+                        _logger.debug("%s : %s %s" % (self.jobID,type,value))
+                        _logger.debug("%s cannot unlock XML" % self.jobID)            
+                    return
+                # setup for closer
                 destDBList = []
                 guidList = []
                 for file in self.job.Files:
