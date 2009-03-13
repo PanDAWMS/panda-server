@@ -11,6 +11,7 @@ import threading
 import urllib
 import shelve
 import smtplib
+import datetime
 
 from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
@@ -80,6 +81,8 @@ class Notifier (threading.Thread):
                 # time info
                 creationTime = self.job.creationTime
                 endTime      = self.job.modificationTime
+                if isinstance(endTime,datetime.datetime):
+                    endTime = endTime.strftime('%Y-%m-%d %H:%M:%S')
                 # site
                 siteName = self.job.computingSite   
                 # datasets
