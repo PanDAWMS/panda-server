@@ -32,6 +32,7 @@ Release Note
   * error handling in Adder
   * fixed enddate in Notifier
   * use CURRENT_DATE in copyArch
+  * added nprestage
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots
