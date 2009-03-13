@@ -180,8 +180,8 @@ setup(
                              ]
                  ),
                 # var dirs
-                ('var/log/panda', []),
-                ('var/cache/pandaserver', []),                
+                #('var/log/panda', []),
+                #('var/cache/pandaserver', []),                
                 ],
     cmdclass={'install': install_panda,
               'install_data': install_data_panda}
