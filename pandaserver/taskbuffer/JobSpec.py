@@ -31,6 +31,8 @@ class JobSpec(object):
                   'schedulerID','pilotID')
     # attribtes to use string 0
     _zStrAttrs = ('maxCpuUnit','maxDiskUnit','minRamUnit','cpuConsumptionUnit','ipConnectivity')
+    # attribute to be suppressed. They are in another table
+    _suppAttrs = ('jobParameters','metadata')
     # mapping between sequence and attr
     _seqAttrMap = {'PandaID':'ATLAS_PANDA.JOBSDEFINED4_PANDAID_SEQ.nextval'}
 
@@ -93,8 +95,8 @@ class JobSpec(object):
                     pass
                 else:
                     val = None
-            # jobParameters moved to another table        
-            if attr in ['jobParameters']:
+            # jobParameters/metadata go to another table
+            if attr in self._suppAttrs:
                 val = None
             ret[':%s' % attr] = val
         return ret
