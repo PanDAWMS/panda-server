@@ -33,6 +33,7 @@ Release Note
   * fixed enddate in Notifier
   * use CURRENT_DATE in copyArch
   * added nprestage
+  * added startTime in updateJob
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots
