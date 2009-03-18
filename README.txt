@@ -34,6 +34,7 @@ Release Note
   * use CURRENT_DATE in copyArch
   * added nprestage
   * added startTime/endTime in updateJob
+  * validatedreleases and accesscontrol
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots

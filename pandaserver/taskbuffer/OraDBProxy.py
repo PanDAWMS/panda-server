@@ -3266,7 +3266,8 @@ class DBProxy:
             # select
             sql = "SELECT nickname,dq2url,cloud,ddm,lfchost,se,gatekeeper,releases,memory,"
             sql+= "maxtime,status,space,retry,cmtconfig,setokens,seprodpath,glexec,"
-            sql+= "priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue "            
+            sql+= "priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue,"
+            sql+= "validatedreleases,accesscontrol "
             sql+= "FROM ATLAS_PANDAMETA.schedconfig WHERE siteid IS NOT NULL"
             self.cur.arraysize = 10000            
             self.cur.execute(sql+comment)
@@ -3286,7 +3287,8 @@ class DBProxy:
                         resTmp.append(tmpItem)
                     nickname,dq2url,cloud,ddm,lfchost,se,gatekeeper,releases,memory,\
                        maxtime,status,space,retry,cmtconfig,setokens,seprodpath,glexec,\
-                       priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue \
+                       priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue,\
+                       validatedreleases,accesscontrol \
                        = resTmp
                     # skip invalid siteid
                     if siteid in [None,'']:
@@ -3308,6 +3310,7 @@ class DBProxy:
                     ret.glexec     = glexec
                     ret.queue      = queue
                     ret.localqueue = localqueue
+                    ret.accesscontrol = accesscontrol
                     # job recoverty
                     ret.retry = True
                     if retry == 'FALSE':
@@ -3319,6 +3322,13 @@ class DBProxy:
                         tmpRel = tmpRel.strip()
                         if tmpRel != '':
                             ret.releases.append(tmpRel)
+                    # convert validatedreleases to list
+                    ret.validatedreleases = []
+                    for tmpRel in validatedreleases.split('|'):
+                        # remove white space
+                        tmpRel = tmpRel.strip()
+                        if tmpRel != '':
+                            ret.validatedreleases.append(tmpRel)
                     # cmtconfig
                     # add slc3 if the column is empty
                     ret.cmtconfig = ['i686-slc3-gcc323-opt']
@@ -3635,6 +3645,42 @@ class DBProxy:
         except:
             type, value, traceBack = sys.exc_info()
             _logger.error("getProxyKey : %s %s" % (type,value))
+            # roll back
+            self._rollback()
+            return {}
+
+        
+    # check site access
+    def checkSiteAccess(self,siteid,dn):
+        comment = ' /* DBProxy.checkSiteAccess */'
+        _logger.debug("checkSiteAccess %s:%s" % (siteid,dn))
+        try:
+            # construct SQL
+            sql = 'SELECT poffset,rights,status FROM ATLAS_PANDAMETA.siteaccess WHERE dn=:dn AND pandasite=:pandasite'
+            varMap = {}
+            varMap[':dn'] = dn
+            varMap[':pandasite'] = siteid
+            # set autocommit on
+            self.conn.begin()
+            # select
+            self.cur.execute(sql+comment,varMap)
+            self.cur.arraysize = 10            
+            res = self.cur.fetchall()            
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # return
+            retMap = {}
+            if res != None and len(res) != 0:
+                poffset,rights,status = res[0]
+                retMap['poffset'] = poffset
+                retMap['rights']  = rights
+                retMap['status']  = status
+            _logger.debug(retMap)
+            return retMap
+        except:
+            type, value, traceBack = sys.exc_info()
+            _logger.error("checkSiteAccess : %s %s" % (type,value))
             # roll back
             self._rollback()
             return {}
