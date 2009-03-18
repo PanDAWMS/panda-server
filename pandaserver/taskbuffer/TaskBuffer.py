@@ -45,6 +45,8 @@ class TaskBuffer:
             weight = proxy.checkQuota(user)
             # get JobID and status
             userJobID,userStatus = proxy.getUserParameter(user,jobs[0].jobDefinitionID)
+            # get site access
+            userSiteAccess = proxy.checkSiteAccess(jobs[0].computingSite,user)
             # release proxy
             self.proxyPool.putProxy(proxy)
             # get site spec
@@ -85,6 +87,15 @@ class TaskBuffer:
                             if tmpOffset > priorityOffset:
                                 priorityOffset = tmpOffset
                             break
+            # check site access
+            if hasattr(tmpSiteSpec,'accesscontrol') and tmpSiteSpec.accesscontrol == 'grouplist':
+                if userSiteAccess == {} or userSiteAccess['status'] != 'approved':
+                    # user is not allowed
+                    userStatus = False
+                else:
+                    # set priority offset
+                    if userSiteAccess['poffset'] > priorityOffset: 
+                        priorityOffset = userSiteAccess['poffset'] 
         # return if DN is blocked
         if not userStatus:
             return []

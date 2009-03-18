@@ -138,7 +138,8 @@ class LogDBProxy:
             # select
             sql = "SELECT nickname,dq2url,cloud,ddm,lfchost,se,gatekeeper,releases,memory,"
             sql+= "maxtime,status,space,retry,cmtconfig,setokens,seprodpath,glexec,"
-            sql+= "priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue "            
+            sql+= "priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue,"
+            sql+= "validatedreleases,accesscontrol "
             sql+= "FROM schedconfig WHERE siteid<>''"
             self.cur.execute(sql)
             resList = self.cur.fetchall()
@@ -151,7 +152,8 @@ class LogDBProxy:
                 for res in resList:
                     nickname,dq2url,cloud,ddm,lfchost,se,gatekeeper,releases,memory,\
                        maxtime,status,space,retry,cmtconfig,setokens,seprodpath,glexec,\
-                       priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue \
+                       priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue,\
+                       validatedreleases,accesscontrol \
                        = res
                     # instantiate SiteSpec
                     ret = SiteSpec.SiteSpec()
@@ -170,6 +172,7 @@ class LogDBProxy:
                     ret.glexec     = glexec
                     ret.queue      = queue
                     ret.localqueue = localqueue
+                    ret.accesscontrol = accesscontrol
                     # job recoverty
                     ret.retry = True
                     if retry == 'FALSE':
@@ -181,6 +184,13 @@ class LogDBProxy:
                         tmpRel = tmpRel.strip()
                         if tmpRel != '':
                             ret.releases.append(tmpRel)
+                    # convert validatedreleases to list
+                    ret.validatedreleases = []
+                    for tmpRel in validatedreleases.split('|'):
+                        # remove white space
+                        tmpRel = tmpRel.strip()
+                        if tmpRel != '':
+                            ret.validatedreleases.append(tmpRel)
                     # cmtconfig
                     # add slc3 if the column is empty
                     ret.cmtconfig = ['i686-slc3-gcc323-opt']
@@ -469,6 +479,38 @@ class LogDBProxy:
         except:
             type, value, traceBack = sys.exc_info()
             _logger.error("getProxyKey : %s %s" % (type,value))
+            # roll back
+            self._rollback()
+            return {}
+
+
+    # check site access
+    def checkSiteAccess(self,siteid,dn):
+        comment = ' /* LogDBProxy.checkSiteAccess */'
+        _logger.debug("checkSiteAccess %s:%s" % (siteid,dn))
+        try:
+            # set autocommit on
+            self.cur.execute("SET AUTOCOMMIT=1")
+            # construct SQL
+            sql = 'SELECT poffset,rights,status FROM siteaccess WHERE dn=%s AND pandasite=%s'
+            # select
+            self.cur.execute(sql+comment,(dn,siteid))
+            res = self.cur.fetchall()            
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # return
+            retMap = {}
+            if res != None and len(res) != 0:
+                poffset,rights,status = res[0]
+                retMap['poffset'] = poffset
+                retMap['rights']  = rights
+                retMap['status']  = status
+            _logger.debug(retMap)
+            return retMap
+        except:
+            type, value, traceBack = sys.exc_info()
+            _logger.error("checkSiteAccess : %s %s" % (type,value))
             # roll back
             self._rollback()
             return {}
