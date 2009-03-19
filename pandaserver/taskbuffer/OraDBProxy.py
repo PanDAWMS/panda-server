@@ -1007,7 +1007,7 @@ class DBProxy:
             timeLimit = datetime.timedelta(seconds=timeout-10)
             timeStart = datetime.datetime.utcnow()
             strName   = datetime.datetime.isoformat(timeStart)
-            attLimit  = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
+            attLimit  = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
             attSQL    = "AND ((creationTime<:creationTime AND attemptNr>1) OR attemptNr<=1) "
             # get nJobs
             for iJob in range(nJobs):

@@ -855,7 +855,7 @@ class DBProxy:
             timeLimit = datetime.timedelta(seconds=timeout-10)
             timeStart = datetime.datetime.utcnow()
             strName   = datetime.datetime.isoformat(timeStart)
-            attLimit  = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
+            attLimit  = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
             attSQL    = "AND ((creationTime<'%s' AND attemptNr>1) OR attemptNr<=1) " % attLimit.strftime('%Y-%m-%d %H:%M:%S')
             # set autocommit on
             self.cur.execute("SET AUTOCOMMIT=1")
