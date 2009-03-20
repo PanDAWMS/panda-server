@@ -37,6 +37,7 @@ Release Note
   * validatedreleases and accesscontrol
   * 3 -> 1hour for ddm
   * added 'IS NULL' to copyArch 
+  * added bulk reading for PandaID to copyArch to avoid redundant lookup
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots

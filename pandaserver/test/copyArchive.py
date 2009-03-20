@@ -112,23 +112,34 @@ if res == None:
     _logger.debug("total %s " % res)
 else:
     _logger.debug("total %s " % len(res))
+    # get PandaIDs in last 3 days
+    archIDs = []
+    try:
+        stArch,resArch = proxyS.querySQLS("SELECT PandaID FROM %s WHERE modificationTime>:modificationTime" % jobATableName,
+                                          {':modificationTime':timeLimit},arraySize=1000000)
+        for idArch, in resArch:
+            archIDs.append(idArch)
+    except:
+        pass
     # copy, and delete if old
     for (id,srcEndTime) in res:
         try:
             # check if already recorded
-            sql = "SELECT PandaID from %s WHERE PandaID=:PandaID" % jobATableName
-            varMap = {}
-            varMap[':PandaID'] = id
-            status,check = proxyS.querySQLS(sql,varMap)
-            # copy
             copyFound = True
-            if len(check) == 0:
-                copyFound = False
-                # get jobs
-                job = proxyS.peekJob(id,False,False,True,False)
-                # insert to archived
-                proxyS.insertJobSimple(job,jobATableName,filesATableName,paramATableName,metaATableName)
-                _logger.debug("INSERT %s " % id)
+            if not id in archIDs:
+                _logger.debug("check  %s " % id)
+                sql = "SELECT PandaID from %s WHERE PandaID=:PandaID" % jobATableName
+                varMap = {}
+                varMap[':PandaID'] = id
+                status,check = proxyS.querySQLS(sql,varMap)
+                # copy
+                if len(check) == 0:
+                    copyFound = False
+                    # get jobs
+                    job = proxyS.peekJob(id,False,False,True,False)
+                    # insert to archived
+                    proxyS.insertJobSimple(job,jobATableName,filesATableName,paramATableName,metaATableName)
+                    _logger.debug("INSERT %s " % id)
             # delete
             if srcEndTime==None or srcEndTime < timeLimit:
                 if not copyFound:
