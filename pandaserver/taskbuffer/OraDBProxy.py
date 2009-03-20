@@ -2560,7 +2560,7 @@ class DBProxy:
         comment = ' /* DBProxy.updateOutFilesReturnPandaIDs */'                        
         _logger.debug("updateOutFilesReturnPandaIDs(%s)" % dataset)
         sql0 = "SELECT row_ID,PandaID FROM ATLAS_PANDA.filesTable4 WHERE destinationDBlock=:destinationDBlock AND status='transferring'"
-        sql1 = "UPDATE ATLAS_PANDA.filesTable4 SET status='ready' WHERE destinationDBlock=:destinationDBlock AND status='transferring'"
+        sql1 = "UPDATE /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX )*/ ATLAS_PANDA.filesTable4 tab SET status='ready' WHERE destinationDBlock=:destinationDBlock AND status='transferring'"
         varMap = {}
         varMap[':destinationDBlock'] = dataset
         for iTry in range(self.nTry):
