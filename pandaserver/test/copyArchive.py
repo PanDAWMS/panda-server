@@ -164,7 +164,7 @@ siteMapper = SiteMapper(taskBuffer)
 _logger.debug("Analysis Priorities")
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
 sql = "UPDATE ATLAS_PANDA.jobsActive4 SET currentPriority=currentPriority+40,modificationTime=CURRENT_DATE WHERE jobStatus='activated' "
-sql+= "AND modificationTime<:modificationTime AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM' AND prodSourceLabel='user' "
+sql+= "AND modificationTime<:modificationTime AND ((computingSite IS NULL) OR (computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM')) AND prodSourceLabel='user' "
 varMap = {}
 varMap[':modificationTime'] = timeLimit
 status,res = proxyS.querySQLS(sql,varMap)
@@ -177,7 +177,7 @@ _memoryCheck("watcher")
 _logger.debug("Watcher session")
 # check heartbeat for analysis jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=2)
-status,res = proxyS.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE (prodSourceLabel='panda' OR prodSourceLabel='user') AND (jobStatus='running' OR jobStatus='starting' OR jobStatus='stagein' OR jobStatus='stageout') AND modificationTime<:modificationTime AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM'",
+status,res = proxyS.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE (prodSourceLabel='panda' OR prodSourceLabel='user') AND (jobStatus='running' OR jobStatus='starting' OR jobStatus='stagein' OR jobStatus='stageout') AND modificationTime<:modificationTime AND ((computingSite IS NULL) OR (computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM'))",
                               {':modificationTime':timeLimit})
 if res == None:
     _logger.debug("# of Anal Watcher : %s" % res)
@@ -192,7 +192,7 @@ else:
 
 # check heartbeat for sent jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
-status,res = proxyS.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus='sent' AND modificationTime<:modificationTime AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM'",
+status,res = proxyS.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus='sent' AND modificationTime<:modificationTime AND ((computingSite IS NULL) OR (computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM'))",
                               {':modificationTime':timeLimit})
 if res == None:
     _logger.debug("# of Sent Watcher : %s" % res)
@@ -237,7 +237,7 @@ else:
 # check heartbeat for production jobs
 timeOutVal = 48
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=timeOutVal)
-sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus='holding' AND (modificationTime<:modificationTime OR (endTime IS NOT NULL AND endTime<:endTime)) AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM'"
+sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus='holding' AND (modificationTime<:modificationTime OR (endTime IS NOT NULL AND endTime<:endTime)) AND ((computingSite IS NULL) OR (computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM'))"
 varMap = {}
 varMap[':modificationTime'] = timeLimit
 varMap[':endTime'] = timeLimit
@@ -255,7 +255,7 @@ else:
 
 # check heartbeat for ddm jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=2)
-status,res = proxyS.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE (jobStatus='running' OR jobStatus='starting' OR jobStatus='stagein' OR jobStatus='stageout') AND modificationTime<:modificationTime AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM' AND prodSourceLabel='ddm'",
+status,res = proxyS.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE (jobStatus='running' OR jobStatus='starting' OR jobStatus='stagein' OR jobStatus='stageout') AND modificationTime<:modificationTime AND ((computingSite IS NULL) OR (computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM')) AND prodSourceLabel='ddm'",
                               {':modificationTime':timeLimit})
 if res == None:
     _logger.debug("# of DDM Watcher : %s" % res)
@@ -270,7 +270,7 @@ else:
 
 # check heartbeat for production jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
-status,res = proxyS.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE (jobStatus='running' OR jobStatus='starting' OR jobStatus='stagein' OR jobStatus='stageout') AND modificationTime<:modificationTime AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM'",
+status,res = proxyS.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE (jobStatus='running' OR jobStatus='starting' OR jobStatus='stagein' OR jobStatus='stageout') AND modificationTime<:modificationTime AND ((computingSite IS NULL) OR (computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM'))",
                               {':modificationTime':timeLimit})
 if res == None:
     _logger.debug("# of General Watcher : %s" % res)
@@ -399,7 +399,7 @@ if len(jobs):
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=4)
 while True:
     # get PandaIDs
-    status,res = proxyS.querySQLS("SELECT PandaID from ATLAS_PANDA.jobsDefined4 where jobStatus='defined' and modificationTime<:modificationTime and prodSourceLabel='managed' AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM' ORDER BY PandaID",
+    status,res = proxyS.querySQLS("SELECT PandaID from ATLAS_PANDA.jobsDefined4 where jobStatus='defined' AND modificationTime<:modificationTime AND prodSourceLabel='managed' AND ((computingSite IS NULL) OR (computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM')) ORDER BY PandaID",
                                   {':modificationTime':timeLimit})                                  
     # escape
     if res == None or len(res) == 0:
@@ -451,7 +451,7 @@ if len(jobs):
 
 # reassign long-waiting jobs in defined table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
-status,res = proxyS.querySQLS("SELECT PandaID from ATLAS_PANDA.jobsDefined4 WHERE prodSourceLabel='managed' AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM' AND modificationTime<:modificationTime ORDER BY PandaID",
+status,res = proxyS.querySQLS("SELECT PandaID from ATLAS_PANDA.jobsDefined4 WHERE prodSourceLabel='managed' AND ((computingSite IS NULL) OR (computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM')) AND modificationTime<:modificationTime ORDER BY PandaID",
                               {':modificationTime':timeLimit})
 jobs=[]
 if res != None:
@@ -471,7 +471,7 @@ if len(jobs):
 
 # reassign too long-standing jobs in active table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=2)
-status,res = proxyS.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus='activated' AND prodSourceLabel='managed' AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM' AND modificationTime<:modificationTime ORDER BY PandaID",
+status,res = proxyS.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus='activated' AND prodSourceLabel='managed' AND ((computingSite IS NULL) OR (computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM')) AND modificationTime<:modificationTime ORDER BY PandaID",
                               {':modificationTime':timeLimit})
 jobs = []
 if res != None:
@@ -490,7 +490,7 @@ if len(jobs):
 
 # kill too long-standing analysis jobs in active table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=7)
-status,res = proxyS.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE (prodSourceLabel='test' OR prodSourceLabel='panda' OR prodSourceLabel='user') AND modificationTime<:modificationTime AND computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM' ORDER BY PandaID",
+status,res = proxyS.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE (prodSourceLabel='test' OR prodSourceLabel='panda' OR prodSourceLabel='user') AND modificationTime<:modificationTime AND ((computingSite IS NULL) OR (computingSite<>'CHARMM' AND computingSite<>'TESTCHARMM')) ORDER BY PandaID",
                               {':modificationTime':timeLimit})
 jobs = []
 if res != None:

@@ -36,6 +36,7 @@ Release Note
   * added startTime/endTime in updateJob
   * validatedreleases and accesscontrol
   * 3 -> 1hour for ddm
+  * added 'IS NULL' to copyArch 
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots
