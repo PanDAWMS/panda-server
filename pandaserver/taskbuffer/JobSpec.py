@@ -26,11 +26,6 @@ class JobSpec(object):
                   'minRamCount','cpuConsumptionTime','pilotErrorCode','exeErrorCode','supErrorCode','ddmErrorCode',
                   'brokerageErrorCode','jobDispatcherErrorCode','taskBufferErrorCode','nEvents','relocationFlag',
                   'jobExecutionID')
-    # attribtes to use string NULL
-    _nullAttrs = ('creationHost','AtlasRelease','transformation','homepackage','transExitCode','prodDBlock',
-                  'schedulerID','pilotID')
-    # attribtes to use string 0
-    _zStrAttrs = ('maxCpuUnit','maxDiskUnit','minRamUnit','cpuConsumptionUnit','ipConnectivity')
     # attribute to be suppressed. They are in another table
     _suppAttrs = ('jobParameters','metadata')
     # mapping between sequence and attr
@@ -89,10 +84,6 @@ class JobSpec(object):
             if val == 'NULL':
                 if attr in self._zeroAttrs:
                     val = 0
-                elif attr in self._zStrAttrs:
-                    val = '0'
-                elif attr in self._nullAttrs:
-                    pass
                 else:
                     val = None
             # jobParameters/metadata go to another table

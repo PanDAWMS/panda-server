@@ -39,6 +39,7 @@ Release Note
   * added 'IS NULL' to copyArch 
   * added bulk reading for PandaID to copyArch to avoid redundant lookup
   * added a hint to updateOutFilesReturnPandaIDs
+  * use Null instead of 'NULL'
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots
