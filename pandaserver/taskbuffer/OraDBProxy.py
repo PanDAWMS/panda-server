@@ -2485,7 +2485,7 @@ class DBProxy:
     # count the number of files with map
     def countFilesWithMap(self,map):
         comment = ' /* DBProxy.countFilesWithMap */'        
-        sql1 = "SELECT /*+index(t FILESTABLE4_DESTDBLOCK_IDX)*/ COUNT(*) FROM ATLAS_PANDA.filesTable4 t"
+        sql1 = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ COUNT(*) FROM ATLAS_PANDA.filesTable4 tab"
         varMap = {}
         for key in map.keys():
             if len(varMap)==0:
@@ -2571,9 +2571,10 @@ class DBProxy:
     def updateOutFilesReturnPandaIDs(self,dataset):
         comment = ' /* DBProxy.updateOutFilesReturnPandaIDs */'                        
         _logger.debug("updateOutFilesReturnPandaIDs(%s)" % dataset)
-        sql0 = "SELECT row_ID,PandaID FROM ATLAS_PANDA.filesTable4 WHERE destinationDBlock=:destinationDBlock AND status='transferring'"
-        sql1 = "UPDATE /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX )*/ ATLAS_PANDA.filesTable4 tab SET status='ready' WHERE destinationDBlock=:destinationDBlock AND status='transferring'"
+        sql0 = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ row_ID,PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock AND status=:status"
+        sql1 = "UPDATE /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ ATLAS_PANDA.filesTable4 tab SET status='ready' WHERE destinationDBlock=:destinationDBlock AND status=:status"
         varMap = {}
+        varMap[':status'] = 'transferring'
         varMap[':destinationDBlock'] = dataset
         for iTry in range(self.nTry):
             try:
@@ -2654,7 +2655,7 @@ class DBProxy:
         if len(datasets) == 0:
             return []
         # make SQL query
-        sql1 = "SELECT PandaID FROM ATLAS_PANDA.filesTable4 WHERE destinationDBlock=:destinationDBlock GROUP BY PandaID"
+        sql1 = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock GROUP BY PandaID"
         # execute
         try:
             retList = []
@@ -2848,7 +2849,7 @@ class DBProxy:
     def getDestSE(self,dsname):
         comment = ' /* DBProxy.getDestSE */'        
         _logger.debug("getDestSE(%s)" % dsname)
-        sql0 = "SELECT PandaID FROM ATLAS_PANDA.filesTable4 WHERE destinationDBlock=:destinationDBlock AND status='transferring' AND rownum=1"
+        sql0 = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock AND status='transferring' AND rownum=1"
         sql1 = "SELECT computingSite,destinationSE FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID"
         try:
             # start transaction
@@ -2890,7 +2891,7 @@ class DBProxy:
     def getDestTokens(self,dsname):
         comment = ' /* DBProxy.getDestTokens */'        
         _logger.debug("getDestTokens(%s)" % dsname)
-        sql0 = "SELECT destinationDBlockToken FROM ATLAS_PANDA.filesTable4 WHERE destinationDBlock=:destinationDBlock AND rownum=1"
+        sql0 = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ destinationDBlockToken FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock AND rownum=1"
         try:
             # start transaction
             self.conn.begin()

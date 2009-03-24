@@ -41,6 +41,7 @@ Release Note
   * added a hint to updateOutFilesReturnPandaIDs
   * use Null instead of 'NULL'
   * don't reset jobParameters when reassigned
+  * added a hint to all fileTable4+destinationDBlock
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots
