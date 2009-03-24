@@ -1319,6 +1319,12 @@ class DBProxy:
             job.stateChangeTime  = job.modificationTime           
             # insert
             self.cur.execute(sql3+comment, job.valuesMap())
+            # job parameters
+            sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
+            self.cur.execute(sqlJobP+comment, varMap)
+            for clobJobP, in self.cur:
+                job.jobParameters = clobJobP.read()
+                break
             # Files
             sqlFile = "SELECT %s FROM ATLAS_PANDA.filesTable4 " % FileSpec.columnNames()
             sqlFile+= "WHERE PandaID=:PandaID"
@@ -1396,6 +1402,12 @@ class DBProxy:
                     # erase old assignment
                     job.computingSite = None
                 job.computingElement = None
+                # job parameters
+                sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
+                self.cur.execute(sqlJobP+comment, varMap)
+                for clobJobP, in self.cur:
+                    job.jobParameters = clobJobP.read()
+                    break
                 # Files
                 sqlFile = "SELECT %s FROM ATLAS_PANDA.filesTable4 " % FileSpec.columnNames()
                 sqlFile+= "WHERE PandaID=:PandaID"
