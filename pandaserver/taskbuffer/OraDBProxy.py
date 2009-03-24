@@ -2787,7 +2787,7 @@ class DBProxy:
         if predefined:
             sql0 += "AND relocationFlag=1 "
         sql0 += "GROUP BY computingSite,jobStatus"
-        sqlA =  "SELECT computingSite,jobStatus,COUNT(*) FROM ATLAS_PANDA.jobsArchived4 WHERE modificationTime>:modificationTime "
+        sqlA =  "SELECT /*+ index(tab JOBSARCHIVED4_MODTIME_IDX) */ computingSite,jobStatus,COUNT(*) FROM ATLAS_PANDA.jobsArchived4 tab WHERE modificationTime>:modificationTime "
         sqlA += "AND prodSourceLabel in ('managed','user','panda','ddm') " 
         if predefined:
             sqlA += "AND relocationFlag=1 "
@@ -2967,10 +2967,10 @@ class DBProxy:
         timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
         if sourcetype == 'analysis':
             sql0 = "SELECT jobStatus,COUNT(*),cloud FROM %s WHERE prodSourceLabel in ('user','panda') GROUP BY jobStatus,cloud"
-            sqlA = "SELECT jobStatus,COUNT(*),cloud FROM %s WHERE prodSourceLabel in ('user','panda') "
+            sqlA = "SELECT /*+ index(tab JOBSARCHIVED4_MODTIME_IDX) */ jobStatus,COUNT(*),cloud FROM %s tab WHERE prodSourceLabel in ('user','panda') "
         else:
             sql0 = "SELECT jobStatus,COUNT(*),cloud FROM %s WHERE prodSourceLabel='managed' GROUP BY jobStatus,cloud"
-            sqlA = "SELECT jobStatus,COUNT(*),cloud FROM %s WHERE prodSourceLabel='managed' "
+            sqlA = "SELECT /*+ index(tab JOBSARCHIVED4_MODTIME_IDX) */ jobStatus,COUNT(*),cloud FROM %s tab WHERE prodSourceLabel='managed' "
         sqlA+= "AND modificationTime>:modificationTime GROUP BY jobStatus,cloud"
         ret = {}
         try:
@@ -3030,12 +3030,10 @@ class DBProxy:
         comment = ' /* DBProxy.getJobStatisticsPerProcessingType */'                
         timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
         _logger.debug("getJobStatisticsPerProcessingType()")
-        sql0  = "SELECT jobStatus,COUNT(*),cloud,processingType FROM %s "
-        sql0 += "WHERE prodSourceLabel='managed' "
-        sqlT  = "AND modificationTime>:modificationTime "
-        sql1  = "GROUP BY jobStatus,cloud,processingType"
-        sqlN  = sql0 + sql1
-        sqlA  = sql0 + sqlT + sql1
+        sqlN  = "SELECT jobStatus,COUNT(*),cloud,processingType FROM %s "
+        sqlN += "WHERE prodSourceLabel='managed' GROUP BY jobStatus,cloud,processingType"
+        sqlA  = "SELECT /*+ index(tab JOBSARCHIVED4_MODTIME_IDX) */ jobStatus,COUNT(*),cloud,processingType FROM %s tab "
+        sqlA += "WHERE prodSourceLabel='managed' AND modificationTime>:modificationTime GROUP BY jobStatus,cloud,processingType"
         ret = {}
         try:
             for table in ('ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4','ATLAS_PANDA.jobsArchived4','ATLAS_PANDA.jobsDefined4'):
