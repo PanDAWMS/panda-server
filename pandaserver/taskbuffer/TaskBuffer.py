@@ -1023,11 +1023,11 @@ class TaskBuffer:
     # add account to siteaccess  
     def addSiteAccess(self,siteID,dn):
         # get DBproxy
-        proxy = self.logProxyPool.getProxy()
+        proxy = self.proxyPool.getProxy()
         # add account to siteaccess
         ret = proxy.addSiteAccess(siteID,dn)
         # release proxy
-        self.logProxyPool.putProxy(proxy)
+        self.proxyPool.putProxy(proxy)
         # return
         return ret
 
@@ -1035,11 +1035,11 @@ class TaskBuffer:
     # list site access
     def listSiteAccess(self,siteid,dn):
         # get DBproxy
-        proxy = self.logProxyPool.getProxy()
+        proxy = self.proxyPool.getProxy()
         # list site access
         ret = proxy.listSiteAccess(siteid,dn)
         # release proxy
-        self.logProxyPool.putProxy(proxy)
+        self.proxyPool.putProxy(proxy)
         # return
         return ret
 
