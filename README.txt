@@ -35,7 +35,7 @@ Release Note
   * added nprestage
   * added startTime/endTime in updateJob
   * validatedreleases and accesscontrol
-  * 3 -> 1hour for ddm
+  * 3 -> 1hour for movers (discarded)
   * added 'IS NULL' to copyArch 
   * added bulk reading for PandaID to copyArch to avoid redundant lookup
   * added a hint to updateOutFilesReturnPandaIDs
@@ -44,6 +44,7 @@ Release Note
   * added a hint to all fileTable4+destinationDBlock
   * use JOBSARCHIVED4_MODTIME_IDX
   * addSiteAccess and listSiteAccess
+  * hours=1 -> 3 for movers
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots
