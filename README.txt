@@ -43,6 +43,7 @@ Release Note
   * don't reset jobParameters when reassigned
   * added a hint to all fileTable4+destinationDBlock
   * use JOBSARCHIVED4_MODTIME_IDX
+  * addSiteAccess and listSiteAccess
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots

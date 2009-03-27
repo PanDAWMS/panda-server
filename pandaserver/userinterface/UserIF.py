@@ -386,6 +386,22 @@ class UserIF:
         return pickle.dumps(ret)
 
 
+    # add account to siteaccess
+    def addSiteAccess(self,siteID,dn):
+        # add
+        ret = self.taskBuffer.addSiteAccess(siteID,dn)
+        # serialize 
+        return pickle.dumps(ret)
+
+
+    # list site access
+    def listSiteAccess(self,siteID,dn):
+        # list
+        ret = self.taskBuffer.listSiteAccess(siteID,dn)
+        # serialize 
+        return pickle.dumps(ret)
+
+
 # Singleton
 userIF = UserIF()
 del UserIF
@@ -705,3 +721,29 @@ def getNUserJobs(req,siteName,nJobs=100):
     # execute
     return userIF.getNUserJobs(siteName,nJobs)
 
+
+# add account to siteaccess
+def addSiteAccess(req,siteID):
+    # check security
+    if not Protocol.isSecure(req):
+        return "False"        
+    # get DN
+    if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        return "False"        
+    dn = req.subprocess_env['SSL_CLIENT_S_DN']
+    return userIF.addSiteAccess(siteID,dn)
+
+
+# list site access
+def listSiteAccess(req,siteID=None):
+    # check security
+    if not Protocol.isSecure(req):
+        return "False"
+    # get DN
+    if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        return "False"
+    # set DN if siteID is none
+    dn = None
+    if siteID==None:
+        dn = req.subprocess_env['SSL_CLIENT_S_DN']
+    return userIF.listSiteAccess(siteID,dn)

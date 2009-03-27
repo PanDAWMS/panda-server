@@ -996,6 +996,18 @@ class TaskBuffer:
         return ret
 
 
+    # register proxy key
+    def registerProxyKey(self,params):
+        # get DBproxy
+        proxy = self.logProxyPool.getProxy()
+        # register proxy key
+        ret = proxy.registerProxyKey(params)
+        # release proxy
+        self.logProxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
     # get proxy key
     def getProxyKey(self,dn):
         # get DBproxy
@@ -1008,6 +1020,30 @@ class TaskBuffer:
         return ret
 
 
+    # add account to siteaccess  
+    def addSiteAccess(self,siteID,dn):
+        # get DBproxy
+        proxy = self.logProxyPool.getProxy()
+        # add account to siteaccess
+        ret = proxy.addSiteAccess(siteID,dn)
+        # release proxy
+        self.logProxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # list site access
+    def listSiteAccess(self,siteid,dn):
+        # get DBproxy
+        proxy = self.logProxyPool.getProxy()
+        # list site access
+        ret = proxy.listSiteAccess(siteid,dn)
+        # release proxy
+        self.logProxyPool.putProxy(proxy)
+        # return
+        return ret
+
+    
     # generate pilot token
     def genPilotToken(self,schedulerhost,scheduleruser,schedulerid):
         # get DBproxy

@@ -516,6 +516,77 @@ class LogDBProxy:
             return {}
 
 
+    # add account to siteaccess
+    def addSiteAccess(self,siteID,dn):
+        comment = ' /* LogDBProxy.addSiteAccess */'                        
+        _logger.debug("addSiteAccess : %s %s" % (siteID,dn))
+        try:
+            # set autocommit on
+            self.cur.execute("SET AUTOCOMMIT=1")
+            # select
+            sql = 'SELECT status FROM siteaccess WHERE dn=%s AND pandasite=%s'
+            self.cur.execute(sql+comment, (dn,siteID))
+            res = self.cur.fetchone()
+            if res != None:
+                _logger.debug("account already exists with status=%s" % res[0])
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                return res[0]
+            # add
+            sql = 'INSERT INTO siteaccess (dn,pandasite,status) VALUES (%s,%s,%s)'
+            self.cur.execute(sql+comment, (dn,siteID,'requested'))
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            _logger.debug("account was added")
+            return 0
+        except:
+            # roll back
+            self._rollback()
+            type, value, traceBack = sys.exc_info()
+            _logger.error("addSiteAccess( : %s %s" % (type,value))
+            # return None
+            return -1
+
+
+    # list site access
+    def listSiteAccess(self,siteid=None,dn=None):
+        comment = ' /* LogDBProxy.listSiteAccess */'
+        _logger.debug("listSiteAccess %s:%s" % (siteid,dn))
+        try:
+            if siteid==None and dn==None:
+                return []
+            # set autocommit on
+            self.cur.execute("SET AUTOCOMMIT=1")
+            # construct SQL
+            if siteid != None:
+                varMap = (siteid,)
+                sql = 'SELECT dn,status FROM siteaccess WHERE pandasite=%s ORDER BY dn'
+            else:
+                varMap = (dn,)
+                sql = 'SELECT pandasite,status FROM siteaccess WHERE dn=%s ORDER BY pandasite'
+            # select
+            self.cur.execute(sql+comment,varMap)
+            res = self.cur.fetchall()            
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # return
+            ret = []
+            if res != None and len(res) != 0:
+                for tmpRes in res:
+                    ret.append(tmpRes)
+            _logger.debug(ret)
+            return ret
+        except:
+            type, value, traceBack = sys.exc_info()
+            _logger.error("listSiteAccess : %s %s" % (type,value))
+            # roll back
+            self._rollback()
+            return []
+
+        
     # get list of archived tables
     def getArchiveTables(self):
         tables = []
