@@ -1751,7 +1751,7 @@ class DBProxy:
         sql0 = "SELECT PandaID,attemptNr FROM %s WHERE attemptNr=("
         sql0+= "SELECT MAX(attemptNr) FROM %s"
         sql1= " WHERE prodSourceLabel='managed' AND jobDefinitionID=:jobDefinitionID)"
-        sql1+=" AND prodSourceLabel=:'managed' AND jobDefinitionID=:jobDefinitionID"
+        sql1+=" AND prodSourceLabel='managed' AND jobDefinitionID=:jobDefinitionID"
         try:
             ids = []
             # select
