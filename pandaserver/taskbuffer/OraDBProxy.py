@@ -1576,88 +1576,94 @@ class DBProxy:
             return None
         sql1_0 = "SELECT %s FROM %s "
         sql1_1 = "WHERE PandaID=:PandaID"
-        try:
-            tables=[]
-            if fromActive:
-                tables.append('ATLAS_PANDA.jobsActive4')
-            if fromArchived:
-                tables.append('ATLAS_PANDA.jobsArchived4')
-            if fromWaiting:
-                tables.append('ATLAS_PANDA.jobsWaiting4')
-            if fromDefined:
-                # defined needs to be the last one due to InnoDB's auto_increment
-                tables.append('ATLAS_PANDA.jobsDefined4')
-            # select
-            varMap = {}
-            varMap[':PandaID'] = pandaID
-            for table in tables:
-                # start transaction
-                self.conn.begin()
+        nTry=3        
+        for iTry in range(nTry):
+            try:
+                tables=[]
+                if fromActive:
+                    tables.append('ATLAS_PANDA.jobsActive4')
+                if fromArchived:
+                    tables.append('ATLAS_PANDA.jobsArchived4')
+                if fromWaiting:
+                    tables.append('ATLAS_PANDA.jobsWaiting4')
+                if fromDefined:
+                    # defined needs to be the last one due to InnoDB's auto_increment
+                    tables.append('ATLAS_PANDA.jobsDefined4')
                 # select
-                sql = sql1_0 % (JobSpec.columnNames(),table) + sql1_1
-                self.cur.arraysize = 10                                        
-                self.cur.execute(sql+comment, varMap)
-                res = self.cur.fetchall()
-                # commit
-                if not self._commit():
-                    raise RuntimeError, 'Commit error'
-                if len(res) != 0:
-                    # Job
-                    job = JobSpec()
-                    job.pack(res[0])
-                    # Files
+                varMap = {}
+                varMap[':PandaID'] = pandaID
+                for table in tables:
                     # start transaction
                     self.conn.begin()
                     # select
-                    sqlFile = "SELECT %s FROM ATLAS_PANDA.filesTable4 " % FileSpec.columnNames()
-                    sqlFile+= "WHERE PandaID=:PandaID"
-                    self.cur.arraysize = 10000
-                    self.cur.execute(sqlFile+comment, varMap)
-                    resFs = self.cur.fetchall()
-                    # metadata
-                    resMeta = None
-                    if table == 'ATLAS_PANDA.jobsArchived4' or forAnal:
-                        # read metadata only for finished/failed production jobs
-                        sqlMeta = "SELECT metaData FROM ATLAS_PANDA.metaTable WHERE PandaID=:PandaID"
-                        self.cur.execute(sqlMeta+comment, varMap)
-                        for clobMeta, in self.cur:
-                            resMeta = clobMeta.read()
-                            break
-                    # job parameters
-                    job.jobParameters = None
-                    sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
-                    varMap = {}
-                    varMap[':PandaID'] = job.PandaID
-                    self.cur.execute(sqlJobP+comment, varMap)
-                    for clobJobP, in self.cur:
-                        job.jobParameters = clobJobP.read()
-                        break
+                    sql = sql1_0 % (JobSpec.columnNames(),table) + sql1_1
+                    self.cur.arraysize = 10                                        
+                    self.cur.execute(sql+comment, varMap)
+                    res = self.cur.fetchall()
                     # commit
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
-                    # set files
-                    for resF in resFs:
-                        file = FileSpec()
-                        file.pack(resF)
-                        job.addFile(file)
-                    # set metadata
-                    job.metadata = resMeta
-                    return job
-            _logger.debug("peekJob() : PandaID %s not found" % pandaID)
-            return None
-        except:
-            # roll back
-            self._rollback()
-            type, value, traceBack = sys.exc_info()
-            _logger.error("peekJob : %s %s" % (type,value))
-            # return None for analysis
-            if forAnal:
+                    if len(res) != 0:
+                        # Job
+                        job = JobSpec()
+                        job.pack(res[0])
+                        # Files
+                        # start transaction
+                        self.conn.begin()
+                        # select
+                        sqlFile = "SELECT %s FROM ATLAS_PANDA.filesTable4 " % FileSpec.columnNames()
+                        sqlFile+= "WHERE PandaID=:PandaID"
+                        self.cur.arraysize = 10000
+                        self.cur.execute(sqlFile+comment, varMap)
+                        resFs = self.cur.fetchall()
+                        # metadata
+                        resMeta = None
+                        if table == 'ATLAS_PANDA.jobsArchived4' or forAnal:
+                            # read metadata only for finished/failed production jobs
+                            sqlMeta = "SELECT metaData FROM ATLAS_PANDA.metaTable WHERE PandaID=:PandaID"
+                            self.cur.execute(sqlMeta+comment, varMap)
+                            for clobMeta, in self.cur:
+                                resMeta = clobMeta.read()
+                                break
+                        # job parameters
+                        job.jobParameters = None
+                        sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
+                        varMap = {}
+                        varMap[':PandaID'] = job.PandaID
+                        self.cur.execute(sqlJobP+comment, varMap)
+                        for clobJobP, in self.cur:
+                            job.jobParameters = clobJobP.read()
+                            break
+                        # commit
+                        if not self._commit():
+                            raise RuntimeError, 'Commit error'
+                        # set files
+                        for resF in resFs:
+                            file = FileSpec()
+                            file.pack(resF)
+                            job.addFile(file)
+                        # set metadata
+                        job.metadata = resMeta
+                        return job
+                _logger.debug("peekJob() : PandaID %s not found" % pandaID)
                 return None
-            # return 'unknown'
-            job = JobSpec()
-            job.PandaID = pandaID
-            job.jobStatus = 'unknown'
-            return job
+            except:
+                # roll back
+                self._rollback()
+                if iTry+1 < nTry:
+                    _logger.debug("peekJob : %s retry : %s" % (pandaID,iTry))
+                    time.sleep(random.randint(10,20))
+                    continue
+                type, value, traceBack = sys.exc_info()
+                _logger.error("peekJob : %s %s %s" % (pandaID,type,value))
+                # return None for analysis
+                if forAnal:
+                    return None
+                # return 'unknown'
+                job = JobSpec()
+                job.PandaID = pandaID
+                job.jobStatus = 'unknown'
+                return job
 
 
     # get JobIDs in a time range
@@ -3881,70 +3887,76 @@ class DBProxy:
         # select
         varMap = {}
         varMap[':PandaID'] = pandaID
-        try:
-            # get list of archived tables
-            tables = self.getArchiveTables()
-            # select
-            for table in tables:
-                # start transaction
-                self.conn.begin()
+        nTry=3        
+        for iTry in range(nTry):
+            try:
+                # get list of archived tables
+                tables = self.getArchiveTables()
                 # select
-                sql = sql1_0 % (JobSpec.columnNames(),table) + sql1_1
-                self.cur.arraysize = 10                                        
-                self.cur.execute(sql+comment, varMap)
-                res = self.cur.fetchall()
-                # commit
-                if not self._commit():
-                    raise RuntimeError, 'Commit error'
-                if len(res) != 0:
-                    # Job
-                    job = JobSpec()
-                    job.pack(res[0])
-                    # Files
+                for table in tables:
                     # start transaction
                     self.conn.begin()
                     # select
-                    fileTableName = re.sub('jobsArchived','filesTable',table)
-                    sqlFile = "SELECT %s " % FileSpec.columnNames()
-                    sqlFile+= "FROM %s " % fileTableName
-                    sqlFile+= "WHERE PandaID=:PandaID"
-                    self.cur.arraysize = 10000
-                    self.cur.execute(sqlFile+comment, varMap)
-                    resFs = self.cur.fetchall()
-                    # metadata
-                    job.metadata = None
-                    sqlMeta = "SELECT metaData FROM ATLAS_PANDA.metaTable WHERE PandaID=:PandaID"
-                    self.cur.execute(sqlMeta+comment, varMap)
-                    for clobMeta, in self.cur:
-                        job.metadata = clobMeta.read()
-                        break
-                    # job parameters
-                    job.jobParameters = None
-                    sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
-                    varMap = {}
-                    varMap[':PandaID'] = job.PandaID
-                    self.cur.execute(sqlJobP+comment, varMap)
-                    for clobJobP, in self.cur:
-                        job.jobParameters = clobJobP.read()
-                        break
+                    sql = sql1_0 % (JobSpec.columnNames(),table) + sql1_1
+                    self.cur.arraysize = 10                                        
+                    self.cur.execute(sql+comment, varMap)
+                    res = self.cur.fetchall()
                     # commit
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
-                    # set files
-                    for resF in resFs:
-                        file = FileSpec()
-                        file.pack(resF)
-                        job.addFile(file)
-                    return job
-            _logger.debug("peekJobLog() : PandaID %s not found" % pandaID)
-            return None
-        except:
-            # roll back
-            self._rollback()
-            type, value, traceBack = sys.exc_info()
-            _logger.error("peekJobLog : %s %s" % (type,value))
-            # return None
-            return None
+                    if len(res) != 0:
+                        # Job
+                        job = JobSpec()
+                        job.pack(res[0])
+                        # Files
+                        # start transaction
+                        self.conn.begin()
+                        # select
+                        fileTableName = re.sub('jobsArchived','filesTable',table)
+                        sqlFile = "SELECT %s " % FileSpec.columnNames()
+                        sqlFile+= "FROM %s " % fileTableName
+                        sqlFile+= "WHERE PandaID=:PandaID"
+                        self.cur.arraysize = 10000
+                        self.cur.execute(sqlFile+comment, varMap)
+                        resFs = self.cur.fetchall()
+                        # metadata
+                        job.metadata = None
+                        sqlMeta = "SELECT metaData FROM ATLAS_PANDA.metaTable WHERE PandaID=:PandaID"
+                        self.cur.execute(sqlMeta+comment, varMap)
+                        for clobMeta, in self.cur:
+                            job.metadata = clobMeta.read()
+                            break
+                        # job parameters
+                        job.jobParameters = None
+                        sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
+                        varMap = {}
+                        varMap[':PandaID'] = job.PandaID
+                        self.cur.execute(sqlJobP+comment, varMap)
+                        for clobJobP, in self.cur:
+                            job.jobParameters = clobJobP.read()
+                            break
+                        # commit
+                        if not self._commit():
+                            raise RuntimeError, 'Commit error'
+                        # set files
+                        for resF in resFs:
+                            file = FileSpec()
+                            file.pack(resF)
+                            job.addFile(file)
+                        return job
+                _logger.debug("peekJobLog() : PandaID %s not found" % pandaID)
+                return None
+            except:
+                # roll back
+                self._rollback()
+                if iTry+1 < nTry:
+                    _logger.error("peekJobLog : %s %s %s" % (pandaID,type,value))
+                    time.sleep(random.randint(10,20))
+                    continue
+                type, value, traceBack = sys.exc_info()
+                _logger.error("peekJobLog : %s %s" % (type,value))
+                # return None
+                return None
 
         
     # wake up connection
@@ -3974,10 +3986,26 @@ class DBProxy:
 
     # rollback
     def _rollback(self):
+        retVal = True
+        # rollback
         try:
             self.conn.rollback()
-            return True
         except:
             _logger.error("rollback error")
-            return False
+            retVal = False
+        # reconnect if needed
+        try:
+            # get ORA ErrorCode
+            errType,errValue = sys.exc_info()[:2]
+            oraErrCode = str(errValue).split()[0]
+            oraErrCode = oraErrCode[:-1]
+            if oraErrCode in ['ORA-01012','ORA-01033','ORA-01034','ORA-01089',
+                              'ORA-03113','ORA-03114','ORA-12203','ORA-12500',
+                              'ORA-12571','ORA-03135','ORA-25402']:
+                # reconnect
+                self.wakeUp()
+        except:
+            pass
+        # return
+        return retVal
                 
