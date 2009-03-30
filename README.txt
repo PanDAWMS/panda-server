@@ -48,6 +48,7 @@ Release Note
   * retry in peekJob
   * reconnection in rollback 
   * added hint to queryDatasetWithMap
+  * use bind-variables for all queries
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots

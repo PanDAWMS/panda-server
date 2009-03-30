@@ -294,9 +294,9 @@ class DBProxy:
             _logger.debug("activateJob : None")
             return True
         _logger.debug("activateJob : %s" % job.PandaID)                        
-        sql0 = "SELECT row_ID FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type='input' AND status!='ready'"
-        sql1 = "UPDATE ATLAS_PANDA.jobsDefined4 SET jobStatus='activated' "
-        sql1+= "WHERE PandaID=:PandaID AND (jobStatus='assigned' OR jobStatus='defined') AND commandToPilot IS NULL"
+        sql0 = "SELECT row_ID FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type=:type AND status!=:status "
+        sql1 = "UPDATE ATLAS_PANDA.jobsDefined4 SET jobStatus=:newJobStatus "
+        sql1+= "WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2) AND commandToPilot IS NULL"
         sql2 = "INSERT INTO ATLAS_PANDA.jobsActive4 (%s) " % JobSpec.columnNames()
         sql2+= JobSpec.bindValuesExpression()
         # host and time information
@@ -317,6 +317,8 @@ class DBProxy:
                 self.conn.begin()
                 # check all inputs are ready
                 varMap = {}
+                varMap[':type']    = 'input'
+                varMap[':status']  = 'ready'
                 varMap[':PandaID'] = job.PandaID
                 self.cur.arraysize = 100
                 self.cur.execute(sql0+comment, varMap)
@@ -325,6 +327,11 @@ class DBProxy:
                     # change status
                     job.jobStatus = "activated"
                     # update. Not delete for InnoDB
+                    varMap = {}
+                    varMap[':PandaID']       = job.PandaID
+                    varMap[':newJobStatus']  = 'activated'
+                    varMap[':oldJobStatus1'] = 'assigned'
+                    varMap[':oldJobStatus2'] = 'defined'
                     self.cur.execute(sql1+comment, varMap)
                     n = self.cur.rowcount
                     if n==0:
@@ -348,9 +355,11 @@ class DBProxy:
                 else:
                     # update job
                     sqlJ = ("UPDATE ATLAS_PANDA.jobsDefined4 SET %s " % JobSpec.bindUpdateExpression()) + \
-                           "WHERE PandaID=:PandaID AND (jobStatus='assigned' OR jobStatus='defined')"
+                           "WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2)"
                     varMap = job.valuesMap()
-                    varMap[':PandaID'] = job.PandaID
+                    varMap[':PandaID']       = job.PandaID
+                    varMap[':oldJobStatus1'] = 'assigned'
+                    varMap[':oldJobStatus2'] = 'defined'
                     self.cur.execute(sqlJ+comment, varMap)
                     n = self.cur.rowcount
                     if n==0:
@@ -389,8 +398,8 @@ class DBProxy:
     def keepJob(self,job):
         comment = ' /* DBProxy.keepJob */'        
         _logger.debug("keepJob : %s" % job.PandaID)                        
-        sql1 = "UPDATE ATLAS_PANDA.jobsDefined4 SET jobStatus='waiting' "
-        sql1+= "WHERE PandaID=:PandaID AND (jobStatus='assigned' OR jobStatus='defined') AND commandToPilot IS NULL"
+        sql1 = "UPDATE ATLAS_PANDA.jobsDefined4 SET jobStatus=:newJobStatus "
+        sql1+= "WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2) AND commandToPilot IS NULL"
         sql2 = "INSERT INTO ATLAS_PANDA.jobsWaiting4 (%s) " % JobSpec.columnNames()
         sql2+= JobSpec.bindValuesExpression()
         # time information
@@ -403,7 +412,10 @@ class DBProxy:
                 self.conn.begin()
                 # delete
                 varMap = {}
-                varMap[':PandaID'] = job.PandaID
+                varMap[':PandaID']       = job.PandaID
+                varMap[':newJobStatus']  = 'waiting'
+                varMap[':oldJobStatus1'] = 'assigned'
+                varMap[':oldJobStatus2'] = 'defined'
                 self.cur.execute(sql1+comment, varMap)
                 n = self.cur.rowcount                
                 if n==0:
@@ -441,7 +453,7 @@ class DBProxy:
         comment = ' /* DBProxy.archiveJob */'                
         _logger.debug("archiveJob : %s" % job.PandaID)                
         if fromJobsDefined:
-            sql1 = "UPDATE ATLAS_PANDA.jobsDefined4 SET jobStatus='failed' WHERE PandaID=:PandaID AND (jobStatus='assigned' OR jobStatus='defined')"
+            sql1 = "UPDATE ATLAS_PANDA.jobsDefined4 SET jobStatus=:newJobStatus WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2)"
         else:
             sql1 = "DELETE FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID"            
         sql2 = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
@@ -454,6 +466,10 @@ class DBProxy:
                 # delete
                 varMap = {}
                 varMap[':PandaID'] = job.PandaID
+                if fromJobsDefined:
+                    varMap[':newJobStatus']  = 'failed'
+                    varMap[':oldJobStatus1'] = 'assigned'
+                    varMap[':oldJobStatus2'] = 'defined'
                 self.cur.execute(sql1+comment, varMap)
                 n = self.cur.rowcount                
                 if n==0:
@@ -483,17 +499,18 @@ class DBProxy:
                         if file.type == 'output':
                             upOutputs.append(file.lfn)
                     # look for downstream jobs
-                    sqlD   = "SELECT PandaID FROM ATLAS_PANDA.filesTable4 WHERE type='input' AND lfn=:lfn GROUP BY PandaID"
+                    sqlD   = "SELECT PandaID FROM ATLAS_PANDA.filesTable4 WHERE type=:type AND lfn=:lfn GROUP BY PandaID"
                     sqlDJS = "SELECT %s " % JobSpec.columnNames()
                     sqlDJS+= "FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
-                    sqlDJD = "UPDATE ATLAS_PANDA.jobsDefined4 SET jobStatus='failed' WHERE PandaID=:PandaID"
+                    sqlDJD = "UPDATE ATLAS_PANDA.jobsDefined4 SET jobStatus=:jobStatus WHERE PandaID=:PandaID"
                     sqlDJI = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
                     sqlDJI+= JobSpec.bindValuesExpression()
                     for upFile in upOutputs:
                         _logger.debug("look for downstream jobs for %s" % upFile)
                         # select PandaID
                         varMap = {}
-                        varMap[':lfn'] = upFile
+                        varMap[':lfn']  = upFile
+                        varMap[':type'] = 'input'
                         self.cur.arraysize = 3000                        
                         self.cur.execute(sqlD+comment, varMap)
                         res = self.cur.fetchall()
@@ -511,6 +528,9 @@ class DBProxy:
                             dJob = JobSpec()
                             dJob.pack(resJob[0])
                             # delete
+                            varMap = {}
+                            varMap[':PandaID'] = downID
+                            varMap[':jobStatus'] = 'failed'
                             self.cur.execute(sqlDJD+comment, varMap)
                             retD = self.cur.rowcount
                             if retD == 0:
@@ -546,15 +566,17 @@ class DBProxy:
                             # get name
                             varMap = {}
                             varMap[':vuid'] = vuid
+                            varMap[':type'] = 'dispatch'
                             self.cur.arraysize = 10
-                            self.cur.execute("SELECT name FROM ATLAS_PANDA.Datasets WHERE vuid=:vuid AND type='dispatch'"+comment, varMap)
+                            self.cur.execute("SELECT name FROM ATLAS_PANDA.Datasets WHERE vuid=:vuid AND type=:type "+comment, varMap)
                             res = self.cur.fetchall()
                             if len(res) != 0:
                                 disName = res[0]
                                 # get PandaIDs
                                 varMap = {}
+                                varMap[':jobStatus'] = 'assigned'
                                 varMap[':dispatchDBlock'] = disName
-                                self.cur.execute("SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE dispatchDBlock=:dispatchDBlock AND jobStatus='assigned'"+comment,
+                                self.cur.execute("SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE dispatchDBlock=:dispatchDBlock AND jobStatus=:jobStatus "+comment,
                                                  varMap)
                                 resDDM = self.cur.fetchall()
                                 for tmpID, in resDDM:
@@ -676,10 +698,10 @@ class DBProxy:
                         if file.type == 'output':
                             upOutputs.append(file.lfn)
                     # look for downstream jobs
-                    sqlD   = "SELECT PandaID FROM ATLAS_PANDA.filesTable4 WHERE type='input' AND lfn=:lfn GROUP BY PandaID"
+                    sqlD   = "SELECT PandaID FROM ATLAS_PANDA.filesTable4 WHERE type=:type AND lfn=:lfn GROUP BY PandaID"
                     sqlDJS = "SELECT %s " % JobSpec.columnNames()
                     sqlDJS+= "FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
-                    sqlDJD = "UPDATE ATLAS_PANDA.jobsDefined4 SET jobStatus='failed' WHERE PandaID=:PandaID"
+                    sqlDJD = "UPDATE ATLAS_PANDA.jobsDefined4 SET jobStatus=:jobStatus WHERE PandaID=:PandaID"
                     sqlDJI = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
                     sqlDJI+= JobSpec.bindValuesExpression()
                     for upFile in upOutputs:
@@ -687,6 +709,7 @@ class DBProxy:
                         # select PandaID
                         varMap = {}
                         varMap[':lfn'] = upFile
+                        varMap[':type'] = 'input'
                         self.cur.arraysize = 3000
                         self.cur.execute(sqlD+comment, varMap)
                         res = self.cur.fetchall()
@@ -704,6 +727,9 @@ class DBProxy:
                             dJob = JobSpec()
                             dJob.pack(resJob[0])
                             # delete
+                            varMap = {}
+                            varMap[':PandaID'] = downID
+                            varMap[':jobStatus'] = 'failed'
                             self.cur.execute(sqlDJD+comment, varMap)                            
                             retD = self.cur.rowcount
                             if retD == 0:
@@ -799,9 +825,9 @@ class DBProxy:
             sql1 = "UPDATE ATLAS_PANDA.jobsDefined4 SET %s " % JobSpec.bindUpdateExpression()
         else:
             sql1 = "UPDATE ATLAS_PANDA.jobsActive4 SET %s " % JobSpec.bindUpdateExpression()            
-        sql1+= "WHERE PandaID=:PandaID"
+        sql1+= "WHERE PandaID=:PandaID "
         if inJobsDefined:        
-            sql1+= " AND (jobStatus='assigned' OR jobStatus='defined')"
+            sql1+= " AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2) "
         nTry=3
         for iTry in range(nTry):
             try:
@@ -814,6 +840,9 @@ class DBProxy:
                 # update
                 varMap = job.valuesMap()
                 varMap[':PandaID'] = job.PandaID
+                if inJobsDefined:
+                    varMap[':oldJobStatus1'] = 'assigned'
+                    varMap[':oldJobStatus2'] = 'defined'
                 self.cur.execute(sql1+comment, varMap)
                 n = self.cur.rowcount                
                 if n==0:
@@ -904,8 +933,12 @@ class DBProxy:
                             if oldComputingSite == job.destinationSE:
                                 job.destinationSE = job.computingSite
                     # select files
+                    varMap = {}
+                    varMap[':PandaID'] = job.PandaID
+                    varMap[':type1'] = 'log'
+                    varMap[':type2'] = 'output'
                     sqlFile = "SELECT %s FROM ATLAS_PANDA.filesTable4 " % FileSpec.columnNames()
-                    sqlFile+= "WHERE PandaID=:PandaID AND (type='log' OR type='output')"
+                    sqlFile+= "WHERE PandaID=:PandaID AND (type=:type1 OR type=:type2)"
                     self.cur.arraysize = 100
                     self.cur.execute(sqlFile+comment, varMap)
                     resFs = self.cur.fetchall()
@@ -972,7 +1005,8 @@ class DBProxy:
         comment = ' /* DBProxy.getJobs */'
         dynamicBrokering = False
         getValMap = {}
-        sql1 = "WHERE jobStatus='activated' AND computingSite=:computingSite AND commandToPilot IS NULL "
+        sql1 = "WHERE jobStatus=:oldJobStatus AND computingSite=:computingSite AND commandToPilot IS NULL "
+        getValMap[':oldJobStatus'] = 'activated'
         getValMap[':computingSite'] = siteName
         if not mem in [0,'0']:
             sql1+= "AND (minRamCount<=:minRamCount OR minRamCount=0) "
@@ -981,20 +1015,30 @@ class DBProxy:
             sql1+= "AND (maxDiskCount<:maxDiskCount OR maxDiskCount=0) "
             getValMap[':maxDiskCount'] = diskSpace
         if prodSourceLabel == 'user':
-            sql1+= "AND (prodSourceLabel='user' OR prodSourceLabel='panda') "
+            sql1+= "AND (prodSourceLabel=:prodSourceLabel1 OR prodSourceLabel=:prodSourceLabel2) "
+            getValMap[':prodSourceLabel1'] = 'user'
+            getValMap[':prodSourceLabel2'] = 'panda'
         elif prodSourceLabel == 'ddm':
             dynamicBrokering = True
-            sql1+= "AND prodSourceLabel='ddm' "
+            sql1+= "AND prodSourceLabel=:prodSourceLabel "
+            getValMap[':prodSourceLabel'] = 'ddm'
         elif prodSourceLabel in [None,'managed']:
-            sql1+= "AND (prodSourceLabel='managed' OR prodSourceLabel='test') "
+            sql1+= "AND (prodSourceLabel=:prodSourceLabel1 OR prodSourceLabel=:prodSourceLabel2) "
+            getValMap[':prodSourceLabel1'] = 'managed'
+            getValMap[':prodSourceLabel2'] = 'test'
         elif prodSourceLabel == 'software':
-            sql1+= "AND prodSourceLabel='software' "
+            sql1+= "AND prodSourceLabel=:prodSourceLabel "
+            getValMap[':prodSourceLabel'] = 'software'
         elif prodSourceLabel == 'test' and computingElement != None:
             dynamicBrokering = True
-            sql1+= "AND (computingElement=:computingElement OR computingElement='to.be.set' OR processingType='prod_test' OR prodSourceLabel='test') "
-            getValMap[':computingElement'] =  computingElement
+            sql1+= "AND (computingElement=:computingElement1 OR computingElement=:computingElement2 OR processingType=:processingType OR prodSourceLabel=:prodSourceLabel) "
+            getValMap[':computingElement1'] = computingElement
+            getValMap[':computingElement2'] = 'to.be.set'
+            getValMap[':processingType']    = 'prod_test'
+            getValMap[':prodSourceLabel']   = 'test'
         else:
-            sql1+= "AND prodSourceLabel='%s' " % prodSourceLabel
+            sql1+= "AND prodSourceLabel=:prodSourceLabel "
+            getValMap[':prodSourceLabel'] = prodSourceLabel
         # user ID
         if prodUserID != None:
             sql1+= "AND prodUserID=:prodUserID " 
@@ -1014,11 +1058,12 @@ class DBProxy:
                 pandaID = 0
                 # select channel for ddm jobs
                 if prodSourceLabel == 'ddm':
-                    sqlDDM = "SELECT count(*),jobStatus,sourceSite,destinationSite,transferType FROM ATLAS_PANDA.jobsActive4 WHERE computingSite=:computingSite AND prodSourceLabel='ddm' " \
+                    sqlDDM = "SELECT count(*),jobStatus,sourceSite,destinationSite,transferType FROM ATLAS_PANDA.jobsActive4 WHERE computingSite=:computingSite AND prodSourceLabel=:prodSourceLabel " \
                              + attSQL + "GROUP BY jobStatus,sourceSite,destinationSite,transferType"
                     ddmValMap = {}
-                    ddmValMap[':computingSite'] = siteName
-                    ddmValMap[':creationTime'] = attLimit
+                    ddmValMap[':computingSite']   = siteName
+                    ddmValMap[':creationTime']    = attLimit
+                    ddmValMap[':prodSourceLabel'] = 'ddm'
                     _logger.debug(sqlDDM+comment+str(ddmValMap))
                     # start transaction
                     self.conn.begin()
@@ -1062,8 +1107,10 @@ class DBProxy:
                             maxRunning = 50
                         if (not channelMap[channel].has_key('others')) or channelMap[channel]['others'] < maxRunning:
                             # set SQL
-                            sql1+= "AND sourceSite='%s' AND destinationSite='%s' AND transferType='%s' " \
-                                   % channel
+                            sql1+= "AND sourceSite=:sourceSite AND destinationSite=:destinationSite AND transferType=:transferType "
+                            getValMap[':sourceSite']      = channel[0]
+                            getValMap[':destinationSite'] = channel[1]
+                            getValMap[':transferType']    = channel[2]
                             foundChannel = True
                             break
                     # no proper channel
@@ -1088,7 +1135,7 @@ class DBProxy:
                         pandaIDs = []
                         # get max priority for analysis jobs
                         if prodSourceLabel in ['panda','user']:
-                            sqlMX = "SELECT MAX(currentPriority) FROM ATLAS_PANDA.jobsActive4 "
+                            sqlMX = "SELECT /*+ INDEX_COMBINE(tab JOBSACTIVE4_JOBSTATUS_IDX JOBSACTIVE4_COMPSITE_IDX) */ MAX(currentPriority) FROM ATLAS_PANDA.jobsActive4 tab "
                             sqlMX+= sql1
                             _logger.debug(sqlMX+comment+str(getValMap))
                             # start transaction
@@ -1109,7 +1156,7 @@ class DBProxy:
                                 getValMap[':currentPriority'] = tmpPriority
                         if toGetPandaIDs:
                             # get PandaIDs
-                            sqlP = "SELECT PandaID,currentPriority FROM ATLAS_PANDA.jobsActive4 "
+                            sqlP = "SELECT /*+ INDEX_COMBINE(tab JOBSACTIVE4_JOBSTATUS_IDX JOBSACTIVE4_COMPSITE_IDX) */ PandaID,currentPriority FROM ATLAS_PANDA.jobsActive4 tab "
                             sqlP+= sql1
                             _logger.debug(sqlP+comment+str(getValMap))
                             # start transaction
@@ -1142,24 +1189,29 @@ class DBProxy:
                                     break
                                 # update
                                 sqlJ = "UPDATE ATLAS_PANDA.jobsActive4 "
-                                sqlJ+= "SET jobStatus='sent',modificationTime=CURRENT_DATE,modificationHost=:modificationHost,startTime=CURRENT_DATE"
+                                sqlJ+= "SET jobStatus=:newJobStatus,modificationTime=CURRENT_DATE,modificationHost=:modificationHost,startTime=CURRENT_DATE"
                                 varMap = {}
-                                varMap[':PandaID'] = tmpPandaID
+                                varMap[':PandaID']          = tmpPandaID
+                                varMap[':newJobStatus']     = 'sent'
+                                varMap[':oldJobStatus']     = 'activated'
                                 varMap[':modificationHost'] = node
                                 # set CE
                                 if computingElement != None:
                                     sqlJ+= ",computingElement=:computingElement"
                                     varMap[':computingElement'] =  computingElement
-                                sqlJ+= " WHERE PandaID=:PandaID AND jobStatus='activated'"
+                                sqlJ+= " WHERE PandaID=:PandaID AND jobStatus=:oldJobStatus"
                                 # SQL to get nSent
                                 sentLimit = timeStart - datetime.timedelta(seconds=60)
-                                sqlSent  = "SELECT count(*) FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus='sent' "
-                                sqlSent += "AND prodSourceLabel IN ('managed','test') "
+                                sqlSent  = "SELECT /*+ INDEX_COMBINE(tab JOBSACTIVE4_JOBSTATUS_IDX JOBSACTIVE4_COMPSITE_IDX) */ count(*) FROM ATLAS_PANDA.jobsActive4 tab WHERE jobStatus=:jobStatus "
+                                sqlSent += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
                                 sqlSent += "AND computingSite=:computingSite "
                                 sqlSent += "AND modificationTime>:modificationTime "
                                 varMapSent = {}
+                                varMapSent[':jobStatus'] = 'sent'
                                 varMapSent[':computingSite'] = tmpSiteID
                                 varMapSent[':modificationTime'] = sentLimit
+                                varMapSent[':prodSourceLabel1'] = 'managed'
+                                varMapSent[':prodSourceLabel2'] = 'test'
                                 # start
                                 _logger.debug(sqlJ+comment+str(varMap))
                                 # start transaction
@@ -1261,7 +1313,7 @@ class DBProxy:
         sql1 = "SELECT %s FROM %s " % (JobSpec.columnNames(),table)
         sql1+= "WHERE PandaID=:PandaID"
         sql2 = "DELETE FROM %s " % table
-        sql2+= "WHERE PandaID=:PandaID AND (jobStatus='waiting' OR jobStatus='activated')"
+        sql2+= "WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2)"
         sql3 = "INSERT INTO ATLAS_PANDA.jobsDefined4 (%s) " % JobSpec.columnNames()
         sql3+= JobSpec.bindValuesExpression()
         try:
@@ -1291,6 +1343,10 @@ class DBProxy:
                 # return
                 return None
             # delete
+            varMap = {}
+            varMap[':PandaID'] = pandaID
+            varMap[':oldJobStatus1'] = 'waiting'
+            varMap[':oldJobStatus2'] = 'activated'
             self.cur.execute(sql2+comment,varMap)
             retD = self.cur.rowcount            
             # delete failed
@@ -1301,6 +1357,8 @@ class DBProxy:
                     raise RuntimeError, 'Commit error'
                 return None
             # delete from jobsDefined4 just in case
+            varMap = {}
+            varMap[':PandaID'] = pandaID
             sqlD = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
             self.cur.execute(sqlD+comment,varMap)
             # increase priority
@@ -1367,11 +1425,11 @@ class DBProxy:
         comment = ' /* DBProxy.resetDefinedJob */'                
         _logger.debug("resetDefinedJob : %s" % pandaID)
         sql1  = "UPDATE ATLAS_PANDA.jobsDefined4 SET "
-        sql1 += "jobStatus='defined',"
+        sql1 += "jobStatus=:newJobStatus,"
         sql1 += "modificationTime=CURRENT_DATE,"
         sql1 += "dispatchDBlock=NULL,"
         sql1 += "computingElement=NULL"         
-        sql1 += " WHERE PandaID=:PandaID AND (jobStatus='assigned' OR jobStatus='defined')"
+        sql1 += " WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2)"
         sql2 = "SELECT %s FROM ATLAS_PANDA.jobsDefined4 " % JobSpec.columnNames()
         sql2+= "WHERE PandaID=:PandaID"
         try:
@@ -1380,6 +1438,9 @@ class DBProxy:
             # update
             varMap = {}
             varMap[':PandaID'] = pandaID
+            varMap[':newJobStatus']  = 'defined'
+            varMap[':oldJobStatus1'] = 'assigned'
+            varMap[':oldJobStatus2'] = 'defined'
             self.cur.execute(sql1+comment,varMap)
             retU = self.cur.rowcount            
             # not found
@@ -1388,6 +1449,8 @@ class DBProxy:
                 _logger.debug("resetDefinedJob : Not found %s" % pandaID)
             else:
                 # select
+                varMap = {}
+                varMap[':PandaID'] = pandaID
                 self.cur.arraysize = 10
                 self.cur.execute(sql2+comment,varMap)
                 res = self.cur.fetchone()
@@ -1452,11 +1515,11 @@ class DBProxy:
             _logger.error("not an integer : %s" % pandaID)
             return False
         sql0 = "SELECT prodUserID FROM %s WHERE PandaID=:PandaID"        
-        sql1 = "UPDATE %s SET commandToPilot='tobekilled' WHERE PandaID=:PandaID AND commandToPilot IS NULL"
+        sql1 = "UPDATE %s SET commandToPilot=:commandToPilot WHERE PandaID=:PandaID AND commandToPilot IS NULL"
         sql2 = "SELECT %s " % JobSpec.columnNames()
-        sql2+= "FROM %s WHERE PandaID=:PandaID AND jobStatus<>'running'"
+        sql2+= "FROM %s WHERE PandaID=:PandaID AND jobStatus<>:jobStatus"
         sql3 = "DELETE FROM %s WHERE PandaID=:PandaID"
-        sqlU = "UPDATE ATLAS_PANDA.jobsDefined4 SET jobStatus='failed' WHERE PandaID=:PandaID AND (jobStatus='assigned' OR jobStatus='defined')"
+        sqlU = "UPDATE ATLAS_PANDA.jobsDefined4 SET jobStatus=:newJobStatus WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2)"
         sql4 = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
         sql4+= JobSpec.bindValuesExpression()
         try:
@@ -1498,6 +1561,9 @@ class DBProxy:
                         _logger.debug("ignore killJob -> Owner != Requester")
                         break
                 # update
+                varMap = {}
+                varMap[':PandaID'] = pandaID
+                varMap[':commandToPilot'] = 'tobekilled'
                 self.cur.execute((sql1+comment) % table, varMap)
                 retU = self.cur.rowcount
                 if retU == 0:
@@ -1505,6 +1571,9 @@ class DBProxy:
                 # set flag
                 flagCommand = True
                 # select
+                varMap = {}
+                varMap[':PandaID'] = pandaID
+                varMap[':jobStatus'] = 'running'
                 self.cur.arraysize = 10
                 self.cur.execute((sql2+comment) % table, varMap)
                 res = self.cur.fetchall()
@@ -1515,9 +1584,16 @@ class DBProxy:
                 job.pack(res[0])
                 # delete
                 if table=='ATLAS_PANDA.jobsDefined4':
+                    varMap = {}
+                    varMap[':PandaID'] = pandaID
+                    varMap[':newJobStatus'] = 'failed'
+                    varMap[':oldJobStatus1'] = 'assigned'
+                    varMap[':oldJobStatus2'] = 'defined'
                     self.cur.execute(sqlU+comment, varMap)
                 else:
-                    retD = self.cur.execute((sql3+comment) % table, varMap)
+                    varMap = {}
+                    varMap[':PandaID'] = pandaID
+                    self.cur.execute((sql3+comment) % table, varMap)
                 retD = self.cur.rowcount                                        
                 if retD == 0:
                     continue
@@ -1535,7 +1611,11 @@ class DBProxy:
                         # include missing files in diag
                         job.taskBufferErrorDiag = 'waiting timeout, missing:'
                         # get files
-                        sqlFile = "SELECT lfn FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type='input' AND status='missing'"
+                        sqlFile = "SELECT lfn FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type=:type AND status=:status"
+                        varMap = {}
+                        varMap[':PandaID'] = pandaID
+                        varMap[':type']    = 'input'
+                        varMap[':status']  = 'missing'
                         self.cur.arraysize = 10                        
                         self.cur.execute(sqlFile+comment, varMap)
                         resFs = self.cur.fetchall()
@@ -1677,9 +1757,10 @@ class DBProxy:
                 # make sql
                 sql  = "SELECT jobDefinitionID FROM %s " % table
                 sql += "WHERE prodUserID=:prodUserID AND modificationTime>:modificationTime "
-                sql += "AND prodSourceLabel='user' GROUP BY jobDefinitionID"
+                sql += "AND prodSourceLabel=:prodSourceLabel GROUP BY jobDefinitionID"
                 varMap = {}
                 varMap[':prodUserID'] = dn
+                varMap[':prodSourceLabel']  = 'user'
                 varMap[':modificationTime'] = timeRange
                 # start transaction
                 self.conn.begin()
@@ -1720,10 +1801,12 @@ class DBProxy:
                 # make sql
                 sql  = "SELECT PandaID,jobStatus,commandToPilot FROM %s " % table                
                 sql += "WHERE prodUserID=:prodUserID AND jobDefinitionID=:jobDefinitionID "
-                sql += "AND prodSourceLabel in ('user','panda')"
+                sql += "AND prodSourceLabel in (:prodSourceLabel1,:prodSourceLabel2)"
                 varMap = {}
                 varMap[':prodUserID'] = dn
-                varMap[':jobDefinitionID'] = jobID
+                varMap[':jobDefinitionID']  = jobID
+                varMap[':prodSourceLabel1'] = 'user'
+                varMap[':prodSourceLabel2'] = 'panda'
                 # start transaction
                 self.conn.begin()
                 # select
@@ -1756,13 +1839,14 @@ class DBProxy:
         _logger.debug("queryPandaID : %s" % jobDefID)
         sql0 = "SELECT PandaID,attemptNr FROM %s WHERE attemptNr=("
         sql0+= "SELECT MAX(attemptNr) FROM %s"
-        sql1= " WHERE prodSourceLabel='managed' AND jobDefinitionID=:jobDefinitionID)"
-        sql1+=" AND prodSourceLabel='managed' AND jobDefinitionID=:jobDefinitionID"
+        sql1= " WHERE prodSourceLabel=:prodSourceLabel AND jobDefinitionID=:jobDefinitionID)"
+        sql1+=" AND prodSourceLabel=:prodSourceLabel AND jobDefinitionID=:jobDefinitionID"
         try:
             ids = []
             # select
             varMap = {}
-            varMap[':jobDefinitionID'] = jobDefID 
+            varMap[':jobDefinitionID'] = jobDefID
+            varMap[':prodSourceLabel'] = 'managed'
             for table in ['ATLAS_PANDA.jobsDefined4','ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsArchived4','ATLAS_PANDA.jobsWaiting4']:
                 # start transaction
                 self.conn.begin()
@@ -1870,7 +1954,7 @@ class DBProxy:
             limit = int(limit)
             # SQL
             sql  = "SELECT PandaID FROM %s " % table
-            sql += "WHERE computingSite=:computingSite AND jobStatus=:jobStatus AND prodSourceLabel='managed' "
+            sql += "WHERE computingSite=:computingSite AND jobStatus=:jobStatus AND prodSourceLabel=:prodSourceLabel "
             sql += "AND rownum<=:limit"    
             # start transaction
             self.conn.begin()
@@ -1879,6 +1963,7 @@ class DBProxy:
             varMap[':computingSite'] = site
             varMap[':jobStatus'] = status
             varMap[':limit'] = limit
+            varMap[':prodSourceLabel'] = 'managed'
             self.cur.arraysize = limit
             self.cur.execute(sql+comment, varMap)
             res = self.cur.fetchall()
@@ -1902,12 +1987,13 @@ class DBProxy:
         comment = ' /* DBProxy.getPandaIDsForProdDB */'                
         _logger.debug("getPandaIDsForProdDB %s" % limit)
         sql0 = "SELECT PandaID,jobStatus,stateChangeTime,attemptNr,jobDefinitionID,jobExecutionID FROM %s "
-        sql0+= "WHERE prodSourceLabel='managed' AND lockedby=:lockedby "
+        sql0+= "WHERE prodSourceLabel=:prodSourceLabel AND lockedby=:lockedby "
         sql0+= "AND stateChangeTime>prodDBUpdateTime "
         sql1 = "AND rownum<=:limit "
         varMap = {}
         varMap[':lockedby'] = lockedby
         varMap[':limit'] = limit
+        varMap[':prodSourceLabel'] = 'managed'        
         try:
             retMap   = {}
             totalIDs = 0
@@ -2124,7 +2210,7 @@ class DBProxy:
 
 
     # update dataset
-    def updateDataset(self,datasets,withLock,withCriteria):
+    def updateDataset(self,datasets,withLock,withCriteria,criteriaMap):
         comment = ' /* DBProxy.updateDataset */'               
         _logger.debug("updateDataset()")        
         sql1 = "UPDATE ATLAS_PANDA.Datasets SET %s " % DatasetSpec.bindUpdateExpression()
@@ -2142,6 +2228,8 @@ class DBProxy:
                 # update
                 varMap = dataset.valuesMap()
                 varMap[':vuid'] = dataset.vuid
+                for cKey in criteriaMap.keys():
+                    varMap[cKey] = criteriaMap[cKey]
                 self.cur.execute(sql1+comment, varMap)                
                 retU = self.cur.rowcount            
                 if retU != 0 and retU != 1:
@@ -2194,7 +2282,8 @@ class DBProxy:
             # select
             varMap = {}
             varMap[':name'] = datasetname
-            sql = "SELECT COUNT(*) FROM ATLAS_PANDA.Datasets WHERE type='output' AND name=:name"
+            varMap[':type'] = 'output'
+            sql = "SELECT COUNT(*) FROM ATLAS_PANDA.Datasets WHERE type=:type AND name=:name"
             self.cur.arraysize = 100            
             self.cur.execute(sql+comment, varMap)
             res = self.cur.fetchone()
@@ -2327,13 +2416,15 @@ class DBProxy:
         comment = ' /* setCloudTask */'        
         try:
             _logger.debug("setCloudTask(id=%s,taskid=%s)" % (cloudTask.id,cloudTask.taskid))
-            sql  = "UPDATE cloudtasks SET cloud=:cloud,status='assigned',tmod=CURRENT_DATE WHERE id=:id AND status='defined'" 
+            sql  = "UPDATE cloudtasks SET cloud=:cloud,status=:newStatus,tmod=CURRENT_DATE WHERE id=:id AND status=:oldStatus" 
             # start transaction
             self.conn.begin()
             # update
             varMap = {}
             varMap[':cloud'] = cloudTask.cloud
             varMap[':id'] = cloudTask.id
+            varMap[':newStatus'] = 'assigned'
+            varMap[':oldStatus'] = 'defined'
             self.cur.execute(sql+comment, varMap)
             retU = self.cur.rowcount            
             # succeeded
@@ -2344,7 +2435,7 @@ class DBProxy:
                 return cloudTask
             # read if it is already set by another thread
             sql  = "SELECT %s FROM cloudtasks " % CloudTaskSpec.columnNames()
-            sql += "WHERE id=:id" % cloudTask.id
+            sql += "WHERE id=:id"
             varMap = {}
             varMap[':id'] = cloudTask.id
             # select
@@ -2415,9 +2506,10 @@ class DBProxy:
             # start transaction
             self.conn.begin()
             # select
-            sql = "SELECT taskid FROM cloudtasks WHERE status<>'assigned' AND tmod>:tmod"
+            sql = "SELECT taskid FROM cloudtasks WHERE status<>:status AND tmod>:tmod"
             varMap = {}
-            varMap[':tmod'] = timeLimit
+            varMap[':tmod']   = timeLimit
+            varMap[':status'] = 'assigned'
             self.cur.arraysize = 100                        
             self.cur.execute(sql+comment, varMap)
             res = self.cur.fetchall()
@@ -2704,7 +2796,7 @@ class DBProxy:
             return []
         # make SQL query
         sql1 = "SELECT MAX(PandaID) FROM ATLAS_PANDA.filesTable4 WHERE dataset=:dataset AND type=:type"
-        sql2 = "SELECT lfn FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type='output'"
+        sql2 = "SELECT lfn FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type=:type"
         # execute
         try:
             retMap = {}
@@ -2725,6 +2817,7 @@ class DBProxy:
                     # select LFNs
                     varMap = {}
                     varMap[':PandaID'] = pandaID
+                    varMap[':type'] = 'output'
                     self.cur.arraysize = 100
                     self.cur.execute(sql2+comment, varMap)
                     res = self.cur.fetchall()
@@ -2793,12 +2886,12 @@ class DBProxy:
         comment = ' /* DBProxy.getJobStatistics */'        
         _logger.debug("getJobStatistics()")
         timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
-        sql0 = "SELECT computingSite,jobStatus,COUNT(*) FROM %s WHERE prodSourceLabel in ('managed','user','panda','ddm') "
+        sql0 = "SELECT computingSite,jobStatus,COUNT(*) FROM %s WHERE prodSourceLabel in (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4) "
         if predefined:
             sql0 += "AND relocationFlag=1 "
         sql0 += "GROUP BY computingSite,jobStatus"
         sqlA =  "SELECT /*+ index(tab JOBSARCHIVED4_MODTIME_IDX) */ computingSite,jobStatus,COUNT(*) FROM ATLAS_PANDA.jobsArchived4 tab WHERE modificationTime>:modificationTime "
-        sqlA += "AND prodSourceLabel in ('managed','user','panda','ddm') " 
+        sqlA += "AND prodSourceLabel in (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4) " 
         if predefined:
             sqlA += "AND relocationFlag=1 "
         sqlA += "GROUP BY computingSite,jobStatus"
@@ -2813,11 +2906,15 @@ class DBProxy:
                     # start transaction
                     self.conn.begin()
                     # select
+                    varMap = {}
+                    varMap[':prodSourceLabel1'] = 'managed'
+                    varMap[':prodSourceLabel2'] = 'user'
+                    varMap[':prodSourceLabel3'] = 'panda'
+                    varMap[':prodSourceLabel4'] = 'ddm'
                     if table != 'ATLAS_PANDA.jobsArchived4':
                         self.cur.arraysize = 10000                        
-                        self.cur.execute((sql0+comment) % table)
+                        self.cur.execute((sql0+comment) % table, varMap)
                     else:
-                        varMap = {}
                         varMap[':modificationTime'] = timeLimit
                         self.cur.arraysize = 10000                        
                         self.cur.execute(sqlA+comment, varMap)
@@ -2859,14 +2956,15 @@ class DBProxy:
     def getDestSE(self,dsname):
         comment = ' /* DBProxy.getDestSE */'        
         _logger.debug("getDestSE(%s)" % dsname)
-        sql0 = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock AND status='transferring' AND rownum=1"
+        sql0 = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock AND status=:status AND rownum=1"
         sql1 = "SELECT computingSite,destinationSE FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID"
         try:
             # start transaction
             self.conn.begin()
             # select
             varMap = {}
-            varMap[':destinationDBlock'] = dsname
+            varMap[':status'] = 'transferring'
+            varMap[':destinationDBlock'] = dsname            
             self.cur.arraysize = 10
             self.cur.execute(sql0+comment, varMap)
             res = self.cur.fetchall()
@@ -2936,7 +3034,7 @@ class DBProxy:
     def getNumberJobsUser(self,dn):
         comment = ' /* DBProxy.getNumberJobsUser */'        
         _logger.debug("getNumberJobsUsers(%s)" % dn)
-        sql0 = "SELECT COUNT(*) FROM %s WHERE prodUserID=:prodUserID AND prodSourceLabel='user'"
+        sql0 = "SELECT COUNT(*) FROM %s WHERE prodUserID=:prodUserID AND prodSourceLabel=:prodSourceLabel"
         nTry = 1
         nJob = 0
         for iTry in range(nTry):
@@ -2947,6 +3045,7 @@ class DBProxy:
                     # select
                     varMap = {}
                     varMap[':prodUserID'] = dn
+                    varMap[':prodSourceLabel'] = 'user'
                     self.cur.arraysize = 10
                     self.cur.execute((sql0+comment) % table, varMap)
                     res = self.cur.fetchall()
@@ -2976,11 +3075,11 @@ class DBProxy:
         _logger.debug("getJobStatisticsForExtIF()")
         timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
         if sourcetype == 'analysis':
-            sql0 = "SELECT jobStatus,COUNT(*),cloud FROM %s WHERE prodSourceLabel in ('user','panda') GROUP BY jobStatus,cloud"
-            sqlA = "SELECT /*+ index(tab JOBSARCHIVED4_MODTIME_IDX) */ jobStatus,COUNT(*),cloud FROM %s tab WHERE prodSourceLabel in ('user','panda') "
+            sql0 = "SELECT jobStatus,COUNT(*),cloud FROM %s WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) GROUP BY jobStatus,cloud"
+            sqlA = "SELECT /*+ index(tab JOBSARCHIVED4_MODTIME_IDX) */ jobStatus,COUNT(*),cloud FROM %s tab WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
         else:
-            sql0 = "SELECT jobStatus,COUNT(*),cloud FROM %s WHERE prodSourceLabel='managed' GROUP BY jobStatus,cloud"
-            sqlA = "SELECT /*+ index(tab JOBSARCHIVED4_MODTIME_IDX) */ jobStatus,COUNT(*),cloud FROM %s tab WHERE prodSourceLabel='managed' "
+            sql0 = "SELECT jobStatus,COUNT(*),cloud FROM %s WHERE prodSourceLabel=:prodSourceLabel GROUP BY jobStatus,cloud"
+            sqlA = "SELECT /*+ index(tab JOBSARCHIVED4_MODTIME_IDX) */ jobStatus,COUNT(*),cloud FROM %s tab WHERE prodSourceLabel=:prodSourceLabel "
         sqlA+= "AND modificationTime>:modificationTime GROUP BY jobStatus,cloud"
         ret = {}
         try:
@@ -2988,11 +3087,16 @@ class DBProxy:
                 # start transaction
                 self.conn.begin()
                 # select
+                varMap = {}
+                if sourcetype == 'analysis':
+                    varMap[':prodSourceLabel1'] = 'user'
+                    varMap[':prodSourceLabel2'] = 'panda'
+                else:
+                    varMap[':prodSourceLabel'] = 'managed'
                 if table != 'ATLAS_PANDA.jobsArchived4':
                     self.cur.arraysize = 10000                    
-                    self.cur.execute((sql0+comment) % table)
+                    self.cur.execute((sql0+comment) % table, varMap)
                 else:
-                    varMap = {}
                     varMap[':modificationTime'] = timeLimit
                     self.cur.arraysize = 10000                    
                     self.cur.execute((sqlA+comment) % table, varMap)                    
@@ -3041,9 +3145,9 @@ class DBProxy:
         timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
         _logger.debug("getJobStatisticsPerProcessingType()")
         sqlN  = "SELECT jobStatus,COUNT(*),cloud,processingType FROM %s "
-        sqlN += "WHERE prodSourceLabel='managed' GROUP BY jobStatus,cloud,processingType"
+        sqlN += "WHERE prodSourceLabel=:prodSourceLabel GROUP BY jobStatus,cloud,processingType"
         sqlA  = "SELECT /*+ index(tab JOBSARCHIVED4_MODTIME_IDX) */ jobStatus,COUNT(*),cloud,processingType FROM %s tab "
-        sqlA += "WHERE prodSourceLabel='managed' AND modificationTime>:modificationTime GROUP BY jobStatus,cloud,processingType"
+        sqlA += "WHERE prodSourceLabel=:prodSourceLabel AND modificationTime>:modificationTime GROUP BY jobStatus,cloud,processingType"
         ret = {}
         try:
             for table in ('ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4','ATLAS_PANDA.jobsArchived4','ATLAS_PANDA.jobsDefined4'):
@@ -3052,10 +3156,13 @@ class DBProxy:
                 # select
                 self.cur.arraysize = 10000
                 # select
+                varMap = {}
+                varMap[':prodSourceLabel'] = 'managed'
                 if table == 'ATLAS_PANDA.jobsArchived4':
-                    self.cur.execute((sqlA+comment) % table, {':modificationTime':timeLimit})
+                    varMap[':modificationTime'] = timeLimit
+                    self.cur.execute((sqlA+comment) % table, varMap)
                 else:
-                    self.cur.execute((sqlN+comment) % table)                    
+                    self.cur.execute((sqlN+comment) % table, varMap)
                 res = self.cur.fetchall()
                 # commit
                 if not self._commit():
@@ -3087,10 +3194,15 @@ class DBProxy:
     def getNUserJobs(self,siteName,nJobs):
         comment = ' /* DBProxy.getNUserJobs */'        
         _logger.debug("getNUserJobs(%s)" % siteName)
-        sql0 = "SELECT * FROM (SELECT prodUserID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus='activated' AND prodSourceLabel in ('user','panda') AND computingSite=:computingSite ORDER BY currentPriority DESC) WHERE rownum<=:nJobs"
+        sql0  = "SELECT * FROM (SELECT prodUserID FROM ATLAS_PANDA.jobsActive4 "
+        sql0 += "WHERE jobStatus=:jobStatus AND prodSourceLabel in (:prodSourceLabel1,:prodSourceLabel2) "
+        sql0 += "AND computingSite=:computingSite ORDER BY currentPriority DESC) WHERE rownum<=:nJobs"
         varMap = {}
         varMap[':computingSite'] = siteName
         varMap[':nJobs'] = nJobs
+        varMap[':jobStatus'] = 'activated'
+        varMap[':prodSourceLabel1'] = 'user'
+        varMap[':prodSourceLabel2'] = 'panda'
         ret = {}
         try:
             # start transaction
@@ -3123,7 +3235,12 @@ class DBProxy:
     def getNAnalysisJobs(self,nProcesses):
         comment = ' /* DBProxy.getNAnalysisJobs */'        
         _logger.debug("getNAnalysisJobs(%s)" % nProcesses)
-        sql0 = "SELECT computingSite,COUNT(*) FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus='activated' AND (prodSourceLabel='user' OR prodSourceLabel='panda') GROUP BY computingSite"
+        sql0 =  "SELECT computingSite,COUNT(*) FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus "
+        sql0 += "AND (prodSourceLabel=:prodSourceLabel1 OR prodSourceLabel=:prodSourceLabel2) GROUP BY computingSite"
+        varMap = {}
+        varMap[':jobStatus'] = 'activated' 
+        varMap[':prodSourceLabel1'] = 'user'
+        varMap[':prodSourceLabel2'] = 'panda'
         ret = {}
         try:
             # start transaction
@@ -3219,14 +3336,17 @@ class DBProxy:
         
     # get site data
     def getCurrentSiteData(self):
+        comment = ' /* DBProxy.getCurrentSiteData */'                            
         _logger.debug("getCurrentSiteData")
-        sql = "SELECT SITE,getJob,updateJob FROM ATLAS_PANDAMETA.SiteData WHERE FLAG='production' and HOURS=3"
+        sql = "SELECT SITE,getJob,updateJob FROM ATLAS_PANDAMETA.SiteData WHERE FLAG=:FLAG and HOURS=3"
+        varMap = {}
+        varMap[':FLAG'] = 'production'
         try:
             # set autocommit on
             self.conn.begin()
             # select
             self.cur.arraysize = 10000
-            self.cur.execute(sql)
+            self.cur.execute(sql+comment, varMap)
             res = self.cur.fetchall()
             # commit
             if not self._commit():
@@ -3805,9 +3925,10 @@ class DBProxy:
                 # make sql
                 sql  = "SELECT jobDefinitionID FROM %s " % table
                 sql += "WHERE prodUserID=:prodUserID AND modificationTime>:modificationTime "
-                sql += "AND prodSourceLabel='user' GROUP BY jobDefinitionID"
+                sql += "AND prodSourceLabel=:prodSourceLabel GROUP BY jobDefinitionID"
                 varMap = {}
                 varMap[':prodUserID'] = dn
+                varMap[':prodSourceLabel'] = 'user'
                 varMap[':modificationTime'] = timeRange
                 # start transaction
                 self.conn.begin()
@@ -3849,10 +3970,12 @@ class DBProxy:
                 # make sql
                 sql  = "SELECT PandaID,jobStatus,commandToPilot FROM %s " % table                
                 sql += "WHERE prodUserID=:prodUserID AND jobDefinitionID=:jobDefinitionID "
-                sql += "AND prodSourceLabel in ('user','panda') AND modificationTime>(CURRENT_DATE-30) "
+                sql += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND modificationTime>(CURRENT_DATE-30) "
                 varMap = {}
                 varMap[':prodUserID'] = dn
                 varMap[':jobDefinitionID'] = jobID
+                varMap[':prodSourceLabel1'] = 'user'
+                varMap[':prodSourceLabel2'] = 'panda'
                 # start transaction
                 self.conn.begin()
                 # select

@@ -61,8 +61,12 @@ if retSel != None:
         maxID = retSel[0][0]
         _logger.debug("maxID : %s" % maxID)
         if maxID != None:
-            varMap = {':maxID':maxID} 
-            status,retDel = proxyS.querySQLS("DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID<:maxID AND (jobStatus='activated' OR jobStatus='waiting' OR jobStatus='failed')",varMap)
+            varMap = {}
+            varMap[':maxID'] = maxID
+            varMap[':jobStatus1'] = 'activated'
+            varMap[':jobStatus2'] = 'waiting'
+            varMap[':jobStatus3'] = 'failed'
+            status,retDel = proxyS.querySQLS("DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID<:maxID AND (jobStatus=:jobStatus1 OR jobStatus=:jobStatus2 OR jobStatus=:jobStatus3)",varMap)
     except:
         pass
     
@@ -74,7 +78,10 @@ aSiteMapper = SiteMapper(taskBuffer)
 
 # get buildJobs in the holding state
 holdingAna = []
-status,res = proxyS.querySQLS("SELECT PandaID from ATLAS_PANDA.jobsActive4 WHERE prodSourceLabel='panda' AND jobStatus='holding'",{})
+varMap = {}
+varMap[':prodSourceLabel'] = 'panda'
+varMap[':jobStatus'] = 'holding'
+status,res = proxyS.querySQLS("SELECT PandaID from ATLAS_PANDA.jobsActive4 WHERE prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus",varMap)
 if res != None:
     for id, in res:
         holdingAna.append(id)
@@ -112,7 +119,6 @@ fileList = tmpList
 # add
 while len(fileList) != 0:
     # time limit to aviod too many copyArchve running at the sametime
-    #if (datetime.datetime.utcnow() - timeNow) > datetime.timedelta(hours=1):
     if (datetime.datetime.utcnow() - timeNow) > datetime.timedelta(minutes=40):
         _logger.debug("time over in Adder session")
         break

@@ -700,11 +700,11 @@ class TaskBuffer:
 
 
     # update dataset
-    def updateDatasets(self,datasets,withLock=False,withCriteria=""):
+    def updateDatasets(self,datasets,withLock=False,withCriteria="",criteriaMap={}):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # update Dataset
-        retList = proxy.updateDataset(datasets,withLock,withCriteria)
+        retList = proxy.updateDataset(datasets,withLock,withCriteria,criteriaMap)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
