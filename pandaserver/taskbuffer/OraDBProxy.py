@@ -2086,7 +2086,10 @@ class DBProxy:
     def queryDatasetWithMap(self,map):
         comment = ' /* DBProxy.queryDatasetWithMap */'               
         _logger.debug("queryDatasetWithMap(%s)" % map)
-        sql1 = "SELECT %s FROM ATLAS_PANDA.Datasets" % DatasetSpec.columnNames()
+        if map.has_key('name'):
+            sql1 = "SELECT /*+ index(tab DATASETS_NAME_IDX) */ %s FROM ATLAS_PANDA.Datasets tab" % DatasetSpec.columnNames()
+        else:
+            sql1 = "SELECT %s FROM ATLAS_PANDA.Datasets" % DatasetSpec.columnNames()            
         varMap = {}
         for key in map.keys():
             if len(varMap)==0:
@@ -2099,6 +2102,7 @@ class DBProxy:
             self.conn.begin()
             # select
             self.cur.arraysize = 100
+            _logger.debug(sql1+comment+str(varMap))            
             self.cur.execute(sql1+comment, varMap)
             res = self.cur.fetchall()
             # commit

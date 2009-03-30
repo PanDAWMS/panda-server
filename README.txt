@@ -47,6 +47,7 @@ Release Note
   * hours=1 -> 3 for movers
   * retry in peekJob
   * reconnection in rollback 
+  * added hint to queryDatasetWithMap
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots
