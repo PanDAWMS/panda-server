@@ -746,17 +746,17 @@ _memoryCheck("freezing")
 
 # freeze dataset
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=4)
-sql = "SELECT vuid,name,modificationdate FROM ATLAS_PANDA.Datasets " + \
-      "WHERE type=:type AND (status=:status1 OR status=:status2 OR status=:status3) " + \
-      "AND modificationdate<:modificationdate AND REGEXP_LIKE(name,:pattern) AND rownum <= 20"
-varMap = {}
-varMap[':modificationdate'] = timeLimit
-varMap[':type'] = 'output'
-varMap[':status1'] = 'running'
-varMap[':status2'] = 'created'
-varMap[':status3'] = 'defined'
-varMap[':pattern'] = '_sub[[:digit:]]+$'
 for i in range(100):
+    sql = "SELECT vuid,name,modificationdate FROM ATLAS_PANDA.Datasets " + \
+          "WHERE type=:type AND (status=:status1 OR status=:status2 OR status=:status3) " + \
+          "AND modificationdate<:modificationdate AND REGEXP_LIKE(name,:pattern) AND rownum <= 20"
+    varMap = {}
+    varMap[':modificationdate'] = timeLimit
+    varMap[':type'] = 'output'
+    varMap[':status1'] = 'running'
+    varMap[':status2'] = 'created'
+    varMap[':status3'] = 'defined'
+    varMap[':pattern'] = '_sub[[:digit:]]+$'
     ret,res = proxyS.querySQLS(sql, varMap)
     if res == None:
         _logger.debug("# of datasets to be frozen: %s" % res)
