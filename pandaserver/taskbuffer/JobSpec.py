@@ -30,6 +30,8 @@ class JobSpec(object):
     _suppAttrs = ('jobParameters','metadata')
     # mapping between sequence and attr
     _seqAttrMap = {'PandaID':'ATLAS_PANDA.JOBSDEFINED4_PANDAID_SEQ.nextval'}
+    # limit length
+    _limitLength = {'ddmErrorDiag':500}
 
 
     # constructor
@@ -89,6 +91,10 @@ class JobSpec(object):
             # jobParameters/metadata go to another table
             if attr in self._suppAttrs:
                 val = None
+            # truncate too long values
+            if self._limitLength.has_key(attr):
+                if val != None:
+                    val = val[:self._limitLength[attr]]
             ret[':%s' % attr] = val
         return ret
 

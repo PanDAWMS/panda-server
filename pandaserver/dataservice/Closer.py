@@ -74,8 +74,8 @@ class Closer (threading.Thread):
                 # set status
                 dataset.status = 'tobeclosed'
                 # update dataset in DB
-                retT = self.taskBuffer.updateDatasets(dsList,withLock=True,withCriteria="status<>:status",
-                                                      criteriaMap={':status':'tobeclosed'})
+                retT = self.taskBuffer.updateDatasets(dsList,withLock=True,withCriteria="status<>:crStatus",
+                                                      criteriaMap={':crStatus':'tobeclosed'})
                 if len(retT) > 0 and retT[0]==1:
                     if self.pandaDDM and self.job.prodSourceLabel=='managed':
                         # instantiate SiteMapper
@@ -148,8 +148,8 @@ class Closer (threading.Thread):
                     flagComplete = False
             else:
                 # update dataset in DB
-                self.taskBuffer.updateDatasets(dsList,withLock=True,withCriteria="status<>:status",
-                                               criteriaMap={':status':'tobeclosed'})
+                self.taskBuffer.updateDatasets(dsList,withLock=True,withCriteria="status<>:crStatus",
+                                               criteriaMap={':crStatus':'tobeclosed'})
                 # unset flag
                 flagComplete = False
             # end

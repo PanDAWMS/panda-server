@@ -50,6 +50,8 @@ Release Note
   * added hint to queryDatasetWithMap
   * use bind-variables for all queries
   * fixed freezeDS 
+  * fixed a duplicated variable in Closer 
+  * truncate ddmErrorDiag
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots

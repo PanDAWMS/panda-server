@@ -770,7 +770,7 @@ for i in range(100):
     if len(res) != 0:
         for (vuid,name,modDate) in res:
             _logger.debug("start %s %s" % (modDate,name))
-            retF,resF = proxyS.querySQLS("SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ lfn FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock",
+            retF,resF = proxyS.querySQLS("SELECT lfn FROM ATLAS_PANDA.filesTable4 WHERE destinationDBlock=:destinationDBlock",
                                          {':destinationDBlock':name})
             if retF<0:
                 _logger.error("SQL error")
