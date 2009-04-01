@@ -249,17 +249,23 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                             tmpCmtConfig = 'i686-slc3-gcc323-opt'
                         else:
                             tmpCmtConfig = prevCmtConfig
-                        # check release and cmtconfig
-                        _log.debug('   %s' % str(tmpSiteSpec.releases))
+                        # set release
+                        releases = tmpSiteSpec.releases
+                        if prevProType in ['reprocessing'] and previousCloud in ['US']:
+                            # use validated releases for US for now
+                            releases = tmpSiteSpec.validatedreleases
+                            pass
+                        _log.debug('   %s' % str(releases))
                         _log.debug('   %s' % str(tmpSiteSpec.cmtconfig))
                         if forAnalysis and tmpSiteSpec.cloud in ['US']:
                             # doesn't check releases for US analysis
                             _log.debug(' skip release check')
                             pass
-                        elif (prevRelease != None and (tmpSiteSpec.releases != [] and previousCloud != 'US') and \
-                            (not _checkRelease(prevRelease,tmpSiteSpec.releases))) or \
-                            (tmpCmtConfig != None and tmpSiteSpec.cmtconfig != [] and \
-                             (not tmpCmtConfig in tmpSiteSpec.cmtconfig)):
+                        elif (prevRelease != None and ((releases != [] and previousCloud != 'US') or \
+                                                       (prevProType in ['reprocessing'] and previousCloud in ['US'])) and \
+                              (not _checkRelease(prevRelease,releases))) or \
+                              (tmpCmtConfig != None and tmpSiteSpec.cmtconfig != [] and \
+                               (not tmpCmtConfig in tmpSiteSpec.cmtconfig)):
                             _log.debug(' skip: release %s/%s not found' % (prevRelease.replace('\n',' '),prevCmtConfig))
                             # send message to logger
                             try:
@@ -289,6 +295,11 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                             except:
                                 type, value, traceBack = sys.exc_info()
                                 _log.error("memory check : %s %s" % (type,value))
+                        # check space for T2
+                        if site != siteMapper.getCloud(previousCloud)['source']:
+                            if tmpSiteSpec.space != 0 and tmpSiteSpec.space < 200:
+                                _log.debug('  skip: disk shortage %s' % tmpSiteSpec.space)
+                                continue
                         # get pilot statistics
                         if nWNmap == {}:
                             nWNmap = taskBuffer.getCurrentSiteData()

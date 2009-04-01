@@ -56,6 +56,7 @@ Release Note
   * removed deleteFiles in copyArchived
   * not update modTime in copyArchived when peekJob failed
   * container-aware
+  * validatedreleases and space check in brokerage
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots
