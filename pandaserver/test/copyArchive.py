@@ -138,8 +138,11 @@ else:
                     # get jobs
                     job = proxyS.peekJob(id,False,False,True,False)
                     # insert to archived
-                    proxyS.insertJobSimple(job,jobATableName,filesATableName,paramATableName,metaATableName)
-                    _logger.debug("INSERT %s " % id)
+                    if job != None and job.jobStatus != 'unknown':
+                        proxyS.insertJobSimple(job,jobATableName,filesATableName,paramATableName,metaATableName)
+                        _logger.debug("INSERT %s" % id)
+                    else:
+                        _logger.error("Failed to peek at %s" % id)                        
             # delete
             if srcEndTime==None or srcEndTime < timeLimit:
                 if not copyFound:
@@ -879,7 +882,7 @@ for ii in range(1000):
         upJobs = []
         finJobs = []
         for job in jobs:
-            if job == None or job.jobStatus != 'unknown':
+            if job == None or job.jobStatus == 'unknown':
                 continue
             # use BNL by default
             dq2URL = siteMapper.getSite('BNL_ATLAS_1').dq2url
