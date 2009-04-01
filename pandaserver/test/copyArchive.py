@@ -770,7 +770,7 @@ for i in range(100):
     if len(res) != 0:
         for (vuid,name,modDate) in res:
             _logger.debug("start %s %s" % (modDate,name))
-            retF,resF = proxyS.querySQLS("SELECT lfn FROM ATLAS_PANDA.filesTable4 WHERE destinationDBlock=:destinationDBlock",
+            retF,resF = proxyS.querySQLS("SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ lfn FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock",
                                          {':destinationDBlock':name})
             if retF<0:
                 _logger.error("SQL error")
@@ -874,12 +874,12 @@ for ii in range(1000):
         jobs = taskBuffer.peekJobs(ids,fromDefined=False,fromArchived=False,fromWaiting=False)
         # update modificationTime to lock jobs
         for job in jobs:
-            if job != None:
+            if job != None and job.jobStatus != 'unknown':
                 taskBuffer.updateJobStatus(job.PandaID,job.jobStatus,{})
         upJobs = []
         finJobs = []
         for job in jobs:
-            if job == None:
+            if job == None or job.jobStatus != 'unknown':
                 continue
             # use BNL by default
             dq2URL = siteMapper.getSite('BNL_ATLAS_1').dq2url
@@ -972,14 +972,6 @@ for ii in range(1000):
                             if not guidMap.has_key(file.destinationDBlock):
                                 guidMap[file.destinationDBlock] = []
                             guidMap[file.destinationDBlock].append(file.GUID)
-                    # delete files from _tid datasets
-                    for destDBlock in guidMap.keys():
-                        match = re.findall('(.+)_sub\d+$',destDBlock)
-                        if len(match):
-                            origDBlock = match[0]
-                            _logger.debug(('deleteFilesFromDataset',origDBlock,guidMap[destDBlock]))
-                            status,out = ddm.DQ2.main('deleteFilesFromDataset',origDBlock,guidMap[destDBlock])
-                            _logger.debug(out)
                 else:
                     # wait
                     _logger.debug("Finisher : Wait %s" % job.PandaID)

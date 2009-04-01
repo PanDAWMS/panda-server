@@ -52,6 +52,10 @@ Release Note
   * fixed freezeDS 
   * fixed a duplicated variable in Closer 
   * truncate ddmErrorDiag
+  * hint to freezeDS
+  * removed deleteFiles in copyArchived
+  * not update modTime in copyArchived when peekJob failed
+  * container-aware
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots
