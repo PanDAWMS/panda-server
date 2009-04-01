@@ -115,7 +115,7 @@ class Setupper (threading.Thread):
             _logger.debug('%s endRun' % self.timestamp)
         except:
             type, value, traceBack = sys.exc_info()
-            _logger.error("run() : %s %s" % (type,value))
+            _logger.error("%s run() : %s %s" % (self.timestamp,type,value))
         
 
     # make dipatchDBlocks, insert prod/dispatchDBlock to database
@@ -130,8 +130,8 @@ class Setupper (threading.Thread):
             # ignore failed jobs
             if job.jobStatus == 'failed':
                 continue
-            # production datablock. ignore container datasets 
-            if job.prodDBlock != 'NULL' and (not self.pandaDDM) and (not job.prodDBlock.endswith('/')):
+            # production datablock
+            if job.prodDBlock != 'NULL' and (not self.pandaDDM):
                 # get VUID and record prodDBlock into DB
                 if not prodError.has_key(job.prodDBlock):
                     time.sleep(1)
@@ -914,7 +914,7 @@ class Setupper (threading.Thread):
                     _logger.error("%s %s" % (self.timestamp,job.ddmErrorDiag))
                 continue
             # ignore no prodDBlock jobs or container dataset
-            if job.prodDBlock == 'NULL' or job.prodDBlock.endswith('/'):
+            if job.prodDBlock == 'NULL':
                 # set cloud
                 if panda_config.enableDynamicTA and job.prodSourceLabel in ['managed','validation'] \
                        and job.cloud in ['NULL',''] and (not job.taskID in [None,'NULL',0]):
