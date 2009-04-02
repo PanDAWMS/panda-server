@@ -1,7 +1,7 @@
 import sys
 import time
 import datetime
-from taskbuffer.DBProxy import DBProxy
+from taskbuffer.OraDBProxy import DBProxy
 import userinterface.Client as Client
 from dataservice.DDM import ddm
 
@@ -38,8 +38,12 @@ proxyS.connect(panda_config.dbhost,panda_config.dbpasswd,panda_config.dbuser,pan
 
 while True:
     # get PandaIDs
-    res = proxyS.querySQL("SELECT PandaID from jobsDefined4 where jobStatus='defined' and modificationTime<'%s' and prodSourceLabel='managed' and cloud<>'NULL' ORDER BY PandaID"
-                          % timeLimit.strftime('%Y-%m-%d %H:%M:%S'))
+    varMap = {}
+    varMap[':jobStatus']        = 'defined'
+    varMap[':modificationTime'] = timeLimit
+    varMap[':prodSourceLabel']  = 'managed'
+    sql = "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE jobStatus=:jobStatus AND modificationTime<:modificationTime AND prodSourceLabel=:prodSourceLabel ORDER BY PandaID"
+    status,res = proxyS.querySQLS(sql,varMap)
     # escape
     if len(res) == 0:
         break

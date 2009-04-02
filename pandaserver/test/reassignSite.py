@@ -2,7 +2,7 @@ import sys
 import time
 import datetime
 
-from taskbuffer.DBProxy import DBProxy
+from taskbuffer.OraDBProxy import DBProxy
 # password
 from config import panda_config
 
@@ -41,8 +41,13 @@ def eraseDispDatasets(ids):
         print out
 
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=4)
-status,res = proxyS.querySQLS("SELECT PandaID FROM jobsActive4 WHERE jobStatus='activated' AND prodSourceLabel='managed' AND computingSite='%s' AND modificationTime<'%s' ORDER BY PandaID"
-                              % (site,timeLimit.strftime('%Y-%m-%d %H:%M:%S')))
+varMap[':jobStatus']        = 'activated'
+varMap[':modificationTime'] = timeLimit
+varMap[':prodSourceLabel']  = 'managed'
+varMap[':computingSite']    = site
+sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND computingSite=:computingSite AND modificationTime<:modificationTime AND prodSourceLabel=:prodSourceLabel ORDER BY PandaID"
+status,res = proxyS.querySQLS(sql,varMap)
+
 jobs = []
 if res != None:
     for (id,) in res:

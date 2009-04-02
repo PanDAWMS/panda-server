@@ -59,6 +59,7 @@ Release Note
   * validatedreleases and space check in brokerage
   * added deleteJobSimple
   * use validatedreleases for FR too
+  * fixed reassignXYZ
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots

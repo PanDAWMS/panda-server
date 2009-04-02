@@ -1,6 +1,6 @@
 import time
 import datetime
-from taskbuffer.DBProxy import DBProxy
+from taskbuffer.OraDBProxy import DBProxy
 import userinterface.Client as Client
 
 # password
@@ -16,8 +16,11 @@ proxyS.connect(panda_config.dbhost,panda_config.dbpasswd,panda_config.dbuser,pan
 
 while True:
     # get PandaIDs
-    res = proxyS.querySQL("SELECT PandaID FROM jobsWaiting4 WHERE modificationTime<'%s' ORDER BY PandaID"
-                          % timeLimit.strftime('%Y-%m-%d %H:%M:%S'))
+    varMap = {}
+    varMap[':modificationTime'] = timeLimit
+    sql = "SELECT PandaID FROM ATLAS_PANDA.jobsWaiting4 WHERE modificationTime<:modificationTime ORDER BY PandaID"
+    status,res = proxyS.querySQLS(sql,varMap)
+    
     # escape
     if len(res) == 0:
         break
