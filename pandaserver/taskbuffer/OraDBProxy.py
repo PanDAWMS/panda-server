@@ -252,8 +252,6 @@ class DBProxy:
         try:
             # begin transaction
             self.conn.begin()
-            # reset supErrorDiag just in case
-            job.supErrorDiag = None
             # insert
             self.cur.execute(sql1+comment, job.valuesMap())
             # files
@@ -277,12 +275,14 @@ class DBProxy:
                 varMap[':PandaID']  = job.PandaID
                 varMap[':metaData'] = job.metadata
                 self.cur.execute(sqlMeta+comment,varMap)
-            # set supErrorDiag to avoid duplicated insertion attempts
+            # set flag to avoid duplicated insertion attempts
+            """
             varMap = {}
             varMap[':PandaID']      = job.PandaID
             varMap[':supErrorDiag'] = 'archived'
             sqlArch = "UPDATE ATLAS_PANDA.jobsArchived4 SET supErrorDiag=:supErrorDiag WHERE PandaID=:PandaID"
             self.cur.execute(sqlArch+comment, varMap)
+            """
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
