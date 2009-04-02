@@ -163,8 +163,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                 pass
             elif job.jobStatus == 'failed':
                 continue
-            # set computingSite to T1 for reprocessing in EGEE
-            if _isReproJob(job) and job.computingSite == 'NULL' and (not job.cloud in ['US']):
+            # set computingSite to T1 for reprocessing in EGEE except FR
+            if _isReproJob(job) and job.computingSite == 'NULL' and (not job.cloud in ['US','FR']):
                 job.computingSite = siteMapper.getCloud(job.cloud)['source']
             # set computingSite to T1 for high priority jobs
             if job != None and job.currentPriority >= 950 and job.computingSite == 'NULL' \
@@ -251,8 +251,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                             tmpCmtConfig = prevCmtConfig
                         # set release
                         releases = tmpSiteSpec.releases
-                        if prevProType in ['reprocessing'] and previousCloud in ['US']:
-                            # use validated releases for US for now
+                        if prevProType in ['reprocessing'] and previousCloud in ['US','FR']:
+                            # use validated releases for US and FR for now
                             releases = tmpSiteSpec.validatedreleases
                             pass
                         _log.debug('   %s' % str(releases))
@@ -262,7 +262,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                             _log.debug(' skip release check')
                             pass
                         elif (prevRelease != None and ((releases != [] and previousCloud != 'US') or \
-                                                       (prevProType in ['reprocessing'] and previousCloud in ['US'])) and \
+                                                       (prevProType in ['reprocessing'] and previousCloud in ['US','FR'])) and \
                               (not _checkRelease(prevRelease,releases))) or \
                               (tmpCmtConfig != None and tmpSiteSpec.cmtconfig != [] and \
                                (not tmpCmtConfig in tmpSiteSpec.cmtconfig)):
