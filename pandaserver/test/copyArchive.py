@@ -146,22 +146,12 @@ else:
             # delete
             if srcEndTime==None or srcEndTime < timeLimit:
                 if not copyFound:
+                    # no record in ArchivedDB
                     _logger.error("No backup for %s" % id)
                 else:
-                    sql = 'DELETE from ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID'
-                    varMap = {}
-                    varMap[':PandaID']  = id
-                    proxyS.querySQLS(sql,varMap)
+                    # delete
                     _logger.debug("DEL %s : endTime %s" % (id,srcEndTime))
-                    # delete files
-                    status,retDel = proxyS.querySQLS("DELETE from ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID",varMap)
-                    _logger.debug("DEL Files for %s " % id)
-                    # delete metadata
-                    status,retDel = proxyS.querySQLS("DELETE from ATLAS_PANDA.metaTable WHERE PandaID=:PandaID",varMap)
-                    _logger.debug("DEL metadata for %s " % id)
-                    # delete job parameters
-                    status,retDel = proxyS.querySQLS("DELETE from ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID",varMap)
-                    _logger.debug("DEL jobParams for %s " % id)
+                    proxyS.deleteJobSimple(id)
             else:
                 pass
         except:

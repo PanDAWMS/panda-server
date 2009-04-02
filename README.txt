@@ -57,6 +57,7 @@ Release Note
   * not update modTime in copyArchived when peekJob failed
   * container-aware
   * validatedreleases and space check in brokerage
+  * added deleteJobSimple
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots

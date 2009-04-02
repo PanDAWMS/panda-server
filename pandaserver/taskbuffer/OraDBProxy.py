@@ -252,6 +252,8 @@ class DBProxy:
         try:
             # begin transaction
             self.conn.begin()
+            # reset supErrorDiag just in case
+            job.supErrorDiag = None
             # insert
             self.cur.execute(sql1+comment, job.valuesMap())
             # files
@@ -274,7 +276,13 @@ class DBProxy:
                 varMap = {}
                 varMap[':PandaID']  = job.PandaID
                 varMap[':metaData'] = job.metadata
-                self.cur.execute(sqlMeta+comment,varMap)            
+                self.cur.execute(sqlMeta+comment,varMap)
+            # set supErrorDiag to avoid duplicated insertion attempts
+            varMap = {}
+            varMap[':PandaID']      = job.PandaID
+            varMap[':supErrorDiag'] = 'archived'
+            sqlArch = "UPDATE ATLAS_PANDA.jobsArchived4 SET supErrorDiag=:supErrorDiag WHERE PandaID=:PandaID"
+            self.cur.execute(sqlArch+comment, varMap)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -282,6 +290,36 @@ class DBProxy:
         except:
             type, value, traceBack = sys.exc_info()
             _logger.error("insertJobSimple : %s %s" % (type,value))
+            # roll back
+            self._rollback()
+            return False
+
+
+    # delete job
+    def deleteJobSimple(self,pandaID):
+        comment = ' /* DBProxy.deleteJobSimple */'                            
+        _logger.debug("deleteJobSimple : %s" % pandaID)
+        try:
+            # begin transaction
+            self.conn.begin()
+            # delete
+            varMap = {}
+            varMap[':PandaID']  = pandaID
+            sql = 'DELETE from ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID'
+            self.cur.execute(sql+comment, varMap)
+            sql = "DELETE from ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID"
+            self.cur.execute(sql+comment, varMap)            
+            sql = "DELETE from ATLAS_PANDA.metaTable WHERE PandaID=:PandaID"
+            self.cur.execute(sql+comment, varMap)            
+            sql = "DELETE from ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
+            self.cur.execute(sql+comment, varMap)            
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            return True
+        except:
+            type, value = sys.exc_info()[:2]
+            _logger.error("deleteJobSimple %s : %s %s" % (pandaID,type,value))
             # roll back
             self._rollback()
             return False
@@ -1606,7 +1644,7 @@ class DBProxy:
                     # expire
                     job.taskBufferErrorCode = ErrorCode.EC_Expire
                     if code == '2':
-                        job.taskBufferErrorDiag = 'expired 7 days after submission'
+                        job.taskBufferErrorDiag = 'expired'
                     else:
                         # include missing files in diag
                         job.taskBufferErrorDiag = 'waiting timeout, missing:'

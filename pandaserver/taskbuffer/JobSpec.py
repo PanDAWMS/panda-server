@@ -31,7 +31,13 @@ class JobSpec(object):
     # mapping between sequence and attr
     _seqAttrMap = {'PandaID':'ATLAS_PANDA.JOBSDEFINED4_PANDAID_SEQ.nextval'}
     # limit length
-    _limitLength = {'ddmErrorDiag':500}
+    _limitLength = {'ddmErrorDiag'           : 500,
+                    'taskBufferErrorDiag'    : 300,
+                    'jobDispatcherErrorDiag' : 250,
+                    'brokerageErrorDiag'     : 250,
+                    'pilotErrorDiag'         : 500,
+                    'exeErrorDiag'           : 500,
+                    }
 
 
     # constructor
