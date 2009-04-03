@@ -12,3 +12,6 @@ EC_Expire = 102
 # aborted
 EC_Aborted = 103
 
+# wait timeout
+EC_WaitTimeout = 104
+

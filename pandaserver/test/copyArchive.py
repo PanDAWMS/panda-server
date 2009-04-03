@@ -636,7 +636,7 @@ if res != None:
         jobs.append(id)
 # kill
 if len(jobs):
-    Client.killJobs(jobs,2)
+    Client.killJobs(jobs,4)
     _logger.debug("killJobs for Waiting (%s)" % str(jobs))
 
 

@@ -63,6 +63,8 @@ Release Note
   * use archivedFlag for copy/delete
   * fine lock for reassignRepro 
   * threading for reassignRepro 
+  * improved expiration messages
+  * failed when input dataset is not found in DQ2
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots

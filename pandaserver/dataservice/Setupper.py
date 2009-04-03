@@ -892,6 +892,7 @@ class Setupper (threading.Thread):
         lfnMap = {}
         valMap = {}
         prodError = {}
+        missingDS = {}
         jobsWaiting   = []
         jobsFailed    = []
         jobsProcessed = []
@@ -974,17 +975,22 @@ class Setupper (threading.Thread):
                     for iDDMTry in range(3):
                         _logger.debug(('listFilesInDataset',dataset))
                         status,out = ddm.DQ2.main('listFilesInDataset',dataset)
-                        if status != 0 or out.find("DQ2 internal server exception") != -1 \
-                               or out.find("An error occurred on the central catalogs") != -1 \
-                               or out.find("MySQL server has gone away") != -1 \
-                               or out == '()':
+                        if out.find("DQUnknownDatasetException") != -1:
+                            break
+                        elif status != 0 or out.find("DQ2 internal server exception") != -1 \
+                                 or out.find("An error occurred on the central catalogs") != -1 \
+                                 or out.find("MySQL server has gone away") != -1 \
+                                 or out == '()':
                             time.sleep(60)
                         else:
                             break
                     if status != 0 or out.startswith('Error'):
+                        _logger.error(out)                                                                    
                         prodError[dataset] = 'could not get file list of prodDBlock %s' % dataset
                         _logger.error(prodError[dataset])
-                        _logger.error(out)                                                                    
+                        # doesn't exist in DQ2
+                        if out.find('DQUnknownDatasetException') != -1:
+                            missingDS[dataset] = "DS:%s not found in DQ2" % dataset
                     else:
                         # make map (key: LFN w/o attemptNr, value: LFN with attemptNr)
                         items = {}
@@ -1043,6 +1049,28 @@ class Setupper (threading.Thread):
                                 _logger.error(out)
             # error
             isFailed = False
+            # check for failed
+            for dataset in datasets:
+                if missingDS.has_key(dataset):
+                    job.jobStatus    = 'failed'
+                    job.ddmErrorCode = ErrorCode.EC_GUID
+                    job.ddmErrorDiag = missingDS[dataset]
+                    # set missing
+                    for tmpFile in job.Files:
+                        if tmpFile.dataset == dataset:
+                            tmpFile.status = 'missing'
+                    # append        
+                    jobsFailed.append(job)
+                    isFailed = True
+                    # message for TA
+                    if self.onlyTA:                            
+                        _logger.error("%s %s" % (self.timestamp,missingDS[dataset]))
+                    else:
+                        _logger.debug("%s %s failed with %s" % (self.timestamp,job.PandaID,missingDS[dataset]))                        
+                    break
+            if isFailed:
+                continue
+            # check for waiting
             for dataset in datasets:
                 if prodError[dataset] != '':
                     # append job to waiting list

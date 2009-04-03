@@ -1646,24 +1646,14 @@ class DBProxy:
                 job.stateChangeTime  = job.modificationTime
                 if code in ['2','4']:
                     # expire
-                    job.taskBufferErrorCode = ErrorCode.EC_Expire
                     if code == '2':
-                        job.taskBufferErrorDiag = 'expired'
+                        job.taskBufferErrorCode = ErrorCode.EC_Expire
+                        job.taskBufferErrorDiag = 'expired after 7 days since submission'
                     else:
-                        # include missing files in diag
-                        job.taskBufferErrorDiag = 'waiting timeout, missing:'
-                        # get files
-                        sqlFile = "SELECT lfn FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type=:type AND status=:status"
-                        varMap = {}
-                        varMap[':PandaID'] = pandaID
-                        varMap[':type']    = 'input'
-                        varMap[':status']  = 'missing'
-                        self.cur.arraysize = 10                        
-                        self.cur.execute(sqlFile+comment, varMap)
-                        resFs = self.cur.fetchall()
-                        for lfn, in resFs:
-                            job.taskBufferErrorDiag += '%s,' % lfn
-                        job.taskBufferErrorDiag = job.taskBufferErrorDiag[:-1]
+                        # waiting timeout 
+                        job.taskBufferErrorCode = ErrorCode.EC_Expire
+                        #job.taskBufferErrorCode = ErrorCode.EC_WaitTimeout
+                        job.taskBufferErrorDiag = 'expired after waiting for input data for 2 days'
                 elif code=='3':
                     # aborted
                     job.taskBufferErrorCode = ErrorCode.EC_Aborted
