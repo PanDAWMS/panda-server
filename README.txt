@@ -60,6 +60,8 @@ Release Note
   * added deleteJobSimple
   * use validatedreleases for FR too
   * fixed reassignXYZ
+  * use archivedFlag for copy/delete
+  * fine lock for reassignRepro 
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots

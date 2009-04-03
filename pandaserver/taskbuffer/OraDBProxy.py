@@ -282,13 +282,11 @@ class DBProxy:
                 varMap[':metaData'] = job.metadata
                 self.cur.execute(sqlMeta+comment,varMap)
             # set flag to avoid duplicated insertion attempts
-            """
             varMap = {}
             varMap[':PandaID']      = job.PandaID
-            varMap[':supErrorDiag'] = 'archived'
-            sqlArch = "UPDATE ATLAS_PANDA.jobsArchived4 SET supErrorDiag=:supErrorDiag WHERE PandaID=:PandaID"
+            varMap[':archivedFlag'] = 1
+            sqlArch = "UPDATE ATLAS_PANDA.jobsArchived4 SET archivedFlag=:archivedFlag WHERE PandaID=:PandaID"
             self.cur.execute(sqlArch+comment, varMap)
-            """
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'

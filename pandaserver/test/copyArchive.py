@@ -105,9 +105,12 @@ metaATableName  = "ATLAS_PANDAARCH.metaTable_ARCH"
 # time limit
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=3)
 
-# get PandaIDs and endTimes from source
-_logger.debug("get PandaIDs from Archive")
-status,res = proxyS.querySQLS("SELECT PandaID,modificationTime from ATLAS_PANDA.jobsArchived4 ORDER BY PandaID",{})
+# copy
+_logger.debug("get PandaIDs for Archive")
+varMap = {}
+varMap[':archivedFlag'] = 0
+status,res = proxyS.querySQLS("SELECT PandaID,modificationTime FROM ATLAS_PANDA.jobsArchived4 WHERE archivedFlag=:archivedFlag ORDER BY PandaID",
+                              varMap,arraySize=1000000)
 if res == None:
     _logger.debug("total %s " % res)
 else:
@@ -121,7 +124,7 @@ else:
             archIDs.append(idArch)
     except:
         pass
-    # copy, and delete if old
+    # copy
     for (id,srcEndTime) in res:
         try:
             # check if already recorded
@@ -142,18 +145,42 @@ else:
                         proxyS.insertJobSimple(job,jobATableName,filesATableName,paramATableName,metaATableName)
                         _logger.debug("INSERT %s" % id)
                     else:
-                        _logger.error("Failed to peek at %s" % id)                        
-            # delete
-            if srcEndTime==None or srcEndTime < timeLimit:
-                if not copyFound:
-                    # no record in ArchivedDB
-                    _logger.error("No backup for %s" % id)
-                else:
-                    # delete
-                    _logger.debug("DEL %s : endTime %s" % (id,srcEndTime))
-                    proxyS.deleteJobSimple(id)
+                        _logger.error("Failed to peek at %s" % id)
+            # set archivedFlag            
+            if copyFound:
+                varMap = {}
+                varMap[':PandaID'] = id
+                varMap[':archivedFlag'] = 1
+                sqlUpdate = "UPDATE ATLAS_PANDA.jobsArchived4 SET archivedFlag=:archivedFlag WHERE PandaID=:PandaID"
+                proxyS.querySQLS(sqlUpdate,varMap)
+        except:
+            pass
+        
+# delete
+_logger.debug("get PandaIDs for Delete")
+varMap = {}
+varMap[':modificationTime'] = timeLimit
+status,res = proxyS.querySQLS("SELECT PandaID,modificationTime FROM ATLAS_PANDA.jobsArchived4 WHERE modificationTime<:modificationTime",
+                              varMap,arraySize=1000000)
+if res == None:
+    _logger.debug("total %s " % res)
+else:
+    _logger.debug("total %s " % len(res))
+    # loop over all jobs
+    for (id,srcEndTime) in res:
+        try:
+            # check
+            sql = "SELECT PandaID from %s WHERE PandaID=:PandaID" % jobATableName
+            varMap = {}
+            varMap[':PandaID'] = id
+            status,check = proxyS.querySQLS(sql,varMap)
+            if check == None or len(check) == 0:
+                # no record in ArchivedDB
+                _logger.error("No backup for %s" % id)
             else:
-                pass
+                # delete
+                _logger.debug("DEL %s : endTime %s" % (id,srcEndTime))
+                proxyS.deleteJobSimple(id)
         except:
             pass
 del res
@@ -470,46 +497,47 @@ while True:
 
                         
 # reassign reprocessing jobs in defined table
+nBunch = 20
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=8)
-varMap = {}
-varMap[':jobStatus'] = 'assigned'
-varMap[':prodSourceLabel'] = 'managed'
-varMap[':modificationTime'] = timeLimit
-status,res = proxyS.querySQLS("SELECT PandaID,transformation,processingType FROM ATLAS_PANDA.jobsDefined4 WHERE jobStatus=:jobStatus AND prodSourceLabel=:prodSourceLabel AND modificationTime<:modificationTime ORDER BY PandaID",
-                              varMap)
-jobs=[]
-if res != None:
-    # tmp class to adjust API
-    class Tmp:
-        pass
-    for id,trf,processingType in res:
-        # check trf. Should be changed once a proper flag is defined in prodDB
-        tmpObj = Tmp()
-        tmpObj.transformation = trf
-        tmpObj.processingType = processingType
-        if brokerage.broker._isReproJob(tmpObj):
-            jobs.append(id)
-# lock
-currentTime = datetime.datetime.utcnow()
-for jobID in jobs:
+while True:
     varMap = {}
-    varMap[':PandaID'] = jobID
-    varMap[':modificationTime'] = currentTime
-    status,res = proxyS.querySQLS("UPDATE ATLAS_PANDA.jobsDefined4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID",
+    varMap[':jobStatus'] = 'assigned'
+    varMap[':prodSourceLabel'] = 'managed'
+    varMap[':modificationTime'] = timeLimit
+    varMap[':nBunch'] = nBunch
+    varMap[':processingType'] = 'reprocessing'
+    status,res = proxyS.querySQLS("SELECT * FROM (SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE jobStatus=:jobStatus AND prodSourceLabel=:prodSourceLabel AND modificationTime<:modificationTime AND processingType=:processingType ORDER BY PandaID) WHERE rownum<=:nBunch",
                                   varMap)
+    # escape
+    if res == None or len(res) == 0:
+        break
 
-# reassign
-_logger.debug('reassignJobs for Pepro %s' % len(jobs))
-if len(jobs):
-    nJob = 100
-    iJob = 0
-    while iJob < len(jobs):
-        eraseDispDatasets(jobs[iJob:iJob+nJob])
-        # reassign jobs one by one to break dis dataset formation
-        for job in jobs[iJob:iJob+nJob]:
-            _logger.debug('reassignJobs in Pepro (%s)' % [job])
-            taskBuffer.reassignJobs([job],joinThr=True,forkSetupper=True)
-        iJob += nJob
+    # get IDs
+    jobs=[]
+    for id, in res:
+        jobs.append(id)
+        
+    # lock
+    currentTime = datetime.datetime.utcnow()
+    for jobID in jobs:
+        varMap = {}
+        varMap[':PandaID'] = jobID
+        varMap[':modificationTime'] = currentTime
+        status,res = proxyS.querySQLS("UPDATE ATLAS_PANDA.jobsDefined4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID",
+                                      varMap)
+
+    # reassign
+    _logger.debug('reassignJobs for Pepro %s' % len(jobs))
+    if len(jobs):
+        nJob = 100
+        iJob = 0
+        while iJob < len(jobs):
+            eraseDispDatasets(jobs[iJob:iJob+nJob])
+            # reassign jobs one by one to break dis dataset formation
+            for job in jobs[iJob:iJob+nJob]:
+                _logger.debug('reassignJobs in Pepro (%s)' % [job])
+                taskBuffer.reassignJobs([job],joinThr=True,forkSetupper=True)
+            iJob += nJob
 
 
 # reassign long-waiting jobs in defined table
