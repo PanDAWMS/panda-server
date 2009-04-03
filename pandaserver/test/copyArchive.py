@@ -489,7 +489,17 @@ if res != None:
         tmpObj.processingType = processingType
         if brokerage.broker._isReproJob(tmpObj):
             jobs.append(id)
+# lock
+currentTime = datetime.datetime.utcnow()
+for jobID in jobs:
+    varMap = {}
+    varMap[':PandaID'] = jobID
+    varMap[':modificationTime'] = currentTime
+    status,res = proxyS.querySQLS("UPDATE ATLAS_PANDA.jobsDefined4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID",
+                                  varMap)
+
 # reassign
+_logger.debug('reassignJobs for Pepro %s' % len(jobs))
 if len(jobs):
     nJob = 100
     iJob = 0
@@ -498,10 +508,8 @@ if len(jobs):
         # reassign jobs one by one to break dis dataset formation
         for job in jobs[iJob:iJob+nJob]:
             _logger.debug('reassignJobs in Pepro (%s)' % [job])
-            Client.reassignJobs([job])
-            time.sleep(5)            
+            taskBuffer.reassignJobs([job],joinThr=True,forkSetupper=True)
         iJob += nJob
-        time.sleep(60)
 
 
 # reassign long-waiting jobs in defined table
