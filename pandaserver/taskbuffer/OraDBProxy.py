@@ -55,6 +55,7 @@ class DBProxy:
     def connect(self,dbhost=panda_config.dbhost,dbpasswd=panda_config.dbpasswd,
                 dbuser=panda_config.dbuser,dbname=panda_config.dbname,
                 dbtimeout=None,reconnect=False):
+        _logger.debug("connect : re=%s" % reconnect)
         # keep parameters for reconnect
         if not reconnect:
             self.dbhost    = dbhost
@@ -62,6 +63,13 @@ class DBProxy:
             self.dbuser    = dbuser
             self.dbname    = dbname
             self.dbtimeout = dbtimeout
+        # close old connection
+        if reconnect:
+            _logger.debug("close old connection")                            
+            try:
+                self.conn.close()
+            except:
+                _logger.error("failed to close old connection")                                                
         # connect    
         try:
             self.conn = cx_Oracle.connect(dsn=self.dbhost,user=self.dbuser,
@@ -80,8 +88,6 @@ class DBProxy:
         except:
             type, value, traceBack = sys.exc_info()
             _logger.error("connect : %s %s" % (type,value))
-            # roll back
-            self._rollback()
             return False
 
 
@@ -4153,6 +4159,7 @@ class DBProxy:
     def _rollback(self):
         retVal = True
         # rollback
+        _logger.debug("rollback")            
         try:
             self.conn.rollback()
         except:
@@ -4164,11 +4171,13 @@ class DBProxy:
             errType,errValue = sys.exc_info()[:2]
             oraErrCode = str(errValue).split()[0]
             oraErrCode = oraErrCode[:-1]
+            _logger.debug("rollback EC:%s %s" % (oraErrCode,errValue))
             if oraErrCode in ['ORA-01012','ORA-01033','ORA-01034','ORA-01089',
                               'ORA-03113','ORA-03114','ORA-12203','ORA-12500',
                               'ORA-12571','ORA-03135','ORA-25402']:
                 # reconnect
-                self.wakeUp()
+                self.connect(reconnect=True)
+                _logger.debug("rollback reconnected")                                            
         except:
             pass
         # return
