@@ -7,6 +7,7 @@ import shelve
 import random
 import datetime
 import commands
+import threading
 import userinterface.Client as Client
 from dataservice.DDM import ddm
 from taskbuffer.OraDBProxy import DBProxy
@@ -497,7 +498,34 @@ while True:
 
                         
 # reassign reprocessing jobs in defined table
+class ReassginRepro (threading.Thread):
+    def __init__(self,taskBuffer,lock,jobs):
+        threading.Thread.__init__(self)
+        self.jobs       = jobs
+        self.lock       = lock
+        self.taskBuffer = taskBuffer
+
+    def run(self):
+        self.lock.acquire()
+        try:
+            if len(self.jobs):
+                nJob = 100
+                iJob = 0
+                while iJob < len(self.jobs):
+                    eraseDispDatasets(self.jobs[iJob:iJob+nJob])
+                    # reassign jobs one by one to break dis dataset formation
+                    for job in self.jobs[iJob:iJob+nJob]:
+                        _logger.debug('reassignJobs in Pepro (%s)' % [job])
+                        self.taskBuffer.reassignJobs([job],joinThr=True,forkSetupper=True)
+                    iJob += nJob
+        except:
+            pass
+        self.lock.release()
+        
+reproLock = threading.Semaphore(3)
+
 nBunch = 20
+iBunch = 0
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=8)
 while True:
     varMap = {}
@@ -517,7 +545,10 @@ while True:
     for id, in res:
         jobs.append(id)
         
+    # reassign
+    _logger.debug('reassignJobs for Pepro %s' % (iBunch*nBunch))
     # lock
+    reproLock.acquire()
     currentTime = datetime.datetime.utcnow()
     for jobID in jobs:
         varMap = {}
@@ -525,20 +556,11 @@ while True:
         varMap[':modificationTime'] = currentTime
         status,res = proxyS.querySQLS("UPDATE ATLAS_PANDA.jobsDefined4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID",
                                       varMap)
-
-    # reassign
-    _logger.debug('reassignJobs for Pepro %s' % len(jobs))
-    if len(jobs):
-        nJob = 100
-        iJob = 0
-        while iJob < len(jobs):
-            eraseDispDatasets(jobs[iJob:iJob+nJob])
-            # reassign jobs one by one to break dis dataset formation
-            for job in jobs[iJob:iJob+nJob]:
-                _logger.debug('reassignJobs in Pepro (%s)' % [job])
-                taskBuffer.reassignJobs([job],joinThr=True,forkSetupper=True)
-            iJob += nJob
-
+    reproLock.release()
+    # run thr
+    reproThr = ReassginRepro(taskBuffer,reproLock,jobs)
+    reproThr.start()
+    iBunch += 1
 
 # reassign long-waiting jobs in defined table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
