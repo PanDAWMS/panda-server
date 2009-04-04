@@ -44,7 +44,7 @@ class Setupper (threading.Thread):
         # resubmission or not
         self.resubmit = resubmit
         # time stamp
-        self.timestamp = time.asctime()
+        self.timestamp = time.strftime("%Y-%m-%d %H:%M:%S",time.gmtime())
         # use PandaDDM
         self.pandaDDM = pandaDDM
         # file list for dispDS for PandaDDM
@@ -135,7 +135,7 @@ class Setupper (threading.Thread):
                 # get VUID and record prodDBlock into DB
                 if not prodError.has_key(job.prodDBlock):
                     time.sleep(1)
-                    _logger.debug(('queryDatasetByName',job.prodDBlock))
+                    _logger.debug((self.timestamp,'queryDatasetByName',job.prodDBlock))
                     prodError[job.prodDBlock] = ''
                     for iDDMTry in range(3):
                         status,out = ddm.repositoryClient.main('queryDatasetByName',job.prodDBlock)
@@ -145,7 +145,7 @@ class Setupper (threading.Thread):
                             time.sleep(60)
                         else:
                             break
-                    _logger.debug(out)                        
+                    _logger.debug("%s %s" % (self.timestamp,out))                        
                     if status != 0 or out.find('Error') != -1:
                         prodError[job.prodDBlock] = "Setupper._setupSource() could not get VUID of prodDBlock"
                         _logger.error(out)                                            
@@ -216,7 +216,7 @@ class Setupper (threading.Thread):
                             self.replicaMap[job.dispatchDBlock] = {}
                         if not self.allReplicaMap.has_key(file.dataset):
                             for iDDMTry in range(3):
-                                _logger.debug(('listDatasetReplicas',file.dataset))
+                                _logger.debug((self.timestamp,'listDatasetReplicas',file.dataset))
                                 status,out = ddm.DQ2.main('listDatasetReplicas',file.dataset,0,None,False)
                                 if status != 0 or out.find("DQ2 internal server exception") != -1 \
                                        or out.find("An error occurred on the central catalogs") != -1 \
@@ -225,7 +225,7 @@ class Setupper (threading.Thread):
                                     time.sleep(60)
                                 else:
                                     break
-                            _logger.debug(out)
+                            _logger.debug("%s %s" % (self.timestamp,out))
                             if status != 0 or out.startswith('Error'):
                                 dispError[job.dispatchDBlock] = 'could not get locations for %s' % file.dataset
                                 _logger.error(dispError[job.dispatchDBlock])
@@ -242,13 +242,11 @@ class Setupper (threading.Thread):
                         if self.allReplicaMap.has_key(file.dataset):
                             self.replicaMap[job.dispatchDBlock][file.dataset] = self.allReplicaMap[file.dataset]
         # register dispatch dataset
-        _logger.debug('%s 5' % self.timestamp)                                
         dispList = []
         for dispatchDBlock in fileList.keys():
             # ignore empty dataset
             if len(fileList[dispatchDBlock]['lfns']) == 0:
                 continue
-            _logger.debug('%s 6' % self.timestamp)            
             # use DQ2
             if (not self.pandaDDM) and (not dispSiteMap[dispatchDBlock]['src'] in PandaDDMSource) \
                    and (job.prodSourceLabel != 'ddm') and (not dispSiteMap[dispatchDBlock]['site'].endswith("_REPRO")):
@@ -257,7 +255,7 @@ class Setupper (threading.Thread):
                     # make sure if it is dis datasets
                     if re.search('_dis\d+$',dispatchDBlock) != None:
                         time.sleep(1)
-                        _logger.debug(('eraseDataset',dispatchDBlock))
+                        _logger.debug((self.timestamp,'eraseDataset',dispatchDBlock))
                         for iDDMTry in range(3):                
                             status,out = ddm.DQ2.main('eraseDataset',dispatchDBlock)
                             if status != 0 and out.find('DQUnknownDatasetException') != -1:
@@ -268,13 +266,13 @@ class Setupper (threading.Thread):
                                 time.sleep(60)
                             else:
                                 break
-                        _logger.debug(out)
+                        _logger.debug("%s %s" % (self.timestamp,out))
                         ret = self.taskBuffer.deleteDatasets([dispatchDBlock])
-                        _logger.debug(ret)
+                        _logger.debug("%s %s" % (self.timestamp,ret))
                 # register dispatch dataset
                 time.sleep(1)
                 disFiles = fileList[dispatchDBlock]
-                _logger.debug(('registerNewDataset',dispatchDBlock,disFiles['lfns'],disFiles['guids'],
+                _logger.debug((self.timestamp,'registerNewDataset',dispatchDBlock,disFiles['lfns'],disFiles['guids'],
                                disFiles['fsizes'],disFiles['chksums']))
                 for iDDMTry in range(3):
                     status,out = ddm.DQ2.main('registerNewDataset',dispatchDBlock,disFiles['lfns'],disFiles['guids'],
@@ -284,14 +282,14 @@ class Setupper (threading.Thread):
                     elif status != 0 or out.find("DQ2 internal server exception") != -1 \
                              or out.find("An error occurred on the central catalogs") != -1 \
                              or out.find("MySQL server has gone away") != -1:
-                        _logger.debug("sleep %s for %s" % (iDDMTry,dispatchDBlock))
+                        _logger.debug("%s sleep %s for %s" % (self.timestamp,iDDMTry,dispatchDBlock))
                         _logger.debug(status)
                         _logger.debug(out)
                         _logger.debug("-------------")                                                                
                         time.sleep(60)
                     else:
                         break
-                _logger.debug(out)                
+                _logger.debug("%s %s" % (self.timestamp,out))                
                 if status != 0 or out.find('Error') != -1:
                     _logger.error(out)                
                     dispError[dispatchDBlock] = "Setupper._setupSource() could not register dispatchDBlock"
@@ -299,7 +297,7 @@ class Setupper (threading.Thread):
                 vuidStr = out
                 # freezeDataset dispatch dataset
                 time.sleep(1)            
-                _logger.debug(('freezeDataset',dispatchDBlock))
+                _logger.debug((self.timestamp,'freezeDataset',dispatchDBlock))
                 for iDDMTry in range(3):            
                     status,out = ddm.DQ2.main('freezeDataset',dispatchDBlock)
                     if status != 0 or out.find("DQ2 internal server exception") != -1 \
@@ -308,7 +306,7 @@ class Setupper (threading.Thread):
                         time.sleep(60)
                     else:
                         break
-                _logger.debug(out)                
+                _logger.debug("%s %s" % (self.timestamp,out))                
                 if status != 0 or (out.find('Error') != -1 and out.find("is frozen") == -1):
                     _logger.error(out)                
                     dispError[dispatchDBlock] = "Setupper._setupSource() could not freeze dispatchDBlock"
@@ -337,7 +335,6 @@ class Setupper (threading.Thread):
                 _logger.error("_setupSource() : %s %s" % (type,value))
                 dispError[dispatchDBlock] = "Setupper._setupSource() could not decode VUID dispatchDBlock"
         # insert datasets to DB
-        _logger.debug('%s 7' % self.timestamp)                    
         self.taskBuffer.insertDatasets(prodList+dispList)
         # job status
         for job in self.jobs:
@@ -350,7 +347,6 @@ class Setupper (threading.Thread):
         del prodList
         del prodError
         del dispSiteMap
-        _logger.debug('%s 8' % self.timestamp)                                    
                 
 
     # create dataset for outputs in the repository and assign destination
@@ -400,7 +396,7 @@ class Setupper (threading.Thread):
                         if (not self.pandaDDM) and (job.prodSourceLabel != 'ddm'):
                             # register dataset
                             time.sleep(1)
-                            _logger.debug(('registerNewDataset',name))
+                            _logger.debug((self.timestamp,'registerNewDataset',name))
                             atFailed = 0
                             for iDDMTry in range(3):
                                 status,out = ddm.DQ2.main('registerNewDataset',name)
@@ -410,14 +406,14 @@ class Setupper (threading.Thread):
                                 elif status != 0 or out.find("DQ2 internal server exception") != -1 \
                                          or out.find("An error occurred on the central catalogs") != -1 \
                                          or out.find("MySQL server has gone away") != -1:
-                                    _logger.debug("sleep %s for %s" % (iDDMTry,name))
+                                    _logger.debug("%s sleep %s for %s" % (self.timestamp,iDDMTry,name))
                                     _logger.debug(status)
                                     _logger.debug(out)
                                     _logger.debug("-------------")                                                                
                                     time.sleep(60)
                                 else:
                                     break
-                            _logger.debug(out)                                                            
+                            _logger.debug("%s %s" % (self.timestamp,out))                                                            
                             if status != 0 or out.find('Error') != -1:
                                 # unset vuidStr
                                 vuidStr = ""
@@ -461,7 +457,7 @@ class Setupper (threading.Thread):
                                                 dq2IDList.append(dq2ID)
                                 # loop over all locations
                                 for dq2ID in dq2IDList:
-                                    _logger.debug(('registerDatasetLocation',name,dq2ID))
+                                    _logger.debug((self.timestamp,'registerDatasetLocation',name,dq2ID))
                                     for iDDMTry in range(3):                            
                                         status,out = ddm.DQ2.main('registerDatasetLocation',name,dq2ID)
                                         if status != 0 and out.find('DQLocationExistsException') != -1:
@@ -472,7 +468,7 @@ class Setupper (threading.Thread):
                                             time.sleep(60)
                                         else:
                                             break
-                                    _logger.debug(out)
+                                    _logger.debug("%s %s" % (self.timestamp,out))
                                     # ignore "already exists at location XYZ"
                                     if out.find('DQLocationExistsException') != -1:
                                         _logger.debug('ignored ERROR')
@@ -499,7 +495,7 @@ class Setupper (threading.Thread):
                                     tmpFirstToken = file.destinationDBlockToken.split(',')[0] 
                                     if self.siteMapper.getSite(file.destinationSE).setokens.has_key(tmpFirstToken):
                                         dq2ID = self.siteMapper.getSite(file.destinationSE).setokens[tmpFirstToken]
-                                _logger.debug(('setMetaDataAttribute',name,'origin',dq2ID))
+                                _logger.debug((self.timestamp,'setMetaDataAttribute',name,'origin',dq2ID))
                                 for iDDMTry in range(3):
                                     status,out = ddm.DQ2.main('setMetaDataAttribute',name,'origin',dq2ID)
                                     if status != 0 or out.find("DQ2 internal server exception") != -1 \
@@ -508,7 +504,7 @@ class Setupper (threading.Thread):
                                         time.sleep(60)
                                     else:
                                         break
-                                _logger.debug(out)
+                                _logger.debug("%s %s" % (self.timestamp,out))
                                 if status != 0 or (out != 'None' and out.find('already exists') == -1):
                                     _logger.error(out)
                                     destError[dest] = "Setupper._setupDestination() could not set metadata : %s" % name
@@ -518,7 +514,7 @@ class Setupper (threading.Thread):
                             vuidStr = 'vuid="%s"' % commands.getoutput('uuidgen')
                         # get vuid
                         if vuidStr == '':
-                            _logger.debug(('queryDatasetByName',name))
+                            _logger.debug((self.timestamp,'queryDatasetByName',name))
                             for iDDMTry in range(3):                    
                                 status,out = ddm.repositoryClient.main('queryDatasetByName',name)
                                 if status != 0 or out.find("DQ2 internal server exception") != -1 \
@@ -527,7 +523,7 @@ class Setupper (threading.Thread):
                                     time.sleep(60)
                                 else:
                                     break
-                            _logger.debug(out)
+                            _logger.debug("%s %s" % (self.timestamp,out))
                             if status != 0 or out.find('Error') != -1:                                
                                 _logger.error(out)
                             vuidStr = "vuid = %s['%s']['vuids'][0]" % (out.split('\n')[0],name)
@@ -645,7 +641,7 @@ class Setupper (threading.Thread):
                             dq2IDList = [dq2ID]
                         for dq2ID in dq2IDList:
                             time.sleep(1)
-                            _logger.debug(('registerDatasetLocation',job.dispatchDBlock,dq2ID,0,1))
+                            _logger.debug((self.timestamp,'registerDatasetLocation',job.dispatchDBlock,dq2ID,0,1))
                             for iDDMTry in range(3):                                            
                                 status,out = ddm.DQ2.main('registerDatasetLocation',job.dispatchDBlock,dq2ID,0,1)
                                 if status != 0 or out.find("DQ2 internal server exception") != -1 \
@@ -654,7 +650,7 @@ class Setupper (threading.Thread):
                                     time.sleep(60)
                                 else:
                                     break
-                            _logger.debug(out)
+                            _logger.debug("%s %s" % (self.timestamp,out))
                             # failure
                             if status != 0 or out.find('Error') != -1:
                                 break
@@ -703,7 +699,7 @@ class Setupper (threading.Thread):
                             if job.cloud in ['NL','FR']:
                                 for tmpDQ2ID in dq2IDList:
                                     optSource[tmpDQ2ID] = {'policy' : 0}
-                        _logger.debug(('registerDatasetSubscription',job.dispatchDBlock,dq2ID,0,0,optSub,optSource,optSrcPolicy,0,None,0,"production"))
+                        _logger.debug((self.timestamp,'registerDatasetSubscription',job.dispatchDBlock,dq2ID,0,0,optSub,optSource,optSrcPolicy,0,None,0,"production"))
                         for iDDMTry in range(3):                                                                
                             status,out = ddm.DQ2.main('registerDatasetSubscription',job.dispatchDBlock,dq2ID,0,0,optSub,optSource,optSrcPolicy,0,None,0,"production")
                             if status != 0 or out.find("DQ2 internal server exception") != -1 \
@@ -712,7 +708,7 @@ class Setupper (threading.Thread):
                                 time.sleep(60)
                             else:
                                 break
-                        _logger.debug(out)                    
+                        _logger.debug("%s %s" % (self.timestamp,out))                    
                         if status != 0 or out != 'None':
                             _logger.error(out)
                             dispError[disp] = "Setupper._subscribeDistpatchDB() could not register subscription"
@@ -823,7 +819,7 @@ class Setupper (threading.Thread):
                                   (srcDQ2ID,dstDQ2ID,guidStr,lfnsStr,callBackURL,job.cloud,job.dispatchDBlock)
                     # set job parameters
                     ddmjob.jobParameters = argStr
-                    _logger.debug('pdq2_cr %s' % ddmjob.jobParameters)
+                    _logger.debug('%s pdq2_cr %s' % (self.timestamp,ddmjob.jobParameters))
                     # set src/dest
                     ddmjob.sourceSite      = srcDQ2ID
                     ddmjob.destinationSite = dstDQ2ID
@@ -925,9 +921,9 @@ class Setupper (threading.Thread):
                         cloudResolver = TaskAssigner.TaskAssigner(self.taskBuffer,self.siteMapper,
                                                                   job.taskID,job.prodSourceLabel)
                         # check cloud
-                        _logger.debug("check cloud for %s" % job.taskID)
+                        _logger.debug("%s check cloud for %s" % (self.timestamp,job.taskID))
                         retCloud = cloudResolver.checkCloud()
-                        _logger.debug("checkCloud() -> %s" % retCloud)
+                        _logger.debug("%s checkCloud() -> %s" % (self.timestamp,retCloud))
                         # failed
                         if retCloud == None:
                             _logger.error("failed to check cloud for %s" % job.taskID)
@@ -940,9 +936,9 @@ class Setupper (threading.Thread):
                             tmpLFNs  = []
                             tmpGUIDs = []
                             # set cloud
-                            _logger.debug("set cloud for %s" % job.taskID)                        
+                            _logger.debug("%s set cloud for %s" % (self.timestamp,job.taskID))                        
                             retCloud = cloudResolver.setCloud(tmpLFNs,tmpGUIDs,metadata=job.metadata)
-                            _logger.debug("setCloud() -> %s" % retCloud)
+                            _logger.debug("%s setCloud() -> %s" % (self.timestamp,retCloud))
                             if retCloud == None:
                                 _logger.error("failed to set cloud for %s" % job.taskID)
                                 # append job to waiting list
@@ -973,7 +969,7 @@ class Setupper (threading.Thread):
                     # get LFNs
                     time.sleep(1)
                     for iDDMTry in range(3):
-                        _logger.debug(('listFilesInDataset',dataset))
+                        _logger.debug((self.timestamp,'listFilesInDataset',dataset))
                         status,out = ddm.DQ2.main('listFilesInDataset',dataset)
                         if out.find("DQUnknownDatasetException") != -1:
                             break
@@ -1024,7 +1020,7 @@ class Setupper (threading.Thread):
                     # get replica locations        
                     if self.onlyTA and prodError[dataset] == '' and (not replicaMap.has_key(dataset)):
                         for iDDMTry in range(3):
-                            _logger.debug(('listDatasetReplicas',dataset))
+                            _logger.debug((self.timestamp,'listDatasetReplicas',dataset))
                             status,out = ddm.DQ2.main('listDatasetReplicas',dataset,0,None,False)
                             if status != 0 or out.find("DQ2 internal server exception") != -1 \
                                    or out.find("An error occurred on the central catalogs") != -1 \
@@ -1091,9 +1087,9 @@ class Setupper (threading.Thread):
                     cloudResolver = TaskAssigner.TaskAssigner(self.taskBuffer,self.siteMapper,
                                                               job.taskID,job.prodSourceLabel)
                     # check cloud
-                    _logger.debug("check cloud for %s" % job.taskID)
+                    _logger.debug("%s check cloud for %s" % (self.timestamp,job.taskID))
                     retCloud = cloudResolver.checkCloud()
-                    _logger.debug("checkCloud() -> %s" % retCloud)
+                    _logger.debug("%s checkCloud() -> %s" % (self.timestamp,retCloud))
                     # failed
                     if retCloud == None:
                         _logger.error("failed to check cloud for %s" % job.taskID)
@@ -1116,9 +1112,9 @@ class Setupper (threading.Thread):
                             # locations
                             tmpReLoc[dataset] = replicaMap[dataset] 
                         # set cloud
-                        _logger.debug("set cloud for %s" % job.taskID)                        
+                        _logger.debug("%s set cloud for %s" % (self.timestamp,job.taskID))                        
                         retCloud = cloudResolver.setCloud(tmpLFNs,tmpGUIDs,tmpReLoc,metadata=job.metadata)
-                        _logger.debug("setCloud() -> %s" % retCloud)
+                        _logger.debug("%s setCloud() -> %s" % (self.timestamp,retCloud))
                         if retCloud == None:
                             _logger.error("failed to set cloud for %s" % job.taskID)
                             # append job to waiting list
@@ -1159,7 +1155,7 @@ class Setupper (threading.Thread):
                     else:
                         # append job to waiting list
                         errMsg = "GUID for %s not found in DQ2" % file.lfn
-                        _logger.debug(errMsg)
+                        _logger.debug("%s %s" % (self.timestamp,errMsg))
                         file.status = 'missing'
                         job.jobStatus    = 'failed'                        
                         job.ddmErrorCode = ErrorCode.EC_GUID
@@ -1213,7 +1209,7 @@ class Setupper (threading.Thread):
             if not missLFNs.has_key(cloudKey):
                 missLFNs[cloudKey] = []
             missLFNs[cloudKey] += tmpMissLFNs
-        _logger.debug('missLFNs %s' % missLFNs)
+        _logger.debug('%s missLFNs %s' % (self.timestamp,missLFNs))
         # check if files in source LRC/LFC
         tmpJobList = tuple(jobsProcessed)
         for job in tmpJobList:

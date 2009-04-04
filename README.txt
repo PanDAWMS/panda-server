@@ -65,6 +65,7 @@ Release Note
   * threading for reassignRepro 
   * improved expiration messages
   * failed when input dataset is not found in DQ2
+  * debug messages in Setupper
 
 * 0.0.4 (2/23/2009)
   * GSI authentication for pilots
