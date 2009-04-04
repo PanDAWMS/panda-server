@@ -7,6 +7,7 @@ import re
 import sys
 import time
 import urllib
+import datetime
 import commands
 import threading
 import traceback
@@ -44,7 +45,7 @@ class Setupper (threading.Thread):
         # resubmission or not
         self.resubmit = resubmit
         # time stamp
-        self.timestamp = time.strftime("%Y-%m-%d %H:%M:%S",time.gmtime())
+        self.timestamp = datetime.datetime.utcnow().isoformat(' ')
         # use PandaDDM
         self.pandaDDM = pandaDDM
         # file list for dispDS for PandaDDM
