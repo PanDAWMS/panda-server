@@ -528,6 +528,9 @@ nBunch = 20
 iBunch = 0
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=8)
 while True:
+    # lock
+    reproLock.acquire()
+    # get jobs
     varMap = {}
     varMap[':jobStatus'] = 'assigned'
     varMap[':prodSourceLabel'] = 'managed'
@@ -538,6 +541,7 @@ while True:
                                   varMap)
     # escape
     if res == None or len(res) == 0:
+        reproLock.release()
         break
 
     # get IDs
@@ -548,7 +552,6 @@ while True:
     # reassign
     _logger.debug('reassignJobs for Pepro %s' % (iBunch*nBunch))
     # lock
-    reproLock.acquire()
     currentTime = datetime.datetime.utcnow()
     for jobID in jobs:
         varMap = {}
