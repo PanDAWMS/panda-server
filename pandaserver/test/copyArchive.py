@@ -497,73 +497,6 @@ while True:
         time.sleep(60)
 
                         
-# reassign reprocessing jobs in defined table
-class ReassginRepro (threading.Thread):
-    def __init__(self,taskBuffer,lock,jobs):
-        threading.Thread.__init__(self)
-        self.jobs       = jobs
-        self.lock       = lock
-        self.taskBuffer = taskBuffer
-
-    def run(self):
-        self.lock.acquire()
-        try:
-            if len(self.jobs):
-                nJob = 100
-                iJob = 0
-                while iJob < len(self.jobs):
-                    eraseDispDatasets(self.jobs[iJob:iJob+nJob])
-                    # reassign jobs one by one to break dis dataset formation
-                    for job in self.jobs[iJob:iJob+nJob]:
-                        _logger.debug('reassignJobs in Pepro (%s)' % [job])
-                        self.taskBuffer.reassignJobs([job],joinThr=True,forkSetupper=True)
-                    iJob += nJob
-        except:
-            pass
-        self.lock.release()
-        
-reproLock = threading.Semaphore(3)
-
-nBunch = 20
-iBunch = 0
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=8)
-while True:
-    # lock
-    reproLock.acquire()
-    # get jobs
-    varMap = {}
-    varMap[':jobStatus'] = 'assigned'
-    varMap[':prodSourceLabel'] = 'managed'
-    varMap[':modificationTime'] = timeLimit
-    varMap[':nBunch'] = nBunch
-    varMap[':processingType'] = 'reprocessing'
-    status,res = proxyS.querySQLS("SELECT * FROM (SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE jobStatus=:jobStatus AND prodSourceLabel=:prodSourceLabel AND modificationTime<:modificationTime AND processingType=:processingType ORDER BY PandaID) WHERE rownum<=:nBunch",
-                                  varMap)
-    # escape
-    if res == None or len(res) == 0:
-        reproLock.release()
-        break
-
-    # get IDs
-    jobs=[]
-    for id, in res:
-        jobs.append(id)
-        
-    # reassign
-    _logger.debug('reassignJobs for Pepro %s' % (iBunch*nBunch))
-    # lock
-    currentTime = datetime.datetime.utcnow()
-    for jobID in jobs:
-        varMap = {}
-        varMap[':PandaID'] = jobID
-        varMap[':modificationTime'] = currentTime
-        status,res = proxyS.querySQLS("UPDATE ATLAS_PANDA.jobsDefined4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID",
-                                      varMap)
-    reproLock.release()
-    # run thr
-    reproThr = ReassginRepro(taskBuffer,reproLock,jobs)
-    reproThr.start()
-    iBunch += 1
 
 # reassign long-waiting jobs in defined table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
@@ -1077,6 +1010,84 @@ for name,addr in mailMap.iteritems():
     # update email
     _logger.debug("set '%s' to %s" % (name,addr))
     status,res = proxyS.querySQLS("UPDATE ATLAS_PANDAMETA.users SET email=:addr WHERE name=:name",{':addr':addr,':name':name})
+
+# reassign reprocessing jobs in defined table
+_memoryCheck("repro")
+class ReassginRepro (threading.Thread):
+    def __init__(self,taskBuffer,lock,jobs):
+        threading.Thread.__init__(self)
+        self.jobs       = jobs
+        self.lock       = lock
+        self.taskBuffer = taskBuffer
+
+    def run(self):
+        self.lock.acquire()
+        try:
+            if len(self.jobs):
+                nJob = 100
+                iJob = 0
+                while iJob < len(self.jobs):
+                    eraseDispDatasets(self.jobs[iJob:iJob+nJob])
+                    # reassign jobs one by one to break dis dataset formation
+                    for job in self.jobs[iJob:iJob+nJob]:
+                        _logger.debug('reassignJobs in Pepro (%s)' % [job])
+                        self.taskBuffer.reassignJobs([job],joinThr=True,forkSetupper=True)
+                    iJob += nJob
+        except:
+            pass
+        self.lock.release()
+        
+reproLock = threading.Semaphore(3)
+
+nBunch = 20
+iBunch = 0
+timeLimitMod = datetime.datetime.utcnow() - datetime.timedelta(hours=8)
+timeLimitCre = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
+firstFlag = True
+while True:
+    # lock
+    reproLock.acquire()
+    # get jobs
+    varMap = {}
+    varMap[':jobStatus'] = 'assigned'
+    varMap[':prodSourceLabel'] = 'managed'
+    varMap[':modificationTime'] = timeLimitMod
+    varMap[':creationTime'] = timeLimitCre
+    varMap[':processingType'] = 'reprocessing'
+    if firstFlag:
+        firstFlag = False
+        status,res = proxyS.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE jobStatus=:jobStatus AND prodSourceLabel=:prodSourceLabel AND modificationTime<:modificationTime AND creationTime<:creationTime AND processingType=:processingType ORDER BY PandaID",
+                                      varMap)
+        if res != None:
+            _logger.debug('total Repro for reassignJobs : %s' % len(res))
+    # get a bunch    
+    status,res = proxyS.querySQLS("SELECT * FROM (SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE jobStatus=:jobStatus AND prodSourceLabel=:prodSourceLabel AND modificationTime<:modificationTime AND creationTime<:creationTime AND processingType=:processingType ORDER BY PandaID) WHERE rownum<=%s" % nBunch,
+                                  varMap)
+    # escape
+    if res == None or len(res) == 0:
+        reproLock.release()
+        break
+
+    # get IDs
+    jobs=[]
+    for id, in res:
+        jobs.append(id)
+        
+    # reassign
+    _logger.debug('reassignJobs for Pepro %s' % (iBunch*nBunch))
+    # lock
+    currentTime = datetime.datetime.utcnow()
+    for jobID in jobs:
+        varMap = {}
+        varMap[':PandaID'] = jobID
+        varMap[':modificationTime'] = currentTime
+        status,res = proxyS.querySQLS("UPDATE ATLAS_PANDA.jobsDefined4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID",
+                                      varMap)
+    reproLock.release()
+    # run thr
+    reproThr = ReassginRepro(taskBuffer,reproLock,jobs)
+    reproThr.start()
+    iBunch += 1
 
 _memoryCheck("end")
 
