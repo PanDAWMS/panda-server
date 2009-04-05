@@ -1,5 +1,6 @@
 import sys
 import time
+import datetime
 import commands
 import threading
 import urllib2,urllib
@@ -34,12 +35,13 @@ class Thr(threading.Thread):
         threading.Thread.__init__(self)
 
     def run(self):
+        print datetime.datetime.utcnow().isoformat(' ')
         conn = httplib.HTTPSConnection(host,key_file=certKey,cert_file=certKey)
         conn.request('POST',path,rdata)
         resp = conn.getresponse()
-        print time.localtime()
         data = resp.read()
         conn.close()
+        print datetime.datetime.utcnow().isoformat(' ')
         import cgi
         print cgi.parse_qs(data)
 

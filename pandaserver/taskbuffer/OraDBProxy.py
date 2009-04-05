@@ -41,7 +41,7 @@ _lockGetCT   = open(panda_config.lockfile_getCT, 'w')
 class DBProxy:
 
     # constructor
-    def __init__(self):
+    def __init__(self,useOtherError=False):
         # connection object
         self.conn = None
         # cursor object
@@ -50,6 +50,9 @@ class DBProxy:
         self.hostname = None
         # retry count
         self.nTry = 5
+        # use special error codes for reconnection in querySQL
+        self.useOtherError = useOtherError
+
         
     # connect to DB
     def connect(self,dbhost=panda_config.dbhost,dbpasswd=panda_config.dbpasswd,
@@ -107,7 +110,7 @@ class DBProxy:
             return res
         except:
             # roll back
-            self._rollback()
+            self._rollback(self.useOtherError)
             type, value, traceBack = sys.exc_info()
             _logger.error("querySQL : %s " % sql)
             _logger.error("querySQL : %s %s" % (type,value))
@@ -133,7 +136,7 @@ class DBProxy:
             return ret,res
         except:
             # roll back
-            self._rollback()
+            self._rollback(self.useOtherError)
             type, value, traceBack = sys.exc_info()
             _logger.error("querySQLS : %s %s" % (sql,str(varMap)))
             _logger.error("querySQLS : %s %s" % (type,value))
@@ -848,7 +851,7 @@ class DBProxy:
                 return ret
             except:
                 # roll back
-                self._rollback()
+                self._rollback(True)
                 if iTry+1 < nTry:
                     _logger.debug("updateJobStatus : %s retry : %s" % (pandaID,iTry))            
                     time.sleep(random.randint(10,20))
@@ -908,7 +911,7 @@ class DBProxy:
                 return True
             except:
                 # roll back
-                self._rollback()
+                self._rollback(True)
                 if iTry+1 < nTry:
                     _logger.debug("updateJob : %s retry : %s" % (job.PandaID,iTry))
                     time.sleep(random.randint(10,20))
@@ -4144,7 +4147,7 @@ class DBProxy:
 
 
     # rollback
-    def _rollback(self):
+    def _rollback(self,useOtherError=False):
         retVal = True
         # rollback
         _logger.debug("rollback")            
@@ -4160,9 +4163,14 @@ class DBProxy:
             oraErrCode = str(errValue).split()[0]
             oraErrCode = oraErrCode[:-1]
             _logger.debug("rollback EC:%s %s" % (oraErrCode,errValue))
-            if oraErrCode in ['ORA-01012','ORA-01033','ORA-01034','ORA-01089',
-                              'ORA-03113','ORA-03114','ORA-12203','ORA-12500',
-                              'ORA-12571','ORA-03135','ORA-25402']:
+            # error codes for connection error
+            error_Codes  = ['ORA-01012','ORA-01033','ORA-01034','ORA-01089',
+                            'ORA-03113','ORA-03114','ORA-12203','ORA-12500',
+                            'ORA-12571','ORA-03135','ORA-25402']
+            # other errors are apperantly given when connection lost contact
+            if useOtherError:
+                error_Codes += ['ORA-01861','ORA-01008']
+            if oraErrCode in error_Codes:
                 # reconnect
                 self.connect(reconnect=True)
                 _logger.debug("rollback reconnected")                                            

@@ -94,7 +94,7 @@ except:
     
     
 # instantiate DB proxies
-proxyS = DBProxy()
+proxyS = DBProxy(True)
 proxyS.connect(panda_config.dbhost,panda_config.dbpasswd,panda_config.dbuser,panda_config.dbname)
 
 # table names
