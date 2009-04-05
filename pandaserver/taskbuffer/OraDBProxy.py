@@ -664,7 +664,7 @@ class DBProxy:
                 return True,ddmIDs,ddmAttempt,newJob
             except:
                 # roll back
-                self._rollback()
+                self._rollback(True)
                 if iTry+1 < nTry:
                     _logger.debug("archiveJob : %s retry : %s" % (job.PandaID,iTry))                
                     time.sleep(random.randint(10,20))
