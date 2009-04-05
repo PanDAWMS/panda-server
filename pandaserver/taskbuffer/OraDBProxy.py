@@ -4172,8 +4172,8 @@ class DBProxy:
                 error_Codes += ['ORA-01861','ORA-01008']
             if oraErrCode in error_Codes:
                 # reconnect
-                self.connect(reconnect=True)
-                _logger.debug("rollback reconnected")                                            
+                retFlag = self.connect(reconnect=True)
+                _logger.debug("rollback reconnected %s" % retFlag)
         except:
             pass
         # return
