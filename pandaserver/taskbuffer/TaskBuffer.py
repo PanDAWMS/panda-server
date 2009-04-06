@@ -999,11 +999,11 @@ class TaskBuffer:
     # register proxy key
     def registerProxyKey(self,params):
         # get DBproxy
-        proxy = self.logProxyPool.getProxy()
+        proxy = self.proxyPool.getProxy()
         # register proxy key
         ret = proxy.registerProxyKey(params)
         # release proxy
-        self.logProxyPool.putProxy(proxy)
+        self.proxyPool.putProxy(proxy)
         # return
         return ret
 
