@@ -3,7 +3,7 @@
 # Setup prog for Panda Server
 #
 #
-release_version='0.0.4'
+release_version='0.0.5'
 
 import re
 import sys
