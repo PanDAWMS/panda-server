@@ -2,6 +2,7 @@ Release Note
 
 * current
   * subtract N*250M from available space in brokerage
+  * use tasktype2 for RW recalculation
 
 * 0.0.5 (4/7/2009)
   * fixed broker_util to use proper python
