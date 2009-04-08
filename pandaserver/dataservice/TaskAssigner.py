@@ -30,6 +30,13 @@ taskTypesMcShare = ['evgen']
 # task types for subscriptions
 taskTypesSub = ['simul']
 
+# tasktype2 categories
+processGroups = [('others',       []),
+                 ('evgensimul',   ['evgen','simul']),
+                 ('reprocessing', ['reprocessing']),
+                 ('test',         ['prod_test']),
+                 ]
+
 
 class TaskAssigner:
     # constructor
@@ -74,19 +81,22 @@ class TaskAssigner:
             highRWs  = {}
             prioMap  = {}
             fullRWs  = {}
+            tt2Map   = {}
             try:
                 # parse metadata
                 if not metadata in (None,'NULL'):
                     # task type
                     taskType = metadata.split(';')[0]
                     # RWs
-                    exec "RWs = %s" % metadata.split(';')[1]
+                    exec "RWs = %s"     % metadata.split(';')[1]
                     # expected RWs
-                    exec "expRWs = %s" % metadata.split(';')[2]
+                    exec "expRWs = %s"  % metadata.split(';')[2]
                     # RWs for high priority tasks
                     exec "prioMap = %s" % metadata.split(';')[3]
                     # full RWs for space calcuration
                     exec "fullRWs = %s" % metadata.split(';')[4]
+                    # tasktype2 map
+                    exec "tt2Map = %s"  % metadata.split(';')[5]
             except:
                 pass
             message = '%s taskType=%s prio=%s RW=%s' % (self.taskID,taskType,prioMap[self.taskID],
@@ -96,13 +106,27 @@ class TaskAssigner:
             _logger.debug('%s RWs     =%s' % (self.taskID,str(RWs)))
             _logger.debug('%s expRWs  =%s' % (self.taskID,str(expRWs)))
             _logger.debug('%s prioMap =%s' % (self.taskID,str(prioMap)))            
-            _logger.debug('%s fullRWs =%s' % (self.taskID,str(fullRWs)))            
+            _logger.debug('%s fullRWs =%s' % (self.taskID,str(fullRWs)))
+            _logger.debug('%s tt2Map  =%s' % (self.taskID,str(tt2Map)))            
             # get cloud list
             cloudList = self.siteMapper.getCloudList()
             # get pilot statistics
             nWNmap = self.taskBuffer.getCurrentSiteData()
+            # get process group
+            myTaskGroup = None
+            for tmpKey,tmpList in processGroups:
+                # set default
+                if myTaskGroup == None:
+                    myTaskGroup = tmpKey
+                    continue
+                if tt2Map[self.taskID] in tmpList:
+                    myTaskGroup = tmpKey
+                    break
             # recalculate RWs
             for tmpTaskID,tmpExpRW in expRWs.iteritems():
+                # skip myself
+                if tmpTaskID == self.taskID:
+                    continue
                 # get cloud from DB
                 tmpCloudInDB = self.taskBuffer.seeCloudTask(tmpTaskID)
                 # not assigned
@@ -117,6 +141,19 @@ class TaskAssigner:
                     continue
                 # lower priority
                 if prioMap[tmpTaskID] < prioMap[self.taskID]:
+                    continue
+                # check tasktype2
+                tmpTaskGroup = None
+                for tmpKey,tmpList in processGroups:
+                    # set default
+                    if tmpTaskGroup == None:
+                        tmpTaskGroup = tmpKey
+                        continue
+                    if tt2Map[tmpTaskID] in tmpList:
+                        tmpTaskGroup = tmpKey
+                        break
+                # check tasktype2
+                if tmpTaskGroup != myTaskGroup:
                     continue
                 # increase RW
                 if not RWs.has_key(tmpCloudInDB):
