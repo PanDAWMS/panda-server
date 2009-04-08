@@ -295,11 +295,6 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                             except:
                                 type, value, traceBack = sys.exc_info()
                                 _log.error("memory check : %s %s" % (type,value))
-                        # check space for T2
-                        if site != siteMapper.getCloud(previousCloud)['source']:
-                            if tmpSiteSpec.space != 0 and tmpSiteSpec.space < 200:
-                                _log.debug('  skip: disk shortage %s' % tmpSiteSpec.space)
-                                continue
                         # get pilot statistics
                         if nWNmap == {}:
                             nWNmap = taskBuffer.getCurrentSiteData()
@@ -314,6 +309,15 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                         # if no jobs in jobsActive/jobsDefined
                         if not jobStatistics.has_key(site):
                             jobStatistics[site] = {'assigned':0,'activated':0,'running':0}
+                        # check space for T2
+                        if site != siteMapper.getCloud(previousCloud)['source']:
+                            if tmpSiteSpec.space != 0:
+                                nRemJobs = jobStatistics[site]['assigned']+jobStatistics[site]['activated']+jobStatistics[site]['running']
+                                remSpace = tmpSiteSpec.space - 0.250*nRemJobs
+                                _log.debug('   space %s %s' % (tmpSiteSpec.space,remSpace))
+                                if remSpace < 200:
+                                    _log.debug('  skip: disk shortage')
+                                    continue
                         # number of jobs per node
                         if not nWNmap.has_key(site):
                             nJobsPerNode = 1

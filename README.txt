@@ -1,5 +1,8 @@
 Release Note
 
+* current
+  * subtract N*250M from available space in brokerage
+
 * 0.0.5 (4/7/2009)
   * fixed broker_util to use proper python
   * use jobParamsTable
