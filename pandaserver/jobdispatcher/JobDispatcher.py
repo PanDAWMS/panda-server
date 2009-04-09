@@ -417,7 +417,7 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
     if jobId=='NULL':
         return Protocol.Response(Protocol.SC_Success).encode()
     # check status
-    if not state in ['running','failed','finished','holding','starting']:
+    if not state in ['running','failed','finished','holding','starting','transferring']:
         _logger.warning("invalid state=%s for updateJob" % state)
         return Protocol.Response(Protocol.SC_Success).encode()        
     # pilot log

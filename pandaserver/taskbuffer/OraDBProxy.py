@@ -1163,7 +1163,7 @@ class DBProxy:
                         _logger.debug("getJobs : no DDM jobs for Site %s" % siteName)
                         break
                 # get job
-                if prodSourceLabel in ['ddm','user']:
+                if prodSourceLabel in ['ddm']:
                     # to add some delay for attempts
                     sql1 += attSQL
                     getValMap[':creationTime'] = attLimit                    
