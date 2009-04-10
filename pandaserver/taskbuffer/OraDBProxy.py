@@ -2993,7 +2993,7 @@ class DBProxy:
         _logger.debug("getJobStatisticsBrokerage()")
         sql0 = "SELECT computingSite,jobStatus,processingType,COUNT(*) FROM %s WHERE prodSourceLabel=:prodSourceLabel "
         sql0 += "GROUP BY computingSite,jobStatus,processingType"
-        tables = ['jobsActive4','jobsDefined4']
+        tables = ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4']
         ret = {}
         nTry=3
         for iTry in range(nTry):
