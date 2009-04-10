@@ -5,6 +5,7 @@ import commands
 import ErrorCode
 import broker_util
 import PandaSiteIDs
+from taskbuffer import ProcessGroups
 from config import panda_config
 
 from pandalogger.PandaLogger import PandaLogger
@@ -153,6 +154,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
     try:
         # get statistics
         jobStatistics = taskBuffer.getJobStatistics()
+        jobStatBroker = taskBuffer.getJobStatisticsBrokerage()        
         # sort jobs by siteID. Some jobs may already define computingSite
         jobs.sort(_compFunc)
         # loop over all jobs + terminator(None)
@@ -186,7 +188,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                     _log.debug('  cmtConfig      %s' % prevCmtConfig)
                     _log.debug('  prodDBlock     %s' % prodDBlock)
                     _log.debug('  computingSite  %s' % computingSite)
-                    _log.debug('  processingType %s' % prevProType)                    
+                    _log.debug('  processingType %s' % prevProType)
                 # determine site
                 if iJob == 0 or chosen_ce != 'TOBEDONE':
                      # file scan for pre-assigned jobs
@@ -325,16 +327,21 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                             nJobsPerNode = 1
                         else:
                             nJobsPerNode = float(jobStatistics[site]['running'])/float(nWNmap[site]['updateJob'])
+                        # get the number of activated and assigned for the process group
+                        tmpProGroup = ProcessGroups.getProcessGroup(prevProType)
+                        if not jobStatBroker.has_key(site):
+                            jobStatBroker[site] = {}
+                        if not jobStatBroker[site].has_key(tmpProGroup):
+                            jobStatBroker[site][tmpProGroup] = {'assigned':0,'activated':0,'running':0}
+                        nAssJobs = jobStatBroker[site][tmpProGroup]['assigned']
+                        nActJobs = jobStatBroker[site][tmpProGroup]['activated']
                         # calculate weight
                         _log.debug('   %s assigned:%s activated:%s running:%s nPilots:%s nJobsPerNode:%s' %
-                                   (site,jobStatistics[site]['assigned'],jobStatistics[site]['activated'],
-                                    jobStatistics[site]['running'],nPilots,nJobsPerNode))
+                                   (site,nAssJobs,nActJobs,jobStatistics[site]['running'],nPilots,nJobsPerNode))
                         if nPilots != 0:
-                            winv = (float(jobStatistics[site]['activated']+jobStatistics[site]['assigned'])) \
-                                   / float(nPilots) / nJobsPerNode
+                            winv = (float(nAssJobs+nActJobs)) / float(nPilots) / nJobsPerNode
                         else:
-                            winv = (float(jobStatistics[site]['activated']+jobStatistics[site]['assigned'])) \
-                                   / nJobsPerNode
+                            winv = (float(nAssJobs+nActJobs)) / nJobsPerNode
                         # send jobs to T1 when they require many inputs
                         if float(len(fileList))/float(iJob) > 4:
                             if site == siteMapper.getCloud(previousCloud)['source']:
@@ -438,9 +445,15 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                         # set 'ready' if files are already there
                         _setReadyToFiles(tmpJob,okFiles,siteMapper)                        
                         # update statistics
+                        tmpProGroup = ProcessGroups.getProcessGroup(tmpJob.processingType)
                         if not jobStatistics.has_key(tmpJob.computingSite):
                             jobStatistics[tmpJob.computingSite] = {'assigned':0,'activated':0,'running':0}
+                        if not jobStatBroker.has_key(tmpJob.computingSite):
+                            jobStatBroker[tmpJob.computingSite] = {}
+                        if not jobStatBroker[tmpJob.computingSite].has_key(tmpProGroup):
+                            jobStatBroker[tmpJob.computingSite][tmpProGroup] = {'assigned':0,'activated':0,'running':0}
                         jobStatistics[tmpJob.computingSite]['assigned'] += 1
+                        jobStatBroker[tmpJob.computingSite][tmpProGroup]['assigned'] += 1
                 # terminate
                 if job == None:
                     break

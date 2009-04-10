@@ -2600,6 +2600,57 @@ class DBProxy:
                 return {}
 
 
+    # get job statistics for brokerage
+    def getJobStatisticsBrokerage(self):
+        comment = ' /* DBProxy.getJobStatisticsBrokerage */'        
+        _logger.debug("getJobStatisticsBrokerage()")
+        sql0 = "SELECT computingSite,jobStatus,processingType,COUNT(*) FROM %s WHERE prodSourceLabel='managed' "
+        sql0 += "GROUP BY computingSite,jobStatus,processingType"
+        tables = ['jobsActive4','jobsDefined4']
+        ret = {}
+        nTry=3
+        for iTry in range(nTry):
+            try:
+                for table in tables:
+                    # set autocommit on
+                    self.cur.execute("SET AUTOCOMMIT=1")
+                    # select
+                    self.cur.execute((sql0+comment) % table)
+                    res = self.cur.fetchall()
+                    # commit
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+                    # create map
+                    for computingSite,jobStatus,processingType,count in res:
+                        # add site
+                        if not ret.has_key(computingSite):
+                            ret[computingSite] = {}
+                        # add processingType
+                        if not ret[computingSite].has_key(processingType):
+                            ret[computingSite][processingType] = {}
+                        # add jobStatus
+                        if not ret[computingSite][processingType].has_key(jobStatus):
+                            ret[computingSite][processingType][jobStatus] = count
+                # for zero
+                for site,siteVal in ret.iteritems():
+                    for pType,typeVal in siteVal.iteritems():
+                        for stateItem in ['assigned','activated','running']:
+                            if not typeVal.has_key(stateItem):
+                                typeVal[stateItem] = 0
+                # return
+                return ret
+            except:
+                # roll back
+                self._rollback()
+                if iTry+1 < nTry:
+                    _logger.debug("getJobStatisticsBrokerage retry : %s" % iTry)
+                    time.sleep(2)
+                    continue
+                type, value, traceBack = sys.exc_info()
+                _logger.error("getJobStatisticsBrokerage : %s %s" % (type, value))
+                return {}
+
+
     # get computingSite and destinationSE for a dataset
     def getDestSE(self,dsname):
         comment = ' /* DBProxy.getDestSE */'        

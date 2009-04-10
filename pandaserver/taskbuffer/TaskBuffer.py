@@ -1,5 +1,6 @@
 import re
 import datetime
+import ProcessGroups
 from threading import Lock
 from DBProxyPool import DBProxyPool
 from brokerage.SiteMapper import SiteMapper
@@ -813,6 +814,20 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         # return
         return ret
+
+
+    # get job statistics for brokerage
+    def getJobStatisticsBrokerage(self):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get stat
+        ret = proxy.getJobStatisticsBrokerage()
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # convert
+        conRet = ProcessGroups.countJobsPerGroup(ret)
+        # return
+        return conRet
 
 
     # get job statistics for ExtIF
