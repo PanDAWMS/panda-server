@@ -24,7 +24,7 @@ for i in range(1):
     job.transformation    = 'csc_evgen_trf.py'
     job.destinationDBlock = datasetName
     job.destinationSE     = destName
-    job.currentPriority   = 1000
+    job.currentPriority   = 100
     job.prodSourceLabel   = 'test'
     job.computingSite     = site
     job.cloud             = 'US' 
