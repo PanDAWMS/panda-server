@@ -119,7 +119,7 @@ fileList = tmpList
 # add
 while len(fileList) != 0:
     # time limit to aviod too many copyArchve running at the sametime
-    if (datetime.datetime.utcnow() - timeNow) > datetime.timedelta(minutes=40):
+    if (datetime.datetime.utcnow() - timeNow) > datetime.timedelta(minutes=60):
         _logger.debug("time over in Adder session")
         break
     # get fileList
