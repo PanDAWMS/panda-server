@@ -17,9 +17,9 @@ from pandalogger.PandaLogger import PandaLogger
 _logger = PandaLogger().getLogger('TaskAssigner')
 
 # cutoff for RW
-thr_RW_low  = 200
-thr_RW_high = 2000
-thr_RW_sub  = 200
+thr_RW_low  = 400
+thr_RW_high = 4000
+thr_RW_sub  = 400
 
 # cutoff for disk
 thr_space_low = (1 * 1024)
