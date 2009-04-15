@@ -191,6 +191,11 @@ class DBProxy:
         # DN
         if job.prodUserID == "NULL" or job.prodSourceLabel in ['user','panda']:
             job.prodUserID = user
+        # compact user name
+        job.prodUserName = self.cleanUserID(job.prodUserID)
+        if job.prodUserName in ['','NULL']:
+            # use prodUserID as compact user name
+            job.prodUserName = job.prodUserID
         # VO
         job.VO = userVO
         # priority

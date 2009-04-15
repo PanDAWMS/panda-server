@@ -18,7 +18,7 @@ class JobSpec(object):
                    'metadata','prodDBlock','dispatchDBlock','destinationDBlock','destinationSE',
                    'nEvents','grid','cloud','cpuConversion','sourceSite','destinationSite','transferType',
                    'taskID','cmtConfig','stateChangeTime','prodDBUpdateTime','lockedby','relocationFlag',
-                   'jobExecutionID','VO','pilotTiming','workingGroup','processingType')
+                   'jobExecutionID','VO','pilotTiming','workingGroup','processingType','prodUserName')
     # slots
     __slots__ = _attributes+('Files',)
     # attributes which have 0 by default
