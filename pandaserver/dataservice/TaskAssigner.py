@@ -11,6 +11,7 @@ import commands
 import brokerage.broker_util
 from DDM import ddm
 from config import panda_config
+from taskbuffer import ProcessGroups
 from pandalogger.PandaLogger import PandaLogger
 
 # logger
@@ -29,13 +30,6 @@ taskTypesMcShare = ['evgen']
 
 # task types for subscriptions
 taskTypesSub = ['simul']
-
-# tasktype2 categories
-processGroups = [('others',       []),
-                 ('evgensimul',   ['evgen','simul']),
-                 ('reprocessing', ['reprocessing']),
-                 ('test',         ['prod_test']),
-                 ]
 
 
 class TaskAssigner:
@@ -113,15 +107,7 @@ class TaskAssigner:
             # get pilot statistics
             nWNmap = self.taskBuffer.getCurrentSiteData()
             # get process group
-            myTaskGroup = None
-            for tmpKey,tmpList in processGroups:
-                # set default
-                if myTaskGroup == None:
-                    myTaskGroup = tmpKey
-                    continue
-                if tt2Map[self.taskID] in tmpList:
-                    myTaskGroup = tmpKey
-                    break
+            myTaskGroup = ProcessGroups.getProcessGroup(tt2Map[self.taskID])
             # recalculate RWs
             for tmpTaskID,tmpExpRW in expRWs.iteritems():
                 # skip myself
@@ -143,15 +129,7 @@ class TaskAssigner:
                 if prioMap[tmpTaskID] < prioMap[self.taskID]:
                     continue
                 # check tasktype2
-                tmpTaskGroup = None
-                for tmpKey,tmpList in processGroups:
-                    # set default
-                    if tmpTaskGroup == None:
-                        tmpTaskGroup = tmpKey
-                        continue
-                    if tt2Map[tmpTaskID] in tmpList:
-                        tmpTaskGroup = tmpKey
-                        break
+                tmpTaskGroup = ProcessGroups.getProcessGroup(tt2Map[tmpTaskID])
                 # check tasktype2
                 if tmpTaskGroup != myTaskGroup:
                     continue
