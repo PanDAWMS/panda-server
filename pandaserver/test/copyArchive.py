@@ -17,6 +17,7 @@ from jobdispatcher.Watcher import Watcher
 from brokerage.SiteMapper import SiteMapper
 from dataservice.Adder import Adder
 from dataservice.Finisher import Finisher
+from taskbuffer import ProcessGroups
 import brokerage.broker_util
 import brokerage.broker
 import taskbuffer.ErrorCode
@@ -116,39 +117,27 @@ if res == None:
     _logger.debug("total %s " % res)
 else:
     _logger.debug("total %s " % len(res))
-    # get PandaIDs in last 3 days
-    archIDs = []
-    try:
-        stArch,resArch = proxyS.querySQLS("SELECT PandaID FROM %s WHERE modificationTime>:modificationTime" % jobATableName,
-                                          {':modificationTime':timeLimit},arraySize=1000000)
-        for idArch, in resArch:
-            archIDs.append(idArch)
-    except:
-        pass
     # copy
     for (id,srcEndTime) in res:
         try:
             # check if already recorded
-            copyFound = True
-            if not id in archIDs:
-                _logger.debug("check  %s " % id)
-                sql = "SELECT PandaID from %s WHERE PandaID=:PandaID" % jobATableName
-                varMap = {}
-                varMap[':PandaID'] = id
-                status,check = proxyS.querySQLS(sql,varMap)
-                # copy
-                if len(check) == 0:
-                    copyFound = False
-                    # get jobs
-                    job = proxyS.peekJob(id,False,False,True,False)
-                    # insert to archived
-                    if job != None and job.jobStatus != 'unknown':
-                        proxyS.insertJobSimple(job,jobATableName,filesATableName,paramATableName,metaATableName)
-                        _logger.debug("INSERT %s" % id)
-                    else:
-                        _logger.error("Failed to peek at %s" % id)
-            # set archivedFlag            
-            if copyFound:
+            _logger.debug("check  %s " % id)
+            sql = "SELECT PandaID from %s WHERE PandaID=:PandaID" % jobATableName
+            varMap = {}
+            varMap[':PandaID'] = id
+            status,check = proxyS.querySQLS(sql,varMap)
+            # copy
+            if len(check) == 0:
+                # get jobs
+                job = proxyS.peekJob(id,False,False,True,False)
+                # insert to archived
+                if job != None and job.jobStatus != 'unknown':
+                    proxyS.insertJobSimple(job,jobATableName,filesATableName,paramATableName,metaATableName)
+                    _logger.debug("INSERT %s" % id)
+                else:
+                    _logger.error("Failed to peek at %s" % id)
+            else:
+                # set archivedFlag            
                 varMap = {}
                 varMap[':PandaID'] = id
                 varMap[':archivedFlag'] = 1
@@ -497,6 +486,152 @@ while True:
         time.sleep(60)
 
                         
+# reassign when ratio of running/notrunning is too unbalanced
+_logger.debug("reassign Unbalanced")
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=4)
+jobStat = {}
+rangeValues = ['all','limit']
+for rangeVal in rangeValues:
+    for jobStatus in ['running','activated','assigned']:
+        table = 'ATLAS_PANDA.jobsDefined4'
+        if jobStatus in ['running','activated']:
+            table = 'ATLAS_PANDA.jobsActive4'
+        varMap = {}    
+        varMap[':prodSourceLabel'] = 'managed'
+        varMap[':jobStatus'] = jobStatus
+        if rangeVal == 'all':
+            sql = "SELECT computingSite,cloud,processingType,count(*) FROM %s WHERE prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus GROUP BY computingSite,cloud,processingType" \
+                  % table
+        else:
+            sql = "SELECT computingSite,cloud,processingType,count(*) FROM %s WHERE prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus AND modificationTime<:modificationTime GROUP BY computingSite,cloud,processingType" \
+                  % table
+            varMap[':modificationTime'] = timeLimit
+        # execute
+        status,res = proxyS.querySQLS(sql,varMap)
+        if res != None:
+            for computingSite,cloud,processingType,nJobs in res:
+                # add cloud
+                if not jobStat.has_key(cloud):
+                    jobStat[cloud] = {}
+                # add site
+                if not jobStat[cloud].has_key(computingSite):
+                    jobStat[cloud][computingSite] = {}
+                # add range
+                if not jobStat[cloud][computingSite].has_key(rangeVal):
+                    jobStat[cloud][computingSite][rangeVal] = {}
+                # add process group
+                tmpProGroup = ProcessGroups.getProcessGroup(processingType)
+                if not jobStat[cloud][computingSite][rangeVal].has_key(tmpProGroup):
+                    jobStat[cloud][computingSite][rangeVal][tmpProGroup] = {}
+                # set status
+                tmpStatus = jobStatus
+                if jobStatus != 'running':
+                    tmpStatus = 'notrunning'
+                # add status
+                if not jobStat[cloud][computingSite][rangeVal][tmpProGroup].has_key(tmpStatus):
+                    jobStat[cloud][computingSite][rangeVal][tmpProGroup][tmpStatus] = 0
+                # add
+                jobStat[cloud][computingSite][rangeVal][tmpProGroup][tmpStatus] += nJobs
+# look for unbalanced site
+for cloud,siteVal in jobStat.iteritems():
+    jobsCloud = {}
+    ngSites   = {}
+    t1Site = siteMapper.getCloud(cloud)['source']
+    _logger.debug("Cloud:%s" % cloud)
+    for computingSite,jobVal in siteVal.iteritems():
+        # set 0
+        for rangeVal in rangeValues:
+            for pgType,pgList in ProcessGroups.processGroups:
+                # add range
+                if not jobVal.has_key(rangeVal):
+                    jobVal[rangeVal] = {}
+                # add process group
+                if not jobVal[rangeVal].has_key(pgType):
+                    jobVal[rangeVal][pgType] = {}
+                # number of jobs
+                if not jobVal[rangeVal][pgType].has_key('running'):
+                    jobVal[rangeVal][pgType]['running'] = 0
+                if not jobVal[rangeVal][pgType].has_key('notrunning'):
+                    jobVal[rangeVal][pgType]['notrunning'] = 0            
+        # check ratio
+        for pgType,pgList in ProcessGroups.processGroups:
+            # add process group to map
+            if not jobsCloud.has_key(pgType):
+                jobsCloud[pgType] = {'notrunning':0,'running':0,'notfull':False}
+            if not ngSites.has_key(pgType):
+                ngSites[pgType] = []
+            # get ratio
+            checkRatio = jobVal['limit'][pgType]['notrunning'] > jobVal['all'][pgType]['running']*4
+            jobsCloud[pgType]['running']    += jobVal['all'][pgType]['running']            
+            jobsCloud[pgType]['notrunning'] += jobVal['all'][pgType]['notrunning']
+            # check ratio
+            if computingSite in [t1Site,'NULL']:
+                # skip T1
+                statStr = '--'
+            else:
+                if checkRatio:
+                    statStr = 'NG'
+                    ngSites[pgType].append(computingSite)
+                else:
+                    statStr = '--'
+                    # not full
+                    if jobVal['all'][pgType]['notrunning'] < jobVal['all'][pgType]['running']*2:
+                        jobsCloud[pgType]['notfull'] = True
+            _logger.debug("%20s : %14s %s n:%-5s r:%-5s" % (computingSite,pgType,statStr,jobVal['limit'][pgType]['notrunning'],
+                                                            jobVal['all'][pgType]['running']))
+    #  reassign
+    for pgType,pgList in ProcessGroups.processGroups:
+        _logger.debug("  %14s : n:%-5s r:%-5s %s" % (pgType,jobsCloud[pgType]['notrunning'],
+                                                     jobsCloud[pgType]['running'],jobsCloud[pgType]['notfull']))
+        if jobsCloud[pgType]['notrunning'] > jobsCloud[pgType]['running']*2 and ngSites[pgType] != [] and jobsCloud[pgType]['notfull']:
+            # reassign except reprocessing
+            if pgType in ['reprocessing']:
+                continue
+            # get PandaIDs
+            jobs = []
+            for table in ['ATLAS_PANDA.jobsDefined4','ATLAS_PANDA.jobsActive4']:
+                varMap = {}
+                varMap[':prodSourceLabel'] = 'managed'
+                varMap[':jobStatus1'] = 'activated'
+                varMap[':jobStatus2'] = 'assigned'
+                sql  = "SELECT PandaID FROM %s WHERE prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) AND computingSite IN (" % table
+                idxSite = 1
+                for ngSite in ngSites[pgType]:
+                    tmpSiteKey = ':computingSite%s' % idxSite
+                    sql += "%s," % tmpSiteKey
+                    varMap[tmpSiteKey] = ngSite
+                    idxSite += 1
+                sql = sql[:-1]
+                sql += ") AND processingType IN ("
+                idxPro = 1
+                for pgItem in pgList:
+                    tmpProKey = ':processingType%s' % idxPro
+                    sql += "%s," % tmpProKey
+                    varMap[tmpProKey] = pgItem
+                    idxPro += 1
+                sql = sql[:-1]
+                sql += ") AND modificationTime<:modificationTime ORDER BY PandaID"
+                varMap[':modificationTime'] = timeLimit
+                # execute
+                _logger.debug(sql+str(varMap))
+                status,res = proxyS.querySQLS(sql,varMap)
+                if res != None:
+                    # get IDs
+                    for id, in res:
+                        jobs.append(id)
+            # reassign
+            if jobs != []:
+                if len(jobs):
+                    nJob = 100
+                    iJob = 0
+                    while iJob < len(jobs):
+                        #_logger.debug('reassignJobs for Unbalanced (%s)' % jobs[iJob:iJob+nJob])
+                        #eraseDispDatasets(jobs[iJob:iJob+nJob])
+                        #Client.reassignJobs(jobs[iJob:iJob+nJob])
+                        iJob += nJob
+                        #time.sleep(60)
+
+
 
 # reassign long-waiting jobs in defined table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
@@ -639,11 +774,96 @@ if len(jobs):
 
 _memoryCheck("closing")
 
-# time limit for dataset closing
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
+
+# thread pool
+class ThreadPool:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.list = []
+
+    def add(self,obj):
+        self.lock.acquire()
+        self.list.append(obj)
+        self.lock.release()
+
+    def remove(self,obj):
+        self.lock.acquire()
+        self.list.remove(obj)
+        self.lock.release()
+
+    def join(self):
+        self.lock.acquire()
+        thrlist = tuple(self.list)
+        self.lock.release()
+        for thr in thrlist:
+            thr.join()
+
+
+# thread to close dataset
+class CloserThr (threading.Thread):
+    def __init__(self,lock,proxyLock,datasets,pool):
+        threading.Thread.__init__(self)
+        self.datasets   = datasets
+        self.lock       = lock
+        self.proxyLock  = proxyLock
+        self.pool       = pool
+        self.pool.add(self)
+                                        
+    def run(self):
+        self.lock.acquire()
+        try:
+            # loop over all datasets
+            for vuid,name,modDate in self.datasets:
+                _logger.debug("Close %s %s" % (modDate,name))
+                if not name.startswith('testpanda.ddm.'):
+                    status,out = ddm.DQ2.main('freezeDataset',name)
+                else:
+                    status,out = 0,''
+                if status != 0 and out.find('DQFrozenDatasetException') == -1 and \
+                       out.find("DQUnknownDatasetException") == -1 and out.find("DQSecurityException") == -1 and \
+                       out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1:
+                    _logger.error(out)
+                else:
+                    self.proxyLock.acquire()
+                    varMap = {}
+                    varMap[':vuid'] = vuid
+                    varMap[':status'] = 'completed'
+                    proxyS.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status=:status,modificationdate=CURRENT_DATE WHERE vuid=:vuid",
+                                     varMap)
+                    self.proxyLock.release()                    
+                    if name.startswith('testpanda.ddm.'):
+                        continue
+                    # count # of files
+                    status,out = ddm.DQ2.main('getNumberOfFiles',name)
+                    _logger.debug(out)                                            
+                    if status != 0:
+                        _logger.error(out)                            
+                    else:
+                        try:
+                            nFile = int(out)
+                            _logger.debug(nFile)
+                            if nFile == 0:
+                                # erase dataset
+                                _logger.debug('erase %s' % name)
+                                status,out = ddm.DQ2.main('eraseDataset',name)
+                                _logger.debug(out)                            
+                        except:
+                            pass
+        except:
+            pass
+        self.pool.remove(self)
+        self.lock.release()
 
 # close datasets
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
+closeLock = threading.Semaphore(5)
+closeProxyLock = threading.Lock()
+closeThreadPool = ThreadPool()
 while True:
+    # lock
+    closeLock.acquire()
+    # get datasets
+    closeProxyLock.acquire()
     varMap = {}
     varMap[':modificationdate'] = timeLimit
     varMap[':type']   = 'output'
@@ -655,85 +875,101 @@ while True:
     else:
         _logger.debug("# of datasets to be closed: %s" % len(res))
     if res==None or len(res)==0:
+        closeProxyLock.release()
+        closeLock.release()
         break
     # update to prevent other process from picking up
     for (vuid,name,modDate) in res:
-        # convert string to datetime
-        if re.search('^\d+/\d+/\d+',modDate) != None:
-            datetimeTime = datetime.datetime(*time.strptime(modDate,'%Y/%m/%d %H:%M:%S')[:6])
-        elif re.search('^\d+-[^-]+-\d+$',modDate) != None:
-            datetimeTime = datetime.datetime(*time.strptime(modDate,'%d-%b-%y')[:6])            
-        else:
-            datetimeTime = datetime.datetime(*time.strptime(modDate,'%Y-%m-%d %H:%M:%S')[:6])
-        # delete
-        if datetimeTime < timeLimit:
-            proxyS.querySQLS("UPDATE ATLAS_PANDA.Datasets SET modificationdate=CURRENT_DATE WHERE vuid=:vuid", {':vuid':vuid})
-    for (vuid,name,modDate) in res:
-        # convert string to datetime
-        if re.search('^\d+/\d+/\d+',modDate) != None:
-            datetimeTime = datetime.datetime(*time.strptime(modDate,'%Y/%m/%d %H:%M:%S')[:6])
-        elif re.search('^\d+-[^-]+-\d+$',modDate) != None:
-            datetimeTime = datetime.datetime(*time.strptime(modDate,'%d-%b-%y')[:6])            
-        else:
-            datetimeTime = datetime.datetime(*time.strptime(modDate,'%Y-%m-%d %H:%M:%S')[:6])
-        # delete
-        if datetimeTime < timeLimit:
-            _logger.debug("Close %s %s" % (modDate,name))
-            if not name.startswith('testpanda.ddm.'):
-                status,out = ddm.DQ2.main('freezeDataset',name)
-            else:
-                status,out = 0,''
-            if status != 0 and out.find('DQFrozenDatasetException') == -1 and \
-                   out.find("DQUnknownDatasetException") == -1 and out.find("DQSecurityException") == -1 and \
-                   out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1:
-                _logger.error(out)
-            else:
-                varMap = {}
-                varMap[':vuid'] = vuid
-                varMap[':status'] = 'completed'
-                proxyS.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status=:status,modificationdate=CURRENT_DATE WHERE vuid=:vuid",
-                                 varMap)
-                if name.startswith('testpanda.ddm.'):
-                    continue
-                # count # of files
-                status,out = ddm.DQ2.main('getNumberOfFiles',name)
-                _logger.debug(out)                                            
-                if status != 0:
-                    _logger.error(out)                            
+        proxyS.querySQLS("UPDATE ATLAS_PANDA.Datasets SET modificationdate=CURRENT_DATE WHERE vuid=:vuid", {':vuid':vuid})
+    # release
+    closeProxyLock.release()
+    closeLock.release()
+    # run thread
+    closerThr = CloserThr(closeLock,closeProxyLock,res,closeThreadPool)
+    closerThr.start()
+
+closeThreadPool.join()
+
+
+# thread to freeze dataset
+class Freezer (threading.Thread):
+    def __init__(self,lock,proxyLock,datasets,pool):
+        threading.Thread.__init__(self)
+        self.datasets   = datasets
+        self.lock       = lock
+        self.proxyLock  = proxyLock
+        self.pool       = pool
+        self.pool.add(self)
+                                        
+    def run(self):
+        self.lock.acquire()
+        try:
+            for vuid,name,modDate in self.datasets:
+                _logger.debug("start %s %s" % (modDate,name))
+                self.proxyLock.acquire()
+                retF,resF = proxyS.querySQLS("SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ lfn FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock",
+                                             {':destinationDBlock':name})
+                self.proxyLock.release()
+                if retF<0 or retF == None or retF!=len(resF):
+                    _logger.error("SQL error")
                 else:
-                    try:
-                        nFile = int(out)
-                        _logger.debug(nFile)
-                        if nFile == 0:
-                            # erase dataset
-                            _logger.debug('erase %s' % name)
-                            status,out = ddm.DQ2.main('eraseDataset',name)
-                            _logger.debug(out)                            
-                    except:
-                        pass
-                # logging
-                try:
-                    # make message
-                    message = '%s - vuid:%s name:%s' % (commands.getoutput('hostname'),vuid,name)
-                    # get logger
-                    _pandaLogger = PandaLogger()
-                    _pandaLogger.lock()
-                    _pandaLogger.setParams({'Type':'freezeDataset'})
-                    logger = _pandaLogger.getHttpLogger(panda_config.loggername)
-                    # add message
-                    logger.info(message)
-                    # release HTTP handler
-                    _pandaLogger.release()
-                except:
-                    pass
-        else:
-            _logger.debug("Wait  %s %s" % (modDate,name))
-
-_memoryCheck("freezing")
-
+                    # no files in filesTable
+                    if len(resF) == 0:
+                        _logger.debug("freeze %s " % name)
+                        if not name.startswith('testpanda.ddm.'):
+                            status,out = ddm.DQ2.main('freezeDataset',name)
+                        else:
+                            status,out = 0,''
+                        if status != 0 and out.find('DQFrozenDatasetException') == -1 and \
+                               out.find("DQUnknownDatasetException") == -1 and out.find("DQSecurityException") == -1 and \
+                               out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1:
+                            _logger.error(out)
+                        else:
+                            self.proxyLock.acquire()
+                            varMap = {}
+                            varMap[':vuid'] = vuid
+                            varMap[':status'] = 'completed' 
+                            proxyS.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status=:status,modificationdate=CURRENT_DATE WHERE vuid=:vuid",
+                                             varMap)
+                            self.proxyLock.release()                            
+                            if name.startswith('testpanda.ddm.'):
+                                continue
+                            # count # of files
+                            status,out = ddm.DQ2.main('getNumberOfFiles',name)
+                            _logger.debug(out)                                            
+                            if status != 0:
+                                _logger.error(out)                            
+                            else:
+                                try:
+                                    nFile = int(out)
+                                    _logger.debug(nFile)
+                                    if nFile == 0:
+                                        # erase dataset
+                                        _logger.debug('erase %s' % name)                                
+                                        status,out = ddm.DQ2.main('eraseDataset',name)
+                                        _logger.debug(out)                                                                
+                                except:
+                                    pass
+                    else:
+                        _logger.debug("wait %s " % name)
+                        self.proxyLock.acquire()                        
+                        proxyS.querySQLS("UPDATE ATLAS_PANDA.Datasets SET modificationdate=CURRENT_DATE WHERE vuid=:vuid", {':vuid':vuid})
+                        self.proxyLock.release()                                                    
+                _logger.debug("end %s " % name)
+        except:
+            pass
+        self.pool.remove(self)
+        self.lock.release()
+                            
 # freeze dataset
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=4)
-for i in range(100):
+freezeLock = threading.Semaphore(5)
+freezeProxyLock = threading.Lock()
+freezeThreadPool = ThreadPool()
+while True:
+    # lock
+    freezeLock.acquire()
+    # get datasets
     sql = "SELECT vuid,name,modificationdate FROM ATLAS_PANDA.Datasets " + \
           "WHERE type=:type AND (status=:status1 OR status=:status2 OR status=:status3) " + \
           "AND modificationdate<:modificationdate AND REGEXP_LIKE(name,:pattern) AND rownum <= 20"
@@ -744,64 +980,29 @@ for i in range(100):
     varMap[':status2'] = 'created'
     varMap[':status3'] = 'defined'
     varMap[':pattern'] = '_sub[[:digit:]]+$'
+    freezeProxyLock.acquire()
     ret,res = proxyS.querySQLS(sql, varMap)
     if res == None:
         _logger.debug("# of datasets to be frozen: %s" % res)
     else:
         _logger.debug("# of datasets to be frozen: %s" % len(res))
     if res==None or len(res)==0:
+        freezeProxyLock.release()
+        freezeLock.release()
         break
     # update to prevent other process from picking up
     for (vuid,name,modDate) in res:
-        proxyS.querySQLS("UPDATE ATLAS_PANDA.Datasets SET modificationdate=CURRENT_DATE WHERE vuid=:vuid", {':vuid':vuid})
-    if len(res) != 0:
-        for (vuid,name,modDate) in res:
-            _logger.debug("start %s %s" % (modDate,name))
-            retF,resF = proxyS.querySQLS("SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ lfn FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock",
-                                         {':destinationDBlock':name})
-            if retF<0:
-                _logger.error("SQL error")
-            else:
-                # no files in filesTable
-                if len(resF) == 0:
-                    _logger.debug("freeze %s " % name)
-                    if not name.startswith('testpanda.ddm.'):
-                        status,out = ddm.DQ2.main('freezeDataset',name)
-                    else:
-                        status,out = 0,''
-                    if status != 0 and out.find('DQFrozenDatasetException') == -1 and \
-                           out.find("DQUnknownDatasetException") == -1 and out.find("DQSecurityException") == -1 and \
-                           out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1:
-                        _logger.error(out)
-                    else:
-                        varMap = {}
-                        varMap[':vuid'] = vuid
-                        varMap[':status'] = 'completed' 
-                        proxyS.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status=:status,modificationdate=CURRENT_DATE WHERE vuid=:vuid",
-                                         varMap)
-                        if name.startswith('testpanda.ddm.'):
-                            continue
-                        # count # of files
-                        status,out = ddm.DQ2.main('getNumberOfFiles',name)
-                        _logger.debug(out)                                            
-                        if status != 0:
-                            _logger.error(out)                            
-                        else:
-                            try:
-                                nFile = int(out)
-                                _logger.debug(nFile)
-                                if nFile == 0:
-                                    # erase dataset
-                                    _logger.debug('erase %s' % name)                                
-                                    status,out = ddm.DQ2.main('eraseDataset',name)
-                                    _logger.debug(out)                                                                
-                            except:
-                                pass
-                else:
-                    _logger.debug("wait %s " % name)
-                    proxyS.querySQLS("UPDATE ATLAS_PANDA.Datasets SET modificationdate=CURRENT_DATE WHERE vuid=:vuid", {':vuid':vuid})
-            _logger.debug("end %s " % name)
-            time.sleep(1)
+        proxyS.querySQLS("UPDATE ATLAS_PANDA.Datasets SET modificationdate=CURRENT_DATE WHERE vuid=:vuid", {':vuid':vuid})        
+    freezeProxyLock.release()            
+    # release
+    freezeLock.release()
+    # run freezer
+    freezer = Freezer(freezeLock,freezeProxyLock,res,freezeThreadPool)
+    freezer.start()
+
+freezeThreadPool.join()
+
+
 
 _memoryCheck("delete XML")
 
