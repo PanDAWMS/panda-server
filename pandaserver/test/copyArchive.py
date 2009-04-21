@@ -602,9 +602,18 @@ for cloud,siteVal in jobStat.iteritems():
                     varMap[tmpSiteKey] = ngSite
                     idxSite += 1
                 sql = sql[:-1]
-                sql += ") AND processingType IN ("
+                if pgList != []:
+                    sql += ") AND processingType IN ("
+                    tmpPgList = pgList
+                else:
+                    sql += ") AND processingType NOT IN ("
+                    # get types to be excluded
+                    tmpPgList = []
+                    for tmpExPgType,tmpExPgList in ProcessGroups.processGroups:
+                        if tmpExPgType != pgType:
+                            tmpPgList += tmpExPgList
                 idxPro = 1
-                for pgItem in pgList:
+                for pgItem in tmpPgList:
                     tmpProKey = ':processingType%s' % idxPro
                     sql += "%s," % tmpProKey
                     varMap[tmpProKey] = pgItem
@@ -910,7 +919,7 @@ class Freezer (threading.Thread):
                 retF,resF = proxyS.querySQLS("SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ lfn FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock",
                                              {':destinationDBlock':name})
                 self.proxyLock.release()
-                if retF<0 or retF == None or retF!=len(resF):
+                if retF<0:
                     _logger.error("SQL error")
                 else:
                     # no files in filesTable

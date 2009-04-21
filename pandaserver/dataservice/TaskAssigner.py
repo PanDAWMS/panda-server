@@ -235,15 +235,60 @@ class TaskAssigner:
                 random.shuffle(iFileList)
                 iFileList = iFileList[:maxLoop]
                 iFileList.sort()
+            # count the number of files to be lookup
+            maxNFiles = 0
+            for iFile in iFileList:
+                maxNFiles += len(lfns[iFile:iFile+nFile])
             # loop over all cloud
             weightParams = {}
             for tmpCloudName in cloudList:
                 _logger.debug('%s calculate weight for %s' % (self.taskID,tmpCloudName))
+                # add missing cloud in RWs
+                if not RWs.has_key(tmpCloudName):
+                    RWs[tmpCloudName] = 0
+                if not fullRWs.has_key(tmpCloudName):
+                    fullRWs[tmpCloudName] = 0
                 # get cloud
                 tmpCloud = self.siteMapper.getCloud(tmpCloudName)
                 weightParams[tmpCloudName] = {}            
                 # get T1 site
                 tmpT1Site = self.siteMapper.getSite(tmpCloud['source'])
+                # get number of running jobs. Initially set 1 to avoid zero dividing
+                nPilot = 1
+                for siteName in tmpCloud['sites']:
+                    if nWNmap.has_key(siteName):
+                        nPilot += (nWNmap[siteName]['getJob'] + nWNmap[siteName]['updateJob'])
+                weightParams[tmpCloudName]['nPilot'] = nPilot
+                _logger.debug('%s  # of pilots %s' % (self.taskID,nPilot))
+                # available space
+                weightParams[tmpCloudName]['space'] = tmpT1Site.space
+                _logger.debug('%s  T1 space    %s' % (self.taskID,tmpT1Site.space))
+                # MC share
+                weightParams[tmpCloudName]['mcshare'] = tmpCloud['mcshare']
+                _logger.debug('%s  MC share    %s' % (self.taskID,tmpCloud['mcshare']))
+                # calculate available space = totalT1space - ((RW(cloud)+RW(thistask))*GBperSI2kday))
+                aveSpace = self.getAvailableSpace(weightParams[tmpCloudName]['space'],
+                                                  fullRWs[tmpCloudName],
+                                                  expRWs[self.taskID])
+                # no task is assigned if available space is less than 1TB
+                if aveSpace < thr_space_low:
+                    message = '%s    %s skip : space=%s total=%s' % \
+                              (self.taskID,tmpCloudName,aveSpace,weightParams[tmpCloudName]['space'])
+                    _logger.debug(message)
+                    self.sendMesg(message,msgType='warning')
+                    del weightParams[tmpCloudName]                    
+                    continue
+                else:
+                    _logger.debug('%s    %s pass : space=%s total=%s' % \
+                                  (self.taskID,tmpCloudName,aveSpace,weightParams[tmpCloudName]['space']))
+                # not assign tasks when RW is too high
+                if RWs.has_key(tmpCloudName) and RWs[tmpCloudName] > thr_RW_high*weightParams[tmpCloudName]['mcshare']:
+                    message = '%s    %s skip : too high RW=%s > %s' % \
+                              (self.taskID,tmpCloudName,RWs[tmpCloudName],thr_RW_high*weightParams[tmpCloudName]['mcshare'])
+                    _logger.debug(message)
+                    self.sendMesg(message,msgType='warning')
+                    del weightParams[tmpCloudName]
+                    continue
                 # DQ2 URL
                 dq2URL = tmpT1Site.dq2url
                 dq2ID  = tmpT1Site.ddm
@@ -295,22 +340,8 @@ class TaskAssigner:
                     del weightParams[tmpCloudName]
                     continue
                 _logger.debug('%s  # of files  %s' % (self.taskID,weightParams[tmpCloudName]['nFiles']))
-                # get number of running jobs. Initially set 1 to avoid zero dividing
-                nPilot = 1
-                for siteName in tmpCloud['sites']:
-                    if nWNmap.has_key(siteName):
-                        nPilot += (nWNmap[siteName]['getJob'] + nWNmap[siteName]['updateJob'])
-                weightParams[tmpCloudName]['nPilot'] = nPilot
-                _logger.debug('%s  # of pilots %s' % (self.taskID,nPilot))
-                # available space
-                weightParams[tmpCloudName]['space'] = tmpT1Site.space
-                _logger.debug('%s  T1 space    %s' % (self.taskID,tmpT1Site.space))
-                # MC share
-                weightParams[tmpCloudName]['mcshare'] = tmpCloud['mcshare']
-                _logger.debug('%s  MC share    %s' % (self.taskID,tmpCloud['mcshare']))                
             # compare parameters
             definedCloud = "US"
-            maxNFiles = 0
             maxClouds = []
             useMcShare = False
             for cloudName,params in weightParams.iteritems():
@@ -329,39 +360,10 @@ class TaskAssigner:
                     _logger.debug(message)
                     self.sendMesg(message)
                     time.sleep(2)                    
-            # check space/RW
-            _logger.debug('%s check space/RW' % self.taskID)                
-            tmpMaxClouds = []
+            # check RW
+            _logger.debug('%s check RW' % self.taskID)                
             tmpInfClouds = []
             for cloudName in maxClouds:
-                # add missing cloud in RWs
-                if not RWs.has_key(cloudName):
-                    RWs[cloudName] = 0
-                if not fullRWs.has_key(cloudName):
-                    fullRWs[cloudName] = 0
-                # calculate available space = totalT1space - ((RW(cloud)+RW(thistask))*GBperSI2kday))
-                aveSpace = self.getAvailableSpace(weightParams[cloudName]['space'],
-                                                  fullRWs[cloudName],
-                                                  expRWs[self.taskID])
-                # no task is assigned if available space is less than 1TB
-                if aveSpace < thr_space_low:
-                    message = '%s    %s skip : space=%s total=%s' % \
-                              (self.taskID,cloudName,aveSpace,weightParams[cloudName]['space'])
-                    _logger.debug(message)
-                    self.sendMesg(message,msgType='warning')
-                    continue
-                else:
-                    _logger.debug('%s    %s pass : space=%s total=%s' % \
-                                  (self.taskID,cloudName,aveSpace,weightParams[cloudName]['space']))
-                    tmpMaxClouds.append(cloudName)
-                # not assign tasks when RW is too high
-                if RWs.has_key(cloudName) and RWs[cloudName] > thr_RW_high*weightParams[cloudName]['mcshare']:
-                    message = '%s    %s skip : too high RW=%s > %s' % \
-                              (self.taskID,cloudName,RWs[cloudName],thr_RW_high*weightParams[cloudName]['mcshare'])
-                    _logger.debug(message)
-                    self.sendMesg(message,msgType='warning')
-                    tmpMaxClouds.remove(cloudName)
-                    continue
                 # set weight to infinite when RW is too low
                 if not taskType in taskTypesMcShare:
                     if RWs[cloudName] < thr_RW_low*weightParams[cloudName]['mcshare']:
@@ -372,13 +374,10 @@ class TaskAssigner:
                         tmpInfClouds.append(cloudName)
             # use new list
             if tmpInfClouds != []:
-                _logger.debug('%s use infinite clouds after space/RW checking' % self.taskID)
+                _logger.debug('%s use infinite clouds after RW checking' % self.taskID)
                 maxClouds  = tmpInfClouds
                 useMcShare = True
-            elif tmpMaxClouds != []:
-                _logger.debug('%s use new clouds after space/RW checking' % self.taskID)
-                maxClouds = tmpMaxClouds
-            else:
+            elif maxClouds == []:
                 messageEnd = '%s no candidates left' % self.taskID
                 self.sendMesg(messageEnd,msgType='warning')
                 # make subscription to empty cloud
@@ -499,13 +498,15 @@ class TaskAssigner:
             return False
         # get DN
         com = 'unset LD_LIBRARY_PATH; unset PYTHONPATH; export PATH=/usr/local/bin:/bin:/usr/bin; '
-        com+= 'source %s; voms-proxy-info -acsubject' % panda_config.glite_source
+        com+= 'source %s; grid-proxy-info -subject' % panda_config.glite_source
         status,DN = commands.getstatusoutput(com)
         _logger.debug('%s %s' % (self.taskID,DN))
         # ignore AC issuer
         if re.search('WARNING: Unable to verify signature!',DN) != None:
             status = 0
         DN = DN.split('\n')[-1]
+        # remove /CN=proxy
+        DN = re.sub('(/CN=proxy)+$','',DN)
         if status != 0:
             _logger.error('%s could not get DN %s:%s' % (self.taskID,status,DN))
             return False
@@ -601,7 +602,6 @@ class TaskAssigner:
                 else:
                     _logger.error('%s %s %s' % (self.taskID,status,outList))
                     return False
-            _logger.debug('%s %s' % (self.taskID,outList))
             # get total size
             dsSizeMap[tmpDS] = 0
             exec "outList = %s" % outList
@@ -646,10 +646,12 @@ class TaskAssigner:
             # get minimum RW
             if not RWs.has_key(tmpCloudName):
                 RWs[tmpCloudName] = 0
+            tmpRwThr = tmpCloudSpec['mcshare']*thr_RW_sub    
             _logger.debug('%s    %s RW=%s Thr=%s' % (self.taskID,tmpCloudName,RWs[tmpCloudName],
-                                                     tmpCloudSpec['mcshare']*thr_RW_sub))
-            if minRW == None or minRW > RWs[tmpCloudName]/tmpCloudSpec['mcshare']/thr_RW_sub:
-                minRW    = RWs[tmpCloudName]/tmpCloudSpec['mcshare']/thr_RW_sub
+                                                     tmpRwThr))
+            tmpRwRatio = float(RWs[tmpCloudName])/float(tmpRwThr)
+            if minRW == None or minRW > tmpRwRatio:
+                minRW    = tmpRwRatio
                 minCloud = tmpCloudName
         # check RW
         if minCloud == None:

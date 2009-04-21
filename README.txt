@@ -7,6 +7,8 @@ Release Note
   * use job stat per process group in brokerage
   * added prodUserName
   * added validation to test
+  * fixed TA
+  * use prodUserName for users
 
 * 0.0.5 (4/7/2009)
   * fixed broker_util to use proper python

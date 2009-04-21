@@ -1091,8 +1091,12 @@ class DBProxy:
             getValMap[':prodSourceLabel'] = prodSourceLabel
         # user ID
         if prodUserID != None:
-            sql1+= "AND prodUserID=:prodUserID " 
-            getValMap[':prodUserID'] = prodUserID
+            # get compact DN
+            compactDN = self.cleanUserID(prodUserID)
+            if compactDN in ['','NULL',None]:
+                compactDN = prodUserID
+            sql1+= "AND prodUserName=:prodUserName " 
+            getValMap[':prodUserName'] = compactDN
         sql2 = "SELECT %s FROM ATLAS_PANDA.jobsActive4 " % JobSpec.columnNames()
         sql2+= "WHERE PandaID=:PandaID"
         retJobs = []
@@ -1791,15 +1795,19 @@ class DBProxy:
         comment = ' /* DBProxy.getJobIDsInTimeRange */'                        
         _logger.debug("getJobIDsInTimeRange : %s %s" % (dn,timeRange.strftime('%Y-%m-%d %H:%M:%S')))
         try:
+            # get compact DN
+            compactDN = self.cleanUserID(dn)
+            if compactDN in ['','NULL',None]:
+                compactDN = dn
             tables = ['ATLAS_PANDA.jobsArchived4','ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4','ATLAS_PANDA.jobsDefined4']
             # select
             for table in tables:
                 # make sql
                 sql  = "SELECT jobDefinitionID FROM %s " % table
-                sql += "WHERE prodUserID=:prodUserID AND modificationTime>:modificationTime "
+                sql += "WHERE prodUserName=:prodUserName AND modificationTime>:modificationTime "
                 sql += "AND prodSourceLabel=:prodSourceLabel GROUP BY jobDefinitionID"
                 varMap = {}
-                varMap[':prodUserID'] = dn
+                varMap[':prodUserName'] = compactDN
                 varMap[':prodSourceLabel']  = 'user'
                 varMap[':modificationTime'] = timeRange
                 # start transaction
@@ -1832,6 +1840,10 @@ class DBProxy:
         comment = ' /* DBProxy.getPandIDsWithJobID */'                        
         _logger.debug("getPandIDsWithJobID : %s %s" % (dn,jobID))
         try:
+            # get compact DN
+            compactDN = self.cleanUserID(dn)
+            if compactDN in ['','NULL',None]:
+                compactDN = dn
             tables = ['ATLAS_PANDA.jobsArchived4','ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4','ATLAS_PANDA.jobsDefined4']
             # select
             for table in tables:
@@ -1840,10 +1852,10 @@ class DBProxy:
                     continue
                 # make sql
                 sql  = "SELECT PandaID,jobStatus,commandToPilot FROM %s " % table                
-                sql += "WHERE prodUserID=:prodUserID AND jobDefinitionID=:jobDefinitionID "
+                sql += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
                 sql += "AND prodSourceLabel in (:prodSourceLabel1,:prodSourceLabel2)"
                 varMap = {}
-                varMap[':prodUserID'] = dn
+                varMap[':prodUserName'] = compactDN
                 varMap[':jobDefinitionID']  = jobID
                 varMap[':prodSourceLabel1'] = 'user'
                 varMap[':prodSourceLabel2'] = 'panda'
@@ -2400,7 +2412,7 @@ class DBProxy:
             # start transaction
             self.conn.begin()
             # get CloudTask
-            sql  = "SELECT %s FROM cloudtasks " % CloudTaskSpec.columnNames()
+            sql  = "SELECT %s FROM ATLAS_PANDA.cloudtasks " % CloudTaskSpec.columnNames()
             sql += "WHERE taskid=:taskid"
             varMap = {}
             varMap[':taskid'] = tid 
@@ -2415,7 +2427,7 @@ class DBProxy:
                 cloudTask.pack(res[0])
                 # update tmod if status <> 'assigned'
                 if cloudTask.status <> 'assigned':
-                    sql = "UPDATE cloudtasks SET tmod=CURRENT_DATE WHERE taskid=:taskid"
+                    sql = "UPDATE ATLAS_PANDA.cloudtasks SET tmod=CURRENT_DATE WHERE taskid=:taskid"
                     varMap = {}
                     varMap[':taskid'] = cloudTask.taskid
                     self.cur.execute(sql+comment, varMap)
@@ -2428,7 +2440,7 @@ class DBProxy:
             cloudTask = CloudTaskSpec()
             cloudTask.taskid = tid
             cloudTask.status = 'defined' 
-            sql = "INSERT INTO cloudtasks (id,taskid,status,tmod,tenter) VALUES(ATLAS_PANDA.CLOUDTASKS_ID_SEQ.nextval,:taskid,:status,CURRENT_DATE,CURRENT_DATE)"
+            sql = "INSERT INTO ATLAS_PANDA.cloudtasks (id,taskid,status,tmod,tenter) VALUES(ATLAS_PANDA.CLOUDTASKS_ID_SEQ.nextval,:taskid,:status,CURRENT_DATE,CURRENT_DATE)"
             sql+= " RETURNING id INTO :newID"          
             varMap = {}
             varMap[':taskid'] = cloudTask.taskid
@@ -2456,7 +2468,7 @@ class DBProxy:
         comment = ' /* setCloudTask */'        
         try:
             _logger.debug("setCloudTask(id=%s,taskid=%s)" % (cloudTask.id,cloudTask.taskid))
-            sql  = "UPDATE cloudtasks SET cloud=:cloud,status=:newStatus,tmod=CURRENT_DATE WHERE id=:id AND status=:oldStatus" 
+            sql  = "UPDATE ATLAS_PANDA.cloudtasks SET cloud=:cloud,status=:newStatus,tmod=CURRENT_DATE WHERE id=:id AND status=:oldStatus" 
             # start transaction
             self.conn.begin()
             # update
@@ -2474,7 +2486,7 @@ class DBProxy:
                     raise RuntimeError, 'Commit error'
                 return cloudTask
             # read if it is already set by another thread
-            sql  = "SELECT %s FROM cloudtasks " % CloudTaskSpec.columnNames()
+            sql  = "SELECT %s FROM ATLAS_PANDA.cloudtasks " % CloudTaskSpec.columnNames()
             sql += "WHERE id=:id"
             varMap = {}
             varMap[':id'] = cloudTask.id
@@ -3128,7 +3140,11 @@ class DBProxy:
     def getNumberJobsUser(self,dn):
         comment = ' /* DBProxy.getNumberJobsUser */'        
         _logger.debug("getNumberJobsUsers(%s)" % dn)
-        sql0 = "SELECT COUNT(*) FROM %s WHERE prodUserID=:prodUserID AND prodSourceLabel=:prodSourceLabel"
+        # get compact DN
+        compactDN = self.cleanUserID(dn)
+        if compactDN in ['','NULL',None]:
+            compactDN = dn
+        sql0 = "SELECT COUNT(*) FROM %s WHERE prodUserName=:prodUserName AND prodSourceLabel=:prodSourceLabel"
         nTry = 1
         nJob = 0
         for iTry in range(nTry):
@@ -3138,7 +3154,7 @@ class DBProxy:
                     self.conn.begin()
                     # select
                     varMap = {}
-                    varMap[':prodUserID'] = dn
+                    varMap[':prodUserName'] = compactDN
                     varMap[':prodSourceLabel'] = 'user'
                     self.cur.arraysize = 10
                     self.cur.execute((sql0+comment) % table, varMap)
@@ -4012,16 +4028,20 @@ class DBProxy:
         comment = ' /* DBProxy.getJobIDsInTimeRangeLog */'                        
         _logger.debug("getJobIDsInTimeRangeLog : %s %s" % (dn,timeRange.strftime('%Y-%m-%d %H:%M:%S')))
         try:
+            # get compact DN
+            compactDN = self.cleanUserID(dn)
+            if compactDN in ['','NULL',None]:
+                compactDN = dn
             # get list of archived tables
             tables = self.getArchiveTables()
             # select
             for table in tables:
                 # make sql
                 sql  = "SELECT jobDefinitionID FROM %s " % table
-                sql += "WHERE prodUserID=:prodUserID AND modificationTime>:modificationTime "
+                sql += "WHERE prodUserName=:prodUserName AND modificationTime>:modificationTime "
                 sql += "AND prodSourceLabel=:prodSourceLabel GROUP BY jobDefinitionID"
                 varMap = {}
-                varMap[':prodUserID'] = dn
+                varMap[':prodUserName'] = compactDN
                 varMap[':prodSourceLabel'] = 'user'
                 varMap[':modificationTime'] = timeRange
                 # start transaction
@@ -4054,6 +4074,10 @@ class DBProxy:
         comment = ' /* Proxy.getPandIDsWithJobIDLog */'                        
         _logger.debug("getPandIDsWithJobIDLog : %s %s" % (dn,jobID))
         try:
+            # get compact DN
+            compactDN = self.cleanUserID(dn)
+            if compactDN in ['','NULL',None]:
+                compactDN = dn
             # get list of archived tables
             tables = self.getArchiveTables()
             # select
@@ -4063,10 +4087,10 @@ class DBProxy:
                     continue
                 # make sql
                 sql  = "SELECT PandaID,jobStatus,commandToPilot FROM %s " % table                
-                sql += "WHERE prodUserID=:prodUserID AND jobDefinitionID=:jobDefinitionID "
+                sql += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
                 sql += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND modificationTime>(CURRENT_DATE-30) "
                 varMap = {}
-                varMap[':prodUserID'] = dn
+                varMap[':prodUserName'] = compactDN
                 varMap[':jobDefinitionID'] = jobID
                 varMap[':prodSourceLabel1'] = 'user'
                 varMap[':prodSourceLabel2'] = 'panda'
