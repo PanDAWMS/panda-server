@@ -877,7 +877,7 @@ while True:
     varMap[':modificationdate'] = timeLimit
     varMap[':type']   = 'output'
     varMap[':status'] = 'tobeclosed'
-    status,res = proxyS.querySQLS("SELECT vuid,name,modificationdate FROM ATLAS_PANDA.Datasets WHERE type=:type and status=:status and modificationdate<:modificationdate AND rownum <= 10",
+    status,res = proxyS.querySQLS("SELECT vuid,name,modificationdate FROM ATLAS_PANDA.Datasets WHERE type=:type AND status=:status AND TO_DATE(modificationdate,'YYYY-MM-DD HH24:MI:SS')<:modificationdate AND rownum <= 10",
                                   varMap)
     if res == None:
         _logger.debug("# of datasets to be closed: %s" % res)
@@ -981,7 +981,7 @@ while True:
     # get datasets
     sql = "SELECT vuid,name,modificationdate FROM ATLAS_PANDA.Datasets " + \
           "WHERE type=:type AND (status=:status1 OR status=:status2 OR status=:status3) " + \
-          "AND modificationdate<:modificationdate AND REGEXP_LIKE(name,:pattern) AND rownum <= 20"
+          "AND TO_DATE(modificationdate,'YYYY-MM-DD HH24:MI:SS')<:modificationdate AND REGEXP_LIKE(name,:pattern) AND rownum <= 20"
     varMap = {}
     varMap[':modificationdate'] = timeLimit
     varMap[':type'] = 'output'
