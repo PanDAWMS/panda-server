@@ -2526,7 +2526,7 @@ class DBProxy:
             # start transaction
             self.conn.begin()
             # select
-            sql  = "SELECT cloud FROM cloudtasks WHERE taskid=:taskid"
+            sql  = "SELECT cloud FROM ATLAS_PANDA.cloudtasks WHERE taskid=:taskid"
             varMap = {}
             varMap[':taskid'] = tid
             self.cur.execute(sql+comment, varMap)
@@ -2558,7 +2558,7 @@ class DBProxy:
             # start transaction
             self.conn.begin()
             # select
-            sql = "SELECT taskid FROM cloudtasks WHERE status<>:status AND tmod>:tmod"
+            sql = "SELECT taskid FROM ATLAS_PANDA.cloudtasks WHERE status<>:status AND tmod>:tmod"
             varMap = {}
             varMap[':tmod']   = timeLimit
             varMap[':status'] = 'assigned'
