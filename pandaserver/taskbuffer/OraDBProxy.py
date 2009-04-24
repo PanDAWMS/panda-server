@@ -3629,7 +3629,8 @@ class DBProxy:
             self.conn.begin()
             # select
             sql  = "SELECT name,tier1,tier1SE,relocation,weight,server,status,transtimelo,"
-            sql += "transtimehi,waittime,validation,mcshare,countries,fasttrack,nprestage "
+            sql += "transtimehi,waittime,validation,mcshare,countries,fasttrack,nprestage,"
+            sql += "pilotowners "
             sql+= "FROM ATLAS_PANDAMETA.cloudconfig"
             self.cur.arraysize = 10000            
             self.cur.execute(sql+comment)
@@ -3647,7 +3648,7 @@ class DBProxy:
                             tmpItem = ''
                         resTmp.append(tmpItem)
                     name,tier1,tier1SE,relocation,weight,server,status,transtimelo,transtimehi,\
-                        waittime,validation,mcshare,countries,fasttrack,nprestage = resTmp 
+                        waittime,validation,mcshare,countries,fasttrack,nprestage,pilotowners = resTmp 
                     # instantiate CloudSpec
                     tmpC = CloudSpec.CloudSpec()
                     tmpC.name = name
@@ -3665,6 +3666,7 @@ class DBProxy:
                     tmpC.countries   = countries
                     tmpC.fasttrack   = fasttrack
                     tmpC.nprestage   = nprestage
+                    tmpC.pilotowners = pilotowners
                     # append
                     ret[name] = tmpC
             _logger.debug("getCloudList done")
