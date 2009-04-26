@@ -3008,7 +3008,8 @@ class DBProxy:
     def getJobStatisticsBrokerage(self):
         comment = ' /* DBProxy.getJobStatisticsBrokerage */'        
         _logger.debug("getJobStatisticsBrokerage()")
-        sql0 = "SELECT computingSite,jobStatus,processingType,COUNT(*) FROM %s WHERE prodSourceLabel=:prodSourceLabel "
+        sql0 = "SELECT computingSite,jobStatus,processingType,COUNT(*) FROM %s WHERE "
+        sql0 += "prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4) "
         sql0 += "GROUP BY computingSite,jobStatus,processingType"
         tables = ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4']
         ret = {}
@@ -3020,7 +3021,10 @@ class DBProxy:
                     self.conn.begin()
                     # select
                     varMap = {}
-                    varMap[':prodSourceLabel'] = 'managed'
+                    varMap[':prodSourceLabel1'] = 'managed'
+                    varMap[':prodSourceLabel2'] = 'user'
+                    varMap[':prodSourceLabel3'] = 'panda'
+                    varMap[':prodSourceLabel4'] = 'ddm'
                     self.cur.arraysize = 10000                        
                     self.cur.execute((sql0+comment) % table, varMap)
                     res = self.cur.fetchall()
