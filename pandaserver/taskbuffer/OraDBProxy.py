@@ -2336,7 +2336,7 @@ class DBProxy:
             varMap = {}
             varMap[':name'] = datasetname
             varMap[':type'] = 'output'
-            sql = "SELECT COUNT(*) FROM ATLAS_PANDA.Datasets WHERE type=:type AND name=:name"
+            sql = "SELECT /*+ INDEX(tab DATASETS_NAME_IDX)*/ COUNT(*) FROM ATLAS_PANDA.Datasets tab WHERE type=:type AND name=:name"
             self.cur.arraysize = 100            
             self.cur.execute(sql+comment, varMap)
             res = self.cur.fetchone()
@@ -2373,13 +2373,13 @@ class DBProxy:
             self.conn.begin()
             retTransSt = 0
             # update bitmap
-            sqlU = "UPDATE ATLAS_PANDA.Datasets SET transferStatus=ATLAS_PANDA.BITOR(transferStatus,:bitMap) WHERE name=:name"
+            sqlU = "UPDATE /*+ INDEX(tab DATASETS_NAME_IDX)*/ ATLAS_PANDA.Datasets tab SET transferStatus=ATLAS_PANDA.BITOR(transferStatus,:bitMap) WHERE name=:name"
             varMap = {}
             varMap[':bitMap'] = bitMap
             varMap[':name'] = datasetname
             retU = self.cur.execute(sqlU+comment, varMap)
             # get transferStatus
-            sqlS = "SELECT transferStatus FROM ATLAS_PANDA.Datasets WHERE name=:name"
+            sqlS = "SELECT /*+ INDEX(tab DATASETS_NAME_IDX)*/ transferStatus FROM ATLAS_PANDA.Datasets tab WHERE name=:name"
             varMap = {}
             varMap[':name'] = datasetname
             self.cur.arraysize = 10                        

@@ -12,6 +12,7 @@ Release Note
   * added nEvents to JD
   * added pilotowners
   * added rc_test
+  * added a hint for Datasets.name
 
 * 0.0.5 (4/7/2009)
   * fixed broker_util to use proper python
