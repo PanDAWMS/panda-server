@@ -71,11 +71,7 @@ class Finisher (threading.Thread):
                         # shift one bit
                         bitMap <<= 1
                 # completed bitmap
-                if tmpDstSiteSpec.cloud in ['US']:
-                    # FIXME : space tokens are not yet ready in US, so use compBitMap=bitMap to complete any dataset 
-                    compBitMap = bitMap
-                else:
-                    compBitMap = (1 << len(reqTokens.split(',')))-1
+                compBitMap = (1 << len(reqTokens.split(',')))-1
                 # ignore the lowest bit for T1, file on DISK is already there
                 if tmpSrcSiteSpec.ddm == tmpDstSiteSpec.ddm:
                     compBitMap = compBitMap & 0xFFFE

@@ -1114,11 +1114,6 @@ for ii in range(1000):
             nOkTokens = 0
             for okLFN,okPFNs in okFiles.iteritems():
                 nOkTokens += len(okPFNs)
-            # FIXME : space tokens are not yet ready in US
-            if job.cloud in ['US']:
-                # use the number of LFNs instead of PFNs for checking
-                nTokens   = len(lfns)
-                nOkTokens = len(okFiles)
             # check all files are ready    
             _logger.debug(" nToken:%s nOkToken:%s" % (nTokens,nOkTokens))
             if nTokens <= nOkTokens:
