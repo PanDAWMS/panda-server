@@ -1,7 +1,7 @@
 processGroups = [('others',       []),
                  ('evgensimul',   ['evgen','simul']),
                  ('reprocessing', ['reprocessing']),
-                 ('test',         ['prod_test','validation']),
+                 ('test',         ['prod_test','rc_test','validation']),
                  ]
 
 

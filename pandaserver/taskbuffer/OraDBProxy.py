@@ -2039,13 +2039,14 @@ class DBProxy:
         comment = ' /* DBProxy.getPandaIDsForProdDB */'                
         _logger.debug("getPandaIDsForProdDB %s" % limit)
         sql0 = "SELECT PandaID,jobStatus,stateChangeTime,attemptNr,jobDefinitionID,jobExecutionID FROM %s "
-        sql0+= "WHERE prodSourceLabel=:prodSourceLabel AND lockedby=:lockedby "
+        sql0+= "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND lockedby=:lockedby "
         sql0+= "AND stateChangeTime>prodDBUpdateTime "
         sql1 = "AND rownum<=:limit "
         varMap = {}
         varMap[':lockedby'] = lockedby
         varMap[':limit'] = limit
-        varMap[':prodSourceLabel'] = 'managed'        
+        varMap[':prodSourceLabel1'] = 'managed'
+        varMap[':prodSourceLabel2'] = 'rc_test'                
         try:
             retMap   = {}
             totalIDs = 0
@@ -2938,12 +2939,12 @@ class DBProxy:
         comment = ' /* DBProxy.getJobStatistics */'        
         _logger.debug("getJobStatistics()")
         timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
-        sql0 = "SELECT computingSite,jobStatus,COUNT(*) FROM %s WHERE prodSourceLabel in (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4) "
+        sql0 = "SELECT computingSite,jobStatus,COUNT(*) FROM %s WHERE prodSourceLabel in (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4,:prodSourceLabel5) "
         if predefined:
             sql0 += "AND relocationFlag=1 "
         sql0 += "GROUP BY computingSite,jobStatus"
         sqlA =  "SELECT /*+ index(tab JOBSARCHIVED4_MODTIME_IDX) */ computingSite,jobStatus,COUNT(*) FROM ATLAS_PANDA.jobsArchived4 tab WHERE modificationTime>:modificationTime "
-        sqlA += "AND prodSourceLabel in (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4) " 
+        sqlA += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4,:prodSourceLabel5) " 
         if predefined:
             sqlA += "AND relocationFlag=1 "
         sqlA += "GROUP BY computingSite,jobStatus"
@@ -2963,6 +2964,7 @@ class DBProxy:
                     varMap[':prodSourceLabel2'] = 'user'
                     varMap[':prodSourceLabel3'] = 'panda'
                     varMap[':prodSourceLabel4'] = 'ddm'
+                    varMap[':prodSourceLabel5'] = 'rc_test'                    
                     if table != 'ATLAS_PANDA.jobsArchived4':
                         self.cur.arraysize = 10000                        
                         self.cur.execute((sql0+comment) % table, varMap)
@@ -3009,7 +3011,7 @@ class DBProxy:
         comment = ' /* DBProxy.getJobStatisticsBrokerage */'        
         _logger.debug("getJobStatisticsBrokerage()")
         sql0 = "SELECT computingSite,jobStatus,processingType,COUNT(*) FROM %s WHERE "
-        sql0 += "prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4) "
+        sql0 += "prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4,:prodSourceLabel5) "
         sql0 += "GROUP BY computingSite,jobStatus,processingType"
         tables = ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4']
         ret = {}
@@ -3025,6 +3027,7 @@ class DBProxy:
                     varMap[':prodSourceLabel2'] = 'user'
                     varMap[':prodSourceLabel3'] = 'panda'
                     varMap[':prodSourceLabel4'] = 'ddm'
+                    varMap[':prodSourceLabel5'] = 'rc_test'                    
                     self.cur.arraysize = 10000                        
                     self.cur.execute((sql0+comment) % table, varMap)
                     res = self.cur.fetchall()
@@ -3192,8 +3195,8 @@ class DBProxy:
             sql0 = "SELECT jobStatus,COUNT(*),cloud FROM %s WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) GROUP BY jobStatus,cloud"
             sqlA = "SELECT /*+ index(tab JOBSARCHIVED4_MODTIME_IDX) */ jobStatus,COUNT(*),cloud FROM %s tab WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
         else:
-            sql0 = "SELECT jobStatus,COUNT(*),cloud FROM %s WHERE prodSourceLabel=:prodSourceLabel GROUP BY jobStatus,cloud"
-            sqlA = "SELECT /*+ index(tab JOBSARCHIVED4_MODTIME_IDX) */ jobStatus,COUNT(*),cloud FROM %s tab WHERE prodSourceLabel=:prodSourceLabel "
+            sql0 = "SELECT jobStatus,COUNT(*),cloud FROM %s WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) GROUP BY jobStatus,cloud"
+            sqlA = "SELECT /*+ index(tab JOBSARCHIVED4_MODTIME_IDX) */ jobStatus,COUNT(*),cloud FROM %s tab WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
         sqlA+= "AND modificationTime>:modificationTime GROUP BY jobStatus,cloud"
         ret = {}
         try:
@@ -3206,7 +3209,8 @@ class DBProxy:
                     varMap[':prodSourceLabel1'] = 'user'
                     varMap[':prodSourceLabel2'] = 'panda'
                 else:
-                    varMap[':prodSourceLabel'] = 'managed'
+                    varMap[':prodSourceLabel1'] = 'managed'
+                    varMap[':prodSourceLabel2'] = 'rc_test'                    
                 if table != 'ATLAS_PANDA.jobsArchived4':
                     self.cur.arraysize = 10000                    
                     self.cur.execute((sql0+comment) % table, varMap)
@@ -3259,9 +3263,9 @@ class DBProxy:
         timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
         _logger.debug("getJobStatisticsPerProcessingType()")
         sqlN  = "SELECT jobStatus,COUNT(*),cloud,processingType FROM %s "
-        sqlN += "WHERE prodSourceLabel=:prodSourceLabel GROUP BY jobStatus,cloud,processingType"
+        sqlN += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) GROUP BY jobStatus,cloud,processingType"
         sqlA  = "SELECT /*+ index(tab JOBSARCHIVED4_MODTIME_IDX) */ jobStatus,COUNT(*),cloud,processingType FROM %s tab "
-        sqlA += "WHERE prodSourceLabel=:prodSourceLabel AND modificationTime>:modificationTime GROUP BY jobStatus,cloud,processingType"
+        sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND modificationTime>:modificationTime GROUP BY jobStatus,cloud,processingType"
         ret = {}
         try:
             for table in ('ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4','ATLAS_PANDA.jobsArchived4','ATLAS_PANDA.jobsDefined4'):
@@ -3271,7 +3275,8 @@ class DBProxy:
                 self.cur.arraysize = 10000
                 # select
                 varMap = {}
-                varMap[':prodSourceLabel'] = 'managed'
+                varMap[':prodSourceLabel1'] = 'managed'
+                varMap[':prodSourceLabel2'] = 'rc_test'                
                 if table == 'ATLAS_PANDA.jobsArchived4':
                     varMap[':modificationTime'] = timeLimit
                     self.cur.execute((sqlA+comment) % table, varMap)
