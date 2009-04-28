@@ -13,6 +13,7 @@ Release Note
   * added pilotowners
   * added rc_test
   * added a hint for Datasets.name
+  * enabled validatedReleases for all clouds
 
 * 0.0.5 (4/7/2009)
   * fixed broker_util to use proper python

@@ -165,9 +165,6 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                 pass
             elif job.jobStatus == 'failed':
                 continue
-            # set computingSite to T1 for reprocessing in EGEE except FR
-            if _isReproJob(job) and job.computingSite == 'NULL' and (not job.cloud in ['US','FR']):
-                job.computingSite = siteMapper.getCloud(job.cloud)['source']
             # set computingSite to T1 for high priority jobs
             if job != None and job.currentPriority >= 950 and job.computingSite == 'NULL' \
                    and job.prodSourceLabel in ('test','managed'):
@@ -253,10 +250,9 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                             tmpCmtConfig = prevCmtConfig
                         # set release
                         releases = tmpSiteSpec.releases
-                        if prevProType in ['reprocessing'] and previousCloud in ['US','FR']:
-                            # use validated releases for US and FR for now
+                        if prevProType in ['reprocessing']:
+                            # use validated releases for reprocessing
                             releases = tmpSiteSpec.validatedreleases
-                            pass
                         _log.debug('   %s' % str(releases))
                         _log.debug('   %s' % str(tmpSiteSpec.cmtconfig))
                         if forAnalysis and tmpSiteSpec.cloud in ['US']:
@@ -264,7 +260,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                             _log.debug(' skip release check')
                             pass
                         elif (prevRelease != None and ((releases != [] and previousCloud != 'US') or \
-                                                       (prevProType in ['reprocessing'] and previousCloud in ['US','FR'])) and \
+                                                       prevProType in ['reprocessing']) and \
                               (not _checkRelease(prevRelease,releases))) or \
                               (tmpCmtConfig != None and tmpSiteSpec.cmtconfig != [] and \
                                (not tmpCmtConfig in tmpSiteSpec.cmtconfig)):
@@ -316,9 +312,10 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                             if tmpSiteSpec.space != 0:
                                 nRemJobs = jobStatistics[site]['assigned']+jobStatistics[site]['activated']+jobStatistics[site]['running']
                                 remSpace = tmpSiteSpec.space - 0.250*nRemJobs
-                                _log.debug('   space %s %s' % (tmpSiteSpec.space,remSpace))
-                                if remSpace < 200:
-                                    _log.debug('  skip: disk shortage')
+                                _log.debug('   space available=%s remain=%s' % (tmpSiteSpec.space,remSpace))
+                                diskThreshold = 200
+                                if remSpace < diskThreshold:
+                                    _log.debug('  skip: disk shortage < %s' % diskThreshold)
                                     continue
                         # number of jobs per node
                         if not nWNmap.has_key(site):
@@ -439,7 +436,10 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                         if (not foundRelease) and (tmpJob.prodSourceLabel in ['managed','test']):
                             tmpJob.jobStatus          = 'failed'
                             tmpJob.brokerageErrorCode = ErrorCode.EC_Release
-                            tmpJob.brokerageErrorDiag = '%s/%s not found in this cloud' % (tmpJob.AtlasRelease,tmpJob.cmtConfig)
+                            if prevProType in ['reprocessing']:
+                                tmpJob.brokerageErrorDiag = '%s/%s not validated for reprocessing in this cloud' % (tmpJob.AtlasRelease,tmpJob.cmtConfig)
+                            else:
+                                tmpJob.brokerageErrorDiag = '%s/%s not found in this cloud' % (tmpJob.AtlasRelease,tmpJob.cmtConfig)
                             _log.debug(tmpJob.brokerageErrorDiag)
                             continue
                         # set 'ready' if files are already there
