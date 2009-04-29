@@ -14,6 +14,7 @@ Release Note
   * added rc_test
   * added a hint for Datasets.name
   * enabled validatedReleases for all clouds
+  * set high priority for production role
 
 * 0.0.5 (4/7/2009)
   * fixed broker_util to use proper python

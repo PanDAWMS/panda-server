@@ -31,6 +31,16 @@ class TaskBuffer:
         self.lock.release()
 
 
+    # check production role
+    def checkProdRole(self,fqans):
+        for fqan in fqans:
+            # check production role
+            for rolePat in ['/atlas/usatlas/Role=production','/atlas/Role=production']:
+                if fqan.startswith(rolePat):
+                    return True
+        return False
+
+                                                        
     # store Jobs into DB
     def storeJobs(self,jobs,user,joinThr=False,forkSetupper=False,fqans=[]):
         # check quota for priority calculation
@@ -96,7 +106,9 @@ class TaskBuffer:
                 else:
                     # set priority offset
                     if userSiteAccess['poffset'] > priorityOffset: 
-                        priorityOffset = userSiteAccess['poffset'] 
+                        priorityOffset = userSiteAccess['poffset']
+        # check production role
+        withProdRole = self.checkProdRole(fqans)
         # return if DN is blocked
         if not userStatus:
             return []
@@ -113,6 +125,10 @@ class TaskBuffer:
         if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda']):
             # get nJob
             serNum = proxy.getNumberJobsUser(user)
+            # set high prioryty for production role
+            if withProdRole:
+                serNum = 0
+                priorityOffset = 2000
         # loop over all jobs
         ret =[]
         newJobs=[]

@@ -173,6 +173,8 @@ class DBProxy:
             job.currentPriority = job.assignedPriority
         if job.prodSourceLabel == 'user':
             job.currentPriority = 1000 + priorityOffset - (serNum / 5) - int(100 * weight)
+        elif job.prodSourceLabel == 'panda':
+            job.currentPriority = 2000 + priorityOffset
         # usergroup
         if job.prodSourceLabel == 'regional':
             job.computingSite= "BNLPROD"
@@ -1609,7 +1611,7 @@ class DBProxy:
         comment = ' /* DBProxy.getPandaIDsForProdDB */'                
         _logger.debug("getPandaIDsForProdDB %s" % limit)
         sql0 = "SELECT PandaID,jobStatus,stateChangeTime,attemptNr,jobDefinitionID,jobExecutionID FROM %s "
-        sql0+= "WHERE prodSourceLabel='managed' AND lockedby='%s' " % lockedby
+        sql0+= "WHERE prodSourceLabel IN ('managed','rc_test') AND lockedby='%s' " % lockedby
         sql0+= "AND stateChangeTime>prodDBUpdateTime AND stateChangeTime<>'0000-00-00 00:00:00'"
         try:
             retMap   = {}
@@ -2542,11 +2544,11 @@ class DBProxy:
         comment = ' /* DBProxy.getJobStatistics */'        
         _logger.debug("getJobStatistics()")
         timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
-        sql0 = "SELECT computingSite,jobStatus,COUNT(*) FROM %s WHERE prodSourceLabel in ('managed','user','panda','ddm') "
+        sql0 = "SELECT computingSite,jobStatus,COUNT(*) FROM %s WHERE prodSourceLabel in ('managed','rc_test','user','panda','ddm') "
         if predefined:
             sql0 += "AND relocationFlag=1 "
         sql0 += "GROUP BY computingSite,jobStatus"
-        sqlA = "SELECT computingSite,jobStatus,COUNT(*) FROM jobsArchived4 WHERE modificationTime>'%s' AND prodSourceLabel in ('managed','user','panda','ddm') " \
+        sqlA = "SELECT computingSite,jobStatus,COUNT(*) FROM jobsArchived4 WHERE modificationTime>'%s' AND prodSourceLabel in ('managed','rc_test','user','panda','ddm') " \
                % (timeLimit.strftime('%Y-%m-%d %H:%M:%S'))
         if predefined:
             sqlA += "AND relocationFlag=1 "
@@ -2604,7 +2606,7 @@ class DBProxy:
     def getJobStatisticsBrokerage(self):
         comment = ' /* DBProxy.getJobStatisticsBrokerage */'        
         _logger.debug("getJobStatisticsBrokerage()")
-        sql0 = "SELECT computingSite,jobStatus,processingType,COUNT(*) FROM %s WHERE prodSourceLabel='managed' "
+        sql0 = "SELECT computingSite,jobStatus,processingType,COUNT(*) FROM %s WHERE prodSourceLabel IN ('managed','rc_test','user','panda','ddm') "
         sql0 += "GROUP BY computingSite,jobStatus,processingType"
         tables = ['jobsActive4','jobsDefined4']
         ret = {}
@@ -2761,8 +2763,8 @@ class DBProxy:
             sql0 = "SELECT jobStatus,COUNT(*),cloud FROM %s WHERE prodSourceLabel in ('user','panda') GROUP BY jobStatus,cloud"
             sqlA = "SELECT jobStatus,COUNT(*),cloud FROM %s WHERE prodSourceLabel in ('user','panda') "
         else:
-            sql0 = "SELECT jobStatus,COUNT(*),cloud FROM %s WHERE prodSourceLabel='managed' GROUP BY jobStatus,cloud"
-            sqlA = "SELECT jobStatus,COUNT(*),cloud FROM %s WHERE prodSourceLabel='managed' "
+            sql0 = "SELECT jobStatus,COUNT(*),cloud FROM %s WHERE prodSourceLabel IN ('managed','rc_test') GROUP BY jobStatus,cloud"
+            sqlA = "SELECT jobStatus,COUNT(*),cloud FROM %s WHERE prodSourceLabel IN ('managed','rc_test') "
         sqlA+= "AND modificationTime>'%s' GROUP BY jobStatus,cloud" % (timeLimit.strftime('%Y-%m-%d %H:%M:%S'))
         ret = {}
         try:
@@ -2819,7 +2821,7 @@ class DBProxy:
         _logger.debug("getJobStatisticsPerProcessingType()")
         timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
         sql0  = "SELECT jobStatus,COUNT(*),cloud,processingType FROM %s "
-        sql0 += "WHERE prodSourceLabel='managed' "
+        sql0 += "WHERE prodSourceLabel IN ('managed','rc_test') "
         sqlT  = "AND modificationTime>'%s' " % timeLimit.strftime('%Y-%m-%d %H:%M:%S')
         sql1  = "GROUP BY jobStatus,cloud,processingType"
         sqlN  = sql0 + sql1

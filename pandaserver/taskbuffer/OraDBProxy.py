@@ -203,6 +203,8 @@ class DBProxy:
             job.currentPriority = job.assignedPriority
         if job.prodSourceLabel == 'user':
             job.currentPriority = 1000 + priorityOffset - (serNum / 5) - int(100 * weight)
+        elif job.prodSourceLabel == 'panda':
+            job.currentPriority = 2000 + priorityOffset
         # usergroup
         if job.prodSourceLabel == 'regional':
             job.computingSite= "BNLPROD"
