@@ -128,6 +128,7 @@ class TaskBuffer:
             # set high prioryty for production role
             if withProdRole:
                 serNum = 0
+                weight = 0.0                
                 priorityOffset = 2000
         # loop over all jobs
         ret =[]
