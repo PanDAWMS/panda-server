@@ -976,8 +976,7 @@ class Setupper (threading.Thread):
                             break
                         elif status != 0 or out.find("DQ2 internal server exception") != -1 \
                                  or out.find("An error occurred on the central catalogs") != -1 \
-                                 or out.find("MySQL server has gone away") != -1 \
-                                 or out == '()':
+                                 or out.find("MySQL server has gone away") != -1:
                             time.sleep(60)
                         else:
                             break
@@ -992,7 +991,10 @@ class Setupper (threading.Thread):
                         # make map (key: LFN w/o attemptNr, value: LFN with attemptNr)
                         items = {}
                         try:
-                            exec "items = %s[0]" % out
+                            # protection for empty dataset
+                            if out != '()':
+                                exec "items = %s[0]" % out
+                            # loop over all files    
                             for guid,vals in items.iteritems():
                                 valMap[vals['lfn']] = {'guid' : guid, 'fsize' : vals['filesize'],
                                                        'md5sum' : vals['checksum'],

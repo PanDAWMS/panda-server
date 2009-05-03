@@ -35,6 +35,9 @@ class Finisher (threading.Thread):
             if self.job == None:
                 _logger.debug("start: %s" % self.dataset.name)
                 _logger.debug("callback from %s" % self.site)
+                # FIXME when callback from BNLPANDA disappeared
+                if self.site == 'BNLPANDA':
+                    self.site = 'BNL-OSG2_ATLASMCDISK'
                 # instantiate site mapper
                 siteMapper = SiteMapper(self.taskBuffer)
                 # get computingSite/destinationSE

@@ -16,6 +16,7 @@ Release Note
   * enabled validatedReleases for all clouds
   * set high priority for production role
   * added realDatasetsIn
+  * get empty list of LFNs for empty dataset
 
 * 0.0.5 (4/7/2009)
   * fixed broker_util to use proper python
