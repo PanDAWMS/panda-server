@@ -272,24 +272,28 @@ class DBProxy:
             self.cur.execute(sql1+comment, job.valuesMap())
             # files
             sqlFile = "INSERT INTO %s " % fileTable
-            sqlFile+= "(%s) " % FileSpec.columnNames()
-            sqlFile+= FileSpec.bindValuesExpression()
+            sqlFile+= "(%s) " % FileSpec.columnNames(withMod=True)
+            sqlFile+= FileSpec.bindValuesExpression(withMod=True)
             for file in job.Files:
-                self.cur.execute(sqlFile+comment, file.valuesMap())
+                varMap = file.valuesMap()
+                varMap[':modificationTime'] = job.modificationTime
+                self.cur.execute(sqlFile+comment, varMap)
             # job parameters
-            sqlJob = "INSERT INTO %s (PandaID,jobParameters) VALUES (:PandaID,:param)" \
+            sqlJob = "INSERT INTO %s (PandaID,jobParameters,modificationTime) VALUES (:PandaID,:param,:modificationTime)" \
                      % jobParamsTable
             varMap = {}
             varMap[':PandaID'] = job.PandaID
             varMap[':param']   = job.jobParameters
+            varMap[':modificationTime'] = job.modificationTime
             self.cur.execute(sqlJob+comment, varMap)
             # metadata
             if not job.metadata in [None,'NULL','']:
-                sqlMeta = "INSERT INTO %s (PandaID,metaData) VALUES(:PandaID,:metaData)" \
+                sqlMeta = "INSERT INTO %s (PandaID,metaData,modificationTime) VALUES(:PandaID,:metaData,:modificationTime)" \
                           % metaTable
                 varMap = {}
                 varMap[':PandaID']  = job.PandaID
                 varMap[':metaData'] = job.metadata
+                varMap[':modificationTime'] = job.modificationTime
                 self.cur.execute(sqlMeta+comment,varMap)
             # set flag to avoid duplicated insertion attempts
             varMap = {}

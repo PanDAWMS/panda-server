@@ -111,12 +111,15 @@ class FileSpec(object):
         
         
     # return column names for INSERT
-    def columnNames(cls):
+    def columnNames(cls,withMod=False):
         ret = ""
         for attr in cls._attributes:
             if ret != "":
                 ret += ','
             ret += attr
+        # add modificationTime
+        if withMod:
+            ret += ",modificationTime"
         return ret
     columnNames = classmethod(columnNames)
 
@@ -134,7 +137,7 @@ class FileSpec(object):
 
 
     # return expression of bind variables for INSERT
-    def bindValuesExpression(cls,useSeq=False):
+    def bindValuesExpression(cls,useSeq=False,withMod=False):
         ret = "VALUES("
         for attr in cls._attributes:
             if useSeq and cls._seqAttrMap.has_key(attr):
@@ -142,6 +145,9 @@ class FileSpec(object):
             else:
                 ret += ":%s," % attr
         ret = ret[:-1]
+        # add modificationTime
+        if withMod:
+            ret += ",:modificationTime"
         ret += ")"            
         return ret
     bindValuesExpression = classmethod(bindValuesExpression)
