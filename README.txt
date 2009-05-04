@@ -18,6 +18,7 @@ Release Note
   * added realDatasetsIn
   * get empty list of LFNs for empty dataset
   * set modificationTime to ARCH tables
+  * fixed getUserParameter
 
 * 0.0.5 (4/7/2009)
   * fixed broker_util to use proper python

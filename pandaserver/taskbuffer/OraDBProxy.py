@@ -3790,9 +3790,6 @@ class DBProxy:
             self.cur.execute(sql+comment,varMap)
             self.cur.arraysize = 10            
             res = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError, 'Commit error'
             retJobID  = jobID
             retStatus = True
             if res != None and len(res) != 0:
@@ -3812,6 +3809,9 @@ class DBProxy:
                 sql = "UPDATE ATLAS_PANDAMETA.users SET jobid=:jobid WHERE name=:name"
                 self.cur.execute(sql+comment,varMap)
                 _logger.debug("getUserParameter set JobID=%s for %s" % (retJobID,dn))
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
             return retJobID,retStatus
         except:
             type, value, traceBack = sys.exc_info()
