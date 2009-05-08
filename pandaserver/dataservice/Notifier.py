@@ -197,7 +197,7 @@ Report Panda problems of any sort to
             return ""
         # get email from MetaDB
         mailAddr = self.taskBuffer.getEmailAddr(distinguishedName)
-        if mailAddr != "":
+        if not mailAddr in ["","None",None]:
             _logger.debug("email from MetaDB : '%s'" % mailAddr)
             return mailAddr
         # get email from local DB

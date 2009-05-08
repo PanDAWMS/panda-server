@@ -1210,7 +1210,7 @@ for name,addr in mailMap.iteritems():
         _logger.error("%s not found in user DB" % name)
         continue
     # already set
-    if res[0][0] != '':
+    if not res[0][0] in ['','None',None]:
         continue
     # update email
     _logger.debug("set '%s' to %s" % (name,addr))
