@@ -19,6 +19,9 @@ Release Note
   * get empty list of LFNs for empty dataset
   * set modificationTime to ARCH tables
   * fixed getUserParameter
+  * added nInputFiles for HC
+  * added countryGroup for country share
+  * use a hint for filesTable4.dataset
 
 * 0.0.5 (4/7/2009)
   * fixed broker_util to use proper python

@@ -49,6 +49,7 @@ class TaskBuffer:
         userStatus     = True
         priorityOffset = 0
         userVO         = 'atlas'
+        userCountry    = None
         if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda']):
             # get DB proxy
             proxy = self.proxyPool.getProxy()
@@ -107,6 +108,15 @@ class TaskBuffer:
                     # set priority offset
                     if userSiteAccess['poffset'] > priorityOffset: 
                         priorityOffset = userSiteAccess['poffset']
+            # extract country group
+            for tmpFQAN in fqans:
+                match = re.search('^/atlas/([^/]+)/',tmpFQAN)
+                if match != None:
+                    tmpCountry = match.group(1)
+                    # use country code or usatlas
+                    if len(tmpCountry) == 2 or tmpCountry in ['usatlas']:
+                        userCountry = tmpCountry
+                        break
         # check production role
         withProdRole = self.checkProdRole(fqans)
         # return if DN is blocked
@@ -143,6 +153,9 @@ class TaskBuffer:
             # set relocation flag
             if job.computingSite != 'NULL':
                 job.relocationFlag = 1
+            # set country group
+            if job.prodSourceLabel in ['user','panda']:
+                job.countryGroup = userCountry
             # insert job to DB
             if not proxy.insertNewJob(job,user,serNum,weight,priorityOffset,userVO):
                 # reset if failed
@@ -286,12 +299,12 @@ class TaskBuffer:
 
     # get jobs
     def getJobs(self,nJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-                atlasRelease,prodUserID,getProxyKey):
+                atlasRelease,prodUserID,getProxyKey,countryGroup):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get waiting jobs
         jobs,nSent = proxy.getJobs(nJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-                                   atlasRelease,prodUserID)
+                                   atlasRelease,prodUserID,countryGroup)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # get Proxy Key

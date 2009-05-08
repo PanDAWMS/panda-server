@@ -8,6 +8,7 @@ import os
 import sys
 import time
 import fcntl
+import types
 import random
 import urllib
 import datetime
@@ -1057,7 +1058,7 @@ class DBProxy:
         
     # get jobs
     def getJobs(self,nJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-                atlasRelease,prodUserID):
+                atlasRelease,prodUserID,countryGroup):
         comment = ' /* DBProxy.getJobs */'
         dynamicBrokering = False
         getValMap = {}
@@ -1103,6 +1104,18 @@ class DBProxy:
                 compactDN = prodUserID
             sql1+= "AND prodUserName=:prodUserName " 
             getValMap[':prodUserName'] = compactDN
+        # country group
+        if prodSourceLabel == 'user' or (isinstance(prodSourceLabel,types.StringType) and re.search('test',prodSourceLabel) != None): 
+            if not countryGroup in ['',None]:
+                sql1+= "AND countryGroup IN ("
+                idxCountry = 1
+                for tmpCountry in countryGroup.split(','):
+                    tmpKey = ":countryGroup%s" % idxCountry
+                    sql1+= "%s," % tmpKey
+                    getValMap[tmpKey] = tmpCountry
+                    idxCountry += 1
+                sql1 = sql1[:-1]
+                sql1+= ") "
         sql2 = "SELECT %s FROM ATLAS_PANDA.jobsActive4 " % JobSpec.columnNames()
         sql2+= "WHERE PandaID=:PandaID"
         retJobs = []
@@ -2854,7 +2867,7 @@ class DBProxy:
         if len(datasets) == 0:
             return []
         # make SQL query
-        sql1 = "SELECT MAX(PandaID) FROM ATLAS_PANDA.filesTable4 WHERE dataset=:dataset AND type=:type"
+        sql1 = "SELECT /*+ index(tab FILESTABLE4_DATASET_IDX) */ MAX(PandaID) FROM ATLAS_PANDA.filesTable4 tab WHERE dataset=:dataset AND type=:type"
         sql2 = "SELECT lfn FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type=:type"
         # execute
         try:
