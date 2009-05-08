@@ -15,7 +15,7 @@ _log = PandaLogger().getLogger('broker')
 _allSites = PandaSiteIDs.PandaSiteIDs.keys()
         
 # sites for prestaging
-prestageSites = ['BNL_ATLAS_test','BNL_ATLAS_1','BNL_ATLAS_2']
+prestageSites = [] #['BNL_ATLAS_test','BNL_ATLAS_1','BNL_ATLAS_2']
 
 # non LRC checking
 _disableLRCcheck = []
@@ -96,7 +96,13 @@ def _setReadyToFiles(tmpJob,okFiles,siteMapper):
                     for okPFN in okFiles[tmpFile.lfn]:
                         if re.search(tmpSiteSpec.seprodpath['ATLASDATATAPE'],okPFN) == None:
                             # there is a disk copy
-                            tapeOnly = False
+                            if tmpJob.cloud == 'US':
+                                # check for BNLPANDA
+                                if re.search(tmpSiteSpec.seprodpath['ATLASMCDISK'],okPFN) != None or \
+                                       re.search(tmpSiteSpec.seprodpath['ATLASDATADISK'],okPFN) != None:
+                                    tapeOnly = False
+                            else:
+                                tapeOnly = False
                         else:
                             # there is a tape copy
                             tapeCopy = True

@@ -31,7 +31,7 @@ _logger = PandaLogger().getLogger('Setupper')
 
 
 # temporary
-PandaDDMSource = ['BNLPANDA','BNL-OSG2_MCDISK','BNL-OSG2_DATADISK','BNL-OSG2_MCTAPE','BNL-OSG2_DATATAPE']
+PandaDDMSource = [] #['BNLPANDA','BNL-OSG2_MCDISK','BNL-OSG2_DATADISK','BNL-OSG2_MCTAPE','BNL-OSG2_DATATAPE']
 
 
 class Setupper (threading.Thread):
@@ -633,6 +633,10 @@ class Setupper (threading.Thread):
                                     # DATADISK
                                     if not diskID in dq2IDList:
                                         dq2IDList.append(diskID)
+                                elif job.cloud == 'US' and tmpRepMap.has_key('BNLPANDA'):
+                                    # BNLPANDA
+                                    if not 'BNLPANDA' in dq2IDList:
+                                        dq2IDList.append('BNLPANDA')
                                 elif tmpRepMap.has_key(tapeID):
                                     # DATATAPE
                                     if not tapeID in dq2IDList:
@@ -678,14 +682,17 @@ class Setupper (threading.Thread):
                             seTokens = self.siteMapper.getSite(job.computingSite).setokens
                             if seTokens.has_key('ATLASDATATAPE'):
                                 dq2ID = seTokens['ATLASDATATAPE']
-                                # for CERN
-                                if job.cloud == 'CERN' and self.replicaMap.has_key(job.dispatchDBlock):
+                                # for CERN and BNL
+                                if job.cloud in ['CERN','US'] and self.replicaMap.has_key(job.dispatchDBlock):
                                     setNewIDflag = False
+                                    if job.cloud == 'CERN':
+                                        otherIDs = ['CERN-PROD_DAQ','CERN-PROD_TZERO']
+                                    else:
+                                        otherIDs = ['BNLPANDA']
                                     for tmpDataset,tmpRepMap in self.replicaMap[job.dispatchDBlock].iteritems():
                                         if not tmpRepMap.has_key(dq2ID):
                                             # look for another id
-                                            cernIDs = ['CERN-PROD_DAQ','CERN-PROD_TZERO']
-                                            for cernID in cernIDs:
+                                            for cernID in otherIDs:
                                                 if tmpRepMap.has_key(cernID):
                                                     dq2ID = cernID
                                                     setNewIDflag = True
