@@ -23,7 +23,7 @@ Release Note
   * added countryGroup for country share
   * use a hint for filesTable4.dataset
   * fixed lookup for mail addr
-  * use DQ2 for US
+  * use PandaMover for US
 
 * 0.0.5 (4/7/2009)
   * fixed broker_util to use proper python

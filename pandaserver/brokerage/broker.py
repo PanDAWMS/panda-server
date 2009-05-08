@@ -15,7 +15,7 @@ _log = PandaLogger().getLogger('broker')
 _allSites = PandaSiteIDs.PandaSiteIDs.keys()
         
 # sites for prestaging
-prestageSites = [] #['BNL_ATLAS_test','BNL_ATLAS_1','BNL_ATLAS_2']
+prestageSites = ['BNL_ATLAS_test','BNL_ATLAS_1','BNL_ATLAS_2']
 
 # non LRC checking
 _disableLRCcheck = []
