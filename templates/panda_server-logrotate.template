@@ -1,4 +1,5 @@
 @@install_dir@@/var/log/panda/*log {
+    rotate 180
     missingok
     notifempty
     sharedscripts
