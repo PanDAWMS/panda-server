@@ -24,6 +24,7 @@ Release Note
   * use a hint for filesTable4.dataset
   * fixed lookup for mail addr
   * use PandaMover for US
+  * give higher priorities to /atlas/xyz/Role=production
 
 * 0.0.5 (4/7/2009)
   * fixed broker_util to use proper python

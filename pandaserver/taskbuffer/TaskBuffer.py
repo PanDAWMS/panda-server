@@ -35,9 +35,8 @@ class TaskBuffer:
     def checkProdRole(self,fqans):
         for fqan in fqans:
             # check production role
-            for rolePat in ['/atlas/usatlas/Role=production','/atlas/Role=production']:
-                if fqan.startswith(rolePat):
-                    return True
+            if re.search('/Role=production',fqan) != None:
+                return True
         return False
 
                                                         
