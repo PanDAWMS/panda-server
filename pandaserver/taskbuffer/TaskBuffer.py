@@ -35,9 +35,10 @@ class TaskBuffer:
     def checkProdRole(self,fqans):
         for fqan in fqans:
             # check production role
-            if re.search('/Role=production',fqan) != None:
-                return True
-        return False
+            match = re.search('/([^/]+)/Role=production',fqan)
+            if match != None:
+                return True,match.group(1)
+        return False,None
 
                                                         
     # store Jobs into DB
@@ -117,7 +118,7 @@ class TaskBuffer:
                         userCountry = tmpCountry
                         break
         # check production role
-        withProdRole = self.checkProdRole(fqans)
+        withProdRole,workingGroup = self.checkProdRole(fqans)
         # return if DN is blocked
         if not userStatus:
             return []
@@ -155,6 +156,9 @@ class TaskBuffer:
             # set country group
             if job.prodSourceLabel in ['user','panda']:
                 job.countryGroup = userCountry
+                # set workingGroup if submitted with production role
+                if withProdRole:
+                    job.workingGroup = workingGroup
             # insert job to DB
             if not proxy.insertNewJob(job,user,serNum,weight,priorityOffset,userVO):
                 # reset if failed
