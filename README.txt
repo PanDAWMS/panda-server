@@ -26,6 +26,7 @@ Release Note
   * use PandaMover for US
   * give higher priorities to /atlas/xyz/Role=production
   * set workingGroup when jobs are submitted with prod role
+  * fixed peekJobLog
 
 * 0.0.5 (4/7/2009)
   * fixed broker_util to use proper python

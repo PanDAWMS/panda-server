@@ -4187,7 +4187,7 @@ class DBProxy:
                         # start transaction
                         self.conn.begin()
                         # select
-                        fileTableName = re.sub('jobsArchived','filesTable',table)
+                        fileTableName = re.sub('jobsArchived','filesTable_ARCH',table)
                         sqlFile = "SELECT %s " % FileSpec.columnNames()
                         sqlFile+= "FROM %s " % fileTableName
                         sqlFile+= "WHERE PandaID=:PandaID"
@@ -4196,14 +4196,16 @@ class DBProxy:
                         resFs = self.cur.fetchall()
                         # metadata
                         job.metadata = None
-                        sqlMeta = "SELECT metaData FROM ATLAS_PANDA.metaTable WHERE PandaID=:PandaID"
+                        metaTableName = re.sub('jobsArchived','metaTable_ARCH',table)
+                        sqlMeta = "SELECT metaData FROM %s WHERE PandaID=:PandaID" % metaTableName
                         self.cur.execute(sqlMeta+comment, varMap)
                         for clobMeta, in self.cur:
                             job.metadata = clobMeta.read()
                             break
                         # job parameters
                         job.jobParameters = None
-                        sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
+                        jobParamTableName = re.sub('jobsArchived','jobParamsTable_ARCH',table)
+                        sqlJobP = "SELECT jobParameters FROM %s WHERE PandaID=:PandaID" % jobParamTableName
                         varMap = {}
                         varMap[':PandaID'] = job.PandaID
                         self.cur.execute(sqlJobP+comment, varMap)
@@ -4225,7 +4227,7 @@ class DBProxy:
                 # roll back
                 self._rollback()
                 if iTry+1 < nTry:
-                    _logger.error("peekJobLog : %s %s %s" % (pandaID,type,value))
+                    _logger.error("peekJobLog : %s" % pandaID)
                     time.sleep(random.randint(10,20))
                     continue
                 type, value, traceBack = sys.exc_info()
