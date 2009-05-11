@@ -628,7 +628,7 @@ class DBProxy:
                             self.cur.execute("SELECT name FROM ATLAS_PANDA.Datasets WHERE vuid=:vuid AND type=:type "+comment, varMap)
                             res = self.cur.fetchall()
                             if len(res) != 0:
-                                disName = res[0]
+                                disName = res[0][0]
                                 # get PandaIDs
                                 varMap = {}
                                 varMap[':jobStatus'] = 'assigned'
