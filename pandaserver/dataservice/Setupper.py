@@ -1344,16 +1344,16 @@ class Setupper (threading.Thread):
             for siteId,statList in tmpRepSites.iteritems():
                 if not allRepMap.has_key(siteId):
                     # append
-                    allRepMap[siteId] = statList[-1]
+                    allRepMap[siteId] = [statList[-1],]
                 else:
                     # add
                     newStMap = {}
-                    for stName,stNum in allRepMap[siteId].iteritems():
+                    for stName,stNum in allRepMap[siteId][0].iteritems():
                         if statList[-1].has_key(stName):
                             newStMap[stName] = stNum + statList[-1][stName]
                         else:
                             newStMap[stName] = stNum
-                    allRepMap[siteId] = [newStMap]
+                    allRepMap[siteId] = [newStMap,]
         # return
         _logger.debug('%s %s' % (self.timestamp,str(allRepMap)))
         return 0,str(allRepMap)            
