@@ -27,6 +27,7 @@ Release Note
   * give higher priorities to /atlas/xyz/Role=production
   * set workingGroup when jobs are submitted with prod role
   * fixed peekJobLog
+  * replica location lookup for containers
 
 * 0.0.5 (4/7/2009)
   * fixed broker_util to use proper python

@@ -216,16 +216,19 @@ class Setupper (threading.Thread):
                         if not self.replicaMap.has_key(job.dispatchDBlock):
                             self.replicaMap[job.dispatchDBlock] = {}
                         if not self.allReplicaMap.has_key(file.dataset):
-                            for iDDMTry in range(3):
-                                _logger.debug((self.timestamp,'listDatasetReplicas',file.dataset))
-                                status,out = ddm.DQ2.main('listDatasetReplicas',file.dataset,0,None,False)
-                                if status != 0 or out.find("DQ2 internal server exception") != -1 \
-                                       or out.find("An error occurred on the central catalogs") != -1 \
-                                       or out.find("MySQL server has gone away") != -1 \
-                                       or out == '()':
-                                    time.sleep(60)
-                                else:
-                                    break
+                            if file.dataset.endswith('/'):
+                                status,out = self.getListDatasetReplicasInContainer(file.dataset)
+                            else:
+                                for iDDMTry in range(3):
+                                    _logger.debug((self.timestamp,'listDatasetReplicas',file.dataset))
+                                    status,out = ddm.DQ2.main('listDatasetReplicas',file.dataset,0,None,False)
+                                    if status != 0 or out.find("DQ2 internal server exception") != -1 \
+                                           or out.find("An error occurred on the central catalogs") != -1 \
+                                           or out.find("MySQL server has gone away") != -1 \
+                                           or out == '()':
+                                        time.sleep(60)
+                                    else:
+                                        break
                             _logger.debug("%s %s" % (self.timestamp,out))
                             if status != 0 or out.startswith('Error'):
                                 dispError[job.dispatchDBlock] = 'could not get locations for %s' % file.dataset
@@ -1029,16 +1032,19 @@ class Setupper (threading.Thread):
                             _logger.error(out)
                     # get replica locations        
                     if self.onlyTA and prodError[dataset] == '' and (not replicaMap.has_key(dataset)):
-                        for iDDMTry in range(3):
-                            _logger.debug((self.timestamp,'listDatasetReplicas',dataset))
-                            status,out = ddm.DQ2.main('listDatasetReplicas',dataset,0,None,False)
-                            if status != 0 or out.find("DQ2 internal server exception") != -1 \
-                                   or out.find("An error occurred on the central catalogs") != -1 \
-                                   or out.find("MySQL server has gone away") != -1 \
-                                   or out == '()':
-                                time.sleep(60)
-                            else:
-                                break
+                        if dataset.endswith('/'):
+                            status,out = self.getListDatasetReplicasInContainer(dataset)
+                        else:                
+                            for iDDMTry in range(3):
+                                _logger.debug((self.timestamp,'listDatasetReplicas',dataset))
+                                status,out = ddm.DQ2.main('listDatasetReplicas',dataset,0,None,False)
+                                if status != 0 or out.find("DQ2 internal server exception") != -1 \
+                                       or out.find("An error occurred on the central catalogs") != -1 \
+                                       or out.find("MySQL server has gone away") != -1 \
+                                       or out == '()':
+                                    time.sleep(60)
+                                else:
+                                    break
                         if status != 0 or out.startswith('Error'):
                             prodError[dataset] = 'could not get locations for %s' % dataset
                             _logger.error(prodError[dataset])
@@ -1290,3 +1296,65 @@ class Setupper (threading.Thread):
             _logger.error("memoryCheck() : %s %s" % (type,value))
             _logger.debug('%s MemCheck PID=%s unknown' % (self.timestamp,os.getpid()))
             return
+
+
+    def getListDatasetReplicasInContainer(self,container):
+        # get datasets in container
+        _logger.debug((self.timestamp,'listDatasetsInContainer',container))
+        for iDDMTry in range(3):
+            status,out = ddm.DQ2.main('listDatasetsInContainer',container)
+            if status != 0 or out.find("DQ2 internal server exception") != -1 \
+                   or out.find("An error occurred on the central catalogs") != -1 \
+                   or out.find("MySQL server has gone away") != -1 \
+                   or out == '()':
+                time.sleep(60)
+            else:
+                break
+        _logger.debug('%s %s' % (self.timestamp,out))
+        if status != 0 or out.startswith('Error'):
+            return status,out
+        datasets = []
+        try:
+            # convert to list
+            exec "datasets = %s" % out
+        except:
+            return status,out
+        # loop over all datasets
+        allRepMap = {}
+        for dataset in datasets:
+            _logger.debug((self.timestamp,'listDatasetReplicas',dataset))
+            for iDDMTry in range(3):
+                status,out = ddm.DQ2.main('listDatasetReplicas',dataset,0,None,False)
+                if status != 0 or out.find("DQ2 internal server exception") != -1 \
+                       or out.find("An error occurred on the central catalogs") != -1 \
+                       or out.find("MySQL server has gone away") != -1 \
+                       or out == '()':
+                    time.sleep(60)
+                else:
+                    break
+            _logger.debug('%s %s' % (self.timestamp,out))                
+            if status != 0 or out.startswith('Error'):
+                return status,out
+            tmpRepSites = {}
+            try:
+                # convert res to map
+                exec "tmpRepSites = %s" % out
+            except:
+                return status,out
+            for siteId,statList in tmpRepSites.iteritems():
+                if not allRepMap.has_key(siteId):
+                    # append
+                    allRepMap[siteId] = statList[-1]
+                else:
+                    # add
+                    newStMap = {}
+                    for stName,stNum in allRepMap[siteId].iteritems():
+                        if statList[-1].has_key(stName):
+                            newStMap[stName] = stNum + statList[-1][stName]
+                        else:
+                            newStMap[stName] = stNum
+                    allRepMap[siteId] = [newStMap]
+        # return
+        _logger.debug('%s %s' % (self.timestamp,str(allRepMap)))
+        return 0,str(allRepMap)            
+                                                                                                                                                                        
