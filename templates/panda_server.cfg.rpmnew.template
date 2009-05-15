@@ -86,7 +86,7 @@ lfcClient_dir = %(pandaPython_dir)s/brokerage
 #
 
 # host
-dbhost = INTR
+dbhost = ATLAS_PANDA
 
 # user
 dbuser = ATLAS_PANDA_WRITER
@@ -98,7 +98,7 @@ dbpasswd = FIXME
 dbname = PandaDB
 
 # number of connections
-nDBConnection = 3
+nDBConnection = 2
 
 
 

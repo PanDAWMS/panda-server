@@ -13,3 +13,6 @@ export TZ=UTC
 
 # import panda modules
 export PYTHONPATH=@@install_purelib@@/pandacommon:@@install_purelib@@/pandaserver
+
+# avoid to use AFS
+export HOME=/tmp
