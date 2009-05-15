@@ -84,7 +84,7 @@ export PATH=/opt/edg/bin:/opt/glite/bin:/opt/globus/bin:/opt/lcg/bin:$PATH
 
 and modify panda_common.cfg
 
-$ emacs -nw INSTALLDIR/etc/panda/panda_common.cfg
+$ emacs -nw INSTALLDIR/etc/panda/panda_server.cfg
 
 glite_source = /opt/glite/etc/profile.d/grid-env.sh
 
