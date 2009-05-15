@@ -1,6 +1,6 @@
 Release Note
 
-* current
+* 0.0.5 (5/15/2009)
   * subtract N*250M from available space in brokerage
   * use tasktype2 for RW recalculation
   * allow transferring in updateJob
@@ -28,8 +28,6 @@ Release Note
   * set workingGroup when jobs are submitted with prod role
   * fixed peekJobLog
   * replica location lookup for containers
-
-* 0.0.5 (4/7/2009)
   * fixed broker_util to use proper python
   * use jobParamsTable
   * fixed python path to use 64bit glite
