@@ -4219,6 +4219,15 @@ class DBProxy:
                         for resF in resFs:
                             file = FileSpec()
                             file.pack(resF)
+                            # remove redundant white spaces
+                            try:
+                                file.md5sum = file.md5sum.strip()
+                            except:
+                                pass
+                            try:
+                                file.checksum = file.checksum.strip()
+                            except:
+                                pass
                             job.addFile(file)
                         return job
                 _logger.debug("peekJobLog() : PandaID %s not found" % pandaID)

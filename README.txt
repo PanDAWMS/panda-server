@@ -1,5 +1,8 @@
 Release Note
 
+* current
+  * removed write spaces from md5sum/checksum in peekJobLog
+
 * 0.0.5 (5/15/2009)
   * subtract N*250M from available space in brokerage
   * use tasktype2 for RW recalculation
