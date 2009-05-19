@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added a hint to getJobIDsInTimeRangeLog
   * removed write spaces from md5sum/checksum in peekJobLog
 
 * 0.0.5 (5/15/2009)

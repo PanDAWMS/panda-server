@@ -4067,7 +4067,7 @@ class DBProxy:
             # select
             for table in tables:
                 # make sql
-                sql  = "SELECT jobDefinitionID FROM %s " % table
+                sql  = "SELECT /*+ INDEX_COMBINE(tab JOBS_MODTIME_IDX JOBS_PRODUSERNAME_IDX) */ jobDefinitionID FROM %s tab " % table
                 sql += "WHERE prodUserName=:prodUserName AND modificationTime>:modificationTime "
                 sql += "AND prodSourceLabel=:prodSourceLabel GROUP BY jobDefinitionID"
                 varMap = {}
