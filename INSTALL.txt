@@ -82,7 +82,7 @@ export LD_LIBRARY_PATH=/opt/glite/lib64:/opt/globus/lib:/opt/lcg/lib64:$LD_LIBRA
 export PYTHONPATH=/opt/glite/lib64/python:/opt/lcg/lib64/python:$PYTHONPATH
 export PATH=/opt/edg/bin:/opt/glite/bin:/opt/globus/bin:/opt/lcg/bin:$PATH
 
-and modify panda_common.cfg
+and modify panda_server.cfg
 
 $ emacs -nw INSTALLDIR/etc/panda/panda_server.cfg
 
