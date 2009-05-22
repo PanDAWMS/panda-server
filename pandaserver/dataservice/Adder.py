@@ -403,8 +403,8 @@ class Adder (threading.Thread):
                                             subMap[file.destinationDBlock] = []
                                             # sources
                                             optSource = {}
-                                            # FIXME : only NL/FR for UK emergency
-                                            if self.job.cloud in ['NL','FR']:
+                                            # set sources for NL/FR/ES to handle T2s in another cloud
+                                            if self.job.cloud in ['NL','FR','ES']:
                                                 if file.destinationDBlockToken in ['NULL','']:
                                                     # use default DQ2 ID as source
                                                     optSource[tmpSrcDDM] = {'policy' : 0}

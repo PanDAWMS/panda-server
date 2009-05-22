@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * set sources for ES
   * added a hint to getJobIDsInTimeRangeLog
   * removed write spaces from md5sum/checksum in peekJobLog
 
