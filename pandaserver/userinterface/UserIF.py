@@ -219,6 +219,14 @@ class UserIF:
         return pickle.dumps(ret)
 
 
+    # get input files currently in used for analysis
+    def getFilesInUseForAnal(self,outDataset):
+        # get files
+        ret = self.taskBuffer.getFilesInUseForAnal(outDataset)
+        # serialize 
+        return pickle.dumps(ret)
+
+
     # kill jobs
     def killJobs(self,idsStr,user,host,code,prodManager):
         # deserialize IDs
@@ -536,6 +544,11 @@ def getJobStatisticsPerSite(req,predefined='False'):
 # query last files in datasets
 def queryLastFilesInDataset(req,datasets):
     return userIF.queryLastFilesInDataset(datasets)
+
+
+# get input files currently in used for analysis
+def getFilesInUseForAnal(req,outDataset):
+    return userIF.getFilesInUseForAnal(outDataset)
 
 
 # kill jobs

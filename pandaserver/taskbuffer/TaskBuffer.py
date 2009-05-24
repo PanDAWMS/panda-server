@@ -632,6 +632,19 @@ class TaskBuffer:
         return ids
 
 
+    # get input files currently in used for analysis
+    def getFilesInUseForAnal(self,outDataset):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        retList = []
+        # query LFNs
+        retList = proxy.getFilesInUseForAnal(outDataset)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return retList
+
+
     # update input files and return corresponding PandaIDs
     def updateInFilesReturnPandaIDs(self,dataset,status):
         # get DBproxy

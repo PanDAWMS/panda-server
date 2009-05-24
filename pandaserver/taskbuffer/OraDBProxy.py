@@ -2697,12 +2697,86 @@ class DBProxy:
                 return -1
 
 
+    # get input files currently in use for analysis
+    def getFilesInUseForAnal(self,outDataset):
+        comment = ' /* DBProxy.getFilesInUseForAnal */'        
+        sqlSub  = "SELECT /*+ index(tab FILESTABLE4_DATASET_IDX) */ distinct destinationDBlock FROM ATLAS_PANDA.filesTable4 tab "
+        sqlSub += "WHERE dataset=:dataset AND type=:type"
+        sqlPan  = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ PandaID FROM ATLAS_PANDA.filesTable4 tab "
+        sqlPan += "WHERE destinationDBlock=:destinationDBlock AND rownum<=1"
+        sqlDis  = "SELECT distinct dispatchDBlock FROM ATLAS_PANDA.filesTable4 "
+        sqlDis += "WHERE PandaID=:PandaID AND type=:type"
+        sqlLfn  = "SELECT /*+ index(tab FILESTABLE4_DISPDBLOCK_IDX) */ distinct lfn FROM ATLAS_PANDA.filesTable4 tab "
+        sqlLfn += "WHERE dispatchDBlock=:dispatchDBlock AND type=:type"
+        nTry=3
+        for iTry in range(nTry):
+            inputFilesList = []
+            try:
+                # start transaction
+                self.conn.begin()
+                # get sub datasets
+                varMap = {}
+                varMap[':dataset'] = outDataset
+                varMap[':type'] = 'output'
+                _logger.debug("getFilesInUseForAnal : %s %s" % (sqlSub,str(varMap)))
+                self.cur.arraysize = 10000
+                retS = self.cur.execute(sqlSub+comment, varMap)
+                res = self.cur.fetchall()
+                for subDataset, in res:
+                    # get PandaID
+                    varMap = {}
+                    varMap[':destinationDBlock'] = subDataset
+                    _logger.debug("getFilesInUseForAnal : %s %s" % (sqlPan,str(varMap)))
+                    self.cur.arraysize = 10000
+                    retP = self.cur.execute(sqlPan+comment, varMap)
+                    resP = self.cur.fetchall()
+                    # get dispatchDlocks
+                    for pandaID, in resP:
+                        varMap = {}
+                        varMap[':PandaID'] = pandaID
+                        varMap[':type'] = 'input'                        
+                        _logger.debug("getFilesInUseForAnal : %s %s" % (sqlDis,str(varMap)))
+                        self.cur.arraysize = 10000
+                        retD = self.cur.execute(sqlDis+comment, varMap)
+                        resD = self.cur.fetchall()
+                        # get LFNs
+                        for disDataset, in resD:
+                            # use new style only
+                            if not disDataset.startswith('user_disp.'):
+                                continue
+                            varMap = {}
+                            varMap[':dispatchDBlock'] = disDataset
+                            varMap[':type'] = 'input'
+                            _logger.debug("getFilesInUseForAnal : %s %s" % (sqlLfn,str(varMap)))
+                            self.cur.arraysize = 100000
+                            retL = self.cur.execute(sqlLfn+comment, varMap)
+                            resL = self.cur.fetchall()
+                            # append
+                            for lfn, in resL:
+                                inputFilesList.append(lfn)
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                _logger.debug("getFilesInUseForAnal : %s" % len(inputFilesList))
+                return inputFilesList
+            except:
+                # roll back
+                self._rollback()
+                if iTry+1 < nTry:
+                    _logger.debug("inputFilesList retry : %s" % iTry)
+                    time.sleep(random.randint(10,20))
+                    continue
+                type, value, traceBack = sys.exc_info()
+                _logger.error("inputFilesList(%s) : %s %s" % (outDataset,type,value))
+                return []
+
+
     # update input files and return corresponding PandaIDs
     def updateInFilesReturnPandaIDs(self,dataset,status):
         comment = ' /* DBProxy.updateInFilesReturnPandaIDs */'                                
         _logger.debug("updateInFilesReturnPandaIDs(%s)" % dataset)
-        sql0 = "SELECT row_ID,PandaID FROM ATLAS_PANDA.filesTable4 WHERE status<>:status AND dispatchDBlock=:dispatchDBlock"
-        sql1 = "UPDATE ATLAS_PANDA.filesTable4 SET status=:status WHERE status<>:status AND dispatchDBlock=:dispatchDBlock"
+        sql0 = "SELECT /*+ index(tab FILESTABLE4_DISPDBLOCK_IDX) */ row_ID,PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE status<>:status AND dispatchDBlock=:dispatchDBlock"
+        sql1 = "UPDATE /*+ index(tab FILESTABLE4_DISPDBLOCK_IDX) */ ATLAS_PANDA.filesTable4 tab SET status=:status WHERE status<>:status AND dispatchDBlock=:dispatchDBlock"
         varMap = {}
         varMap[':status'] = status
         varMap[':dispatchDBlock'] = dataset
