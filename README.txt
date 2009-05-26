@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * removed BNL and old bamboo stuff from Client.py
   * added a hint to updateInFilesReturnPandaIDs
   * added getFilesInUseForAnal
   * set sources for ES

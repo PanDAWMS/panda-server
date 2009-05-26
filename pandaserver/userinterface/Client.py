@@ -15,11 +15,11 @@ import cPickle as pickle
 try:
     baseURL = os.environ['PANDA_URL']
 except:
-    baseURL = 'http://localhost:25080/server/panda'
+    baseURL = 'http://pandaserver.cern.ch:25080/server/panda'
 try:
     baseURLSSL = os.environ['PANDA_URL_SSL']
 except:
-    baseURLSSL = 'https://localhost:25443/server/panda'
+    baseURLSSL = 'https://pandaserver.cern.ch:25443/server/panda'
 
 
 # exit code
@@ -46,12 +46,10 @@ else:
                                'URLSSL' : baseURLSSL},
                   'CERN'    : {'URL'    : 'http://pandaserver.cern.ch:25080/server/panda',
                                'URLSSL' : 'https://pandaserver.cern.ch:25443/server/panda'},
-                  'BNL'     : {'URL'    : 'http://pandasrv.usatlas.bnl.gov:25080/server/panda',
-                               'URLSSL' : 'https://pandasrv.usatlas.bnl.gov:25443/server/panda'},
                   }
 
 # bamboo
-baseURLBAMBOO = 'http://lxmrrb5310.cern.ch:25080/bamboo/bamboo'
+baseURLBAMBOO = 'http://voatlas23.cern.ch:25070/bamboo/bamboo'
 
 
 # get URL

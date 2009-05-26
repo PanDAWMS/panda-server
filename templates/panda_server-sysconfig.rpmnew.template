@@ -16,3 +16,10 @@ export PYTHONPATH=@@install_purelib@@/pandacommon:@@install_purelib@@/pandaserve
 
 # avoid to use AFS
 export HOME=/tmp
+
+# set user's proxy
+export X509_USER_PROXY=FIXME
+
+# panda server URLs
+export PANDA_URL='http://localhost:25080/server/panda'
+export PANDA_URL_SSL='https://localhost:25443/server/panda'
