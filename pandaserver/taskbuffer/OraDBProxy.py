@@ -2700,13 +2700,11 @@ class DBProxy:
     # get input files currently in use for analysis
     def getFilesInUseForAnal(self,outDataset):
         comment = ' /* DBProxy.getFilesInUseForAnal */'        
-        sqlSub  = "SELECT /*+ index(tab FILESTABLE4_DATASET_IDX) */ distinct destinationDBlock FROM ATLAS_PANDA.filesTable4 tab "
-        sqlSub += "WHERE dataset=:dataset AND type=:type"
-        sqlPan  = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ PandaID FROM ATLAS_PANDA.filesTable4 tab "
-        sqlPan += "WHERE destinationDBlock=:destinationDBlock AND rownum<=1"
+        sqlSub  = "SELECT /*+ index(tab FILESTABLE4_DATASET_IDX) */ destinationDBlock,PandaID FROM ATLAS_PANDA.filesTable4 tab "
+        sqlSub += "WHERE dataset=:dataset AND type=:type AND status=:fileStatus GROUP BY destinationDBlock,PandaID"
         sqlDis  = "SELECT distinct dispatchDBlock FROM ATLAS_PANDA.filesTable4 "
         sqlDis += "WHERE PandaID=:PandaID AND type=:type"
-        sqlLfn  = "SELECT /*+ index(tab FILESTABLE4_DISPDBLOCK_IDX) */ distinct lfn FROM ATLAS_PANDA.filesTable4 tab "
+        sqlLfn  = "SELECT /*+ index(tab FILESTABLE4_DISPDBLOCK_IDX) */ lfn,PandaID FROM ATLAS_PANDA.filesTable4 tab "
         sqlLfn += "WHERE dispatchDBlock=:dispatchDBlock AND type=:type"
         nTry=3
         for iTry in range(nTry):
@@ -2718,41 +2716,43 @@ class DBProxy:
                 varMap = {}
                 varMap[':dataset'] = outDataset
                 varMap[':type'] = 'output'
+                varMap[':fileStatus'] = 'unknown'                
                 _logger.debug("getFilesInUseForAnal : %s %s" % (sqlSub,str(varMap)))
                 self.cur.arraysize = 10000
                 retS = self.cur.execute(sqlSub+comment, varMap)
                 res = self.cur.fetchall()
-                for subDataset, in res:
-                    # get PandaID
+                subDSpandaIDmap = {}
+                for subDataset,pandaID in res:
+                    if not subDSpandaIDmap.has_key(subDataset):
+                        subDSpandaIDmap[subDataset] = []
+                    subDSpandaIDmap[subDataset].append(pandaID)
+                # loop over all sub datasets
+                for subDataset,activePandaIDs in subDSpandaIDmap.iteritems():
+                    # get dispatchDBlocks
+                    pandaID = activePandaIDs[0]
                     varMap = {}
-                    varMap[':destinationDBlock'] = subDataset
-                    _logger.debug("getFilesInUseForAnal : %s %s" % (sqlPan,str(varMap)))
+                    varMap[':PandaID'] = pandaID
+                    varMap[':type'] = 'input'                        
+                    _logger.debug("getFilesInUseForAnal : %s %s" % (sqlDis,str(varMap)))
                     self.cur.arraysize = 10000
-                    retP = self.cur.execute(sqlPan+comment, varMap)
-                    resP = self.cur.fetchall()
-                    # get dispatchDlocks
-                    for pandaID, in resP:
+                    retD = self.cur.execute(sqlDis+comment, varMap)
+                    resD = self.cur.fetchall()
+                    # get LFNs
+                    for disDataset, in resD:
+                        # use new style only
+                        if not disDataset.startswith('user_disp.'):
+                            continue
                         varMap = {}
-                        varMap[':PandaID'] = pandaID
-                        varMap[':type'] = 'input'                        
-                        _logger.debug("getFilesInUseForAnal : %s %s" % (sqlDis,str(varMap)))
-                        self.cur.arraysize = 10000
-                        retD = self.cur.execute(sqlDis+comment, varMap)
-                        resD = self.cur.fetchall()
-                        # get LFNs
-                        for disDataset, in resD:
-                            # use new style only
-                            if not disDataset.startswith('user_disp.'):
-                                continue
-                            varMap = {}
-                            varMap[':dispatchDBlock'] = disDataset
-                            varMap[':type'] = 'input'
-                            _logger.debug("getFilesInUseForAnal : %s %s" % (sqlLfn,str(varMap)))
-                            self.cur.arraysize = 100000
-                            retL = self.cur.execute(sqlLfn+comment, varMap)
-                            resL = self.cur.fetchall()
-                            # append
-                            for lfn, in resL:
+                        varMap[':dispatchDBlock'] = disDataset
+                        varMap[':type'] = 'input'
+                        _logger.debug("getFilesInUseForAnal : %s %s" % (sqlLfn,str(varMap)))
+                        self.cur.arraysize = 100000
+                        retL = self.cur.execute(sqlLfn+comment, varMap)
+                        resL = self.cur.fetchall()
+                        # append
+                        for lfn,filePandaID in resL:
+                            # skip files used by finished/failed jobs
+                            if filePandaID in activePandaIDs:
                                 inputFilesList.append(lfn)
                 # commit
                 if not self._commit():

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * skip files used by failed/finished jobs in getFilesInUseForAnal
   * removed BNL and old bamboo stuff from Client.py
   * added a hint to updateInFilesReturnPandaIDs
   * added getFilesInUseForAnal
