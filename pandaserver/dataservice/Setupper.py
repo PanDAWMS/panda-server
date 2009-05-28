@@ -761,6 +761,9 @@ class Setupper (threading.Thread):
                         ddmjob.computingSite = PandaMoverIDs[job.cloud]
                     ddmjob.destinationSE     = ddmjob.computingSite
                     ddmjob.assignedPriority  = 200000
+                    if job.prodSourceLabel in ['software']:
+                        # set higher priority for installation jobs
+                        ddmjob.assignedPriority += 1000                        
                     ddmjob.currentPriority   = ddmjob.assignedPriority
                     if self.ddmAttempt != 0:
                         # keep count of attemptNr
