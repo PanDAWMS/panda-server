@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * put size limit in putFile
   * set higher priority for installation mover
   * skip files used by failed/finished jobs in getFilesInUseForAnal
   * removed BNL and old bamboo stuff from Client.py

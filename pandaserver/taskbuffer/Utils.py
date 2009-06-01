@@ -23,9 +23,29 @@ def isAlive(req):
 def putFile(req,file):
     if not Protocol.isSecure(req):
         return False
+    _logger.debug("putFile : start %s" % req.subprocess_env['SSL_CLIENT_S_DN'])
+    # size check
+    sizeLimit = 10*1024*1024
+    if not file.filename.startswith('sources.'):
+        # get file size
+        contentLength = 0
+        try:
+            contentLength = long(req.headers_in["content-length"])
+        except:
+            if req.headers_in.has_key("content-length"):
+                _logger.error("cannot get CL : %s" % req.headers_in["content-length"])
+            else:
+                _logger.error("no CL")
+        _logger.debug("size %s" % contentLength)
+        if contentLength > sizeLimit:
+            errStr = "ERROR : Upload failure. Exceeded size limit %s>%s. Please submit job without --noBuild/--libDS" % (contentLength,sizeLimit)
+            _logger.error(errStr)
+            _logger.debug("putFile : end")            
+            return errStr
     fo = open('%s/%s' % (panda_config.cache_dir,file.filename),'wb')
     fo.write(file.file.read())
     fo.close()
+    _logger.debug("putFile : %s end" % file.filename)
     return True
 
 
