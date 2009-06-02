@@ -216,7 +216,7 @@ Report Panda problems of any sort to
             # release file lock
             fcntl.flock(_lockGetMail.fileno(), fcntl.LOCK_UN)
         # return
-        if mailAddr != "":
+        if not mailAddr in ["","None",None]:
             _logger.debug("email from local DB : '%s'" % mailAddr)
             return mailAddr
         

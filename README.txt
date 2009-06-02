@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed address-check to trigger xwho
   * introduced NG words in email-adder finding 
   * put size limit in putFile
   * set higher priority for installation mover
