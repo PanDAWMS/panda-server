@@ -29,6 +29,9 @@ _ignoreList = [
     'Dietrich Liko',
     ]
 
+# NG words in email address
+_ngWordsInMailAddr = ['support','system','stuff']
+
 
 class Notifier (threading.Thread):
     # constructor
@@ -282,7 +285,14 @@ Report Panda problems of any sort to
                 match = re.search("mailto:([^@]+@[^>]+)>",data)
                 if match != None:
                     adder = match.group(1)
-                    if not adder in emails:
+                    # check NG words
+                    okAddr = True
+                    for ngWord in _ngWordsInMailAddr:
+                        if re.search(ngWord,adder,re.I):
+                            _logger.error("%s has NG word:%s" % (adder,ngWord))
+                            okAddr = False
+                            break
+                    if okAddr and (not adder in emails):
                         emails.append(adder)
         _logger.debug("emails from xwho : '%s'" % emails)
         # failure

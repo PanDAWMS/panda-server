@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * introduced NG words in email-adder finding 
   * put size limit in putFile
   * set higher priority for installation mover
   * skip files used by failed/finished jobs in getFilesInUseForAnal
