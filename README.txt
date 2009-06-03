@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * set processingType for mover
   * get proxy for each job in getFullJobStatus
   * fixed address-check to trigger xwho
   * introduced NG words in email-adder finding 
