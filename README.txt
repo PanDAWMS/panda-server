@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * get proxy for each job in getFullJobStatus
   * fixed address-check to trigger xwho
   * introduced NG words in email-adder finding 
   * put size limit in putFile
