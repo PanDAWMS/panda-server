@@ -681,10 +681,15 @@ class Setupper (threading.Thread):
                             # stage-in callback
                             optSub['DATASET_STAGED_EVENT'] = ['https://%s:%s/server/panda/datasetCompleted' % \
                                                               (panda_config.pserverhost,panda_config.pserverport)]
-                            # use ATLASDATATAPE
+                            # use ATLAS*TAPE
                             seTokens = self.siteMapper.getSite(job.computingSite).setokens
-                            if seTokens.has_key('ATLASDATATAPE'):
+                            if seTokens.has_key('ATLASDATATAPE') and seTokens.has_key('ATLASMCTAPE'):
                                 dq2ID = seTokens['ATLASDATATAPE']
+                                # use MCDISK if needed
+                                for tmpDataset,tmpRepMap in self.replicaMap[job.dispatchDBlock].iteritems():
+                                    if (not tmpRepMap.has_key(dq2ID)) and tmpRepMap.has_key(seTokens['ATLASMCTAPE']):
+                                        dq2ID = seTokens['ATLASMCTAPE']
+                                        break
                                 # for CERN and BNL
                                 if job.cloud in ['CERN','US'] and self.replicaMap.has_key(job.dispatchDBlock):
                                     setNewIDflag = False
@@ -703,6 +708,7 @@ class Setupper (threading.Thread):
                                             # break
                                             if setNewIDflag:
                                                 break
+                                            
                             optSrcPolicy = 000010
                             optSource[dq2ID] = {'policy' : 0}
                         else:

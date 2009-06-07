@@ -90,11 +90,13 @@ def _setReadyToFiles(tmpJob,okFiles,siteMapper):
                 or tmpSiteSpec.ddm == tmpSrcSpec.ddm) \
                    and (not tmpJob.computingSite in prestageSites):
                 # EGEE T1. use DQ2 prestage only for on-tape files
-                if tmpSiteSpec.seprodpath.has_key('ATLASDATATAPE') and okFiles.has_key(tmpFile.lfn):
+                if tmpSiteSpec.seprodpath.has_key('ATLASDATATAPE') and tmpSiteSpec.seprodpath.has_key('ATLASMCTAPE') and \
+                       okFiles.has_key(tmpFile.lfn):
                     tapeOnly = True
                     tapeCopy = False
                     for okPFN in okFiles[tmpFile.lfn]:
-                        if re.search(tmpSiteSpec.seprodpath['ATLASDATATAPE'],okPFN) == None:
+                        if re.search(tmpSiteSpec.seprodpath['ATLASDATATAPE'],okPFN) == None and \
+                               re.search(tmpSiteSpec.seprodpath['ATLASMCTAPE'],okPFN) == None:
                             # there is a disk copy
                             if tmpJob.cloud == 'US':
                                 # check for BNLPANDA
@@ -107,7 +109,7 @@ def _setReadyToFiles(tmpJob,okFiles,siteMapper):
                             # there is a tape copy
                             tapeCopy = True
                     # trigger prestage when disk copy doesn't exist or token is TAPE
-                    if tapeOnly or (tapeCopy and tmpFile.dispatchDBlockToken in ['ATLASDATATAPE']):
+                    if tapeOnly or (tapeCopy and tmpFile.dispatchDBlockToken in ['ATLASDATATAPE','ATLASMCTAPE']):
                         allOK = False
                     else:
                         # set ready                        

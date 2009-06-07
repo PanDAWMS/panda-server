@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * prestaging for MCTAPE
   * set processingType for mover
   * get proxy for each job in getFullJobStatus
   * fixed address-check to trigger xwho
