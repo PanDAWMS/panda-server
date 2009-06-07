@@ -708,7 +708,6 @@ class Setupper (threading.Thread):
                                             # break
                                             if setNewIDflag:
                                                 break
-                                            
                             optSrcPolicy = 000010
                             optSource[dq2ID] = {'policy' : 0}
                         else:
