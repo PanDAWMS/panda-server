@@ -35,4 +35,4 @@ from userinterface.UserIF        import submitJobs,getJobStatus,queryPandaIDs,ki
      getJobsToBeUpdated,updateProdDBUpdateTimes,runTaskAssignment,getAssigningTask,getSiteSpecs,\
      getCloudSpecs,runBrokerage,seeCloudTask,queryJobInfoPerCloud,registerProxyKey,getProxyKey,\
      getJobIDsInTimeRange,getPandIDsWithJobID,getFullJobStatus,getJobStatisticsForBamboo,\
-     getNUserJobs,addSiteAccess,listSiteAccess,getFilesInUseForAnal
+     getNUserJobs,addSiteAccess,listSiteAccess,getFilesInUseForAnal,updateSiteAccess

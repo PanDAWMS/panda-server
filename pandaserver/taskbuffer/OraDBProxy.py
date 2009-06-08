@@ -1058,7 +1058,7 @@ class DBProxy:
         
     # get jobs
     def getJobs(self,nJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-                atlasRelease,prodUserID,countryGroup):
+                atlasRelease,prodUserID,countryGroup,workingGroup):
         comment = ' /* DBProxy.getJobs */'
         dynamicBrokering = False
         getValMap = {}
@@ -1114,6 +1114,16 @@ class DBProxy:
                     sql1+= "%s," % tmpKey
                     getValMap[tmpKey] = tmpCountry
                     idxCountry += 1
+                sql1 = sql1[:-1]
+                sql1+= ") "
+            if not workingGroup in ['',None]:
+                sql1+= "AND workingGroup IN ("
+                idxWorking = 1
+                for tmpWorking in workingGroup.split(','):
+                    tmpKey = ":workingGroup%s" % idxWorking
+                    sql1+= "%s," % tmpKey
+                    getValMap[tmpKey] = tmpWorking
+                    idxWorking += 1
                 sql1 = sql1[:-1]
                 sql1+= ") "
         sql2 = "SELECT %s FROM ATLAS_PANDA.jobsActive4 " % JobSpec.columnNames()
@@ -4006,12 +4016,14 @@ class DBProxy:
 
         
     # check site access
-    def checkSiteAccess(self,siteid,dn):
+    def checkSiteAccess(self,siteid,longDN):
         comment = ' /* DBProxy.checkSiteAccess */'
-        _logger.debug("checkSiteAccess %s:%s" % (siteid,dn))
+        _logger.debug("checkSiteAccess %s:%s" % (siteid,longDN))
         try:
+            # use compact DN
+            dn = self.cleanUserID(longDN)
             # construct SQL
-            sql = 'SELECT poffset,rights,status FROM ATLAS_PANDAMETA.siteaccess WHERE dn=:dn AND pandasite=:pandasite'
+            sql = 'SELECT poffset,rights,status,workingGroups FROM ATLAS_PANDAMETA.siteaccess WHERE dn=:dn AND pandasite=:pandasite'
             varMap = {}
             varMap[':dn'] = dn
             varMap[':pandasite'] = siteid
@@ -4027,10 +4039,11 @@ class DBProxy:
             # return
             retMap = {}
             if res != None and len(res) != 0:
-                poffset,rights,status = res[0]
-                retMap['poffset'] = poffset
-                retMap['rights']  = rights
-                retMap['status']  = status
+                poffset,rights,status,workingGroups = res[0]
+                retMap['poffset']       = poffset
+                retMap['rights']        = rights
+                retMap['status']        = status
+                retMap['workingGroups'] = workingGroups
             _logger.debug(retMap)
             return retMap
         except:
@@ -4042,10 +4055,12 @@ class DBProxy:
 
         
     # add account to siteaccess
-    def addSiteAccess(self,siteID,dn):
+    def addSiteAccess(self,siteID,longDN):
         comment = ' /* DBProxy.addSiteAccess */'                        
-        _logger.debug("addSiteAccess : %s %s" % (siteID,dn))
+        _logger.debug("addSiteAccess : %s %s" % (siteID,longDN))
         try:
+            # use compact DN
+            dn = self.cleanUserID(longDN)
             # set autocommit on
             self.conn.begin()
             # select
@@ -4063,7 +4078,7 @@ class DBProxy:
                     raise RuntimeError, 'Commit error'
                 return res[0]
             # add
-            sql = 'INSERT INTO ATLAS_PANDAMETA.siteaccess (id,dn,pandasite,status) VALUES (ATLAS_PANDAMETA.SITEACCESS_ID_SEQ.nextval,:dn,:pandasite,:status)'
+            sql = 'INSERT INTO ATLAS_PANDAMETA.siteaccess (id,dn,pandasite,status,created) VALUES (ATLAS_PANDAMETA.SITEACCESS_ID_SEQ.nextval,:dn,:pandasite,:status,CURRENT_DATE)'
             varMap = {}
             varMap[':dn'] = dn
             varMap[':pandasite'] = siteID
@@ -4097,7 +4112,8 @@ class DBProxy:
                 varMap = {':pandasite':siteid}
                 sql = 'SELECT dn,status FROM ATLAS_PANDAMETA.siteaccess WHERE pandasite=:pandasite ORDER BY dn'
             else:
-                varMap = {':dn':dn}
+                shortDN = self.cleanUserID(dn)
+                varMap = {':dn':shortDN}
                 sql = 'SELECT pandasite,status FROM ATLAS_PANDAMETA.siteaccess WHERE dn=:dn ORDER BY pandasite'
             # select
             self.cur.execute(sql+comment,varMap)
@@ -4114,11 +4130,100 @@ class DBProxy:
             _logger.debug(ret)
             return ret
         except:
-            type, value, traceBack = sys.exc_info()
-            _logger.error("listSiteAccess : %s %s" % (type,value))
             # roll back
             self._rollback()
+            type, value, traceBack = sys.exc_info()
+            _logger.error("listSiteAccess : %s %s" % (type,value))
             return []
+
+
+    # update site access
+    def updateSiteAccess(self,method,siteid,requesterDN,userName):
+        comment = ' /* DBProxy.updateSiteAccess */'
+        _logger.debug("updateSiteAccess %s:%s:%s:%s" % (method,siteid,requesterDN,userName))
+        try:
+            # set autocommit on
+            self.conn.begin()
+            # check existence
+            varMap = {}
+            varMap[':pandasite'] = siteid
+            varMap[':dn'] = userName
+            sql = 'SELECT count(*) FROM ATLAS_PANDAMETA.siteaccess WHERE pandasite=:pandasite AND dn=:dn'
+            self.cur.execute(sql+comment,varMap)
+            self.cur.arraysize = 10
+            res = self.cur.fetchall()            
+            if res == None or res[0][0] == 0:
+                _logger.error("updateSiteAccess : No request for %s" % varMap)
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                # return
+                return 'No request for %s:%s' % (siteid,userName)
+            # get cloud
+            varMap = {':pandasite':siteid}
+            sql = 'SELECT cloud FROM ATLAS_PANDAMETA.schedconfig WHERE siteid=:pandasite AND rownum<=1'
+            self.cur.execute(sql+comment,varMap)            
+            res = self.cur.fetchall()
+            if res == None or len(res) == 0:
+                _logger.error("updateSiteAccess : No cloud in schedconfig for %s" % siteid)
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                # return
+                return "No cloud in schedconfig for %s" % siteid
+            cloud = res[0][0]
+            # check privilege
+            varMap = {':cloud':cloud}
+            sql = 'SELECT dn FROM ATLAS_PANDAMETA.cloudconfig WHERE name=:cloud'
+            self.cur.execute(sql+comment,varMap)
+            res = self.cur.fetchall()
+            if res == None or len(res) == 0:
+                _logger.error("updateSiteAccess : No contact in cloudconfig for %s" % cloud)
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                # return
+                return "No contact in cloudconfig for %s" % cloud
+            contactNames = res[0][0]
+            if contactNames in [None,'']:
+                contactNames = []
+            else:
+                contactNames = contactNames.split(',')
+            if not self.cleanUserID(requesterDN) in contactNames:
+                _logger.error("updateSiteAccess : %s is not one of contacts %s" % (requesterDN,str(contactNames)))
+                # return
+                return "insufficient privilege"
+            # update
+            varMap = {}
+            varMap[':pandasite'] = siteid
+            varMap[':dn'] = userName
+            if method in ['approve','reject']:
+                # update status
+                sql = 'UPDATE ATLAS_PANDAMETA.siteaccess set status=:newStatus WHERE pandasite=:pandasite AND dn=:dn'
+                if method == 'approve':
+                    varMap[':newStatus'] = 'tobeapproved'
+                else:
+                    varMap[':newStatus'] = 'toberejected'                    
+            elif method == 'delete':
+                # delete
+                sql = 'DELETE FROM ATLAS_PANDAMETA.siteaccess WHERE pandasite=:pandasite AND dn=:dn'
+            else:
+                _logger.error("updateSiteAccess : unknown method '%s'" % method)
+                # return
+                return "unknown method '%s'" % method
+            # execute
+            self.cur.execute(sql+comment,varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            _logger.debug("updateSiteAccess : completed")
+            return True
+        except:
+            # roll back
+            self._rollback()
+            type, value, traceBack = sys.exc_info()
+            _logger.error("updateSiteAccess : %s %s" % (type,value))
+            return 'DB error'
 
         
     # get list of archived tables

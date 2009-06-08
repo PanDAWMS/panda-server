@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * addded updateSiteAccess
+  * workingGroup
   * added MailUtils
   * prestaging for MCTAPE
   * set processingType for mover

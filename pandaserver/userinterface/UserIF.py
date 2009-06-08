@@ -410,6 +410,14 @@ class UserIF:
         return pickle.dumps(ret)
 
 
+    # update site access
+    def updateSiteAccess(self,method,siteid,requesterDN,userName):
+        # list
+        ret = self.taskBuffer.updateSiteAccess(method,siteid,requesterDN,userName)
+        # serialize 
+        return str(ret)
+
+
 # Singleton
 userIF = UserIF()
 del UserIF
@@ -760,3 +768,17 @@ def listSiteAccess(req,siteID=None):
     if siteID==None:
         dn = req.subprocess_env['SSL_CLIENT_S_DN']
     return userIF.listSiteAccess(siteID,dn)
+
+
+# update site access
+def updateSiteAccess(req,method,siteid,userName):
+    # check security
+    if not Protocol.isSecure(req):
+        return "non HTTPS"
+    # get DN
+    if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        return "invalid DN"
+    # set requester's DN
+    requesterDN = req.subprocess_env['SSL_CLIENT_S_DN']
+    # update
+    return userIF.updateSiteAccess(method,siteid,requesterDN,userName)

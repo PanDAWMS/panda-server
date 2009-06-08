@@ -70,12 +70,12 @@ class JobDipatcher:
 
     # get job
     def getJob(self,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-               atlasRelease,prodUserID,getProxyKey,countryGroup):
+               atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup):
         jobs = []
         # wrapper function for timeout
         tmpWrapper = _TimedMethod(self.taskBuffer.getJobs,timeout)
         tmpWrapper.run(1,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-                       atlasRelease,prodUserID,getProxyKey,countryGroup)
+                       atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup)
         if isinstance(tmpWrapper.result,types.ListType):
             jobs = jobs + tmpWrapper.result
         # make response
@@ -301,7 +301,8 @@ web service interface
 
 # get job
 def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,prodSourceLabel=None,node=None,
-           computingElement=None,AtlasRelease=None,prodUserID=None,getProxyKey=None,countryGroup=None):
+           computingElement=None,AtlasRelease=None,prodUserID=None,getProxyKey=None,countryGroup=None,
+           workingGroup=None):
     _logger.debug("getJob(%s)" % siteName)
     # get DN
     realDN = _getDN(req)
@@ -332,9 +333,9 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
             diskSpace = 0
     except:
         diskSpace = 0        
-    _logger.debug("getJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s)" \
+    _logger.debug("getJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s)" \
                   % (siteName,cpu,mem,diskSpace,prodSourceLabel,node,
-                     computingElement,AtlasRelease,prodUserID,getProxyKey,countryGroup,
+                     computingElement,AtlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,
                      realDN,prodManager,token,validToken,str(fqans)))
     # invalid role
     if (not prodManager) and (not prodSourceLabel in ['user']):
@@ -361,7 +362,8 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
         pass
     # invoke JD
     return jobDispatcher.getJob(siteName,prodSourceLabel,cpu,mem,diskSpace,node,int(timeout),
-                                computingElement,AtlasRelease,prodUserID,getProxyKey,countryGroup)
+                                computingElement,AtlasRelease,prodUserID,getProxyKey,countryGroup,
+                                workingGroup)
     
 
 # update job status
