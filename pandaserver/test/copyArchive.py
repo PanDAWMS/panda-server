@@ -64,6 +64,36 @@ def _memoryCheck(str):
 
 _memoryCheck("start")
 
+# kill old dq2 process
+try:
+    # time limit
+    timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=2)
+    # get process list
+    scriptName = sys.argv[0]
+    out = commands.getoutput('ps axo user,pid,lstart,args | grep dq2.clientapi | grep -v PYTHONPATH | grep -v grep')
+    for line in out.split('\n'):
+        items = line.split()
+        # owned process
+        if not items[0] in ['sm','atlpan','root']: # ['os.getlogin()']: doesn't work in cron
+            continue
+        # look for python
+        if re.search('python',line) == None:
+            continue
+        # PID
+        pid = items[1]
+        # start time
+        timeM = re.search('(\S+\s+\d+ \d+:\d+:\d+ \d+)',line)
+        startTime = datetime.datetime(*time.strptime(timeM.group(1),'%b %d %H:%M:%S %Y')[:6])
+        # kill old process
+        if startTime < timeLimit:
+            _logger.debug("old dq2 process : %s %s" % (pid,startTime))
+            _logger.debug(line)            
+            commands.getoutput('kill -9 %s' % pid)
+except:
+    type, value, traceBack = sys.exc_info()
+    _logger.error("kill dq2 process : %s %s" % (type,value))
+
+
 # kill old process
 try:
     # time limit

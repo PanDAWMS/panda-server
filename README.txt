@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * kill old dq2 processes
   * addded updateSiteAccess
   * workingGroup
   * added MailUtils
