@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * send email update/request for site access
   * kill old dq2 processes
   * addded updateSiteAccess
   * workingGroup

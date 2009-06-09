@@ -17,6 +17,7 @@ from jobdispatcher.Watcher import Watcher
 from brokerage.SiteMapper import SiteMapper
 from dataservice.Adder import Adder
 from dataservice.Finisher import Finisher
+from dataservice.MailUtils import MailUtils
 from taskbuffer import ProcessGroups
 import brokerage.broker_util
 import brokerage.broker
@@ -72,6 +73,8 @@ try:
     scriptName = sys.argv[0]
     out = commands.getoutput('ps axo user,pid,lstart,args | grep dq2.clientapi | grep -v PYTHONPATH | grep -v grep')
     for line in out.split('\n'):
+        if line == '':
+            continue
         items = line.split()
         # owned process
         if not items[0] in ['sm','atlpan','root']: # ['os.getlogin()']: doesn't work in cron
@@ -225,6 +228,94 @@ _logger.debug("increased priority for %s" % status)
 time.sleep(1)
 
 
+# send email for access requests
+_logger.debug("Site Access")
+try:
+    # get contact
+    contactAddr = {}
+    sql = "SELECT name,email FROM ATLAS_PANDAMETA.cloudconfig"
+    status,res = proxyS.querySQLS(sql,{})
+    for cloudName,cloudEmail in res:
+        contactAddr[cloudName] = cloudEmail
+    # get requests 
+    sql  = "SELECT pandaSite,status,dn FROM ATLAS_PANDAMETA.siteaccess WHERE status IN (:status1,:status2,:status3) "
+    sql += "ORDER BY pandaSite,status " 
+    varMap = {}
+    varMap[':status1'] = 'requested'
+    varMap[':status2'] = 'tobeapproved'
+    varMap[':status3'] = 'toberejected'
+    status,res = proxyS.querySQLS(sql,varMap)
+    requestsInCloud = {}
+    mailUtils = MailUtils()
+    # loop over all requests
+    for pandaSite,reqStatus,userName in res:
+        cloud = siteMapper.getSite(pandaSite).cloud
+        _logger.debug("request : '%s' site=%s status=%s cloud=%s" % (userName,pandaSite,reqStatus,cloud))
+        # send emails to user
+        if reqStatus in ['tobeapproved','toberejected']:
+            # set status
+            if reqStatus == 'tobeapproved':
+                newStatus = 'approved'
+            else:
+                newStatus = 'rejected'
+            # get mail address for user
+            userMailAddr = ''
+            sqlUM = "SELECT email FROM ATLAS_PANDAMETA.users WHERE name=:userName"
+            varMap = {}
+            varMap[':userName'] = userName
+            stUM,resUM = proxyS.querySQLS(sqlUM,varMap)
+            if resUM == None or len(resUM) == 0:
+                _logger.error("email address is unavailable for '%s'" % userName)
+            else:
+                userMailAddr = resUM[0][0]
+            # send
+            if not userMailAddr in ['',None,'None','notsend']:
+                _logger.debug("send update to %s" % userMailAddr)
+                retMail = mailUtils.sendSiteAccessUpdate(userMailAddr,newStatus,pandaSite)
+                _logger.debug(retMail)
+            # update database
+            sqlUp  = "UPDATE ATLAS_PANDAMETA.siteaccess SET status=:newStatus "
+            sqlUp += "WHERE pandaSite=:pandaSite AND dn=:userName"
+            varMap = {}
+            varMap[':userName']  = userName
+            varMap[':newStatus'] = newStatus            
+            varMap[':pandaSite'] = pandaSite
+            stUp,resUp = proxyS.querySQLS(sqlUp,varMap)
+        else:
+            # append cloud
+            if not requestsInCloud.has_key(cloud):
+                requestsInCloud[cloud] = {}
+            # append site
+            if not requestsInCloud[cloud].has_key(pandaSite):
+                requestsInCloud[cloud][pandaSite] = []
+            # append user
+            requestsInCloud[cloud][pandaSite].append(userName)
+    # send requests to the cloud responsible
+    for cloud,requestsMap in requestsInCloud.iteritems():
+        _logger.debug("requests for approval : cloud=%s" % cloud)
+        # send
+        if contactAddr.has_key(cloud) and (not contactAddr[cloud] in ['',None,'None']):
+            _logger.debug("send request to %s" % contactAddr[cloud])
+            retMail = mailUtils.sendSiteAccessRequest(contactAddr[cloud],requestsMap,cloud)
+            _logger.debug(retMail)
+            # update database
+            if retMail:
+                sqlUp  = "UPDATE ATLAS_PANDAMETA.siteaccess SET status=:newStatus "
+                sqlUp += "WHERE pandaSite=:pandaSite AND dn=:userName"
+                for pandaSite,userNames in requestsMap.iteritems():
+                    for userName in userNames:
+                        varMap = {}
+                        varMap[':userName']  = userName
+                        varMap[':newStatus'] = 'inprocess'
+                        varMap[':pandaSite'] = pandaSite
+                        stUp,resUp = proxyS.querySQLS(sqlUp,varMap)
+        else:
+            _logger.error("contact email address is unavailable for %s" % cloud)
+except:
+    type, value, traceBack = sys.exc_info()
+    _logger.error("Failed with %s %s" % (type,value))
+_logger.debug("Site Access : done")    
+            
 _memoryCheck("watcher")
 
 _logger.debug("Watcher session")
