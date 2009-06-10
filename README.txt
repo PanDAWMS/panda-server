@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * added longFormat to listSiteAccess 
+  * added set to updateSiteAccess
   * verify workingGroup
   * send email update/request for site access
   * kill old dq2 processes

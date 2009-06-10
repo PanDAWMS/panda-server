@@ -1111,11 +1111,11 @@ class TaskBuffer:
 
 
     # list site access
-    def listSiteAccess(self,siteid,dn):
+    def listSiteAccess(self,siteid,dn,longFormat=False):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # list site access
-        ret = proxy.listSiteAccess(siteid,dn)
+        ret = proxy.listSiteAccess(siteid,dn,longFormat)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -1123,11 +1123,11 @@ class TaskBuffer:
 
 
     # update site access
-    def updateSiteAccess(self,method,siteid,requesterDN,userName):
+    def updateSiteAccess(self,method,siteid,requesterDN,userName,attrValue):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # update site access
-        ret = proxy.updateSiteAccess(method,siteid,requesterDN,userName)
+        ret = proxy.updateSiteAccess(method,siteid,requesterDN,userName,attrValue)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

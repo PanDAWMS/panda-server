@@ -403,17 +403,17 @@ class UserIF:
 
 
     # list site access
-    def listSiteAccess(self,siteID,dn):
+    def listSiteAccess(self,siteID,dn,longFormat=False):
         # list
-        ret = self.taskBuffer.listSiteAccess(siteID,dn)
+        ret = self.taskBuffer.listSiteAccess(siteID,dn,longFormat)
         # serialize 
         return pickle.dumps(ret)
 
 
     # update site access
-    def updateSiteAccess(self,method,siteid,requesterDN,userName):
+    def updateSiteAccess(self,method,siteid,requesterDN,userName,attrValue):
         # list
-        ret = self.taskBuffer.updateSiteAccess(method,siteid,requesterDN,userName)
+        ret = self.taskBuffer.updateSiteAccess(method,siteid,requesterDN,userName,attrValue)
         # serialize 
         return str(ret)
 
@@ -756,7 +756,7 @@ def addSiteAccess(req,siteID):
 
 
 # list site access
-def listSiteAccess(req,siteID=None):
+def listSiteAccess(req,siteID=None,longFormat=False):
     # check security
     if not Protocol.isSecure(req):
         return "False"
@@ -767,11 +767,16 @@ def listSiteAccess(req,siteID=None):
     dn = None
     if siteID==None:
         dn = req.subprocess_env['SSL_CLIENT_S_DN']
-    return userIF.listSiteAccess(siteID,dn)
+    # convert longFormat option
+    if longFormat == 'True':
+        longFormat = True
+    else:
+        longFormat = False
+    return userIF.listSiteAccess(siteID,dn,longFormat)
 
 
 # update site access
-def updateSiteAccess(req,method,siteid,userName):
+def updateSiteAccess(req,method,siteid,userName,attrValue=''):
     # check security
     if not Protocol.isSecure(req):
         return "non HTTPS"
@@ -781,4 +786,4 @@ def updateSiteAccess(req,method,siteid,userName):
     # set requester's DN
     requesterDN = req.subprocess_env['SSL_CLIENT_S_DN']
     # update
-    return userIF.updateSiteAccess(method,siteid,requesterDN,userName)
+    return userIF.updateSiteAccess(method,siteid,requesterDN,userName,attrValue)

@@ -4103,22 +4103,31 @@ class DBProxy:
 
 
     # list site access
-    def listSiteAccess(self,siteid=None,dn=None):
+    def listSiteAccess(self,siteid=None,dn=None,longFormat=False):
         comment = ' /* DBProxy.listSiteAccess */'
         _logger.debug("listSiteAccess %s:%s" % (siteid,dn))
         try:
             if siteid==None and dn==None:
                 return []
+            longAttributes = 'status,poffset,rights,workingGroups,created' 
             # set autocommit on
             self.conn.begin()
             # construct SQL
             if siteid != None:
                 varMap = {':pandasite':siteid}
-                sql = 'SELECT dn,status FROM ATLAS_PANDAMETA.siteaccess WHERE pandasite=:pandasite ORDER BY dn'
+                if not longFormat:
+                    sql = 'SELECT dn,status FROM ATLAS_PANDAMETA.siteaccess WHERE pandasite=:pandasite ORDER BY dn'
+                else:
+                    sql  = 'SELECT dn,%s FROM ATLAS_PANDAMETA.siteaccess ' % longAttributes
+                    sql += 'WHERE pandasite=:pandasite ORDER BY dn'
             else:
                 shortDN = self.cleanUserID(dn)
                 varMap = {':dn':shortDN}
-                sql = 'SELECT pandasite,status FROM ATLAS_PANDAMETA.siteaccess WHERE dn=:dn ORDER BY pandasite'
+                if not longFormat:
+                    sql = 'SELECT pandasite,status FROM ATLAS_PANDAMETA.siteaccess WHERE dn=:dn ORDER BY pandasite'
+                else:
+                    sql  = 'SELECT pandasite,%s FROM ATLAS_PANDAMETA.siteaccess ' % longAttributes
+                    sql += 'WHERE dn=:dn ORDER BY pandasite'                    
             # select
             self.cur.execute(sql+comment,varMap)
             self.cur.arraysize = 1000
@@ -4130,7 +4139,18 @@ class DBProxy:
             ret = []
             if res != None and len(res) != 0:
                 for tmpRes in res:
-                    ret.append(tmpRes)
+                    if not longFormat:
+                        ret.append(tmpRes)
+                    else:
+                        # create map for long format
+                        tmpRetMap = {}
+                        # use first value as a primary key
+                        tmpRetMap['primKey'] = tmpRes[0]
+                        idxVal = 1
+                        for tmpKey in longAttributes.split(','):
+                            tmpRetMap[tmpKey] = tmpRes[idxVal]
+                            idxVal += 1
+                        ret.append(tmpRetMap)    
             _logger.debug(ret)
             return ret
         except:
@@ -4142,9 +4162,9 @@ class DBProxy:
 
 
     # update site access
-    def updateSiteAccess(self,method,siteid,requesterDN,userName):
+    def updateSiteAccess(self,method,siteid,requesterDN,userName,attrValue):
         comment = ' /* DBProxy.updateSiteAccess */'
-        _logger.debug("updateSiteAccess %s:%s:%s:%s" % (method,siteid,requesterDN,userName))
+        _logger.debug("updateSiteAccess %s:%s:%s:%s:%s" % (method,siteid,requesterDN,userName,attrValue))
         try:
             # set autocommit on
             self.conn.begin()
@@ -4196,14 +4216,14 @@ class DBProxy:
             if not self.cleanUserID(requesterDN) in contactNames:
                 _logger.error("updateSiteAccess : %s is not one of contacts %s" % (requesterDN,str(contactNames)))
                 # return
-                return "insufficient privilege"
+                return "Insufficient privilege"
             # update
             varMap = {}
             varMap[':pandasite'] = siteid
             varMap[':dn'] = userName
             if method in ['approve','reject']:
                 # update status
-                sql = 'UPDATE ATLAS_PANDAMETA.siteaccess set status=:newStatus WHERE pandasite=:pandasite AND dn=:dn'
+                sql = 'UPDATE ATLAS_PANDAMETA.siteaccess SET status=:newStatus WHERE pandasite=:pandasite AND dn=:dn'
                 if method == 'approve':
                     varMap[':newStatus'] = 'tobeapproved'
                 else:
@@ -4211,12 +4231,33 @@ class DBProxy:
             elif method == 'delete':
                 # delete
                 sql = 'DELETE FROM ATLAS_PANDAMETA.siteaccess WHERE pandasite=:pandasite AND dn=:dn'
+            elif method == 'set':
+                # check value
+                if re.search('^[a-z,A-Z]+:[a-z,A-Z,0-9,\,_\-]+$',attrValue) == None:
+                    errStr = "Invalid argument for set : %s. Must be key:value" % attrValue
+                    _logger.error("updateSiteAccess : %s" % errStr)
+                    # retrun
+                    return errStr
+                # decompose to key and value
+                tmpKey = attrValue.split(':')[0].lower()
+                tmpVal = attrValue.split(':')[-1]
+                # check key
+                changeableKeys = ['poffset','workinggroups','rights']
+                if not tmpKey in changeableKeys:
+                    errStr = "%s cannot be set. Only %s are allowed" % (tmpKey,str(changeableKeys))
+                    _logger.error("updateSiteAccess : %s" % errStr)
+                    # retrun
+                    return errStr
+                # set value map
+                varMap[':%s' % tmpKey] = tmpVal
+                sql = 'UPDATE ATLAS_PANDAMETA.siteaccess SET %s=:%s WHERE pandasite=:pandasite AND dn=:dn' % (tmpKey,tmpKey)
             else:
-                _logger.error("updateSiteAccess : unknown method '%s'" % method)
+                _logger.error("updateSiteAccess : Unknown method '%s'" % method)
                 # return
-                return "unknown method '%s'" % method
+                return "Unknown method '%s'" % method
             # execute
-            self.cur.execute(sql+comment,varMap)
+            _logger.debug(sql+comment+str(varMap))
+            self.cur.execute(sql+comment, varMap)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -4227,7 +4268,7 @@ class DBProxy:
             self._rollback()
             type, value, traceBack = sys.exc_info()
             _logger.error("updateSiteAccess : %s %s" % (type,value))
-            return 'DB error'
+            return 'DB error %s %s' % (type,value)
 
         
     # get list of archived tables
