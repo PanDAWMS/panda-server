@@ -132,6 +132,8 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # get number of jobs currently in PandaDB
         serNum = 0
+        userDefinedWG = False
+        validWorkingGroup = False
         if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda']):
             # get nJob
             serNum = proxy.getNumberJobsUser(user)
@@ -140,6 +142,13 @@ class TaskBuffer:
                 serNum = 0
                 weight = 0.0                
                 priorityOffset = 2000
+            # check workingGroup
+            if not jobs[0].workingGroup in ['',None,'NULL']:
+                userDefinedWG = True
+                if userSiteAccess != {}:
+                    if userSiteAccess['status'] == 'approved' and jobs[0].workingGroup in userSiteAccess['workingGroups']:
+                        # valid workingGroup
+                        validWorkingGroup = True
         # loop over all jobs
         ret =[]
         newJobs=[]
@@ -156,9 +165,15 @@ class TaskBuffer:
             # set country group
             if job.prodSourceLabel in ['user','panda']:
                 job.countryGroup = userCountry
-                # set workingGroup if submitted with production role
-                if withProdRole:
-                    job.workingGroup = workingGroup
+                # set workingGroup
+                if not validWorkingGroup:
+                    if withProdRole:
+                        # set country group if submitted with production role
+                        job.workingGroup = workingGroup
+                    else:
+                        if userDefinedWG:
+                            # reset invalid working group
+                            job.workingGroup = None
             # insert job to DB
             if not proxy.insertNewJob(job,user,serNum,weight,priorityOffset,userVO):
                 # reset if failed

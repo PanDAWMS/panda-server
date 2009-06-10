@@ -4040,9 +4040,13 @@ class DBProxy:
             retMap = {}
             if res != None and len(res) != 0:
                 poffset,rights,status,workingGroups = res[0]
-                retMap['poffset']       = poffset
-                retMap['rights']        = rights
-                retMap['status']        = status
+                retMap['poffset'] = poffset
+                retMap['rights']  = rights
+                retMap['status']  = status
+                if workingGroups in ['',None]:
+                    workingGroups = []
+                else:
+                    workingGroups = workingGroups.split(',')                    
                 retMap['workingGroups'] = workingGroups
             _logger.debug(retMap)
             return retMap
