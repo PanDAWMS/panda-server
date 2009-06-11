@@ -319,7 +319,7 @@ class UserIF:
 
 
     # run brokerage
-    def runBrokerage(self,sitesStr,cmtConfig,atlasRelease):
+    def runBrokerage(self,sitesStr,cmtConfig,atlasRelease,trustIS=False):
         ret = 'NULL'
         try:
             # deserialize sites
@@ -331,7 +331,7 @@ class UserIF:
             job.AtlasRelease = atlasRelease
             job.cmtConfig    = cmtConfig
             # run brokerage
-            brokerage.broker.schedule([job],self.taskBuffer,siteMapper,True,sites)
+            brokerage.broker.schedule([job],self.taskBuffer,siteMapper,True,sites,trustIS)
             # get computingSite
             ret = job.computingSite
         except:
@@ -622,8 +622,12 @@ def getCloudSpecs(req):
 
 
 # run brokerage
-def runBrokerage(req,sites,cmtConfig=None,atlasRelease=None):
-    return userIF.runBrokerage(sites,cmtConfig,atlasRelease)
+def runBrokerage(req,sites,cmtConfig=None,atlasRelease=None,trustIS=False):
+    if trustIS=='True':
+        trustIS = True
+    else:
+        trustIS = False
+    return userIF.runBrokerage(sites,cmtConfig,atlasRelease,trustIS)
 
 
 # register proxy key

@@ -134,8 +134,8 @@ def _setReadyToFiles(tmpJob,okFiles,siteMapper):
 
 
 # schedule
-def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
-    _log.debug('start')
+def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],trustIS=False):
+    _log.debug('start %s %s %s' % (forAnalysis,str(setScanSiteList),trustIS))
     # no jobs
     if len(jobs) == 0:
         _log.debug('finished : no jobs')        
@@ -159,12 +159,18 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
     nWNmap = {}
     indexJob = 0
     vomsOK = None
+
+    diskThreshold = 200
+    
     try:
         # get statistics
         jobStatistics = taskBuffer.getJobStatistics()
         jobStatBroker = taskBuffer.getJobStatisticsBrokerage()        
         # sort jobs by siteID. Some jobs may already define computingSite
         jobs.sort(_compFunc)
+        # brokerage for analysis 
+        candidateForAnal = True
+        resultsForAnal   = {'rel':[],'pilot':[],'disk':[]} 
         # loop over all jobs + terminator(None)
         for job in jobs+[None]:
             indexJob += 1
@@ -245,10 +251,18 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                             continue
                         # check status
                         if tmpSiteSpec.status in ['offline','brokeroff']:
-                            _log.debug(' skip: status %s' % tmpSiteSpec.status)
-                            continue
+                            if forAnalysis and tmpSiteSpec.status == 'brokeroff' and tmpSiteSpec.accesscontrol == 'grouplist':
+                                # ignore brokeroff for grouplist site
+                                pass
+                            else:
+                                _log.debug(' skip: status %s' % tmpSiteSpec.status)
+                                if forAnalysis and trustIS:
+                                    resultsForAnal['pilot'].append(site)
+                                continue
                         if tmpSiteSpec.status == 'test' and (not prevProType in ['prod_test']):
                             _log.debug(' skip: status %s for %s' % (tmpSiteSpec.status,prevProType))
+                            if forAnalysis and trustIS:
+                                resultsForAnal['pilot'].append(site)
                             continue
                         _log.debug('   status=%s' % tmpSiteSpec.status)
                         # change NULL cmtconfig to slc3
@@ -273,6 +287,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                               (tmpCmtConfig != None and tmpSiteSpec.cmtconfig != [] and \
                                (not tmpCmtConfig in tmpSiteSpec.cmtconfig)):
                             _log.debug(' skip: release %s/%s not found' % (prevRelease.replace('\n',' '),prevCmtConfig))
+                            if forAnalysis and trustIS:
+                                resultsForAnal['rel'].append(site)
                             # send message to logger
                             try:
                                 # make message
@@ -310,7 +326,9 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                             nPilots = 0
                         # if no pilots
                         if nPilots == 0 and nWNmap != {}:
-                            _log.debug(" skip: %s no pilot" % site)                            
+                            _log.debug(" skip: %s no pilot" % site)
+                            if forAnalysis and trustIS:
+                                resultsForAnal['pilot'].append(site)
                             continue
                         # if no jobs in jobsActive/jobsDefined
                         if not jobStatistics.has_key(site):
@@ -319,11 +337,16 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                         if site != siteMapper.getCloud(previousCloud)['source']:
                             if tmpSiteSpec.space != 0:
                                 nRemJobs = jobStatistics[site]['assigned']+jobStatistics[site]['activated']+jobStatistics[site]['running']
-                                remSpace = tmpSiteSpec.space - 0.250*nRemJobs
+                                if not forAnalysis:
+                                    # take assigned/activated/running jobs into account for production
+                                    remSpace = tmpSiteSpec.space - 0.250*nRemJobs
+                                else:
+                                    remSpace = tmpSiteSpec.space
                                 _log.debug('   space available=%s remain=%s' % (tmpSiteSpec.space,remSpace))
-                                diskThreshold = 200
                                 if remSpace < diskThreshold:
                                     _log.debug('  skip: disk shortage < %s' % diskThreshold)
+                                    if forAnalysis and trustIS:
+                                        resultsForAnal['disk'].append(site)
                                     continue
                         # number of jobs per node
                         if not nWNmap.has_key(site):
@@ -398,6 +421,9 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                             minSites[scanSiteList[0]] = 0
                         else:
                             minSites['BNL_ATLAS_1'] = 0
+                        # release not found
+                        if forAnalysis and trustIS:
+                            candidateForAnal = False
                     # choose site
                     _log.debug('Min Sites:%s' % minSites)
                     if len(fileList) ==0:
@@ -431,9 +457,20 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[]):
                     _log.debug('indexJob:%s' % indexJob)
                     _log.debug('nFiles/iJob=%s' % (float(len(fileList))/float(iJob)))
                     for tmpJob in jobs[indexJob-iJob-1:indexJob-1]:
-                        _log.debug('PandaID:%s -> site:%s' % (tmpJob.PandaID,chosenCE.sitename))
                         # set computingSite
-                        tmpJob.computingSite = chosenCE.sitename
+                        if (not candidateForAnal) and forAnalysis and trustIS:
+                            resultsForAnalStr = 'ERROR : No candidate. '
+                            if resultsForAnal['rel'] != []:
+                                resultsForAnalStr += 'Release:%s was not found in %s. ' % (prevRelease,str(resultsForAnal['rel']))
+                            if resultsForAnal['pilot'] != []:
+                                resultsForAnalStr += '%s are inactive. ' % str(resultsForAnal['pilot'])
+                            if resultsForAnal['disk'] != []:
+                                resultsForAnalStr += 'Disk shortage < %sGB at %s. ' % (diskThreshold,str(resultsForAnal['disk']))
+                            resultsForAnalStr = resultsForAnalStr[:-1]
+                            tmpJob.computingSite = resultsForAnalStr
+                        else:
+                            tmpJob.computingSite = chosenCE.sitename
+                        _log.debug('PandaID:%s -> site:%s' % (tmpJob.PandaID,tmpJob.computingSite))
                         if tmpJob.computingElement == 'NULL':
                             if tmpJob.prodSourceLabel == 'ddm':
                                 # use nickname for ddm jobs

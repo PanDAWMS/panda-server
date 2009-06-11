@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added trustIS to runBrokerage
   * added longFormat to listSiteAccess 
   * added set to updateSiteAccess
   * verify workingGroup
