@@ -717,10 +717,9 @@ class Setupper (threading.Thread):
                             optSrcPolicy = 000010
                             optSource[dq2ID] = {'policy' : 0}
                         else:
-                            # set sources for NL/FR/ES to handle T2s in another cloud
-                            if job.cloud in ['NL','FR','ES']:
-                                for tmpDQ2ID in dq2IDList:
-                                    optSource[tmpDQ2ID] = {'policy' : 0}
+                            # set sources to handle T2s in another cloud and to transfer dis datasets being split in multiple sites 
+                            for tmpDQ2ID in dq2IDList:
+                                optSource[tmpDQ2ID] = {'policy' : 0}
                         _logger.debug((self.timestamp,'registerDatasetSubscription',job.dispatchDBlock,dq2ID,0,0,optSub,optSource,optSrcPolicy,0,None,0,"production"))
                         for iDDMTry in range(3):                                                                
                             status,out = ddm.DQ2.main('registerDatasetSubscription',job.dispatchDBlock,dq2ID,0,0,optSub,optSource,optSrcPolicy,0,None,0,"production")

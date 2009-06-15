@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * set sources of dis for all clouds
   * use MCTAPE for subscriptions
   * added trustIS to runBrokerage
   * added longFormat to listSiteAccess 
