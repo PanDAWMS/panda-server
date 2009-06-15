@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * use MCTAPE for subscriptions
   * added trustIS to runBrokerage
   * added longFormat to listSiteAccess 
   * added set to updateSiteAccess
