@@ -49,7 +49,8 @@ else:
                   }
 
 # bamboo
-baseURLBAMBOO = 'http://voatlas23.cern.ch:25070/bamboo/bamboo'
+#baseURLBAMBOO = 'http://voatlas23.cern.ch:25070/bamboo/bamboo'
+baseURLBAMBOO = 'http://lxmrrb5310.cern.ch:25080/bamboo/bamboo'
 
 
 # get URL
