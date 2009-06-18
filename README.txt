@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added a timeout to Client
   * set sources of dis for all clouds
   * use MCTAPE for subscriptions
   * added trustIS to runBrokerage

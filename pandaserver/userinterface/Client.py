@@ -118,6 +118,8 @@ class _Curl:
             com += ' --cert %s' % self.sslCert
         if self.sslKey != '':
             com += ' --key %s' % self.sslKey
+        # timeout
+        com += ' -m 600' 
         # data
         strData = ''
         for key in data.keys():
@@ -159,6 +161,8 @@ class _Curl:
             com += ' --cert %s' % self.sslCert
         if self.sslKey != '':
             com += ' --key %s' % self.sslKey
+        # timeout
+        com += ' -m 600' 
         # data
         strData = ''
         for key in data.keys():
