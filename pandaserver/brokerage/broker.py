@@ -161,6 +161,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
     vomsOK = None
 
     diskThreshold = 200
+    manyInputsThr = 20
     
     try:
         # get statistics
@@ -182,7 +183,16 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             # set computingSite to T1 for high priority jobs
             if job != None and job.currentPriority >= 950 and job.computingSite == 'NULL' \
                    and job.prodSourceLabel in ('test','managed'):
-                job.computingSite = siteMapper.getCloud(job.cloud)['source']                
+                job.computingSite = siteMapper.getCloud(job.cloud)['source']
+            # set computingSite to T1 when too many inputs are required
+            if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed'):
+                # counts # of inputs
+                tmpTotalInput = 0
+                for tmpFile in job.Files:
+                    if tmpFile.type == 'input':
+                        tmpTotalInput += 1
+                if tmpTotalInput >= manyInputsThr:
+                    job.computingSite = siteMapper.getCloud(job.cloud)['source']
             overwriteSite = False
             # new bunch or terminator
             if job == None or len(fileList) >= nFile \

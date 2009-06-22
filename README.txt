@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * use T1 in brokerage when too many inputs are required
   * added a timeout to Client
   * set sources of dis for all clouds
   * use MCTAPE for subscriptions
