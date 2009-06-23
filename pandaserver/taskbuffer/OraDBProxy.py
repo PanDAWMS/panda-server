@@ -2712,6 +2712,7 @@ class DBProxy:
         comment = ' /* DBProxy.getFilesInUseForAnal */'        
         sqlSub  = "SELECT /*+ index(tab FILESTABLE4_DATASET_IDX) */ destinationDBlock,PandaID FROM ATLAS_PANDA.filesTable4 tab "
         sqlSub += "WHERE dataset=:dataset AND type=:type AND status=:fileStatus GROUP BY destinationDBlock,PandaID"
+        sqlPan  = "SELECT jobStatus FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID"
         sqlDis  = "SELECT distinct dispatchDBlock FROM ATLAS_PANDA.filesTable4 "
         sqlDis += "WHERE PandaID=:PandaID AND type=:type"
         sqlLfn  = "SELECT /*+ index(tab FILESTABLE4_DISPDBLOCK_IDX) */ lfn,PandaID FROM ATLAS_PANDA.filesTable4 tab "
@@ -2732,7 +2733,23 @@ class DBProxy:
                 retS = self.cur.execute(sqlSub+comment, varMap)
                 res = self.cur.fetchall()
                 subDSpandaIDmap = {}
+                checkedPandaIDs = {}
                 for subDataset,pandaID in res:
+                    if not checkedPandaIDs.has_key(pandaID):
+                        # check status
+                        varMap = {}
+                        varMap[':PandaID'] = pandaID
+                        retP = self.cur.execute(sqlPan+comment, varMap)
+                        resP = self.cur.fetchall()
+                        # append
+                        if len(resP) != 0:
+                            checkedPandaIDs[pandaID] = resP[0][0]
+                        else:
+                            checkedPandaIDs[pandaID] = 'ruuning'
+                    # reuse failed files
+                    if checkedPandaIDs[pandaID] == 'failed':
+                        continue
+                    # collect PandaIDs
                     if not subDSpandaIDmap.has_key(subDataset):
                         subDSpandaIDmap[subDataset] = []
                     subDSpandaIDmap[subDataset].append(pandaID)
