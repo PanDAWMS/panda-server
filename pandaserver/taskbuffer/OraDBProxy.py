@@ -2745,7 +2745,7 @@ class DBProxy:
                         if len(resP) != 0:
                             checkedPandaIDs[pandaID] = resP[0][0]
                         else:
-                            checkedPandaIDs[pandaID] = 'ruuning'
+                            checkedPandaIDs[pandaID] = 'running'
                     # reuse failed files
                     if checkedPandaIDs[pandaID] == 'failed':
                         continue
