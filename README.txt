@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed MailUtils for multiple recipients
   * reuse unknown input files when build failed
   * use T1 in brokerage when too many inputs are required
   * added a timeout to Client

@@ -37,7 +37,8 @@ To: %s
             server.ehlo()
             server.starttls()
             server.login(panda_config.emailLogin,panda_config.emailPass)
-            out = server.sendmail(fromAdd,toAddr,message)
+            listToAddr = toAddr.split(',')
+            out = server.sendmail(fromAdd,listToAddr,message)
             _logger.debug(out)
             server.quit()
             retVal = True
