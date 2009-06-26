@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * workingGroup/countryGroup in getJobStatisticsPerSite
+  * added getPandaClientVer
   * fixed MailUtils for multiple recipients
   * reuse unknown input files when build failed
   * use T1 in brokerage when too many inputs are required

@@ -868,11 +868,11 @@ class TaskBuffer:
 
     
     # get job statistics
-    def getJobStatistics(self,archived=False,predefined=False):
+    def getJobStatistics(self,archived=False,predefined=False,workingGroup='',countryGroup=''):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get serial number
-        ret = proxy.getJobStatistics(archived,predefined)
+        ret = proxy.getJobStatistics(archived,predefined,workingGroup,countryGroup)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -1056,6 +1056,18 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # get 
         ret = proxy.getEmailAddr(name)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # get client version
+    def getPandaClientVer(self):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get 
+        ret = proxy.getPandaClientVer()
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

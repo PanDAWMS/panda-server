@@ -550,14 +550,19 @@ def getPandaIDsSite(site,status,limit=500):
 
     
 # get job statistics per site
-def getJobStatisticsPerSite(predefined=False):
+def getJobStatisticsPerSite(predefined=False,workingGroup='',countryGroup=''):
     # instantiate curl
     curl = _Curl()
     # execute
     ret = {}
     for srvID in getPandas():
         url = _getURL('URL',srvID) + '/getJobStatisticsPerSite'
-        status,output = curl.get(url,{'predefined':predefined})
+        data = {'predefined':predefined}
+        if workingGroup != '':
+            data['workingGroup'] = workingGroup
+        if countryGroup != '':
+            data['countryGroup'] = countryGroup
+        status,output = curl.get(url,data)
         try:
             tmpRet = status,pickle.loads(output)
             if status != 0:

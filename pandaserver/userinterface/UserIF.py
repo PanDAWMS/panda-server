@@ -150,9 +150,9 @@ class UserIF:
         
 
     # get job statistics per site
-    def getJobStatisticsPerSite(self,predefined=False):
+    def getJobStatisticsPerSite(self,predefined=False,workingGroup='',countryGroup=''):
         # get job statistics
-        ret = self.taskBuffer.getJobStatistics(archived=True,predefined=predefined)
+        ret = self.taskBuffer.getJobStatistics(True,predefined,workingGroup,countryGroup)
         # serialize 
         return pickle.dumps(ret)
 
@@ -344,6 +344,14 @@ class UserIF:
     def registerProxyKey(self,params):
         # register
         ret = self.taskBuffer.registerProxyKey(params)
+        # return
+        return ret
+
+    
+    # get client version
+    def getPandaClientVer(self):
+        # get
+        ret = self.taskBuffer.getPandaClientVer()
         # return
         return ret
 
@@ -541,12 +549,12 @@ def getJobStatisticsForBamboo(req):
 
 
 # get job statistics per site
-def getJobStatisticsPerSite(req,predefined='False'):
+def getJobStatisticsPerSite(req,predefined='False',workingGroup='',countryGroup=''):
     if predefined=='True':
         predefined=True
     else:
         predefined=False
-    return userIF.getJobStatisticsPerSite(predefined)
+    return userIF.getJobStatisticsPerSite(predefined,workingGroup,countryGroup)
 
 
 # query last files in datasets
@@ -620,6 +628,9 @@ def getSiteSpecs(req,siteType=None):
 def getCloudSpecs(req):
     return userIF.getCloudSpecs()
 
+# get client version
+def getPandaClientVer(req):
+    return userIF.getPandaClientVer()
 
 # run brokerage
 def runBrokerage(req,sites,cmtConfig=None,atlasRelease=None,trustIS=False):

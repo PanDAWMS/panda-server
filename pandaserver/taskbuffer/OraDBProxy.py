@@ -3055,18 +3055,42 @@ class DBProxy:
 
 
     # get job statistics
-    def getJobStatistics(self,archived=False,predefined=False):
+    def getJobStatistics(self,archived=False,predefined=False,workingGroup='',countryGroup=''):
         comment = ' /* DBProxy.getJobStatistics */'        
-        _logger.debug("getJobStatistics()")
+        _logger.debug("getJobStatistics(%s,%s,'%s','%s')" % (archived,predefined,workingGroup,countryGroup))
         timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
         sql0 = "SELECT computingSite,jobStatus,COUNT(*) FROM %s WHERE prodSourceLabel in (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4,:prodSourceLabel5) "
         if predefined:
             sql0 += "AND relocationFlag=1 "
+        tmpGroupMap = {}
+        sqlGroups = ''
+        if workingGroup != '':
+            sqlGroups += "AND workingGroup IN ("
+            # loop over all groups
+            idxWG = 1
+            for tmpWG in workingGroup.split(','):
+                tmpWGkey = ':workingGroup%s' % idxWG
+                sqlGroups += "%s," % tmpWGkey
+                tmpGroupMap[tmpWGkey] = tmpWG
+                idxWG += 1                
+            sqlGroups = sqlGroups[:-1] + ") "
+        if countryGroup != '':
+            sqlGroups += "AND countryGroup IN ("
+            # loop over all groups
+            idxCG = 1
+            for tmpCG in countryGroup.split(','):
+                tmpCGkey = ':countryGroup%s' % idxCG
+                sqlGroups += "%s," % tmpCGkey
+                tmpGroupMap[tmpCGkey] = tmpCG
+                idxCG += 1
+            sqlGroups = sqlGroups[:-1] + ") "
+        sql0 += sqlGroups    
         sql0 += "GROUP BY computingSite,jobStatus"
         sqlA =  "SELECT /*+ index(tab JOBSARCHIVED4_MODTIME_IDX) */ computingSite,jobStatus,COUNT(*) FROM ATLAS_PANDA.jobsArchived4 tab WHERE modificationTime>:modificationTime "
         sqlA += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4,:prodSourceLabel5) " 
         if predefined:
             sqlA += "AND relocationFlag=1 "
+        sqlA += sqlGroups                
         sqlA += "GROUP BY computingSite,jobStatus"
         tables = ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4']
         if archived:
@@ -3084,7 +3108,9 @@ class DBProxy:
                     varMap[':prodSourceLabel2'] = 'user'
                     varMap[':prodSourceLabel3'] = 'panda'
                     varMap[':prodSourceLabel4'] = 'ddm'
-                    varMap[':prodSourceLabel5'] = 'rc_test'                    
+                    varMap[':prodSourceLabel5'] = 'rc_test'
+                    for tmpGroup in tmpGroupMap.keys():
+                        varMap[tmpGroup] = tmpGroupMap[tmpGroup]
                     if table != 'ATLAS_PANDA.jobsArchived4':
                         self.cur.arraysize = 10000                        
                         self.cur.execute((sql0+comment) % table, varMap)
@@ -3961,6 +3987,36 @@ class DBProxy:
             _logger.error("getEmailAddr : %s %s" % (type,value))
             # roll back
             self._rollback()
+            return ""
+
+
+    # get client version
+    def getPandaClientVer(self):
+        comment = ' /* DBProxy.getPandaClientVer */'
+        _logger.debug("getPandaClientVer") 
+        try:
+            # set autocommit on
+            self.conn.begin()
+            # select
+            sql = "SELECT pathena FROM ATLAS_PANDAMETA.pandaconfig WHERE name=:name"
+            varMap = {}
+            varMap[':name'] = 'current'
+            self.cur.execute(sql+comment,varMap)
+            self.cur.arraysize = 10            
+            res = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            retStr = ''
+            if res != None and len(res) != 0:
+                retStr = res[0][0]
+            _logger.debug("getPandaClientVer -> %s" % retStr)                 
+            return retStr
+        except:
+            # roll back
+            self._rollback()
+            type, value, traceBack = sys.exc_info()
+            _logger.error("getPandaClientVer : %s %s" % (type,value))
             return ""
 
         
