@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * register location for _sub even when src=dest
   * workingGroup/countryGroup in getJobStatisticsPerSite
   * added getPandaClientVer
   * fixed MailUtils for multiple recipients

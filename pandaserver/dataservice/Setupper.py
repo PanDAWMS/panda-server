@@ -436,8 +436,7 @@ class Setupper (threading.Thread):
                             tmpSrcDDM = self.siteMapper.getSite(computingSite).ddm
                             tmpDstDDM = self.siteMapper.getSite(file.destinationSE).ddm
                             tmpTokenList = file.destinationDBlockToken.split(',')
-                            if name == originalName or tmpSrcDDM != tmpDstDDM or \
-                                   job.prodSourceLabel == 'panda' or len(tmpTokenList) > 1:
+                            if True: # previously location was not registered when dest=src for _sub
                                 time.sleep(1)
                                 # register location
                                 dq2IDList = [self.siteMapper.getSite(computingSite).ddm]
