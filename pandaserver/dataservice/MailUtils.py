@@ -67,7 +67,7 @@ To: %s
         # subject
         mailSubject = "PANDA Access Requests in %s" % cloud
         # message
-        mailBody = "Hello,\n\There are access requests to be approved or rejected.\n\n"
+        mailBody = "Hello,\n\nThere are access requests to be approved or rejected.\n\n"
         for pandaSite,userNames in requestsMap.iteritems():
             mailBody += "   %s\n" % pandaSite
             userStr = ''
