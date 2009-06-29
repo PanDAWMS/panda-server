@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * reverted the change in Setupper
   * register location for _sub even when src=dest
   * workingGroup/countryGroup in getJobStatisticsPerSite
   * added getPandaClientVer
