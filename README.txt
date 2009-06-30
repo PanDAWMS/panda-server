@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added finder for email address using phonebook
   * reverted the change in Setupper
   * register location for _sub even when src=dest
   * workingGroup/countryGroup in getJobStatisticsPerSite
