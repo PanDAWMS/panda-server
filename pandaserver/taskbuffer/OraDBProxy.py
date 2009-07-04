@@ -3290,14 +3290,17 @@ class DBProxy:
 
 
     # get the number of job for a user
-    def getNumberJobsUser(self,dn):
+    def getNumberJobsUser(self,dn,workingGroup=None):
         comment = ' /* DBProxy.getNumberJobsUser */'        
-        _logger.debug("getNumberJobsUsers(%s)" % dn)
+        _logger.debug("getNumberJobsUsers(%s,%s)" % (dn,workingGroup))
         # get compact DN
         compactDN = self.cleanUserID(dn)
         if compactDN in ['','NULL',None]:
             compactDN = dn
-        sql0 = "SELECT COUNT(*) FROM %s WHERE prodUserName=:prodUserName AND prodSourceLabel=:prodSourceLabel"
+        if workingGroup != None:    
+            sql0 = "SELECT COUNT(*) FROM %s WHERE prodUserName=:prodUserName AND prodSourceLabel=:prodSourceLabel AND workingGroup=:workingGroup"
+        else:
+            sql0 = "SELECT COUNT(*) FROM %s WHERE prodUserName=:prodUserName AND prodSourceLabel=:prodSourceLabel AND workingGroup IS NULL"
         nTry = 1
         nJob = 0
         for iTry in range(nTry):
@@ -3309,6 +3312,8 @@ class DBProxy:
                     varMap = {}
                     varMap[':prodUserName'] = compactDN
                     varMap[':prodSourceLabel'] = 'user'
+                    if workingGroup != None:
+                        varMap[':workingGroup'] = workingGroup
                     self.cur.arraysize = 10
                     self.cur.execute((sql0+comment) % table, varMap)
                     res = self.cur.fetchall()

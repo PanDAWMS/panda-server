@@ -24,15 +24,16 @@ for dn,origEmail,name in res:
         continue
     emails = AddressFinder.getEmailPhonebook(dn)
     if len(emails) == 0:
-        print dn
-        print "ERROR : not found"
+        #print dn
+        #print "ERROR : not found"
+        pass
     elif len(emails) > 1:
         print dn        
         print "ERROR : non-unique %s" % str(emails)
-    #elif origEmail.upper() != emails[0].upper():
-        #pass
-        #print dn        
-        #print "ERROR : new:%s old:%s" % (emails[0],origEmail)
+    elif origEmail == None or origEmail.upper() != emails[0].upper():
+        print dn        
+        print "ERROR : %-20s   new:%s\n" % (origEmail,emails[0])
+        pass
     else:
         pass
         #print dn

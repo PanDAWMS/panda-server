@@ -135,8 +135,6 @@ class TaskBuffer:
         userDefinedWG = False
         validWorkingGroup = False
         if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda']):
-            # get nJob
-            serNum = proxy.getNumberJobsUser(user)
             # set high prioryty for production role
             if withProdRole:
                 serNum = 0
@@ -149,6 +147,11 @@ class TaskBuffer:
                     if userSiteAccess['status'] == 'approved' and jobs[0].workingGroup in userSiteAccess['workingGroups']:
                         # valid workingGroup
                         validWorkingGroup = True
+            # get nJob
+            if userDefinedWG and validWorkingGroup:
+                serNum = proxy.getNumberJobsUser(user,workingGroup=jobs[0].workingGroup)
+            else:
+                serNum = proxy.getNumberJobsUser(user,workingGroup=None)
         # loop over all jobs
         ret =[]
         newJobs=[]
