@@ -1,11 +1,18 @@
 import re
+import sys
+import urllib
 import commands
 
+from config import panda_config
 from taskbuffer.OraDBProxy import DBProxy
 from pandalogger.PandaLogger import PandaLogger
 
 # logger
 _logger = PandaLogger().getLogger('AddressFinder')
+
+# NG words in email address
+_ngWordsInMailAddr = ['support','system','stuff']
+
 
 # insert *
 def insertWC(str):
@@ -16,9 +23,8 @@ def insertWC(str):
     return retStr
 
 
-# get email address using phonebook
-def getEmailPhonebook(dn):
-    _logger.debug('Getting email for %s' % dn)
+# clean name
+def cleanName(dn):
     # extract First Last from DN
     dbProxy = DBProxy()
     extractedDN = dbProxy.cleanUserID(dn)
@@ -35,6 +41,15 @@ def getEmailPhonebook(dn):
     # remove whitespaces
     extractedDN = re.sub(' +',' ',extractedDN)
     extractedDN = extractedDN.strip()
+    # return
+    return extractedDN
+
+
+# get email address using phonebook
+def getEmailPhonebook(dn):
+    _logger.debug('Getting email via phonebook for %s' % dn)
+    # clean DN
+    extractedDN = cleanName(dn)
     # dump
     _logger.debug(extractedDN)
     # construct command
@@ -182,8 +197,112 @@ def getEmailPhonebook(dn):
         if len(emails) == 1:
             _logger.debug('Succeeded %s %s' % (groups[0],emails[0]))
             return emails
-            
     # failed
     _logger.error('Failed for %s' % dn)
     return []
     
+
+# get email address using xwho
+def getEmailXwho(dn):
+    # get email from CERN/xwho
+    _logger.debug('Getting email via xwho for %s' % dn)
+    for sTry in ['full','firstlastonly']:
+        try:
+            # remove middle name
+            encodedDN = cleanName(dn)
+            encodedDN = re.sub(' . ',' ',encodedDN)
+            # remove _
+            encodedDN = encodedDN.replace('_',' ')
+            # use fist and lastnames only
+            if sTry == 'firstlastonly':
+                newEncodedDN = '%s %s' % (encodedDN.split()[0],encodedDN.split()[-1])
+                # skip if it was already tried
+                if encodedDN == newEncodedDN:
+                    continue
+                encodedDN = newEncodedDN
+            # URL encode
+            encodedDN = encodedDN.replace(' ','%20')
+            url = 'http://consult.cern.ch/xwho?'+encodedDN
+            if panda_config.httpProxy != '':
+                proxies = proxies={'http': panda_config.httpProxy}
+            else:
+                proxies = proxies={}
+            opener = urllib.FancyURLopener(proxies)
+            fd=opener.open(url)
+            data = fd.read()
+            if re.search(' not found',data,re.I) == None:
+                break
+        except:
+            type, value, traceBack = sys.exc_info()
+            _logger.error("xwho failure with %s %s" % (type,value))
+            return []
+    # parse HTML
+    emails = []
+    headerItem = ["Family Name","First Name","Phone","Dep"]
+    findTable = False
+    _logger.debug(data)
+    for line in data.split('\n'):
+        # look for table
+        if not findTable:
+            # look for header
+            tmpFlag = True
+            for item in headerItem:
+                if re.search(item,line) == None:
+                    tmpFlag = False
+                    break
+            findTable = tmpFlag
+            continue
+        else:
+            # end of table
+            if re.search(item,"</table>") != None:
+                findTable = False
+                continue
+            # look for link to individual page
+            match = re.search('href="(/xwho/people/\d+)"',line)
+            if match == None:
+                continue
+            link = match.group(1)
+            try:
+                url = 'http://consult.cern.ch'+link
+                if panda_config.httpProxy != '':                    
+                    proxies = proxies={'http': panda_config.httpProxy}
+                else:
+                    proxies = proxies={}
+                opener = urllib.FancyURLopener(proxies)
+                fd=opener.open(url)
+                data = fd.read()
+                _logger.debug(data)
+            except:
+                type, value, traceBack = sys.exc_info()
+                _logger.error("xwho failure with %s %s" % (type,value))
+                return []
+            # get mail adder
+            match = re.search("mailto:([^@]+@[^>]+)>",data)
+            if match != None:
+                adder = match.group(1)
+                # check NG words
+                okAddr = True
+                for ngWord in _ngWordsInMailAddr:
+                    if re.search(ngWord,adder,re.I):
+                        _logger.error("%s has NG word:%s" % (adder,ngWord))
+                        okAddr = False
+                        break
+                if okAddr and (not adder in emails):
+                    emails.append(adder)
+    _logger.debug("emails from xwho : '%s'" % emails)
+    # return
+    if len(emails) == 1:
+        _logger.debug('Succeeded : %s %s' % (str(emails),dn))
+        return emails
+    # multiple candidates
+    if len(emails) > 1:
+        _logger.error("non unique address : %s for %s" % (str(emails),dn))
+        return []
+    # failed
+    _logger.error('Failed to find address for %s' % dn)
+    return []
+    
+            
+
+                    
+        
