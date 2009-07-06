@@ -1,5 +1,6 @@
 import re
 import sys
+import time
 import fcntl
 import commands
 import ErrorCode
@@ -529,8 +530,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     if len(tmpDataType) > 10:
                         # avoid too long name
                         tmpDataType = 'Unknown'
-                    dispatchDBlock = "panda.%s.%s.%s_dis%s" % (tmpDataType,job.taskID,
-                                                               commands.getoutput('uuidgen'),job.PandaID)
+                    dispatchDBlock = "panda.%s.%s.%s.%s_dis%s" % (tmpDataType,job.taskID,time.strftime('%m.%d'),
+                                                                  commands.getoutput('uuidgen'),job.PandaID)
                     _log.debug('New dispatchDBlock: %s' % dispatchDBlock)                    
                 prodDBlock = job.prodDBlock
                 # already define computingSite

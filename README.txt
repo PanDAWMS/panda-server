@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added two more filed to dis datasetname 
   * calculate priority for each workingGroup
   * added finder for email address using phonebook
   * reverted the change in Setupper
