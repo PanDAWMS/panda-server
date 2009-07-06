@@ -558,9 +558,9 @@ def getJobStatisticsPerSite(predefined=False,workingGroup='',countryGroup=''):
     for srvID in getPandas():
         url = _getURL('URL',srvID) + '/getJobStatisticsPerSite'
         data = {'predefined':predefined}
-        if workingGroup != '':
+        if not workingGroup in ['',None]:
             data['workingGroup'] = workingGroup
-        if countryGroup != '':
+        if not countryGroup in ['',None]:
             data['countryGroup'] = countryGroup
         status,output = curl.get(url,data)
         try:

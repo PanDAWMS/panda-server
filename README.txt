@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * support getJobStatisticsPerSite(countryGroup=None,workingGroup=None)
   * added two more filed to dis datasetname 
   * calculate priority for each workingGroup
   * added finder for email address using phonebook
