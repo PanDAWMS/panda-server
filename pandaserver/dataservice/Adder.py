@@ -563,6 +563,9 @@ class Adder (threading.Thread):
                 # ignore lib.tgz
                 if re.search('lib\.tgz\.*\d*',file.lfn) != None:
                     continue
+                # ignore DBRelease
+                if re.search('DBRelease',file.lfn) != None:
+                    continue
                 # fsize
                 fsize = None
                 if not file.fsize in ['NULL','',0]:
