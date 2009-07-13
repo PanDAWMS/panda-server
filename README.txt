@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * use pilotowners for checkRole in dispatcher
   * ignore DBRelease when adding shadow
   * support getJobStatisticsPerSite(countryGroup=None,workingGroup=None)
   * added two more filed to dis datasetname 

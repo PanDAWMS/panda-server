@@ -1053,6 +1053,18 @@ class TaskBuffer:
         return ret
 
 
+    # get pilot owners
+    def getPilotOwners(self):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get pilot owners
+        ret = proxy.getPilotOwners()
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
     # get email address
     def getEmailAddr(self,name):
         # get DBproxy

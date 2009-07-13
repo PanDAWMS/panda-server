@@ -739,7 +739,11 @@ def getNUserJobs(req,siteName,nJobs=100):
     # loop over all FQANs
     for fqan in fqans:
         # check production role
-        for rolePat in ['/atlas/usatlas/Role=production','/atlas/Role=production']:
+        for rolePat in ['/atlas/usatlas/Role=production',
+                        '/atlas/Role=production',
+                        '/atlas/usatlas/Role=pilot',                        
+                        '/atlas/Role=pilot',
+                        ]:
             if fqan.startswith(rolePat):
                 prodManager = True
                 break

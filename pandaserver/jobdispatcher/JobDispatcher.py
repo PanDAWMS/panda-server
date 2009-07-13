@@ -50,6 +50,8 @@ class JobDipatcher:
         self.lastUpdated = datetime.datetime.utcnow()
         # how frequently update DN/token map
         self.timeInterval = datetime.timedelta(seconds=180)
+        # pilot owners
+        self.pilotOwners = None
         # lock
         self.lock = Lock()
 
@@ -64,6 +66,9 @@ class JobDipatcher:
         # update DN/token map
         if self.tokenDN == None:
             self.tokenDN = self.taskBuffer.getListSchedUsers()
+        # get pilot owners
+        if self.pilotOwners == None:
+            self.pilotOwners = self.taskBuffer.getPilotOwners()
         # release
         self.lock.release()
         
@@ -242,30 +247,33 @@ def _getFQAN(req):
 
 
 # check role
-def _checkRole(fqans,dn,jdCore):
+def _checkRole(fqans,dn,jdCore,withVomsPatch=True):
     prodManager = False
+    # VOMS attributes of production and pilot roles
+    prodAttrs = ['/atlas/usatlas/Role=production',
+                 '/atlas/usatlas/Role=pilot',                        
+                 '/atlas/Role=production',
+                 '/atlas/Role=pilot',
+                 ]
+    if withVomsPatch:
+        # FIXEME once http://savannah.cern.ch/bugs/?47136 is solved
+        prodAttrs += ['/atlas/']
     for fqan in fqans:
         # check atlas/usatlas production role
-        for rolePat in ['/atlas/usatlas/Role=production',
-                        '/atlas/usatlas/Role=pilot',                        
-                        '/atlas/Role=production',
-                        '/atlas/Role=pilot',
-                        # FIXEME once http://savannah.cern.ch/bugs/?47136 is solved
-                        '/atlas/'
-                        ]:
+        for rolePat in prodAttrs:
             if fqan.startswith(rolePat):
                 prodManager = True
                 break
         # escape
         if prodManager:
             break
-    # check list of submitters
+    # check DN with pilotOwners
     if not prodManager:
-        # get map
-        tokenDN = jdCore.getDnTokenMap()
-        # check
-        if dn in tokenDN.values():
-            prodManager = True
+        for owner in jdCore.pilotOwners:
+            # check
+            if re.search(owner,dn) != None:
+                prodManager = True
+                break
     # return
     return prodManager
 
@@ -309,7 +317,11 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
     # get FQANs
     fqans = _getFQAN(req)
     # check production role
-    prodManager = _checkRole(fqans,realDN,jobDispatcher)
+    if getProxyKey == 'True':
+        # don't use /atlas to prevent normal proxy getting credname
+        prodManager = _checkRole(fqans,realDN,jobDispatcher,False)
+    else:
+        prodManager = _checkRole(fqans,realDN,jobDispatcher)        
     # check token
     validToken = _checkToken(token,jobDispatcher)
     # set DN for non-production user
@@ -516,7 +528,7 @@ def genPilotToken(req,schedulerid,host=None):
     # get FQANs
     fqans = _getFQAN(req)
     # check production role
-    prodManager = _checkRole(fqans,realDN,jobDispatcher)
+    prodManager = _checkRole(fqans,realDN,jobDispatcher,False)
     if not prodManager:
         return "ERROR : production or pilot role is required"
     if realDN == None:

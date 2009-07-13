@@ -3839,6 +3839,35 @@ class DBProxy:
             return {}
 
 
+    # get pilot owners
+    def getPilotOwners(self):
+        comment = ' /* DBProxy.getPilotOwners */'        
+        _logger.debug("getPilotOwners")        
+        try:
+            # set autocommit on
+            self.conn.begin()
+            # select
+            sql  = "SELECT pilotowners FROM ATLAS_PANDAMETA.cloudconfig"
+            self.cur.arraysize = 100
+            self.cur.execute(sql+comment)
+            resList = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            ret = []
+            for tmpItem, in resList:
+                if tmpItem != None:
+                    ret += tmpItem.split(',')
+            _logger.debug("getPilotOwners -> %s" % str(ret))
+            return ret
+        except:
+            # roll back
+            self._rollback()
+            type,value,traceBack = sys.exc_info()
+            _logger.error("getPilotOwners : %s %s" % (type,value))
+            return []
+
+
     # extract name from DN
     def cleanUserID(self, id):
         try:
