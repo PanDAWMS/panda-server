@@ -3857,7 +3857,7 @@ class DBProxy:
             ret = []
             for tmpItem, in resList:
                 if tmpItem != None:
-                    ret += tmpItem.split(',')
+                    ret += tmpItem.split('|')
             _logger.debug("getPilotOwners -> %s" % str(ret))
             return ret
         except:
