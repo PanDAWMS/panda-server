@@ -3608,9 +3608,10 @@ class DBProxy:
     def getCurrentSiteData(self):
         comment = ' /* DBProxy.getCurrentSiteData */'                            
         _logger.debug("getCurrentSiteData")
-        sql = "SELECT SITE,getJob,updateJob FROM ATLAS_PANDAMETA.SiteData WHERE FLAG=:FLAG and HOURS=3"
+        sql = "SELECT SITE,getJob,updateJob,FLAG FROM ATLAS_PANDAMETA.SiteData WHERE FLAG IN (:FLAG1,:FLAG2) and HOURS=3"
         varMap = {}
-        varMap[':FLAG'] = 'production'
+        varMap[':FLAG1'] = 'production'
+        varMap[':FLAG2'] = 'analysis'        
         try:
             # set autocommit on
             self.conn.begin()
@@ -3622,8 +3623,14 @@ class DBProxy:
             if not self._commit():
                 raise RuntimeError, 'Commit error'
             ret = {}
-            for item in res:
-                ret[item[0]] = {'getJob':item[1],'updateJob':item[2]}
+            for site,getJob,updateJob,flag in res:
+                if site.startswith('ANALY_'):
+                    if flag != 'analysis':
+                        continue
+                else:
+                    if flag != 'production':
+                        continue
+                ret[site] = {'getJob':getJob,'updateJob':updateJob}
             return ret
         except:
             type, value, traceBack = sys.exc_info()
