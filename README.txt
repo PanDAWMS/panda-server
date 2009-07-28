@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * add copysetup to SiteSpec
   * fixed getCurrentSiteData for analysis
   * use pilotowners for checkRole in dispatcher
   * ignore DBRelease when adding shadow

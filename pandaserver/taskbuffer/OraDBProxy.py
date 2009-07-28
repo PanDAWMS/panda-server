@@ -3685,7 +3685,7 @@ class DBProxy:
             sql = "SELECT nickname,dq2url,cloud,ddm,lfchost,se,gatekeeper,releases,memory,"
             sql+= "maxtime,status,space,retry,cmtconfig,setokens,seprodpath,glexec,"
             sql+= "priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue,"
-            sql+= "validatedreleases,accesscontrol "
+            sql+= "validatedreleases,accesscontrol,copysetup "
             sql+= "FROM ATLAS_PANDAMETA.schedconfig WHERE siteid IS NOT NULL"
             self.cur.arraysize = 10000            
             self.cur.execute(sql+comment)
@@ -3706,7 +3706,7 @@ class DBProxy:
                     nickname,dq2url,cloud,ddm,lfchost,se,gatekeeper,releases,memory,\
                        maxtime,status,space,retry,cmtconfig,setokens,seprodpath,glexec,\
                        priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue,\
-                       validatedreleases,accesscontrol \
+                       validatedreleases,accesscontrol,copysetup \
                        = resTmp
                     # skip invalid siteid
                     if siteid in [None,'']:
@@ -3729,6 +3729,7 @@ class DBProxy:
                     ret.queue      = queue
                     ret.localqueue = localqueue
                     ret.accesscontrol = accesscontrol
+                    ret.copysetup  = copysetup
                     # job recoverty
                     ret.retry = True
                     if retry == 'FALSE':
