@@ -14,6 +14,7 @@ import smtplib
 import datetime
 
 from config import panda_config
+from taskbuffer.OraDBProxy import DBProxy
 from pandalogger.PandaLogger import PandaLogger
 
 # logger
@@ -175,25 +176,8 @@ Report Panda problems of any sort to
     def getEmail(self,dn):
         # get DN
         _logger.debug("getDN for %s" % dn)
-        distinguishedName = ""
-        shortName = ""
-        for line in dn.split('/'):
-            if line.startswith('CN='):
-                distinguishedName = re.sub('^CN=','',line)
-                distinguishedName = re.sub('\d+$','',distinguishedName)
-                distinguishedName = distinguishedName.strip()
-                if re.search(' ',distinguishedName) != None:
-                    # look for full name
-                    break
-                elif shortName == "":
-                    # keep short name
-                    shortName = distinguishedName
-                distinguishedName = ''
-        # use short name
-        if distinguishedName == "":
-            distinguishedName = shortName
-        # remove _
-        distinguishedName = re.sub('_$','',distinguishedName)
+        dbProxy = DBProxy()
+        distinguishedName = dbProxy.cleanUserID(dn)
         _logger.debug("DN = %s" % distinguishedName)
         if distinguishedName == "":
             _logger.error("cannot get DN for %s" % dn)

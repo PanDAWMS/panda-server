@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * use cleanUserID in Notifier
   * add copysetup to SiteSpec
   * fixed getCurrentSiteData for analysis
   * use pilotowners for checkRole in dispatcher
