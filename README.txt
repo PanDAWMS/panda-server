@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * updated the brokerage to take input size into account 
   * use cleanUserID in Notifier
   * add copysetup to SiteSpec
   * fixed getCurrentSiteData for analysis

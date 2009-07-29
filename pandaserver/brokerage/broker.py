@@ -147,6 +147,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
     fileList = []
     guidList = []
     okFiles = {}
+    totalNumInputs = 0
+    totalInputSize = 0
     chosen_ce      = None
     prodDBlock     = None
     computingSite  = None
@@ -242,6 +244,9 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         scanSiteList = setScanSiteList
                     # release/cmtconfig check
                     foundRelease   = False
+                    # the number/size of inputs per job 
+                    nFilesPerJob    = float(totalNumInputs)/float(iJob)
+                    inputSizePerJob = float(totalInputSize)/float(iJob)
                     # loop over all sites    
                     for site in scanSiteList:
                         _log.debug('calculate weight for site:%s' % site)                    
@@ -381,8 +386,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             winv = (float(nAssJobs+nActJobs)) / float(nPilots) / nJobsPerNode
                         else:
                             winv = (float(nAssJobs+nActJobs)) / nJobsPerNode
-                        # send jobs to T1 when they require many inputs
-                        if float(len(fileList))/float(iJob) > 4:
+                        # send jobs to T1 when they require many or large inputs
+                        if nFilesPerJob > 4 or inputSizePerJob > 500*1024*1024:
                             if site == siteMapper.getCloud(previousCloud)['source']:
                                 cloudT1Weight = 2.0
                                 # use weight in cloudconfig
@@ -393,8 +398,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 except:
                                     pass
                                 winv /= cloudT1Weight
-                                _log.debug('   special weight for %s : nFiles/iJob=%s weight=%s' % 
-                                           (site,float(len(fileList))/float(iJob),cloudT1Weight))
+                                _log.debug('   special weight for %s : nInputs/Job=%s inputSize/Job=%s weight=%s' % 
+                                           (site,nFilesPerJob,inputSizePerJob,cloudT1Weight))
                         _log.debug('Site:%s 1/Weight:%s' % (site,winv))
                         # choose largest nMinSites weights
                         minSites[site] = winv
@@ -465,8 +470,9 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 maxNfiles = nFiles
                                 okFiles = tmpOKFiles
                     # set job spec
-                    _log.debug('indexJob:%s' % indexJob)
-                    _log.debug('nFiles/iJob=%s' % (float(len(fileList))/float(iJob)))
+                    _log.debug('indexJob      : %s' % indexJob)
+                    _log.debug('nInputs/Job   : %s' % nFilesPerJob)
+                    _log.debug('inputSize/Job : %s' % inputSizePerJob)
                     for tmpJob in jobs[indexJob-iJob-1:indexJob-1]:
                         # set computingSite
                         if (not candidateForAnal) and forAnalysis and trustIS:
@@ -519,6 +525,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 fileList = []
                 guidList = []            
                 okFiles  = {}
+                totalNumInputs = 0
+                totalInputSize = 0
                 # create new dispDBlock
                 if job.prodDBlock != 'NULL':
                     # get datatype
@@ -602,6 +610,14 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     if not file.lfn in fileList:
                         fileList.append(file.lfn)
                         guidList.append(file.GUID)
+                        try:
+                            # get total number/size of inputs except DBRelease
+                            # tgz inputs for evgen may be negligible
+                            if re.search('\.tar\.gz',file.lfn) == None:
+                                totalNumInputs += 1
+                                totalInputSize += file.fsize
+                        except:
+                            pass
                 # destinationSE
                 if file.type in ['output','log'] and destSE != '':
                     file.destinationSE = destSE
