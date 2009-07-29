@@ -387,7 +387,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         else:
                             winv = (float(nAssJobs+nActJobs)) / nJobsPerNode
                         # send jobs to T1 when they require many or large inputs
-                        if nFilesPerJob > 4 or inputSizePerJob > 500*1024*1024:
+                        if nFilesPerJob > 5 or inputSizePerJob > 500*1024*1024:
                             if site == siteMapper.getCloud(previousCloud)['source']:
                                 cloudT1Weight = 2.0
                                 # use weight in cloudconfig
