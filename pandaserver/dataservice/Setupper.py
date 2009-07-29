@@ -829,16 +829,16 @@ class Setupper (threading.Thread):
                         argStr = ""
                         if moverUseTape:
                             argStr += "--useTape "
-                        argStr += "-t 7200 -n 3 -s %s -r %s --guids %s --lfns %s --callBack %s -d %spanda/dis/%s%s %s" % \
-                                  (srcDQ2ID,dstDQ2ID,guidStr,lfnsStr,callBackURL,destDir,
+                        argStr += "-t 7200 -n 3 -s %s -r %s --guids %s --lfns %s --tapePriority %s --callBack %s -d %spanda/dis/%s%s %s" % \
+                                  (srcDQ2ID,dstDQ2ID,guidStr,lfnsStr,job.currentPriority,callBackURL,destDir,
                                    time.strftime('%y/%m/%d/'),job.dispatchDBlock,job.dispatchDBlock)
                     else:
                         # prestaging jobs
                         argStr = ""
                         if moverUseTape:
                             argStr += "--useTape "
-                        argStr += "-t 540 -n 2 -s %s -r %s --guids %s --lfns %s --callBack %s --prestage --cloud %s %s" % \
-                                  (srcDQ2ID,dstDQ2ID,guidStr,lfnsStr,callBackURL,job.cloud,job.dispatchDBlock)
+                        argStr += "-t 540 -n 2 -s %s -r %s --guids %s --lfns %s --tapePriority %s --callBack %s --prestage --cloud %s %s" % \
+                                  (srcDQ2ID,dstDQ2ID,guidStr,lfnsStr,job.currentPriority,callBackURL,job.cloud,job.dispatchDBlock)
                     # set job parameters
                     ddmjob.jobParameters = argStr
                     _logger.debug('%s pdq2_cr %s' % (self.timestamp,ddmjob.jobParameters))

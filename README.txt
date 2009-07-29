@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * use stage-priority for prestaging
   * updated the brokerage to take input size into account 
   * use cleanUserID in Notifier
   * add copysetup to SiteSpec
