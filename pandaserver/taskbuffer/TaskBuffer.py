@@ -871,11 +871,11 @@ class TaskBuffer:
 
     
     # get job statistics
-    def getJobStatistics(self,archived=False,predefined=False,workingGroup='',countryGroup=''):
+    def getJobStatistics(self,archived=False,predefined=False,workingGroup='',countryGroup='',jobType=''):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get serial number
-        ret = proxy.getJobStatistics(archived,predefined,workingGroup,countryGroup)
+        ret = proxy.getJobStatistics(archived,predefined,workingGroup,countryGroup,jobType)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

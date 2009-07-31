@@ -150,9 +150,9 @@ class UserIF:
         
 
     # get job statistics per site
-    def getJobStatisticsPerSite(self,predefined=False,workingGroup='',countryGroup=''):
+    def getJobStatisticsPerSite(self,predefined=False,workingGroup='',countryGroup='',jobType=''):
         # get job statistics
-        ret = self.taskBuffer.getJobStatistics(True,predefined,workingGroup,countryGroup)
+        ret = self.taskBuffer.getJobStatistics(True,predefined,workingGroup,countryGroup,jobType)
         # serialize 
         return pickle.dumps(ret)
 
@@ -549,12 +549,12 @@ def getJobStatisticsForBamboo(req):
 
 
 # get job statistics per site
-def getJobStatisticsPerSite(req,predefined='False',workingGroup='',countryGroup=''):
+def getJobStatisticsPerSite(req,predefined='False',workingGroup='',countryGroup='',jobType=''):
     if predefined=='True':
         predefined=True
     else:
         predefined=False
-    return userIF.getJobStatisticsPerSite(predefined,workingGroup,countryGroup)
+    return userIF.getJobStatisticsPerSite(predefined,workingGroup,countryGroup,jobType)
 
 
 # query last files in datasets

@@ -49,8 +49,7 @@ else:
                   }
 
 # bamboo
-#baseURLBAMBOO = 'http://voatlas23.cern.ch:25070/bamboo/bamboo'
-baseURLBAMBOO = 'http://lxmrrb5310.cern.ch:25080/bamboo/bamboo'
+baseURLBAMBOO = 'http://pandabamboo.cern.ch:25070/bamboo/bamboo'
 
 
 # get URL
@@ -550,7 +549,7 @@ def getPandaIDsSite(site,status,limit=500):
 
     
 # get job statistics per site
-def getJobStatisticsPerSite(predefined=False,workingGroup='',countryGroup=''):
+def getJobStatisticsPerSite(predefined=False,workingGroup='',countryGroup='',jobType=''):
     # instantiate curl
     curl = _Curl()
     # execute
@@ -562,6 +561,8 @@ def getJobStatisticsPerSite(predefined=False,workingGroup='',countryGroup=''):
             data['workingGroup'] = workingGroup
         if not countryGroup in ['',None]:
             data['countryGroup'] = countryGroup
+        if not jobType in ['',None]:
+            data['jobType'] = jobType
         status,output = curl.get(url,data)
         try:
             tmpRet = status,pickle.loads(output)

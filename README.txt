@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added jobType to Client.getJobStatisticsPerSite
   * use stage-priority for prestaging
   * updated the brokerage to take input size into account 
   * use cleanUserID in Notifier

@@ -3055,13 +3055,30 @@ class DBProxy:
 
 
     # get job statistics
-    def getJobStatistics(self,archived=False,predefined=False,workingGroup='',countryGroup=''):
+    def getJobStatistics(self,archived=False,predefined=False,workingGroup='',countryGroup='',jobType=''):
         comment = ' /* DBProxy.getJobStatistics */'        
-        _logger.debug("getJobStatistics(%s,%s,'%s','%s')" % (archived,predefined,workingGroup,countryGroup))
+        _logger.debug("getJobStatistics(%s,%s,'%s','%s','%s')" % (archived,predefined,workingGroup,countryGroup,jobType))
         timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
-        sql0 = "SELECT computingSite,jobStatus,COUNT(*) FROM %s WHERE prodSourceLabel in (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4,:prodSourceLabel5) "
+        sql0 = "SELECT computingSite,jobStatus,COUNT(*) FROM %s WHERE prodSourceLabel IN ("
+        # processingType
+        tmpJobTypeMap = {}
+        sqlJobType = ''
+        if jobType == "":
+            sql0 += ":prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4,:prodSourceLabel5) "
+        else:
+            # loop over all types
+            idxJT = 1
+            for tmpJT in jobType.split(','):
+                tmpJTkey = ':prodSourceLabel%s' % idxJT
+                sqlJobType += "%s," % tmpJTkey
+                tmpJobTypeMap[tmpJTkey] = tmpJT
+                idxJT += 1                
+            sqlJobType = sqlJobType[:-1] + ") "
+            sql0 += sqlJobType
+        # predefined    
         if predefined:
             sql0 += "AND relocationFlag=1 "
+        # working group
         tmpGroupMap = {}
         sqlGroups = ''
         if workingGroup != '':
@@ -3074,6 +3091,7 @@ class DBProxy:
                 tmpGroupMap[tmpWGkey] = tmpWG
                 idxWG += 1                
             sqlGroups = sqlGroups[:-1] + ") "
+        # country group    
         if countryGroup != '':
             sqlGroups += "AND countryGroup IN ("
             # loop over all groups
@@ -3087,7 +3105,11 @@ class DBProxy:
         sql0 += sqlGroups    
         sql0 += "GROUP BY computingSite,jobStatus"
         sqlA =  "SELECT /*+ index(tab JOBSARCHIVED4_MODTIME_IDX) */ computingSite,jobStatus,COUNT(*) FROM ATLAS_PANDA.jobsArchived4 tab WHERE modificationTime>:modificationTime "
-        sqlA += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4,:prodSourceLabel5) " 
+        sqlA += "AND prodSourceLabel IN ("
+        if jobType == "":
+            sqlA += ":prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4,:prodSourceLabel5) "
+        else:
+            sqlA += sqlJobType            
         if predefined:
             sqlA += "AND relocationFlag=1 "
         sqlA += sqlGroups                
@@ -3104,11 +3126,15 @@ class DBProxy:
                     self.conn.begin()
                     # select
                     varMap = {}
-                    varMap[':prodSourceLabel1'] = 'managed'
-                    varMap[':prodSourceLabel2'] = 'user'
-                    varMap[':prodSourceLabel3'] = 'panda'
-                    varMap[':prodSourceLabel4'] = 'ddm'
-                    varMap[':prodSourceLabel5'] = 'rc_test'
+                    if jobType == "":
+                        varMap[':prodSourceLabel1'] = 'managed'
+                        varMap[':prodSourceLabel2'] = 'user'
+                        varMap[':prodSourceLabel3'] = 'panda'
+                        varMap[':prodSourceLabel4'] = 'ddm'
+                        varMap[':prodSourceLabel5'] = 'rc_test'
+                    else:
+                        for tmpJobType in tmpJobTypeMap.keys():
+                            varMap[tmpJobType] = tmpJobTypeMap[tmpJobType]
                     for tmpGroup in tmpGroupMap.keys():
                         varMap[tmpGroup] = tmpGroupMap[tmpGroup]
                     if table != 'ATLAS_PANDA.jobsArchived4':
