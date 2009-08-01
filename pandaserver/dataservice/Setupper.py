@@ -1184,12 +1184,13 @@ class Setupper (threading.Thread):
                         errMsg = "GUID for %s not found in DQ2" % file.lfn
                         _logger.debug("%s %s" % (self.timestamp,errMsg))
                         file.status = 'missing'
-                        job.jobStatus    = 'failed'                        
-                        job.ddmErrorCode = ErrorCode.EC_GUID
-                        job.ddmErrorDiag = errMsg
-                        jobsFailed.append(job)
-                        isFailed = True
-                        break
+                        if not job in jobsFailed:
+                            job.jobStatus    = 'failed'                        
+                            job.ddmErrorCode = ErrorCode.EC_GUID
+                            job.ddmErrorDiag = errMsg
+                            jobsFailed.append(job)
+                            isFailed = True
+                        continue
                     # add to allLFNs/allGUIDs
                     if not allLFNs.has_key(job.cloud):
                         allLFNs[job.cloud] = []
