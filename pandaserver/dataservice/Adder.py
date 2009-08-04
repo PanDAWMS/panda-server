@@ -130,6 +130,7 @@ class Adder (threading.Thread):
                         re.search('could not register subscription',self.job.ddmErrorDiag) != None) and \
                         re.search('DQClosedDatasetException',self.job.ddmErrorDiag) == None and \
                         re.search('DQFrozenDatasetException',self.job.ddmErrorDiag) == None and \
+                        re.search('DQUnknownDatasetException',self.job.ddmErrorDiag) == None and \
                         re.search('DQFileMetaDataMismatchException',self.job.ddmErrorDiag) == None and \
                         re.search('KeyError',self.job.ddmErrorDiag) == None:                       
                     _logger.debug('%s : ignore %s ' % (self.jobID,self.job.ddmErrorDiag))
@@ -503,6 +504,7 @@ class Adder (threading.Thread):
                 _logger.error('%s %s' % (self.jobID,out))
                 if (iTry+1) == nTry or out.find('DQClosedDatasetException') != 0 or \
                        out.find('DQFrozenDatasetException') != 0 or \
+                       out.find('DQUnknownDatasetException') != 0 or \
                        out.find('DQFileMetaDataMismatchException') != 0:
                     self.job.jobStatus = 'failed'
                     self.job.ddmErrorCode = ErrorCode.EC_Adder

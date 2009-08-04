@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * modified Adder to take DQUnknownDatasetException into account
   * make subscriptions for rc_test
   * flagged all missing files in Setupper
   * added jobType to Client.getJobStatisticsPerSite
