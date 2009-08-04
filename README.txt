@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * make subscriptions for rc_test
   * flagged all missing files in Setupper
   * added jobType to Client.getJobStatisticsPerSite
   * use stage-priority for prestaging

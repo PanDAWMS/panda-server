@@ -489,7 +489,7 @@ class Setupper (threading.Thread):
                             elif job.prodSourceLabel == 'panda':
                                 # do nothing for "panda" job
                                 pass
-                            elif name == originalName and job.prodSourceLabel in ['managed','test']:
+                            elif name == originalName and job.prodSourceLabel in ['managed','test','rc_test']:
                                 # set metadata
                                 time.sleep(1)
                                 dq2ID = self.siteMapper.getSite(file.destinationSE).ddm
@@ -1242,7 +1242,7 @@ class Setupper (threading.Thread):
         tmpJobList = tuple(jobsProcessed)
         for job in tmpJobList:
             # check only production/test jobs
-            if not job.prodSourceLabel in ['managed','test','software']:
+            if not job.prodSourceLabel in ['managed','test','software','rc_test']:
                 continue
             missingFlag = False
             for file in job.Files:
