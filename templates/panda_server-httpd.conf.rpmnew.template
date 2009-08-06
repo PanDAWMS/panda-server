@@ -13,8 +13,8 @@ LoadModule ssl_module modules/mod_ssl.so
 LoadModule python_module modules/mod_python.so
 LoadModule gridsite_module modules/mod_gridsite.so
 
-User  @@username@@
-Group @@usergroup@@
+User  atlpan
+Group zp
 
 <IfModule prefork.c>
 StartServers         50
@@ -34,7 +34,7 @@ ThreadsPerChild      5
 MaxRequestsPerChild  0
 </IfModule>
 
-ServerName @@hostname@@
+ServerName pandaserver.cern.ch
 
 DocumentRoot "@@install_purelib@@/pandaserver"
 
@@ -98,9 +98,13 @@ RewriteEngine on
 RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK)
 RewriteRule .* - [F]
 
+# CERN security recommendation to only allow the seven strongest ssl ciphers
+SSLProtocol  -all +TLSv1 +SSLv3
+SSLCipherSuite HIGH:MEDIUM:+SSLv3
+
 SSLEngine               on
-SSLCertificateFile      @@install_dir@@/etc/panda/server.crt
-SSLCertificateKeyFile   @@install_dir@@/etc/panda/server.key
+SSLCertificateFile      /etc/grid-security/hostcert.pem
+SSLCertificateKeyFile   /etc/grid-security/hostkey.pem
 SSLCACertificatePath    /etc/grid-security/certificates
 SSLVerifyClient         optional
 SSLVerifyDepth          10

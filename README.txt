@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * updated template
   * changed LogFormat for SLS
   * send prodDBlockToken to the pilot
   * modified Adder to take DQUnknownDatasetException into account
