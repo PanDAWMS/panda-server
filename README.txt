@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed LogFormat for SLS
   * send prodDBlockToken to the pilot
   * modified Adder to take DQUnknownDatasetException into account
   * make subscriptions for rc_test
