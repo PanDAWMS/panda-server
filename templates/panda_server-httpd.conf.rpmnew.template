@@ -126,10 +126,10 @@ SSLOptions              +ExportCertData +StdEnvVars
 LogLevel debug
 #warn
 LogFormat "%t %h \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
-LogFormat "%h %l %u %t \"%r\" %>s %b" common
+LogFormat "%t %h \"%r\" %>s %b" common
 LogFormat "%{Referer}i -> %U" referer
 LogFormat "%{User-agent}i" agent
-CustomLog @@install_dir@@/var/log/panda/panda_server_access_log combined
+CustomLog @@install_dir@@/var/log/panda/panda_server_access_log common
 ErrorLog @@install_dir@@/var/log/panda/panda_server_error_log
 
 PidFile @@install_dir@@/var/log/panda/panda_server_httpd.pid
