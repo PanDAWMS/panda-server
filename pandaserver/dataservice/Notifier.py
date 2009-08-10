@@ -70,7 +70,11 @@ class Notifier (threading.Thread):
                 _logger.debug("%s end" % self.job.PandaID)
                 return
             # get IDs
-            ids = self.taskBuffer.queryPandaIDwithDataset(self.datasets)
+            tmpIDs = self.taskBuffer.queryPandaIDwithDataset(self.datasets)
+            ids = []
+            for tmpID in tmpIDs:
+                if not tmpID in ids:
+                    ids.append(tmpID)
             _logger.debug("%s IDs: %s" % (self.job.PandaID,ids))
             if len(ids) != 0:
                 # get job

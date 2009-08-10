@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * removed double counting of jobs in Notifier
   * updated template
   * changed LogFormat for SLS
   * send prodDBlockToken to the pilot
