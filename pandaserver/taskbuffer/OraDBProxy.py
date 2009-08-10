@@ -639,7 +639,7 @@ class DBProxy:
                                 # fail jobs with lost files
                                 sqlDJS = "SELECT %s " % JobSpec.columnNames()
                                 sqlDJS+= "FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
-                                sqlDJD = "UPDATE ATLAS_PANDA.jobsDefined4 SET jobStatus=:jobStatus WHERE PandaID=:PandaID"
+                                sqlDJD = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
                                 sqlDJI = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
                                 sqlDJI+= JobSpec.bindValuesExpression()
                                 lostJobIDs = []
@@ -658,7 +658,6 @@ class DBProxy:
                                     # delete
                                     varMap = {}
                                     varMap[':PandaID'] = tmpID
-                                    varMap[':jobStatus'] = 'failed'
                                     self.cur.execute(sqlDJD+comment, varMap)
                                     retD = self.cur.rowcount
                                     if retD == 0:
