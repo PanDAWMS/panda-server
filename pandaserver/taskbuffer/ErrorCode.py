@@ -15,3 +15,7 @@ EC_Aborted = 103
 # wait timeout
 EC_WaitTimeout = 104
 
+# lost file (=dataservice.ErrorCode.EC_LostFile)
+EC_LostFile = 110
+
+

@@ -629,6 +629,51 @@ class DBProxy:
                             res = self.cur.fetchall()
                             if len(res) != 0:
                                 disName = res[0][0]
+                                # check lost files
+                                varMap = {}
+                                varMap[':status'] = 'lost'
+                                varMap[':dispatchDBlock'] = disName
+                                sqlLost = "SELECT /*+ index(tab FILESTABLE4_DISPDBLOCK_IDX) */ distinct PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE status=:status AND dispatchDBlock=:dispatchDBlock"
+                                self.cur.execute(sqlLost+comment,varMap)
+                                resLost = self.cur.fetchall()
+                                # fail jobs with lost files
+                                sqlDJS = "SELECT %s " % JobSpec.columnNames()
+                                sqlDJS+= "FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
+                                sqlDJD = "UPDATE ATLAS_PANDA.jobsDefined4 SET jobStatus=:jobStatus WHERE PandaID=:PandaID"
+                                sqlDJI = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
+                                sqlDJI+= JobSpec.bindValuesExpression()
+                                lostJobIDs = []
+                                for tmpID, in resLost:
+                                    _logger.debug("fail due to lost files : %s" % tmpID)
+                                    varMap = {}
+                                    varMap[':PandaID'] = tmpID
+                                    self.cur.arraysize = 10
+                                    self.cur.execute(sqlDJS+comment, varMap)
+                                    resJob = self.cur.fetchall()
+                                    if len(resJob) == 0:
+                                        continue
+                                    # instantiate JobSpec
+                                    dJob = JobSpec()
+                                    dJob.pack(resJob[0])
+                                    # delete
+                                    varMap = {}
+                                    varMap[':PandaID'] = tmpID
+                                    varMap[':jobStatus'] = 'failed'
+                                    self.cur.execute(sqlDJD+comment, varMap)
+                                    retD = self.cur.rowcount
+                                    if retD == 0:
+                                        continue
+                                    # error code
+                                    dJob.jobStatus = 'failed'
+                                    dJob.endTime   = datetime.datetime.utcnow()
+                                    dJob.ddmErrorCode = 101 #ErrorCode.EC_LostFile
+                                    dJob.ddmErrorDiag = 'lost file in SE'
+                                    dJob.modificationTime = dJob.endTime
+                                    dJob.stateChangeTime  = dJob.endTime
+                                    # insert
+                                    self.cur.execute(sqlDJI+comment, dJob.valuesMap())
+                                    # append
+                                    lostJobIDs.append(tmpID)
                                 # get PandaIDs
                                 varMap = {}
                                 varMap[':jobStatus'] = 'assigned'
@@ -637,7 +682,8 @@ class DBProxy:
                                                  varMap)
                                 resDDM = self.cur.fetchall()
                                 for tmpID, in resDDM:
-                                    ddmIDs.append(tmpID)
+                                    if not tmpID in lostJobIDs:
+                                        ddmIDs.append(tmpID)
                                 # get offset
                                 ddmAttempt = job.attemptNr
                                 _logger.debug("get PandaID for reassign : %s ddmAttempt=%s" % (str(ddmIDs),ddmAttempt))
@@ -2840,6 +2886,45 @@ class DBProxy:
                 type, value, traceBack = sys.exc_info()
                 _logger.error("updateInFilesReturnPandaIDs : %s %s" % (type, value))
         return []
+
+
+    # update file status in dispatch dataset
+    def updateFileStatusInDisp(self,dataset,fileStatusMap):
+        comment = ' /* DBProxy.updateFileStatusInDisp */'                                
+        _logger.debug("updateFileStatusInDisp(%s,%s)" % (dataset,fileStatusMap))
+        sql1 = "UPDATE /*+ index(tab FILESTABLE4_DISPDBLOCK_IDX) */ ATLAS_PANDA.filesTable4 tab SET status=:status WHERE dispatchDBlock=:dispatchDBlock AND lfn=:lfn"
+        nTry = 1
+        for iTry in range(nTry):
+            try:
+                # start transaction
+                self.conn.begin()
+                # update
+                for status,lfns in fileStatusMap.iteritems():
+                    varMap = {}
+                    varMap[':status'] = status
+                    varMap[':dispatchDBlock'] = dataset
+                    # loop over all files
+                    for lfn in lfns:
+                        varMap['lfn'] = lfn
+                        # update
+                        retU = self.cur.execute(sql1+comment, varMap)
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                # return
+                _logger.debug("updateFileStatusInDisp : done")
+                return True
+            except:
+                # roll back
+                self._rollback()
+                # error report
+                if iTry+1 < nTry:
+                    _logger.debug("updateFileStatusInDisp retry : %s" % iTry)                    
+                    time.sleep(random.randint(5,10))
+                    continue
+                type, value, traceBack = sys.exc_info()
+                _logger.error("updateFileStatusInDisp : %s %s" % (type, value))
+        return False
 
 
     # update output files and return corresponding PandaIDs

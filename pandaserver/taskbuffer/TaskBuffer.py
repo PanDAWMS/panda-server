@@ -678,6 +678,18 @@ class TaskBuffer:
         return retList
 
 
+    # update file status in dispatch dataset
+    def updateFileStatusInDisp(self,dataset,fileStatusMap):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # query PandaID
+        retVal = proxy.updateFileStatusInDisp(dataset,fileStatusMap)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return retVal
+
+
     # update output files and return corresponding PandaIDs
     def updateOutFilesReturnPandaIDs(self,dataset):
         # get DBproxy

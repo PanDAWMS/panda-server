@@ -8,3 +8,6 @@ EC_GUID     = 101
 
 # Adder
 EC_Adder    = 200
+
+# lost file (=taskbuffer.ErrorCode.EC_LostFile)
+EC_LostFile = 110

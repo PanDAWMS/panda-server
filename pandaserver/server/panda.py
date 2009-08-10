@@ -28,7 +28,7 @@ userIF.init(taskBuffer)
 
 # import web I/F
 from taskbuffer.Utils            import isAlive,putFile,deleteFile,getServer,updateLog,fetchLog
-from dataservice.DataService     import datasetCompleted
+from dataservice.DataService     import datasetCompleted,updateFileStatusInDisp
 from jobdispatcher.JobDispatcher import getJob,updateJob,getStatus,genPilotToken
 from userinterface.UserIF        import submitJobs,getJobStatus,queryPandaIDs,killJobs,reassignJobs,\
      getJobStatistics,getJobStatisticsPerSite,resubmitJobs,queryLastFilesInDataset,getPandaIDsSite,\

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added updateFileStatusInDisp to flag lost files
   * removed double counting of jobs in Notifier
   * updated template
   * changed LogFormat for SLS
