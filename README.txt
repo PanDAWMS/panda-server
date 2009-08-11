@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * use /atlas for auth of updateFileStatusInDisp 
   * added updateFileStatusInDisp to flag lost files
   * removed double counting of jobs in Notifier
   * updated template

@@ -91,7 +91,10 @@ def updateFileStatusInDisp(req,dataset,fileStatus):
         # loop over all FQANs
         for fqan in fqans:
             # check production role
-            for rolePat in ['/atlas/usatlas/Role=production','/atlas/Role=production']:
+            for rolePat in ['/atlas/usatlas/Role=production',
+                            '/atlas/Role=production',
+                            # use /atlas since delegation proxy doesn't inherit roles
+                            '/atlas/']:
                 if fqan.startswith(rolePat):
                     roleOK = True
                     break
