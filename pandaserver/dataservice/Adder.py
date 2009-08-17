@@ -370,7 +370,7 @@ class Adder (threading.Thread):
                                                           'size'     : fsize,
                                                           'checksum' : file.checksum})
                     # for subscription
-                    if self.job.prodSourceLabel in ['managed','test','software','rc_test'] and \
+                    if self.job.prodSourceLabel in ['managed','test','software','rc_test','ptest'] and \
                        re.search('_sub\d+$',file.destinationDBlock) != None and (not self.addToTopOnly):
                         if self.siteMapper == None:
                             _logger.error("%s : SiteMapper==None" % self.jobID)                                
