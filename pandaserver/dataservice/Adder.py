@@ -335,10 +335,14 @@ class Adder (threading.Thread):
         fileList = []
         subMap = {}        
         for file in self.job.Files:
-            if file.type == 'input' and self.job.prodSourceLabel in ['user','panda']:
-                # skipped file
+            if file.type == 'input':
                 if file.lfn in lfns:
-                    file.status = 'skipped'
+                    if self.job.prodSourceLabel in ['user','panda']:
+                        # skipped file
+                        file.status = 'skipped'
+                    elif self.job.prodSourceLabel in ['managed','test','rc_test','ptest']:
+                        # failed by pilot
+                        file.status = 'failed'
             elif file.type == 'output' or file.type == 'log':
                 # append to fileList
                 fileList.append(file.lfn)

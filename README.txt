@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * allowed the pilot to set status for failed input files
   * make subscription for ptest
   * use /atlas for auth of updateFileStatusInDisp 
   * added updateFileStatusInDisp to flag lost files
