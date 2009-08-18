@@ -4637,8 +4637,8 @@ class DBProxy:
                         self.conn.begin()
                         # select
                         fileTableName = re.sub('jobsArchived','filesTable_ARCH',table)
-                        sqlFile = "SELECT %s " % FileSpec.columnNames()
-                        sqlFile+= "FROM %s " % fileTableName
+                        sqlFile = "SELECT /*+ INDEX(tab FILES_ARCH_PANDAID_IDX)*/ %s " % FileSpec.columnNames()
+                        sqlFile+= "FROM %s tab " % fileTableName
                         # put constraint on modificationTime to avoid full table scan
                         sqlFile+= "WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-60)"
                         self.cur.arraysize = 10000

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added a hint for filesTable_ARCH
   * temporarily disabled release check for 15.3.1
   * limited modificationTime on filesTable_ARCH queries
   * allowed the pilot to set status for failed input files
