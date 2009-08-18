@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * limited modificationTime on filesTable_ARCH queries
   * allowed the pilot to set status for failed input files
   * make subscription for ptest
   * use /atlas for auth of updateFileStatusInDisp 
