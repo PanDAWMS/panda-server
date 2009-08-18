@@ -48,8 +48,8 @@ def _checkRelease(jobRels,siteRels):
     # loop over all releases
     for tmpRel in jobRels.split('\n'):
         relVer = re.sub('^Atlas-','',tmpRel)
-        # not available releases FIXME : remove 15.3.1 once schedconfig is fixed
-        if not relVer in siteRels+['15.3.1']:
+        # not available releases
+        if not relVer in siteRels:
             return False
     return True
 
