@@ -364,6 +364,26 @@ class UserIF:
         return pickle.dumps(ret)
 
 
+    # get slimmed file info with PandaIDs
+    def getSlimmedFileInfoPandaIDs(self,pandaIDsStr,dn):
+        try:
+            # deserialize IDs
+            pandaIDs = pickle.loads(pandaIDsStr)
+            # truncate
+            maxIDs = 2500
+            if len(pandaIDs) > maxIDs:
+                _logger.error("too long ID list more than %s" % maxIDs)
+                pandaIDs = pandaIDs[:maxIDs]
+            # get
+            _logger.debug("getSlimmedFileInfoPandaIDs start : %s %s" % (dn,len(pandaIDs)))            
+            ret = self.taskBuffer.getSlimmedFileInfoPandaIDs(pandaIDs)
+            _logger.debug("getSlimmedFileInfoPandaIDs end")            
+        except:
+            ret = {}
+        # serialize 
+        return pickle.dumps(ret)
+
+
     # get JobIDs in a time range
     def getJobIDsInTimeRange(self,dn,timeRange):
         # get IDs
@@ -714,6 +734,18 @@ def getPandIDsWithJobID(req,jobID,nJobs,dn=None):
     _logger.debug("getPandIDsWithJobID %s JobID=%s nJobs=%s" % (dn,jobID,nJobs))
     # execute
     return userIF.getPandIDsWithJobID(dn,jobID,nJobs)
+
+
+# get slimmed file info with PandaIDs
+def getSlimmedFileInfoPandaIDs(req,ids):
+    # check security
+    if not Protocol.isSecure(req):
+        return False
+    # get DN
+    if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        return False
+    dn = _getDN(req)
+    return userIF.getSlimmedFileInfoPandaIDs(ids,dn)
 
 
 # get full job status

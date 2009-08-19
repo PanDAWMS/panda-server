@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * skip VUID lookup for analysis jobs
+  * added getSlimmedFileInfoPandaIDs
   * added a hint for filesTable_ARCH
   * limited modificationTime on filesTable_ARCH queries
   * allowed the pilot to set status for failed input files

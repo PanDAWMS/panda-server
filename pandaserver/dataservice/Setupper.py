@@ -132,7 +132,7 @@ class Setupper (threading.Thread):
             if job.jobStatus == 'failed':
                 continue
             # production datablock
-            if job.prodDBlock != 'NULL' and (not self.pandaDDM):
+            if job.prodDBlock != 'NULL' and (not self.pandaDDM) and (not job.prodSourceLabel in ['user','panda']):
                 # get VUID and record prodDBlock into DB
                 if not prodError.has_key(job.prodDBlock):
                     time.sleep(1)
