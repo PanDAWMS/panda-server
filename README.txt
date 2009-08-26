@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * more NG words in address finding
   * skip VUID lookup for analysis jobs
   * added getSlimmedFileInfoPandaIDs
   * added a hint for filesTable_ARCH

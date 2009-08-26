@@ -11,7 +11,7 @@ from pandalogger.PandaLogger import PandaLogger
 _logger = PandaLogger().getLogger('AddressFinder')
 
 # NG words in email address
-_ngWordsInMailAddr = ['support','system','stuff']
+_ngWordsInMailAddr = ['support','system','stuff','service','secretariat','club']
 
 
 # insert *
