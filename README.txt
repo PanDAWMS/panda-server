@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * use SARA-MATRIX for all T1 sources
   * more NG words in address finding
   * skip VUID lookup for analysis jobs
   * added getSlimmedFileInfoPandaIDs

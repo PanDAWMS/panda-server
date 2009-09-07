@@ -619,16 +619,9 @@ class Setupper (threading.Thread):
                         # make list
                         if self.replicaMap.has_key(job.dispatchDBlock):
                             # set DQ2 ID for DISK 
-                            if job.cloud in ['NL']:
-                                # split T1
-                                diskID = 'NIKHEF-ELPROD_DATADISK'
-                                tapeID = 'NIKHEF-ELPROD_DATATAPE'
-                                mctapeID = 'SARA-MATRIX_MCTAPE'
-                            else:
-                                # others
-                                diskID = re.sub('_MCDISK','_DATADISK',srcDQ2ID)
-                                tapeID = re.sub('_MCDISK','_DATATAPE',srcDQ2ID)
-                                mctapeID = re.sub('_MCDISK','_MCTAPE',srcDQ2ID)
+                            diskID = re.sub('_MCDISK','_DATADISK',srcDQ2ID)
+                            tapeID = re.sub('_MCDISK','_DATATAPE',srcDQ2ID)
+                            mctapeID = re.sub('_MCDISK','_MCTAPE',srcDQ2ID)
                             for tmpDataset,tmpRepMap in self.replicaMap[job.dispatchDBlock].iteritems():
                                 if tmpRepMap.has_key(srcDQ2ID):
                                     # MCDISK
