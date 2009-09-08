@@ -215,7 +215,8 @@ class Adder (threading.Thread):
                     if not file.destinationDBlock in destDBList:
                         destDBList.append(file.destinationDBlock)
                     # collect GUIDs
-                    if self.job.prodSourceLabel=='panda' and file.type == 'output':
+                    if (self.job.prodSourceLabel=='panda' or (self.job.prodSourceLabel=='ptest' and self.job.processingType=='pathena')) \
+                           and file.type == 'output':
                         guidList.append({'lfn':file.lfn, 'guid':file.GUID, 'type':file.type})
                 if guidList != []:
                     retG = self.taskBuffer.setGUIDs(guidList)

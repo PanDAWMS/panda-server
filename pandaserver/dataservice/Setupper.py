@@ -372,7 +372,10 @@ class Setupper (threading.Thread):
                 if not destError.has_key(dest):
                     destError[dest] = ''
                     originalName = ''
-                    if job.prodSourceLabel != 'panda':
+                    if (job.prodSourceLabel == 'panda') or (job.prodSourceLabel=='ptest' and job.processingType=='pathena'):
+                        # keep original name
+                        nameList = [file.destinationDBlock]
+                    else:    
                         # get serial number
                         sn,freshFlag = self.taskBuffer.getSerialNumber(file.destinationDBlock)
                         if sn == -1:
@@ -387,9 +390,6 @@ class Setupper (threading.Thread):
                         else:
                             # register new dataset only
                             nameList = [newnameList[dest]]
-                    else:
-                        # keep original name
-                        nameList = [file.destinationDBlock]
                     # create dataset
                     for name in nameList:
                         computingSite = job.computingSite
@@ -423,7 +423,8 @@ class Setupper (threading.Thread):
                                 vuidStr = ""
                                 # ignore 'already exists' ERROR because original dataset may be registered by upstream.
                                 # atFailed > 0 is for the case in which the first attempt succeeded but report failure
-                                if (job.prodSourceLabel == 'panda' or name == originalName or atFailed > 0) and \
+                                if (job.prodSourceLabel == 'panda' or (job.prodSourceLabel=='ptest' and job.processingType=='pathena') \
+                                    or name == originalName or atFailed > 0) and \
                                        out.find('DQDatasetExistsException') != -1:
                                     _logger.debug('ignored ERROR')
                                 else:
@@ -437,7 +438,8 @@ class Setupper (threading.Thread):
                             tmpDstDDM = self.siteMapper.getSite(file.destinationSE).ddm
                             tmpTokenList = file.destinationDBlockToken.split(',')
                             if name == originalName or tmpSrcDDM != tmpDstDDM or \
-                                   job.prodSourceLabel == 'panda' or len(tmpTokenList) > 1:
+                                   job.prodSourceLabel == 'panda' or (job.prodSourceLabel=='ptest' and job.processingType=='pathena') \
+                                   or len(tmpTokenList) > 1:
                                 time.sleep(1)
                                 # register location
                                 dq2IDList = [self.siteMapper.getSite(computingSite).ddm]
@@ -486,7 +488,7 @@ class Setupper (threading.Thread):
                             if status != 0 or out.find('Error') != -1:
                                 _logger.error(out)
                                 destError[dest] = "Setupper._setupDestination() could not register location : %s" % name
-                            elif job.prodSourceLabel == 'panda':
+                            elif job.prodSourceLabel == 'panda' or (job.prodSourceLabel=='ptest' and job.processingType=='pathena'):
                                 # do nothing for "panda" job
                                 pass
                             elif name == originalName and job.prodSourceLabel in ['managed','test','rc_test','ptest']:
