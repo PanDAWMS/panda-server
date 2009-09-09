@@ -20,6 +20,14 @@ class MailUtils:
     def send(self,toAddr,mailSubject,mailBody):
         _logger.debug("start SEND session")
         try:
+            # remove duplicated address
+            listToAddr = []
+            newToAddr = ''
+            for tmpToAddr in toAddr.split(','):
+                if not tmpToAddr in listToAddr:
+                    listToAddr.append(tmpToAddr)
+                    newToAddr += '%s,' % tmpToAddr
+            toAddr = newToAddr[:-1]        
             # make message
             fromAdd = panda_config.emailSender
             message = \
@@ -37,7 +45,6 @@ To: %s
             server.ehlo()
             server.starttls()
             server.login(panda_config.emailLogin,panda_config.emailPass)
-            listToAddr = toAddr.split(',')
             out = server.sendmail(fromAdd,listToAddr,message)
             _logger.debug(out)
             server.quit()

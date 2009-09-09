@@ -233,6 +233,7 @@ _logger.debug("Site Access")
 try:
     # get contact
     contactAddr = {}
+    siteContactAddr = {}
     sql = "SELECT name,email FROM ATLAS_PANDAMETA.cloudconfig"
     status,res = proxyS.querySQLS(sql,{})
     for cloudName,cloudEmail in res:
@@ -295,6 +296,18 @@ try:
         _logger.debug("requests for approval : cloud=%s" % cloud)
         # send
         if contactAddr.has_key(cloud) and (not contactAddr[cloud] in ['',None,'None']):
+            # get site contact
+            for pandaSite,userNames in requestsMap.iteritems():
+                if not siteContactAddr.has_key(pandaSite):
+                    varMap = {}
+                    varMap[':siteid'] = pandaSite
+                    sqlSite = "SELECT email FROM ATLAS_PANDAMETA.schedconfig WHERE siteid=:siteid AND rownum<=1"
+                    status,res = proxyS.querySQLS(sqlSite,varMap)
+                    siteContactAddr[pandaSite] = res[0][0]
+                    # append
+                    if not siteContactAddr[pandaSite] in ['',None,'None']:
+                        contactAddr[cloud] += ',%s' % siteContactAddr[pandaSite]
+            # send            
             _logger.debug("send request to %s" % contactAddr[cloud])
             retMail = mailUtils.sendSiteAccessRequest(contactAddr[cloud],requestsMap,cloud)
             _logger.debug(retMail)
