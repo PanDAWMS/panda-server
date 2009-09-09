@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * use schedconfig.DN for privilege check in addition to cloudconfig
   * ptest for analy tests 
   * use SARA-MATRIX for all T1 sources
   * more NG words in address finding

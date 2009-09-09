@@ -4459,7 +4459,7 @@ class DBProxy:
                 return 'No request for %s:%s' % (siteid,userName)
             # get cloud
             varMap = {':pandasite':siteid}
-            sql = 'SELECT cloud FROM ATLAS_PANDAMETA.schedconfig WHERE siteid=:pandasite AND rownum<=1'
+            sql = 'SELECT cloud,dn FROM ATLAS_PANDAMETA.schedconfig WHERE siteid=:pandasite AND rownum<=1'
             self.cur.execute(sql+comment,varMap)            
             res = self.cur.fetchall()
             if res == None or len(res) == 0:
@@ -4470,7 +4470,8 @@ class DBProxy:
                 # return
                 return "No cloud in schedconfig for %s" % siteid
             cloud = res[0][0]
-            # check privilege
+            siteContact = res[0][1]
+            # get cloud responsible
             varMap = {':cloud':cloud}
             sql = 'SELECT dn FROM ATLAS_PANDAMETA.cloudconfig WHERE name=:cloud'
             self.cur.execute(sql+comment,varMap)
@@ -4487,6 +4488,10 @@ class DBProxy:
                 contactNames = []
             else:
                 contactNames = contactNames.split(',')
+            # get site responsible
+            if not siteContact in [None,'']:
+                contactNames += siteContact.split(',')
+            # check privilege
             if not self.cleanUserID(requesterDN) in contactNames:
                 _logger.error("updateSiteAccess : %s is not one of contacts %s" % (requesterDN,str(contactNames)))
                 # return
