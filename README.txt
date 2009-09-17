@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added PandaMonURL to email notification
   * send email notification to site contact in addition to cloud contact
   * use schedconfig.DN for privilege check in addition to cloudconfig
   * ptest for analy tests 

@@ -147,6 +147,15 @@ In  : %s""" % iDS
                     message += \
 """
 Out : %s""" % oDS
+                urlData = {}
+                urlData['job'] = '*'
+                urlData['jobDefinitionID'] = jobID
+                urlData['user'] = self.job.prodUserName
+                message += \
+"""
+
+PandaMonURL : http://panda.cern.ch:25980/server/pandamon/query?%s
+""" % urllib.urlencode(urlData)
                 message += \
 """
 
