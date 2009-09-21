@@ -620,12 +620,17 @@ class Setupper (threading.Thread):
                     if dq2ID != dstDQ2ID:
                         # make list
                         if self.replicaMap.has_key(job.dispatchDBlock):
-                            # set DQ2 ID for DISK 
+                            # set DQ2 ID for DISK
+                            hotID  = re.sub('_MCDISK','_HOTDISK', srcDQ2ID)
                             diskID = re.sub('_MCDISK','_DATADISK',srcDQ2ID)
                             tapeID = re.sub('_MCDISK','_DATATAPE',srcDQ2ID)
                             mctapeID = re.sub('_MCDISK','_MCTAPE',srcDQ2ID)
                             for tmpDataset,tmpRepMap in self.replicaMap[job.dispatchDBlock].iteritems():
-                                if tmpRepMap.has_key(srcDQ2ID):
+                                if tmpRepMap.has_key(hotID):
+                                    # HOTDISK
+                                    if not hotID in dq2IDList:
+                                        dq2IDList.append(hotID)
+                                elif tmpRepMap.has_key(srcDQ2ID):
                                     # MCDISK
                                     if not srcDQ2ID in dq2IDList:
                                         dq2IDList.append(srcDQ2ID)
