@@ -773,7 +773,9 @@ class Setupper (threading.Thread):
                     ddmjob.assignedPriority  = 200000
                     if job.prodSourceLabel in ['software']:
                         # set higher priority for installation jobs
-                        ddmjob.assignedPriority += 1000                        
+                        ddmjob.assignedPriority += 1000
+                    else:
+                        ddmjob.assignedPriority += job.currentPriority
                     ddmjob.currentPriority   = ddmjob.assignedPriority
                     if self.ddmAttempt != 0:
                         # keep count of attemptNr
