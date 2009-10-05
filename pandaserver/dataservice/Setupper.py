@@ -434,15 +434,26 @@ class Setupper (threading.Thread):
                             else:
                                 vuidStr = "vuid = %s['vuid']" % out
                             # conversion is needed for unknown sites
-                            tmpSrcDDM = self.siteMapper.getSite(computingSite).ddm
-                            tmpDstDDM = self.siteMapper.getSite(file.destinationSE).ddm
+                            if job.prodSourceLabel == 'user' and not self.siteMapper.siteSpecList.has_key(computingSite):
+                                # DQ2 ID was set by using --destSE for analysis job to transfer output
+                                tmpSrcDDM = computingSite
+                            else:                            
+                                tmpSrcDDM = self.siteMapper.getSite(computingSite).ddm
+                            if job.prodSourceLabel == 'user' and not self.siteMapper.siteSpecList.has_key(file.destinationSE):
+                                # DQ2 ID was set by using --destSE for analysis job to transfer output 
+                                tmpDstDDM = file.destinationSE
+                            else:
+                                tmpDstDDM = self.siteMapper.getSite(file.destinationSE).ddm
                             tmpTokenList = file.destinationDBlockToken.split(',')
                             if name == originalName or tmpSrcDDM != tmpDstDDM or \
                                    job.prodSourceLabel == 'panda' or (job.prodSourceLabel=='ptest' and job.processingType=='pathena') \
                                    or len(tmpTokenList) > 1:
                                 time.sleep(1)
                                 # register location
-                                dq2IDList = [self.siteMapper.getSite(computingSite).ddm]
+                                if job.prodSourceLabel == 'user' and not self.siteMapper.siteSpecList.has_key(computingSite):
+                                    dq2IDList = [computingSite]
+                                else:
+                                    dq2IDList = [self.siteMapper.getSite(computingSite).ddm]
                                 # use another location when token is set
                                 if not file.destinationDBlockToken in ['NULL','']:
                                     dq2IDList = []

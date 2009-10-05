@@ -89,13 +89,20 @@ class Adder (threading.Thread):
                 if self.addOutput:
                     # check if the job should go to trasnferring
                     tmpSrcDDM = self.siteMapper.getSite(self.job.computingSite).ddm
-                    tmpDstDDM = self.siteMapper.getSite(self.job.destinationSE).ddm
                     tmpSrcSEs = brokerage.broker_util.getSEfromSched(self.siteMapper.getSite(self.job.computingSite).se)
-                    tmpDstSEs = brokerage.broker_util.getSEfromSched(self.siteMapper.getSite(self.job.destinationSE).se)
-                    if re.search('^ANALY_',self.job.computingSite) != None:
+                    destSEwasSet = False
+                    if self.job.prodSourceLabel == 'user' and not self.siteMapper.siteSpecList.has_key(self.job.destinationSE):
+                        # DQ2 ID was set by using --destSE for analysis job to transfer output
+                        destSEwasSet = True
+                        tmpDstDDM = self.job.destinationSE
+                        tmpDstSEs = self.job.destinationSE
+                    else:
+                        tmpDstDDM = self.siteMapper.getSite(self.job.destinationSE).ddm
+                        tmpDstSEs = brokerage.broker_util.getSEfromSched(self.siteMapper.getSite(self.job.destinationSE).se)
+                    if re.search('^ANALY_',self.job.computingSite) != None and not destSEwasSet:
                         # analysis site
                         pass
-                    elif re.search('BNL', self.job.computingSite) != None or self.job.computingSite == "TPATHENA":
+                    elif (re.search('BNL', self.job.computingSite) != None or self.job.computingSite == "TPATHENA") and not destSEwasSet:
                         # BNL
                         pass
                     elif self.job.computingSite == self.job.destinationSE:
@@ -145,7 +152,8 @@ class Adder (threading.Thread):
                         _logger.debug("%s cannot unlock XML" % self.jobID)            
                     return
                 # update shadow dataset
-                if self.job.prodSourceLabel == 'user' and self.jobStatus == 'finished' and self.job.ddmErrorDiag == 'NULL':
+                if self.job.prodSourceLabel == 'user' and self.jobStatus == 'finished' and self.job.ddmErrorDiag == 'NULL' \
+                       and not self.goToTransferring:
                     self._updateShadow()
                     # ignore DDMError
                     if self.ignoreDDMError and re.search('could not add files',self.job.ddmErrorDiag) != None \
@@ -375,7 +383,7 @@ class Adder (threading.Thread):
                                                           'size'     : fsize,
                                                           'checksum' : file.checksum})
                     # for subscription
-                    if self.job.prodSourceLabel in ['managed','test','software','rc_test','ptest'] and \
+                    if self.job.prodSourceLabel in ['managed','test','software','rc_test','ptest','user'] and \
                        re.search('_sub\d+$',file.destinationDBlock) != None and (not self.addToTopOnly):
                         if self.siteMapper == None:
                             _logger.error("%s : SiteMapper==None" % self.jobID)                                
@@ -396,9 +404,14 @@ class Adder (threading.Thread):
                                 else:
                                     # get DQ2 IDs
                                     tmpSrcDDM = self.siteMapper.getSite(self.job.computingSite).ddm
-                                    tmpDstDDM = self.siteMapper.getSite(file.destinationSE).ddm
                                     tmpSrcSEs = brokerage.broker_util.getSEfromSched(self.siteMapper.getSite(self.job.computingSite).se)
-                                    tmpDstSEs = brokerage.broker_util.getSEfromSched(self.siteMapper.getSite(file.destinationSE).se)
+                                    if self.job.prodSourceLabel == 'user' and not self.siteMapper.siteSpecList.has_key(file.destinationSE):
+                                        # DQ2 ID was set by using --destSE for analysis job to transfer output
+                                        tmpDstDDM = file.destinationSE
+                                        tmpDstSEs = file.destinationSE
+                                    else:
+                                        tmpDstDDM = self.siteMapper.getSite(file.destinationSE).ddm
+                                        tmpDstSEs = brokerage.broker_util.getSEfromSched(self.siteMapper.getSite(file.destinationSE).se)
                                     # if src != dest or multi-token
                                     if (tmpSrcDDM != tmpDstDDM and tmpSrcSEs != tmpDstSEs) or \
                                        (tmpSrcDDM == tmpDstDDM and file.destinationDBlockToken.count(',') != 0):
@@ -594,8 +607,8 @@ class Adder (threading.Thread):
             findFlag = False
             for iTry in range(nTry):
                 # check if shadow dataset exists
-                _logger.debug((self.jobID, 'listDatasets',shadowDS))
-                status,out =  ddm.DQ2.main('listDatasets',shadowDS)
+                _logger.debug((self.jobID, 'listDatasets',shadowDS,0,True))
+                status,out =  ddm.DQ2.main('listDatasets',shadowDS,0,True)
                 if status == 0:
                     if (out.find(shadowDS) == -1):
                         _logger.debug("%s shadow %s doesn't exist" % (self.jobID,shadowDS))
@@ -605,7 +618,7 @@ class Adder (threading.Thread):
                 # sleep
                 time.sleep(120)                    
             # append
-            if findFlag:
+            if findFlag and shadowFiles != []:
                 idMap[shadowDS] = shadowFiles
         # add data
         _logger.debug("%s shadow idMap = %s" % (self.jobID,idMap))

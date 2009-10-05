@@ -22,6 +22,7 @@ from taskbuffer import ProcessGroups
 import brokerage.broker_util
 import brokerage.broker
 import taskbuffer.ErrorCode
+import dataservice.DDM
 
 # password
 from config import panda_config
@@ -1215,8 +1216,20 @@ for ii in range(1000):
             # use BNL by default
             dq2URL = siteMapper.getSite('BNL_ATLAS_1').dq2url
             dq2SE  = []
-            # use cloud's destination
-            if siteMapper.checkCloud(job.cloud):
+            # get LFC and SEs
+            if job.prodSourceLabel == 'user' and not siteMapper.siteSpecList.has_key(job.destinationSE):
+                # using --destSE for analysis job to transfer output
+                try:
+                    dq2URL = dataservice.DDM.toa.getLocalCatalog(job.destinationSE)[-1]
+                    match = re.search('.+://([^:/]+):*\d*/*',dataservice.DDM.toa.getSiteProperty(job.destinationSE,'srm')[-1])
+                    if match != None:
+                        dq2SE.append(match.group(1))
+                except:
+                    type, value, traceBack = sys.exc_info()
+                    _logger.error("Failed to get DQ2/SE for %s with %s %s" % (job.PandaID,type,value))
+                    continue
+            elif siteMapper.checkCloud(job.cloud):
+                # normal production jobs
                 tmpDstID   = siteMapper.getCloud(job.cloud)['dest']
                 tmpDstSite = siteMapper.getSite(tmpDstID)
                 if not tmpDstSite.lfchost in [None,'']:

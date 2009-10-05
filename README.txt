@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * use onlyNames in dq2.listDatasets
+  * changes for destSE
   * changed cmtconfig for slc5 to match to slc4 and slc5
   * set pandamover priorities using original job priorities
   * added HOTDISK to Setupper

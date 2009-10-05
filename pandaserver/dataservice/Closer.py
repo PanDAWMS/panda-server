@@ -38,7 +38,7 @@ class Closer (threading.Thread):
 
     # main
     def run(self):
-        _logger.debug('%s Start' % self.pandaID)
+        _logger.debug('%s Start %s' % (self.pandaID,self.job.jobStatus))
         flagComplete = True
         ddmJobs = []
         for destinationDBlock in self.destinationDBlocks:
@@ -158,8 +158,9 @@ class Closer (threading.Thread):
         if ddmJobs != []:
             self.taskBuffer.storeJobs(ddmJobs,self.job.prodUserID,joinThr=True)
         # start notifier
-        if (flagComplete and self.job.prodSourceLabel=='user') or \
-           (self.job.jobStatus=='failed' and self.job.prodSourceLabel=='panda'):
+        _logger.debug('%s source:%s complete:%s' % (self.pandaID,self.job.prodSourceLabel,flagComplete))
+        if (self.job.jobStatus != 'transferring') and ((flagComplete and self.job.prodSourceLabel=='user') or \
+           (self.job.jobStatus=='failed' and self.job.prodSourceLabel=='panda')):
             nThr = Notifier(self.taskBuffer,self.job,self.destinationDBlocks)
             nThr.start()
             nThr.join()            

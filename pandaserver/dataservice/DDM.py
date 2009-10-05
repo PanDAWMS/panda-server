@@ -75,3 +75,40 @@ class DDM:
 # instantiate
 ddm = DDM()
 del DDM
+
+
+# method object wrapping TOA method
+class _TOAMethod:
+    # constructor
+    def __init__(self,methodName):
+        self.methodName = methodName
+
+    # method emulation
+    def __call__(self,*args):
+        args = list(args)
+        # build command
+        com  = 'from dq2.info import TiersOfATLAS; '
+        com += 'print TiersOfATLAS.%s(' % self.methodName
+        # expand args
+        for i in range(len(args)):
+            arg = args[i]
+            if isinstance(arg,types.StringType):
+                com += "'%s'," % arg
+            else:
+                com = '%s,' % arg
+        com = com[:-1]        
+        com += ")"
+        # execute
+        return commands.getstatusoutput('env %s python -c "%s"' % (_env,com))
+
+
+# TOA module class
+class TOA:
+    def __getattr__(self,methodName):
+        return _TOAMethod(methodName)
+
+    
+# instantiate
+toa = TOA()
+del TOA
+
