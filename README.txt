@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * take '_' into account in Closer for new naming convention
   * use onlyNames in dq2.listDatasets
   * changes for destSE
   * changed cmtconfig for slc5 to match to slc4 and slc5

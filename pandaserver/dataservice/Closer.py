@@ -45,7 +45,7 @@ class Closer (threading.Thread):
             dsList = []
             _logger.debug('%s start %s' % (self.pandaID,destinationDBlock))
             # ignore tid datasets
-            if re.search('_tid\d+$',destinationDBlock):
+            if re.search('_tid[\d_]+$',destinationDBlock):
                 _logger.debug('%s skip %s' % (self.pandaID,destinationDBlock))                
                 continue
             # query dataset
