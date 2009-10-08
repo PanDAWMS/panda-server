@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added 'user' to NG words in Notifier
   * take '_' into account in Closer for new naming convention
   * use onlyNames in dq2.listDatasets
   * changes for destSE
