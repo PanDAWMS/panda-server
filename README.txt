@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * added protection to _checkRole()
+  * use cache version matching for analysis 
   * added 'user' to NG words in Notifier
   * take '_' into account in Closer for new naming convention
   * use onlyNames in dq2.listDatasets

@@ -4010,6 +4010,133 @@ class DBProxy:
             return {}
 
 
+    # check sites with release/cache
+    def checkSitesWithRelease(self,sites,releases,caches):
+        comment = ' /* DBProxy.checkSitesWithRelease */'
+        try:
+            relStr = releases
+            if releases != None:
+                relStr = releases.replace('\n',' ')
+            caStr = caches
+            if caches != None:
+                caStr = caches.replace('\n',' ')
+            _logger.debug("checkSitesWithRelease(%s,%s,%s)" % (sites,relStr,caStr))
+            # select
+            sql  = "SELECT distinct site FROM ATLAS_PANDAMETA.InstalledSW WHERE "
+            varMap = {}
+            if not caches in ['','NULL',None]:
+                loopKey = ':cache'
+                loopValues = caches.split('\n')
+                sql += "cache=:cache "
+            elif not releases in ['','NULL',None]:
+                loopKey = ':release'
+                loopValues = releases.split('\n')
+                sql += "release=:release "
+            else:
+                # don't check
+                return sites
+            # start transaction
+            self.conn.begin()
+            self.cur.arraysize = 1000
+            # loop over all releases/caches
+            for loopVal in loopValues:
+                # remove Atlas-
+                loopVal = re.sub('^Atlas-','',loopVal)
+                varMap[loopKey] = loopVal
+                # execute
+                _logger.debug(sql+comment+str(varMap))
+                self.cur.execute(sql+comment, varMap)
+                resList = self.cur.fetchall()
+                # collect candidates
+                tmpCans = []
+                if len(resList) > 0:
+                    for tmpSite, in resList:
+                        # append
+                        tmpCans.append(tmpSite)
+                # loop over all sites
+                tmpRetSites = []
+                for site in sites:
+                    if site in tmpCans:
+                        tmpRetSites.append(site)
+                # set
+                sites = tmpRetSites
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            _logger.debug("checkSitesWithRelease -> %s" % sites)
+            return sites
+        except:
+            # roll back
+            self._rollback()
+            type,value,traceBack = sys.exc_info()
+            _logger.error("checkSitesWithRelease : %s %s" % (type,value))
+            return []
+
+
+    # get sites with release/cache in cloud 
+    def getSitesWithReleaseInCloud(self,cloud,releases,caches,validation):
+        comment = ' /* DBProxy.getSitesWithReleaseInCloud */'        
+        try:
+            relStr = releases
+            if releases != None:
+                relStr = releases.replace('\n',' ')
+            caStr = caches
+            if caches != None:
+                caStr = caches.replace('\n',' ')
+            _logger.debug("getSitesWithReleaseInCloud(%s,%s,%s,%s)" % (cloud,relStr,caStr,validation))
+            # select
+            sql  = "SELECT distinct site FROM ATLAS_PANDAMETA.InstalledSW WHERE cloud=:cloud AND "
+            varMap = {}
+            varMap[':cloud'] = cloud
+            if not caches in ['','NULL',None]:
+                loopKey = ':cache'
+                loopValues = caches.split('\n')
+                sql += "cache=:cache "
+            else:
+                loopKey = ':release'
+                loopValues = releases.split('\n')
+                sql += "release=:release "
+            # validation
+            if validation:
+                sql += "validation=:validation "
+                varMap[':validation'] = 'validated'
+            # start transaction
+            self.conn.begin()
+            self.cur.arraysize = 100
+            # loop over all releases/caches
+            retSites = None
+            for loopVal in loopValues:
+                # remove Atlas-
+                loopVal = re.sub('^Atlas-','',loopVal)
+                varMap[loopKey] = loopVal
+                # execute
+                _logger.debug(sql+comment+str(varMap))
+                self.cur.execute(sql+comment, varMap)
+                resList = self.cur.fetchall()
+                # append
+                tmpRetSites = []
+                for tmpItem, in resList:
+                    if retSites == None or (tmpItem in retSites):
+                        tmpRetSites.append(tmpItem)
+                # set
+                retSites = tmpRetSites
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # append
+            retSites = []
+            for tmpItem, in resList:
+                retSites.append(tmpItem)
+            _logger.debug("getSitesWithReleaseInCloud -> %s" % retSites)
+            return retSites
+        except:
+            # roll back
+            self._rollback()
+            type,value,traceBack = sys.exc_info()
+            _logger.error("getSitesWithReleaseInCloud : %s %s" % (type,value))
+            return []
+
+        
     # get pilot owners
     def getPilotOwners(self):
         comment = ' /* DBProxy.getPilotOwners */'        

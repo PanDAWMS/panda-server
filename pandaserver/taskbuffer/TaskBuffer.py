@@ -1090,6 +1090,30 @@ class TaskBuffer:
         return ret
 
 
+    # check sites with release/cache
+    def checkSitesWithRelease(self,sites,releases=None,caches=None):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # check
+        ret = proxy.checkSitesWithRelease(sites,releases,caches)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # get sites with release/cache in cloud 
+    def getSitesWithReleaseInCloud(self,cloud,releases=None,caches=None,validation=False):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # check
+        ret = proxy.getSitesWithReleaseInCloud(cloud,releases,caches,validation)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
     # get pilot owners
     def getPilotOwners(self):
         # get DBproxy

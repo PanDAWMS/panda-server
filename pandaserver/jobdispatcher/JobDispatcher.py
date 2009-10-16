@@ -249,31 +249,34 @@ def _getFQAN(req):
 # check role
 def _checkRole(fqans,dn,jdCore,withVomsPatch=True):
     prodManager = False
-    # VOMS attributes of production and pilot roles
-    prodAttrs = ['/atlas/usatlas/Role=production',
-                 '/atlas/usatlas/Role=pilot',                        
-                 '/atlas/Role=production',
-                 '/atlas/Role=pilot',
-                 ]
-    if withVomsPatch:
-        # FIXEME once http://savannah.cern.ch/bugs/?47136 is solved
-        prodAttrs += ['/atlas/']
-    for fqan in fqans:
-        # check atlas/usatlas production role
-        for rolePat in prodAttrs:
-            if fqan.startswith(rolePat):
-                prodManager = True
+    try:
+        # VOMS attributes of production and pilot roles
+        prodAttrs = ['/atlas/usatlas/Role=production',
+                     '/atlas/usatlas/Role=pilot',                        
+                     '/atlas/Role=production',
+                     '/atlas/Role=pilot',
+                     ]
+        if withVomsPatch:
+            # FIXEME once http://savannah.cern.ch/bugs/?47136 is solved
+            prodAttrs += ['/atlas/']
+        for fqan in fqans:
+            # check atlas/usatlas production role
+            for rolePat in prodAttrs:
+                if fqan.startswith(rolePat):
+                    prodManager = True
+                    break
+            # escape
+            if prodManager:
                 break
-        # escape
-        if prodManager:
-            break
-    # check DN with pilotOwners
-    if not prodManager:
-        for owner in jdCore.pilotOwners:
-            # check
-            if re.search(owner,dn) != None:
-                prodManager = True
-                break
+        # check DN with pilotOwners
+        if not prodManager:
+            for owner in jdCore.pilotOwners:
+                # check
+                if re.search(owner,dn) != None:
+                    prodManager = True
+                    break
+    except:
+        pass
     # return
     return prodManager
 

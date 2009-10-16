@@ -174,7 +174,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
         jobs.sort(_compFunc)
         # brokerage for analysis 
         candidateForAnal = True
-        resultsForAnal   = {'rel':[],'pilot':[],'disk':[]} 
+        resultsForAnal   = {'rel':[],'pilot':[],'disk':[]}
+        relCloudMap      = {}
         # loop over all jobs + terminator(None)
         for job in jobs+[None]:
             indexJob += 1
@@ -242,6 +243,13 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     else:
                         # use given sites
                         scanSiteList = setScanSiteList
+                    # get availabe sites with cache
+                    useCacheVersion = False
+                    siteListWithCache = []
+                    if forAnalysis and re.search('-\d+\.\d+\.\d+\.\d+',prevRelease) != None:
+                        useCacheVersion = True
+                        siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,caches=prevRelease)
+                        _log.debug('  cacheSites     %s' % str(siteListWithCache))
                     # release/cmtconfig check
                     foundRelease   = False
                     # the number/size of inputs per job 
@@ -297,6 +305,13 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             # doesn't check releases for US analysis
                             _log.debug(' skip release check')
                             pass
+                        elif forAnalysis and useCacheVersion:
+                            # cache matching
+                            if not site in siteListWithCache:
+                                _log.debug(' skip: cache %s/%s not found' % (prevRelease.replace('\n',' '),prevCmtConfig))                            
+                                if trustIS:
+                                    resultsForAnal['rel'].append(site)
+                                continue    
                         elif (prevRelease != None and ((releases != [] and previousCloud != 'US') or \
                                                        prevProType in ['reprocessing']) and \
                               (not _checkRelease(prevRelease,releases))) or \
@@ -480,7 +495,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             if resultsForAnal['rel'] != []:
                                 resultsForAnalStr += 'Release:%s was not found in %s. ' % (prevRelease,str(resultsForAnal['rel']))
                             if resultsForAnal['pilot'] != []:
-                                resultsForAnalStr += '%s are inactive. ' % str(resultsForAnal['pilot'])
+                                resultsForAnalStr += '%s are inactive (no pilots for last 3 hours). ' % str(resultsForAnal['pilot'])
                             if resultsForAnal['disk'] != []:
                                 resultsForAnalStr += 'Disk shortage < %sGB at %s. ' % (diskThreshold,str(resultsForAnal['disk']))
                             resultsForAnalStr = resultsForAnalStr[:-1]
