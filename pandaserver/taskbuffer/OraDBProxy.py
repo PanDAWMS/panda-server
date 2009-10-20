@@ -1133,9 +1133,7 @@ class DBProxy:
             getValMap[':prodSourceLabel'] = 'software'
         elif prodSourceLabel == 'test' and computingElement != None:
             dynamicBrokering = True
-            sql1+= "AND (computingElement=:computingElement1 OR computingElement=:computingElement2 OR processingType=:processingType OR prodSourceLabel=:prodSourceLabel) "
-            getValMap[':computingElement1'] = computingElement
-            getValMap[':computingElement2'] = 'to.be.set'
+            sql1+= "AND (processingType=:processingType OR prodSourceLabel=:prodSourceLabel) "
             getValMap[':processingType']    = 'prod_test'
             getValMap[':prodSourceLabel']   = 'test'
         else:
@@ -4022,8 +4020,7 @@ class DBProxy:
                 caStr = caches.replace('\n',' ')
             _logger.debug("checkSitesWithRelease(%s,%s,%s)" % (sites,relStr,caStr))
             # select
-            sql  = "SELECT distinct site FROM ATLAS_PANDAMETA.InstalledSW WHERE "
-            varMap = {}
+            sql  = "SELECT distinct siteid FROM ATLAS_PANDAMETA.InstalledSW WHERE "
             if not caches in ['','NULL',None]:
                 loopKey = ':cache'
                 loopValues = caches.split('\n')
@@ -4040,26 +4037,39 @@ class DBProxy:
             self.cur.arraysize = 1000
             # loop over all releases/caches
             for loopVal in loopValues:
+                sqlSite = sql + "AND siteid IN ("
                 # remove Atlas-
                 loopVal = re.sub('^Atlas-','',loopVal)
+                varMap = {}
                 varMap[loopKey] = loopVal
-                # execute
-                _logger.debug(sql+comment+str(varMap))
-                self.cur.execute(sql+comment, varMap)
-                resList = self.cur.fetchall()
-                # collect candidates
-                tmpCans = []
-                if len(resList) > 0:
-                    for tmpSite, in resList:
-                        # append
-                        tmpCans.append(tmpSite)
-                # loop over all sites
                 tmpRetSites = []
-                for site in sites:
-                    if site in tmpCans:
-                        tmpRetSites.append(site)
+                # look over sites
+                nSites = 10
+                iSite = 0
+                for siteIndex,site in enumerate(sites):
+                    iSite += 1
+                    tmpSiteKey = ':siteid%s' % iSite
+                    varMap[tmpSiteKey] = site
+                    sqlSite += '%s,' % tmpSiteKey
+                    if iSite == nSites or (siteIndex+1) == len(sites):
+                        iSite = 0
+                        # close bracket in SQL
+                        sqlSite = sqlSite[:-1]
+                        sqlSite += ')'
+                        # execute
+                        _logger.debug(sqlSite+comment+str(varMap))
+                        self.cur.execute(sqlSite+comment, varMap)
+                        resList = self.cur.fetchall()
+                        # collect candidates
+                        if len(resList) > 0:
+                            for tmpSite, in resList:
+                                # append
+                                tmpRetSites.append(tmpSite)
                 # set
                 sites = tmpRetSites
+                # escape
+                if sites == []:
+                    break
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -4085,7 +4095,7 @@ class DBProxy:
                 caStr = caches.replace('\n',' ')
             _logger.debug("getSitesWithReleaseInCloud(%s,%s,%s,%s)" % (cloud,relStr,caStr,validation))
             # select
-            sql  = "SELECT distinct site FROM ATLAS_PANDAMETA.InstalledSW WHERE cloud=:cloud AND "
+            sql  = "SELECT distinct siteid FROM ATLAS_PANDAMETA.InstalledSW WHERE cloud=:cloud AND "
             varMap = {}
             varMap[':cloud'] = cloud
             if not caches in ['','NULL',None]:

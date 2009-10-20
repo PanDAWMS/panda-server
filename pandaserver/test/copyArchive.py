@@ -1276,7 +1276,7 @@ for ii in range(1000):
                     endTime = job.startTime
                 # priority-dependent timeout
                 tmpCloudSpec = siteMapper.getCloud(job.cloud)
-                if job.currentPriority >= 900:
+                if job.currentPriority >= 900 and (not job.prodSourceLabel in ['user']):
                     if tmpCloudSpec.has_key('transtimehi'):
                         timeOutValue = tmpCloudSpec['transtimehi']
                     else:

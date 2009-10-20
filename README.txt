@@ -1,6 +1,9 @@
 Release Note
 
 * current
+  * removed computingElement matching in getJob for test jobs 
+  * use transtimelo for timeout of analysis transfers
+  * fixed for site->siteid in installedSW
   * added protection to _checkRole()
   * use cache version matching for analysis 
   * added 'user' to NG words in Notifier
