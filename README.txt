@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed brokerage to use only T1 for many input jobs when weight is negative
   * removed computingElement matching in getJob for test jobs 
   * use transtimelo for timeout of analysis transfers
   * fixed for site->siteid in installedSW

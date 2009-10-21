@@ -133,6 +133,14 @@ def _setReadyToFiles(tmpJob,okFiles,siteMapper):
         tmpJob.dispatchDBlock = 'NULL'
     
 
+# check number/size of inputs
+def _isTooManyInput(nFilesPerJob,inputSizePerJob):
+    # the number of inputs is larger than 5 or
+    # size of inputs is larger than 500MB
+    if nFilesPerJob > 5 or inputSizePerJob > 500*1024*1024:
+        return True
+    return False
+
 
 # schedule
 def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],trustIS=False):
@@ -255,196 +263,201 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     # the number/size of inputs per job 
                     nFilesPerJob    = float(totalNumInputs)/float(iJob)
                     inputSizePerJob = float(totalInputSize)/float(iJob)
-                    # loop over all sites    
-                    for site in scanSiteList:
-                        _log.debug('calculate weight for site:%s' % site)                    
-                        # _allSites may conain NULL after sort()
-                        if site == 'NULL':
-                            continue
-                        # ignore test sites
-                        if site.endswith('test') or site.endswith('Test') or site.startswith('Test'):
-                            continue
-                        # ignore analysis queues
-                        if (not forAnalysis) and site.startswith('ANALY'):
-                            continue
-                        # get SiteSpec
-                        if siteMapper.checkSite(site):
-                            tmpSiteSpec = siteMapper.getSite(site)
-                        else:
-                            _log.debug(" skip: %s doesn't exist in DB" % site)
-                            continue
-                        # check status
-                        if tmpSiteSpec.status in ['offline','brokeroff']:
-                            if forAnalysis and tmpSiteSpec.status == 'brokeroff' and tmpSiteSpec.accesscontrol == 'grouplist':
-                                # ignore brokeroff for grouplist site
-                                pass
+                    # use T1 for jobs with many inputs when weight is negative
+                    if (not forAnalysis) and _isTooManyInput(nFilesPerJob,inputSizePerJob) and \
+                           siteMapper.getCloud(previousCloud)['weight'] < 0:
+                        minSites[siteMapper.getCloud(previousCloud)['source']] = 0
+                    else:
+                        # loop over all sites    
+                        for site in scanSiteList:
+                            _log.debug('calculate weight for site:%s' % site)                    
+                            # _allSites may conain NULL after sort()
+                            if site == 'NULL':
+                                continue
+                            # ignore test sites
+                            if site.endswith('test') or site.endswith('Test') or site.startswith('Test'):
+                                continue
+                            # ignore analysis queues
+                            if (not forAnalysis) and site.startswith('ANALY'):
+                                continue
+                            # get SiteSpec
+                            if siteMapper.checkSite(site):
+                                tmpSiteSpec = siteMapper.getSite(site)
                             else:
-                                _log.debug(' skip: status %s' % tmpSiteSpec.status)
+                                _log.debug(" skip: %s doesn't exist in DB" % site)
+                                continue
+                            # check status
+                            if tmpSiteSpec.status in ['offline','brokeroff']:
+                                if forAnalysis and tmpSiteSpec.status == 'brokeroff' and tmpSiteSpec.accesscontrol == 'grouplist':
+                                    # ignore brokeroff for grouplist site
+                                    pass
+                                else:
+                                    _log.debug(' skip: status %s' % tmpSiteSpec.status)
+                                    if forAnalysis and trustIS:
+                                        resultsForAnal['pilot'].append(site)
+                                    continue
+                            if tmpSiteSpec.status == 'test' and (not prevProType in ['prod_test']):
+                                _log.debug(' skip: status %s for %s' % (tmpSiteSpec.status,prevProType))
                                 if forAnalysis and trustIS:
                                     resultsForAnal['pilot'].append(site)
                                 continue
-                        if tmpSiteSpec.status == 'test' and (not prevProType in ['prod_test']):
-                            _log.debug(' skip: status %s for %s' % (tmpSiteSpec.status,prevProType))
-                            if forAnalysis and trustIS:
-                                resultsForAnal['pilot'].append(site)
-                            continue
-                        _log.debug('   status=%s' % tmpSiteSpec.status)
-                        # change NULL cmtconfig to slc3
-                        if prevCmtConfig in ['NULL','',None]:
-                            tmpCmtConfig = 'i686-slc3-gcc323-opt'
-                        else:
-                            tmpCmtConfig = prevCmtConfig
-                        # set release
-                        releases = tmpSiteSpec.releases
-                        if prevProType in ['reprocessing']:
-                            # use validated releases for reprocessing
-                            releases = tmpSiteSpec.validatedreleases
-                        _log.debug('   %s' % str(releases))
-                        _log.debug('   %s' % str(tmpSiteSpec.cmtconfig))
-                        if forAnalysis and (tmpSiteSpec.cloud in ['US'] or prevRelease==''):
-                            # doesn't check releases for US analysis
-                            _log.debug(' skip release check')
-                            pass
-                        elif forAnalysis and useCacheVersion:
-                            # cache matching
-                            if not site in siteListWithCache:
-                                _log.debug(' skip: cache %s/%s not found' % (prevRelease.replace('\n',' '),prevCmtConfig))                            
-                                if trustIS:
-                                    resultsForAnal['rel'].append(site)
-                                continue    
-                        elif (prevRelease != None and ((releases != [] and previousCloud != 'US') or \
-                                                       prevProType in ['reprocessing']) and \
-                              (not _checkRelease(prevRelease,releases))) or \
-                              (tmpCmtConfig != None and tmpSiteSpec.cmtconfig != [] and \
-                               (not tmpCmtConfig in tmpSiteSpec.cmtconfig)):
-                            _log.debug(' skip: release %s/%s not found' % (prevRelease.replace('\n',' '),prevCmtConfig))
-                            if forAnalysis and trustIS:
-                                resultsForAnal['rel'].append(site)
-                            # send message to logger
-                            try:
-                                # make message
-                                message = '%s - release %s/%s not found' % (site,prevRelease.replace('\n',' '),prevCmtConfig)
-                                # get logger
-                                _pandaLogger = PandaLogger()
-                                _pandaLogger.lock()
-                                _pandaLogger.setParams({'Type':'brokerage'})
-                                logger = _pandaLogger.getHttpLogger(panda_config.loggername)
-                                # add message
-                                logger.warning(message)
-                                # release HTTP handler
-                                _pandaLogger.release()
-                            except:
+                            _log.debug('   status=%s' % tmpSiteSpec.status)
+                            # change NULL cmtconfig to slc3
+                            if prevCmtConfig in ['NULL','',None]:
+                                tmpCmtConfig = 'i686-slc3-gcc323-opt'
+                            else:
+                                tmpCmtConfig = prevCmtConfig
+                            # set release
+                            releases = tmpSiteSpec.releases
+                            if prevProType in ['reprocessing']:
+                                # use validated releases for reprocessing
+                                releases = tmpSiteSpec.validatedreleases
+                            _log.debug('   %s' % str(releases))
+                            _log.debug('   %s' % str(tmpSiteSpec.cmtconfig))
+                            if forAnalysis and (tmpSiteSpec.cloud in ['US'] or prevRelease==''):
+                                # doesn't check releases for US analysis
+                                _log.debug(' skip release check')
                                 pass
-                            continue
-                        elif not foundRelease:
-                            # found at least one site has the release
-                            foundRelease = True
-                        # check memory
-                        if tmpSiteSpec.memory != 0 and (not prevMemory in [None,0,'NULL']):
-                            try:
-                                if int(tmpSiteSpec.memory) < int(prevMemory):
-                                    _log.debug('  skip: memory shortage %s<%s' % (tmpSiteSpec.memory,prevMemory))
-                                    continue
-                            except:
-                                type, value, traceBack = sys.exc_info()
-                                _log.error("memory check : %s %s" % (type,value))
-                        # get pilot statistics
-                        if nWNmap == {}:
-                            nWNmap = taskBuffer.getCurrentSiteData()
-                        if nWNmap.has_key(site):    
-                            nPilots = nWNmap[site]['getJob'] + nWNmap[site]['updateJob']
-                        else:
-                            nPilots = 0
-                        # if no pilots
-                        if nPilots == 0 and nWNmap != {}:
-                            _log.debug(" skip: %s no pilot" % site)
-                            if forAnalysis and trustIS:
-                                resultsForAnal['pilot'].append(site)
-                            continue
-                        # if no jobs in jobsActive/jobsDefined
-                        if not jobStatistics.has_key(site):
-                            jobStatistics[site] = {'assigned':0,'activated':0,'running':0}
-                        # check space for T2
-                        if site != siteMapper.getCloud(previousCloud)['source']:
-                            if tmpSiteSpec.space != 0:
-                                nRemJobs = jobStatistics[site]['assigned']+jobStatistics[site]['activated']+jobStatistics[site]['running']
-                                if not forAnalysis:
-                                    # take assigned/activated/running jobs into account for production
-                                    remSpace = tmpSiteSpec.space - 0.250*nRemJobs
-                                else:
-                                    remSpace = tmpSiteSpec.space
-                                _log.debug('   space available=%s remain=%s' % (tmpSiteSpec.space,remSpace))
-                                if remSpace < diskThreshold:
-                                    _log.debug('  skip: disk shortage < %s' % diskThreshold)
-                                    if forAnalysis and trustIS:
-                                        resultsForAnal['disk'].append(site)
-                                    continue
-                        # number of jobs per node
-                        if not nWNmap.has_key(site):
-                            nJobsPerNode = 1
-                        elif jobStatistics[site]['running']==0 or nWNmap[site]['updateJob']==0:
-                            nJobsPerNode = 1
-                        else:
-                            nJobsPerNode = float(jobStatistics[site]['running'])/float(nWNmap[site]['updateJob'])
-                        # get the number of activated and assigned for the process group
-                        tmpProGroup = ProcessGroups.getProcessGroup(prevProType)
-                        if not jobStatBroker.has_key(site):
-                            jobStatBroker[site] = {}
-                        if not jobStatBroker[site].has_key(tmpProGroup):
-                            jobStatBroker[site][tmpProGroup] = {'assigned':0,'activated':0,'running':0}
-                        nAssJobs = jobStatBroker[site][tmpProGroup]['assigned']
-                        nActJobs = jobStatBroker[site][tmpProGroup]['activated']
-                        # calculate weight
-                        _log.debug('   %s assigned:%s activated:%s running:%s nPilots:%s nJobsPerNode:%s' %
-                                   (site,nAssJobs,nActJobs,jobStatistics[site]['running'],nPilots,nJobsPerNode))
-                        if nPilots != 0:
-                            winv = (float(nAssJobs+nActJobs)) / float(nPilots) / nJobsPerNode
-                        else:
-                            winv = (float(nAssJobs+nActJobs)) / nJobsPerNode
-                        # send jobs to T1 when they require many or large inputs
-                        if nFilesPerJob > 5 or inputSizePerJob > 500*1024*1024:
-                            if site == siteMapper.getCloud(previousCloud)['source']:
-                                cloudT1Weight = 2.0
-                                # use weight in cloudconfig
+                            elif forAnalysis and useCacheVersion:
+                                # cache matching
+                                if not site in siteListWithCache:
+                                    _log.debug(' skip: cache %s/%s not found' % (prevRelease.replace('\n',' '),prevCmtConfig))                            
+                                    if trustIS:
+                                        resultsForAnal['rel'].append(site)
+                                    continue    
+                            elif (prevRelease != None and ((releases != [] and previousCloud != 'US') or \
+                                                           prevProType in ['reprocessing']) and \
+                                  (not _checkRelease(prevRelease,releases))) or \
+                                  (tmpCmtConfig != None and tmpSiteSpec.cmtconfig != [] and \
+                                   (not tmpCmtConfig in tmpSiteSpec.cmtconfig)):
+                                _log.debug(' skip: release %s/%s not found' % (prevRelease.replace('\n',' '),prevCmtConfig))
+                                if forAnalysis and trustIS:
+                                    resultsForAnal['rel'].append(site)
+                                # send message to logger
                                 try:
-                                    tmpCloudT1Weight = float(siteMapper.getCloud(previousCloud)['weight'])
-                                    if tmpCloudT1Weight != 0.0:
-                                        cloudT1Weight = tmpCloudT1Weight
+                                    # make message
+                                    message = '%s - release %s/%s not found' % (site,prevRelease.replace('\n',' '),prevCmtConfig)
+                                    # get logger
+                                    _pandaLogger = PandaLogger()
+                                    _pandaLogger.lock()
+                                    _pandaLogger.setParams({'Type':'brokerage'})
+                                    logger = _pandaLogger.getHttpLogger(panda_config.loggername)
+                                    # add message
+                                    logger.warning(message)
+                                    # release HTTP handler
+                                    _pandaLogger.release()
                                 except:
                                     pass
-                                winv /= cloudT1Weight
-                                _log.debug('   special weight for %s : nInputs/Job=%s inputSize/Job=%s weight=%s' % 
-                                           (site,nFilesPerJob,inputSizePerJob,cloudT1Weight))
-                        _log.debug('Site:%s 1/Weight:%s' % (site,winv))
-                        # choose largest nMinSites weights
-                        minSites[site] = winv
-                        if len(minSites) > nMinSites:
-                            maxSite = site
-                            maxWinv = winv
-                            for tmpSite,tmpWinv in minSites.iteritems():
-                                if tmpWinv > maxWinv:
-                                    maxSite = tmpSite
-                                    maxWinv = tmpWinv
-                            # delte max one
-                            del minSites[maxSite]
-                        # remove too different weights
-                        if len(minSites) >= 2:
-                            # look for minimum
-                            minSite = minSites.keys()[0]
-                            minWinv = minSites[minSite]
-                            for tmpSite,tmpWinv in minSites.iteritems():
-                                if tmpWinv < minWinv:
-                                    minSite = tmpSite
-                                    minWinv = tmpWinv
-                            # look for too different weights
-                            difference = 2
-                            removeSites = []
-                            for tmpSite,tmpWinv in minSites.iteritems():
-                                if tmpWinv > minWinv*difference:
-                                    removeSites.append(tmpSite)
-                            # remove
-                            for tmpSite in removeSites:
-                                del minSites[tmpSite]
+                                continue
+                            elif not foundRelease:
+                                # found at least one site has the release
+                                foundRelease = True
+                            # check memory
+                            if tmpSiteSpec.memory != 0 and (not prevMemory in [None,0,'NULL']):
+                                try:
+                                    if int(tmpSiteSpec.memory) < int(prevMemory):
+                                        _log.debug('  skip: memory shortage %s<%s' % (tmpSiteSpec.memory,prevMemory))
+                                        continue
+                                except:
+                                    type, value, traceBack = sys.exc_info()
+                                    _log.error("memory check : %s %s" % (type,value))
+                            # get pilot statistics
+                            if nWNmap == {}:
+                                nWNmap = taskBuffer.getCurrentSiteData()
+                            if nWNmap.has_key(site):    
+                                nPilots = nWNmap[site]['getJob'] + nWNmap[site]['updateJob']
+                            else:
+                                nPilots = 0
+                            # if no pilots
+                            if nPilots == 0 and nWNmap != {}:
+                                _log.debug(" skip: %s no pilot" % site)
+                                if forAnalysis and trustIS:
+                                    resultsForAnal['pilot'].append(site)
+                                continue
+                            # if no jobs in jobsActive/jobsDefined
+                            if not jobStatistics.has_key(site):
+                                jobStatistics[site] = {'assigned':0,'activated':0,'running':0}
+                            # check space for T2
+                            if site != siteMapper.getCloud(previousCloud)['source']:
+                                if tmpSiteSpec.space != 0:
+                                    nRemJobs = jobStatistics[site]['assigned']+jobStatistics[site]['activated']+jobStatistics[site]['running']
+                                    if not forAnalysis:
+                                        # take assigned/activated/running jobs into account for production
+                                        remSpace = tmpSiteSpec.space - 0.250*nRemJobs
+                                    else:
+                                        remSpace = tmpSiteSpec.space
+                                    _log.debug('   space available=%s remain=%s' % (tmpSiteSpec.space,remSpace))
+                                    if remSpace < diskThreshold:
+                                        _log.debug('  skip: disk shortage < %s' % diskThreshold)
+                                        if forAnalysis and trustIS:
+                                            resultsForAnal['disk'].append(site)
+                                        continue
+                            # number of jobs per node
+                            if not nWNmap.has_key(site):
+                                nJobsPerNode = 1
+                            elif jobStatistics[site]['running']==0 or nWNmap[site]['updateJob']==0:
+                                nJobsPerNode = 1
+                            else:
+                                nJobsPerNode = float(jobStatistics[site]['running'])/float(nWNmap[site]['updateJob'])
+                            # get the number of activated and assigned for the process group
+                            tmpProGroup = ProcessGroups.getProcessGroup(prevProType)
+                            if not jobStatBroker.has_key(site):
+                                jobStatBroker[site] = {}
+                            if not jobStatBroker[site].has_key(tmpProGroup):
+                                jobStatBroker[site][tmpProGroup] = {'assigned':0,'activated':0,'running':0}
+                            nAssJobs = jobStatBroker[site][tmpProGroup]['assigned']
+                            nActJobs = jobStatBroker[site][tmpProGroup]['activated']
+                            # calculate weight
+                            _log.debug('   %s assigned:%s activated:%s running:%s nPilots:%s nJobsPerNode:%s' %
+                                       (site,nAssJobs,nActJobs,jobStatistics[site]['running'],nPilots,nJobsPerNode))
+                            if nPilots != 0:
+                                winv = (float(nAssJobs+nActJobs)) / float(nPilots) / nJobsPerNode
+                            else:
+                                winv = (float(nAssJobs+nActJobs)) / nJobsPerNode
+                            # send jobs to T1 when they require many or large inputs
+                            if _isTooManyInput(nFilesPerJob,inputSizePerJob):
+                                if site == siteMapper.getCloud(previousCloud)['source']:
+                                    cloudT1Weight = 2.0
+                                    # use weight in cloudconfig
+                                    try:
+                                        tmpCloudT1Weight = float(siteMapper.getCloud(previousCloud)['weight'])
+                                        if tmpCloudT1Weight != 0.0:
+                                            cloudT1Weight = tmpCloudT1Weight
+                                    except:
+                                        pass
+                                    winv /= cloudT1Weight
+                                    _log.debug('   special weight for %s : nInputs/Job=%s inputSize/Job=%s weight=%s' % 
+                                               (site,nFilesPerJob,inputSizePerJob,cloudT1Weight))
+                            _log.debug('Site:%s 1/Weight:%s' % (site,winv))
+                            # choose largest nMinSites weights
+                            minSites[site] = winv
+                            if len(minSites) > nMinSites:
+                                maxSite = site
+                                maxWinv = winv
+                                for tmpSite,tmpWinv in minSites.iteritems():
+                                    if tmpWinv > maxWinv:
+                                        maxSite = tmpSite
+                                        maxWinv = tmpWinv
+                                # delte max one
+                                del minSites[maxSite]
+                            # remove too different weights
+                            if len(minSites) >= 2:
+                                # look for minimum
+                                minSite = minSites.keys()[0]
+                                minWinv = minSites[minSite]
+                                for tmpSite,tmpWinv in minSites.iteritems():
+                                    if tmpWinv < minWinv:
+                                        minSite = tmpSite
+                                        minWinv = tmpWinv
+                                # look for too different weights
+                                difference = 2
+                                removeSites = []
+                                for tmpSite,tmpWinv in minSites.iteritems():
+                                    if tmpWinv > minWinv*difference:
+                                        removeSites.append(tmpSite)
+                                # remove
+                                for tmpSite in removeSites:
+                                    del minSites[tmpSite]
                     # set default
                     if len(minSites) == 0:
                         # cloud's list
