@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * limit matching of cmtconfig=i686-slc5-gcc43-opt to i686-slc5-gcc43-opt jobs only
   * changed brokerage to use only T1 for many input jobs when weight is negative
   * removed computingElement matching in getJob for test jobs 
   * use transtimelo for timeout of analysis transfers
