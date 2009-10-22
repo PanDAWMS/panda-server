@@ -3908,7 +3908,7 @@ class DBProxy:
                     # cmtconfig
                     if cmtconfig == 'i686-slc5-gcc43-opt':
                         # set slc4 for slc5
-                        ret.cmtconfig = [] #['i686-slc4-gcc34-opt']
+                        ret.cmtconfig = [] # FIXME : for slc5-gcc43 validation ['i686-slc4-gcc34-opt']
                     else:
                         # set slc3 if the column is empty
                         ret.cmtconfig = ['i686-slc3-gcc323-opt']

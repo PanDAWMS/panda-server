@@ -195,7 +195,10 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             # set computingSite to T1 for high priority jobs
             if job != None and job.currentPriority >= 950 and job.computingSite == 'NULL' \
                    and job.prodSourceLabel in ('test','managed'):
-                job.computingSite = siteMapper.getCloud(job.cloud)['source']
+                # FIXME : just for slc5-gcc43 validation
+                #job.computingSite = siteMapper.getCloud(job.cloud)['source']                
+                if job.cmtConfig != 'i686-slc5-gcc43-opt': 
+                    job.computingSite = siteMapper.getCloud(job.cloud)['source']
             # set computingSite to T1 when too many inputs are required
             if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed'):
                 # counts # of inputs
@@ -204,7 +207,10 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     if tmpFile.type == 'input':
                         tmpTotalInput += 1
                 if tmpTotalInput >= manyInputsThr:
-                    job.computingSite = siteMapper.getCloud(job.cloud)['source']
+                    # FIXME : just for slc5-gcc43 validation
+                    #job.computingSite = siteMapper.getCloud(job.cloud)['source']
+                    if job.cmtConfig != 'i686-slc5-gcc43-opt': 
+                        job.computingSite = siteMapper.getCloud(job.cloud)['source']
             overwriteSite = False
             # new bunch or terminator
             if job == None or len(fileList) >= nFile \
