@@ -273,6 +273,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     if (not forAnalysis) and _isTooManyInput(nFilesPerJob,inputSizePerJob) and \
                            siteMapper.getCloud(previousCloud)['weight'] < 0:
                         minSites[siteMapper.getCloud(previousCloud)['source']] = 0
+                        foundRelease = True
                     else:
                         # loop over all sites    
                         for site in scanSiteList:
