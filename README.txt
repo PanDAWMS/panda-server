@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * send log message from brokerage when disk shortage
   * use ANALY_LONG_BNL_ATLAS for UAT
   * added temporary priority boost for UAT
   * added YY.MM.DD to destinationDBlock of PandaMover

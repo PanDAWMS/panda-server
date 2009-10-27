@@ -166,6 +166,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
     prevMemory     = None
     prevCmtConfig  = None
     prevProType    = None
+    prevSourceLabel= None
     
     nWNmap = {}
     indexJob = 0
@@ -184,6 +185,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
         candidateForAnal = True
         resultsForAnal   = {'rel':[],'pilot':[],'disk':[]}
         relCloudMap      = {}
+        loggerMessages   = []
         # loop over all jobs + terminator(None)
         for job in jobs+[None]:
             indexJob += 1
@@ -231,6 +233,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     _log.debug('  iJob           %s'    % iJob)
                     _log.debug('  cloud          %s' % previousCloud)
                     _log.debug('  rel            %s' % prevRelease)
+                    _log.debug('  sourceLabel    %s' % prevSourceLabel)
                     _log.debug('  cmtConfig      %s' % prevCmtConfig)
                     _log.debug('  prodDBlock     %s' % prodDBlock)
                     _log.debug('  computingSite  %s' % computingSite)
@@ -347,19 +350,13 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 _log.debug(' skip: release %s/%s not found' % (prevRelease.replace('\n',' '),prevCmtConfig))
                                 if forAnalysis and trustIS:
                                     resultsForAnal['rel'].append(site)
-                                # send message to logger
+                                # keep message to logger
                                 try:
-                                    # make message
-                                    message = '%s - release %s/%s not found' % (site,prevRelease.replace('\n',' '),prevCmtConfig)
-                                    # get logger
-                                    _pandaLogger = PandaLogger()
-                                    _pandaLogger.lock()
-                                    _pandaLogger.setParams({'Type':'brokerage'})
-                                    logger = _pandaLogger.getHttpLogger(panda_config.loggername)
-                                    # add message
-                                    logger.warning(message)
-                                    # release HTTP handler
-                                    _pandaLogger.release()
+                                    if prevSourceLabel in ['managed','test']:
+                                        # make message
+                                        message = '%s - release %s/%s not found' % (site,prevRelease.replace('\n',' '),prevCmtConfig)
+                                        if not message in loggerMessages:
+                                            loggerMessages.append(message)
                                 except:
                                     pass
                                 continue
@@ -405,6 +402,15 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                         _log.debug('  skip: disk shortage < %s' % diskThreshold)
                                         if forAnalysis and trustIS:
                                             resultsForAnal['disk'].append(site)
+                                        # keep message to logger
+                                        try:
+                                            if prevSourceLabel in ['managed','test']:
+                                                # make message
+                                                message = '%s - disk %s < %s' % (site,remSpace,diskThreshold)
+                                                if not message in loggerMessages:
+                                                    loggerMessages.append(message)
+                                        except:
+                                            pass
                                         continue
                             # number of jobs per node
                             if not nWNmap.has_key(site):
@@ -604,12 +610,13 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             # increment iJob
             iJob += 1
             # reserve computingSite and cloud
-            computingSite = job.computingSite
-            previousCloud = job.cloud
-            prevRelease   = job.AtlasRelease
-            prevMemory    = job.minRamCount
-            prevCmtConfig = job.cmtConfig
-            prevProType   = job.processingType
+            computingSite   = job.computingSite
+            previousCloud   = job.cloud
+            prevRelease     = job.AtlasRelease
+            prevMemory      = job.minRamCount
+            prevCmtConfig   = job.cmtConfig
+            prevProType     = job.processingType
+            prevSourceLabel = job.prodSourceLabel
             # assign site
             if chosen_ce != 'TOBEDONE':
                 job.computingSite = chosen_ce.sitename
@@ -671,6 +678,21 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     file.GUID = commands.getoutput('uuidgen')
                     # release lock
                     fcntl.flock(_lockGetUU.fileno(), fcntl.LOCK_UN)
+        # send log messages
+        try:
+            for  message in loggerMessages:
+                # get logger
+                _pandaLogger = PandaLogger()
+                _pandaLogger.lock()
+                _pandaLogger.setParams({'Type':'brokerage'})
+                logger = _pandaLogger.getHttpLogger(panda_config.loggername)
+                # add message
+                logger.warning(message)
+                # release HTTP handler
+                _pandaLogger.release()
+                time.sleep(1)
+        except:
+            pass
         _log.debug('finished')
     except:
         type, value, traceBack = sys.exc_info()
