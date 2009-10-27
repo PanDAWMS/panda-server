@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added YY.MM.DD to destinationDBlock of PandaMover
   * skipped release check in brokerage when weight is negative
   * removed T1 constaint on high prio jobs in brokerage only for i686-slc5-gcc43-opt
   * limit matching of cmtconfig=i686-slc5-gcc43-opt to i686-slc5-gcc43-opt jobs only
