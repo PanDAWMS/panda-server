@@ -152,6 +152,12 @@ class TaskBuffer:
                 serNum = proxy.getNumberJobsUser(user,workingGroup=jobs[0].workingGroup)
             else:
                 serNum = proxy.getNumberJobsUser(user,workingGroup=None)
+            # FIXME : priority boost for UAT
+            try:
+                if jobs[-1].prodDBlock != None and jobs[-1].prodDBlock.startswith('uat09.'):
+                    priorityOffset += 2000
+            except:
+                pass
         # loop over all jobs
         ret =[]
         newJobs=[]

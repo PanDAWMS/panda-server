@@ -211,6 +211,13 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     #job.computingSite = siteMapper.getCloud(job.cloud)['source']
                     if job.cmtConfig != 'i686-slc5-gcc43-opt': 
                         job.computingSite = siteMapper.getCloud(job.cloud)['source']
+            # FIXME : send UAT jobs to long
+            try:
+                if job != None and job.prodSourceLabel in ['user','panda']:
+                    if jobs[-1].prodDBlock != None and jobs[-1].prodDBlock.startswith('uat09.') and job.computingSite == 'ANALY_BNL_ATLAS_1':
+                        job.computingSite = 'ANALY_LONG_BNL_ATLAS'
+            except:
+                pass
             overwriteSite = False
             # new bunch or terminator
             if job == None or len(fileList) >= nFile \

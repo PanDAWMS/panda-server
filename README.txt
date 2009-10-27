@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * use ANALY_LONG_BNL_ATLAS for UAT
+  * added temporary priority boost for UAT
   * added YY.MM.DD to destinationDBlock of PandaMover
   * skipped release check in brokerage when weight is negative
   * removed T1 constaint on high prio jobs in brokerage only for i686-slc5-gcc43-opt
