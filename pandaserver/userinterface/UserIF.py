@@ -36,7 +36,7 @@ class UserIF:
             # deserialize jobspecs
             jobs = pickle.loads(jobsStr)
             _logger.debug("submitJobs %s len:%s FQAN:%s" % (user,len(jobs),str(userFQANs)))
-            maxJobs = 2000
+            maxJobs = 5000
             if len(jobs) > maxJobs:
                 _logger.error("too may jobs more than %s" % maxJobs)
                 jobs = jobs[:maxJobs]
