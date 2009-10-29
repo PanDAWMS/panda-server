@@ -24,6 +24,11 @@ _disableLRCcheck = []
 # lock for uuidgen
 _lockGetUU   = open(panda_config.lockfile_getUU, 'w')
 
+# short-long mapping
+shortLongMap = {'ANALY_BNL_ATLAS_1':'ANALY_LONG_BNL_ATLAS',
+                'ANALY_LYON'       :'ANALY_LONG_LYON',
+                'ANALY_LYON_DCACHE':'ANALY_LONG_LYON_DCACHE',
+                }
 
 # comparison function for sort
 def _compFunc(jobA,jobB):
@@ -267,6 +272,11 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     else:
                         # use given sites
                         scanSiteList = setScanSiteList
+                        # add long queue
+                        for tmpShortQueue,tmpLongQueue in shortLongMap.iteritems():
+                            if tmpShortQueue in scanSiteList:
+                                if not tmpLongQueue in scanSiteList:
+                                    scanSiteList.append(tmpLongQueue)
                     # get availabe sites with cache
                     useCacheVersion = False
                     siteListWithCache = []

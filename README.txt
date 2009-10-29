@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * use long queue in brokerage in addition
   * increased max subjobs in UserIF to 5000
   * send log message from brokerage when disk shortage
   * use ANALY_LONG_BNL_ATLAS for UAT
