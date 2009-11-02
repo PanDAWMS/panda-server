@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * removed UAT stuff
   * use long queue in brokerage in addition
   * increased max subjobs in UserIF to 5000
   * send log message from brokerage when disk shortage
