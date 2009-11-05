@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * renamed testpanda.ddm to pandaddm_
   * added /osg/Role=pilot
   * added lower limit for TO_DATE against Datasets table 
   * added protection in JobDispatch against non-proxy pilots

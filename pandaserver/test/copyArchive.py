@@ -959,7 +959,7 @@ class CloserThr (threading.Thread):
             # loop over all datasets
             for vuid,name,modDate in self.datasets:
                 _logger.debug("Close %s %s" % (modDate,name))
-                if not name.startswith('testpanda.ddm.'):
+                if not name.startswith('pandaddm_'):
                     status,out = ddm.DQ2.main('freezeDataset',name)
                 else:
                     status,out = 0,''
@@ -975,7 +975,7 @@ class CloserThr (threading.Thread):
                     proxyS.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status=:status,modificationdate=CURRENT_DATE WHERE vuid=:vuid",
                                      varMap)
                     self.proxyLock.release()                    
-                    if name.startswith('testpanda.ddm.'):
+                    if name.startswith('pandaddm_'):
                         continue
                     # count # of files
                     status,out = ddm.DQ2.main('getNumberOfFiles',name)
@@ -1062,7 +1062,7 @@ class Freezer (threading.Thread):
                     # no files in filesTable
                     if len(resF) == 0:
                         _logger.debug("freeze %s " % name)
-                        if not name.startswith('testpanda.ddm.'):
+                        if not name.startswith('pandaddm_'):
                             status,out = ddm.DQ2.main('freezeDataset',name)
                         else:
                             status,out = 0,''
@@ -1078,7 +1078,7 @@ class Freezer (threading.Thread):
                             proxyS.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status=:status,modificationdate=CURRENT_DATE WHERE vuid=:vuid",
                                              varMap)
                             self.proxyLock.release()                            
-                            if name.startswith('testpanda.ddm.'):
+                            if name.startswith('pandaddm_'):
                                 continue
                             # count # of files
                             status,out = ddm.DQ2.main('getNumberOfFiles',name)
