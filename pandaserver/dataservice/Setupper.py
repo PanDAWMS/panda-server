@@ -36,7 +36,8 @@ PandaDDMSource = ['BNLPANDA','BNL-OSG2_MCDISK','BNL-OSG2_DATADISK','BNL-OSG2_MCT
 
 class Setupper (threading.Thread):
     # constructor
-    def __init__(self,taskBuffer,jobs,resubmit=False,pandaDDM=False,ddmAttempt=0,forkRun=False,onlyTA=False):
+    def __init__(self,taskBuffer,jobs,resubmit=False,pandaDDM=False,ddmAttempt=0,forkRun=False,onlyTA=False,
+                 resetLocation=False):
         threading.Thread.__init__(self)
         self.jobs       = jobs
         self.taskBuffer = taskBuffer
@@ -62,7 +63,8 @@ class Setupper (threading.Thread):
         self.replicaMap  = {}
         # all replica locations
         self.allReplicaMap = {}
-
+        # reset locations
+        self.resetLocation = resetLocation
 
     # main
     def run(self):
@@ -229,11 +231,12 @@ class Setupper (threading.Thread):
                                         time.sleep(60)
                                     else:
                                         break
-                            _logger.debug("%s %s" % (self.timestamp,out))
                             if status != 0 or out.startswith('Error'):
+                                _logger.error("%s %s" % (self.timestamp,out))
                                 dispError[job.dispatchDBlock] = 'could not get locations for %s' % file.dataset
                                 _logger.error(dispError[job.dispatchDBlock])
                             else:
+                                _logger.debug("%s %s" % (self.timestamp,out))
                                 tmpRepSites = {}
                                 try:
                                     # convert res to map
@@ -293,11 +296,11 @@ class Setupper (threading.Thread):
                         time.sleep(60)
                     else:
                         break
-                _logger.debug("%s %s" % (self.timestamp,out))                
                 if status != 0 or out.find('Error') != -1:
-                    _logger.error(out)                
+                    _logger.error("%s %s" % (self.timestamp,out))                
                     dispError[dispatchDBlock] = "Setupper._setupSource() could not register dispatchDBlock"
                     continue
+                _logger.debug("%s %s" % (self.timestamp,out))                
                 vuidStr = out
                 # freezeDataset dispatch dataset
                 time.sleep(1)            
@@ -310,11 +313,11 @@ class Setupper (threading.Thread):
                         time.sleep(60)
                     else:
                         break
-                _logger.debug("%s %s" % (self.timestamp,out))                
                 if status != 0 or (out.find('Error') != -1 and out.find("is frozen") == -1):
-                    _logger.error(out)                
+                    _logger.error("%s %s" % (self.timestamp,out))                                    
                     dispError[dispatchDBlock] = "Setupper._setupSource() could not freeze dispatchDBlock"
                     continue
+                _logger.debug("%s %s" % (self.timestamp,out))                
             else:
                 # use PandaDDM
                 self.dispFileList[dispatchDBlock] = fileList[dispatchDBlock]
@@ -362,7 +365,6 @@ class Setupper (threading.Thread):
             # ignore failed jobs
             if job.jobStatus == 'failed':
                 continue
-            _logger.debug('%s %s in setupDestination 1' % (self.timestamp,job.PandaID))
             for file in job.Files:
                 # ignore input files
                 if file.type == 'input':
@@ -417,7 +419,6 @@ class Setupper (threading.Thread):
                                     time.sleep(60)
                                 else:
                                     break
-                            _logger.debug("%s %s" % (self.timestamp,out))                                                            
                             if status != 0 or out.find('Error') != -1:
                                 # unset vuidStr
                                 vuidStr = ""
@@ -426,12 +427,13 @@ class Setupper (threading.Thread):
                                 if (job.prodSourceLabel == 'panda' or (job.prodSourceLabel=='ptest' and job.processingType=='pathena') \
                                     or name == originalName or atFailed > 0) and \
                                        out.find('DQDatasetExistsException') != -1:
-                                    _logger.debug('ignored ERROR')
+                                    _logger.debug('%s ignored DQDatasetExistsException' % self.timestamp)
                                 else:
                                     destError[dest] = "Setupper._setupDestination() could not register : %s" % name
-                                    _logger.error(out)
+                                    _logger.error("%s %s" % (self.timestamp,out))
                                     continue
                             else:
+                                _logger.debug("%s %s" % (self.timestamp,out))                                
                                 vuidStr = "vuid = %s['vuid']" % out
                             # conversion is needed for unknown sites
                             if job.prodSourceLabel == 'user' and not self.siteMapper.siteSpecList.has_key(computingSite):
@@ -485,19 +487,36 @@ class Setupper (threading.Thread):
                                             time.sleep(60)
                                         else:
                                             break
-                                    _logger.debug("%s %s" % (self.timestamp,out))
                                     # ignore "already exists at location XYZ"
                                     if out.find('DQLocationExistsException') != -1:
-                                        _logger.debug('ignored ERROR')
+                                        _logger.debug('%s ignored DQLocationExistsException' % self.timestamp)
                                         status,out = 0,''
+                                    else:
+                                        _logger.debug("%s %s" % (self.timestamp,out))
+                                        if status == 0 and out.find('Error') == -1:
+                                            # change replica ownership for user datasets
+                                            if self.resetLocation and name == originalName and job.prodSourceLabel in ['user','panda']:
+                                                # remove /CN=proxy and /CN=limited from DN
+                                                tmpRealDN = job.prodUserID
+                                                tmpRealDN = re.sub('/CN=limited proxy','',tmpRealDN)
+                                                tmpRealDN = re.sub('/CN=proxy','',tmpRealDN)
+                                                _logger.debug((self.timestamp,'setReplicaMetaDataAttribute',name,dq2ID,'owner',tmpRealDN))
+                                                for iDDMTry in range(3):
+                                                    status,out = ddm.DQ2.main('setReplicaMetaDataAttribute',name,dq2ID,'owner',tmpRealDN)
+                                                    if status != 0 or out.find("DQ2 internal server exception") != -1 \
+                                                           or out.find("An error occurred on the central catalogs") != -1 \
+                                                           or out.find("MySQL server has gone away") != -1:
+                                                        time.sleep(60)
+                                                    else:
+                                                        break
                                     # failed
                                     if status != 0 or out.find('Error') != -1:
+                                        _logger.error("%s %s" % (self.timestamp,out))
                                         break
                             else:
                                 # skip registerDatasetLocations
                                 status,out = 0,''
                             if status != 0 or out.find('Error') != -1:
-                                _logger.error(out)
                                 destError[dest] = "Setupper._setupDestination() could not register location : %s" % name
                             elif job.prodSourceLabel == 'panda' or (job.prodSourceLabel=='ptest' and job.processingType=='pathena'):
                                 # do nothing for "panda" job
@@ -586,7 +605,6 @@ class Setupper (threading.Thread):
                     newdest = (file.destinationDBlock,file.destinationSE,job.computingSite)
                     # increment number of files
                     datasetList[newdest].numberfiles = datasetList[newdest].numberfiles + 1
-            _logger.debug('%s %s in setupDestination 2' % (self.timestamp,job.PandaID))
         # insert datasets to DB
         return self.taskBuffer.insertDatasets(datasetList.values())
         

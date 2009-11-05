@@ -14,6 +14,7 @@ from config import panda_config
 from taskbuffer.JobSpec import JobSpec
 from brokerage.SiteMapper import SiteMapper
 from pandalogger.PandaLogger import PandaLogger
+from ReBroker import ReBroker
 
 # logger
 _logger = PandaLogger().getLogger('UserIF')
@@ -83,13 +84,35 @@ class UserIF:
         return pickle.dumps(ret)
 
 
+    # run rebrokerage
+    def runReBrokerage(self,dn,jobID,cloud=None):
+        returnVal = "True"
+        try:
+            # instantiate ReBroker
+            thr = ReBroker(self.taskBuffer,cloud)
+            # lock
+            stLock,retLock = thr.lockJob(dn,jobID)
+            # failed
+            if not stLock:
+                returnVal = "ERROR: "+retLock
+            else:
+                # start ReBroker
+                thr.start()
+        except:
+            erType,errValue,errTraceBack = sys.exc_info()
+            _logger.error("runReBrokerage: %s %s" % (errType,errValue))
+            returnVal = "ERROR: runReBrokerage crashed"
+        # return
+        return returnVal
+
+
     # get job status
     def getJobStatus(self,idsStr):
         try:
             # deserialize jobspecs
             ids = pickle.loads(idsStr)
             _logger.debug("getJobStatus len   : %s" % len(ids))
-            maxIDs = 2500
+            maxIDs = 5500
             if len(ids) > maxIDs:
                 _logger.error("too long ID list more than %s" % maxIDs)
                 ids = ids[:maxIDs]
@@ -370,7 +393,7 @@ class UserIF:
             # deserialize IDs
             pandaIDs = pickle.loads(pandaIDsStr)
             # truncate
-            maxIDs = 2500
+            maxIDs = 5500
             if len(pandaIDs) > maxIDs:
                 _logger.error("too long ID list more than %s" % maxIDs)
                 pandaIDs = pandaIDs[:maxIDs]
@@ -406,7 +429,7 @@ class UserIF:
             # deserialize jobspecs
             ids = pickle.loads(idsStr)
             # truncate
-            maxIDs = 2500
+            maxIDs = 5500
             if len(ids) > maxIDs:
                 _logger.error("too long ID list more than %s" % maxIDs)
                 ids = ids[:maxIDs]
@@ -660,6 +683,16 @@ def runBrokerage(req,sites,cmtConfig=None,atlasRelease=None,trustIS=False):
         trustIS = False
     return userIF.runBrokerage(sites,cmtConfig,atlasRelease,trustIS)
 
+# run rebrokerage
+def runReBrokerage(req,jobID,cloud=None):
+    # check SSL
+    if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        return "ERROR: SSL connection is required"
+    # get DN
+    dn = _getDN(req)
+    if dn == '':
+        return "ERROR: could not get DN"
+    return userIF.runReBrokerage(dn,jobID,cloud)
 
 # register proxy key
 def registerProxyKey(req,credname,origin,myproxy):

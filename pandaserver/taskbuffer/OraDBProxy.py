@@ -205,7 +205,7 @@ class DBProxy:
         if job.prodSourceLabel == 'user':
             job.currentPriority = 1000 + priorityOffset - (serNum / 5) - int(100 * weight)
         elif job.prodSourceLabel == 'panda':
-            job.currentPriority = 2000 + priorityOffset
+            job.currentPriority = 1001 + priorityOffset - (serNum / 5) - int(100 * weight)
         # usergroup
         if job.prodSourceLabel == 'regional':
             job.computingSite= "BNLPROD"
@@ -1983,7 +1983,7 @@ class DBProxy:
                 # start transaction
                 self.conn.begin()
                 # select
-                self.cur.arraysize = 5000
+                self.cur.arraysize = 10000
                 # select
                 _logger.debug(sql+comment+str(varMap))
                 self.cur.execute(sql+comment, varMap)
@@ -2004,6 +2004,222 @@ class DBProxy:
             _logger.error("getPandIDsWithJobID : %s %s" % (type,value))
             # return empty list
             return {}
+
+
+    # lock job for re-brokerage
+    def lockJobForReBrokerage(self,dn,jobID):
+        comment = ' /* lockJobForReBrokerage */'                        
+        _logger.debug("lockJobForReBrokerage : %s %s" % (dn,jobID))
+        try:
+            # get compact DN
+            compactDN = self.cleanUserID(dn)
+            if compactDN in ['','NULL',None]:
+                compactDN = dn
+            # make sql
+            sql  = "SELECT PandaID,jobStatus,modificationTime FROM ATLAS_PANDA.jobsActive4 "
+            sql += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
+            sql += "AND prodSourceLabel=:prodSourceLabel1"
+            varMap = {}
+            varMap[':prodUserName'] = compactDN
+            varMap[':jobDefinitionID']  = jobID
+            varMap[':prodSourceLabel1'] = 'panda'
+            # start transaction
+            self.conn.begin()
+            # select
+            self.cur.arraysize = 10
+            # select
+            self.cur.execute(sql+comment, varMap)
+            res = self.cur.fetchone()
+            errMsg = ''
+            # not found
+            if res == None:
+                # set error message
+                errMsg = "could not find buildJob in the active table"
+            else:
+                tmpPandaID,tmpJobStatus,tmpModificationTime = res
+                # check job status
+                if tmpJobStatus != 'activated':
+                    # set error message
+                    errMsg = "status of buildJob is '%s' != 'activated' which cannot be reassigned" \
+                             % tmpJobStatus
+                else:
+                    # check modificationTime
+                    timeLimit = datetime.datetime.utcnow()-datetime.timedelta(hours=1)
+                    if timeLimit < tmpModificationTime:
+                        errMsg = "last mod time is %s>%s. One cannot run (re)brokerage more than once in one hour" \
+                                 % (tmpModificationTime.strftime('%Y-%m-%d %H:%M:%S'),
+                                    timeLimit.strftime('%Y-%m-%d %H:%M:%S'))
+                    else:
+                        # update modificationTime for locking
+                        varMap = {}
+                        varMap[':pandaID'] = tmpPandaID
+                        sqlUp = 'UPDATE ATLAS_PANDA.jobsActive4 SET modificationTime=CURRENT_DATE WHERE PandaID=:pandaID'
+                        self.cur.execute(sqlUp+comment, varMap)                        
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # return failure
+            if errMsg != '':
+                _logger.debug('lockJobForReBrokerage '+errMsg)
+                return False,{'err':errMsg}
+            # return
+            _logger.debug("lockJobForReBrokerage locked PandaID=%s" % tmpPandaID) 
+            return True,{'PandaID':tmpPandaID,'origModTime':tmpModificationTime}
+        except:
+            # roll back
+            self._rollback()
+            type, value, traceBack = sys.exc_info()
+            _logger.error("lockJobForReBrokerage : %s %s" % (type,value))
+            # return empty list
+            return False,{'err':'database error'}
+
+
+    # release job for re-brokerage
+    def releaseJobForReBrokerage(self,pandaID,origModTime):
+        comment = ' /* releaseJobForReBrokerage */'                        
+        _logger.debug("releaseJobForReBrokerage : %s" % pandaID)
+        try:
+            # make sql
+            sql  = "UPDATE ATLAS_PANDA.jobsActive4 SET modificationTime=:origModTime "
+            sql += "WHERE PandaID=:pandaID AND jobStatus=:jobStatus"
+            varMap = {}
+            varMap[':origModTime'] = origModTime
+            varMap[':pandaID']     = pandaID
+            varMap[':jobStatus']   = 'activated'
+            # start transaction
+            self.conn.begin()
+            # update
+            self.cur.execute(sql+comment, varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # return
+            return
+        except:
+            # roll back
+            self._rollback()
+            type, value, traceBack = sys.exc_info()
+            _logger.error("releaseJobForReBrokerage : %s %s" % (type,value))
+            # return empty list
+            return
+
+
+    # reset buildJob for re-brokerage
+    def resetJobForReBrokerage(self,pandaID):
+        comment = ' /* resetJobForReBrokerage */'                        
+        _logger.debug("resetJobForReBrokerage : %s" % pandaID)
+        try:
+            # make sql
+            sql1 = "SELECT %s FROM ATLAS_PANDA.jobsActive4 " % JobSpec.columnNames()
+            sql1+= "WHERE PandaID=:PandaID"
+            sql2 = "DELETE FROM ATLAS_PANDA.jobsActive4 "
+            sql2+= "WHERE PandaID=:PandaID AND jobStatus=:oldJobStatus"
+            sql3 = "INSERT INTO ATLAS_PANDA.jobsDefined4 (%s) " % JobSpec.columnNames()
+            sql3+= JobSpec.bindValuesExpression()
+            # start transaction
+            self.conn.begin()
+            # select
+            varMap = {}
+            varMap[':PandaID'] = pandaID
+            self.cur.arraysize = 10                
+            self.cur.execute(sql1+comment,varMap)
+            res = self.cur.fetchone()
+            # not found
+            if res == None:
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                # return
+                return False
+            # instantiate Job
+            job = JobSpec()
+            job.pack(res)
+            # if already running
+            if job.jobStatus != 'activated':
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                # return
+                return False
+            # delete
+            varMap = {}
+            varMap[':PandaID'] = pandaID
+            varMap[':oldJobStatus'] = 'activated'
+            self.cur.execute(sql2+comment,varMap)
+            retD = self.cur.rowcount            
+            # delete failed
+            if retD != 1:
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                return False
+            # delete from jobsDefined4 just in case
+            varMap = {}
+            varMap[':PandaID'] = pandaID
+            sqlD = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
+            self.cur.execute(sqlD+comment,varMap)
+            # reset job status
+            job.jobStatus = 'defined'
+            # host and time information
+            job.modificationHost = self.hostname
+            job.modificationTime = datetime.datetime.utcnow()
+            # insert
+            self.cur.execute(sql3+comment, job.valuesMap())
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # return
+            return True
+        except:
+            # roll back
+            self._rollback()
+            type, value, traceBack = sys.exc_info()
+            _logger.error("resetJobForReBrokerage : %s %s" % (type,value))
+            # return empty list
+            return False
+
+        
+    # get PandaIDs using libDS for re-brokerage
+    def getPandaIDsForReBrokerage(self,libDS):
+        comment = ' /* DBProxy.getPandaIDsForReBrokerage */'                        
+        _logger.debug("getPandaIDsForReBrokerage : %s" % libDS)
+        try:
+            returnList = []
+            tables = ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4']
+            # select
+            sql  = "SELECT /*+ index(tab FILESTABLE4_DATASET_IDX) */ distinct PandaID FROM ATLAS_PANDA.filesTable4 tab "
+            sql += "WHERE dataset=:dataset AND type IN (:type1,:type2) AND status IN (:stat1,:stat2)" 
+            varMap = {}
+            varMap[':dataset'] = libDS
+            varMap[':type1'] = 'input'
+            varMap[':type2'] = 'output'
+            varMap[':stat1'] = 'pending'
+            varMap[':stat2'] = 'unknown'
+            # start transaction
+            self.conn.begin()
+            # select
+            self.cur.arraysize = 20000
+            # select
+            self.cur.execute(sql+comment, varMap)
+            resList = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # append
+            for tmpID, in resList:
+                if not tmpID in returnList:
+                    returnList.append(tmpID)
+            # sort
+            returnList.sort()
+            # return
+            return returnList
+        except:
+            # roll back
+            self._rollback()
+            type, value, traceBack = sys.exc_info()
+            _logger.error("getPandaIDsForReBrokerage : %s %s" % (type,value))
+            # return empty list
+            return []
 
         
     # query PandaID
@@ -2425,7 +2641,7 @@ class DBProxy:
     # delete dataset
     def deleteDataset(self,name):
         comment = ' /* DBProxy.deleteDataset */'        
-        sql1 = "DELETE FROM ATLAS_PANDA.Datasets WHERE name=:name"
+        sql1 = "DELETE /*+ INDEX(tab DATASETS_NAME_IDX)*/ FROM ATLAS_PANDA.Datasets tab WHERE name=:name"
         try:
             # start transaction
             self.conn.begin()

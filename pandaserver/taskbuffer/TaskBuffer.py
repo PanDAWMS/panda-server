@@ -437,7 +437,9 @@ class TaskBuffer:
                     if not retInfo.has_key(outKey):
                         retInfo[outKey] = []
                     # append
-                    retInfo[outKey] += tmpRetInfo[outKey]
+                    for tmpItemRetInfo in tmpRetInfo[outKey]:
+                        if not tmpItemRetInfo in retInfo[outKey]:
+                            retInfo[outKey].append(tmpItemRetInfo)
         # return
         return retInfo
 
@@ -504,6 +506,54 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         # return
         return idStatus
+
+
+    # lock job for re-brokerage
+    def lockJobForReBrokerage(self,dn,jobID):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get IDs
+        ret = proxy.lockJobForReBrokerage(dn,jobID)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # release job for re-brokerage
+    def releaseJobForReBrokerage(self,pandaID,origModTime):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get IDs
+        proxy.releaseJobForReBrokerage(pandaID,origModTime)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return
+
+
+    # reset buildJob for re-brokerage
+    def resetJobForReBrokerage(self,pandaID):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get IDs
+        ret = proxy.resetJobForReBrokerage(pandaID)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # get PandaIDs using libDS for re-brokerage
+    def getPandaIDsForReBrokerage(self,libDS):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get IDs
+        ret = proxy.getPandaIDsForReBrokerage(libDS)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
     
 
     # get full job status
