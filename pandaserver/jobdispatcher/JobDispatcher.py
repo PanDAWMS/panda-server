@@ -353,7 +353,7 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
                      computingElement,AtlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,
                      realDN,prodManager,token,validToken,str(fqans)))
     # invalid role
-    if (not prodManager) and (not prodSourceLabel in ['user']):
+    if realDN in [None] or ((not prodManager) and (not prodSourceLabel in ['user'])):
         _logger.warning("getJob(%s) : invalid role" % siteName)
         return Protocol.Response(Protocol.SC_Role).encode()        
     # invalid token

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added protection in JobDispatch against non-proxy pilots
   * added ReBroker
   * removed UAT stuff
   * use long queue in brokerage in addition
