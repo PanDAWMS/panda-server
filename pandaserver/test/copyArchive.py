@@ -999,7 +999,8 @@ class CloserThr (threading.Thread):
         self.lock.release()
 
 # close datasets
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
+timeLimitU = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
+timeLimitL = datetime.datetime.utcnow() - datetime.timedelta(days=3)
 closeLock = threading.Semaphore(5)
 closeProxyLock = threading.Lock()
 closeThreadPool = ThreadPool()
@@ -1009,10 +1010,11 @@ while True:
     # get datasets
     closeProxyLock.acquire()
     varMap = {}
-    varMap[':modificationdate'] = timeLimit
+    varMap[':modificationdateU'] = timeLimitU
+    varMap[':modificationdateL'] = timeLimitL    
     varMap[':type']   = 'output'
     varMap[':status'] = 'tobeclosed'
-    status,res = proxyS.querySQLS("SELECT vuid,name,modificationdate FROM ATLAS_PANDA.Datasets WHERE type=:type AND status=:status AND TO_DATE(modificationdate,'YYYY-MM-DD HH24:MI:SS')<:modificationdate AND rownum <= 10",
+    status,res = proxyS.querySQLS("SELECT vuid,name,modificationdate FROM ATLAS_PANDA.Datasets WHERE type=:type AND status=:status AND (TO_DATE(modificationdate,'YYYY-MM-DD HH24:MI:SS') BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= 10",
                                   varMap)
     if res == None:
         _logger.debug("# of datasets to be closed: %s" % res)
@@ -1106,7 +1108,8 @@ class Freezer (threading.Thread):
         self.lock.release()
                             
 # freeze dataset
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=4)
+timeLimitU = datetime.datetime.utcnow() - datetime.timedelta(days=4)
+timeLimitL = datetime.datetime.utcnow() - datetime.timedelta(days=14)
 freezeLock = threading.Semaphore(5)
 freezeProxyLock = threading.Lock()
 freezeThreadPool = ThreadPool()
@@ -1115,10 +1118,11 @@ while True:
     freezeLock.acquire()
     # get datasets
     sql = "SELECT vuid,name,modificationdate FROM ATLAS_PANDA.Datasets " + \
-          "WHERE type=:type AND (status=:status1 OR status=:status2 OR status=:status3) " + \
-          "AND TO_DATE(modificationdate,'YYYY-MM-DD HH24:MI:SS')<:modificationdate AND REGEXP_LIKE(name,:pattern) AND rownum <= 20"
+          "WHERE type=:type AND status IN (:status1,:status2,:status3) " + \
+          "AND (TO_DATE(modificationdate,'YYYY-MM-DD HH24:MI:SS') BETWEEN :modificationdateL AND :modificationdateU) AND REGEXP_LIKE(name,:pattern) AND rownum <= 20"
     varMap = {}
-    varMap[':modificationdate'] = timeLimit
+    varMap[':modificationdateU'] = timeLimitU
+    varMap[':modificationdateL'] = timeLimitL    
     varMap[':type'] = 'output'
     varMap[':status1'] = 'running'
     varMap[':status2'] = 'created'
