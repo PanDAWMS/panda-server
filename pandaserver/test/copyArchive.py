@@ -919,6 +919,35 @@ if len(jobs):
 _memoryCheck("closing")
 
 
+# delete old datasets
+"""
+timeLimitDnS = datetime.datetime.utcnow() - datetime.timedelta(days=60)
+timeLimitTop = datetime.datetime.utcnow() - datetime.timedelta(days=90)
+nDelDS = 1000
+for dsType,dsPrefix in [('output','sub'),('dispatch','dis'),('','top')]:
+    sql = "DELETE FROM ATLAS_PANDA.Datasets "
+    if dsType != '':
+        # dis or sub
+        sql += "WHERE type=:type AND TO_DATE(modificationdate,'YYYY-MM-DD HH24:MI:SS')<:modificationdate "
+        sql += "AND REGEXP_LIKE(name,:pattern) AND rownum <= %s" % nDelDS
+        varMap = {}
+        varMap[':modificationdate'] = timeLimitDnS
+        varMap[':type'] = dsType
+        varMap[':pattern'] = '_%s[[:digit:]]+$' % dsPrefix
+    else:
+        # top level datasets
+        sql+= "WHERE TO_DATE(modificationdate,'YYYY-MM-DD HH24:MI:SS')<:modificationdate AND rownum <= %s" % nDelDS
+        varMap = {}
+        varMap[':modificationdate'] = timeLimitTop
+    for i in range(10000):
+        # del datasets
+        ret,res = proxyS.querySQLS(sql, varMap)
+        _logger.debug("# of %s datasets deleted: %s" % (dsPrefix,res))
+        # no more datasets    
+        if res != nDelDS:
+            break
+"""
+
 # thread pool
 class ThreadPool:
     def __init__(self):

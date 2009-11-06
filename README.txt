@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * set priority of buildJob back to 2000
   * renamed testpanda.ddm to pandaddm_
   * added /osg/Role=pilot
   * added lower limit for TO_DATE against Datasets table 
