@@ -928,7 +928,7 @@ for dsType,dsPrefix in [('output','sub'),('dispatch','dis'),('','top')]:
     sql = "DELETE FROM ATLAS_PANDA.Datasets "
     if dsType != '':
         # dis or sub
-        sql += "WHERE type=:type AND TO_DATE(modificationdate,'YYYY-MM-DD HH24:MI:SS')<:modificationdate "
+        sql += "WHERE type=:type AND modificationdate<:modificationdate "
         sql += "AND REGEXP_LIKE(name,:pattern) AND rownum <= %s" % nDelDS
         varMap = {}
         varMap[':modificationdate'] = timeLimitDnS
@@ -936,7 +936,7 @@ for dsType,dsPrefix in [('output','sub'),('dispatch','dis'),('','top')]:
         varMap[':pattern'] = '_%s[[:digit:]]+$' % dsPrefix
     else:
         # top level datasets
-        sql+= "WHERE TO_DATE(modificationdate,'YYYY-MM-DD HH24:MI:SS')<:modificationdate AND rownum <= %s" % nDelDS
+        sql+= "WHERE modificationdate<:modificationdate AND rownum <= %s" % nDelDS
         varMap = {}
         varMap[':modificationdate'] = timeLimitTop
     for i in range(10000):
@@ -1043,7 +1043,7 @@ while True:
     varMap[':modificationdateL'] = timeLimitL    
     varMap[':type']   = 'output'
     varMap[':status'] = 'tobeclosed'
-    status,res = proxyS.querySQLS("SELECT vuid,name,modificationdate FROM ATLAS_PANDA.Datasets WHERE type=:type AND status=:status AND (TO_DATE(modificationdate,'YYYY-MM-DD HH24:MI:SS') BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= 10",
+    status,res = proxyS.querySQLS("SELECT vuid,name,modificationdate FROM ATLAS_PANDA.Datasets WHERE type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= 10",
                                   varMap)
     if res == None:
         _logger.debug("# of datasets to be closed: %s" % res)
@@ -1148,7 +1148,7 @@ while True:
     # get datasets
     sql = "SELECT vuid,name,modificationdate FROM ATLAS_PANDA.Datasets " + \
           "WHERE type=:type AND status IN (:status1,:status2,:status3) " + \
-          "AND (TO_DATE(modificationdate,'YYYY-MM-DD HH24:MI:SS') BETWEEN :modificationdateL AND :modificationdateU) AND REGEXP_LIKE(name,:pattern) AND rownum <= 20"
+          "AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND REGEXP_LIKE(name,:pattern) AND rownum <= 20"
     varMap = {}
     varMap[':modificationdateU'] = timeLimitU
     varMap[':modificationdateL'] = timeLimitL    

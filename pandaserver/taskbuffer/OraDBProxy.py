@@ -4122,7 +4122,7 @@ class DBProxy:
                         if tmpRel != '':
                             ret.validatedreleases.append(tmpRel)
                     # cmtconfig
-                    if cmtconfig == 'i686-slc5-gcc43-opt':
+                    if cmtconfig in ['i686-slc5-gcc43-opt','x86_64-slc5-gcc43']:
                         # set slc4 for slc5
                         ret.cmtconfig = [] # FIXME : for slc5-gcc43 validation ['i686-slc4-gcc34-opt']
                     else:

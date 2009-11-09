@@ -204,7 +204,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                    and job.prodSourceLabel in ('test','managed'):
                 # FIXME : just for slc5-gcc43 validation
                 #job.computingSite = siteMapper.getCloud(job.cloud)['source']                
-                if job.cmtConfig != 'i686-slc5-gcc43-opt': 
+                if not job.cmtConfig in ['i686-slc5-gcc43-opt','x86_64-slc5-gcc43']: 
                     job.computingSite = siteMapper.getCloud(job.cloud)['source']
             # set computingSite to T1 when too many inputs are required
             if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed'):
@@ -216,7 +216,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 if tmpTotalInput >= manyInputsThr:
                     # FIXME : just for slc5-gcc43 validation
                     #job.computingSite = siteMapper.getCloud(job.cloud)['source']
-                    if job.cmtConfig != 'i686-slc5-gcc43-opt': 
+                    if not job.cmtConfig in ['i686-slc5-gcc43-opt','x86_64-slc5-gcc43']: 
                         job.computingSite = siteMapper.getCloud(job.cloud)['source']
             overwriteSite = False
             # new bunch or terminator

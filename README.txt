@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * added workaround for x86_64-slc5-gcc43 
+  * removed TO_DATE for Datasets.modificationdate
   * set priority of buildJob back to 2000
   * renamed testpanda.ddm to pandaddm_
   * added /osg/Role=pilot
