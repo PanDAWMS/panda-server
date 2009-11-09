@@ -920,7 +920,6 @@ _memoryCheck("closing")
 
 
 # delete old datasets
-"""
 timeLimitDnS = datetime.datetime.utcnow() - datetime.timedelta(days=60)
 timeLimitTop = datetime.datetime.utcnow() - datetime.timedelta(days=90)
 nDelDS = 1000
@@ -939,14 +938,13 @@ for dsType,dsPrefix in [('output','sub'),('dispatch','dis'),('','top')]:
         sql+= "WHERE modificationdate<:modificationdate AND rownum <= %s" % nDelDS
         varMap = {}
         varMap[':modificationdate'] = timeLimitTop
-    for i in range(10000):
+    for i in range(100):
         # del datasets
         ret,res = proxyS.querySQLS(sql, varMap)
         _logger.debug("# of %s datasets deleted: %s" % (dsPrefix,res))
         # no more datasets    
         if res != nDelDS:
             break
-"""
 
 # thread pool
 class ThreadPool:

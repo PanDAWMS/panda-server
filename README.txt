@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added cleanup for Datasets table 
   * added workaround for x86_64-slc5-gcc43 
   * removed TO_DATE for Datasets.modificationdate
   * set priority of buildJob back to 2000
