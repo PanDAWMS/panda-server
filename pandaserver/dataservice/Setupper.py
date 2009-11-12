@@ -399,7 +399,7 @@ class Setupper (threading.Thread):
                             # for original dataset
                             computingSite = file.destinationSE
                         # use DQ2
-                        if (not self.pandaDDM) and (job.prodSourceLabel != 'ddm'):
+                        if (not self.pandaDDM) and (job.prodSourceLabel != 'ddm') and (job.destinationSE != 'local'):
                             # register dataset
                             time.sleep(1)
                             _logger.debug((self.timestamp,'registerNewDataset',name))
@@ -544,9 +544,9 @@ class Setupper (threading.Thread):
                                 if status != 0 or (out != 'None' and out.find('already exists') == -1):
                                     _logger.error(out)
                                     destError[dest] = "Setupper._setupDestination() could not set metadata : %s" % name
-                        # use PandaDDM
+                        # use PandaDDM or non-DQ2
                         else:
-                            # create a fake vuidStr for PandaDDM
+                            # create a fake vuidStr
                             vuidStr = 'vuid="%s"' % commands.getoutput('uuidgen')
                         # get vuid
                         if vuidStr == '':

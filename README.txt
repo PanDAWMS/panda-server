@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * destinationSE=local
   * propage failed_transfer from dashboard
   * added activity to subscriptions
   * added cleanup for Datasets table 
