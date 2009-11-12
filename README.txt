@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * propage failed_transfer from dashboard
   * added activity to subscriptions
   * added cleanup for Datasets table 
   * added workaround for x86_64-slc5-gcc43 

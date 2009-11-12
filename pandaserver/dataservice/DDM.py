@@ -112,3 +112,32 @@ class TOA:
 toa = TOA()
 del TOA
 
+
+# method object wrapping Dashboard method
+class _DashBoradMethod:
+    # constructor
+    def __init__(self,methodName):
+        self.methodName = methodName
+
+    # method emulation
+    def __call__(self,*args):
+        args = list(args)
+        # build command
+        com  = "import datetime;from dashboard.api.data.DataQuery import DataQuery;"
+        com += "dash=DataQuery('dashb-atlas-data.cern.ch', 80);"
+        com += "print dash.%s(%s,'%s'," % (self.methodName,args[0],args[1])
+        com += "startDate=datetime.datetime.utcnow()-datetime.timedelta(hours=24))"
+        # execute
+        return commands.getstatusoutput('python -c "%s"' % com)
+
+
+# TOA module class
+class DashBorad:
+    def __getattr__(self,methodName):
+        return _DashBoradMethod(methodName)
+
+# instantiate
+dashBorad = DashBorad()
+del DashBorad
+    
+

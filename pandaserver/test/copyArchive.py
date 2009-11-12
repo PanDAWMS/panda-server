@@ -3,6 +3,7 @@ import re
 import sys
 import time
 import fcntl
+import types
 import shelve
 import random
 import datetime
@@ -10,6 +11,7 @@ import commands
 import threading
 import userinterface.Client as Client
 from dataservice.DDM import ddm
+from dataservice.DDM import dashBorad
 from taskbuffer.OraDBProxy import DBProxy
 from taskbuffer.TaskBuffer import taskBuffer
 from pandalogger.PandaLogger import PandaLogger
@@ -501,14 +503,83 @@ def eraseDispDatasets(ids):
         status,out = ddm.DQ2.main('eraseDataset',dataset)
         _logger.debug(out)
 
+
 # kill long-waiting jobs in defined table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=7)
-status,res = proxyS.querySQLS("SELECT PandaID from ATLAS_PANDA.jobsDefined4 WHERE creationTime<:creationTime",
+status,res = proxyS.querySQLS("SELECT PandaID,cloud from ATLAS_PANDA.jobsDefined4 WHERE creationTime<:creationTime",
                               {':creationTime':timeLimit})
 jobs=[]
+dashFileMap = {}
 if res != None:
-    for (id,) in res:
-        jobs.append(id)
+    for pandaID,cloud in res:
+        # collect PandaIDs
+        jobs.append(pandaID)
+        # check file status
+        try:
+            if cloud in ['US']:
+                # skip US since file info is not available in dashboard
+                pass
+            else:
+                # get T1 site
+                tmpT1siteID = siteMapper.getCloud(cloud)['source']
+                t1Site = siteMapper.getSite(tmpT1siteID)
+                # get pending input files
+                sqlF  = "SELECT lfn,GUID,dispatchDBlock FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID "
+                sqlF += "AND type=:type AND status=:status"
+                varMap = {}
+                varMap[':type']    = 'input'
+                varMap[':status']  = 'pending'
+                varMap[':PandaID'] = pandaID
+                stFile,resFile = proxyS.querySQLS(sqlF,varMap)
+                if resFile != None:
+                    # loop over all files
+                    for tmpLFN,tmpGUID,tmpDispDBlock in resFile:
+                        # get file events
+                        tmpDQ2IDs = t1Site.setokens.values()
+                        tmpKey = (tuple(tmpDQ2IDs),tmpLFN)
+                        if not dashFileMap.has_key(tmpKey):
+                            _logger.debug('getting fileEvents for %s:%s' % tmpKey)
+                            tmpStat,tmpOut = dashBorad.listFileEvents(tmpDQ2IDs,tmpGUID)
+                            _logger.debug(tmpStat)
+                            _logger.debug(tmpOut)                            
+                            if tmpStat != 0:
+                                # failed
+                                continue
+                            # convert to list
+                            try:
+                                exec "tmpEvens = %s" % tmpOut
+                                if not isinstance(tmpEvens,types.ListType):
+                                    raise TypeError,"%s is not a list" % type(tmpEvens)
+                            except:
+                                errType,errValue = sys.exc_info()[:2]
+                                _logger.error(tmpOut)                                
+                                _logger.error("invalid dashboard response %s %s" % (errType,errValue))
+                                continue
+                            dashFileMap[tmpKey] = None
+                            # look for latest events
+                            tmpLastTime = ''
+                            for tmpEvt in tmpEvens:
+                                # pickup only DQ2 events
+                                if tmpEvt['tool_id'] != 'DQ2':
+                                    continue
+                                # pickup first one or newer
+                                if tmpLastTime == '' or tmpLastTime < tmpEvt['modified_time']:
+                                    tmpLastTime = tmpEvt['modified_time']
+                                    dashFileMap[tmpKey] = tmpEvt['state']
+                            _logger.debug('got status=%s' % dashFileMap[tmpKey])
+                        # update failed files
+                        if dashFileMap[tmpKey] in ['FAILED_TRANSFER']:
+                            sqlUpF  = "UPDATE ATLAS_PANDA.filesTable4 SET status=:newStatus "
+                            sqlUpF += "WHERE PandaID=:PandaID AND lfn=:lfn"
+                            varMap = {}
+                            varMap[':PandaID'] = pandaID
+                            varMap[':lfn'] = tmpLFN
+                            varMap[':newStatus'] = dashFileMap[tmpKey].lower()
+                            proxyS.querySQLS(sqlUpF,varMap)
+                            _logger.debug('set status=%s to %s:%s' % (dashFileMap[tmpKey],pandaID,tmpLFN))
+        except:
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("dashboard access failed with %s %s" % (errType,errValue))
 if len(jobs):
     eraseDispDatasets(jobs)
     _logger.debug("killJobs for Defined (%s)" % str(jobs))
