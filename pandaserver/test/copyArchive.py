@@ -506,18 +506,20 @@ def eraseDispDatasets(ids):
 
 # kill long-waiting jobs in defined table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=7)
-status,res = proxyS.querySQLS("SELECT PandaID,cloud from ATLAS_PANDA.jobsDefined4 WHERE creationTime<:creationTime",
+status,res = proxyS.querySQLS("SELECT PandaID,cloud,prodSourceLabel FROM ATLAS_PANDA.jobsDefined4 WHERE creationTime<:creationTime",
                               {':creationTime':timeLimit})
 jobs=[]
 dashFileMap = {}
 if res != None:
-    for pandaID,cloud in res:
+    for pandaID,cloud,sourceLabel in res:
         # collect PandaIDs
         jobs.append(pandaID)
-        # check file status
         try:
             if cloud in ['US']:
                 # skip US since file info is not available in dashboard
+                pass
+            # check file status for production
+            if not prodSourceLabel in ['managed']:
                 pass
             else:
                 # get T1 site
