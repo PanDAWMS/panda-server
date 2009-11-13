@@ -51,7 +51,7 @@ class Terminator (threading.Thread):
 
 
     
-# proxy with with timeout
+# connection bridge with with timeout
 class ConBridge (object):
 
     # constructor
@@ -71,6 +71,7 @@ class ConBridge (object):
             self.verbose = panda_config.dbbridgeverbose
         else:
             self.verbose = False
+
 
     # destructor
     def __del__(self):
