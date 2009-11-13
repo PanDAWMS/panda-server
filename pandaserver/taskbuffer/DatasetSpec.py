@@ -7,8 +7,7 @@ class DatasetSpec(object):
     # attributes
     _attributes = ('vuid','name','version','type','status','numberfiles','currentfiles','creationdate',
                    'modificationdate','MoverID','transferStatus')
-    # slots
-    __slots__ = _attributes
+
     # attributes which have 0 by default
     _zeroAttrs = ('MoverID','transferStatus')
 

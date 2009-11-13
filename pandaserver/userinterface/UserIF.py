@@ -85,13 +85,13 @@ class UserIF:
 
 
     # run rebrokerage
-    def runReBrokerage(self,dn,jobID,cloud=None):
+    def runReBrokerage(self,dn,jobID,libDS,cloud):
         returnVal = "True"
         try:
             # instantiate ReBroker
             thr = ReBroker(self.taskBuffer,cloud)
             # lock
-            stLock,retLock = thr.lockJob(dn,jobID)
+            stLock,retLock = thr.lockJob(dn,jobID,libDS)
             # failed
             if not stLock:
                 returnVal = "ERROR: "+retLock
@@ -684,7 +684,7 @@ def runBrokerage(req,sites,cmtConfig=None,atlasRelease=None,trustIS=False):
     return userIF.runBrokerage(sites,cmtConfig,atlasRelease,trustIS)
 
 # run rebrokerage
-def runReBrokerage(req,jobID,cloud=None):
+def runReBrokerage(req,jobID,libDS='',cloud=None):
     # check SSL
     if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
         return "ERROR: SSL connection is required"
@@ -692,7 +692,7 @@ def runReBrokerage(req,jobID,cloud=None):
     dn = _getDN(req)
     if dn == '':
         return "ERROR: could not get DN"
-    return userIF.runReBrokerage(dn,jobID,cloud)
+    return userIF.runReBrokerage(dn,jobID,libDS,cloud)
 
 # register proxy key
 def registerProxyKey(req,credname,origin,myproxy):

@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * added ConBridge for database timeout
+  * re-implemented rebrokerage to allow the case where build finished
   * destinationSE=local
   * propage failed_transfer from dashboard
   * added activity to subscriptions

@@ -21,12 +21,12 @@ class TaskBuffer:
 
 
     # initialize
-    def init(self,dbname,dbpass,nDBConnection=10):
+    def init(self,dbname,dbpass,nDBConnection=10,useTimeout=False):
         # lock
         self.lock.acquire()
         # create Proxy Pool
         if self.proxyPool == None:
-            self.proxyPool = DBProxyPool(dbname,dbpass,nDBConnection)
+            self.proxyPool = DBProxyPool(dbname,dbpass,nDBConnection,useTimeout)
         # release
         self.lock.release()
 
@@ -165,7 +165,7 @@ class TaskBuffer:
             # set relocation flag
             if job.computingSite != 'NULL':
                 job.relocationFlag = 1
-            # set country group
+            # set country group and nJobs (=taskID)
             if job.prodSourceLabel in ['user','panda']:
                 job.countryGroup = userCountry
                 # set workingGroup
@@ -177,6 +177,8 @@ class TaskBuffer:
                         if userDefinedWG:
                             # reset invalid working group
                             job.workingGroup = None
+                # set nJobs (=taskID)
+                job.taskID = len(jobs)
             # insert job to DB
             if not proxy.insertNewJob(job,user,serNum,weight,priorityOffset,userVO):
                 # reset if failed
@@ -495,13 +497,13 @@ class TaskBuffer:
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get IDs
-        idStatus = proxy.getPandIDsWithJobID(dn,jobID,idStatus,nJobs)
+        idStatus,buildJobID = proxy.getPandIDsWithJobID(dn,jobID,idStatus,nJobs)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # get ArchiveDBproxy
         proxy = self.proxyPool.getProxy()
         # get IDs
-        idStatus = proxy.getPandIDsWithJobIDLog(dn,jobID,idStatus,nJobs)        
+        idStatus = proxy.getPandIDsWithJobIDLog(dn,jobID,idStatus,nJobs,buildJobID)        
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -509,35 +511,23 @@ class TaskBuffer:
 
 
     # lock job for re-brokerage
-    def lockJobForReBrokerage(self,dn,jobID):
+    def lockJobForReBrokerage(self,dn,jobID,libDS):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get IDs
-        ret = proxy.lockJobForReBrokerage(dn,jobID)
+        ret = proxy.lockJobForReBrokerage(dn,jobID,libDS)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
         return ret
 
 
-    # release job for re-brokerage
-    def releaseJobForReBrokerage(self,pandaID,origModTime):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get IDs
-        proxy.releaseJobForReBrokerage(pandaID,origModTime)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return
-
-
     # reset buildJob for re-brokerage
-    def resetJobForReBrokerage(self,pandaID):
+    def resetJobForReBrokerage(self,userName,jobID,nJobs,buildJob):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get IDs
-        ret = proxy.resetJobForReBrokerage(pandaID)
+        ret = proxy.resetJobForReBrokerage(userName,jobID,nJobs,buildJob)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -545,16 +535,28 @@ class TaskBuffer:
 
 
     # get PandaIDs using libDS for re-brokerage
-    def getPandaIDsForReBrokerage(self,libDS):
+    def getPandaIDsForReBrokerage(self,libDS,userName,jobID):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get IDs
-        ret = proxy.getPandaIDsForReBrokerage(libDS)
+        ret = proxy.getPandaIDsForReBrokerage(libDS,userName,jobID)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
         return ret
     
+
+    # get outDSs with userName/jobID
+    def getOutDSsForReBrokerage(self,userName,jobID):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get IDs
+        ret = proxy.getOutDSsForReBrokerage(userName,jobID)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
 
     # get full job status
     def getFullJobStatus(self,jobIDs):

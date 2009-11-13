@@ -100,6 +100,15 @@ dbname = PandaDB
 # number of connections
 nDBConnection = 2
 
+# use timeout
+usedbtimeout = True
+
+# timout value
+dbtimeout = 600
+
+# verbose in bridge
+dbbridgeverbose = False
+
 
 
 ##########################

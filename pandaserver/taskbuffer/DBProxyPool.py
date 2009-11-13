@@ -7,7 +7,8 @@ import Queue
 import OraDBProxy as DBProxy
 import time
 import random
-
+from config import panda_config
+from taskbuffer.ConBridge import ConBridge
 from pandalogger.PandaLogger import PandaLogger
 
 # logger
@@ -15,13 +16,17 @@ _logger = PandaLogger().getLogger('DBProxyPool')
 
 class DBProxyPool:
     
-    def __init__(self,dbhost,dbpasswd,nConnection):
+    def __init__(self,dbhost,dbpasswd,nConnection,useTimeout=False):
         # create Proxies
         _logger.debug("init")
         self.proxyList = Queue.Queue(nConnection)
         for i in range(nConnection):
-            _logger.debug("connect -> %s " % i)            
-            proxy = DBProxy.DBProxy()
+            _logger.debug("connect -> %s " % i)
+            if useTimeout and hasattr(panda_config,'usedbtimeout') and \
+                   panda_config.usedbtimeout == True:
+                proxy = ConBridge()
+            else:
+                proxy = DBProxy.DBProxy()
             nTry = 100
             for iTry in range(nTry):
                 if proxy.connect(dbhost,dbpasswd,dbtimeout=60):

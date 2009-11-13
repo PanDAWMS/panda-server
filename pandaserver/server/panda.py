@@ -12,7 +12,7 @@ initializer.init()
 
 # initialzie TaskBuffer
 from taskbuffer.TaskBuffer import taskBuffer
-taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,panda_config.nDBConnection)
+taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,panda_config.nDBConnection,True)
 
 # initialize JobDispatcher
 from jobdispatcher.JobDispatcher import jobDispatcher
