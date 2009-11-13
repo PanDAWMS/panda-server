@@ -641,7 +641,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             destSE = job.destinationSE
             if siteMapper.checkCloud(job.cloud):
                 # use cloud dest for non-exsiting sites
-                if job.prodSourceLabel != 'user' and not job.destinationSE in siteMapper.siteSpecList.keys():
+                if job.prodSourceLabel != 'user' and (not job.destinationSE in siteMapper.siteSpecList.keys()) \
+                       and job.destinationSE != 'local':
                     destSE = siteMapper.getCloud(job.cloud)['dest'] 
                     job.destinationSE = destSE
             if overwriteSite:

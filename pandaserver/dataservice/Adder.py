@@ -384,7 +384,8 @@ class Adder (threading.Thread):
                                                           'checksum' : file.checksum})
                     # for subscription
                     if self.job.prodSourceLabel in ['managed','test','software','rc_test','ptest','user'] and \
-                       re.search('_sub\d+$',file.destinationDBlock) != None and (not self.addToTopOnly):
+                           re.search('_sub\d+$',file.destinationDBlock) != None and (not self.addToTopOnly) and \
+                           self.job.destinationSE != 'local':
                         if self.siteMapper == None:
                             _logger.error("%s : SiteMapper==None" % self.jobID)                                
                         else:
@@ -474,9 +475,6 @@ class Adder (threading.Thread):
         for tmpKey in tmpKeys:
             if subMap[tmpKey] == []:
                 del subMap[tmpKey]
-        # return if PandaDDM is used
-        if self.pandaDDM:
-            return
         # check consistency between XML and filesTable
         for lfn in lfns:
             if (not lfn in fileList) and (not lfn in inputLFNs):
@@ -485,6 +483,9 @@ class Adder (threading.Thread):
                 self.job.ddmErrorCode = ErrorCode.EC_Adder
                 self.job.ddmErrorDiag = "Adder._updateOutputs() XML is inconsistent with filesTable"
                 return
+        # return if PandaDDM is used or non-DQ2
+        if self.pandaDDM or self.job.destinationSE == 'local':
+            return
         # add data to original dataset
         for destinationDBlock in idMap.keys():
             match = re.findall('(.+)_sub\d+$',destinationDBlock)
@@ -568,8 +569,8 @@ class Adder (threading.Thread):
 
     # update shadow dataset
     def _updateShadow(self):
-        # return if PandaDDM is used
-        if self.pandaDDM:
+        # return if PandaDDM is used or non-DQ2
+        if self.pandaDDM or self.job.destinationSE == 'local':
             return
         _logger.debug("%s updateShadow" % self.jobID)
         # get shadow DS and contents
