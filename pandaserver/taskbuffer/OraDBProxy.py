@@ -69,11 +69,11 @@ class DBProxy:
             self.dbtimeout = dbtimeout
         # close old connection
         if reconnect:
-            _logger.debug("close old connection")                            
+            _logger.debug("closing old connection")                            
             try:
                 self.conn.close()
             except:
-                _logger.error("failed to close old connection")                                                
+                _logger.debug("failed to close old connection")                                                
         # connect    
         try:
             self.conn = cx_Oracle.connect(dsn=self.dbhost,user=self.dbuser,

@@ -1298,6 +1298,18 @@ class TaskBuffer:
         return ret
     
 
+    # query an SQL return Status  
+    def querySQLS(self,sql,varMap,arraySize=1000):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get
+        ret = proxy.querySQLS(sql,varMap,arraySize)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 del TaskBuffer

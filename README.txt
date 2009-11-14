@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * use TaskBuffer instead of DBProxy in copyArchive
+  * added querySQLS to DBProxy	
   * use ping for wakeUp
   * degrade message level of child termination in ConBridge
   * added ConBridge for database timeout
