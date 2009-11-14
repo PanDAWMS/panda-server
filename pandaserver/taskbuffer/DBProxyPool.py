@@ -27,13 +27,12 @@ class DBProxyPool:
                 proxy = ConBridge()
             else:
                 proxy = DBProxy.DBProxy()
-            nTry = 100
-            for iTry in range(nTry):
+            iTry = 0    
+            while True:
                 if proxy.connect(dbhost,dbpasswd,dbtimeout=60):
                     break
+                iTry += 1
                 _logger.debug("failed -> %s : try %s" % (i,iTry))
-                if iTry+1 == nTry:
-                    raise RuntimeError, 'DBProxyPool.__init__ failed'
                 time.sleep(random.randint(10,20))
             self.proxyList.put(proxy)
             time.sleep(1)

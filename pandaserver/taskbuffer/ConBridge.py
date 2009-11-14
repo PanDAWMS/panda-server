@@ -5,6 +5,7 @@ import time
 import types
 import socket
 import signal
+import random
 import threading
 import cPickle as pickle
 
@@ -333,6 +334,7 @@ class ConBridge (object):
     def bridge_killChild(self):
         # kill old child process
         if self.child_pid != 0:
+            # close sockets
             _logger.debug('master %s closing sockets for child=%s' % (self.pid,self.child_pid))
             try:
                 if self.mysock != None:
@@ -345,20 +347,25 @@ class ConBridge (object):
             except:
                 pass
             _logger.debug('master %s killing child=%s' % (self.pid,self.child_pid))
+            # send SIGTERM
             try:
                 os.kill(self.child_pid,signal.SIGTERM)
             except:
                 pass
-            time.sleep(5)
+            time.sleep(2)
+            # send SIGKILL
             try:
                 os.kill(self.child_pid,signal.SIGKILL)
             except:
                 pass
+            # wait for completion of child
             _logger.debug('master %s waiting child=%s' % (self.pid,self.child_pid))
             try:
                 os.waitpid(self.child_pid,0)
             except:
                 pass
+            # sleep to avoid burst reconnection
+            time.sleep(random.randint(5,15))
             _logger.debug('master %s killed child=%s' % (self.pid,self.child_pid))
 
             

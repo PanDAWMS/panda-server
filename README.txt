@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * use infinite loop in ProxyPool.__init__
+  * add random sleep to ConBridge.connect
   * use TaskBuffer instead of DBProxy in copyArchive
   * added querySQLS to DBProxy	
   * use ping for wakeUp
