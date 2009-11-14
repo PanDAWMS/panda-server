@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * use ping for wakeUp
+  * degrade message level of child termination in ConBridge
   * added ConBridge for database timeout
   * re-implemented rebrokerage to allow the case where build finished
 

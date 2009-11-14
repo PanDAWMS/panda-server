@@ -20,7 +20,12 @@ from pandalogger.PandaLogger import PandaLogger
 _logger = PandaLogger().getLogger('ConBridge')
 
 
-# kill self process when master has gone
+# exception for normal termination
+class HarmlessEx(Exception):
+    pass
+    
+
+# terminate child process by itself when master has gone
 class Terminator (threading.Thread):
 
     # constructor
@@ -38,7 +43,7 @@ class Terminator (threading.Thread):
             pass
         # get PID
         pid = os.getpid()
-        _logger.debug("child %s received termination" % pid)
+        _logger.debug("child  %s received termination" % pid)
         # kill 
         try:
             os.kill(pid,signal.SIGTERM)
@@ -105,20 +110,21 @@ class ConBridge (object):
             datpair[0].close()
             conpair[0].close()
             # connect to database
+            _logger.debug('child  %s connecting to database' % self.pid)            
             self.proxy = DBProxy.DBProxy()
             if not self.proxy.connect(dbhost=dbhost,dbpasswd=dbpasswd,dbtimeout=60):
-                _logger.error('child %s connect: %s %s' % (self.pid,errType,errValue))
+                _logger.error('child  %s failed to connect : %s %s' % (self.pid,errType,errValue))
                 # send error
-                self.bridge_sendError((RuntimeError,'child %s connection failed' % self.pid))
+                self.bridge_sendError((RuntimeError,'child  %s connection failed' % self.pid))
                 # exit
                 self.bridge_childExit()
             # send OK just for ACK
-            _logger.debug('child %s connection is ready' % self.pid)
+            _logger.debug('child  %s connection is ready' % self.pid)
             self.bridge_sendResponse(None)
             # start terminator
             Terminator(self.consock).start()
             # go main loop
-            _logger.debug('child %s going into the main loop' % self.pid)
+            _logger.debug('child  %s going into the main loop' % self.pid)
             self.bridge_run()
             # exit
             self.bridge_childExit(0)
@@ -167,7 +173,7 @@ class ConBridge (object):
             if self.isMaster:
                 roleType = 'master'
             else:
-                roleType = 'child'                
+                roleType = 'child '                
             _logger.error('%s %s send error : val=%s - %s %s' % \
                           (roleType,self.pid,str(val),errType,errValue))
             # terminate child
@@ -189,7 +195,11 @@ class ConBridge (object):
                 tmpSize = headSize - len(strSize)
                 tmpStr = self.mysock.recv(tmpSize)
                 if tmpStr == '':
-                    raise socket.error,'empty packet'
+                    if self.isMaster:
+                        raise socket.error,'empty packet'
+                    else:
+                        # master closed socket
+                        raise HarmlessEx,'empty packet'
                 strSize += tmpStr
             # get body
             strBody = ''
@@ -198,7 +208,11 @@ class ConBridge (object):
                 tmpSize = bodySize - len(strBody)
                 tmpStr = self.mysock.recv(tmpSize)
                 if tmpStr == '':
-                    raise socket.error,'empty packet'
+                    if self.isMaster:
+                        raise socket.error,'empty packet'
+                    else:
+                        # master closed socket
+                        raise HarmlessEx,'empty packet'
                 strBody += tmpStr
             # set timeout back
             if self.isMaster:
@@ -210,10 +224,14 @@ class ConBridge (object):
             if self.isMaster:
                 roleType = 'master'
             else:
-                roleType = 'child'                
+                roleType = 'child '                
             errType,errValue = sys.exc_info()[:2]
-            _logger.error('%s %s recv error : %s %s' % \
-                          (roleType,self.pid,errType,errValue))
+            if errType == HarmlessEx:
+                _logger.debug('%s %s recv harmless ex : %s' % \
+                              (roleType,self.pid,errValue))
+            else:
+                _logger.error('%s %s recv error : %s %s' % \
+                              (roleType,self.pid,errType,errValue))
             # terminate child            
             if not self.isMaster:
                 self.bridge_childExit()
@@ -249,7 +267,7 @@ class ConBridge (object):
     # termination of child
     def bridge_childExit(self,exitCode=1):
         if not self.isMaster:
-            _logger.debug("child %s closing sockets" % self.pid)
+            _logger.debug("child  %s closing sockets" % self.pid)
             # close sockets
             try:
                 self.mysock.shutdown(socket.SHUT_RDWR)
@@ -260,7 +278,7 @@ class ConBridge (object):
             except:
                 pass
             # exit
-            _logger.debug("child %s going to exit" % self.pid)            
+            _logger.debug("child  %s going to exit" % self.pid)            
             os._exit(exitCode)
             
 
@@ -279,11 +297,11 @@ class ConBridge (object):
                     raise RuntimeError,'invalid variables'
             except:
                 errType,errValue = sys.exc_info()[:2]
-                _logger.error('child %s died : %s %s' % (self.pid,errType,errValue))
+                _logger.error('child  %s died : %s %s' % (self.pid,errType,errValue))
                 # exit
                 self.bridge_childExit()
             if self.verbose:    
-                _logger.debug('child %s method %s executing' % (self.pid,comStr))
+                _logger.debug('child  %s method %s executing' % (self.pid,comStr))
             try:    
                 # execute
                 method = getattr(self.proxy,comStr)
@@ -293,14 +311,14 @@ class ConBridge (object):
                     newRes = [True]+res[1:]
                     res = newRes
                 if self.verbose:    
-                    _logger.debug('child %s method %s completed' % (self.pid,comStr))
+                    _logger.debug('child  %s method %s completed' % (self.pid,comStr))
                 # return    
                 self.bridge_sendResponse((res,variables[0],variables[1]))
             except:
                 errType,errValue = sys.exc_info()[:2]
-                _logger.error('child %s method %s failed : %s %s' % (self.pid,comStr,errType,errValue))
+                _logger.error('child  %s method %s failed : %s %s' % (self.pid,comStr,errType,errValue))
                 if errType in [socket.error,socket.timeout]:
-                    _logger.error('child %s died : %s %s' % (self.pid,errType,errValue))
+                    _logger.error('child  %s died : %s %s' % (self.pid,errType,errValue))
                     # exit
                     self.bridge_childExit()
                 # send error
@@ -349,24 +367,24 @@ class ConBridge (object):
         # get status
         status,strStatus = self.bridge_recv()
         if not status:
-            raise RuntimeError,'master %s invalid status response from child=%s' % \
+            raise RuntimeError,'master %s got invalid status response from child=%s' % \
                   (self.pid,self.child_pid)
         if strStatus == 'OK':
             # return res
             status,ret = self.bridge_recv()
             if not status:
-                raise RuntimeError,'master %s invalid response body from child=%s' % \
+                raise RuntimeError,'master %s got invalid response body from child=%s' % \
                       (self.pid,self.child_pid)
             return ret
         elif strStatus == 'NG':
             # raise error
             status,ret = self.bridge_recv()
             if not status:
-                raise RuntimeError,'master %s invalid response value from child=%s' % \
+                raise RuntimeError,'master %s got invalid response value from child=%s' % \
                       (self.pid,self.child_pid)
             raise ret[0],ret[1]
         else:
-            raise RuntimeError,'master %s invalid response from child=%s : %s' % \
+            raise RuntimeError,'master %s got invalid response from child=%s : %s' % \
                   (self.pid,self.child_pid,str(strStatus))
 
 

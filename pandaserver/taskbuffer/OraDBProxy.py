@@ -2209,7 +2209,7 @@ class DBProxy:
                     tmpModificationTime, = res
                     # prevent users from rebrokering more than once in one hour
                     timeLimit = datetime.datetime.utcnow()-datetime.timedelta(hours=1)
-                    if False: # FIXME timeLimit < tmpModificationTime:
+                    if timeLimit < tmpModificationTime:
                         errMsg = "last mod time is %s > %s. Cannot run (re)brokerage more than once in one hour" \
                                  % (tmpModificationTime.strftime('%Y-%m-%d %H:%M:%S'),
                                     timeLimit.strftime('%Y-%m-%d %H:%M:%S'))
@@ -5475,7 +5475,7 @@ class DBProxy:
         for iTry in range(5):
             try:
                 # check if the connection is working
-                self.cur.execute("select user from dual")
+                self.conn.ping()
                 return
             except:
                 type, value, traceBack = sys.exc_info()
