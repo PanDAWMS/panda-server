@@ -69,13 +69,19 @@ class Closer (threading.Thread):
                 continue
             # check if completed
             _logger.debug('%s notFinish:%s' % (self.pandaID,notFinish))
-            if notFinish==0: #dataset.currentfiles >= dataset.numberfiles:
+            if self.job.destinationSE == 'local' and self.job.prodSourceLabel in ['user','panda']:
+                # close non-DQ2 destinationDBlock immediately
+                finalStatus = 'closed'                
+            else:
+                # set status to 'tobeclosed' to trigger DQ2 closing
+                finalStatus = 'tobeclosed'
+            if notFinish==0: 
                 _logger.debug('%s close dataset : %s' % (self.pandaID,destinationDBlock))
                 # set status
-                dataset.status = 'tobeclosed'
+                dataset.status = finalStatus
                 # update dataset in DB
                 retT = self.taskBuffer.updateDatasets(dsList,withLock=True,withCriteria="status<>:crStatus",
-                                                      criteriaMap={':crStatus':'tobeclosed'})
+                                                      criteriaMap={':crStatus':finalStatus})
                 if len(retT) > 0 and retT[0]==1:
                     if self.pandaDDM and self.job.prodSourceLabel=='managed':
                         # instantiate SiteMapper
@@ -149,7 +155,7 @@ class Closer (threading.Thread):
             else:
                 # update dataset in DB
                 self.taskBuffer.updateDatasets(dsList,withLock=True,withCriteria="status<>:crStatus",
-                                               criteriaMap={':crStatus':'tobeclosed'})
+                                               criteriaMap={':crStatus':finalStatus})
                 # unset flag
                 flagComplete = False
             # end
