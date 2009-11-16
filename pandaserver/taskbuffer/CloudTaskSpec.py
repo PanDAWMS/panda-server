@@ -48,8 +48,6 @@ class CloudTaskSpec(object):
         for attr in self._attributes:
             val = getattr(self,attr)
             state.append(val)
-        # append owner info
-        state.append(self._owner)
         return state
 
 
@@ -60,7 +58,6 @@ class CloudTaskSpec(object):
                 setattr(self,self._attributes[i],state[i])
             else:
                 setattr(self,self._attributes[i],'NULL')                
-        self._owner = state[-1]
         
         
     # return column names for INSERT
