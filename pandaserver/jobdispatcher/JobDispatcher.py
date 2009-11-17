@@ -35,7 +35,7 @@ class _TimedMethod:
         thr = threading.Thread(target=self,args=var)
         # run thread
         thr.start()
-        thr.join(self.timeout)
+        thr.join() #self.timeout)
 
 
 # job dipatcher

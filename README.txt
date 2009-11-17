@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * removed threading in dispatcher and dataservice
   * fixed typo in dashboard access
   * fixed CloudTaskSpec for serialization
   * close non-DQ2 destinationDBlock in Closer

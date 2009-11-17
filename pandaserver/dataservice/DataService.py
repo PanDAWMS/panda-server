@@ -37,7 +37,9 @@ from DDMHandler import DDMHandler
 
 # callback for dataset verification
 def datasetCompleted(req,vuid,site=None):
-    DDMHandler(dataService.taskBuffer,vuid,site).start()
+    thr = DDMHandler(dataService.taskBuffer,vuid,site)
+    thr.start()
+    thr.join()
     # logging
     try:
         # get siteID

@@ -5,6 +5,7 @@ pool for DBProxies
 
 import Queue
 import OraDBProxy as DBProxy
+import os
 import time
 import random
 from config import panda_config
@@ -36,12 +37,16 @@ class DBProxyPool:
                 time.sleep(random.randint(10,20))
             self.proxyList.put(proxy)
             time.sleep(1)
+        # get PID    
+        self.pid = os.getpid()    
         _logger.debug("ready")            
 
     # return a free proxy. this method blocks until a proxy is available
     def getProxy(self):
         # get proxy
+        _logger.debug("PID=%s getting proxy" % self.pid)
         proxy = self.proxyList.get()
+        _logger.debug("PID=%s got proxy" % self.pid)        
         # wake up connection
         proxy.wakeUp()
         # return
