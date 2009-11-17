@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed typo in dashboard access
   * fixed CloudTaskSpec for serialization
   * close non-DQ2 destinationDBlock in Closer
   * use infinite loop in ProxyPool.__init__

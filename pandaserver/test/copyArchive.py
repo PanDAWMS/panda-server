@@ -513,7 +513,7 @@ status,res = taskBuffer.querySQLS("SELECT PandaID,cloud,prodSourceLabel FROM ATL
 jobs=[]
 dashFileMap = {}
 if res != None:
-    for pandaID,cloud,sourceLabel in res:
+    for pandaID,cloud,prodSourceLabel in res:
         # collect PandaIDs
         jobs.append(pandaID)
         try:
