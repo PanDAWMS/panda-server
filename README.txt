@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * set encoded nJobs to taskID for analysis jobs
+  * fixed ReBrokerage
   * propagate bad state from dashboard 
   * removed threading in dispatcher and dataservice
   * fixed typo in dashboard access

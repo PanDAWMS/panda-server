@@ -12,6 +12,7 @@ import threading
 
 from dataservice.DDM import ddm
 from taskbuffer.JobSpec import JobSpec
+from taskbuffer.OraDBProxy import DBProxy
 from dataservice.Setupper import Setupper
 from brokerage.SiteMapper import SiteMapper
 import brokerage.broker
@@ -26,7 +27,7 @@ _logger = PandaLogger().getLogger('ReBroker')
 class ReBroker (threading.Thread):
 
     # constructor
-    def __init__(self,taskBuffer,cloud=None):
+    def __init__(self,taskBuffer,cloud=None,simulation=False):
         threading.Thread.__init__(self)
         self.job          = None
         self.jobID        = None
@@ -38,7 +39,8 @@ class ReBroker (threading.Thread):
         self.taskBuffer   = taskBuffer
         self.token        = None
         self.pandaJobsMap = {}
-
+        self.simulation   = simulation
+        
 
     # main
     def run(self):
@@ -49,9 +51,6 @@ class ReBroker (threading.Thread):
                 _logger.debug("cannot find job for PandaID=%s" % self.pandaID)
                 return
             self.job = tmpJobs[0]
-            # make token
-            self.token = "%s:%s:" % (self.job.prodUserName,
-                                    self.job.jobDefinitionID)
             _logger.debug("%s start" % self.token)
             # extract inDS from metadata
             inputDS = []
@@ -100,8 +99,8 @@ class ReBroker (threading.Thread):
                     # change PERF-XYZ to SCRATCHDISK
                     tmpSite = re.sub('_PERF-[^_-]+$','_SCRATCHDISK',tmpSite)
                     # patch for BNLPANDA
-                    if tmpSite in ['BNLPANDA']:
-                        tmpSite = 'BNL-OSG2_SCRATCHDISK'
+                    if tmpSite in ['BNLPANDA','BNL-OSG2_SCRATCHDISK']:
+                        tmpSite = 'BNL-OSG2_USERDISK'
                     # add to map    
                     if not replicaMap.has_key(tmpSite):
                         replicaMap[tmpSite] = tmpStat[-1]
@@ -123,12 +122,15 @@ class ReBroker (threading.Thread):
                 # no files
                 if tmpVal['found'] == 0:
                     continue
+                # use complete datasets only
+                if tmpVal['found'] != tmpVal['total']:
+                    continue
                 # equal or more
                 if tmpVal['found'] == tmpMaxFile:
                     maxDQ2Sites.append(tmpSite)
                 elif tmpVal['found'] > tmpMaxFile:
                     tmpMaxFile  = tmpVal['found']
-                    maxDQ2Sites = [tmpMaxFile]
+                    maxDQ2Sites = [tmpSite]
             _logger.debug("%s candidate DQ2s -> %s" % (self.token,str(maxDQ2Sites)))
             if inputDS != [] and maxDQ2Sites == []:
                 _logger.debug("%s no DQ2 candidate" % self.token)
@@ -145,7 +147,7 @@ class ReBroker (threading.Thread):
                     if re.search('_local',tmpSiteID,re.I) != None:
                         continue
                     # check DQ2 ID
-                    if self.cloud in [None,tmpSiteSpec.cloud] and tmpSiteSpec.ddm != origSiteDDM\
+                    if self.cloud in [None,tmpSiteSpec.cloud] \
                            and (tmpSiteSpec.ddm in maxDQ2Sites or inputDS == []):
                         # append
                         if not tmpSiteID in maxPandaSites:
@@ -178,11 +180,19 @@ class ReBroker (threading.Thread):
                         return 
                     # get new site spec
                     newSiteSpec = siteMapper.getSite(newSiteID)
+                    # check repetition
+                    if newSiteSpec.ddm == origSiteDDM:
+                        _logger.debug("%s assigned to the same site %s " % (self.token,newSiteID))
+                        return
                     # prepare outputDS
                     status = self.prepareDS()
                     if not status:
                         _logger.error("%s failed to prepare outputDSs" % self.token)
                     else:
+                        # simulation mode
+                        if self.simulation:
+                            _logger.debug("%s end simulation" % self.token)                        
+                            return
                         # move jobs to jobsDefined
                         status = self.updateJob()
                         if not status:
@@ -202,9 +212,12 @@ class ReBroker (threading.Thread):
 
     # lock job to disable multiple broker running in parallel
     def lockJob(self,dn,jobID,libDS):
+        # make token
+        tmpProxy = DBProxy()
+        self.token = "%s:%s:" % (tmpProxy.cleanUserID(dn),jobID)
         _logger.debug("%s lockJob" % self.token)        
         # lock
-        resST,resVal = self.taskBuffer.lockJobForReBrokerage(dn,jobID,libDS)
+        resST,resVal = self.taskBuffer.lockJobForReBrokerage(dn,jobID,libDS,self.simulation)
         # failed
         if not resST:
             return False,resVal['err']
@@ -315,11 +328,15 @@ class ReBroker (threading.Thread):
             dsWithNewLoc = []
             if computingSite == destinationSE:
                 dsWithNewLoc = tmpOutDSs
-        # register newLibDS
-        if self.job != None:
-            retNew = self.registerNewDataset(self.job.destinationDBlock)
-            if not retNew:
-                return False
+        # check active jobs in Panda
+        status,jobInfo = self.taskBuffer.getNumWaitingJobsWithOutDS(dsWithNewLoc)
+        if not status:
+            _logger.error("%s failed to get job info with %s" % (self.token,str(dsWithNewLoc)))
+            return False
+        # other job are using this outDS 
+        if len(jobInfo) != 1:
+            _logger.error("%s JobID=%s are using %s" % (self.token,str(jobInfo.keys()),str(dsWithNewLoc)))
+            return False
         # check if output datasets are empty
         if not self.checkDatasetContents(dsWithNewLoc):
             return False
@@ -350,10 +367,14 @@ class ReBroker (threading.Thread):
         for tmpJobID in tmpJobIDList:
             _logger.debug("%s preparation for JobID=%s" % (self.token,tmpJobID))
             tmpJobs = self.pandaJobsMap[tmpJobID]
+            if tmpJobs[0].prodSourceLabel == 'panda':
+                tmpNumJobs = 1 + ((len(tmpJobs)-1) << 1)
+            else:
+                tmpNumJobs = (len(tmpJobs)-1) << 1
             # set new parameters
             for tmpJob in tmpJobs:
                 # set nJobs (=taskID)
-                tmpJob.taskID = len(tmpJobs)
+                tmpJob.taskID = tmpNumJobs
                 # set destinationSE when --destSE is not used
                 newDestSE = False
                 if tmpJob.destinationSE == tmpJob.computingSite:
@@ -378,9 +399,6 @@ class ReBroker (threading.Thread):
         # register newLibDS
         retNew = self.registerNewDataset(self.job.destinationDBlock)
         if not retNew:
-            return False
-        # check if output datasets are empty
-        if not self.checkDatasetContents(dsWithNewLoc):
             return False
         # delete datasets and locations
         if dsWithNewLoc != []:

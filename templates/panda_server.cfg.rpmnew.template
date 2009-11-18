@@ -104,7 +104,7 @@ nDBConnection = 2
 usedbtimeout = True
 
 # timout value
-dbtimeout = 600
+dbtimeout = 300
 
 # verbose in bridge
 dbbridgeverbose = False

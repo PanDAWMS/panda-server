@@ -134,6 +134,7 @@ class TaskBuffer:
         serNum = 0
         userDefinedWG = False
         validWorkingGroup = False
+        usingBuild = False
         if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda']):
             # set high prioryty for production role
             if withProdRole:
@@ -152,6 +153,9 @@ class TaskBuffer:
                 serNum = proxy.getNumberJobsUser(user,workingGroup=jobs[0].workingGroup)
             else:
                 serNum = proxy.getNumberJobsUser(user,workingGroup=None)
+            # using build for analysis
+            if jobs[0].prodSourceLabel == 'panda':
+                usingBuild = True
         # loop over all jobs
         ret =[]
         newJobs=[]
@@ -178,7 +182,14 @@ class TaskBuffer:
                             # reset invalid working group
                             job.workingGroup = None
                 # set nJobs (=taskID)
-                job.taskID = len(jobs)
+                if usingBuild:
+                    tmpNumBuild = 1
+                    tmpNunRun = len(jobs) - 1 
+                else:
+                    tmpNumBuild = 0
+                    tmpNunRun = len(jobs)
+                # encode    
+                job.taskID = tmpNumBuild + (tmpNunRun << 1) 
             # insert job to DB
             if not proxy.insertNewJob(job,user,serNum,weight,priorityOffset,userVO):
                 # reset if failed
@@ -212,6 +223,18 @@ class TaskBuffer:
             Setupper(self,newJobs,pandaDDM=usePandaDDM,forkRun=forkSetupper).start()
         # return jobIDs
         return ret
+
+
+    # get number of activated/defined jobs with output datasets
+    def getNumWaitingJobsWithOutDS(self,outputDSs):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.getNumWaitingJobsWithOutDS(outputDSs)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
 
 
     # resubmit jobs
@@ -511,11 +534,11 @@ class TaskBuffer:
 
 
     # lock job for re-brokerage
-    def lockJobForReBrokerage(self,dn,jobID,libDS):
+    def lockJobForReBrokerage(self,dn,jobID,libDS,simulation):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get IDs
-        ret = proxy.lockJobForReBrokerage(dn,jobID,libDS)
+        ret = proxy.lockJobForReBrokerage(dn,jobID,libDS,simulation)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

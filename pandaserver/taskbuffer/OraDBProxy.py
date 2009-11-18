@@ -1862,6 +1862,129 @@ class DBProxy:
                 return job
 
 
+    # get number of activated/defined jobs with output datasets
+    def getNumWaitingJobsWithOutDS(self,outputDSs):
+        comment = ' /* DBProxy.getNumWaitingJobsWithOutDS */'                        
+        _logger.debug("getNumWaitingJobsWithOutDS : %s" % str(outputDSs))
+        try:
+            sqlD  = "SELECT /*+ index(tab FILESTABLE4_DATASET_IDX) */ distinct destinationDBlock FROM ATLAS_PANDA.filesTable4 tab "
+            sqlD += "WHERE type IN (:type1,:type2) AND dataset=:dataset AND status IN (:status1,:status2)"
+            sqlP  = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ PandaID FROM ATLAS_PANDA.filesTable4 tab "
+            sqlP += "WHERE type IN (:type1,:type2) AND destinationDBlock=:destinationDBlock AND status IN (:status1,:status2) AND rownum<=1"
+            sqlJ  = "SELECT jobDefinitionID,taskID,prodUserName,jobStatus,prodSourceLabel FROM %s "
+            sqlJ += "WHERE PandaID=:PandaID"
+            sqlC  = "SELECT count(*) FROM ATLAS_PANDA.jobsActive4 "
+            sqlC += "WHERE jobDefinitionID=:jobDefinitionID AND prodUserName=:prodUserName AND jobStatus IN (:jobStatus1)"
+            # start transaction
+            self.conn.begin()
+            # get sub datasets
+            subDSList = []
+            for outputDS in outputDSs:
+                varMap = {}
+                varMap[':type1'] = 'log'
+                varMap[':type2'] = 'output'                
+                varMap[':status1'] = 'unknown'
+                varMap[':status2'] = 'pending'
+                varMap[':dataset'] = outputDS
+                # select
+                self.cur.arraysize = 1000
+                self.cur.execute(sqlD+comment, varMap)
+                resList = self.cur.fetchall()
+                # append
+                for destinationDBlock, in resList:
+                    subDSList.append(destinationDBlock)
+            # get PandaIDs
+            pandaIDs = []
+            for subDS in subDSList:
+                varMap = {}
+                varMap[':type1'] = 'log'
+                varMap[':type2'] = 'output'
+                varMap[':status1'] = 'unknown'
+                varMap[':status2'] = 'pending'
+                varMap[':destinationDBlock'] = subDS
+                # select
+                self.cur.arraysize = 10
+                self.cur.execute(sqlP+comment, varMap)
+                res = self.cur.fetchone()
+                # append
+                if res != None:
+                    pandaID, = res
+                    pandaIDs.append(pandaID)
+            # commit to release tables
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # loop over all PandaIDs
+            jobInfos = []
+            for pandaID in pandaIDs:
+                varMap = {}
+                varMap[':PandaID'] = pandaID
+                # start transaction        
+                self.conn.begin()
+                # get jobID,nJobs,jobStatus,userName
+                res = None
+                for table in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4']:
+                    # select
+                    self.cur.arraysize = 10
+                    self.cur.execute((sqlJ % table)+comment,varMap)
+                    res = self.cur.fetchone()
+                    if res != None:
+                        break
+                # commit to release tables
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                # not found
+                if res == None:
+                    _logger.error("getNumWaitingJobsWithOutDS : %s was not found" % pandaID)
+                    return False,{}
+                # append
+                jobInfos.append(res)
+            # loop over all jobIDs
+            retMap = {}
+            for jobID,taskID,prodUserName,jobStatus,prodSourceLabel in jobInfos:
+                if retMap.has_key(jobID):
+                    continue
+                retMap[jobID] = {}
+                retMap[jobID]['nJobs'] = taskID
+                retMap[jobID]['sourceLabel'] = prodSourceLabel
+                # don't check # of activated
+                if jobStatus in ['defined']:
+                    retMap[jobID]['activated'] = False
+                    retMap[jobID]['nActs'] = 0
+                    continue
+                retMap[jobID]['activated'] = True
+                # get # of activated jobs
+                varMap = {}
+                varMap[':prodUserName'] = prodUserName
+                varMap[':jobDefinitionID'] = jobID
+                varMap[':jobStatus1'] = 'activated'
+                # start transaction        
+                self.conn.begin()
+                # select
+                self.cur.arraysize = 10
+                self.cur.execute(sqlC+comment, varMap)
+                res = self.cur.fetchone()
+                # commit to release tables
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                if res == None:
+                    _logger.error("getNumWaitingJobsWithOutDS : cannot get # of activated for %s:%s" % \
+                                  (jobID,prodUserName))
+                    return False,{}
+                # set # of activated
+                nActs, = res
+                retMap[jobID]['nActs'] = nActs
+            # return    
+            _logger.debug("getNumWaitingJobsWithOutDS -> %s" % str(retMap))
+            return True,retMap
+        except:
+            # roll back
+            self._rollback()
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("getNumWaitingJobsWithOutDS : %s %s" % (errType,errValue))
+            # return empty list
+            return False,{}
+
+
     # get slimmed file info with PandaIDs
     def getSlimmedFileInfoPandaIDs(self,pandaIDs):
         comment = ' /* DBProxy.getSlimmedFileInfoPandaIDs */'                        
@@ -2021,9 +2144,9 @@ class DBProxy:
 
 
     # lock job for re-brokerage
-    def lockJobForReBrokerage(self,dn,jobID,libDS):
+    def lockJobForReBrokerage(self,dn,jobID,libDS,simulation):
         comment = ' /* lockJobForReBrokerage */'                        
-        _logger.debug("lockJobForReBrokerage : %s %s %s" % (dn,jobID,libDS))
+        _logger.debug("lockJobForReBrokerage : %s %s %s %s" % (dn,jobID,libDS,simulation))
         try:
             errMsg = ''
             # get compact DN
@@ -2139,7 +2262,7 @@ class DBProxy:
                 if buildJobPandaID == None:
                     buildJobPandaID = res[0]
                 # set nJobs    
-                nJobs = res[1]
+                nJobs = (res[1] >> 1) + (res[1] & 1)
             # check if all jobs are not yet running
             if errMsg == '':
                 # libDS is not used or buildJob has already finished 
@@ -2182,7 +2305,7 @@ class DBProxy:
                         if alreadyRunning:
                             errMsg = "Not all jobs are in activated state. Cannot reassign partially-running job"
             # check modificationTime
-            if errMsg != '':
+            if errMsg == '':
                 # make sql
                 if buildJobStatus in ['defined']:
                     sql  = "SELECT modificationTime FROM ATLAS_PANDA.jobsDefined4 "
@@ -2199,8 +2322,6 @@ class DBProxy:
                 varMap[':jobStatus1'] = 'defined'
                 varMap[':jobStatus2'] = 'activated'                
                 # select
-                print sql
-                print varMap
                 self.cur.execute(sql+comment, varMap)
                 res = self.cur.fetchone()
                 if res == None:                                 
@@ -2209,15 +2330,21 @@ class DBProxy:
                     tmpModificationTime, = res
                     # prevent users from rebrokering more than once in one hour
                     timeLimit = datetime.datetime.utcnow()-datetime.timedelta(hours=1)
-                    if timeLimit < tmpModificationTime:
+                    if simulation:
+                        pass
+                    elif timeLimit < tmpModificationTime:
                         errMsg = "last mod time is %s > %s. Cannot run (re)brokerage more than once in one hour" \
                                  % (tmpModificationTime.strftime('%Y-%m-%d %H:%M:%S'),
                                     timeLimit.strftime('%Y-%m-%d %H:%M:%S'))
                     else:
                         # update modificationTime for locking
-                        sql = 'UPDATE ATLAS_PANDA.jobsActive4 SET modificationTime=CURRENT_DATE '
+                        if buildJobStatus in ['defined']:
+                            sql = 'UPDATE ATLAS_PANDA.jobsActive4 '
+                        else:
+                            sql = 'UPDATE ATLAS_PANDA.jobsActive4 '
+                        sql += 'SET modificationTime=CURRENT_DATE '
                         sql += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
-                        sql += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND jobStatus=:jobStatus "
+                        sql += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND jobStatus IN (:jobStatus1,:jobStatus2) "
                         self.cur.execute(sql+comment, varMap)                        
             # commit
             if not self._commit():
@@ -2316,10 +2443,9 @@ class DBProxy:
                 oldLibDS = buildJob.destinationDBlock
                 match = re.search('_reb(\d+)$',oldLibDS)
                 if match == None:
-                    newLibDS = oldLibDS + '_reb1'
+                    newLibDS = oldLibDS + '_reb%s' % newPandaID
                 else:
-                    tmpSerNum = int(match.group(1)) + 1
-                    newLibDS = re.sub('_reb(\d+)$','_reb%s' % tmpSerNum,oldLibDS)
+                    newLibDS = re.sub('_reb(\d+)$','_reb%s' % newPandaID,oldLibDS)
                 # use old PandaID to new buildJob to gurantee buildJob has the first PandaID
                 buildJob.PandaID = pandaIDs[0]
                 # reset parameters
@@ -2547,9 +2673,10 @@ class DBProxy:
                 return falseRet
             pandaID,computingSite,destinationSE = res
             # get outDSs
-            sql = "SELECT dataset FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type=:type"
+            sql = "SELECT dataset FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type IN (:type1,:type2)"
             varMap = {}
-            varMap[':type'] = 'output'
+            varMap[':type1'] = 'output'
+            varMap[':type2'] = 'log'            
             varMap[':PandaID'] = pandaID
             self.cur.arraysize = 1000
             self.cur.execute(sql+comment, varMap)
