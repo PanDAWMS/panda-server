@@ -564,7 +564,7 @@ if res != None:
                             tmpLastTime = ''
                             for tmpEvt in tmpEvens:
                                 # pickup only DQ2 events
-                                if tmpEvt['tool_id'] != 'DQ2':
+                                if not tmpEvt['tool_id'] in ['DQ2',None]:
                                     continue
                                 # pickup first one or newer
                                 if tmpLastTime == '' or tmpLastTime < tmpEvt['modified_time']:
@@ -572,7 +572,7 @@ if res != None:
                                     dashFileMap[tmpKey] = tmpEvt['state']
                             _logger.debug('got status=%s' % dashFileMap[tmpKey])
                         # update failed files
-                        if dashFileMap[tmpKey] in ['FAILED_TRANSFER']:
+                        if dashFileMap[tmpKey] in ['FAILED_TRANSFER','BAD']:
                             sqlUpF  = "UPDATE ATLAS_PANDA.filesTable4 SET status=:newStatus "
                             sqlUpF += "WHERE PandaID=:PandaID AND lfn=:lfn"
                             varMap = {}

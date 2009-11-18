@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * propagate bad state from dashboard 
   * removed threading in dispatcher and dataservice
   * fixed typo in dashboard access
   * fixed CloudTaskSpec for serialization
