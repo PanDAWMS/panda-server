@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed ReBrokerage to require the same distribution pattern of input datasets
   * set encoded nJobs to taskID for analysis jobs
   * fixed ReBrokerage
   * propagate bad state from dashboard 

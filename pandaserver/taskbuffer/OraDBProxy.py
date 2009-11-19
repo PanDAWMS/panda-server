@@ -2287,6 +2287,8 @@ class DBProxy:
                     else:
                         nActiveJobs, = res
                         # check
+                        _logger.debug('lockJobForReBrokerage : check nAct=%s with nJobs=%s' % \
+                                      (nActiveJobs,nJobs))
                         alreadyRunning = False
                         if libDS == '':
                             # --noBuild
@@ -5504,7 +5506,7 @@ class DBProxy:
     # peek at job 
     def peekJobLog(self,pandaID):
         comment = ' /* DBProxy.peekJobLog */'                        
-        _logger.debug("peekJob : %s" % pandaID)
+        _logger.debug("peekJobLog : %s" % pandaID)
         # return None for NULL PandaID
         if pandaID in ['NULL','','None',None]:
             return None

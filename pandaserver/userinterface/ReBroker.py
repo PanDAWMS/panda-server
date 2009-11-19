@@ -27,7 +27,7 @@ _logger = PandaLogger().getLogger('ReBroker')
 class ReBroker (threading.Thread):
 
     # constructor
-    def __init__(self,taskBuffer,cloud=None,simulation=False):
+    def __init__(self,taskBuffer,cloud=None,excludedSite=None,simulation=False):
         threading.Thread.__init__(self)
         self.job          = None
         self.jobID        = None
@@ -40,6 +40,7 @@ class ReBroker (threading.Thread):
         self.token        = None
         self.pandaJobsMap = {}
         self.simulation   = simulation
+        self.excludedSite = excludedSite
         
 
     # main
@@ -52,16 +53,32 @@ class ReBroker (threading.Thread):
                 return
             self.job = tmpJobs[0]
             _logger.debug("%s start" % self.token)
+            # check metadata 
+            if self.job.metadata in [None,'NULL']:
+                _logger.debug("%s metadata is unavailable" % self.token)
+                _logger.debug("%s failed" % self.token)
+                return
+            # check --site
+            if (not self.simulation):
+                match = re.search("--site( +|=)([^ \"\';$]+)",self.job.metadata)
+                _logger.debug("%s --site was being used" % self.token)
+                _logger.debug("%s failed" % self.token)
+            # check excludedSite
+            if self.excludedSite == None:
+                self.excludedSite = []
+                match = re.search("--excludedSite( +|=)([^ \"\';$]+)",self.job.metadata)
+                if match != None:
+                    self.excludedSite = match.group(2).split(',')
+            _logger.debug("%s excludedSite=%s" % (self.token,str(self.excludedSite)))
             # extract inDS from metadata
             inputDS = []
-            if self.job.metadata != None:
-                match = re.search("--inDS( +|=)([^ \"\';$]+)",self.job.metadata)
-                if match != None:
-                    inputDS = match.group(2).split(',')
-                # look for parentDS
-                match = re.search("--parentDS( +|=)([^ \"\';$]+)",self.job.metadata)
-                if match != None:
-                    inputDS = match.group(2).split(',')
+            match = re.search("--inDS( +|=)([^ \"\';$]+)",self.job.metadata)
+            if match != None:
+                inputDS = match.group(2).split(',')
+            # look for parentDS
+            match = re.search("--parentDS( +|=)([^ \"\';$]+)",self.job.metadata)
+            if match != None:
+                inputDS = match.group(2).split(',')
             _logger.debug("%s inDS=%s" % (self.token,str(inputDS)))
             # expand *
             newInDS = []
@@ -84,53 +101,58 @@ class ReBroker (threading.Thread):
             for tmpDS in inputDS:
                 if tmpDS.endswith('/'):
                     # container
-                    status,tmpRepMap = self.getListDatasetReplicasInContainer(tmpDS)
+                    status,tmpRepMaps = self.getListDatasetReplicasInContainer(tmpDS)
                 else:
                     # normal dataset
                     status,tmpRepMap = self.getListDatasetReplicas(tmpDS)
+                    tmpRepMaps = {tmpDS:tmpRepMap}
                 if not status:
                     # failed
                     _logger.debug("%s failed" % self.token)
                     return 
-                # make sum
-                for tmpSite,tmpStat in tmpRepMap.iteritems():
-                    # change DISK to SCRATCHDISK
-                    tmpSite = re.sub('_[^_-]+DISK$','_SCRATCHDISK',tmpSite)
-                    # change PERF-XYZ to SCRATCHDISK
-                    tmpSite = re.sub('_PERF-[^_-]+$','_SCRATCHDISK',tmpSite)
-                    # patch for BNLPANDA
-                    if tmpSite in ['BNLPANDA','BNL-OSG2_SCRATCHDISK']:
-                        tmpSite = 'BNL-OSG2_USERDISK'
-                    # add to map    
-                    if not replicaMap.has_key(tmpSite):
-                        replicaMap[tmpSite] = tmpStat[-1]
-                    else:
-                        # interested only in found and total
-                        for tmpKey in ['total','found']:
-                            replicaMap[tmpSite][tmpKey] += tmpStat[-1][tmpKey]
+                # make map per site
+                for tmpDS,tmpRepMap in tmpRepMaps.iteritems():
+                    for tmpSite,tmpStat in tmpRepMap.iteritems():
+                        # change DISK to SCRATCHDISK
+                        tmpSite = re.sub('_[^_-]+DISK$','_SCRATCHDISK',tmpSite)
+                        # change PERF-XYZ to SCRATCHDISK
+                        tmpSite = re.sub('_PERF-[^_-]+$','_SCRATCHDISK',tmpSite)
+                        # patch for BNLPANDA
+                        if tmpSite in ['BNLPANDA','BNL-OSG2_SCRATCHDISK']:
+                            tmpSite = 'BNL-OSG2_USERDISK'
+                        # add to map    
+                        if not replicaMap.has_key(tmpSite):
+                            replicaMap[tmpSite] = {}
+                        replicaMap[tmpSite][tmpDS] = tmpStat[-1]
+            _logger.debug("%s replica map -> %s" % (self.token,str(replicaMap)))
             # instantiate SiteMapper
             siteMapper = SiteMapper(self.taskBuffer)
             # get original DDM
             origSiteDDM = siteMapper.getSite(self.job.computingSite).ddm
-            # look for DQ2 IDs where most files are available
-            tmpMaxFile  = -1
             maxDQ2Sites = []
-            for tmpSite,tmpVal in replicaMap.iteritems():
-                # don't use original site
-                if tmpSite == origSiteDDM:
-                    continue
-                # no files
-                if tmpVal['found'] == 0:
-                    continue
-                # use complete datasets only
-                if tmpVal['found'] != tmpVal['total']:
-                    continue
-                # equal or more
-                if tmpVal['found'] == tmpMaxFile:
-                    maxDQ2Sites.append(tmpSite)
-                elif tmpVal['found'] > tmpMaxFile:
-                    tmpMaxFile  = tmpVal['found']
-                    maxDQ2Sites = [tmpSite]
+            if inputDS != []:
+                # check original is there
+                if not replicaMap.has_key(origSiteDDM):
+                    _logger.error("%s original site %s was not found in replica map" % \
+                                  (self.token,origSiteDDM))
+                    _logger.debug("%s failed" % self.token)
+                    return 
+                # look for DQ2 IDs where datasets are available in the same distribution as original site
+                firstLoop = True
+                for tmpOrigDS,tmpOrigVal in replicaMap[origSiteDDM].iteritems():
+                    # loop over all sites
+                    for tmpSite,tmpDsVal in replicaMap.iteritems():
+                        if tmpDsVal.has_key(tmpOrigDS) and tmpDsVal[tmpOrigDS]['found'] == tmpOrigVal['found']:
+                            # add in the first loop
+                            if firstLoop:
+                                maxDQ2Sites.append(tmpSite)
+                        else:
+                            # delete
+                            if tmpSite in maxDQ2Sites:
+                                maxDQ2Sites.remove(tmpSite)
+                    # first loop is over
+                    if firstLoop:
+                        firstLoop = False
             _logger.debug("%s candidate DQ2s -> %s" % (self.token,str(maxDQ2Sites)))
             if inputDS != [] and maxDQ2Sites == []:
                 _logger.debug("%s no DQ2 candidate" % self.token)
@@ -145,6 +167,14 @@ class ReBroker (threading.Thread):
                     if re.search('_test',tmpSiteID,re.I) != None:
                         continue
                     if re.search('_local',tmpSiteID,re.I) != None:
+                        continue
+                    # excluded sites
+                    excludedFlag = False
+                    for tmpExcSite in self.excludedSite:
+                        if re.search(tmpExcSite,tmpSiteID) != None:
+                            excludedFlag = True
+                            break
+                    if excludedFlag:    
                         continue
                     # check DQ2 ID
                     if self.cloud in [None,tmpSiteSpec.cloud] \
@@ -521,22 +551,10 @@ class ReBroker (threading.Thread):
             status,tmpRepSites = self.getListDatasetReplicas(dataset)
             if not status:
                 return resForFailure
-            # loop over sites
-            for siteId,statList in tmpRepSites.iteritems():
-                if not allRepMap.has_key(siteId):
-                    # append
-                    allRepMap[siteId] = [statList[-1],]
-                else:
-                    # add
-                    newStMap = {}
-                    for stName,stNum in allRepMap[siteId][0].iteritems():
-                        if statList[-1].has_key(stName):
-                            newStMap[stName] = stNum + statList[-1][stName]
-                        else:
-                            newStMap[stName] = stNum
-                    allRepMap[siteId] = [newStMap,]
+            # append
+            allRepMap[dataset] = tmpRepSites
         # return
-        _logger.debug('%s getListDatasetReplicasInContainer->%s' % (self.token,str(allRepMap)))
+        _logger.debug('%s getListDatasetReplicasInContainer done')
         return True,allRepMap            
 
 
