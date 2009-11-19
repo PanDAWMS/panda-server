@@ -85,11 +85,20 @@ class UserIF:
 
 
     # run rebrokerage
-    def runReBrokerage(self,dn,jobID,libDS,cloud):
+    def runReBrokerage(self,dn,jobID,libDS,cloud,strExcludedSite):
         returnVal = "True"
         try:
+            if strExcludedSite == None:
+                # excludedSite is unchanged
+                excludedSite = None
+            else:
+                # convert str to list
+                excludedSite = []
+                for tmpItem in strExcludedSite.split(','):
+                    if tmpItem != '':
+                        excludedSite.append(tmpItem)
             # instantiate ReBroker
-            thr = ReBroker(self.taskBuffer,cloud)
+            thr = ReBroker(self.taskBuffer,cloud,excludedSite)
             # lock
             stLock,retLock = thr.lockJob(dn,jobID,libDS)
             # failed
@@ -684,7 +693,7 @@ def runBrokerage(req,sites,cmtConfig=None,atlasRelease=None,trustIS=False):
     return userIF.runBrokerage(sites,cmtConfig,atlasRelease,trustIS)
 
 # run rebrokerage
-def runReBrokerage(req,jobID,libDS='',cloud=None):
+def runReBrokerage(req,jobID,libDS='',cloud=None,excludedSite=None):
     # check SSL
     if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
         return "ERROR: SSL connection is required"
@@ -692,7 +701,7 @@ def runReBrokerage(req,jobID,libDS='',cloud=None):
     dn = _getDN(req)
     if dn == '':
         return "ERROR: could not get DN"
-    return userIF.runReBrokerage(dn,jobID,libDS,cloud)
+    return userIF.runReBrokerage(dn,jobID,libDS,cloud,excludedSite)
 
 # register proxy key
 def registerProxyKey(req,credname,origin,myproxy):

@@ -27,7 +27,8 @@ _logger = PandaLogger().getLogger('ReBroker')
 class ReBroker (threading.Thread):
 
     # constructor
-    def __init__(self,taskBuffer,cloud=None,excludedSite=None,simulation=False):
+    def __init__(self,taskBuffer,cloud=None,excludedSite=None,overrideSite=True,
+                 simulation=False):
         threading.Thread.__init__(self)
         self.job          = None
         self.jobID        = None
@@ -41,6 +42,7 @@ class ReBroker (threading.Thread):
         self.pandaJobsMap = {}
         self.simulation   = simulation
         self.excludedSite = excludedSite
+        self.overrideSite = overrideSite
         
 
     # main
@@ -59,7 +61,7 @@ class ReBroker (threading.Thread):
                 _logger.debug("%s failed" % self.token)
                 return
             # check --site
-            if (not self.simulation):
+            if (not self.simulation) and (not self.overrideSite):
                 match = re.search("--site( +|=)([^ \"\';$]+)",self.job.metadata)
                 _logger.debug("%s --site was being used" % self.token)
                 _logger.debug("%s failed" % self.token)

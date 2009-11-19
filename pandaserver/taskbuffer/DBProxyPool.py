@@ -3,11 +3,13 @@ pool for DBProxies
 
 """
 
+import inspect
 import Queue
 import OraDBProxy as DBProxy
 import os
 import time
 import random
+from threading import Lock
 from config import panda_config
 from taskbuffer.ConBridge import ConBridge
 from pandalogger.PandaLogger import PandaLogger
@@ -18,6 +20,9 @@ _logger = PandaLogger().getLogger('DBProxyPool')
 class DBProxyPool:
     
     def __init__(self,dbhost,dbpasswd,nConnection,useTimeout=False):
+        # crate lock for callers
+        self.lock = Lock()
+        self.callers = []
         # create Proxies
         _logger.debug("init")
         self.proxyList = Queue.Queue(nConnection)
@@ -43,10 +48,19 @@ class DBProxyPool:
 
     # return a free proxy. this method blocks until a proxy is available
     def getProxy(self):
+        # get caller
+        caller = inspect.stack()[1][3]
         # get proxy
-        _logger.debug("PID=%s getting proxy" % self.pid)
+        _logger.debug("PID=%s %s getting proxy used by %s" % (self.pid,caller,str(self.callers)))
         proxy = self.proxyList.get()
-        _logger.debug("PID=%s got proxy" % self.pid)        
+        # lock
+        self.lock.acquire()
+        # append
+        self.callers.append(caller)
+        # release    
+        self.lock.release()                            
+        _logger.debug("PID=%s %s got proxy used by %s" % (self.pid,caller,str(self.callers)))
+        # add caller
         # wake up connection
         proxy.wakeUp()
         # return
@@ -54,4 +68,14 @@ class DBProxyPool:
 
     # put back a proxy
     def putProxy(self,proxy):
+        # get caller
+        caller = inspect.stack()[1][3]
+        _logger.debug("PID=%s %s releasing. used by %s" % (self.pid,caller,str(self.callers)))
         self.proxyList.put(proxy)
+        # lock
+        self.lock.acquire()
+        # append
+        self.callers.remove(caller)
+        # release    
+        self.lock.release()                            
+        _logger.debug("PID=%s %s released. used by %s" % (self.pid,caller,str(self.callers)))
