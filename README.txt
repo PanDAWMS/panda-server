@@ -1,6 +1,6 @@
 Release Note
 
-* 0.0.6 (11/20/2009)
+* 0.0.7 (11/20/2009)
   * removed verbose message from DBProxyPool 
   * more verbose info to DBProxyPool
   * fixed ReBrokerage to require the same distribution pattern of input datasets
