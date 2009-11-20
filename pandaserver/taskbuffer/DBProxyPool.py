@@ -48,11 +48,14 @@ class DBProxyPool:
 
     # return a free proxy. this method blocks until a proxy is available
     def getProxy(self):
+        """
         # get caller
         caller = inspect.stack()[1][3]
-        # get proxy
         _logger.debug("PID=%s %s getting proxy used by %s" % (self.pid,caller,str(self.callers)))
+        """
+        # get proxy
         proxy = self.proxyList.get()
+        """
         # lock
         self.lock.acquire()
         # append
@@ -60,7 +63,7 @@ class DBProxyPool:
         # release    
         self.lock.release()                            
         _logger.debug("PID=%s %s got proxy used by %s" % (self.pid,caller,str(self.callers)))
-        # add caller
+        """
         # wake up connection
         proxy.wakeUp()
         # return
@@ -68,10 +71,13 @@ class DBProxyPool:
 
     # put back a proxy
     def putProxy(self,proxy):
+        """
         # get caller
         caller = inspect.stack()[1][3]
         _logger.debug("PID=%s %s releasing. used by %s" % (self.pid,caller,str(self.callers)))
+        """
         self.proxyList.put(proxy)
+        """
         # lock
         self.lock.acquire()
         # append
@@ -79,3 +85,4 @@ class DBProxyPool:
         # release    
         self.lock.release()                            
         _logger.debug("PID=%s %s released. used by %s" % (self.pid,caller,str(self.callers)))
+        """

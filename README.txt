@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * removed verbose message from DBProxyPool 
   * more verbose info to DBProxyPool
   * fixed ReBrokerage to require the same distribution pattern of input datasets
   * set encoded nJobs to taskID for analysis jobs
