@@ -1,5 +1,8 @@
 Release Note
 
+* current
+  * added FastCGI stuff
+
 * 0.0.7 (11/20/2009)
   * removed verbose message from DBProxyPool 
   * more verbose info to DBProxyPool

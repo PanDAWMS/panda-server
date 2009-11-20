@@ -99,6 +99,8 @@ dbname = PandaDB
 
 # number of connections
 nDBConnection = 2
+# FIXME for FastCGI
+#nDBConnection = 1
 
 # use timeout
 usedbtimeout = True
@@ -170,3 +172,15 @@ enableDynamicTA = True
 
 # enable redirection service
 enableRedirection = False
+
+
+
+##########################
+#
+# parameters for FastCGI
+#
+
+# enable FastCGI
+usefastcgi = False
+# FIXME for FastCGI
+#usefastcgi = True
