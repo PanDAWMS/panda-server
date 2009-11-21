@@ -42,7 +42,7 @@ from userinterface.UserIF        import submitJobs,getJobStatus,queryPandaIDs,ki
 
 
 # FastCGI entry
-if hasattr(panda_config,'usefastcgi') and panda_config.usefastcgi:
+if hasattr(panda_config,'useFastCGI') and panda_config.useFastCGI:
 
     import os
     import cgi
@@ -75,7 +75,8 @@ if hasattr(panda_config,'usefastcgi') and panda_config.usefastcgi:
         methodName = ''
         if environ.has_key('SCRIPT_URL'):
             methodName = environ['SCRIPT_URL'].split('/')[-1]
-        _logger.debug("PID=%s %s in" % (os.getpid(),methodName))     
+        if panda_config.entryVerbose:
+            _logger.debug("PID=%s %s in" % (os.getpid(),methodName))     
         # get method object
         tmpMethod = None
         try:
@@ -99,7 +100,8 @@ if hasattr(panda_config,'usefastcgi') and panda_config.usefastcgi:
                 else:
                     # string
                     params[tmpKey] = tmpPars.getfirst(tmpKey)
-            _logger.debug("PID=%s %s with %s" % (os.getpid(),methodName,str(params.keys())))
+            if panda_config.entryVerbose:
+                _logger.debug("PID=%s %s with %s" % (os.getpid(),methodName,str(params.keys())))
             import time
             # dummy request object
             dummyReq = DummyReq(environ)
@@ -115,7 +117,8 @@ if hasattr(panda_config,'usefastcgi') and panda_config.usefastcgi:
             for tmpKey in tmpKeys:
                 exeRes += '%s : %s\n' % (tmpKey,environ[tmpKey])
             """    
-        _logger.debug("PID=%s %s out" % (os.getpid(),methodName))
+        if panda_config.entryVerbose:
+            _logger.debug("PID=%s %s out" % (os.getpid(),methodName))
         # return
         start_response('200 OK', [('Content-Type', 'text/plain')])
         return [exeRes]

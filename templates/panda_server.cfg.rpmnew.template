@@ -181,6 +181,9 @@ enableRedirection = False
 #
 
 # enable FastCGI
-usefastcgi = False
+useFastCGI = False
 # FIXME for FastCGI
-#usefastcgi = True
+#useFastCGI = True
+
+# verbose in entry point
+entryVerbose = False

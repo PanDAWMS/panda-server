@@ -127,8 +127,8 @@ SSLOptions              +ExportCertData +StdEnvVars
                                                                                
 </VirtualHost>
 
-LogLevel debug
-#warn
+LogLevel info
+
 LogFormat "%t %h \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
 LogFormat "%t %h \"%r\" %>s %b" common
 LogFormat "%{Referer}i -> %U" referer

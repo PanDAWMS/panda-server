@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * changed logLevel in httpd
+  * added flag to control verbosity of entry point
   * added FastCGI stuff
 
 * 0.0.7 (11/20/2009)
