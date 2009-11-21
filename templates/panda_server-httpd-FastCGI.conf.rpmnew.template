@@ -54,8 +54,18 @@ Alias /cache/ "@@install_dir@@/var/cache/pandaserver/"
     Deny from 192.203.218.14
 </Directory>
 
+# FastCGI stuff
 FastCgiIpcDir @@install_dir@@/var/log/panda/fastsocks
-FastCgiServer @@install_purelib@@/pandaserver/server/panda.py -processes 30 -idle-timeout 300 -listen-queue-depth 1 -flush -initial-env PYTHONPATH -initial-env TZ -initial-env X509_CERT_DIR -initial-env PANDA_HOME -initial-env HOME -initial-env X509_USER_PROXY -initial-env PANDA_URL -initial-env PANDA_URL_SSL -initial-env PANDA_URL_MAP
+FastCgiServer @@install_purelib@@/pandaserver/server/panda.py \
+-processes 30 -idle-timeout 300 -listen-queue-depth 1 -flush \
+-initial-env PYTHONPATH \
+-initial-env TZ \
+-initial-env HOME \
+-initial-env PANDA_HOME \
+-initial-env X509_CERT_DIR \
+-initial-env X509_USER_PROXY \
+-initial-env PANDA_URL \
+-initial-env PANDA_URL_SSL
 
 Listen 25080
 <VirtualHost *:25080>
