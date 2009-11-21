@@ -519,7 +519,7 @@ if res != None:
         try:
             if cloud in ['US']:
                 # skip US since file info is not available in dashboard
-                pass
+                continue
             # check file status for production
             if not prodSourceLabel in ['managed']:
                 pass
