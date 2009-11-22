@@ -548,6 +548,9 @@ class Setupper (threading.Thread):
                         else:
                             # create a fake vuidStr
                             vuidStr = 'vuid="%s"' % commands.getoutput('uuidgen')
+                        # already failed    
+                        if destError[dest] != '' and name == originalName:
+                            break
                         # get vuid
                         if vuidStr == '':
                             _logger.debug((self.timestamp,'queryDatasetByName',name))
