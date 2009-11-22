@@ -85,7 +85,7 @@ RewriteRule ^/server/panda/(.+)$ /server/panda.py [L]
    </Limit>
 
    # allow .py
-   <Files ~ "\.(py|pyc)$">
+   <Files ~ "\.py$">
        Order allow,deny
        Allow from all
    </Files>
@@ -127,7 +127,7 @@ SSLOptions              +ExportCertData +StdEnvVars
 <Directory "@@install_purelib@@/pandaserver/server">
 
    # allow .py
-   <Files ~ "\.(py|pyc)$">
+   <Files ~ "\.py$">
        Order allow,deny
        Allow from all
    </Files>
