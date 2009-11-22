@@ -467,8 +467,8 @@ class ConBridge (object):
                     if not errType in [socket.error,socket.timeout]:
                         # kill old child process
                         self.parent.bridge_killChild()
-                        _logger.error('master %s died' % self.pid)
-                        raise errType,errValue
+                        _logger.error('master %s killed child' % self.pid)
+                        #raise errType,errValue
                     # sleep
                     time.sleep(5)
                     # reconnect
