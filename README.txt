@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * check useFastCGI before importing flup
+  * introduced nDBConForFastCGIWSGI
   * fixed Setupper to re-register location at next attempt when previous was failed
   * changed logLevel in httpd
   * added flag to control verbosity of entry point

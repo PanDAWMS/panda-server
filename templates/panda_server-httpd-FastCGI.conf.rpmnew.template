@@ -11,7 +11,10 @@ LoadModule setenvif_module modules/mod_setenvif.so
 LoadModule dir_module modules/mod_dir.so
 LoadModule ssl_module modules/mod_ssl.so
 LoadModule gridsite_module modules/mod_gridsite.so
-LoadModule fastcgi_module modules/mod_fastcgi.so
+
+# FastCGI/WSGI
+#LoadModule fastcgi_module modules/mod_fastcgi.so
+LoadModule wsgi_module modules/mod_wsgi.so
 
 
 User  atlpan
@@ -20,8 +23,8 @@ Group zp
 <IfModule prefork.c>
 StartServers         10
 MinSpareServers      10
-MaxSpareServers      50
-MaxClients           50
+MaxSpareServers      100
+MaxClients           100
 MaxRequestsPerChild  0
 </IfModule>
 
@@ -54,18 +57,28 @@ Alias /cache/ "@@install_dir@@/var/cache/pandaserver/"
     Deny from 192.203.218.14
 </Directory>
 
-# FastCGI stuff
-FastCgiIpcDir @@install_dir@@/var/log/panda/fastsocks
-FastCgiServer @@install_purelib@@/pandaserver/server/panda.py \
--processes 30 -idle-timeout 300 -listen-queue-depth 1 -flush \
--initial-env PYTHONPATH \
--initial-env TZ \
--initial-env HOME \
--initial-env PANDA_HOME \
--initial-env X509_CERT_DIR \
--initial-env X509_USER_PROXY \
--initial-env PANDA_URL \
--initial-env PANDA_URL_SSL
+<IfModule mod_fastcgi.c>
+    FastCgiIpcDir @@install_dir@@/var/log/panda/fastsocks
+    FastCgiServer @@install_purelib@@/pandaserver/server/panda.py \
+	-processes 25 -idle-timeout 300 -listen-queue-depth 1 -flush \
+	-initial-env PYTHONPATH \
+	-initial-env TZ \
+	-initial-env HOME \
+	-initial-env PANDA_HOME \
+	-initial-env X509_CERT_DIR \
+	-initial-env X509_USER_PROXY \
+	-initial-env PANDA_URL \
+	-initial-env PANDA_URL_SSL
+    ScriptAliasMatch ^/server/panda/(.+)$ @@install_purelib@@/pandaserver/server/panda.py
+</IfModule>
+
+<IfModule mod_wsgi.c>
+   WSGIDaemonProcess pandasrv_daemon processes=25 threads=1 home=/tmp
+   WSGIProcessGroup pandasrv_daemon
+   WSGIApplicationGroup %{GLOBAL}
+   WSGIScriptAliasMatch ^/server/panda/(.+)$ @@install_purelib@@/pandaserver/server/panda.py
+</IfModule>
+
 
 Listen 25080
 <VirtualHost *:25080>
@@ -73,8 +86,6 @@ Listen 25080
 RewriteEngine on
 RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK)
 RewriteRule .* - [F]
-
-RewriteRule ^/server/panda/(.+)$ /server/panda.py [L]
 
 <Directory "@@install_purelib@@/pandaserver/server">
 
@@ -90,7 +101,7 @@ RewriteRule ^/server/panda/(.+)$ /server/panda.py [L]
        Allow from all
    </Files>
 
-   # enable CGI	for FastCGI
+   # enable CGI	for FastCGI/WSGI
    Options FollowSymLinks +ExecCGI
 
    # mod_gridsite
@@ -109,8 +120,6 @@ Listen 25443
 RewriteEngine on
 RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK)
 RewriteRule .* - [F]
-
-RewriteRule ^/server/panda/(.+)$ /server/panda.py [L]
 
 # CERN security recommendation to only allow the seven strongest ssl ciphers
 SSLProtocol  -all +TLSv1 +SSLv3
@@ -132,7 +141,7 @@ SSLOptions              +ExportCertData +StdEnvVars
        Allow from all
    </Files>
 
-   # enable CGI	for FastCGI
+   # enable CGI	for FastCGI/WSGI
    Options FollowSymLinks +ExecCGI
 
    # mod_gridsite

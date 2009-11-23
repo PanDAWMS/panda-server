@@ -41,8 +41,8 @@ from userinterface.UserIF        import submitJobs,getJobStatus,queryPandaIDs,ki
      getPandaClientVer,getSlimmedFileInfoPandaIDs,runReBrokerage
 
 
-# FastCGI entry
-if hasattr(panda_config,'useFastCGI') and panda_config.useFastCGI:
+# FastCGI/WSGI entry
+if panda_config.useFastCGI or panda_config.useWSGI:
 
     import os
     import cgi
@@ -70,7 +70,7 @@ if hasattr(panda_config,'useFastCGI') and panda_config.useFastCGI:
         
 
     # application
-    def fastCGIapp(environ, start_response):
+    def application(environ, start_response):
         # get method name
         methodName = ''
         if environ.has_key('SCRIPT_URL'):
@@ -102,7 +102,6 @@ if hasattr(panda_config,'useFastCGI') and panda_config.useFastCGI:
                     params[tmpKey] = tmpPars.getfirst(tmpKey)
             if panda_config.entryVerbose:
                 _logger.debug("PID=%s %s with %s" % (os.getpid(),methodName,str(params.keys())))
-            import time
             # dummy request object
             dummyReq = DummyReq(environ)
             # exec
@@ -110,13 +109,6 @@ if hasattr(panda_config,'useFastCGI') and panda_config.useFastCGI:
             # convert bool to string
             if exeRes in [True,False]:
                 exeRes = str(exeRes)
-            """
-            exeRes = ''
-            tmpKeys = environ.keys()
-            tmpKeys.sort()
-            for tmpKey in tmpKeys:
-                exeRes += '%s : %s\n' % (tmpKey,environ[tmpKey])
-            """    
         if panda_config.entryVerbose:
             _logger.debug("PID=%s %s out" % (os.getpid(),methodName))
         # return
@@ -124,5 +116,6 @@ if hasattr(panda_config,'useFastCGI') and panda_config.useFastCGI:
         return [exeRes]
 
     # start server
-    from flup.server.fcgi import WSGIServer
-    WSGIServer(fastCGIapp,multithreaded=False).run()
+    if panda_config.useFastCGI:
+        from flup.server.fcgi import WSGIServer
+        WSGIServer(application,multithreaded=False).run()

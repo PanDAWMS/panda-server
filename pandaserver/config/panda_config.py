@@ -27,3 +27,7 @@ for tmpKey,tmpVal in tmpDict.iteritems():
 
 # set hostname
 tmpSelf.__dict__['pserverhost'] = commands.getoutput('hostname -f')
+
+# change the number of database connections for FastCGI/WSGI
+if tmpSelf.__dict__['useFastCGI'] or tmpSelf.__dict__['useWSGI']:
+    tmpSelf.__dict__['nDBConnection'] = tmpSelf.__dict__['nDBConForFastCGIWSGI']

@@ -99,8 +99,9 @@ dbname = PandaDB
 
 # number of connections
 nDBConnection = 2
-# FIXME for FastCGI
-#nDBConnection = 1
+
+# number of connections for FastCGI/WSGI
+nDBConForFastCGIWSGI = 1
 
 # use timeout
 usedbtimeout = True
@@ -177,13 +178,14 @@ enableRedirection = False
 
 ##########################
 #
-# parameters for FastCGI
+# parameters for FastCGI/WSGI
 #
 
-# enable FastCGI
+# use FastCGI with flup
 useFastCGI = False
-# FIXME for FastCGI
-#useFastCGI = True
+
+# use WSGI without flup
+useWSGI = False
 
 # verbose in entry point
 entryVerbose = False

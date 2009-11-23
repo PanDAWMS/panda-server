@@ -2,7 +2,7 @@
 
 OPTIONS="-f @@install_dir@@/etc/panda/panda_server-httpd.conf"
 
-# for FastCGI
+# for FastCGI/WSGI
 #OPTIONS="-f @@install_dir@@/etc/panda/panda_server-httpd-FastCGI.conf"
 #HTTPD='/usr/sbin/httpd'
 
