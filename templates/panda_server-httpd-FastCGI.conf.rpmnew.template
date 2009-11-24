@@ -25,7 +25,7 @@ StartServers         10
 MinSpareServers      10
 MaxSpareServers      100
 MaxClients           100
-MaxRequestsPerChild  0
+MaxRequestsPerChild  3000
 </IfModule>
 
 ServerName pandaserver.cern.ch
