@@ -21,11 +21,11 @@ User  atlpan
 Group zp
 
 <IfModule prefork.c>
-StartServers         10
-MinSpareServers      10
+StartServers         25
+MinSpareServers      25
 MaxSpareServers      100
 MaxClients           100
-MaxRequestsPerChild  3000
+MaxRequestsPerChild  2000
 </IfModule>
 
 ServerName pandaserver.cern.ch
