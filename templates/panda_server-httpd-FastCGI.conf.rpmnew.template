@@ -30,8 +30,6 @@ MaxRequestsPerChild  0
 
 ServerName pandaserver.cern.ch
 
-KeepAlive Off
-
 DocumentRoot "@@install_purelib@@/pandaserver"
 
 <Files ~ "\.(py|pyc|conf)$">
