@@ -94,7 +94,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
             # convert to map
             params = {}
             for tmpKey in tmpPars.keys():
-                if tmpPars[tmpKey].file != None:
+                if tmpPars[tmpKey].file != None and tmpPars[tmpKey].filename != None:
                     # file
                     params[tmpKey] = tmpPars[tmpKey]
                 else:

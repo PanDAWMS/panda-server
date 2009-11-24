@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * check filename FieldStorage when a param is treated as file
   * not delete dis datasets when jobs are reassigned  
   * check useFastCGI before importing flup
   * introduced nDBConForFastCGIWSGI
