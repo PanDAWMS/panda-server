@@ -477,35 +477,6 @@ else:
 
 _memoryCheck("reassign")
 
-# erase dispatch datasets
-def eraseDispDatasets(ids):
-    _logger.debug("eraseDispDatasets")
-    datasets = []
-    # get jobs
-    status,jobs = Client.getJobStatus(ids)
-    if status != 0:
-        return
-    # gather dispDBlcoks
-    for job in jobs:
-        # dispatchDS is not a DQ2 dataset in US
-        if job.cloud == 'US':
-            continue
-        # erase disp datasets for production jobs only
-        if job.prodSourceLabel != 'managed':
-            continue
-        for file in job.Files:
-            if file.dispatchDBlock == 'NULL':
-                continue
-            if (not file.dispatchDBlock in datasets) and \
-               re.search('_dis\d+$',file.dispatchDBlock) != None:
-                datasets.append(file.dispatchDBlock)
-    # erase
-    for dataset in datasets:
-        _logger.debug('erase %s' % dataset)
-        status,out = ddm.DQ2.main('eraseDataset',dataset)
-        _logger.debug(out)
-
-
 # kill long-waiting jobs in defined table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=7)
 status,res = taskBuffer.querySQLS("SELECT PandaID,cloud,prodSourceLabel FROM ATLAS_PANDA.jobsDefined4 WHERE creationTime<:creationTime",
@@ -585,7 +556,6 @@ if res != None:
             errType,errValue = sys.exc_info()[:2]
             _logger.error("dashboard access failed with %s %s" % (errType,errValue))
 if len(jobs):
-    eraseDispDatasets(jobs)
     _logger.debug("killJobs for Defined (%s)" % str(jobs))
     Client.killJobs(jobs,2)
 
@@ -601,7 +571,6 @@ if res != None:
     for (id,) in res:
         jobs.append(id)
 if len(jobs):
-    eraseDispDatasets(jobs)
     _logger.debug("killJobs for Active (%s)" % str(jobs))
     Client.killJobs(jobs,2)
 
@@ -845,7 +814,6 @@ for cloud,siteVal in jobStat.iteritems():
                     iJob = 0
                     while iJob < len(jobs):
                         #_logger.debug('reassignJobs for Unbalanced (%s)' % jobs[iJob:iJob+nJob])
-                        #eraseDispDatasets(jobs[iJob:iJob+nJob])
                         #Client.reassignJobs(jobs[iJob:iJob+nJob])
                         iJob += nJob
                         #time.sleep(60)
@@ -869,7 +837,6 @@ if len(jobs):
     iJob = 0
     while iJob < len(jobs):
         _logger.debug('reassignJobs in Defined (%s)' % jobs[iJob:iJob+nJob])
-        eraseDispDatasets(jobs[iJob:iJob+nJob])
         Client.reassignJobs(jobs[iJob:iJob+nJob])
         iJob += nJob
         time.sleep(60)
@@ -892,7 +859,6 @@ if len(jobs):
     iJob = 0
     while iJob < len(jobs):
         _logger.debug('reassignJobs for Active (%s)' % jobs[iJob:iJob+nJob])
-        eraseDispDatasets(jobs[iJob:iJob+nJob])        
         Client.reassignJobs(jobs[iJob:iJob+nJob])
         iJob += nJob
         time.sleep(60)
@@ -1485,7 +1451,6 @@ class ReassginRepro (threading.Thread):
                 nJob = 100
                 iJob = 0
                 while iJob < len(self.jobs):
-                    eraseDispDatasets(self.jobs[iJob:iJob+nJob])
                     # reassign jobs one by one to break dis dataset formation
                     for job in self.jobs[iJob:iJob+nJob]:
                         _logger.debug('reassignJobs in Pepro (%s)' % [job])

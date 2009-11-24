@@ -257,27 +257,7 @@ class Setupper (threading.Thread):
             # use DQ2
             if (not self.pandaDDM) and (not dispSiteMap[dispatchDBlock]['src'] in PandaDDMSource) \
                    and (job.prodSourceLabel != 'ddm') and (not dispSiteMap[dispatchDBlock]['site'].endswith("_REPRO")):
-                # delete dataset from DB and DDM just in case
-                if self.resubmit:
-                    # make sure if it is dis datasets
-                    if re.search('_dis\d+$',dispatchDBlock) != None:
-                        time.sleep(1)
-                        _logger.debug((self.timestamp,'eraseDataset',dispatchDBlock))
-                        for iDDMTry in range(3):                
-                            status,out = ddm.DQ2.main('eraseDataset',dispatchDBlock)
-                            if status != 0 and out.find('DQUnknownDatasetException') != -1:
-                                break
-                            elif status != 0 or out.find("DQ2 internal server exception") != -1 \
-                                     or out.find("An error occurred on the central catalogs") != -1 \
-                                     or out.find("MySQL server has gone away") != -1:
-                                time.sleep(60)
-                            else:
-                                break
-                        _logger.debug("%s %s" % (self.timestamp,out))
-                        ret = self.taskBuffer.deleteDatasets([dispatchDBlock])
-                        _logger.debug("%s %s" % (self.timestamp,ret))
                 # register dispatch dataset
-                time.sleep(1)
                 disFiles = fileList[dispatchDBlock]
                 _logger.debug((self.timestamp,'registerNewDataset',dispatchDBlock,disFiles['lfns'],disFiles['guids'],
                                disFiles['fsizes'],disFiles['chksums']))

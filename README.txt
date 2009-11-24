@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * not delete dis datasets when jobs are reassigned  
   * check useFastCGI before importing flup
   * introduced nDBConForFastCGIWSGI
   * fixed Setupper to re-register location at next attempt when previous was failed
