@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * set the number of treads to 2 in wsgi daemon
   * set MaxRequestsPerChild
   * enabled KeepAlive for proxy sites
   * check filename FieldStorage when a param is treated as file
