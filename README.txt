@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * cleanup old PandaSiteIDs for UK
   * set the number of treads to 2 in wsgi daemon
   * set MaxRequestsPerChild
   * enabled KeepAlive for proxy sites
