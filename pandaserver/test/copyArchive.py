@@ -634,9 +634,8 @@ if len(jobs):
     iJob = 0
     while iJob < len(jobs):
         _logger.debug('reassignJobs for hangup movers (%s)' % jobs[iJob:iJob+nJob])
-        Client.reassignJobs(jobs[iJob:iJob+nJob])
+        taskBuffer.reassignJobs(jobs[iJob:iJob+nJob],joinThr=True)
         iJob += nJob
-        time.sleep(60)
 
 # reassign defined jobs in defined table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=4)
@@ -660,9 +659,8 @@ while True:
     iJob = 0
     while iJob < len(jobs):
         _logger.debug('reassignJobs for Defined (%s)' % jobs[iJob:iJob+nJob])
-        Client.reassignJobs(jobs[iJob:iJob+nJob])
+        taskBuffer.reassignJobs(jobs[iJob:iJob+nJob],joinThr=True)
         iJob += nJob
-        time.sleep(60)
 
                         
 # reassign when ratio of running/notrunning is too unbalanced
@@ -837,9 +835,8 @@ if len(jobs):
     iJob = 0
     while iJob < len(jobs):
         _logger.debug('reassignJobs in Defined (%s)' % jobs[iJob:iJob+nJob])
-        Client.reassignJobs(jobs[iJob:iJob+nJob])
+        taskBuffer.reassignJobs(jobs[iJob:iJob+nJob],joinThr=True)
         iJob += nJob
-        time.sleep(60)
 
 
 # reassign too long-standing jobs in active table
@@ -859,9 +856,8 @@ if len(jobs):
     iJob = 0
     while iJob < len(jobs):
         _logger.debug('reassignJobs for Active (%s)' % jobs[iJob:iJob+nJob])
-        Client.reassignJobs(jobs[iJob:iJob+nJob])
+        taskBuffer.reassignJobs(jobs[iJob:iJob+nJob],joinThr=True)
         iJob += nJob
-        time.sleep(60)
 
 
 # kill too long-standing analysis jobs in active table
@@ -912,9 +908,8 @@ if len(jobs):
     iJob = 0
     while iJob < len(jobs):
         _logger.debug('reassignJobs for Waiting (%s)' % jobs[iJob:iJob+nJob])
-        Client.reassignJobs(jobs[iJob:iJob+nJob])
+        taskBuffer.reassignJobs(jobs[iJob:iJob+nJob],joinThr=True)
         iJob += nJob
-        time.sleep(60)
 
 # kill too long running jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=21)
@@ -1454,7 +1449,7 @@ class ReassginRepro (threading.Thread):
                     # reassign jobs one by one to break dis dataset formation
                     for job in self.jobs[iJob:iJob+nJob]:
                         _logger.debug('reassignJobs in Pepro (%s)' % [job])
-                        self.taskBuffer.reassignJobs([job],joinThr=True,forkSetupper=True)
+                        self.taskBuffer.reassignJobs([job],joinThr=True)
                     iJob += nJob
         except:
             pass

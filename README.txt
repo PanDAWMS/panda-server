@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * use taskBuffer for reassignment in copyArchived
   * cleanup old PandaSiteIDs for UK
   * set the number of treads to 2 in wsgi daemon
   * set MaxRequestsPerChild
