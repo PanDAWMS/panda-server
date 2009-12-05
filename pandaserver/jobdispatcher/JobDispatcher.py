@@ -17,6 +17,7 @@ from pandalogger.PandaLogger import PandaLogger
 
 # logger
 _logger = PandaLogger().getLogger('JobDispatcher')
+_pilotReqLogger = PandaLogger().getLogger('PilotRequests')
 
 
 # a wrapper to install timpout into a method
@@ -354,6 +355,7 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
                   % (siteName,cpu,mem,diskSpace,prodSourceLabel,node,
                      computingElement,AtlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,
                      realDN,prodManager,token,validToken,str(fqans)))
+    _pilotReqLogger.info('method=getJob,site=%s,node=%s,type=%s' % (siteName,node,prodSourceLabel))    
     # invalid role
     if realDN in [None] or ((not prodManager) and (not prodSourceLabel in ['user'])):
         _logger.warning("getJob(%s) : invalid role" % siteName)
@@ -403,6 +405,7 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
                    cpuConsumptionUnit,remainingSpace,schedulerID,pilotID,siteName,messageLevel,nEvents,nInputFiles,
                    cpuConversionFactor,exeErrorCode,exeErrorDiag,pilotTiming,computingElement,startTime,endTime,
                    realDN,prodManager,token,validToken,str(fqans),xml,pilotLog,metaData))
+    _pilotReqLogger.info('method=updateJob,site=%s,node=%s,type=None' % (siteName,node))
     # invalid role
     if not prodManager:
         _logger.warning("updateJob(%s) : invalid role" % jobId)
@@ -411,27 +414,6 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
     if not validToken:
         _logger.warning("updateJob(%s) : invalid token" % jobId)
         return Protocol.Response(Protocol.SC_Invalid).encode()        
-    # remaining space
-    if remainingSpace != None and state != 'running':
-        try:
-            # make message
-            message = '%s - %s GB' % (siteName,remainingSpace)
-            # get logger
-            _pandaLogger = PandaLogger()
-            _pandaLogger.lock()
-            _pandaLogger.setParams({'Type':'remainingSpace'})
-            logger = _pandaLogger.getHttpLogger(panda_config.loggername)
-            # add message
-            if messageLevel == 'warning':
-                logger.warning(message)
-            elif messageLevel == 'critical':
-                logger.critical(message)
-            else:
-                logger.info(message)                
-            # release HTTP handler
-            _pandaLogger.release()
-        except:
-            pass
     # aborting message
     if jobId=='NULL':
         return Protocol.Response(Protocol.SC_Success).encode()

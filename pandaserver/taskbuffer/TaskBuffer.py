@@ -1117,6 +1117,18 @@ class TaskBuffer:
         return ret
 
 
+    # update site data
+    def updateSiteData(self,hostID,pilotRequests):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get serial number
+        ret = proxy.updateSiteData(hostID,pilotRequests)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
     # get current site data
     def getCurrentSiteData(self):
         # get DBproxy

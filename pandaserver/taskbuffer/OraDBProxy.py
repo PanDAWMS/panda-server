@@ -4456,6 +4456,106 @@ class DBProxy:
     ###########################################################################
     #        
     # LogDBProxy stuff   
+
+    # update site data
+    def updateSiteData(self,hostID,pilotRequests):
+        comment = ' /* DBProxy.updateSiteData */'                            
+        _logger.debug("updateSiteData")
+        sqlDel =  "DELETE FROM ATLAS_PANDAMETA.SiteData WHERE HOURS=:HOURS AND LASTMOD<:LASTMOD"
+        sqlCh  =  "SELECT count(*) FROM ATLAS_PANDAMETA.SiteData WHERE FLAG=:FLAG AND HOURS=:HOURS AND SITE=:SITE"
+        sqlIn  =  "INSERT INTO ATLAS_PANDAMETA.SiteData (SITE,FLAG,HOURS,GETJOB,UPDATEJOB,LASTMOD,"
+        sqlIn  += "NSTART,FINISHED,FAILED,DEFINED,ASSIGNED,WAITING,ACTIVATED,HOLDING,RUNNING,TRANSFERRING) "
+        sqlIn  += "VALUES (:SITE,:FLAG,:HOURS,:GETJOB,:UPDATEJOB,CURRENT_DATE,"
+        sqlIn  += "0,0,0,0,0,0,0,0,0,0)"
+        sqlUp  =  "UPDATE ATLAS_PANDAMETA.SiteData SET GETJOB=:GETJOB,UPDATEJOB=:UPDATEJOB,LASTMOD=CURRENT_DATE "
+        sqlUp  += "WHERE FLAG=:FLAG AND HOURS=:HOURS AND SITE=:SITE"
+        sqlAll  = "SELECT getJob,updateJob,FLAG FROM ATLAS_PANDAMETA.SiteData WHERE HOURS=:HOURS AND SITE=:SITE"
+        try:
+            # delete old records
+            """
+            varMap = {}
+            varMap[':HOURS'] = 3
+            varMap[':LASTMOD'] = datetime.datetime.utcnow()-datetime.timedelta(hours=varMap[':HOURS'])
+            self.conn.begin()
+            self.cur.execute(sqlDel+comment,varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            """    
+            # loop over all sites
+            for tmpSite,tmpVal in pilotRequests.iteritems(): 
+                # start transaction
+                self.conn.begin()
+                # check individual host info first
+                varMap = {}
+                varMap[':FLAG']  = hostID
+                varMap[':SITE']  = tmpSite
+                varMap[':HOURS'] = 3                
+                self.cur.arraysize = 10
+                self.cur.execute(sqlCh+comment,varMap)
+                res = self.cur.fetchone()
+                # row exists or not
+                if res[0] == 0:
+                    sql = sqlIn
+                else:
+                    sql = sqlUp
+                if tmpVal.has_key('getJob'):    
+                    varMap[':GETJOB'] = len(tmpVal['getJob'])
+                else:
+                    varMap[':GETJOB'] = 0
+                if tmpVal.has_key('updateJob'):    
+                    varMap[':UPDATEJOB'] = len(tmpVal['updateJob'])
+                else:
+                    varMap[':UPDATEJOB'] = 0
+                # update    
+                self.cur.execute(sql+comment,varMap)
+                # get all info
+                sumExist = False
+                varMap = {}
+                varMap[':SITE']  = tmpSite
+                varMap[':HOURS'] = 3
+                self.cur.arraysize = 100
+                self.cur.execute(sqlAll+comment,varMap)
+                res = self.cur.fetchall()
+                # get total getJob/updateJob
+                varMap[':GETJOB'] = 0
+                varMap[':UPDATEJOB'] = 0
+                for tmpGetJob,tmpUpdateJob,tmpFlag in res:
+                    # don't use summed info 
+                    if tmpFlag == 'production':
+                        sumExist = True
+                        continue
+                    if tmpFlag == 'analysis':
+                        if tmpSite.startswith('ANALY_'):
+                            sumExist = True
+                        continue
+                    # sum
+                    varMap[':GETJOB'] += tmpGetJob
+                    varMap[':UPDATEJOB'] += tmpUpdateJob
+                if tmpSite.startswith('ANALY_'):    
+                    varMap[':FLAG']  = 'analysis'
+                else:
+                    varMap[':FLAG']  = 'production'
+                # row exists or not
+                if sumExist:
+                    sql = sqlIn
+                else:
+                    sql = sqlUp
+                # update
+                self.cur.execute(sql+comment,varMap)
+                _logger.debug('updateSiteData : %s getJob=%s updateJob=%s' % \
+                              (tmpSite,varMap[':GETJOB'],varMap[':UPDATEJOB']))
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+            return True
+        except:
+            # roll back
+            self._rollback()
+            type, value, traceBack = sys.exc_info()
+            _logger.error("updateSiteData : %s %s" % (type,value))
+            return False
+        
         
     # get site data
     def getCurrentSiteData(self):

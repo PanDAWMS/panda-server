@@ -5,7 +5,6 @@ import time
 import random
 import datetime
 import commands
-from taskbuffer.OraDBProxy import DBProxy
 from taskbuffer.TaskBuffer import taskBuffer
 from pandalogger.PandaLogger import PandaLogger
 from dataservice.Adder import Adder
@@ -49,13 +48,15 @@ except:
     type, value, traceBack = sys.exc_info()
     _logger.error("kill process : %s %s" % (type,value))
     
-# instantiate DB proxies
-proxyS = DBProxy()
-proxyS.connect(panda_config.dbhost,panda_config.dbpasswd,panda_config.dbuser,panda_config.dbname)
+# instantiate TB
+taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
+
+# instantiate sitemapper
+aSiteMapper = SiteMapper(taskBuffer)
 
 # delete
 _logger.debug("Del session")
-status,retSel = proxyS.querySQLS("SELECT MAX(PandaID) FROM ATLAS_PANDA.jobsDefined4",{})
+status,retSel = taskBuffer.querySQLS("SELECT MAX(PandaID) FROM ATLAS_PANDA.jobsDefined4",{})
 if retSel != None:
     try:
         maxID = retSel[0][0]
@@ -66,22 +67,91 @@ if retSel != None:
             varMap[':jobStatus1'] = 'activated'
             varMap[':jobStatus2'] = 'waiting'
             varMap[':jobStatus3'] = 'failed'
-            status,retDel = proxyS.querySQLS("DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID<:maxID AND (jobStatus=:jobStatus1 OR jobStatus=:jobStatus2 OR jobStatus=:jobStatus3)",varMap)
+            status,retDel = taskBuffer.querySQLS("DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID<:maxID AND (jobStatus=:jobStatus1 OR jobStatus=:jobStatus2 OR jobStatus=:jobStatus3)",varMap)
     except:
         pass
-    
-# instantiate TB
-taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
 
-# instantiate sitemapper
-aSiteMapper = SiteMapper(taskBuffer)
+# count # of getJob/updateJob in dispatcher's log
+try:
+    # log filename
+    dispLogName = '%s/panda-PilotRequests.log' % panda_config.logdir
+    # time limit
+    timeLimit  = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
+    # check if tgz is required
+    com = 'head -1 %s' % dispLogName
+    lostat,loout = commands.getstatusoutput(com)
+    useLogTgz = True
+    if lostat == 0:
+        match = re.search('^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}',loout)
+        if match != None:
+            startTime = datetime.datetime(*time.strptime(match.group(0),'%Y-%m-%d %H:%M:%S')[:6])
+            # current log contains all info
+            if startTime<timeLimit:
+                useLogTgz = False
+    # log files
+    dispLogNameList = [dispLogName]
+    if useLogTgz:
+        dispLogNameList.append('%s.1.gz' % dispLogName)
+    # loop over all files
+    pilotCounts = {}
+    for tmpDispLogName in dispLogNameList:
+        # tmp name
+        tmpLogName = '%s.tmp' % dispLogName
+        # expand or copy
+        if tmpDispLogName.endswith('.gz'):
+            com = 'gunzip -c %s | tac > %s' % (tmpDispLogName,tmpLogName)
+        else:
+            com = 'tac %s > %s' % (tmpDispLogName,tmpLogName)            
+        lostat,loout = commands.getstatusoutput(com)
+        if lostat != 0:
+            errMsg = 'failed to expand/copy %s with : %s' % (tmpDispLogName,loout)
+            raise RuntimeError,errMsg
+        # search string
+        sStr  = '^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).* '
+        sStr += 'INFO .* method=(.+),site=(.+),node=(.+),type=(.+)'        
+        # read
+        logFH = open(tmpLogName)
+        for line in logFH:
+            # check format
+            match = re.search(sStr,line)
+            if match != None: 
+                # chec timerange
+                timeStamp = datetime.datetime(*time.strptime(match.group(1),'%Y-%m-%d %H:%M:%S')[:6])
+                if timeStamp<timeLimit:
+                    break
+                tmpMethod = match.group(2)
+                tmpSite   = match.group(3)
+                tmpNode   = match.group(4)
+                tmpType   = match.group(5)
+                # sum
+                if not pilotCounts.has_key(tmpSite):
+                    pilotCounts[tmpSite] = {}
+                if not pilotCounts[tmpSite].has_key(tmpMethod):
+                    pilotCounts[tmpSite][tmpMethod] = {}
+                if not pilotCounts[tmpSite][tmpMethod].has_key(tmpNode):
+                    pilotCounts[tmpSite][tmpMethod][tmpNode] = 0
+                pilotCounts[tmpSite][tmpMethod][tmpNode] += 1
+        # close            
+        logFH.close()
+    # delete tmp
+    commands.getoutput('rm %s' % tmpDispLogName)
+    # update
+    hostID = panda_config.pserverhost.split('.')[0]
+    _logger.debug("pilotCounts session")    
+    _logger.debug(pilotCounts)
+    #retPC = taskBuffer.updateSiteData(hostID,pilotCounts)
+    #_logger.debug(retPC)
+except:
+    errType,errValue = sys.exc_info()[:2]
+    _logger.error("updateJob/getJob : %s %s" % (errType,errValue))
+    
 
 # get buildJobs in the holding state
 holdingAna = []
 varMap = {}
 varMap[':prodSourceLabel'] = 'panda'
 varMap[':jobStatus'] = 'holding'
-status,res = proxyS.querySQLS("SELECT PandaID from ATLAS_PANDA.jobsActive4 WHERE prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus",varMap)
+status,res = taskBuffer.querySQLS("SELECT PandaID from ATLAS_PANDA.jobsActive4 WHERE prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus",varMap)
 if res != None:
     for id, in res:
         holdingAna.append(id)

@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * count number of updateJob/getJob in add.py
+  * use taskBuffer in add.py for all DB access
   * use fasttrack for all tasktypes and prio>=700
   * use taskBuffer for reassignment in copyArchived
   * cleanup old PandaSiteIDs for UK
