@@ -232,7 +232,7 @@ for file in fileList:
 fileList = tmpList            
 
 # create thread pool and semaphore
-adderLock = threading.Semaphore(5)
+adderLock = threading.Semaphore(3)
 adderThreadPool = ThreadPool()
 
 # add
