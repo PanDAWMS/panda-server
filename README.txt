@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * multi-threads in adder.py
   * count number of updateJob/getJob in add.py
   * use taskBuffer in add.py for all DB access
   * use fasttrack for all tasktypes and prio>=700

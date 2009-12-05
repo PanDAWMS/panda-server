@@ -5,6 +5,7 @@ import time
 import random
 import datetime
 import commands
+import threading
 from taskbuffer.TaskBuffer import taskBuffer
 from pandalogger.PandaLogger import PandaLogger
 from dataservice.Adder import Adder
@@ -19,10 +20,13 @@ _logger = PandaLogger().getLogger('add')
 
 _logger.debug("===================== start =====================")
 
+# overall timeout value
+overallTimeout = 60
+
 # kill old process
 try:
     # time limit
-    timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=2)
+    timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=overallTimeout)
     # get process list
     scriptName = sys.argv[0]
     out = commands.getoutput('env TZ=UTC ps axo user,pid,lstart,args | grep %s' % scriptName)
@@ -145,6 +149,47 @@ except:
     errType,errValue = sys.exc_info()[:2]
     _logger.error("updateJob/getJob : %s %s" % (errType,errValue))
     
+# thread pool
+class ThreadPool:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.list = []
+
+    def add(self,obj):
+        self.lock.acquire()
+        self.list.append(obj)
+        self.lock.release()
+
+    def remove(self,obj):
+        self.lock.acquire()
+        self.list.remove(obj)
+        self.lock.release()
+
+    def join(self):
+        self.lock.acquire()
+        thrlist = tuple(self.list)
+        self.lock.release()
+        for thr in thrlist:
+            thr.join()
+
+# thread to adder
+class AdderThr (threading.Thread):
+    def __init__(self,lock,pool,taskBuffer,aSiteMapper,pandaID,jobStatus,fileName,ignoreError=True):
+        threading.Thread.__init__(self)
+        self.lock       = lock
+        self.pool       = pool
+        self.pool.add(self)
+        self.adder = Adder(taskBuffer,pandaID,"",jobStatus,xmlFile=fileName,
+                           ignoreDDMError=ignoreError,joinCloser=True,addOutput=True,
+                           siteMapper=aSiteMapper)
+                                        
+    def run(self):
+        self.lock.acquire()
+        self.adder.start()
+        self.adder.join()
+        self.pool.remove(self)
+        self.lock.release()
+
 
 # get buildJobs in the holding state
 holdingAna = []
@@ -186,12 +231,18 @@ for file in fileList:
                 tmpList.append(file)
 fileList = tmpList            
 
+# create thread pool and semaphore
+adderLock = threading.Semaphore(3)
+adderThreadPool = ThreadPool()
+
 # add
 while len(fileList) != 0:
     # time limit to aviod too many copyArchve running at the sametime
-    if (datetime.datetime.utcnow() - timeNow) > datetime.timedelta(minutes=60):
+    if (datetime.datetime.utcnow() - timeNow) > datetime.timedelta(minutes=overallTimeout):
         _logger.debug("time over in Adder session")
         break
+    # try to get Semaphore
+    adderLock.acquire()
     # get fileList
     if (datetime.datetime.utcnow() - timeInt) > datetime.timedelta(minutes=15):
         timeInt = datetime.datetime.utcnow()
@@ -221,6 +272,9 @@ while len(fileList) != 0:
         fileList = tmpList
     # choose a file
     file = fileList.pop(0)
+    # release lock
+    adderLock.release()
+    # check format
     match = re.search('^(\d+)_([^_]+)_.{36}$',file)
     if match != None:
         fileName = '%s/%s' % (dirName,file)
@@ -231,18 +285,20 @@ while len(fileList) != 0:
             if (timeNow - modTime) > datetime.timedelta(hours=24):
                 # last chance
                 _logger.debug("Last Add File : %s" % fileName)
-                thr = Adder(taskBuffer,match.group(1),"",match.group(2),xmlFile=fileName,ignoreDDMError=False,
-                            joinCloser=True,addOutput=True,siteMapper=aSiteMapper)
+                thr = AdderThr(adderLock,adderThreadPool,taskBuffer,aSiteMapper,match.group(1),
+                               match.group(2),fileName,False)
                 thr.start()
-                thr.join()
             elif (timeInt - modTime) > datetime.timedelta(minutes=3):
                 # add
                 _logger.debug("Add File : %s" % fileName)            
-                thr = Adder(taskBuffer,match.group(1),"",match.group(2),xmlFile=fileName,joinCloser=True,
-                            addOutput=True,siteMapper=aSiteMapper)            
+                thr = AdderThr(adderLock,adderThreadPool,taskBuffer,aSiteMapper,match.group(1),
+                               match.group(2),fileName)
                 thr.start()
-                thr.join()
         except:
             type, value, traceBack = sys.exc_info()
             _logger.error("%s %s" % (type,value))
+
+# join all threads
+adderThreadPool.join()
+
 _logger.debug("===================== end =====================")
