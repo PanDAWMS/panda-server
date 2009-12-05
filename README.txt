@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * use fasttrack for all tasktypes and prio>=700
   * use taskBuffer for reassignment in copyArchived
   * cleanup old PandaSiteIDs for UK
   * set the number of treads to 2 in wsgi daemon

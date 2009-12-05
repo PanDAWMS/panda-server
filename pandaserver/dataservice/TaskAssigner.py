@@ -157,7 +157,7 @@ class TaskAssigner:
                     self.sendMesg(message)
                     continue
                 # check fast track
-                if taskType in ['evgen'] and prioMap[self.taskID] > 700 and tmpCloud['fasttrack'] != 'true':
+                if prioMap[self.taskID] >= 700 and tmpCloud['fasttrack'] != 'true':
                     message = "%s    %s skip : fasttrack='%s'" % (self.taskID,tmpCloudName,tmpCloud['fasttrack'])
                     _logger.debug(message)
                     self.sendMesg(message)
