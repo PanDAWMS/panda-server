@@ -119,7 +119,7 @@ try:
             # check format
             match = re.search(sStr,line)
             if match != None: 
-                # chec timerange
+                # check timerange
                 timeStamp = datetime.datetime(*time.strptime(match.group(1),'%Y-%m-%d %H:%M:%S')[:6])
                 if timeStamp<timeLimit:
                     break
@@ -232,7 +232,7 @@ for file in fileList:
 fileList = tmpList            
 
 # create thread pool and semaphore
-adderLock = threading.Semaphore(3)
+adderLock = threading.Semaphore(5)
 adderThreadPool = ThreadPool()
 
 # add
