@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed checkSitesWithCache	
   * multi-threads in adder.py
   * count number of updateJob/getJob in add.py
   * use taskBuffer in add.py for all DB access

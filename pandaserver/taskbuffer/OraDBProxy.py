@@ -4828,18 +4828,19 @@ class DBProxy:
             else:
                 # don't check
                 return sites
+            sql += "AND siteid IN ("
             # start transaction
             self.conn.begin()
             self.cur.arraysize = 1000
             # loop over all releases/caches
             for loopVal in loopValues:
-                sqlSite = sql + "AND siteid IN ("
                 # remove Atlas-
                 loopVal = re.sub('^Atlas-','',loopVal)
+                sqlSite = sql
                 varMap = {}
                 varMap[loopKey] = loopVal
                 tmpRetSites = []
-                # look over sites
+                # loop over sites
                 nSites = 10
                 iSite = 0
                 for siteIndex,site in enumerate(sites):
@@ -4861,6 +4862,10 @@ class DBProxy:
                             for tmpSite, in resList:
                                 # append
                                 tmpRetSites.append(tmpSite)
+                        # reset
+                        sqlSite = sql
+                        varMap = {}
+                        varMap[loopKey] = loopVal
                 # set
                 sites = tmpRetSites
                 # escape
