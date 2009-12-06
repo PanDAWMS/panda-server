@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * ignore test when summing SiteData
   * don't update SiteData when logrotate is running
   * randomized the order of sites in updateSiteData to avoid concatenation
   * fixed checkSitesWithCache	

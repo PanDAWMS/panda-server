@@ -4533,6 +4533,8 @@ class DBProxy:
                         if tmpSite.startswith('ANALY_'):
                             sumExist = True
                         continue
+                    if tmpFlag in ['test']:
+                        continue
                     # sum
                     varMap[':GETJOB'] += tmpGetJob
                     varMap[':UPDATEJOB'] += tmpUpdateJob
