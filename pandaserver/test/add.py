@@ -77,74 +77,81 @@ if retSel != None:
 
 # count # of getJob/updateJob in dispatcher's log
 try:
-    # log filename
-    dispLogName = '%s/panda-PilotRequests.log' % panda_config.logdir
-    # time limit
-    timeLimit  = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
-    # check if tgz is required
-    com = 'head -1 %s' % dispLogName
-    lostat,loout = commands.getstatusoutput(com)
-    useLogTgz = True
-    if lostat == 0:
-        match = re.search('^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}',loout)
-        if match != None:
-            startTime = datetime.datetime(*time.strptime(match.group(0),'%Y-%m-%d %H:%M:%S')[:6])
-            # current log contains all info
-            if startTime<timeLimit:
-                useLogTgz = False
-    # log files
-    dispLogNameList = [dispLogName]
-    if useLogTgz:
-        dispLogNameList.append('%s.1.gz' % dispLogName)
-    # loop over all files
-    pilotCounts = {}
-    for tmpDispLogName in dispLogNameList:
+    # don't update when logrotate is running
+    timeNow = datetime.datetime.utcnow()
+    logRotateTime = timeNow.replace(hour=3,minute=2,second=0,microsecond=0)
+    if (timeNow > logRotateTime and (timeNow-logRotateTime) < datetime.timedelta(minutes=5)) or \
+           (logRotateTime > timeNow and (logRotateTime-timeNow) < datetime.timedelta(minutes=5)):
+        _logger.debug("skip pilotCounts session for logrotate")
+    else:
+        # log filename
+        dispLogName = '%s/panda-PilotRequests.log' % panda_config.logdir
+        # time limit
+        timeLimit  = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
+        # check if tgz is required
+        com = 'head -1 %s' % dispLogName
+        lostat,loout = commands.getstatusoutput(com)
+        useLogTgz = True
+        if lostat == 0:
+            match = re.search('^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}',loout)
+            if match != None:
+                startTime = datetime.datetime(*time.strptime(match.group(0),'%Y-%m-%d %H:%M:%S')[:6])
+                # current log contains all info
+                if startTime<timeLimit:
+                    useLogTgz = False
+        # log files
+        dispLogNameList = [dispLogName]
+        if useLogTgz:
+            dispLogNameList.append('%s.1.gz' % dispLogName)
         # tmp name
         tmpLogName = '%s.tmp' % dispLogName
-        # expand or copy
-        if tmpDispLogName.endswith('.gz'):
-            com = 'gunzip -c %s | tac > %s' % (tmpDispLogName,tmpLogName)
-        else:
-            com = 'tac %s > %s' % (tmpDispLogName,tmpLogName)            
-        lostat,loout = commands.getstatusoutput(com)
-        if lostat != 0:
-            errMsg = 'failed to expand/copy %s with : %s' % (tmpDispLogName,loout)
-            raise RuntimeError,errMsg
-        # search string
-        sStr  = '^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).* '
-        sStr += 'INFO .* method=(.+),site=(.+),node=(.+),type=(.+)'        
-        # read
-        logFH = open(tmpLogName)
-        for line in logFH:
-            # check format
-            match = re.search(sStr,line)
-            if match != None: 
-                # check timerange
-                timeStamp = datetime.datetime(*time.strptime(match.group(1),'%Y-%m-%d %H:%M:%S')[:6])
-                if timeStamp<timeLimit:
-                    break
-                tmpMethod = match.group(2)
-                tmpSite   = match.group(3)
-                tmpNode   = match.group(4)
-                tmpType   = match.group(5)
-                # sum
-                if not pilotCounts.has_key(tmpSite):
-                    pilotCounts[tmpSite] = {}
-                if not pilotCounts[tmpSite].has_key(tmpMethod):
-                    pilotCounts[tmpSite][tmpMethod] = {}
-                if not pilotCounts[tmpSite][tmpMethod].has_key(tmpNode):
-                    pilotCounts[tmpSite][tmpMethod][tmpNode] = 0
-                pilotCounts[tmpSite][tmpMethod][tmpNode] += 1
-        # close            
-        logFH.close()
-    # delete tmp
-    commands.getoutput('rm %s' % tmpDispLogName)
-    # update
-    hostID = panda_config.pserverhost.split('.')[0]
-    _logger.debug("pilotCounts session")    
-    _logger.debug(pilotCounts)
-    #retPC = taskBuffer.updateSiteData(hostID,pilotCounts)
-    #_logger.debug(retPC)
+        # loop over all files
+        pilotCounts = {}
+        for tmpDispLogName in dispLogNameList:
+            # expand or copy
+            if tmpDispLogName.endswith('.gz'):
+                com = 'gunzip -c %s | tac > %s' % (tmpDispLogName,tmpLogName)
+            else:
+                com = 'tac %s > %s' % (tmpDispLogName,tmpLogName)            
+            lostat,loout = commands.getstatusoutput(com)
+            if lostat != 0:
+                errMsg = 'failed to expand/copy %s with : %s' % (tmpDispLogName,loout)
+                raise RuntimeError,errMsg
+            # search string
+            sStr  = '^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).* '
+            sStr += 'INFO .* method=(.+),site=(.+),node=(.+),type=(.+)'        
+            # read
+            logFH = open(tmpLogName)
+            for line in logFH:
+                # check format
+                match = re.search(sStr,line)
+                if match != None: 
+                    # check timerange
+                    timeStamp = datetime.datetime(*time.strptime(match.group(1),'%Y-%m-%d %H:%M:%S')[:6])
+                    if timeStamp<timeLimit:
+                        break
+                    tmpMethod = match.group(2)
+                    tmpSite   = match.group(3)
+                    tmpNode   = match.group(4)
+                    tmpType   = match.group(5)
+                    # sum
+                    if not pilotCounts.has_key(tmpSite):
+                        pilotCounts[tmpSite] = {}
+                    if not pilotCounts[tmpSite].has_key(tmpMethod):
+                        pilotCounts[tmpSite][tmpMethod] = {}
+                    if not pilotCounts[tmpSite][tmpMethod].has_key(tmpNode):
+                        pilotCounts[tmpSite][tmpMethod][tmpNode] = 0
+                    pilotCounts[tmpSite][tmpMethod][tmpNode] += 1
+            # close            
+            logFH.close()
+        # delete tmp
+        commands.getoutput('rm %s' % tmpLogName)
+        # update
+        hostID = panda_config.pserverhost.split('.')[0]
+        _logger.debug("pilotCounts session")    
+        _logger.debug(pilotCounts)
+        retPC = taskBuffer.updateSiteData(hostID,pilotCounts)
+        _logger.debug(retPC)
 except:
     errType,errValue = sys.exc_info()[:2]
     _logger.error("updateJob/getJob : %s %s" % (errType,errValue))

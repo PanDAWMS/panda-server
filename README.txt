@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * don't update SiteData when logrotate is running
+  * randomized the order of sites in updateSiteData to avoid concatenation
   * fixed checkSitesWithCache	
   * multi-threads in adder.py
   * count number of updateJob/getJob in add.py

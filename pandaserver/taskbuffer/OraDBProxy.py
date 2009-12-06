@@ -4460,7 +4460,7 @@ class DBProxy:
     # update site data
     def updateSiteData(self,hostID,pilotRequests):
         comment = ' /* DBProxy.updateSiteData */'                            
-        _logger.debug("updateSiteData")
+        _logger.debug("updateSiteData start")
         sqlDel =  "DELETE FROM ATLAS_PANDAMETA.SiteData WHERE HOURS=:HOURS AND LASTMOD<:LASTMOD"
         sqlCh  =  "SELECT count(*) FROM ATLAS_PANDAMETA.SiteData WHERE FLAG=:FLAG AND HOURS=:HOURS AND SITE=:SITE"
         sqlIn  =  "INSERT INTO ATLAS_PANDAMETA.SiteData (SITE,FLAG,HOURS,GETJOB,UPDATEJOB,LASTMOD,"
@@ -4472,18 +4472,22 @@ class DBProxy:
         sqlAll  = "SELECT getJob,updateJob,FLAG FROM ATLAS_PANDAMETA.SiteData WHERE HOURS=:HOURS AND SITE=:SITE"
         try:
             # delete old records
-            """
             varMap = {}
             varMap[':HOURS'] = 3
             varMap[':LASTMOD'] = datetime.datetime.utcnow()-datetime.timedelta(hours=varMap[':HOURS'])
+            """
             self.conn.begin()
             self.cur.execute(sqlDel+comment,varMap)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
-            """    
+            """
+            # shuffle to avoid concatenation
+            tmpSiteList = pilotRequests.keys()
+            random.shuffle(tmpSiteList)
             # loop over all sites
-            for tmpSite,tmpVal in pilotRequests.iteritems(): 
+            for tmpSite in tmpSiteList:
+                tmpVal = pilotRequests[tmpSite]
                 # start transaction
                 self.conn.begin()
                 # check individual host info first
@@ -4542,12 +4546,13 @@ class DBProxy:
                 else:
                     sql = sqlUp
                 # update
-                self.cur.execute(sql+comment,varMap)
+                #self.cur.execute(sql+comment,varMap)
                 _logger.debug('updateSiteData : %s getJob=%s updateJob=%s' % \
                               (tmpSite,varMap[':GETJOB'],varMap[':UPDATEJOB']))
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
+            _logger.debug("updateSiteData done")
             return True
         except:
             # roll back
@@ -4559,7 +4564,7 @@ class DBProxy:
         
     # get site data
     def getCurrentSiteData(self):
-        comment = ' /* DBProxy.getCurrentSiteData */'                            
+        comment = ' /* DBProxy.getCurrentSiteData */'
         _logger.debug("getCurrentSiteData")
         sql = "SELECT SITE,getJob,updateJob,FLAG FROM ATLAS_PANDAMETA.SiteData WHERE FLAG IN (:FLAG1,:FLAG2) and HOURS=3"
         varMap = {}
