@@ -4539,7 +4539,7 @@ class DBProxy:
                     # sum
                     varMap[':GETJOB'] += tmpGetJob
                     varMap[':UPDATEJOB'] += tmpUpdateJob
-                    nCol += 0
+                    nCol += 1
                 # get average
                 if nCol != 0:
                     if varMap[':GETJOB'] >= nCol:
