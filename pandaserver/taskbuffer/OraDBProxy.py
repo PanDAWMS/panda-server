@@ -4475,13 +4475,11 @@ class DBProxy:
             varMap = {}
             varMap[':HOURS'] = 3
             varMap[':LASTMOD'] = datetime.datetime.utcnow()-datetime.timedelta(hours=varMap[':HOURS'])
-            """
             self.conn.begin()
             self.cur.execute(sqlDel+comment,varMap)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
-            """
             # shuffle to avoid concatenation
             tmpSiteList = pilotRequests.keys()
             random.shuffle(tmpSiteList)

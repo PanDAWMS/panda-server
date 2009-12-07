@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added cleanup in updateSiteData
   * added chdir to LFC 
   * added chdir for dq2 and fork
   * removed logging updateJob/getJob from dispatcher
