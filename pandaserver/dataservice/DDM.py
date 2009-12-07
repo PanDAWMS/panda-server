@@ -8,6 +8,9 @@ import commands
 from config import panda_config
 
 
+# change cwd
+_cwd = 'cd %s > /dev/null 2>&1; export HOME=%s; ' % (panda_config.home_dir_cwd,panda_config.home_dir_cwd)
+
 # environment variables
 _env = 'PATH=%s:%s:$PATH '    % (panda_config.native_python,panda_config.globus_dir+'/bin')
 _env+= 'LD_LIBRARY_PATH=%s '  % (panda_config.globus_dir+'/lib')

@@ -78,6 +78,9 @@ pandaPython_dir = @@install_purelib@@/pandaserver
 # location for LFCclient
 lfcClient_dir = %(pandaPython_dir)s/brokerage
 
+# home dir to change CWD
+home_dir_cwd = /home/atlpan
+
 
 
 ##########################
