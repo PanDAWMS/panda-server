@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * removed logging updateJob/getJob from dispatcher
   * use averaged updateJob/getJob 
   * ignore test when summing SiteData
   * don't update SiteData when logrotate is running

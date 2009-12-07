@@ -364,21 +364,6 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
     if not validToken:
         _logger.warning("getJob(%s) : invalid token" % siteName)    
         return Protocol.Response(Protocol.SC_Invalid).encode()        
-    # logging
-    try:
-        # make message
-        message = '%s - siteID:%s cpu:%s mem:%s label:%s' % (node,siteName,cpu,mem,prodSourceLabel)
-        # get logger
-        _pandaLogger = PandaLogger()
-        _pandaLogger.lock()
-        _pandaLogger.setParams({'Type':'getJob'})
-        logger = _pandaLogger.getHttpLogger(panda_config.loggername)
-        # add message
-        logger.info(message)
-        # release HTTP handler
-        _pandaLogger.release()
-    except:
-        pass
     # invoke JD
     return jobDispatcher.getJob(siteName,prodSourceLabel,cpu,mem,diskSpace,node,int(timeout),
                                 computingElement,AtlasRelease,prodUserID,getProxyKey,countryGroup,
@@ -437,25 +422,6 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
             _pandaLogger.release()
         except:
             pass
-    # logging
-    try:
-        # make message
-        message = '%s - siteID:%s state:%s' % (node,siteName,state)
-        if transExitCode != None:
-            message += ' exitcode:%s' % transExitCode
-        if cpuConversionFactor != None:
-            message += ' cpuConversionFactor:%s' % cpuConversionFactor
-        # get logger
-        _pandaLogger = PandaLogger()
-        _pandaLogger.lock()
-        _pandaLogger.setParams({'Type':'updateJob','PandaID':int(jobId)})
-        logger = _pandaLogger.getHttpLogger(panda_config.loggername)
-        # add message
-        logger.info(message)
-        # release HTTP handler
-        _pandaLogger.release()
-    except:
-        pass
     # create parameter map
     param = {}
     if cpuConsumptionTime != None:

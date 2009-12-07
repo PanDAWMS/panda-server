@@ -4552,11 +4552,11 @@ class DBProxy:
                     varMap[':FLAG']  = 'production'
                 # row exists or not
                 if sumExist:
-                    sql = sqlIn
-                else:
                     sql = sqlUp
+                else:
+                    sql = sqlIn
                 # update
-                #self.cur.execute(sql+comment,varMap)
+                self.cur.execute(sql+comment,varMap)
                 _logger.debug('updateSiteData : %s getJob=%s updateJob=%s' % \
                               (tmpSite,varMap[':GETJOB'],varMap[':UPDATEJOB']))
                 # commit
