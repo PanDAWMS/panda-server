@@ -4524,6 +4524,7 @@ class DBProxy:
                 # get total getJob/updateJob
                 varMap[':GETJOB'] = 0
                 varMap[':UPDATEJOB'] = 0
+                nCol = 0
                 for tmpGetJob,tmpUpdateJob,tmpFlag in res:
                     # don't use summed info 
                     if tmpFlag == 'production':
@@ -4538,6 +4539,13 @@ class DBProxy:
                     # sum
                     varMap[':GETJOB'] += tmpGetJob
                     varMap[':UPDATEJOB'] += tmpUpdateJob
+                    nCol += 0
+                # get average
+                if nCol != 0:
+                    if varMap[':GETJOB'] >= nCol:
+                        varMap[':GETJOB'] /= nCol
+                    if varMap[':UPDATEJOB'] >= nCol:    
+                        varMap[':UPDATEJOB'] /= nCol
                 if tmpSite.startswith('ANALY_'):    
                     varMap[':FLAG']  = 'analysis'
                 else:
