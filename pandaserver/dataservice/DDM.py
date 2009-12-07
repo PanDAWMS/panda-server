@@ -55,7 +55,7 @@ class _DQMethod:
                 com = '%s%s' % (com,str(arg))
         com += ")"
         # execute
-        return commands.getstatusoutput('env %s python -c "%s"' % (_env,com))
+        return commands.getstatusoutput('%s env %s python -c "%s"' % (_cwd,_env,com))
         
 
 # DQ module class
@@ -102,7 +102,7 @@ class _TOAMethod:
         com = com[:-1]        
         com += ")"
         # execute
-        return commands.getstatusoutput('env %s python -c "%s"' % (_env,com))
+        return commands.getstatusoutput('%s env %s python -c "%s"' % (_cwd,_env,com))
 
 
 # TOA module class
@@ -131,7 +131,7 @@ class _DashBoradMethod:
         com += "print dash.%s(%s,'%s'," % (self.methodName,args[0],args[1])
         com += "startDate=datetime.datetime.utcnow()-datetime.timedelta(hours=24))"
         # execute
-        return commands.getstatusoutput('python -c "%s"' % com)
+        return commands.getstatusoutput('%s python -c "%s"' % (_cwd,com))
 
 
 # TOA module class
