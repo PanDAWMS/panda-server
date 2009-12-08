@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * use fasttrack only for evgen/simul
   * added cleanup in updateSiteData
   * added chdir to LFC 
   * added chdir for dq2 and fork
