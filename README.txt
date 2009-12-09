@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * limit the max number of files in sub dataset
   * use fasttrack only for evgen/simul
   * added cleanup in updateSiteData
   * added chdir to LFC 

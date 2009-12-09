@@ -88,8 +88,17 @@ class Setupper (threading.Thread):
                     _logger.debug('%s setupSource' % self.timestamp)        
                     self._setupSource()
                     # create dataset for outputs and assign destination
-                    _logger.debug('%s setupDestination' % self.timestamp)        
-                    self._setupDestination()
+                    if self.jobs != [] and self.jobs[0].prodSourceLabel in ['managed','test'] and self.jobs[0].cloud in ['DE']:
+                        # split sub datasets
+                        nBunch = 50
+                        nLoop,tmpMod = divmod(len(self.jobs),nBunch)
+                        if tmpMod != 0:
+                            nLoop += 1
+                        for iLoop in range(nLoop):
+                            self._setupDestination(startIdx=iLoop*nBunch,nJobsInLoop=nBunch)
+                    else:
+                        # at a burst
+                        self._setupDestination()
                     # update jobs
                     _logger.debug('%s updateJobs' % self.timestamp)        
                     self._updateJobs()
@@ -338,11 +347,16 @@ class Setupper (threading.Thread):
                 
 
     # create dataset for outputs in the repository and assign destination
-    def _setupDestination(self):
+    def _setupDestination(self,startIdx=-1,nJobsInLoop=50):
+        _logger.debug('%s setupDestination idx:%s n:%s' % (self.timestamp,startIdx,nJobsInLoop))
         destError   = {}
         datasetList = {}
         newnameList = {}
-        for job in self.jobs:
+        if startIdx != -1:
+            jobsList = self.jobs
+        else:
+            jobsList = self.jobs[startIdx:startIdx+nJobsInLoop]
+        for job in jobsList:
             # ignore failed jobs
             if job.jobStatus == 'failed':
                 continue
