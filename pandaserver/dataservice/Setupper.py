@@ -352,7 +352,7 @@ class Setupper (threading.Thread):
         destError   = {}
         datasetList = {}
         newnameList = {}
-        if startIdx != -1:
+        if startIdx == -1:
             jobsList = self.jobs
         else:
             jobsList = self.jobs[startIdx:startIdx+nJobsInLoop]
