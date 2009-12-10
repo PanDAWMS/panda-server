@@ -74,7 +74,7 @@ class TaskBuffer:
                         continue
                     # loop over all FQANs
                     for tmpFQAN in fqans:
-                        if re.search('^%s/' % tmpGroup,tmpFQAN) != None:
+                        if re.search('^%s' % tmpGroup,tmpFQAN) != None:
                             userStatus = True
                             break
                     # escape

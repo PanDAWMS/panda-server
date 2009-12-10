@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * removed / from FQAN check in allowedgroups
   * limit the max number of files in sub dataset
   * use fasttrack only for evgen/simul
   * added cleanup in updateSiteData
