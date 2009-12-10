@@ -104,10 +104,10 @@ class TaskBuffer:
                 if userSiteAccess == {} or userSiteAccess['status'] != 'approved':
                     # user is not allowed
                     userStatus = False
-                else:
-                    # set priority offset
-                    if userSiteAccess['poffset'] > priorityOffset: 
-                        priorityOffset = userSiteAccess['poffset']
+            # set priority offset
+            if userStatus:        
+                if userSiteAccess.has_key('poffset') and userSiteAccess['poffset'] > priorityOffset: 
+                    priorityOffset = userSiteAccess['poffset']
             # extract country group
             for tmpFQAN in fqans:
                 match = re.search('^/atlas/([^/]+)/',tmpFQAN)

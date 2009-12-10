@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * use poffset regardless of accesscontrol
   * removed / from FQAN check in allowedgroups
   * limit the max number of files in sub dataset
   * use fasttrack only for evgen/simul
