@@ -1133,8 +1133,9 @@ class DBProxy:
             getValMap[':prodSourceLabel'] = 'software'
         elif prodSourceLabel == 'test' and computingElement != None:
             dynamicBrokering = True
-            sql1+= "AND (processingType=:processingType OR prodSourceLabel=:prodSourceLabel) "
-            getValMap[':processingType']    = 'prod_test'
+            sql1+= "AND (processingType IN (:processingType1,:processingType2) OR prodSourceLabel=:prodSourceLabel) "
+            getValMap[':processingType1']   = 'prod_test'
+            getValMap[':processingType2']   = 'analy_test'            
             getValMap[':prodSourceLabel']   = 'test'
         else:
             sql1+= "AND prodSourceLabel=:prodSourceLabel "
