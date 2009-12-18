@@ -257,11 +257,13 @@ def _checkRole(fqans,dn,jdCore,withVomsPatch=True):
                      '/atlas/Role=production',
                      '/atlas/Role=pilot',
                      '/osg/Role=pilot',
+                     '/Engage/LBNE/Role=pilot',
                      ]
         if withVomsPatch:
             # FIXEME once http://savannah.cern.ch/bugs/?47136 is solved
             prodAttrs += ['/atlas/']
             prodAttrs += ['/osg/']
+            prodAttrs += ['/Engage/LBNE/']            
         for fqan in fqans:
             # check atlas/usatlas production role
             for rolePat in prodAttrs:
