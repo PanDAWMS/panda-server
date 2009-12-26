@@ -3044,7 +3044,13 @@ class DBProxy:
         comment = ' /* DBProxy.queryDatasetWithMap */'               
         _logger.debug("queryDatasetWithMap(%s)" % map)
         if map.has_key('name'):
-            sql1 = "SELECT /*+ index(tab DATASETS_NAME_IDX) */ %s FROM ATLAS_PANDA.Datasets tab" % DatasetSpec.columnNames()
+            sql1  = """SELECT /*+ BEGIN_OUTLINE_DATA """
+            sql1 += """INDEX_RS_ASC(@"SEL$1" "TAB"@"SEL$1" ("DATASETS"."NAME")) """
+            sql1 += """OUTLINE_LEAF(@"SEL$1") ALL_ROWS """
+            sql1 += """OPTIMIZER_FEATURES_ENABLE('10.2.0.4') """
+            sql1 += """IGNORE_OPTIM_EMBEDDED_HINTS """
+            sql1 += """END_OUTLINE_DATA */ """
+            sql1 += "%s FROM ATLAS_PANDA.Datasets tab" % DatasetSpec.columnNames()
         else:
             sql1 = "SELECT %s FROM ATLAS_PANDA.Datasets" % DatasetSpec.columnNames()            
         varMap = {}

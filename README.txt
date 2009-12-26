@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * use long hint for queryDatasetWithMap 
   * added /Engage/LBNE/Role=pilot to acceptable roles
   * added analy_test to getJob for test pilots
   * use poffset regardless of accesscontrol
