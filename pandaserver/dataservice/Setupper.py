@@ -657,23 +657,23 @@ class Setupper (threading.Thread):
                                     # HOTDISK
                                     if not hotID in dq2IDList:
                                         dq2IDList.append(hotID)
-                                elif tmpRepMap.has_key(srcDQ2ID):
+                                if tmpRepMap.has_key(srcDQ2ID):
                                     # MCDISK
                                     if not srcDQ2ID in dq2IDList:
                                         dq2IDList.append(srcDQ2ID)
-                                elif tmpRepMap.has_key(diskID):
+                                if tmpRepMap.has_key(diskID):
                                     # DATADISK
                                     if not diskID in dq2IDList:
                                         dq2IDList.append(diskID)
-                                elif job.cloud == 'US' and tmpRepMap.has_key('BNLPANDA'):
+                                if job.cloud == 'US' and tmpRepMap.has_key('BNLPANDA'):
                                     # BNLPANDA
                                     if not 'BNLPANDA' in dq2IDList:
                                         dq2IDList.append('BNLPANDA')
-                                elif tmpRepMap.has_key(tapeID):
+                                if tmpRepMap.has_key(tapeID):
                                     # DATATAPE
                                     if not tapeID in dq2IDList:
                                         dq2IDList.append(tapeID)
-                                elif tmpRepMap.has_key(mctapeID):
+                                if tmpRepMap.has_key(mctapeID):
                                     # MCTAPE
                                     if not mctapeID in dq2IDList:
                                         dq2IDList.append(mctapeID)
