@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * use all source locations for dis
   * use long hint for queryDatasetWithMap 
   * added /Engage/LBNE/Role=pilot to acceptable roles
   * added analy_test to getJob for test pilots
