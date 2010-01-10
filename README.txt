@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed brokerage to skip release/cache matching for ND
   * use all source locations for dis
   * use long hint for queryDatasetWithMap 
   * added /Engage/LBNE/Role=pilot to acceptable roles

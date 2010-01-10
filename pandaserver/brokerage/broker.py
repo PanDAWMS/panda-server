@@ -334,7 +334,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 releases = tmpSiteSpec.validatedreleases
                             _log.debug('   %s' % str(releases))
                             _log.debug('   %s' % str(tmpSiteSpec.cmtconfig))
-                            if forAnalysis and (tmpSiteSpec.cloud in ['US'] or prevRelease==''):
+                            if forAnalysis and (tmpSiteSpec.cloud in ['US','ND'] or prevRelease==''):
                                 # doesn't check releases for US analysis
                                 _log.debug(' skip release check')
                                 pass
@@ -345,7 +345,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     if trustIS:
                                         resultsForAnal['rel'].append(site)
                                     continue    
-                            elif (prevRelease != None and ((releases != [] and previousCloud != 'US') or \
+                            elif (prevRelease != None and ((releases != [] and (not previousCloud in ['US','ND'])) or \
                                                            prevProType in ['reprocessing']) and \
                                   (not _checkRelease(prevRelease,releases))) or \
                                   (tmpCmtConfig != None and tmpSiteSpec.cmtconfig != [] and \
