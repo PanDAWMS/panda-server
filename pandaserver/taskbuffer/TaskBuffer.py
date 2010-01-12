@@ -1321,6 +1321,18 @@ class TaskBuffer:
         return ret
 
 
+    # delete files from memcached
+    def deleteFilesFromMemcached(self,site,node,files):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get
+        ret = proxy.deleteFilesFromMemcached(site,node,files)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
     # get list of scheduler users
     def getListSchedUsers(self):
         # get DBproxy

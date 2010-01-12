@@ -164,7 +164,15 @@ class UserIF:
         # serialize 
         return pickle.dumps(ret)
 
-    
+
+    # delete files from memcached
+    def deleteFilesFromMemcached(self,site,node,files):
+        # delete
+        ret = self.taskBuffer.deleteFilesFromMemcached(site,node,files)
+        # return
+        return ret
+
+        
     # get job statistics
     def getJobStatistics(self,sourcetype=None):
         # get job statistics
@@ -559,6 +567,12 @@ def getAssigningTask(req):
 # get assigned cloud for tasks
 def seeCloudTask(req,ids):
     return userIF.seeCloudTask(ids)
+
+
+# delete files from memcached
+def deleteFilesFromCacheDB(req,site,node,guids):
+    # exec
+    return userIF.deleteFilesFromMemcached(site,node,guids)
 
 
 # query PandaIDs

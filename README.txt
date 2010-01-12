@@ -1,6 +1,9 @@
 Release Note
 
 * current
+  * modified dispatcher to accept service proxy
+  * added WN-level file matching to getJob 
+  * added MemProxy
   * fixed brokerage to skip release/cache matching for ND
   * use all source locations for dis
   * use long hint for queryDatasetWithMap 

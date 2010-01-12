@@ -248,7 +248,7 @@ def _getFQAN(req):
 
 
 # check role
-def _checkRole(fqans,dn,jdCore,withVomsPatch=True):
+def _checkRole(fqans,dn,jdCore,withVomsPatch=True,site=''):
     prodManager = False
     try:
         # VOMS attributes of production and pilot roles
@@ -273,6 +273,13 @@ def _checkRole(fqans,dn,jdCore,withVomsPatch=True):
             # escape
             if prodManager:
                 break
+        # service proxy for CERNVM
+        if site in ['CERNVM']:
+            serviceSubjects = ['/DC=ch/DC=cern/OU=computers/CN=pilot/copilot.cern.ch']
+            for tmpSub in serviceSubjects:
+                if dn.startswith(tmpSub):
+                    prodManager = True
+                    break
         # check DN with pilotOwners
         if not prodManager:
             for owner in jdCore.pilotOwners:
@@ -327,9 +334,9 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
     # check production role
     if getProxyKey == 'True':
         # don't use /atlas to prevent normal proxy getting credname
-        prodManager = _checkRole(fqans,realDN,jobDispatcher,False)
+        prodManager = _checkRole(fqans,realDN,jobDispatcher,False,site=siteName)
     else:
-        prodManager = _checkRole(fqans,realDN,jobDispatcher)        
+        prodManager = _checkRole(fqans,realDN,jobDispatcher,site=siteName)        
     # check token
     validToken = _checkToken(token,jobDispatcher)
     # set DN for non-production user
@@ -384,7 +391,7 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
     # get FQANs
     fqans = _getFQAN(req)
     # check production role
-    prodManager = _checkRole(fqans,realDN,jobDispatcher)
+    prodManager = _checkRole(fqans,realDN,jobDispatcher,site=siteName)
     # check token
     validToken = _checkToken(token,jobDispatcher)
     _logger.debug("updateJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s\n==XML==\n%s\n==LOG==\n%s\n==Meta==\n%s)" %
