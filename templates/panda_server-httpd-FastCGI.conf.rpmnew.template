@@ -71,7 +71,7 @@ Alias /cache/ "@@install_dir@@/var/cache/pandaserver/"
 </IfModule>
 
 <IfModule mod_wsgi.c>
-   WSGIDaemonProcess pandasrv_daemon processes=25 threads=2 home=/tmp
+   WSGIDaemonProcess pandasrv_daemon processes=25 threads=2 home=/home/atlpan
    WSGIProcessGroup pandasrv_daemon
    WSGIApplicationGroup %{GLOBAL}
    WSGIScriptAliasMatch ^/server/panda/(.+)$ @@install_purelib@@/pandaserver/server/panda.py
