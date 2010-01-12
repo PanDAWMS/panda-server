@@ -192,3 +192,19 @@ useWSGI = False
 
 # verbose in entry point
 entryVerbose = False
+
+
+
+##########################
+#
+# parameters for memcached
+#
+
+# use memcached
+memcached_enable = True
+
+# memcached servers
+memcached_srvs = voatlas19.cern.ch:11211,voatlas20.cern.ch:11211,voatlas21.cern.ch:11211
+
+# expiration time in memcached
+memcached_exptime = 86400
