@@ -32,10 +32,12 @@ class MemProxy:
     def setFiles(self,pandaID,site,node,files):
         try:
             _logger.debug("setFiles PandaID=%s start" % pandaID)
-            # get short WN name
-            shortWN = node.split('.')[0]
             # key prefix
-            keyPrefix = '%s_%s_' % (site,shortWN)
+            keyPrefix = self.getKeyPrefix(site,node)
+            # failed to get key prefix   
+            if keyPrefix == None:
+                _logger.error("setFiles failed to get key prefix")
+                return False
             # loop over all files
             varMap = {}
             for tmpFile in files:
@@ -71,10 +73,12 @@ class MemProxy:
             if len(fileList) == 0:
                 _logger.debug("deleteFiles skipped for empty list")
                 return True
-            # get short WN name
-            shortWN = node.split('.')[0]
             # key prefix
-            keyPrefix = '%s_%s_' % (site,shortWN)
+            keyPrefix = self.getKeyPrefix(site,node)
+            # non-existing key    
+            if keyPrefix == None:
+                _logger.debug("deleteFiles skipped for non-existing key")
+                return True
             # get the number of bunches
             nKeys = 100
             tmpDiv,tmpMod = divmod(len(fileList),nKeys)
@@ -104,13 +108,17 @@ class MemProxy:
                            
 
     # check files
-    def checkFiles(self,pandaID,files,site,node):
+    def checkFiles(self,pandaID,files,site,node,keyPrefix=''):
         try:
             _logger.debug("checkFiles PandaID=%s with %s:%s start" % (pandaID,site,node))
-            # get short WN name
-            shortWN = node.split('.')[0]
-            # key prefix
-            keyPrefix = '%s_%s_' % (site,shortWN)
+            # get key prefix
+            if keyPrefix == '':
+                keyPrefix = self.getKeyPrefix(site,node)
+            # non-existing key    
+            if keyPrefix == None:
+                _logger.debug("checkFiles PandaID=%s with %s:%s doesn't exist" % \
+                              (pandaID,site,node))
+                return 0
             # loop over all files
             keyList = []
             for tmpFile in files:
@@ -126,3 +134,61 @@ class MemProxy:
             errType,errValue = sys.exc_info()[:2]
             _logger.error("checkFiles failed with %s %s" % (errType,errValue))
             return 0
+
+
+    # flush files
+    def flushFiles(self,site,node):
+        try:
+            _logger.debug("flushFiles for %s:%s start" % (site,node))
+            # key prefix stored in memcached
+            keyPrefix = self.getInternalKeyPrefix(site,node)
+            # increment
+            serNum = self.mclient.incr(keyPrefix)
+            # return if not exist
+            if serNum == None:
+                _logger.debug("flushFiles skipped for non-existing key")
+                return True
+            # avoid overflow
+            if serNum > 1024:
+                serNum = 0
+            # set    
+            retS = self.mclient.set(keyPrefix,serNum,time=panda_config.memcached_exptime)                
+            if retS == 0:
+                # failed
+                _logger.error("flushFiles failed to set new SN") 
+                return False
+            _logger.error("flushFiles completed")
+            return True
+        except:
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("flushFiles failed with %s %s" % (errType,errValue))
+            return False
+
+
+    # get internal key prefix
+    def getInternalKeyPrefix(self,site,node):
+        # get short WN name
+        shortWN = node.split('.')[0]
+        # key prefix stored in memcached
+        keyPrefix = '%s_%s' % (site,shortWN)
+        return keyPrefix
+    
+        
+    # get key prefix
+    def getKeyPrefix(self,site,node):
+        # key prefix stored in memcached
+        keyPrefix = self.getInternalKeyPrefix(site,node)
+        # get serial number from memcached
+        serNum = self.mclient.get(keyPrefix)
+        # use 0 if not exist
+        if serNum == None:
+            serNum = 0
+        # set to avoid expiration   
+        retS = self.mclient.set(keyPrefix,serNum,time=panda_config.memcached_exptime)
+        if retS == 0:
+            # failed
+            return None
+        else:
+            # return prefix site_node_sn_
+            newPrefix = '%s_%s' % (keyPrefix,serNum)
+            return newPrefix

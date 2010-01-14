@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added addFilesToCacheDB and flushCacheDB
   * modified dispatcher to accept service proxy
   * added WN-level file matching to getJob 
   * added MemProxy

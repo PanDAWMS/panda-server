@@ -1321,12 +1321,36 @@ class TaskBuffer:
         return ret
 
 
+    # add files to memcached
+    def addFilesToMemcached(self,site,node,files):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get
+        ret = proxy.addFilesToMemcached(site,node,files)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+    
     # delete files from memcached
     def deleteFilesFromMemcached(self,site,node,files):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get
         ret = proxy.deleteFilesFromMemcached(site,node,files)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # flush memcached
+    def flushMemcached(self,site,node):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get
+        ret = proxy.flushMemcached(site,node)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

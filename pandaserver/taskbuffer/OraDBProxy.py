@@ -5245,6 +5245,39 @@ class DBProxy:
             return ""
 
         
+    # add files to memcached
+    def addFilesToMemcached(self,site,node,files):
+        _logger.debug("addFilesToMemcached start %s %s" % (site,node)) 
+        # memcached is unused
+        if not panda_config.memcached_enable:
+            _logger.debug("addFilesToMemcached skip %s %s" % (site,node))
+            return True
+        try:
+            # initialize memcache if needed
+            if self.memcache == None:
+                from MemProxy import MemProxy
+                self.memcache = MemProxy()
+            # convert string to list    
+            fileList = files.split(',')
+            # remove ''
+            try:
+                fileList.remove('')
+            except:
+                pass
+            # empty list
+            if len(fileList) == 0:
+                _logger.debug("addFilesToMemcached skipped for empty list")
+                return True
+            # add
+            retS = self.memcache.setFiles(None,site,node,fileList)
+            _logger.debug("addFilesToMemcached done %s %s with %s" % (site,node,retS))
+            return retS
+        except:
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("addFilesToMemcached : %s %s" % (errType,errValue))
+            return False
+
+
     # delete files from memcached
     def deleteFilesFromMemcached(self,site,node,files):
         _logger.debug("deleteFilesFromMemcached start %s %s" % (site,node)) 
@@ -5264,6 +5297,28 @@ class DBProxy:
         except:
             errType,errValue = sys.exc_info()[:2]
             _logger.error("deleteFilesFromMemcached : %s %s" % (errType,errValue))
+            return False
+
+
+    # flush memcached
+    def flushMemcached(self,site,node):
+        _logger.debug("flushMemcached start %s %s" % (site,node)) 
+        # memcached is unused
+        if not panda_config.memcached_enable:
+            _logger.debug("flushMemcached skip %s %s" % (site,node))             
+            return True
+        try:
+            # initialize memcache if needed
+            if self.memcache == None:
+                from MemProxy import MemProxy
+                self.memcache = MemProxy()
+            # delete    
+            self.memcache.flushFiles(site,node)
+            _logger.debug("flushMemcached done %s %s" % (site,node))             
+            return True
+        except:
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("flushMemcached : %s %s" % (errType,errValue))
             return False
 
         

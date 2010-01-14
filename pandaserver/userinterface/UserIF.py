@@ -165,10 +165,26 @@ class UserIF:
         return pickle.dumps(ret)
 
 
+    # add files to memcached
+    def addFilesToMemcached(self,site,node,files):
+        # add
+        ret = self.taskBuffer.addFilesToMemcached(site,node,files)
+        # return
+        return ret
+
+
     # delete files from memcached
     def deleteFilesFromMemcached(self,site,node,files):
         # delete
         ret = self.taskBuffer.deleteFilesFromMemcached(site,node,files)
+        # return
+        return ret
+
+
+    # flush memcached
+    def flushMemcached(self,site,node):
+        # flush
+        ret = self.taskBuffer.flushMemcached(site,node)
         # return
         return ret
 
@@ -569,10 +585,22 @@ def seeCloudTask(req,ids):
     return userIF.seeCloudTask(ids)
 
 
+# add files to memcached
+def addFilesToCacheDB(req,site,node,guids):
+    # exec
+    return userIF.addFilesToMemcached(site,node,guids)
+
+
 # delete files from memcached
 def deleteFilesFromCacheDB(req,site,node,guids):
     # exec
     return userIF.deleteFilesFromMemcached(site,node,guids)
+
+
+# flush memcached
+def flushCacheDB(req,site,node):
+    # exec
+    return userIF.flushMemcached(site,node)
 
 
 # query PandaIDs
