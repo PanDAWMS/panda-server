@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * updated the brokerage to allow slc4 jobs on slc5 sites
   * added killTask.py
   * added addFilesToCacheDB and flushCacheDB
   * modified dispatcher to accept service proxy
