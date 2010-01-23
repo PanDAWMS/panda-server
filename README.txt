@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed the default cmtconfig to SL4 for analysis in brokerage
   * updated the brokerage to allow slc4 jobs on slc5 sites
   * added killTask.py
   * added addFilesToCacheDB and flushCacheDB

@@ -322,9 +322,12 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     resultsForAnal['pilot'].append(site)
                                 continue
                             _log.debug('   status=%s' % tmpSiteSpec.status)
-                            # change NULL cmtconfig to slc3
+                            # change NULL cmtconfig to slc3/4
                             if prevCmtConfig in ['NULL','',None]:
-                                tmpCmtConfig = 'i686-slc3-gcc323-opt'
+                                if forAnalysis:
+                                    tmpCmtConfig = 'i686-slc4-gcc34-opt'
+                                else:
+                                    tmpCmtConfig = 'i686-slc3-gcc323-opt'                                    
                             else:
                                 tmpCmtConfig = prevCmtConfig
                             # set release
