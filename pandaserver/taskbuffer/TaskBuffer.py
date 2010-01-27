@@ -1213,6 +1213,18 @@ class TaskBuffer:
         return ret
 
 
+    # get allowed nodes
+    def getAllowedNodes(self):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get
+        ret = proxy.getAllowedNodes()
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
     # get email address
     def getEmailAddr(self,name):
         # get DBproxy
@@ -1351,6 +1363,17 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # get
         ret = proxy.flushMemcached(site,node)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+    # check files with memcached
+    def checkFilesWithMemcached(self,site,node,files):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get
+        ret = proxy.checkFilesWithMemcached(site,node,files)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

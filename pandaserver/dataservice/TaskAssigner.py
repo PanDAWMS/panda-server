@@ -76,6 +76,7 @@ class TaskAssigner:
             prioMap  = {}
             fullRWs  = {}
             tt2Map   = {}
+            usingOpenDS = False
             try:
                 # parse metadata
                 if not metadata in (None,'NULL'):
@@ -168,6 +169,19 @@ class TaskAssigner:
             cloudList = tmpCloudList
             # DQ2 location info
             _logger.debug('%s DQ2 locations %s' % (self.taskID,str(locations)))
+            # check immutable datasets
+            for tmpDataset,tmpSites in locations.iteritems():
+                for tmpSite in tmpSites.keys():
+                    tmpStat = tmpSites[tmpSite][-1]
+                    if tmpStat['total'] == -1 or tmpStat['found'] ==  None:
+                        # invoke listFileReplicasBySites to refresh replica info
+                        tmpStat,tmpOut = ddm.DQ2_iter.listFileReplicasBySites(tmpDataset,0,tmpSites.keys(),0,300)
+                        _logger.debug('%s listFileReplicasBySites end with %s:%s' % (self.taskID,tmpStat,tmpOut))
+                        raise RuntimeError, '%s %s has incorrect replica info' % (self.taskID,tmpDataset)
+                    elif tmpStat['immutable'] == 0:
+                        # using open datasets
+                        usingOpenDS = True
+                        _logger.debug('%s open dataset : %s' % (self.taskID,tmpDataset))
             removedDQ2Map = {}
             incompleteClouds = []
             if locations != {}:
@@ -238,8 +252,10 @@ class TaskAssigner:
                 iFileList.sort()
             # count the number of files to be lookup
             maxNFiles = 0
-            for iFile in iFileList:
-                maxNFiles += len(lfns[iFile:iFile+nFile])
+            if not usingOpenDS:
+                # if dataset is open, doesn't check nFiles
+                for iFile in iFileList:
+                    maxNFiles += len(lfns[iFile:iFile+nFile])
             # loop over all cloud
             weightParams = {}
             for tmpCloudName in cloudList:

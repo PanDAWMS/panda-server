@@ -5062,6 +5062,36 @@ class DBProxy:
             return []
 
 
+    # get allowed nodes
+    def getAllowedNodes(self):
+        comment = ' /* DBProxy.getAllowedNodes */'        
+        _logger.debug("getAllowedNodes")        
+        try:
+            # set autocommit on
+            self.conn.begin()
+            # select
+            sql  = "SELECT siteid,allowedNode FROM ATLAS_PANDAMETA.schedconfig "
+            sql += "WHERE siteid IS NOT NULL AND allowedNode IS NOT NULL"
+            self.cur.arraysize = 1000
+            self.cur.execute(sql+comment)
+            resList = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            ret = {}
+            for tmpSiteID,tmpAllowedNode in resList:
+                if not ret.has_key(tmpSiteID):
+                    ret[tmpSiteID] = tmpAllowedNode.split(',')
+            _logger.debug("getAllowedNodes -> %s" % str(ret))
+            return ret
+        except:
+            # roll back
+            self._rollback()
+            tmpType,tmpValue = sys.exc_info()[:2]
+            _logger.error("getAllowedNodes : %s %s" % (tmpType,tmpValue))
+            return {}
+
+
     # extract name from DN
     def cleanUserID(self, id):
         try:
@@ -5272,7 +5302,14 @@ class DBProxy:
                 _logger.debug("addFilesToMemcached skipped for empty list")
                 return True
             # add
-            retS = self.memcache.setFiles(None,site,node,fileList)
+            iFiles = 0
+            nFiles = 100
+            retS = True
+            while iFiles < len(fileList):            
+                tmpRetS = self.memcache.setFiles(None,site,node,fileList[iFiles:iFiles+nFiles])
+                if not tmpRetS:
+                    retS = False
+                iFiles += nFiles                    
             _logger.debug("addFilesToMemcached done %s %s with %s" % (site,node,retS))
             return retS
         except:
@@ -5322,6 +5359,51 @@ class DBProxy:
         except:
             errType,errValue = sys.exc_info()[:2]
             _logger.error("flushMemcached : %s %s" % (errType,errValue))
+            return False
+
+
+    # check files with memcached
+    def checkFilesWithMemcached(self,site,node,files):
+        _logger.debug("checkFilesWithMemcached start %s %s" % (site,node))
+        # convert string to list    
+        fileList = files.split(',')
+        # remove ''
+        try:
+            fileList.remove('')
+        except:
+            pass
+        # memcached is unused
+        if not panda_config.memcached_enable:
+            _logger.debug("checkFilesWithMemcached skip %s %s" % (site,node))
+            # return 0
+            retStr = ''
+            for tmpF in fileList:
+                retStr += '0,'
+            retStr = retStr[:-1]    
+            return retStr
+        try:
+            # initialize memcache if needed
+            if self.memcache == None:
+                from MemProxy import MemProxy
+                self.memcache = MemProxy()
+            # empty list
+            if len(fileList) == 0:
+                _logger.debug("checkFilesWithMemcached skipped for empty list")
+                return ''
+            # check
+            iFiles = 0
+            nFiles = 100
+            retS = ''
+            while iFiles < len(fileList):
+                retS += self.memcache.checkFiles(None,fileList[iFiles:iFiles+nFiles],site,node,getDetail=True)
+                retS += ','
+                iFiles += nFiles
+            retS = retS[:-1]    
+            _logger.debug("checkFilesWithMemcached done %s %s with %s" % (site,node,retS))
+            return retS
+        except:
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("checkFilesWithMemcached : %s %s" % (errType,errValue))
             return False
 
         

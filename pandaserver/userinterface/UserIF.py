@@ -189,6 +189,14 @@ class UserIF:
         return ret
 
         
+    # check files with memcached
+    def checkFilesWithMemcached(self,site,node,files):
+        # check
+        ret = self.taskBuffer.checkFilesWithMemcached(site,node,files)
+        # return
+        return ret
+
+    
     # get job statistics
     def getJobStatistics(self,sourcetype=None):
         # get job statistics
@@ -601,6 +609,12 @@ def deleteFilesFromCacheDB(req,site,node,guids):
 def flushCacheDB(req,site,node):
     # exec
     return userIF.flushMemcached(site,node)
+
+
+# check files with memcached
+def checkFilesWithCacheDB(req,site,node,guids):
+    # exec
+    return userIF.checkFilesWithMemcached(site,node,guids)
 
 
 # query PandaIDs

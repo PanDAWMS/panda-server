@@ -42,6 +42,9 @@ class _DQMethod:
         if self.moduleName == 'DQ2':
             # DQ2 is top-level module
             com += 'print dq2api.%s(' % self.methodName
+        elif self.moduleName == 'DQ2_iter':
+            # iterator
+            com += 'iter = dq2api.%s(' % self.methodName
         else:
             com += 'print dq2api.%s.%s(' % (self.moduleName,self.methodName)
         # expand args
@@ -54,6 +57,9 @@ class _DQMethod:
             else:
                 com = '%s%s' % (com,str(arg))
         com += ")"
+        # loop over iterator
+        if self.moduleName == 'DQ2_iter':
+            com += ";exec 'for item in iter:print item'"
         # execute
         return commands.getstatusoutput('%s env %s python -c "%s"' % (_cwd,_env,com))
         

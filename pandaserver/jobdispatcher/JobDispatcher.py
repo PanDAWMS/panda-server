@@ -53,6 +53,8 @@ class JobDipatcher:
         self.timeInterval = datetime.timedelta(seconds=180)
         # pilot owners
         self.pilotOwners = None
+        # hostnames for authorization at grid-free sites
+        self.allowedNodes = None
         # lock
         self.lock = Lock()
 
@@ -70,6 +72,9 @@ class JobDipatcher:
         # get pilot owners
         if self.pilotOwners == None:
             self.pilotOwners = self.taskBuffer.getPilotOwners()
+        # get allowed nodes
+        if self.allowedNodes == None:
+            self.allowedNodes = self.taskBuffer.getAllowedNodes()
         # release
         self.lock.release()
         
@@ -248,7 +253,7 @@ def _getFQAN(req):
 
 
 # check role
-def _checkRole(fqans,dn,jdCore,withVomsPatch=True,site=''):
+def _checkRole(fqans,dn,jdCore,withVomsPatch=True,site='',hostname=''):
     prodManager = False
     try:
         # VOMS attributes of production and pilot roles
@@ -280,8 +285,15 @@ def _checkRole(fqans,dn,jdCore,withVomsPatch=True,site=''):
                 if dn.startswith(tmpSub):
                     prodManager = True
                     break
-        # check DN with pilotOwners
+        # grid-free authorization
         if not prodManager:
+            if hostname != '' and jdCore.allowedNodes.has_key(site):
+                for tmpPat in jdCore.allowedNodes[site]:
+                    if re.search(tmpPat,hostname) != None:
+                        prodManager = True
+                        break
+        # check DN with pilotOwners
+        if (not prodManager) and (not dn in [None]):
             for owner in jdCore.pilotOwners:
                 # check
                 if re.search(owner,dn) != None:
@@ -336,7 +348,8 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
         # don't use /atlas to prevent normal proxy getting credname
         prodManager = _checkRole(fqans,realDN,jobDispatcher,False,site=siteName)
     else:
-        prodManager = _checkRole(fqans,realDN,jobDispatcher,site=siteName)        
+        prodManager = _checkRole(fqans,realDN,jobDispatcher,site=siteName,
+                                 hostname=req.get_remote_host())        
     # check token
     validToken = _checkToken(token,jobDispatcher)
     # set DN for non-production user
@@ -366,7 +379,7 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
                      realDN,prodManager,token,validToken,str(fqans)))
     _pilotReqLogger.info('method=getJob,site=%s,node=%s,type=%s' % (siteName,node,prodSourceLabel))    
     # invalid role
-    if realDN in [None] or ((not prodManager) and (not prodSourceLabel in ['user'])):
+    if (not prodManager) and (not prodSourceLabel in ['user']):
         _logger.warning("getJob(%s) : invalid role" % siteName)
         return Protocol.Response(Protocol.SC_Role).encode()        
     # invalid token
@@ -391,7 +404,7 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
     # get FQANs
     fqans = _getFQAN(req)
     # check production role
-    prodManager = _checkRole(fqans,realDN,jobDispatcher,site=siteName)
+    prodManager = _checkRole(fqans,realDN,jobDispatcher,site=siteName,hostname=req.get_remote_host())
     # check token
     validToken = _checkToken(token,jobDispatcher)
     _logger.debug("updateJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s\n==XML==\n%s\n==LOG==\n%s\n==Meta==\n%s)" %

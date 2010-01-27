@@ -18,7 +18,7 @@ class MemProxy:
         try:
             import memcache
             # initialize memcached client
-            _logger.debug("initialize memcache client")
+            _logger.debug("initialize memcache client with %s" % panda_config.memcached_srvs)
             self.mclient = memcache.Client(panda_config.memcached_srvs.split(','))
             # server statistics
             _logger.debug(self.mclient.get_stats())
@@ -108,7 +108,7 @@ class MemProxy:
                            
 
     # check files
-    def checkFiles(self,pandaID,files,site,node,keyPrefix=''):
+    def checkFiles(self,pandaID,files,site,node,keyPrefix='',getDetail=False):
         try:
             _logger.debug("checkFiles PandaID=%s with %s:%s start" % (pandaID,site,node))
             # get key prefix
@@ -129,6 +129,17 @@ class MemProxy:
             retMap = self.mclient.get_multi(keyList,key_prefix=keyPrefix)
             _logger.debug("checkFiles PandaID=%s with %s:%s has %s files" % \
                           (pandaID,site,node,len(retMap)))
+            # return detailed string
+            if getDetail:
+                retStr = ''
+                for tmpFile in files:
+                    if retMap.has_key(tmpFile):
+                        retStr += '1,'
+                    else:
+                        retStr += '0,'
+                retStr = retStr[:-1]
+                return retStr
+            # return number of files
             return len(retMap)
         except:
             errType,errValue = sys.exc_info()[:2]
