@@ -1,6 +1,7 @@
 Release Note
 
-* current
+* 0.0.8 (2/2/2010)
+  * tagging for SLC5 migration
   * added hostname matching for T3 pilots
   * use listFileReplicasBySites in TA
   * added checkFilesWithCacheDB
