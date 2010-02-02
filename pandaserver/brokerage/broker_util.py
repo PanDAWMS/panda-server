@@ -4,7 +4,6 @@ import time
 import sys
 import types
 import commands
-import MySQLdb
 import xml.dom.minidom
 
 
@@ -161,6 +160,7 @@ def _getPoolFileCatalog(lfns,dq2url):
 # get files from MySQL
 def _getPFNFromMySQL(lfns,dq2url):
     _log.debug('_getPFNFromMySQL')
+    import MySQLdb
     comment = ' /* broker_util._getPFNFromMySQL */'
     outStr = ''
     # parse connection string

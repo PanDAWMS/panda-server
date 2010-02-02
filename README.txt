@@ -1,5 +1,11 @@
 Release Note
 
+* current
+  * removed MySQLdb from broker_utils
+  * added maxinputsize
+  * modified xyzCacheDB to take a list of siteIDs
+  * suppressed warning messages in dashboard 
+ 
 * 0.0.8 (2/2/2010)
   * tagging for SLC5 migration
   * added hostname matching for T3 pilots

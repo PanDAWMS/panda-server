@@ -1997,10 +1997,13 @@ class DBProxy:
                     raise RuntimeError, 'Commit error'
                 # not found
                 if res == None:
-                    _logger.error("getNumWaitingJobsWithOutDS : %s was not found" % pandaID)
-                    return False,{}
+                    continue
                 # append
                 jobInfos.append(res)
+            # no jobs
+            if jobInfos == []:
+                _logger.error("getNumWaitingJobsWithOutDS : no jobs found")
+                return False,{}
             # loop over all jobIDs
             retMap = {}
             for jobID,taskID,prodUserName,jobStatus,prodSourceLabel in jobInfos:
@@ -4720,7 +4723,7 @@ class DBProxy:
             sql = "SELECT nickname,dq2url,cloud,ddm,lfchost,se,gatekeeper,releases,memory,"
             sql+= "maxtime,status,space,retry,cmtconfig,setokens,seprodpath,glexec,"
             sql+= "priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue,"
-            sql+= "validatedreleases,accesscontrol,copysetup "
+            sql+= "validatedreleases,accesscontrol,copysetup,maxinputsize "
             sql+= "FROM ATLAS_PANDAMETA.schedconfig WHERE siteid IS NOT NULL"
             self.cur.arraysize = 10000            
             self.cur.execute(sql+comment)
@@ -4741,7 +4744,7 @@ class DBProxy:
                     nickname,dq2url,cloud,ddm,lfchost,se,gatekeeper,releases,memory,\
                        maxtime,status,space,retry,cmtconfig,setokens,seprodpath,glexec,\
                        priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue,\
-                       validatedreleases,accesscontrol,copysetup \
+                       validatedreleases,accesscontrol,copysetup,maxinputsize \
                        = resTmp
                     # skip invalid siteid
                     if siteid in [None,'']:
@@ -4764,7 +4767,8 @@ class DBProxy:
                     ret.queue      = queue
                     ret.localqueue = localqueue
                     ret.accesscontrol = accesscontrol
-                    ret.copysetup  = copysetup
+                    ret.copysetup     = copysetup
+                    ret.maxinputsize  = maxinputsize
                     # job recoverty
                     ret.retry = True
                     if retry == 'FALSE':
@@ -5301,15 +5305,19 @@ class DBProxy:
             if len(fileList) == 0:
                 _logger.debug("addFilesToMemcached skipped for empty list")
                 return True
-            # add
-            iFiles = 0
-            nFiles = 100
-            retS = True
-            while iFiles < len(fileList):            
-                tmpRetS = self.memcache.setFiles(None,site,node,fileList[iFiles:iFiles+nFiles])
-                if not tmpRetS:
-                    retS = False
-                iFiles += nFiles                    
+            # list of siteIDs
+            siteIDs = site.split(',')
+            # loop over all siteIDs
+            for tmpSite in siteIDs:
+                # add
+                iFiles = 0
+                nFiles = 100
+                retS = True
+                while iFiles < len(fileList):            
+                    tmpRetS = self.memcache.setFiles(None,tmpSite,node,fileList[iFiles:iFiles+nFiles])
+                    if not tmpRetS:
+                        retS = False
+                    iFiles += nFiles                    
             _logger.debug("addFilesToMemcached done %s %s with %s" % (site,node,retS))
             return retS
         except:
@@ -5330,8 +5338,12 @@ class DBProxy:
             if self.memcache == None:
                 from MemProxy import MemProxy
                 self.memcache = MemProxy()
-            # delete    
-            self.memcache.deleteFiles(site,node,files)
+            # list of siteIDs
+            siteIDs = site.split(',')
+            # loop over all siteIDs
+            for tmpSite in siteIDs:
+                # delete    
+                self.memcache.deleteFiles(tmpSite,node,files)
             _logger.debug("deleteFilesFromMemcached done %s %s" % (site,node))             
             return True
         except:
@@ -5352,8 +5364,12 @@ class DBProxy:
             if self.memcache == None:
                 from MemProxy import MemProxy
                 self.memcache = MemProxy()
-            # delete    
-            self.memcache.flushFiles(site,node)
+            # list of siteIDs
+            siteIDs = site.split(',')
+            # loop over all siteIDs
+            for tmpSite in siteIDs:
+                # flush    
+                self.memcache.flushFiles(tmpSite,node)
             _logger.debug("flushMemcached done %s %s" % (site,node))             
             return True
         except:
