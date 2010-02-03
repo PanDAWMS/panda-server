@@ -3,13 +3,6 @@ file specification
 
 """
 
-# only server requires cx_Oracle for pickle 
-try:
-    import cx_Oracle
-    import datetime
-except:
-    pass
-
 
 class FileSpec(object):
     # attributes
@@ -90,10 +83,6 @@ class FileSpec(object):
         state = []
         for attr in self._attributes:
             val = getattr(self,attr)
-            # convert cx_Oracle.Timestamp to datetime. this is not needed since python 2.4 
-            if isinstance(val,cx_Oracle.Timestamp):
-                val = datetime.datetime(val.year,val.month,val.day,
-                                        val.hour,val.minute,val.second)
             state.append(val)
         # append owner info
         state.append(self._owner)
