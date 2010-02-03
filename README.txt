@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * removed cx_Oracle from FileSpec
   * removed MySQLdb from broker_utils
   * added maxinputsize
   * modified xyzCacheDB to take a list of siteIDs
