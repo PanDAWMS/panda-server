@@ -172,6 +172,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
     prevCmtConfig  = None
     prevProType    = None
     prevSourceLabel= None
+    prevDiskCount  = None
     
     nWNmap = {}
     indexJob = 0
@@ -378,6 +379,16 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 except:
                                     type, value, traceBack = sys.exc_info()
                                     _log.error("memory check : %s %s" % (type,value))
+                            # check max input size
+                            if tmpSiteSpec.maxinputsize != 0 and (not prevDiskCount in [None,0,'NULL']):
+                                try:
+                                    if int(tmpSiteSpec.maxinputsize) < int(prevDiskCount):
+                                        _log.debug('  skip: not enough disk %s<%s' % (tmpSiteSpec.maxinputsize,prevDiskCount))
+                                        continue
+                                except:
+                                    type, value, traceBack = sys.exc_info()
+                                    _log.error("disk check : %s %s" % (type,value))
+                            _log.debug('   maxinput=%s' % tmpSiteSpec.maxinputsize)
                             # get pilot statistics
                             if nWNmap == {}:
                                 nWNmap = taskBuffer.getCurrentSiteData()
@@ -623,6 +634,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             prevCmtConfig   = job.cmtConfig
             prevProType     = job.processingType
             prevSourceLabel = job.prodSourceLabel
+            prevDiskCount   = job.maxDiskCount
             # assign site
             if chosen_ce != 'TOBEDONE':
                 job.computingSite = chosen_ce.sitename
