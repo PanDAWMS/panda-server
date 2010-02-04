@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added schedconfig stuff to template
   * removed cx_Oracle from FileSpec
   * removed MySQLdb from broker_utils
   * added maxinputsize
