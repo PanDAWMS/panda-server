@@ -40,6 +40,7 @@ for lfn in files.keys():
     job.processingType    = 'reprocessing'        
     job.currentPriority   = 10000
     job.cloud = cloud
+    job.cmtConfig         = 'i686-slc4-gcc34-opt'
 
     origParams = """inputBSFile=daq.ATLAS.0092045.physics.RPCwBeam.LB0016.SFO-2._0009.data maxEvents=5 skipEvents=0 autoConfiguration=FieldAndGeo preInclude=RecExCommission/RecExCommission.py,RecExCommission/MinimalCommissioningSetup.py,RecJobTransforms/UseOracle.py preExec="jetFlags.Enabled.set_Value_and_Lock(False)" DBRelease=DBRelease-6.2.1.5.tar.gz conditionsTag=COMCOND-ES1C-000-00 RunNumber=92045 beamType=cosmics AMITag=r595 projectName=data08_cos trigStream=physics_RPCwBeam outputTypes=DPDCOMM outputESDFile=ESD.029868._01110.pool.root outputTAGComm=TAG_COMM.029868._01110.pool.root outputAODFile=AOD.029868._01110.pool.root outputMergedDQMonitorFile=DQM_MERGED.029868._01110.root DPD_PIXELCOMM=DPD_PIXELCOMM.029868._01110.pool.root DPD_SCTCOMM=DPD_SCTCOMM.029868._01110.pool.root DPD_IDCOMM=DPD_IDCOMM.029868._01110.pool.root DPD_IDPROJCOMM=DPD_IDPROJCOMM.029868._01110.pool.root DPD_CALOCOMM=DPD_CALOCOMM.029868._01110.pool.root DPD_TILECOMM=DPD_TILECOMM.029868._01110.pool.root DPD_EMCLUSTCOMM=DPD_EMCLUSTCOMM.029868._01110.pool.root DPD_EGAMMACOMM=DPD_EGAMMACOMM.029868._01110.pool.root DPD_RPCCOMM=DPD_RPCCOMM.029868._01110.pool.root DPD_TGCCOMM=DPD_TGCCOMM.029868._01110.pool.root --ignoreunknown"""
 

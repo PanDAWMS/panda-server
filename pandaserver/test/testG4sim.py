@@ -33,7 +33,8 @@ for lfn in files.keys():
     job.destinationSE     = destName
     job.computingSite     = site
     job.prodDBlock        = 'mc11.007204.singlepart_mu4.evgen.EVNT.v11000302'
-    
+    job.cmtConfig         = 'i686-slc4-gcc34-opt'
+
     job.prodSourceLabel   = 'test'
     job.currentPriority   = 1000
 

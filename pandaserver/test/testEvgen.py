@@ -27,7 +27,8 @@ for i in range(1):
     job.currentPriority   = 100
     job.prodSourceLabel   = 'test'
     job.computingSite     = site
-    job.cloud             = 'US' 
+    job.cloud             = 'US'
+    job.cmtConfig         = 'i686-slc4-gcc34-opt'
     
     file = FileSpec()
     file.lfn = "%s.evgen.pool.root" % job.jobName

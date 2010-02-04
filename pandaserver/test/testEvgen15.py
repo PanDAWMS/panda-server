@@ -26,7 +26,8 @@ for i in range(1):
     job.prodSourceLabel   = 'test'
     job.computingSite     = site
     job.cloud             = cloud
-    
+    job.cmtConfig         = 'i686-slc4-gcc34-opt'
+
     file = FileSpec()
     file.lfn = "%s.evgen.pool.root" % job.jobName
     file.destinationDBlock = job.destinationDBlock
