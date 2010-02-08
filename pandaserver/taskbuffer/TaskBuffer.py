@@ -119,6 +119,13 @@ class TaskBuffer:
                         break
         # check production role
         withProdRole,workingGroup = self.checkProdRole(fqans)
+        if withProdRole:
+            # check dataset name
+            for tmpFile in jobs[-1].Files:
+                if tmpFile.type in ['output','log'] and not tmpFile.lfn.startswith('group'):
+                    # reset
+                    withProdRole,workingGroup = False,None
+                    break
         # return if DN is blocked
         if not userStatus:
             return []

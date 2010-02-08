@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * disable prod role for non-group activity
   * use maxinputsize in the brokerage
   * added schedconfig stuff to template
   * removed cx_Oracle from FileSpec
