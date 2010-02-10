@@ -30,6 +30,9 @@ shortLongMap = {'ANALY_BNL_ATLAS_1':'ANALY_LONG_BNL_ATLAS',
                 'ANALY_LYON_DCACHE':'ANALY_LONG_LYON_DCACHE',
                 }
 
+# processingType to skip brokerage
+skipBrokerageProTypes = ['prod_test']
+
 # comparison function for sort
 def _compFunc(jobA,jobB):
     # append site if not in list
@@ -226,7 +229,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                    or prodDBlock != job.prodDBlock or job.computingSite != computingSite or iJob > nJob \
                    or previousCloud != job.cloud or prevRelease != job.AtlasRelease \
                    or prevCmtConfig != job.cmtConfig \
-                   or (computingSite in ['RAL_REPRO','INFN-T1_REPRO'] and len(fileList)>=2):
+                   or (computingSite in ['RAL_REPRO','INFN-T1_REPRO'] and len(fileList)>=2) \
+                   or (prevProType in skipBrokerageProTypes and iJob > 0):
                 if indexJob > 1:
                     _log.debug('new bunch')
                     _log.debug('  iJob           %s'    % iJob)
@@ -438,6 +442,9 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 nJobsPerNode = float(jobStatistics[site]['running'])/float(nWNmap[site]['updateJob'])
                             # get the number of activated and assigned for the process group
                             tmpProGroup = ProcessGroups.getProcessGroup(prevProType)
+                            if prevProType in skipBrokerageProTypes:
+                                # use original processingType since prod_test is in the test category and thus is interfered by validations 
+                                tmpProGroup = prevProType
                             if not jobStatBroker.has_key(site):
                                 jobStatBroker[site] = {}
                             if not jobStatBroker[site].has_key(tmpProGroup):
@@ -505,6 +512,10 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         # release not found
                         if forAnalysis and trustIS:
                             candidateForAnal = False
+                    # use only one site for prod_test to skip LFC scan
+                    if prevProType in skipBrokerageProTypes:
+                        if len(minSites) > 1:
+                            minSites = {minSites.keys()[0]:0}
                     # choose site
                     _log.debug('Min Sites:%s' % minSites)
                     if len(fileList) ==0:
@@ -573,6 +584,9 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         _setReadyToFiles(tmpJob,okFiles,siteMapper)                        
                         # update statistics
                         tmpProGroup = ProcessGroups.getProcessGroup(tmpJob.processingType)
+                        if tmpJob.processingType in skipBrokerageProTypes:
+                            # use original processingType since prod_test is in the test category and thus is interfered by validations 
+                            tmpProGroup = tmpJob.processingType
                         if not jobStatistics.has_key(tmpJob.computingSite):
                             jobStatistics[tmpJob.computingSite] = {'assigned':0,'activated':0,'running':0}
                         if not jobStatBroker.has_key(tmpJob.computingSite):
