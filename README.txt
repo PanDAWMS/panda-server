@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added getQueuedAnalJobs
   * updated brokerage to assign one prod_test job to a site 
   * disable prod role for non-group activity
   * use maxinputsize in the brokerage

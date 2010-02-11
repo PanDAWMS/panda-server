@@ -4135,6 +4135,59 @@ class DBProxy:
                 _logger.error("getJobStatisticsBrokerage : %s %s" % (type, value))
                 return {}
 
+
+    # get queued analysis jobs at a site
+    def getQueuedAnalJobs(self,site,dn):
+        comment = ' /* DBProxy.getQueuedAnalJobs */'        
+        _logger.debug("getQueuedAnalJobs(%s,%s)" % (site,dn))
+        sql0 = "SELECT COUNT(*),jobStatus FROM %s WHERE "
+        sql0 += "prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) "
+        sql0 += "AND computingSite=:computingSite AND prodUserName != :prodUserName "
+        sql0 += "GROUP BY jobStatus "
+        tables = ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4']
+        try:
+            # get compact DN
+            compactDN = self.cleanUserID(dn)
+            if compactDN in ['','NULL',None]:
+                compactDN = dn
+            nQueued  = 0
+            nRunning = 0
+            # loop over all tables    
+            for table in tables:
+                # start transaction
+                self.conn.begin()
+                # select
+                varMap = {}
+                varMap[':prodSourceLabel'] = 'user'
+                varMap[':computingSite']   = site
+                varMap[':prodUserName']    = compactDN
+                if table == 'ATLAS_PANDA.jobsActive4':
+                    varMap[':jobStatus1'] = 'activated'
+                    varMap[':jobStatus2'] = 'running'
+                else:
+                    varMap[':jobStatus1'] = 'defined'
+                    varMap[':jobStatus2'] = 'assigned'
+                self.cur.arraysize = 10
+                self.cur.execute((sql0+comment) % table, varMap)
+                res = self.cur.fetchall()
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                # sum
+                for cnt,jobStatus in res:
+                    if jobStatus == 'running':
+                        nRunning += cnt
+                    else:
+                        nQueued += cnt
+            # return
+            return {'queued':nQueued, 'running':nRunning} 
+        except:
+            # roll back
+            self._rollback()
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("getQueuedAnalJobs : %s %s" % (errType,errValue))
+            return {}
+
             
     # get computingSite and destinationSE for a dataset
     def getDestSE(self,dsname):

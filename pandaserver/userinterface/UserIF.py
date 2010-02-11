@@ -205,6 +205,14 @@ class UserIF:
         return pickle.dumps(ret)
 
 
+    # get queued analysis jobs at a site
+    def getQueuedAnalJobs(self,site,dn):
+        # get job statistics
+        ret = self.taskBuffer.getQueuedAnalJobs(site,dn)
+        # serialize 
+        return pickle.dumps(ret)
+
+
     # get job statistics for Bamboo
     def getJobStatisticsForBamboo(self):
         # get job statistics
@@ -581,6 +589,18 @@ def runTaskAssignment(req,jobs):
 # get job status
 def getJobStatus(req,ids):
     return userIF.getJobStatus(ids)
+
+
+# get queued analysis jobs at a site
+def getQueuedAnalJobs(req,site):
+    # check security
+    if not Protocol.isSecure(req):
+        return "ERROR: SSL is required"
+    # get DN
+    user = None
+    if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        user = _getDN(req)
+    return userIF.getQueuedAnalJobs(site,user)
 
 
 # get assigning task

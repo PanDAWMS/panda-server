@@ -39,7 +39,7 @@ from userinterface.UserIF        import submitJobs,getJobStatus,queryPandaIDs,ki
      getJobIDsInTimeRange,getPandIDsWithJobID,getFullJobStatus,getJobStatisticsForBamboo,\
      getNUserJobs,addSiteAccess,listSiteAccess,getFilesInUseForAnal,updateSiteAccess,\
      getPandaClientVer,getSlimmedFileInfoPandaIDs,runReBrokerage,deleteFilesFromCacheDB,\
-     addFilesToCacheDB,flushCacheDB,checkFilesWithCacheDB
+     addFilesToCacheDB,flushCacheDB,checkFilesWithCacheDB,getQueuedAnalJobs
 
 
 # FastCGI/WSGI entry

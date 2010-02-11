@@ -1015,6 +1015,18 @@ class TaskBuffer:
         return conRet
 
 
+    # get queued analysis jobs at a site
+    def getQueuedAnalJobs(self,site,dn):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get stat
+        ret = proxy.getQueuedAnalJobs(site,dn)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
     # get job statistics for ExtIF
     def getJobStatisticsForExtIF(self,sourcetype=None):
         # get DBproxy
