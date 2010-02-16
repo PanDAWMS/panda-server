@@ -3571,7 +3571,7 @@ class DBProxy:
     def getFilesInUseForAnal(self,outDataset):
         comment = ' /* DBProxy.getFilesInUseForAnal */'        
         sqlSub  = "SELECT /*+ index(tab FILESTABLE4_DATASET_IDX) */ destinationDBlock,PandaID FROM ATLAS_PANDA.filesTable4 tab "
-        sqlSub += "WHERE dataset=:dataset AND type=:type AND status=:fileStatus GROUP BY destinationDBlock,PandaID"
+        sqlSub += "WHERE dataset=:dataset AND type IN (:type1,:type2) AND status=:fileStatus GROUP BY destinationDBlock,PandaID"
         sqlPan  = "SELECT jobStatus FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID"
         sqlDis  = "SELECT distinct dispatchDBlock FROM ATLAS_PANDA.filesTable4 "
         sqlDis += "WHERE PandaID=:PandaID AND type=:type"
@@ -3586,7 +3586,8 @@ class DBProxy:
                 # get sub datasets
                 varMap = {}
                 varMap[':dataset'] = outDataset
-                varMap[':type'] = 'output'
+                varMap[':type1'] = 'output'
+                varMap[':type2'] = 'log'                
                 varMap[':fileStatus'] = 'unknown'                
                 _logger.debug("getFilesInUseForAnal : %s %s" % (sqlSub,str(varMap)))
                 self.cur.arraysize = 10000
