@@ -426,10 +426,10 @@ class TaskAssigner:
                         message = "%s %s weight=%s" % (self.taskID,cloudName,weightParams[cloudName]['mcshare'])
                     else:
                         # use nPilot/fullRW*MCshare
-                        tmpWeight = float(weightParams[cloudName]['nPilot']) / float(1+fullRWs[cloudName])
+                        tmpWeight = float(weightParams[cloudName]['nPilot']) / float(1+RWs[cloudName])
                         message = "%s %s weight=%s/%s" % (self.taskID,cloudName,
                                                           weightParams[cloudName]['nPilot'],
-                                                          1+fullRWs[cloudName])
+                                                          1+RWs[cloudName])
                     self.sendMesg(message)
                     nWeightList.append(tmpWeight)
                     totalWeight += tmpWeight

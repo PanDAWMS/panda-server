@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed weight for the task brokerage to use RW instead of fullRW
   * fixed getFilesInUseForAnal for --individualOutDS
   * added getQueuedAnalJobs
   * updated brokerage to assign one prod_test job to a site 
