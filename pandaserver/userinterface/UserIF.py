@@ -205,6 +205,14 @@ class UserIF:
         return pickle.dumps(ret)
 
 
+    # get highest prio jobs
+    def getHighestPrioJobStat(self):
+        # get job statistics
+        ret = self.taskBuffer.getHighestPrioJobStat()
+        # serialize 
+        return pickle.dumps(ret)
+
+
     # get queued analysis jobs at a site
     def getQueuedAnalJobs(self,site,dn):
         # get job statistics
@@ -669,6 +677,11 @@ def updateProdDBUpdateTimes(req,params):
 # get job statistics
 def getJobStatistics(req,sourcetype=None):
     return userIF.getJobStatistics(sourcetype)
+
+
+# get highest prio jobs
+def getHighestPrioJobStat(req):
+    return userIF.getHighestPrioJobStat()
 
 
 # get job statistics for Babmoo

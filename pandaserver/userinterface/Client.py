@@ -490,6 +490,34 @@ def getJobStatisticsForBamboo():
                             else:
                                 ret[tmpCloud][tmpPType][tmpStatus] = tmpCount    
     return 0,ret
+
+
+# get highest prio jobs
+def getHighestPrioJobStat():
+    # instantiate curl
+    curl = _Curl()
+    # execute
+    ret = {}
+    for srvID in getPandas():
+        url = _getURL('URL',srvID) + '/getHighestPrioJobStat'
+        data = {}
+        status,output = curl.get(url,data)
+        try:
+            tmpRet = status,pickle.loads(output)
+            if status != 0:
+                return tmpRet
+        except:
+            print output
+            type, value, traceBack = sys.exc_info()
+            errStr = "ERROR getHighestPrioJobStat : %s %s" % (type,value)
+            print errStr
+            return EC_Failed,output+'\n'+errStr
+        # gather
+        for tmpCloud,tmpMap in tmpRet[1].iteritems():
+            if not ret.has_key(tmpCloud):
+                # append cloud values
+                ret[tmpCloud] = tmpMap
+    return 0,ret
  
 
 # get jobs updated recently

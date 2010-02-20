@@ -4137,6 +4137,81 @@ class DBProxy:
                 return {}
 
 
+    # get highest prio jobs
+    def getHighestPrioJobStat(self):
+        comment = ' /* DBProxy.getHighestPrioJobStat */'        
+        _logger.debug("getHighestPrioJobStat()")
+        sql0  = "SELECT cloud,max(currentPriority) FROM %s WHERE "
+        sql0 += "prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) GROUP BY cloud"
+        sqlC  = "SELECT COUNT(*) FROM %s WHERE "
+        sqlC += "prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) AND "
+        sqlC += "cloud=:cloud AND currentPriority=:currentPriority"
+        tables = ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4']
+        ret = {}
+        try:
+            for table in tables:
+                # start transaction
+                self.conn.begin()
+                # select
+                varMap = {}
+                varMap[':prodSourceLabel'] = 'managed'
+                if table == 'ATLAS_PANDA.jobsActive4':
+                    varMap[':jobStatus1'] = 'activated'
+                    varMap[':jobStatus2'] = 'dummy'
+                else:
+                    varMap[':jobStatus1'] = 'defined'
+                    varMap[':jobStatus2'] = 'assigned'
+                self.cur.arraysize = 100
+                _logger.debug((sql0+comment) % table)
+                self.cur.execute((sql0+comment) % table, varMap)
+                res = self.cur.fetchall()
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                # create map
+                for cloud,maxPriority in res:
+                    # add cloud
+                    if not ret.has_key(cloud):
+                        ret[cloud] = {}
+                    # add max priority
+                    prioKey = 'highestPrio'
+                    nNotRunKey = 'nNotRun'
+                    getNumber = False
+                    if not ret[cloud].has_key(prioKey):
+                        ret[cloud][prioKey] = maxPriority
+                        ret[cloud][nNotRunKey] = 0
+                        getNumber = True
+                    else:
+                        # use highest one
+                        if ret[cloud][prioKey] < maxPriority:
+                            ret[cloud][prioKey] = maxPriority
+                            # reset
+                            ret[cloud][nNotRunKey] = 0
+                            getNumber = True
+                        elif ret[cloud][prioKey] == maxPriority:
+                            getNumber = True
+                    # get number of jobs with highest prio
+                    if getNumber:
+                        varMap[':cloud'] = cloud
+                        varMap[':currentPriority'] = maxPriority
+                        self.cur.arraysize = 10
+                        _logger.debug((sqlC+comment) % table)                        
+                        self.cur.execute((sqlC+comment) % table, varMap)
+                        resC = self.cur.fetchone()
+                        # commit
+                        if not self._commit():
+                            raise RuntimeError, 'Commit error'
+                        ret[cloud][nNotRunKey] += resC[0]
+            # return
+            return ret
+        except:
+            # roll back
+            self._rollback()
+            type, value, traceBack = sys.exc_info()
+            _logger.error("getHighestPrioJobStat : %s %s" % (type, value))
+            return {}
+
+
     # get queued analysis jobs at a site
     def getQueuedAnalJobs(self,site,dn):
         comment = ' /* DBProxy.getQueuedAnalJobs */'        
