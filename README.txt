@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * cache-matching in the brokerage for DE 
   * added getHighestPrioJobStat
   * changed weight for the task brokerage to use RW instead of fullRW
   * fixed getFilesInUseForAnal for --individualOutDS

@@ -176,6 +176,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
     prevProType    = None
     prevSourceLabel= None
     prevDiskCount  = None
+    prevHomePkg    = None
     
     nWNmap = {}
     indexJob = 0
@@ -278,9 +279,18 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     # get availabe sites with cache
                     useCacheVersion = False
                     siteListWithCache = []
-                    if forAnalysis and re.search('-\d+\.\d+\.\d+\.\d+',prevRelease) != None:
-                        useCacheVersion = True
-                        siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,caches=prevRelease)
+                    if forAnalysis:
+                        if re.search('-\d+\.\d+\.\d+\.\d+',prevRelease) != None:
+                            useCacheVersion = True
+                            siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,caches=prevRelease)
+                            _log.debug('  cache          %s' % prevRelease)                            
+                    elif previousCloud in ['DE'] and (not prevProType in ['reprocessing']):
+                            useCacheVersion = True
+                            # change / to -
+                            convedPrevHomePkg = prevHomePkg.replace('/','-')
+                            siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,caches=convedPrevHomePkg)
+                            _log.debug('  cache          %s' % prevHomePkg)
+                    if useCacheVersion:        
                         _log.debug('  cacheSites     %s' % str(siteListWithCache))
                     # release/cmtconfig check
                     foundRelease   = False
@@ -352,12 +362,20 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     _log.debug(' skip: cache %s/%s not found' % (prevRelease.replace('\n',' '),prevCmtConfig))                            
                                     if trustIS:
                                         resultsForAnal['rel'].append(site)
-                                    continue    
+                                    continue
+                            elif prevRelease != None and useCacheVersion and (not prevProType in ['reprocessing']):
+                                # cache matching for prod
+                                if (not site in siteListWithCache) or \
+                                   (tmpCmtConfig != None and tmpSiteSpec.cmtconfig != [] and 
+                                    (not tmpCmtConfig in tmpSiteSpec.cmtconfig)):
+                                    _log.debug(' skip: cache %s/%s not found' % (prevHomePkg.replace('\n',' '),prevCmtConfig))
+                                    continue
                             elif (prevRelease != None and ((releases != [] and (not previousCloud in ['US','ND'])) or \
                                                            prevProType in ['reprocessing']) and \
                                   (not _checkRelease(prevRelease,releases))) or \
                                   (tmpCmtConfig != None and tmpSiteSpec.cmtconfig != [] and \
                                    (not tmpCmtConfig in tmpSiteSpec.cmtconfig)):
+                                # release matching
                                 _log.debug(' skip: release %s/%s not found' % (prevRelease.replace('\n',' '),prevCmtConfig))
                                 if forAnalysis and trustIS:
                                     resultsForAnal['rel'].append(site)
@@ -576,8 +594,10 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             tmpJob.brokerageErrorCode = ErrorCode.EC_Release
                             if prevProType in ['reprocessing']:
                                 tmpJob.brokerageErrorDiag = '%s/%s not validated for reprocessing in this cloud' % (tmpJob.AtlasRelease,tmpJob.cmtConfig)
-                            else:
+                            elif not useCacheVersion:
                                 tmpJob.brokerageErrorDiag = '%s/%s not found in this cloud' % (tmpJob.AtlasRelease,tmpJob.cmtConfig)
+                            else:
+                                tmpJob.brokerageErrorDiag = '%s/%s not found in this cloud' % (tmpJob.homepackage,tmpJob.cmtConfig)
                             _log.debug(tmpJob.brokerageErrorDiag)
                             continue
                         # set 'ready' if files are already there
@@ -649,6 +669,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             prevProType     = job.processingType
             prevSourceLabel = job.prodSourceLabel
             prevDiskCount   = job.maxDiskCount
+            prevHomePkg     = job.homepackage
             # assign site
             if chosen_ce != 'TOBEDONE':
                 job.computingSite = chosen_ce.sitename
