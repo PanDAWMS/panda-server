@@ -357,17 +357,16 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 _log.debug(' skip release check')
                                 pass
                             elif forAnalysis and useCacheVersion:
-                                # cache matching
+                                # cache matching 
                                 if not site in siteListWithCache:
-                                    _log.debug(' skip: cache %s/%s not found' % (prevRelease.replace('\n',' '),prevCmtConfig))                            
+                                    _log.debug(' skip: cache %s/%s not found' % (prevRelease.replace('\n',' '),prevCmtConfig))
                                     if trustIS:
                                         resultsForAnal['rel'].append(site)
                                     continue
-                            elif prevRelease != None and useCacheVersion and (not prevProType in ['reprocessing']):
-                                # cache matching for prod
-                                if (not site in siteListWithCache) or \
-                                   (tmpCmtConfig != None and tmpSiteSpec.cmtconfig != [] and 
-                                    (not tmpCmtConfig in tmpSiteSpec.cmtconfig)):
+                            elif prevRelease != None and useCacheVersion and (not prevProType in ['reprocessing']) \
+                                 and ((not site in siteListWithCache) or 
+                                      (tmpCmtConfig != None and tmpSiteSpec.cmtconfig != [] and 
+                                       (not tmpCmtConfig in tmpSiteSpec.cmtconfig))):
                                     _log.debug(' skip: cache %s/%s not found' % (prevHomePkg.replace('\n',' '),prevCmtConfig))
                                     continue
                             elif (prevRelease != None and ((releases != [] and (not previousCloud in ['US','ND'])) or \
