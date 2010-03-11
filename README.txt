@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added processingType to runBrokerage for HC
   * doesn't check release matching for CERN
   * cache-matching in the brokerage for DE 
   * added getHighestPrioJobStat

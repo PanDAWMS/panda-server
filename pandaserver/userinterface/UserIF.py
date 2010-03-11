@@ -399,7 +399,7 @@ class UserIF:
 
 
     # run brokerage
-    def runBrokerage(self,sitesStr,cmtConfig,atlasRelease,trustIS=False):
+    def runBrokerage(self,sitesStr,cmtConfig,atlasRelease,trustIS=False,processingType=None):
         ret = 'NULL'
         try:
             # deserialize sites
@@ -410,6 +410,8 @@ class UserIF:
             job = JobSpec()
             job.AtlasRelease = atlasRelease
             job.cmtConfig    = cmtConfig
+            if processingType != None:
+                job.processingType = processingType
             # run brokerage
             brokerage.broker.schedule([job],self.taskBuffer,siteMapper,True,sites,trustIS)
             # get computingSite
@@ -774,12 +776,12 @@ def getPandaClientVer(req):
     return userIF.getPandaClientVer()
 
 # run brokerage
-def runBrokerage(req,sites,cmtConfig=None,atlasRelease=None,trustIS=False):
+def runBrokerage(req,sites,cmtConfig=None,atlasRelease=None,trustIS=False,processingType=None):
     if trustIS=='True':
         trustIS = True
     else:
         trustIS = False
-    return userIF.runBrokerage(sites,cmtConfig,atlasRelease,trustIS)
+    return userIF.runBrokerage(sites,cmtConfig,atlasRelease,trustIS,processingType)
 
 # run rebrokerage
 def runReBrokerage(req,jobID,libDS='',cloud=None,excludedSite=None):
