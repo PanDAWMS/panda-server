@@ -1391,7 +1391,11 @@ class Setupper (threading.Thread):
                     newStMap = {}
                     for stName,stNum in allRepMap[siteId][0].iteritems():
                         if statList[-1].has_key(stName):
-                            newStMap[stName] = stNum + statList[-1][stName]
+                            # try mainly for archived=None
+                            try:
+                                newStMap[stName] = stNum + statList[-1][stName]
+                            except:
+                                newStMap[stName] = stNum
                         else:
                             newStMap[stName] = stNum
                     allRepMap[siteId] = [newStMap,]

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added a protection for containers composed of multiple datasets
   * added processingType to runBrokerage for HC
   * doesn't check release matching for CERN
   * cache-matching in the brokerage for DE 
