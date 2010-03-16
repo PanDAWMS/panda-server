@@ -1,7 +1,7 @@
 Release Note
 
 * current
-  * enabled cache-matching brokerage for NL
+  * enabled cache-matching brokerage for NL/FR
   * added a protection for containers composed of multiple datasets
   * added processingType to runBrokerage for HC
   * doesn't check release matching for CERN
