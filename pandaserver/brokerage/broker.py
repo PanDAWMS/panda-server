@@ -284,7 +284,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             useCacheVersion = True
                             siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,caches=prevRelease)
                             _log.debug('  cache          %s' % prevRelease)                            
-                    elif previousCloud in ['DE'] and (not prevProType in ['reprocessing']):
+                    elif previousCloud in ['DE','NL'] and (not prevProType in ['reprocessing']):
                             useCacheVersion = True
                             # change / to -
                             convedPrevHomePkg = prevHomePkg.replace('/','-')
