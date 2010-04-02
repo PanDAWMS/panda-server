@@ -1531,6 +1531,13 @@ class DBProxy:
                     raise RuntimeError, 'Commit error'
                 # return
                 return None
+            # do nothing for analysis jobs
+            if job.prodSourceLabel in ['user','panda']:
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                # return
+                return None
             # delete
             varMap = {}
             varMap[':PandaID'] = pandaID
@@ -1649,6 +1656,12 @@ class DBProxy:
                 # instantiate Job
                 job = JobSpec()
                 job.pack(res)
+                # do nothing for analysis jobs
+                if job.prodSourceLabel in ['user','panda']:
+                    _logger.debug('resetDefinedJob : rollback since PandaID=%s is analysis job' % pandaID)
+                    # roll back
+                    self._rollback()
+                    return None
                 job.dispatchDBlock = None
                 if (not keepSite) and job.relocationFlag != 1:
                     # erase old assignment

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * protection against reassigning analysis jobs
   * enabled cache-matching brokerage for all EGEE clouds
   * enabled cache-matching brokerage for NL/FR
   * added a protection for containers composed of multiple datasets
