@@ -1,6 +1,6 @@
 Release Note
 
-* current
+* 0.0.9 (4/13/2010)
   * increased the subscription limit to 600 in TA
   * protection against reassigning analysis jobs
   * enabled cache-matching brokerage for all EGEE clouds
