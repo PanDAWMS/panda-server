@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added admin to NG words for Notifier
   * added cancelled state
 
 * 0.0.9 (4/13/2010)
