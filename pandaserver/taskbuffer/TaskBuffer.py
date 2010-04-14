@@ -275,7 +275,7 @@ class TaskBuffer:
         for job in jobs:
             # update DB
             tmpddmIDs = []
-            if re.match('^finished$',job.jobStatus,re.I) or re.match('^failed$',job.jobStatus,re.I):
+            if job.jobStatus in ['finished','failed','cancelled']:
                 ret,tmpddmIDs,ddmAttempt,newMover = proxy.archiveJob(job,inJobsDefined)
             else:
                 ret = proxy.updateJob(job,inJobsDefined)

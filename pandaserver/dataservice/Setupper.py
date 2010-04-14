@@ -141,7 +141,7 @@ class Setupper (threading.Thread):
         # extract prodDBlock
         for job in self.jobs:
             # ignore failed jobs
-            if job.jobStatus == 'failed':
+            if job.jobStatus in ['failed','cancelled']:
                 continue
             # production datablock
             if job.prodDBlock != 'NULL' and (not self.pandaDDM) and (not job.prodSourceLabel in ['user','panda']):
@@ -358,7 +358,7 @@ class Setupper (threading.Thread):
             jobsList = self.jobs[startIdx:startIdx+nJobsInLoop]
         for job in jobsList:
             # ignore failed jobs
-            if job.jobStatus == 'failed':
+            if job.jobStatus in ['failed','cancelled']:
                 continue
             for file in job.Files:
                 # ignore input files
@@ -615,7 +615,7 @@ class Setupper (threading.Thread):
         ddmUser    = 'NULL'
         for job in self.jobs:
             # ignore failed jobs
-            if job.jobStatus == 'failed':
+            if job.jobStatus in ['failed','cancelled']:
                 continue
             # ignore no dispatch jobs
             if job.dispatchDBlock=='NULL' or job.computingSite=='NULL':
@@ -914,7 +914,7 @@ class Setupper (threading.Thread):
         # sort out jobs
         for job in self.jobs:
             # failed jobs
-            if job.jobStatus=='failed':
+            if job.jobStatus in ['failed','cancelled']:
                 failedJobs.append(job)
             # no input jobs
             elif job.dispatchDBlock=='NULL':

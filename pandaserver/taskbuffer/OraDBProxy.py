@@ -595,7 +595,7 @@ class DBProxy:
                             if retD == 0:
                                 continue
                             # error code
-                            dJob.jobStatus = 'failed'
+                            dJob.jobStatus = 'cancelled'
                             dJob.endTime   = datetime.datetime.utcnow()
                             dJob.taskBufferErrorCode = ErrorCode.EC_Kill
                             dJob.taskBufferErrorDiag = 'killed by Panda server : upstream job failed'
@@ -1478,9 +1478,12 @@ class DBProxy:
                 # append
                 retJobs.append(job)
                 # insert to memcached
+                """
+                pcache itself inserts files to memcache
                 if useMemcache:
                     if fileMapForMem.has_key(job.PandaID):
                         self.memcache.setFiles(job.PandaID,siteName,node,fileMapForMem[job.PandaID])
+                """        
             return retJobs,nSent
         except:
             # roll back
@@ -1788,7 +1791,7 @@ class DBProxy:
                 if table=='ATLAS_PANDA.jobsDefined4':
                     varMap = {}
                     varMap[':PandaID'] = pandaID
-                    varMap[':newJobStatus'] = 'failed'
+                    varMap[':newJobStatus']  = 'cancelled'
                     varMap[':oldJobStatus1'] = 'assigned'
                     varMap[':oldJobStatus2'] = 'defined'
                     self.cur.execute(sqlU+comment, varMap)
@@ -1800,7 +1803,7 @@ class DBProxy:
                 if retD == 0:
                     continue
                 # error code
-                job.jobStatus = 'failed'
+                job.jobStatus = 'cancelled'
                 job.endTime   = datetime.datetime.utcnow()
                 job.modificationTime = job.endTime
                 job.stateChangeTime  = job.modificationTime
@@ -3010,7 +3013,7 @@ class DBProxy:
                 table = 'ATLAS_PANDA.jobsWaiting4'
             elif param['jobStatus'] in ['activated','sent','starting','running','holding','transferring']:
                 table = 'ATLAS_PANDA.jobsActive4'
-            elif param['jobStatus'] in ['finished','failed']:
+            elif param['jobStatus'] in ['finished','failed','cancelled']:
                 table = 'ATLAS_PANDA.jobsArchived4'
             else:
                 _logger.error("invalid status %s" % param['jobStatus'])

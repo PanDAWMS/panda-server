@@ -84,6 +84,7 @@ class Notifier (threading.Thread):
                 nSucceeded = 0
                 nFailed    = 0
                 nPartial   = 0
+                nCancel    = 0
                 # job ID
                 jobID = self.job.jobDefinitionID
                 # time info
@@ -120,6 +121,8 @@ class Notifier (threading.Thread):
                             nPartial += 1
                     elif job.jobStatus == 'failed':
                         nFailed += 1
+                    elif job.jobStatus == 'cancelled':
+                        nCancel += 1
                 # make message
                 fromadd = panda_config.emailSender
                 message = \
@@ -138,7 +141,9 @@ Total Number of Jobs : %s
            Succeeded : %s
            Partial   : %s
            Failed    : %s
-""" % (jobID,fromadd,mailAddr,jobID,creationTime,endTime,siteName,nTotal,nSucceeded,nPartial,nFailed)
+           Cancelled : %s
+""" % (jobID,fromadd,mailAddr,jobID,creationTime,endTime,siteName,nTotal,
+       nSucceeded,nPartial,nFailed,nCancel)
                 for iDS in iDSList:
                     message += \
 """

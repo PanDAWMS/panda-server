@@ -1,5 +1,8 @@
 Release Note
 
+* current
+  * added cancelled state
+
 * 0.0.9 (4/13/2010)
   * increased the subscription limit to 600 in TA
   * protection against reassigning analysis jobs

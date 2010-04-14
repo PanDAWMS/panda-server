@@ -72,8 +72,7 @@ class Adder (threading.Thread):
             # check if job has finished
             if self.job == None:
                 _logger.debug('%s : not found' % self.jobID)                
-            elif self.job.jobStatus == 'finished' or self.job.jobStatus == 'failed' \
-                     or self.job.jobStatus == 'unknown':
+            elif self.job.jobStatus in ['finished','failed','unknown','cancelled']:
                 _logger.error('%s : invalid state -> %s' % (self.jobID,self.job.jobStatus))
             else:
                 # add files only to top-level datasets for transferring jobs
@@ -197,6 +196,9 @@ class Adder (threading.Thread):
                     # endtime
                     if self.job.endTime=='NULL':
                         self.job.endTime = time.strftime('%Y-%m-%d %H:%M:%S',time.gmtime())
+                # set cancelled state
+                if self.job.commandToPilot == 'tobekilled' and self.job.jobStatus == 'failed':
+                    self.job.jobStatus = 'cancelled'
                 # update job
                 retU = self.taskBuffer.updateJobs([self.job],False)
                 _logger.debug("%s retU: %s" % (self.jobID,retU))
