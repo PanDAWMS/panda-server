@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * True/False for schedconfig.validation
   * added admin to NG words for Notifier
   * added cancelled state
 

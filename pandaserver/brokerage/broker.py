@@ -53,6 +53,11 @@ def _compFunc(jobA,jobB):
 
 # release checker
 def _checkRelease(jobRels,siteRels):
+    # all on/off
+    if "True" in siteRels:
+        return Ture
+    if "False" in siteRels:
+        return False
     # loop over all releases
     for tmpRel in jobRels.split('\n'):
         relVer = re.sub('^Atlas-','',tmpRel)
