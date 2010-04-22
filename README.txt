@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added boostPrio.py
   * added cvs,svn,grid,librarian to NG words
   * True/False for schedconfig.validation
   * added admin to NG words for Notifier
