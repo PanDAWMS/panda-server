@@ -55,7 +55,7 @@ def _compFunc(jobA,jobB):
 def _checkRelease(jobRels,siteRels):
     # all on/off
     if "True" in siteRels:
-        return Ture
+        return True
     if "False" in siteRels:
         return False
     # loop over all releases
