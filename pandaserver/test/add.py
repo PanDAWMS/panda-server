@@ -71,7 +71,8 @@ if retSel != None:
             varMap[':jobStatus1'] = 'activated'
             varMap[':jobStatus2'] = 'waiting'
             varMap[':jobStatus3'] = 'failed'
-            status,retDel = taskBuffer.querySQLS("DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID<:maxID AND (jobStatus=:jobStatus1 OR jobStatus=:jobStatus2 OR jobStatus=:jobStatus3)",varMap)
+            varMap[':jobStatus4'] = 'cancelled'            
+            status,retDel = taskBuffer.querySQLS("DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID<:maxID AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3,:jobStatus4)",varMap)
     except:
         pass
 
