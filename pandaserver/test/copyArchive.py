@@ -222,7 +222,7 @@ del res
 # increase priorities for long-waiting analysis jobs
 _logger.debug("Analysis Priorities")
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
-sql = "UPDATE ATLAS_PANDA.jobsActive4 SET currentPriority=currentPriority+40,modificationTime=CURRENT_DATE WHERE jobStatus=:jobStatus "
+sql = "UPDATE ATLAS_PANDA.jobsActive4 SET currentPriority=currentPriority+100,modificationTime=CURRENT_DATE WHERE jobStatus=:jobStatus "
 sql+= "AND modificationTime<:modificationTime AND prodSourceLabel=:prodSourceLabel "
 varMap = {}
 varMap[':jobStatus'] = 'activated'

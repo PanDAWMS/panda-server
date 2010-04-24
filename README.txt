@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * increased priority boost for activated jobs
   * delete cancelled from jobsDefined4
   * added boostPrio.py
   * added cvs,svn,grid,librarian to NG words
