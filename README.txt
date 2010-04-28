@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * set REMOTE_HOST to creationHost
   * increased priority boost for activated jobs
   * delete cancelled from jobsDefined4
   * added boostPrio.py

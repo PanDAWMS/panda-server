@@ -42,7 +42,7 @@ class TaskBuffer:
 
                                                         
     # store Jobs into DB
-    def storeJobs(self,jobs,user,joinThr=False,forkSetupper=False,fqans=[]):
+    def storeJobs(self,jobs,user,joinThr=False,forkSetupper=False,fqans=[],hostname=''):
         # check quota for priority calculation
         weight         = 0.0
         userJobID      = -1
@@ -196,7 +196,10 @@ class TaskBuffer:
                     tmpNumBuild = 0
                     tmpNunRun = len(jobs)
                 # encode    
-                job.taskID = tmpNumBuild + (tmpNunRun << 1) 
+                job.taskID = tmpNumBuild + (tmpNunRun << 1)
+            # set hostname
+            if hostname != '':
+                job.creationHost = hostname
             # insert job to DB
             if not proxy.insertNewJob(job,user,serNum,weight,priorityOffset,userVO):
                 # reset if failed

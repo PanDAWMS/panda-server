@@ -46,7 +46,8 @@ class UserIF:
             _logger.error("submitJobs : %s %s" % (type,value))
             jobs = []
         # store jobs
-        ret = self.taskBuffer.storeJobs(jobs,user,forkSetupper=True,fqans=userFQANs)
+        ret = self.taskBuffer.storeJobs(jobs,user,forkSetupper=True,fqans=userFQANs,
+                                        hostname=host)
         _logger.debug("submitJobs %s ->:%s" % (user,len(ret)))
         # logging
         try:
