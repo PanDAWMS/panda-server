@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * delete sub datasets from DE T2 when callback is received
   * set REMOTE_HOST to creationHost
   * increased priority boost for activated jobs
   * delete cancelled from jobsDefined4

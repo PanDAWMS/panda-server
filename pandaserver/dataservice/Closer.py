@@ -57,6 +57,10 @@ class Closer (threading.Thread):
                 _logger.error('%s Not found : %s' % (self.pandaID,destinationDBlock))
                 flagComplete = False
                 continue
+            # skip tobedeleted
+            if dataset.status in ['cleanup']:
+                _logger.debug('%s skip cleanup %s' % (self.pandaID,destinationDBlock))
+                continue
             dsList.append(dataset)
             # sort
             dsList.sort()

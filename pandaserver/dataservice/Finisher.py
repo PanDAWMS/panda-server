@@ -81,9 +81,12 @@ class Finisher (threading.Thread):
                 # update bitmap in DB
                 updatedBitMap = self.taskBuffer.updateTransferStatus(self.dataset.name,bitMap)
                 _logger.debug("transfer status:%s - comp:%s - bit:%s" % (hex(updatedBitMap),hex(compBitMap),hex(bitMap)))
-                # update input files
+                # update output files
                 if (updatedBitMap & compBitMap) == compBitMap:
                     ids = self.taskBuffer.updateOutFilesReturnPandaIDs(self.dataset.name)
+                    # set flag for T2 cleanup
+                    self.dataset.status = 'cleanup'
+                    self.taskBuffer.updateDatasets([self.dataset])
                 else:
                     _logger.debug("end: %s" % self.dataset.name)
                     return

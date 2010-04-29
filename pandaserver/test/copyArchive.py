@@ -1214,6 +1214,122 @@ while True:
 freezeThreadPool.join()
 
 
+# thread to delete dataset replica from T2
+class T2Cleaner (threading.Thread):
+    def __init__(self,lock,proxyLock,datasets,pool):
+        threading.Thread.__init__(self)
+        self.datasets   = datasets
+        self.lock       = lock
+        self.proxyLock  = proxyLock
+        self.pool       = pool
+        self.pool.add(self)
+                                        
+    def run(self):
+        self.lock.acquire()
+        try:
+            for vuid,name,modDate in self.datasets:
+                _logger.debug("cleanT2 %s" % name)
+                # get list of replicas
+                status,out = ddm.DQ2.main('listDatasetReplicas',name,0,None,False)
+                if status != 0 and out.find('DQFrozenDatasetException')  == -1 and \
+                       out.find("DQUnknownDatasetException") == -1 and out.find("DQSecurityException") == -1 and \
+                       out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1:
+                    _logger.error(out)
+                    continue
+                else:
+                    try:
+                        # convert res to map
+                        exec "tmpRepSites = %s" % out
+                    except:
+                        tmpRepSites = {}
+                        _logger.error("cannot convert to replica map")
+                        _logger.error(out)
+                        continue
+                    # check cloud
+                    cloudName = None
+                    for tmpCloudName in siteMapper.getCloudList():
+                        t1SiteName = siteMapper.getCloud(tmpCloudName)['source']
+                        t1SiteDDMs  = siteMapper.getSite(t1SiteName).setokens.values()
+                        for tmpDDM in t1SiteDDMs:
+                            if tmpRepSites.has_key(tmpDDM):
+                                cloudName = tmpCloudName
+                                break
+                    # cloud is not found
+                    if cloudName == None:        
+                        _logger.error("cannot find cloud for %s : %s" % (name,str(tmpRepSites)))
+                    elif not cloudName in ['DE']:
+                        # FIXME : test only DE for now
+                        pass
+                    else:
+                        # look for T2 IDs
+                        t2DDMs = []
+                        for tmpDDM in tmpRepSites.keys():
+                            if not tmpDDM in t1SiteDDMs and tmpDDM.endswith('_PRODDISK'):
+                                t2DDMs.append(tmpDDM)
+                        # delete replica for sub
+                        if re.search('_sub\d+$',name) != None:
+                            _logger.debug(('deleteDatasetReplicas',name,t2DDMs))
+                            status,out = ddm.DQ2.main('deleteDatasetReplicas',name,t2DDMs)
+                            if status != 0:
+                                _logger.error(out)
+                                if out.find('DQFrozenDatasetException')  == -1 and \
+                                       out.find("DQUnknownDatasetException") == -1 and out.find("DQSecurityException") == -1 and \
+                                       out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1 and \
+                                       out.find("No replica found") == -1:
+                                    continue
+                    # update        
+                    self.proxyLock.acquire()
+                    varMap = {}
+                    varMap[':vuid'] = vuid
+                    varMap[':status'] = 'completed' 
+                    taskBuffer.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status=:status,modificationdate=CURRENT_DATE WHERE vuid=:vuid",
+                                         varMap)
+                    self.proxyLock.release()                            
+                _logger.debug("end %s " % name)
+        except:
+            pass
+        self.pool.remove(self)
+        self.lock.release()
+                            
+# delete dataset replica from T2
+timeLimitU = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
+timeLimitL = datetime.datetime.utcnow() - datetime.timedelta(days=3)
+t2cleanLock = threading.Semaphore(5)
+t2cleanProxyLock = threading.Lock()
+t2cleanThreadPool = ThreadPool()
+while True:
+    # lock
+    t2cleanLock.acquire()
+    # get datasets
+    varMap = {}
+    varMap[':modificationdateU'] = timeLimitU
+    varMap[':modificationdateL'] = timeLimitL    
+    varMap[':type']   = 'output'
+    varMap[':status'] = 'cleanup'
+    t2cleanProxyLock.acquire()
+    status,res = taskBuffer.querySQLS("SELECT vuid,name,modificationdate FROM ATLAS_PANDA.Datasets WHERE type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= 10",
+                                  varMap)
+    if res == None:
+        _logger.debug("# of datasets to be deleted from T2: %s" % res)
+    else:
+        _logger.debug("# of datasets to be deleted from T2: %s" % len(res))
+    if res==None or len(res)==0:
+        t2cleanProxyLock.release()
+        t2cleanLock.release()
+        break
+    # update to prevent other process from picking up
+    for (vuid,name,modDate) in res:
+        taskBuffer.querySQLS("UPDATE ATLAS_PANDA.Datasets SET modificationdate=CURRENT_DATE WHERE vuid=:vuid", {':vuid':vuid})        
+    t2cleanProxyLock.release()            
+    # release
+    t2cleanLock.release()
+    # run t2cleanr
+    t2cleanr = T2Cleaner(t2cleanLock,t2cleanProxyLock,res,t2cleanThreadPool)
+    t2cleanr.start()
+
+t2cleanThreadPool.join()
+
+
 
 _memoryCheck("delete XML")
 
