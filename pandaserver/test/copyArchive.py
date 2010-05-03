@@ -1257,8 +1257,8 @@ class T2Cleaner (threading.Thread):
                     # cloud is not found
                     if cloudName == None:        
                         _logger.error("cannot find cloud for %s : %s" % (name,str(tmpRepSites)))
-                    elif not cloudName in ['DE']:
-                        # FIXME : test only DE for now
+                    elif not cloudName in ['DE','CA','ES','FR','IT','NL','UK','TW']:
+                        # FIXME : test only EGEE for now
                         pass
                     else:
                         # look for T2 IDs
