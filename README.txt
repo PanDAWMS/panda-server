@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * introduced datriHandler
   * delete sub datasets from EGEE T2 when callback is received
   * set REMOTE_HOST to creationHost
   * increased priority boost for activated jobs

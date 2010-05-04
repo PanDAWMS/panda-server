@@ -98,10 +98,10 @@ class Adder (threading.Thread):
                     else:
                         tmpDstDDM = self.siteMapper.getSite(self.job.destinationSE).ddm
                         tmpDstSEs = brokerage.broker_util.getSEfromSched(self.siteMapper.getSite(self.job.destinationSE).se)
-                    if re.search('^ANALY_',self.job.computingSite) != None and not destSEwasSet:
+                    if re.search('^ANALY_',self.job.computingSite) != None:
                         # analysis site
                         pass
-                    elif (re.search('BNL', self.job.computingSite) != None or self.job.computingSite == "TPATHENA") and not destSEwasSet:
+                    elif (re.search('BNL', self.job.computingSite) != None or self.job.computingSite == "TPATHENA"):
                         # BNL
                         pass
                     elif self.job.computingSite == self.job.destinationSE:
@@ -539,32 +539,92 @@ class Adder (threading.Thread):
                 break
         # register dataset subscription
         subActivity = 'Production'
-        if self.job.prodSourceLabel in ['user']:
-            subActivity = 'User Subscriptions'
-        for tmpName,tmpVal in subMap.iteritems():
-            for dq2ID,optSub,optSource in tmpVal:
-                _logger.debug((self.jobID,'registerDatasetSubscription',tmpName,dq2ID,0,0,optSub,
-                               optSource,001000 | 010000,0,None,0,"production",None,subActivity))
-                for iDDMTry in range(3):                                                        
-                    status,out = ddm.DQ2.main('registerDatasetSubscription',tmpName,dq2ID,0,0,optSub,
-                                              optSource,001000 | 010000,0,None,0,"production",None,subActivity)
-                    if (status != 0 or out.find("DQ2 internal server exception") != -1 \
-                           or out.find("An error occurred on the central catalogs") != -1 \
-                           or out.find("MySQL server has gone away") != -1) and \
-                           out.find('DQSubscriptionExistsException') == -1:
-                        time.sleep(60)
+        if not self.job.prodSourceLabel in ['user']:
+            # make DQ2 subscription for prod jobs
+            for tmpName,tmpVal in subMap.iteritems():
+                for dq2ID,optSub,optSource in tmpVal:
+                    _logger.debug((self.jobID,'registerDatasetSubscription',tmpName,dq2ID,0,0,optSub,
+                                   optSource,001000 | 010000,0,None,0,"production",None,subActivity))
+                    for iDDMTry in range(3):                                                        
+                        status,out = ddm.DQ2.main('registerDatasetSubscription',tmpName,dq2ID,0,0,optSub,
+                                                  optSource,001000 | 010000,0,None,0,"production",None,subActivity)
+                        if (status != 0 or out.find("DQ2 internal server exception") != -1 \
+                               or out.find("An error occurred on the central catalogs") != -1 \
+                               or out.find("MySQL server has gone away") != -1) and \
+                               out.find('DQSubscriptionExistsException') == -1:
+                            time.sleep(60)
+                        else:
+                            break
+                    if status != 0 and (out != 'None' and out.find('DQSubscriptionExistsException') == -1):
+                        _logger.error('%s %s' % (self.jobID,out))
+                        self.job.ddmErrorCode = ErrorCode.EC_Adder                
+                        self.job.ddmErrorDiag = "Adder._updateOutputs() could not register subscription : %s" % tmpName
+                        return
+                    _logger.debug('%s %s' % (self.jobID,out))                                                        
+                    # set dataset status
+                    self.datasetMap[tmpName].status = 'running'
+            # keep subscriptions
+            self.subscriptionMap = subMap
+        else:
+            # send request to DaTRI
+            tmpTopDatasets = {}
+            # collect top-level datasets
+            for tmpName,tmpVal in subMap.iteritems():
+                for dq2ID,optSub,optSource in tmpVal:
+                    tmpTopName = re.sub('_sub\d+','',tmpName)
+                    # append
+                    if not tmpTopDatasets.has_key(tmpTopName):
+                        tmpTopDatasets[tmpTopName] = []
+                    if not dq2ID in tmpTopDatasets[tmpTopName]:
+                        tmpTopDatasets[tmpTopName].append(dq2ID)
+            # remove redundant CN from DN
+            tmpDN = self.job.prodUserID
+            tmpDN = re.sub('/CN=limited proxy','',tmpDN)
+            tmpDN = re.sub('(/CN=proxy)+$','',tmpDN)
+            # send request
+            if tmpTopDatasets != {}:
+                try:
+                    from datriHandler import datriHandler
+                    if self.job.lockedby.startswith('Ganga'):
+                        tmpHandler = datriHandler(type='ganga')
                     else:
-                        break
-                if status != 0 and (out != 'None' and out.find('DQSubscriptionExistsException') == -1):
-                    _logger.error('%s %s' % (self.jobID,out))
-                    self.job.ddmErrorCode = ErrorCode.EC_Adder                
-                    self.job.ddmErrorDiag = "Adder._updateOutputs() could not register subscription : %s" % tmpName
+                        tmpHandler = datriHandler()
+                    # loop over all output datasets
+                    for tmpDsName,dq2IDlist in tmpTopDatasets.iteritems():
+                        for tmpDQ2ID in dq2IDlist:
+                            tmpMsg = "%s %s ds=%s site=%s id=%s" % (self.jobID,'datriHandler.sendRequest',
+                                                                    tmpDsName,tmpDQ2ID,tmpDN)
+                            _logger.debug(tmpMsg)
+                            tmpHandler.setParameters(data_pattern=tmpDsName,
+                                                     site=tmpDQ2ID,
+                                                     userid=tmpDN)
+                            # number of retry
+                            nTry = 3
+                            for iTry in range(nTry):
+                                dhStatus,dhOut = tmpHandler.sendRequest()
+                                # succeeded
+                                if dhStatus == 0:
+                                    _logger.debug("%s %s %s" % (self.jobID,dhStatus,dhOut))
+                                    break
+                                if iTry+1 < nTry:
+                                    # sleep
+                                    time.sleep(60)
+                                else:
+                                    # final attempt failed
+                                    tmpMsg = "%s datriHandler failed with %s %s" % (self.jobID,dhStatus,dhOut)
+                                    _logger.error(tmpMsg)
+                                    self.job.ddmErrorCode = ErrorCode.EC_Adder
+                                    self.job.ddmErrorDiag = "DaTRI failed for %s with %s %s" % (tmpDsName,dhStatus,dhOut)
+                                    return
+                    # set dataset status
+                    self.datasetMap[tmpName].status = 'running'
+                except:
+                    errType,errValue = sys.exc_info()[:2]
+                    tmpMsg = "%s datriHandler failed with %s %s" % (self.jobID,errType,errValue)
+                    _logger.error(tmpMsg)
+                    self.job.ddmErrorCode = ErrorCode.EC_Adder
+                    self.job.ddmErrorDiag = "DaTRI failed with %s %s" % (errType,errValue)
                     return
-                _logger.debug('%s %s' % (self.jobID,out))                                                        
-                # set dataset status
-                self.datasetMap[tmpName].status = 'running'
-        # keep subscriptions
-        self.subscriptionMap = subMap
         # properly finished    
         _logger.debug("%s addFiles end" % self.jobID)
 

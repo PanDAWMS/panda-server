@@ -640,11 +640,11 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         tmpDataType = job.prodDBlock.split('.')[-2]
                     except:
                         # default
-                        tmpDataType = 'Unknown'                        
-                    if len(tmpDataType) > 10:
+                        tmpDataType = 'GEN'                        
+                    if len(tmpDataType) > 20:
                         # avoid too long name
-                        tmpDataType = 'Unknown'
-                    dispatchDBlock = "panda.%s.%s.%s.%s_dis%s" % (tmpDataType,job.taskID,time.strftime('%m.%d'),
+                        tmpDataType = 'GEN'
+                    dispatchDBlock = "panda.%s.%s.%s.%s_dis%s" % (job.taskID,time.strftime('%m.%d'),tmpDataType,
                                                                   commands.getoutput('uuidgen'),job.PandaID)
                     _log.debug('New dispatchDBlock: %s' % dispatchDBlock)                    
                 prodDBlock = job.prodDBlock
