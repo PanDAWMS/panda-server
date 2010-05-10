@@ -15,7 +15,7 @@ for idx,argv in enumerate(sys.argv):
 
 site = sys.argv[1]
 
-datasetName = 'testpanda.destDB.%s' % commands.getoutput('uuidgen')
+datasetName = 'panda.destDB.%s' % commands.getoutput('uuidgen')
 destName    = None
 
 job = JobSpec()

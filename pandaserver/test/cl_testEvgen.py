@@ -18,7 +18,7 @@ else:
     site = None
     cloud = None
     
-datasetName = 'testpanda.destDB.%s_tid999991' % commands.getoutput('uuidgen')
+datasetName = 'panda.destDB.%s_tid999991' % commands.getoutput('uuidgen')
 taskid = 999989
 
 jobList = []

@@ -10,7 +10,7 @@ if len(sys.argv)>1:
 else:
     site = "ANALY_BNL_ATLAS_1"
 
-datasetName = 'testpanda.destDB.%s' % commands.getoutput('uuidgen')
+datasetName = 'panda.destDB.%s' % commands.getoutput('uuidgen')
 destName    = 'BNL_SE'
 
 jobDefinitionID = int(time.time()) % 10000

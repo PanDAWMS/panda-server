@@ -9,7 +9,7 @@ job.jobDefinitionID   = int(time.time()) % 10000
 job.jobName           = commands.getoutput('/usr/bin/uuidgen') 
 job.AtlasRelease      = 'Atlas-9.0.4'
 job.prodDBlock        = 'pandatest.000003.dd.input'
-job.destinationDBlock = 'testpanda.destDB.%s' % commands.getoutput('/usr/bin/uuidgen')
+job.destinationDBlock = 'panda.destDB.%s' % commands.getoutput('/usr/bin/uuidgen')
 job.destinationSE     = 'BNL_SE'
 
 ids = {'pandatest.000003.dd.input._00028.junk':'6c19e1fc-ee8c-4bae-bd4c-c9e5c73aca27',

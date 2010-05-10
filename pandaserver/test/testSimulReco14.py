@@ -19,7 +19,7 @@ else:
 #Recent changes (BNL migration to LFC?) forvce the cloud to be specified
 cloud = 'US'
 
-datasetName = 'testpanda.destDB.%s' % commands.getoutput('uuidgen')
+datasetName = 'panda.destDB.%s' % commands.getoutput('uuidgen')
 destName    = 'BNL_ATLAS_2'
 
 files = {

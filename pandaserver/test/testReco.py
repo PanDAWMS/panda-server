@@ -11,7 +11,7 @@ if len(sys.argv)>1:
 else:
     site = None
 
-datasetName = 'testpanda.destDB.%s' % commands.getoutput('uuidgen')
+datasetName = 'panda.destDB.%s' % commands.getoutput('uuidgen')
 destName    = None
 
 files = {

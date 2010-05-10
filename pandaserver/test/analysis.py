@@ -12,7 +12,7 @@ else:
 
 jobList = []
 for i in range(2):
-    datasetName = 'testpanda.destDB.%s' % commands.getoutput('uuidgen')
+    datasetName = 'panda.destDB.%s' % commands.getoutput('uuidgen')
     destName    = 'ANALY_BNL_ATLAS_1'
     
     job = JobSpec()

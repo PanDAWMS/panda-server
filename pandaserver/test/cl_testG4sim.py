@@ -20,7 +20,7 @@ else:
     site = None
     cloud = None
 
-datasetName = 'testpanda.rod2.%s_tid999990' % commands.getoutput('uuidgen')
+datasetName = 'panda.rod2.%s_tid999990' % commands.getoutput('uuidgen')
 #destName    = 'BNL_SE'
 
 if cloud=='UK':

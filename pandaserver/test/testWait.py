@@ -10,7 +10,7 @@ if len(sys.argv)>1:
 else:
     site = None
 
-datasetName = 'testpanda.destDB.%s' % commands.getoutput('uuidgen')
+datasetName = 'panda.destDB.%s' % commands.getoutput('uuidgen')
 destName    = 'BNL_SE'
 
 jobListE = []
@@ -58,7 +58,7 @@ for x in o:
 
 time.sleep(20)
 
-datasetNameS = 'testpanda.simu.%s' % commands.getoutput('uuidgen')
+datasetNameS = 'panda.simu.%s' % commands.getoutput('uuidgen')
 
 jobListS = []
 

@@ -8,7 +8,7 @@ from taskbuffer.FileSpec import FileSpec
 site  = sys.argv[1]
 cloud = sys.argv[2] 
 
-datasetName = 'testpanda.destDB.%s' % commands.getoutput('uuidgen')
+datasetName = 'panda.destDB.%s' % commands.getoutput('uuidgen')
 destName    = None
 
 jobList = []

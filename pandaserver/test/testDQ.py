@@ -94,7 +94,7 @@ for i in range(1):
 #status,out = ddm.DQ2ProductionClient.dq2_assign_destination(datasetName,'BNL_SE')
 #print out
 #print ddm.DQ2.main(['eraseDataset',datasetName])
-#status,out = ddm.DQ2.main(['listFilesInDataset','testpanda.destDB.11aed982-8079-4db9-964c-37a284b8597a'])
+#status,out = ddm.DQ2.main(['listFilesInDataset','panda.destDB.11aed982-8079-4db9-964c-37a284b8597a'])
 #print out
 
 

@@ -17,7 +17,7 @@ if len(sys.argv)==5:
     prodDBlock = sys.argv[3]
     inputFile  = sys.argv[4]
 
-datasetName = 'testpanda.destDB.%s' % commands.getoutput('uuidgen')
+datasetName = 'panda.destDB.%s' % commands.getoutput('uuidgen')
 
 files = {
     inputFile:None,

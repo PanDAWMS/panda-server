@@ -20,7 +20,7 @@ else:
     site = None
     cloud = None
 
-datasetName = 'testpanda.rod2.%s_tid999990' % commands.getoutput('uuidgen')
+datasetName = 'panda.rod2.%s_tid999990' % commands.getoutput('uuidgen')
 #destName    = 'BNL_SE'
 
 files={'daq.m5_combined.0028997.Default.L1TT-b00000110.LB0000.SFO-1._0001.data':'M5.0028997.Default.L1TT-b00000110.RAW.v010803',}
