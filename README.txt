@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * avoid sending DaTRI requests for failed jobs
+  * fixed replica registration for --destSE
   * set type in datriHandler for analysis system
   * testpanda -> panda
   * introduced datriHandler

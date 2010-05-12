@@ -433,12 +433,12 @@ class Setupper (threading.Thread):
                             # conversion is needed for unknown sites
                             if job.prodSourceLabel == 'user' and not self.siteMapper.siteSpecList.has_key(computingSite):
                                 # DQ2 ID was set by using --destSE for analysis job to transfer output
-                                tmpSrcDDM = computingSite
+                                tmpSrcDDM = self.siteMapper.getSite(job.computingSite).ddm
                             else:                            
                                 tmpSrcDDM = self.siteMapper.getSite(computingSite).ddm
                             if job.prodSourceLabel == 'user' and not self.siteMapper.siteSpecList.has_key(file.destinationSE):
                                 # DQ2 ID was set by using --destSE for analysis job to transfer output 
-                                tmpDstDDM = file.destinationSE
+                                tmpDstDDM = tmpSrcDDM
                             else:
                                 tmpDstDDM = self.siteMapper.getSite(file.destinationSE).ddm
                             tmpTokenList = file.destinationDBlockToken.split(',')
@@ -448,7 +448,7 @@ class Setupper (threading.Thread):
                                 time.sleep(1)
                                 # register location
                                 if job.prodSourceLabel == 'user' and not self.siteMapper.siteSpecList.has_key(computingSite):
-                                    dq2IDList = [computingSite]
+                                    dq2IDList = [self.siteMapper.getSite(job.computingSite).ddm]
                                 else:
                                     dq2IDList = [self.siteMapper.getSite(computingSite).ddm]
                                 # use another location when token is set

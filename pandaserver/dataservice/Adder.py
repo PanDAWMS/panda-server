@@ -582,7 +582,7 @@ class Adder (threading.Thread):
             tmpDN = re.sub('/CN=limited proxy','',tmpDN)
             tmpDN = re.sub('(/CN=proxy)+$','',tmpDN)
             # send request
-            if tmpTopDatasets != {}:
+            if tmpTopDatasets != {} and self.jobStatus == 'finished':
                 try:
                     from datriHandler import datriHandler
                     if self.job.lockedby.startswith('Ganga'):
