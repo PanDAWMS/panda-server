@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * set type in datriHandler for ganga
   * testpanda -> panda
   * introduced datriHandler
   * delete sub datasets from EGEE T2 when callback is received

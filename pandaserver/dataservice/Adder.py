@@ -585,7 +585,10 @@ class Adder (threading.Thread):
             if tmpTopDatasets != {}:
                 try:
                     from datriHandler import datriHandler
-                    tmpHandler = datriHandler()
+                    if self.job.lockedby.startswith('Ganga'):
+                        tmpHandler = datriHandler(type='ganga')
+                    else:
+                        tmpHandler = datriHandler()
                     # loop over all output datasets
                     for tmpDsName,dq2IDlist in tmpTopDatasets.iteritems():
                         for tmpDQ2ID in dq2IDlist:
