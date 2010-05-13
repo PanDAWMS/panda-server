@@ -1438,6 +1438,18 @@ class TaskBuffer:
         return ret
 
 
+    # check quota
+    def checkQuota(self,dn):
+        # query an SQL return Status  
+        proxy = self.proxyPool.getProxy()
+        # get
+        ret = proxy.checkQuota(dn)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 del TaskBuffer

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added priority massager
   * added NG words to Notifier
   * avoid sending DaTRI requests for failed jobs
   * fixed replica registration for --destSE

@@ -220,6 +220,7 @@ del res
 
 
 # increase priorities for long-waiting analysis jobs
+"""
 _logger.debug("Analysis Priorities")
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
 sql = "UPDATE ATLAS_PANDA.jobsActive4 SET currentPriority=currentPriority+100,modificationTime=CURRENT_DATE WHERE jobStatus=:jobStatus "
@@ -231,7 +232,7 @@ varMap[':modificationTime'] = timeLimit
 status,res = taskBuffer.querySQLS(sql,varMap)
 _logger.debug("increased priority for %s" % status)
 time.sleep(1)
-
+"""
 
 # send email for access requests
 _logger.debug("Site Access")
