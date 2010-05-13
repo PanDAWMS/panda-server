@@ -31,7 +31,8 @@ _ignoreList = [
     ]
 
 # NG words in email address
-_ngWordsInMailAddr = ['support','system','stuff','service','secretariat','club','user','admin','cvs','grid','librarian','svn']
+_ngWordsInMailAddr = ['support','system','stuff','service','secretariat','club','user','admin',
+                      'cvs','grid','librarian','svn','atlas','cms','lhcb','alice']
 
 
 class Notifier (threading.Thread):
