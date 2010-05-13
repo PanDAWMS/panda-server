@@ -94,7 +94,7 @@ for computingSite,userValMap in usageBreakDownPerSite.iteritems():
 			# ignore group production
 			if workingGroup != None:
 				continue
-			# count the number of users and run/done jobs
+			# count the number of users and running/done jobs
 			if not siteUsers.has_key(computingSite):
 				siteUsers[computingSite] = 0
 			siteUsers[computingSite] += 1
@@ -131,7 +131,7 @@ for prodUserName,wgValMap in usageBreakDownPerUser.iteritems():
 	# check with site average
 	toBeBoostedSites = [] 
 	for computingSite,statValMap in wgValMap[None].iteritems():
-		# the number of running/done jobs is lower than the average and actiavated jobs are waiting
+		# the number of running/done jobs is lower than the average and activated jobs are waiting
 		if statValMap['rundone'] >= siteAverageRunDone[computingSite]:
 			_logger.debug("enough running %s > %s (site average) at %s" % \
 						  (statValMap['rundone'],siteAverageRunDone[computingSite],computingSite))
