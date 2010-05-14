@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * prevent prod proxy from killing analysis jobs
   * added priority massager
   * added NG words to Notifier
   * avoid sending DaTRI requests for failed jobs

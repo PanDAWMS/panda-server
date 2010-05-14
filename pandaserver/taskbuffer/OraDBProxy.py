@@ -1719,7 +1719,7 @@ class DBProxy:
         except:
             _logger.error("not an integer : %s" % pandaID)
             return False
-        sql0 = "SELECT prodUserID FROM %s WHERE PandaID=:PandaID"        
+        sql0 = "SELECT prodUserID,prodSourceLabel FROM %s WHERE PandaID=:PandaID"        
         sql1 = "UPDATE %s SET commandToPilot=:commandToPilot WHERE PandaID=:PandaID AND commandToPilot IS NULL"
         sql2 = "SELECT %s " % JobSpec.columnNames()
         sql2+= "FROM %s WHERE PandaID=:PandaID AND jobStatus<>:jobStatus"
@@ -1741,24 +1741,28 @@ class DBProxy:
                 # get DN if user is not production DN
                 varMap = {}
                 varMap[':PandaID'] = pandaID
-                if (not prodManager) and (not user.startswith('/DC=org/DC=doegrids/OU=People/CN=Nurcan Ozturk')) \
-                       and (not user.startswith('/DC=org/DC=doegrids/OU=People/CN=Torre Wenaus')):
-                    self.cur.arraysize = 10                    
-                    self.cur.execute((sql0+comment) % table, varMap)
-                    res = self.cur.fetchone()
-                    # not found
-                    if res == None:
-                        continue
-                    # owner?
-                    def getCN(dn):
-                        distinguishedName = ''
-                        for line in dn.split('/'):
-                            if line.startswith('CN='):
-                                distinguishedName = re.sub('^CN=','',line)
-                                distinguishedName = re.sub('\d+$','',distinguishedName)
-                                distinguishedName = distinguishedName.strip()
-                                break
-                        return distinguishedName
+                self.cur.arraysize = 10                    
+                self.cur.execute((sql0+comment) % table, varMap)
+                res = self.cur.fetchone()
+                # not found
+                if res == None:
+                    continue
+                # owner?
+                def getCN(dn):
+                    distinguishedName = ''
+                    for line in dn.split('/'):
+                        if line.startswith('CN='):
+                            distinguishedName = re.sub('^CN=','',line)
+                            distinguishedName = re.sub('\d+$','',distinguishedName)
+                            distinguishedName = distinguishedName.strip()
+                            break
+                    return distinguishedName
+                # prevent prod proxy from killing analysis jobs
+                if prodManager:
+                    if res[1] in ['user','panda'] and code != '9':
+                        _logger.debug("ignore killJob -> prod proxy tried to kill analysis job type=%s" % res[1])
+                        break
+                else:   
                     cn1 = getCN(res[0])
                     cn2 = getCN(user)
                     _logger.debug("Owner:%s  - Requester:%s " % (cn1,cn2))
