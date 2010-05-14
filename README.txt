@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * set taskBufferErrorDiag when running jobs are killed
   * prevent prod proxy from killing analysis jobs
   * added priority massager
   * added NG words to Notifier

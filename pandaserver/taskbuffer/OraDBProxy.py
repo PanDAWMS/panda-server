@@ -1720,7 +1720,7 @@ class DBProxy:
             _logger.error("not an integer : %s" % pandaID)
             return False
         sql0 = "SELECT prodUserID,prodSourceLabel FROM %s WHERE PandaID=:PandaID"        
-        sql1 = "UPDATE %s SET commandToPilot=:commandToPilot WHERE PandaID=:PandaID AND commandToPilot IS NULL"
+        sql1 = "UPDATE %s SET commandToPilot=:commandToPilot,taskBufferErrorDiag=:taskBufferErrorDiag WHERE PandaID=:PandaID AND commandToPilot IS NULL"
         sql2 = "SELECT %s " % JobSpec.columnNames()
         sql2+= "FROM %s WHERE PandaID=:PandaID AND jobStatus<>:jobStatus"
         sql3 = "DELETE FROM %s WHERE PandaID=:PandaID"
@@ -1773,6 +1773,7 @@ class DBProxy:
                 varMap = {}
                 varMap[':PandaID'] = pandaID
                 varMap[':commandToPilot'] = 'tobekilled'
+                varMap[':taskBufferErrorDiag'] = 'killed by %s' % user
                 self.cur.execute((sql1+comment) % table, varMap)
                 retU = self.cur.rowcount
                 if retU == 0:
