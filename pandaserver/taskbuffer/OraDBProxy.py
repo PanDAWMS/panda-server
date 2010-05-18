@@ -2175,7 +2175,7 @@ class DBProxy:
             compactDN = self.cleanUserID(dn)
             if compactDN in ['','NULL',None]:
                 compactDN = dn
-            tables = ['ATLAS_PANDA.jobsArchived4','ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4','ATLAS_PANDA.jobsDefined4']
+            tables = ['ATLAS_PANDA.jobsDefined4','ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4','ATLAS_PANDA.jobsArchived4']
             buildJobID = None
             # select
             for table in tables:
@@ -2214,8 +2214,7 @@ class DBProxy:
                             del idStatus[buildJobID]
                             buildJobID = tmpID
                     # append        
-                    if not idStatus.has_key(tmpID):
-                        idStatus[tmpID] = (tmpStatus,tmpCommand)
+                    idStatus[tmpID] = (tmpStatus,tmpCommand)
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'

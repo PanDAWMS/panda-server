@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed reading order in getPandIDsWithJobID to avoid missing jobs
   * set taskBufferErrorDiag when running jobs are killed
   * prevent prod proxy from killing analysis jobs
   * added priority massager
