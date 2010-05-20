@@ -46,6 +46,7 @@ DocumentRoot "@@install_purelib@@/pandaserver"
     Deny from 192.203.218.14
 </Directory>
 
+Alias /trf/ "@@install_dir@@/var/trf/"
 Alias /cache/ "@@install_dir@@/var/cache/pandaserver/"
 
 <Directory "@@install_dir@@/var/cache/pandaserver">
