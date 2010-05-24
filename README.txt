@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added killUser.py
   * added alias to httpd.conf for trf URL  
   * changed reading order in getPandIDsWithJobID to avoid missing jobs
   * set taskBufferErrorDiag when running jobs are killed
