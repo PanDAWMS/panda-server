@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added -9 to killJob.py 
   * added killUser.py
   * added alias to httpd.conf for trf URL  
   * changed reading order in getPandIDsWithJobID to avoid missing jobs
