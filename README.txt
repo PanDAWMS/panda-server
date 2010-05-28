@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * use DQ2 for email extraction
   * added -9 to killJob.py 
   * added killUser.py
   * added alias to httpd.conf for trf URL  

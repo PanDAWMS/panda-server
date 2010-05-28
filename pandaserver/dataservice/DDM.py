@@ -152,3 +152,37 @@ dashBorad = DashBorad()
 del DashBorad
     
 
+# method object wrapping DQ2Info method
+class _DQ2InfoMethod:
+    # constructor
+    def __init__(self,methodName):
+        self.methodName = methodName
+
+    # method emulation
+    def __call__(self,*args):
+        args = list(args)
+        # build command
+        com  = 'from dq2.info.client.infoClient import infoClient; '
+        com += 'print infoClient().%s(' % self.methodName
+        # expand args
+        for i in range(len(args)):
+            arg = args[i]
+            if isinstance(arg,types.StringType):
+                com += "'%s'," % arg
+            else:
+                com = '%s,' % arg
+        com = com[:-1]        
+        com += ")"
+        # execute
+        return commands.getstatusoutput('%s env %s python -c "%s"' % (_cwd,_env,com))
+
+
+# TOA module class
+class DQ2Info:
+    def __getattr__(self,methodName):
+        return _DQ2InfoMethod(methodName)
+
+    
+# instantiate
+dq2Info = DQ2Info()
+del DQ2Info

@@ -16,6 +16,7 @@ import datetime
 from config import panda_config
 from taskbuffer.OraDBProxy import DBProxy
 from pandalogger.PandaLogger import PandaLogger
+from dataservice.DDM import dq2Info
 
 # logger
 _logger = PandaLogger().getLogger('Notifier')
@@ -66,7 +67,7 @@ class Notifier (threading.Thread):
                 _logger.debug("%s end" % self.job.PandaID)
                 return
             # not send 
-            if mailAddr == 'notsend':
+            if mailAddr in ['notsend','',None]:
                 _logger.debug("not send to %s" % self.job.prodUserID)
                 _logger.debug("%s end" % self.job.PandaID)
                 return
@@ -203,121 +204,31 @@ Report Panda problems of any sort to
             return ""
         # get email from MetaDB
         mailAddr = self.taskBuffer.getEmailAddr(distinguishedName)
-        if not mailAddr in ["","None",None]:
+        if mailAddr == 'notsend':
             _logger.debug("email from MetaDB : '%s'" % mailAddr)
             return mailAddr
-        # get email from local DB
+        # get email from DQ2
+        realDN = re.sub('/CN=limited proxy','',dn)
+        realDN = re.sub('(/CN=proxy)+','',realDN)
         try:
-            # lock DB
-            fcntl.flock(_lockGetMail.fileno(), fcntl.LOCK_EX)
-            # open DB
-            pDB = shelve.open(panda_config.emailDB)
-            if pDB.has_key(distinguishedName):
-                mailAddr = pDB[distinguishedName]
-            pDB.close()
-        finally:
-            # release file lock
-            fcntl.flock(_lockGetMail.fileno(), fcntl.LOCK_UN)
-        # return
-        if not mailAddr in ["","None",None]:
-            _logger.debug("email from local DB : '%s'" % mailAddr)
+            _logger.debug("dq2Info.finger(%s)" % realDN)
+            for iDDMTry in range(3):
+                status,out = dq2Info.finger(realDN)
+                if status != 0 or out.find("DQ2 internal server exception") != -1 \
+                       or out.find("An error occurred on the central catalogs") != -1 \
+                       or out.find("MySQL server has gone away") != -1:
+                    time.sleep(10)
+                else:
+                    break
+            _logger.debug(out)
+            exec "userInfo=%s" % out
+            mailAddr = userInfo['email']
+            _logger.debug("email from DQ2 : '%s'" % mailAddr)            
             return mailAddr
-        
-        # get email from CERN/xwho
-        _logger.debug("access xwho")
-        try:
-            # remove middle name
-            encodedDN = re.sub(' .\. ',' ',distinguishedName)
-            encodedDN = re.sub(' . ',  ' ',encodedDN)
-            # remove _
-            encodedDN = encodedDN.replace('_',' ')            
-            encodedDN = encodedDN.replace(' ','%20')
-            url = 'http://consult.cern.ch/xwho?'+encodedDN
-            if panda_config.httpProxy != '':
-                proxies = proxies={'http': panda_config.httpProxy}
-            else:
-                proxies = proxies={}
-            opener = urllib.FancyURLopener(proxies)
-            fd=opener.open(url)
-            data = fd.read()
         except:
-            type, value, traceBack = sys.exc_info()
-            _logger.error("%s %s" % (type,value))
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("%s %s" % (errType,errValue))
             return ""
-        # parse HTML
-        emails = []
-        headerItem = ["Family Name","First Name","Phone","Dep"]
-        findTable = False
-        _logger.debug(data)
-        for line in data.split('\n'):
-            # look for table
-            if not findTable:
-                # look for header
-                tmpFlag = True
-                for item in headerItem:
-                    if re.search(item,line) == None:
-                        tmpFlag = False
-                        break
-                findTable = tmpFlag
-                continue
-            else:
-                # end of table
-                if re.search(item,"</table>") != None:
-                    findTable = False
-                    continue
-                # look for link to individual page
-                match = re.search('href="(/xwho/people/\d+)"',line)
-                if match == None:
-                    continue
-                link = match.group(1)
-                try:
-                    url = 'http://consult.cern.ch'+link
-                    if panda_config.httpProxy != '':                    
-                        proxies = proxies={'http': panda_config.httpProxy}
-                    else:
-                        proxies = proxies={}
-                    opener = urllib.FancyURLopener(proxies)
-                    fd=opener.open(url)
-                    data = fd.read()
-                    _logger.debug(data)
-                except:
-                    type, value, traceBack = sys.exc_info()
-                    _logger.error("%s %s" % (type,value))
-                    return ""
-                # get mail adder
-                match = re.search("mailto:([^@]+@[^>]+)>",data)
-                if match != None:
-                    adder = match.group(1)
-                    # check NG words
-                    okAddr = True
-                    for ngWord in _ngWordsInMailAddr:
-                        if re.search(ngWord,adder,re.I):
-                            _logger.error("%s has NG word:%s" % (adder,ngWord))
-                            okAddr = False
-                            break
-                    if okAddr and (not adder in emails):
-                        emails.append(adder)
-        _logger.debug("emails from xwho : '%s'" % emails)
-        # failure
-        if len(emails) != 1:
-            _logger.error("non unique address : %s" % emails)
-            return ""
-        # write to DB
-        try:
-            # lock DB
-            fcntl.flock(_lockGetMail.fileno(), fcntl.LOCK_EX)
-            # open DB
-            pDB = shelve.open(panda_config.emailDB)
-            if not pDB.has_key(distinguishedName):
-                pDB[distinguishedName] = emails[0]
-            pDB.close()
-        finally:
-            # release file lock
-            fcntl.flock(_lockGetMail.fileno(), fcntl.LOCK_UN)
-        # return
-        return emails[0]
-    
-            
 
                     
         
