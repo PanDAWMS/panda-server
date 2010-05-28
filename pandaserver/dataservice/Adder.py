@@ -617,7 +617,8 @@ class Adder (threading.Thread):
                                     self.job.ddmErrorDiag = "DaTRI failed for %s with %s %s" % (tmpDsName,dhStatus,dhOut)
                                     return
                     # set dataset status
-                    self.datasetMap[tmpName].status = 'running'
+                    for tmpName,tmpVal in subMap.iteritems():
+                        self.datasetMap[tmpName].status = 'running'
                 except:
                     errType,errValue = sys.exc_info()[:2]
                     tmpMsg = "%s datriHandler failed with %s %s" % (self.jobID,errType,errValue)

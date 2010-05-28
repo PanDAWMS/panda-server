@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * set dataset status for DaTRI requests
   * ignore DaTRI failure for duplicated requests
   * use DQ2 for email extraction
   * added -9 to killJob.py 
