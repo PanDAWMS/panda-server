@@ -603,7 +603,7 @@ class Adder (threading.Thread):
                             for iTry in range(nTry):
                                 dhStatus,dhOut = tmpHandler.sendRequest()
                                 # succeeded
-                                if dhStatus == 0:
+                                if dhStatus == 0 or "such request is exist" in dhOut:
                                     _logger.debug("%s %s %s" % (self.jobID,dhStatus,dhOut))
                                     break
                                 if iTry+1 < nTry:
