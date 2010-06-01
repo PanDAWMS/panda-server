@@ -114,7 +114,7 @@ class ConBridge (object):
             _logger.debug('child  %s connecting to database' % self.pid)            
             self.proxy = DBProxy.DBProxy()
             if not self.proxy.connect(dbhost=dbhost,dbpasswd=dbpasswd,dbtimeout=60):
-                _logger.error('child  %s failed to connect : %s %s' % (self.pid,errType,errValue))
+                _logger.error('child  %s failed to connect' % self.pid)
                 # send error
                 self.bridge_sendError((RuntimeError,'child  %s connection failed' % self.pid))
                 # exit
