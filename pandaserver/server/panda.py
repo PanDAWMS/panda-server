@@ -47,6 +47,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
 
     import os
     import cgi
+    import sys
     from pandalogger.PandaLogger import PandaLogger
 
     # logger
@@ -105,11 +106,22 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                 _logger.debug("PID=%s %s with %s" % (os.getpid(),methodName,str(params.keys())))
             # dummy request object
             dummyReq = DummyReq(environ)
-            # exec
-            exeRes = apply(tmpMethod,[dummyReq],params)
-            # convert bool to string
-            if exeRes in [True,False]:
-                exeRes = str(exeRes)
+            try:
+                # exec
+                exeRes = apply(tmpMethod,[dummyReq],params)
+                # convert bool to string
+                if exeRes in [True,False]:
+                    exeRes = str(exeRes)
+            except:
+                errType,errValue = sys.exc_info()[:2]
+                errStr = ""
+                for tmpKey,tmpVal in environ.iteritems():
+                    errStr += "%s : %s\n" % (tmpKey,str(tmpVal))
+                _logger.error("execution failure : %s %s" % (errType,errValue))
+                _logger.error(errStr)
+                # return internal server error
+                start_response('500 INTERNAL SERVER ERROR', [('Content-Type', 'text/plain')]) 
+                return ["%s %s" % (errType,errValue)]
         if panda_config.entryVerbose:
             _logger.debug("PID=%s %s out" % (os.getpid(),methodName))
         # return

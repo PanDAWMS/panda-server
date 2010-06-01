@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added a protection against method execution failure in panda.py
   * set dataset status for DaTRI requests
   * ignore DaTRI failure for duplicated requests
   * use DQ2 for email extraction
