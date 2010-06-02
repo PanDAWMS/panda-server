@@ -39,7 +39,7 @@ class DBProxyPool:
                     break
                 iTry += 1
                 _logger.debug("failed -> %s : try %s" % (i,iTry))
-                time.sleep(random.randint(10,20))
+                time.sleep(random.randint(60,90))
             self.proxyList.put(proxy)
             time.sleep(1)
         # get PID    

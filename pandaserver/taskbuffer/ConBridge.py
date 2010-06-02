@@ -147,6 +147,8 @@ class ConBridge (object):
                 errType,errValue = sys.exc_info()[:2]
                 _logger.error('master %s failed to setup child=%s : %s %s' % \
                               (self.pid,self.child_pid,errType,errValue))
+                # kill child
+                self.bridge_killChild()
                 return False
 
             

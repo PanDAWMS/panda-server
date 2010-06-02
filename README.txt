@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * increased wait interval for reconnection in connection pool
+  * updated ConBridge to kill child when connection failure
   * changed URL of panda mover trf
   * added a protection against method execution failure in panda.py
   * set dataset status for DaTRI requests
@@ -336,3 +338,5 @@ Release Note
 
 * 0.0.1 (12/4/2008)
   * first import
+
+ LocalWords:  ConBridge
