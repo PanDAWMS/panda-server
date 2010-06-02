@@ -786,7 +786,7 @@ class Setupper (threading.Thread):
                     ddmjob = JobSpec()
                     ddmjob.jobDefinitionID   = int(time.time()) % 10000
                     ddmjob.jobName           = "%s" % commands.getoutput('uuidgen')
-                    ddmjob.transformation    = 'http://www.usatlas.bnl.gov/svn/panda/mover/trf/run_dq2_cr'
+                    ddmjob.transformation    = 'http://pandaserver.cern.ch:25080/trf/mover/run_dq2_cr'
                     ddmjob.destinationDBlock = 'pandaddm_%s.%s' % (time.strftime('%y.%m.%d'),ddmjob.jobName)
                     if job.cloud == 'NULL':
                         ddmjob.cloud         = 'US'

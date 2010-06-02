@@ -106,7 +106,7 @@ class Closer (threading.Thread):
                             ddmjob = JobSpec()
                             ddmjob.jobDefinitionID   = int(time.time()) % 10000
                             ddmjob.jobName           = "%s" % commands.getoutput('uuidgen')
-                            ddmjob.transformation    = 'https://gridui01.usatlas.bnl.gov:24443/dav/test/run_dq2_cr'
+                            ddmjob.transformation    = 'http://pandaserver.cern.ch:25080/trf/mover/run_dq2_cr'
                             ddmjob.destinationDBlock = 'testpanda.%s' % ddmjob.jobName
                             ddmjob.computingSite     = "BNL_ATLAS_DDM"
                             ddmjob.destinationSE     = ddmjob.computingSite

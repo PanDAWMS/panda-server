@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed URL of panda mover trf
   * added a protection against method execution failure in panda.py
   * set dataset status for DaTRI requests
   * ignore DaTRI failure for duplicated requests
