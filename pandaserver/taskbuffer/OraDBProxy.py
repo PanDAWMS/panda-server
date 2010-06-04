@@ -3628,7 +3628,7 @@ class DBProxy:
                         else:
                             checkedPandaIDs[pandaID] = 'running'
                     # reuse failed files
-                    if checkedPandaIDs[pandaID] == 'failed':
+                    if checkedPandaIDs[pandaID] in ['failed','cancelled']:
                         continue
                     # collect PandaIDs
                     if not subDSpandaIDmap.has_key(subDataset):

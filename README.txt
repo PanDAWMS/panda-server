@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed used file check for cancelled jobs
   * increased wait interval for reconnection in connection pool
   * updated ConBridge to kill child when connection failure
   * changed URL of panda mover trf
