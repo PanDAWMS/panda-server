@@ -490,7 +490,8 @@ class Setupper (threading.Thread):
                                         _logger.debug("%s %s" % (self.timestamp,out))
                                         if status == 0 and out.find('Error') == -1:
                                             # change replica ownership for user datasets
-                                            if self.resetLocation and name == originalName and job.prodSourceLabel in ['user','panda']:
+                                            if self.resetLocation and ((name == originalName and job.prodSourceLabel == 'user') or \
+                                                                       job.prodSourceLabel=='panda'):
                                                 # remove /CN=proxy and /CN=limited from DN
                                                 tmpRealDN = job.prodUserID
                                                 tmpRealDN = re.sub('/CN=limited proxy','',tmpRealDN)
@@ -504,6 +505,15 @@ class Setupper (threading.Thread):
                                                         time.sleep(60)
                                                     else:
                                                         break
+                                                # failed
+                                                if status != 0 or out.find('Error') != -1:
+                                                    _logger.error("%s %s" % (self.timestamp,out))
+                                                    break
+                                                # delete old replicas
+                                                tmpDelStat = self.deleteDatasetReplicas([name],[dq2ID])
+                                                if not tmpDelStat:
+                                                    status,out = 1,'failed to delete old replicas for %s' % name
+                                                    break
                                     # failed
                                     if status != 0 or out.find('Error') != -1:
                                         _logger.error("%s %s" % (self.timestamp,out))
@@ -1339,6 +1349,16 @@ class Setupper (threading.Thread):
             return
 
 
+    # check DDM response
+    def isDQ2ok(self,out):
+        if out.find("DQ2 internal server exception") != -1 \
+               or out.find("An error occurred on the central catalogs") != -1 \
+               or out.find("MySQL server has gone away") != -1 \
+               or out == '()':
+            return False
+        return True
+
+    
     def getListDatasetReplicasInContainer(self,container):
         # get datasets in container
         _logger.debug((self.timestamp,'listDatasetsInContainer',container))
@@ -1402,4 +1422,68 @@ class Setupper (threading.Thread):
         # return
         _logger.debug('%s %s' % (self.timestamp,str(allRepMap)))
         return 0,str(allRepMap)            
+
+
+    # get list of replicas for a dataset
+    def getListDatasetReplicas(self,dataset):
+        nTry = 3
+        for iDDMTry in range(nTry):
+            _logger.debug("%s %s/%s listDatasetReplicas %s" % (self.timestamp,iDDMTry,nTry,dataset))
+            status,out = ddm.DQ2.main('listDatasetReplicas',dataset,0,None,False)
+            if status != 0 or (not self.isDQ2ok(out)):
+                time.sleep(60)
+            else:
+                break
+        # result    
+        if status != 0 or out.startswith('Error'):
+            _logger.error(self.timestamp+' '+out)
+            _logger.error('%s bad DQ2 response for %s' % (self.timestamp,dataset))            
+            return False,{}
+        try:
+            # convert res to map
+            exec "tmpRepSites = %s" % out
+            _logger.debug('%s getListDatasetReplicas->%s' % (self.timestamp,str(tmpRepSites)))
+            return True,tmpRepSites
+        except:
+            _logger.error(self.timestamp+' '+out)            
+            _logger.error('%s could not convert HTTP-res to replica map for %s' % (self.timestamp,dataset))
+            return False,{}
+
+
+    # delete original locations
+    def deleteDatasetReplicas(self,datasets,keepSites):
+        # loop over all datasets
+        for dataset in datasets:
+            # get locations
+            status,tmpRepSites = self.getListDatasetReplicas(dataset)
+            if not status:
+                return False
+            # no replicas
+            if len(tmpRepSites.keys()) == 0:
+                continue
+            delSites = []
+            for tmpRepSite in tmpRepSites.keys():
+                if not tmpRepSite in keepSites:
+                    delSites.append(tmpRepSite)
+            # no repilicas to be deleted
+            if delSites == []:
+                continue
+            # delete
+            nTry = 3
+            for iDDMTry in range(nTry):
+                _logger.debug("%s %s/%s deleteDatasetReplicas %s %s" % (self.timestamp,iDDMTry,nTry,dataset,str(delSites)))
+                status,out = ddm.DQ2.main('deleteDatasetReplicas',dataset,delSites)
+                if status != 0 or (not self.isDQ2ok(out)):
+                    time.sleep(60)
+                else:
+                    break
+            # result
+            if status != 0 or out.startswith('Error'):
+                _logger.error(self.timestamp+' '+out)
+                _logger.error('%s bad DQ2 response for %s' % (self.timestamp,dataset))            
+                return False
+            _logger.debug(self.timestamp+' '+out)
+        # return
+        _logger.debug('%s deleted replicas for %s' % (self.timestamp,str(datasets)))
+        return True
                                                                                                                                                                         

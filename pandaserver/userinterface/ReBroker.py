@@ -434,8 +434,6 @@ class ReBroker (threading.Thread):
             return False
         # delete datasets and locations
         if dsWithNewLoc != []:
-            # delete original DQ2 locations            
-            self.deleteDatasetReplicas(dsWithNewLoc)
             # delete from Panda DB to trigger location registration in following Setupper
             self.taskBuffer.deleteDatasets(dsWithNewLoc)
         # run setupper at this stage for following jobIDs not to delete locations
@@ -445,9 +443,7 @@ class ReBroker (threading.Thread):
             tmpJobs = newJobsMap[tmpJobID]
             if tmpJobs != []:
                 _logger.debug("%s start Setupper for JobID=%s" % (self.token,tmpJobID))
-                # FIXME once DQ2 support changing replica owner
-                #thr = Setupper(self.taskBuffer,tmpJobs,resetLocation=True)
-                thr = Setupper(self.taskBuffer,tmpJobs)
+                thr = Setupper(self.taskBuffer,tmpJobs,resetLocation=True)
                 thr.start()
                 thr.join()
                 _logger.debug("%s end Setupper for JobID=%s" % (self.token,tmpJobID))
