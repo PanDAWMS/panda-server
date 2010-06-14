@@ -171,17 +171,22 @@ class TaskAssigner:
             _logger.debug('%s DQ2 locations %s' % (self.taskID,str(locations)))
             # check immutable datasets
             for tmpDataset,tmpSites in locations.iteritems():
+                sitesForRefresh = []
                 for tmpSite in tmpSites.keys():
                     tmpStat = tmpSites[tmpSite][-1]
                     if tmpStat['total'] == -1 or tmpStat['found'] ==  None:
-                        # invoke listFileReplicasBySites to refresh replica info
-                        tmpStat,tmpOut = ddm.DQ2_iter.listFileReplicasBySites(tmpDataset,0,tmpSites.keys(),0,300)
-                        _logger.debug('%s listFileReplicasBySites end with %s:%s' % (self.taskID,tmpStat,tmpOut))
-                        raise RuntimeError, '%s %s has incorrect replica info' % (self.taskID,tmpDataset)
+                        sitesForRefresh.append(tmpSite)
                     elif tmpStat['immutable'] == 0:
                         # using open datasets
                         usingOpenDS = True
                         _logger.debug('%s open dataset : %s' % (self.taskID,tmpDataset))
+                # refresh replica info
+                if sitesForRefresh != []:
+                    # invoke listFileReplicasBySites to refresh replica info
+                    _logger.debug('%s listFileReplicasBySites %s:%s' % (self.taskID,tmpDataset,str(sitesForRefresh)))
+                    tmpStat,tmpOut = ddm.DQ2_iter.listFileReplicasBySites(tmpDataset,0,sitesForRefresh,0,300)
+                    _logger.debug('%s listFileReplicasBySites end with %s:%s' % (self.taskID,tmpStat,tmpOut))
+                    raise RuntimeError, '%s %s has incorrect replica info' % (self.taskID,tmpDataset)
             removedDQ2Map = {}
             incompleteClouds = []
             if locations != {}:

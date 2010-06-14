@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * invoke listFileReplicasBySites only for incomplete sites in TA
   * fixed re-brokerage
   * fixed used file check for cancelled jobs
   * increased wait interval for reconnection in connection pool
