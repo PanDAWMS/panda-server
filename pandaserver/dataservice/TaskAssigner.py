@@ -186,7 +186,7 @@ class TaskAssigner:
                     _logger.debug('%s listFileReplicasBySites %s:%s' % (self.taskID,tmpDataset,str(sitesForRefresh)))
                     tmpStat,tmpOut = ddm.DQ2_iter.listFileReplicasBySites(tmpDataset,0,sitesForRefresh,0,300)
                     _logger.debug('%s listFileReplicasBySites end with %s:%s' % (self.taskID,tmpStat,tmpOut))
-                    raise RuntimeError, '%s %s has incorrect replica info' % (self.taskID,tmpDataset)
+                    #raise RuntimeError, '%s %s has incorrect replica info' % (self.taskID,tmpDataset)
             removedDQ2Map = {}
             incompleteClouds = []
             if locations != {}:
@@ -202,7 +202,10 @@ class TaskAssigner:
                         for tmpSE in tmpCloud['tier1SE']:
                             if tmpSE in sites.keys():
                                 tmpStat = sites[tmpSE][-1]
-                                if minFound < tmpStat['found']:
+                                if tmpStat['found'] == None:
+                                    if minFound == -1:
+                                        foundSE  = tmpSE
+                                elif minFound < tmpStat['found']:
                                     minFound = tmpStat['found']
                                     foundSE  = tmpSE
                         # remove cloud if T1SE is not a location
@@ -215,7 +218,7 @@ class TaskAssigner:
                         else:
                             # check incomplete or not
                             tmpStat = sites[foundSE][-1]
-                            if tmpStat['found'] < tmpStat['total']:
+                            if tmpStat['found'] == None or tmpStat['found'] < tmpStat['total']:
                                 _logger.debug('%s   incomplete %s' % (self.taskID,tmpCloudName))
                                 if not tmpCloudName in incompleteClouds:
                                     incompleteClouds.append(tmpCloudName)
