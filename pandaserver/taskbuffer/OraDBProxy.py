@@ -4872,7 +4872,7 @@ class DBProxy:
             sql = "SELECT nickname,dq2url,cloud,ddm,lfchost,se,gatekeeper,releases,memory,"
             sql+= "maxtime,status,space,retry,cmtconfig,setokens,seprodpath,glexec,"
             sql+= "priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue,"
-            sql+= "validatedreleases,accesscontrol,copysetup,maxinputsize "
+            sql+= "validatedreleases,accesscontrol,copysetup,maxinputsize,cachedse "
             sql+= "FROM ATLAS_PANDAMETA.schedconfig WHERE siteid IS NOT NULL"
             self.cur.arraysize = 10000            
             self.cur.execute(sql+comment)
@@ -4893,7 +4893,7 @@ class DBProxy:
                     nickname,dq2url,cloud,ddm,lfchost,se,gatekeeper,releases,memory,\
                        maxtime,status,space,retry,cmtconfig,setokens,seprodpath,glexec,\
                        priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue,\
-                       validatedreleases,accesscontrol,copysetup,maxinputsize \
+                       validatedreleases,accesscontrol,copysetup,maxinputsize,cachedse \
                        = resTmp
                     # skip invalid siteid
                     if siteid in [None,'']:
@@ -4915,6 +4915,7 @@ class DBProxy:
                     ret.glexec     = glexec
                     ret.queue      = queue
                     ret.localqueue = localqueue
+                    ret.cachedse   = cachedse
                     ret.accesscontrol = accesscontrol
                     ret.copysetup     = copysetup
                     ret.maxinputsize  = maxinputsize
@@ -6113,6 +6114,64 @@ class DBProxy:
                 return None
 
         
+    # get user subscriptions
+    def getUserSubscriptions(self,datasetName,timeRange):
+        comment = ' /* DBProxy.getUserSubscriptions */'                        
+        _logger.debug("getUserSubscriptions(%s,%s)" % (datasetName,timeRange))
+        sql0  = "SELECT site FROM ATLAS_PANDAMETA.UserSubs "
+        sql0 += "WHERE datasetName=:datasetName and modificationDate>CURRENT_DATE-:timeRange"
+        varMap = {}
+        varMap[':datasetName'] = datasetName
+        varMap[':timeRange']   = timeRange
+        try:
+            # start transaction
+            self.conn.begin()
+            # select
+            self.cur.execute(sql0+comment, varMap)
+            resSs = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            retList = []
+            for tmpSite, in resSs:
+                retList.append(tmpSite)
+            return retList
+        except:
+            # roll back
+            self._rollback()
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("getUserSubscriptions : %s %s" % (errType,errValue))
+            return []
+
+
+    # add user subscriptions
+    def addUserSubscription(self,datasetName,dq2IDs):
+        comment = ' /* DBProxy.addUserSubscription */'                        
+        _logger.debug("addUserSubscription(%s,%s)" % (datasetName,dq2IDs))
+        sql0  = "INSERT INTO ATLAS_PANDAMETA.UserSubs "
+        sql0 += "(datasetName,site,creationDate,modificationDate) "
+        sql0 += "VALUES (:datasetName,:site,CURRENT_DATE,CURRENT_DATE)"
+        try:
+            # start transaction
+            self.conn.begin()
+            for site in dq2IDs:
+                varMap = {}
+                varMap[':datasetName'] = datasetName
+                varMap[':site']        = site
+                # insert
+                self.cur.execute(sql0+comment, varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            return True
+        except:
+            # roll back
+            self._rollback()
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("addUserSubscription : %s %s" % (errType,errValue))
+            return False
+
+    
     # wake up connection
     def wakeUp(self):
         for iTry in range(5):

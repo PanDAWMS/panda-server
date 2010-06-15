@@ -400,7 +400,7 @@ class UserIF:
 
 
     # run brokerage
-    def runBrokerage(self,sitesStr,cmtConfig,atlasRelease,trustIS=False,processingType=None):
+    def runBrokerage(self,sitesStr,cmtConfig,atlasRelease,trustIS=False,processingType=None,dn=None):
         ret = 'NULL'
         try:
             # deserialize sites
@@ -414,7 +414,7 @@ class UserIF:
             if processingType != None:
                 job.processingType = processingType
             # run brokerage
-            brokerage.broker.schedule([job],self.taskBuffer,siteMapper,True,sites,trustIS)
+            brokerage.broker.schedule([job],self.taskBuffer,siteMapper,True,sites,trustIS,dn)
             # get computingSite
             ret = job.computingSite
         except:
@@ -782,7 +782,8 @@ def runBrokerage(req,sites,cmtConfig=None,atlasRelease=None,trustIS=False,proces
         trustIS = True
     else:
         trustIS = False
-    return userIF.runBrokerage(sites,cmtConfig,atlasRelease,trustIS,processingType)
+    dn = _getDN(req)
+    return userIF.runBrokerage(sites,cmtConfig,atlasRelease,trustIS,processingType,dn)
 
 # run rebrokerage
 def runReBrokerage(req,jobID,libDS='',cloud=None,excludedSite=None):

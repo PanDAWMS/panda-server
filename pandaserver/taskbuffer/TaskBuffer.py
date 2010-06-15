@@ -1450,6 +1450,30 @@ class TaskBuffer:
         return ret
 
 
+    # get user subscriptions
+    def getUserSubscriptions(self,datasetName,timeRange):
+        # query an SQL return Status  
+        proxy = self.proxyPool.getProxy()
+        # get
+        ret = proxy.getUserSubscriptions(datasetName,timeRange)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # add user subscriptions
+    def addUserSubscription(self,datasetName,dq2IDs):
+        # query an SQL return Status  
+        proxy = self.proxyPool.getProxy()
+        # get
+        ret = proxy.addUserSubscription(datasetName,dq2IDs)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 del TaskBuffer

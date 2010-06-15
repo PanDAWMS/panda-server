@@ -156,8 +156,9 @@ def _isTooManyInput(nFilesPerJob,inputSizePerJob):
 
 
 # schedule
-def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],trustIS=False):
-    _log.debug('start %s %s %s' % (forAnalysis,str(setScanSiteList),trustIS))
+def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],trustIS=False,
+             distinguishedName=None):
+    _log.debug('start %s %s %s %s' % (forAnalysis,str(setScanSiteList),trustIS,distinguishedName))
     # no jobs
     if len(jobs) == 0:
         _log.debug('finished : no jobs')        

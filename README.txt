@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added PD2P
   * regard found=None as an incomplete replica
   * invoke listFileReplicasBySites only for incomplete sites in TA
   * fixed re-brokerage

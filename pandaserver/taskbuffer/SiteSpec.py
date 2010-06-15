@@ -8,7 +8,8 @@ class SiteSpec(object):
     _attributes = ('sitename','nickname','dq2url','cloud','ddm','lfchost','se','type','gatekeeper',
                    'releases','memory','maxtime','status','space','retry','cmtconfig','setokens',
                    'seprodpath','glexec','priorityoffset','allowedgroups','defaulttoken','queue',
-                   'localqueue','validatedreleases','accesscontrol','copysetup','maxinputsize')
+                   'localqueue','validatedreleases','accesscontrol','copysetup','maxinputsize',
+                   'cachedse')
 
     # constructor
     def __init__(self):

@@ -105,6 +105,8 @@ class Setupper (threading.Thread):
                     # then subscribe sites distpatchDBlocks. this must be the last method
                     _logger.debug('%s subscribeDistpatchDB' % self.timestamp)        
                     self._subscribeDistpatchDB()
+                    # dynamic data placement for analysis jobs
+                    self._dynamicDataPlacement()
             else:
                 # write jobs to file
                 import os
@@ -1486,4 +1488,20 @@ class Setupper (threading.Thread):
         # return
         _logger.debug('%s deleted replicas for %s' % (self.timestamp,str(datasets)))
         return True
-                                                                                                                                                                        
+
+
+    # dynamic data placement for analysis jobs
+    def _dynamicDataPlacement(self):
+        # no jobs
+        if len(self.jobs) == 0:
+            return
+        # only successful analysis
+        if self.jobs[0].jobStatus in ['failed','cancelled'] or (not self.jobs[0].prodSourceLabel in ['user','panda']):
+            return
+        # execute
+        _logger.debug('%s execute PD2P' % self.timestamp)
+        from DynDataDistributer import DynDataDistributer
+        ddd = DynDataDistributer(self.jobs,self.taskBuffer,self.siteMapper)
+        ddd.run()
+        _logger.debug('%s finished PD2P' % self.timestamp)        
+        return
