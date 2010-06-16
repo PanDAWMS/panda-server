@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * allow prod proxy to kill anal jobs with 2 or 4
   * added PD2P
   * regard found=None as an incomplete replica
   * invoke listFileReplicasBySites only for incomplete sites in TA
