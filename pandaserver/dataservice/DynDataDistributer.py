@@ -19,6 +19,8 @@ from pandalogger.PandaLogger import PandaLogger
 # logger
 _logger = PandaLogger().getLogger('DynDataDistributer')
 
+# NG datasets
+ngDataTypes = ['RAW','HITS','RDO'] 
 
 class DynDataDistributer:
 
@@ -53,6 +55,15 @@ class DynDataDistributer:
                     if inputDS.startswith(projectName):
                         moveFlag = True
                 if not moveFlag:
+                    self.putLog("skip non official dataset %s" % inputDS)
+                    continue
+                # check type
+                tmpItems = inputDS.split('.')
+                if len(tmpItems) < 5:
+                    self.putLog("cannot get type from %s" % inputDS)
+                    continue
+                if tmpItems[4] in ngDataTypes:
+                    self.putLog("don't move %s : %s" % (tmpItems[4],inputDS))
                     continue
                 # get candidate sites
                 self.putLog("get candidates for %s" % inputDS)
