@@ -6172,6 +6172,51 @@ class DBProxy:
             return False
 
     
+    # get active datasets
+    def getActiveDatasets(self,computingSite,prodSourceLabel):
+        comment = ' /* DBProxy.getActiveDatasets */'                        
+        _logger.debug("getActiveDatasets(%s,%s)" % (computingSite,prodSourceLabel))
+        varMap = {}
+        varMap[':computingSite']   = computingSite
+        varMap[':jobStatus1']      = 'assigned'
+        varMap[':jobStatus2']      = 'activated'
+        varMap[':jobStatus3']      = 'waiting'
+        varMap[':prodSourceLabel'] = prodSourceLabel
+        try:
+            retList = []
+            for table in ['jobsActive4','jobsDefined4','jobsWaiting4']:
+                if table == 'jobsActive4':
+                    sql0  = "SELECT /*+ INDEX_COMBINE(tab JOBSACTIVE4_JOBSTATUS_IDX JOBSACTIVE4_COMPSITE_IDX) */ distinct prodDBlock FROM ATLAS_PANDA.%s tab " % table
+                else:
+                    sql0  = "SELECT distinct prodDBlock FROM ATLAS_PANDA.%s " % table
+                sql0 += "WHERE computingSite=:computingSite AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3) "
+                sql0 += "AND prodSourceLabel=:prodSourceLabel"
+                # start transaction
+                self.conn.begin()
+                # select
+                self.cur.execute(sql0+comment, varMap)
+                resSs = self.cur.fetchall()
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                # append
+                for prodDBlock, in resSs:
+                    if not prodDBlock in retList:
+                        retList.append(prodDBlock)
+            # make string
+            retStr = ''
+            for tmpItem in retList:
+                retStr += '%s,' % tmpItem
+            retStr = retStr[:-1]    
+            return retStr
+        except:
+            # roll back
+            self._rollback()
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("getActiveDatasets : %s %s" % (errType,errValue))
+            return ""
+
+        
     # wake up connection
     def wakeUp(self):
         for iTry in range(5):

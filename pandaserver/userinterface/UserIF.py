@@ -158,6 +158,14 @@ class UserIF:
         return pickle.dumps(ret)
 
 
+    # get active datasets
+    def getActiveDatasets(self,computingSite,prodSourceLabel):
+        # run
+        ret = self.taskBuffer.getActiveDatasets(computingSite,prodSourceLabel)
+        # return
+        return ret
+
+
     # get assigning task
     def getAssigningTask(self):
         # run
@@ -612,6 +620,11 @@ def getQueuedAnalJobs(req,site):
     if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
         user = _getDN(req)
     return userIF.getQueuedAnalJobs(site,user)
+
+
+# get active datasets
+def getActiveDatasets(req,computingSite,prodSourceLabel='managed'):
+    return userIF.getActiveDatasets(computingSite,prodSourceLabel)
 
 
 # get assigning task
