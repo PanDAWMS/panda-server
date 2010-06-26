@@ -72,13 +72,17 @@ class DynDataDistributer:
                     self.putLog("failed to get candidates")
                     continue
                 # loop over all datasets
-                for tmpDS,(candSites,sitesComDS,sitesIncomDS,nUserSub) in sitesMaps.iteritems():
+                for tmpDS,(candSites,sitesComDS,sitesIncomDS,nUserSub,t1HasReplica) in sitesMaps.iteritems():
                     self.putLog("constituent DS %s" % tmpDS)                    
-                    self.putLog("sites with comp DS %s - incomp %s - candidates %s - nSub %s" % \
-                                (str(sitesComDS),str(sitesIncomDS),str(candSites),nUserSub))
+                    self.putLog("sites with comp DS %s - incomp %s - candidates %s - nSub %s - T1 %s" % \
+                                (str(sitesComDS),str(sitesIncomDS),str(candSites),nUserSub,t1HasReplica))
                     # no candidates
                     if candSites == []:
                         self.putLog("skip since no candidates")
+                        continue
+                    # no replica at T1
+                    if not t1HasReplica:
+                        self.putLog("no replica at T1")
                         continue
                     # check number of replicas
                     maxSitesHaveDS = 1
@@ -110,7 +114,7 @@ class DynDataDistributer:
     # get candidate sites for subscription
     def getCandidates(self,inputDS,cloud):
         # return for failure
-        failedRet = False,{'':([],[],[],0)}
+        failedRet = False,{'':([],[],[],0,False)}
         # get replica locations
         if inputDS.endswith('/'):
             # container
@@ -139,12 +143,23 @@ class DynDataDistributer:
             if tmpSiteSpec.cachedse != 1:
                 continue
             allSiteSpecs.append(tmpSiteSpec)
+        # DQ2 prefix of T1
+        tmpT1SiteID = self.siteMapper.getCloud(cloud)['source']
+        tmpT1DQ2ID  = self.siteMapper.getSite(tmpT1SiteID).ddm
+        prefixDQ2T1 = re.sub('[^_]+DISK$','',tmpT1DQ2ID)
         # loop over all datasets     
         returnMap = {}
         for tmpDS,tmpRepMap in tmpRepMaps.iteritems():
             candSites    = []
             sitesComDS   = []
             sitesIncomDS = []
+            # check T1 has a replica
+            t1HasReplica = False
+            for tmpDQ2ID,tmpStatMap in tmpRepMap.iteritems():
+                if tmpDQ2ID.startswith(prefixDQ2T1):
+                    if tmpStatMap[0]['total'] == tmpStatMap[0]['found']:
+                        t1HasReplica = True
+                        break
             # get on-going subscriptions
             timeRangeSub = 7
             userSubscriptions = self.taskBuffer.getUserSubscriptions(tmpDS,timeRangeSub)
@@ -174,7 +189,7 @@ class DynDataDistributer:
                         nUserSub += 1
                         break
             # append
-            returnMap[tmpDS] = (candSites,sitesComDS,sitesIncomDS,nUserSub)
+            returnMap[tmpDS] = (candSites,sitesComDS,sitesIncomDS,nUserSub,t1HasReplica)
         # return
         return True,returnMap
 
