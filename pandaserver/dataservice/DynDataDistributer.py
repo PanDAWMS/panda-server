@@ -80,12 +80,14 @@ class DynDataDistributer:
                     if candSites == []:
                         self.putLog("skip since no candidates")
                         continue
-                    # no replica at T1
-                    if not t1HasReplica:
-                        self.putLog("no replica at T1")
+                    # no replica in the cloud
+                    if sitesComDS == [] and not t1HasReplica:
+                        self.putLog("no replica in the cloud")
                         continue
                     # check number of replicas
                     maxSitesHaveDS = 1
+                    if not t1HasReplica:
+                        maxSitesHaveDS += 1
                     if len(sitesComDS) >= maxSitesHaveDS:
                         self.putLog("skip since many sites (%s>=%s) have the replica" % (len(sitesComDS),maxSitesHaveDS))
                         continue
