@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added banUser.py and made --jobID optional in killUser.py 
   * set activity='Data Consolidation' and acl_alias='secondary' to PD2P subscriptions
   * check replica at T1 in PD2P
   * added getActiveDatasets

@@ -65,7 +65,7 @@ class TaskBuffer:
             siteMapper  = SiteMapper(self)
             tmpSiteSpec = siteMapper.getSite(jobs[0].computingSite)
             # check allowed groups
-            if hasattr(tmpSiteSpec,'allowedgroups') and (not tmpSiteSpec.allowedgroups in ['',None]):
+            if userStatus and hasattr(tmpSiteSpec,'allowedgroups') and (not tmpSiteSpec.allowedgroups in ['',None]):
                 # set status to False when allowedgroups is defined
                 userStatus = False
                 # loop over all groups
