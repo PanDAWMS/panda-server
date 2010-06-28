@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * set activity='Data Consolidation' and acl_alias='secondary' to PD2P subscriptions
   * check replica at T1 in PD2P
   * added getActiveDatasets
   * don't move RAW,HITS,RDO by PD2P
