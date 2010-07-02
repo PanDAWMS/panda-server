@@ -56,7 +56,8 @@ class Response:
         strIFiles = ''
         strOFiles = ''
         strDispatch = ''
-        strDisToken = ''        
+        strDisToken = ''
+        strDisTokenForOutput = ''                
         strDestination = ''
         strRealDataset = ''
         strRealDatasetIn = ''        
@@ -99,12 +100,15 @@ class Response:
                 if strDestToken != '':
                     strDestToken += ','
                 strDestToken += file.destinationDBlockToken.split(',')[0]
+                strDisTokenForOutput += '%s,' % file.dispatchDBlockToken
         # inFiles
         self.data['inFiles'] = strIFiles
         # dispatch DBlock
         self.data['dispatchDblock'] = strDispatch
         # dispatch DBlock space token
         self.data['dispatchDBlockToken'] = strDisToken
+        # dispatch DBlock space token for output
+        self.data['dispatchDBlockTokenForOut'] = strDisTokenForOutput[:-1]
         # outFiles
         self.data['outFiles'] = strOFiles
         # destination DBlock
