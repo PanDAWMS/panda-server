@@ -57,6 +57,9 @@ class DynDataDistributer:
                 if not moveFlag:
                     self.putLog("skip non official dataset %s" % inputDS)
                     continue
+                if re.search('_sub\d+$',inputDS) != None or re.search('_dis\d+$',inputDS) != None:
+                    self.putLog("skip dis/sub dataset %s" % inputDS)
+                    continue
                 # check type
                 tmpItems = inputDS.split('.')
                 if len(tmpItems) < 5:

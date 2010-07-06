@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * ignore dis/sub in PD2P
   * dispatchDBlockTokenForOut
   * added banUser.py and made --jobID optional in killUser.py 
   * set activity='Data Consolidation' and acl_alias='secondary' to PD2P subscriptions
