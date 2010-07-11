@@ -157,7 +157,10 @@ if res == None:
 else:
     _logger.debug("total %s " % len(res))
     # copy
+    tmpIndex = 0
+    tmpTotal = len(res)
     for (id,srcEndTime) in res:
+        tmpIndex += 1
         try:
             # check if already recorded
             _logger.debug("check  %s " % id)
@@ -184,6 +187,8 @@ else:
                 varMap[':archivedFlag'] = 1
                 sqlUpdate = "UPDATE ATLAS_PANDA.jobsArchived4 SET archivedFlag=:archivedFlag WHERE PandaID=:PandaID"
                 taskBuffer.querySQLS(sqlUpdate,varMap)
+            if tmpIndex % 100 == 1:
+                _logger.debug(" copy %s/%s" % (tmpIndex,tmpTotal))
         except:
             pass
         
