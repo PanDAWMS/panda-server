@@ -159,6 +159,7 @@ else:
     # copy
     tmpIndex = 0
     tmpTotal = len(res)
+    random.shuffle(res)
     for (id,srcEndTime) in res:
         tmpIndex += 1
         try:
