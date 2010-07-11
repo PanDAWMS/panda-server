@@ -189,7 +189,7 @@ else:
                 sqlUpdate = "UPDATE ATLAS_PANDA.jobsArchived4 SET archivedFlag=:archivedFlag WHERE PandaID=:PandaID"
                 taskBuffer.querySQLS(sqlUpdate,varMap)
             if tmpIndex % 100 == 1:
-                _logger.debug(" copy %s/%s" % (tmpIndex,tmpTotal))
+                _logger.debug(" copied %s/%s" % (tmpIndex,tmpTotal))
         except:
             pass
         
@@ -203,8 +203,12 @@ if res == None:
     _logger.debug("total %s " % res)
 else:
     _logger.debug("total %s " % len(res))
+    tmpIndex = 0
+    tmpTotal = len(res)
+    random.shuffle(res)
     # loop over all jobs
     for (id,srcEndTime) in res:
+        tmpIndex += 1        
         try:
             # check
             sql = "SELECT PandaID from %s WHERE PandaID=:PandaID" % jobATableName
@@ -220,6 +224,8 @@ else:
                 proxyS = taskBuffer.proxyPool.getProxy()
                 proxyS.deleteJobSimple(id)
                 taskBuffer.proxyPool.putProxy(proxyS)
+            if tmpIndex % 100 == 1:
+                _logger.debug(" deleted %s/%s" % (tmpIndex,tmpTotal))
         except:
             pass
 del res
