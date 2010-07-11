@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * delete replicas from T2 when locations != []
   * protection against meta/para=None in peekJob
   * kill ITB_INTEGRATION jobs in sent status
   * batchID

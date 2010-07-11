@@ -1268,7 +1268,7 @@ class T2Cleaner (threading.Thread):
                             if not tmpDDM in t1SiteDDMs and tmpDDM.endswith('_PRODDISK'):
                                 t2DDMs.append(tmpDDM)
                         # delete replica for sub
-                        if re.search('_sub\d+$',name) != None:
+                        if re.search('_sub\d+$',name) != None and t2DDMs != []:
                             _logger.debug(('deleteDatasetReplicas',name,t2DDMs))
                             status,out = ddm.DQ2.main('deleteDatasetReplicas',name,t2DDMs)
                             if status != 0:
