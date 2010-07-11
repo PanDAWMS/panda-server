@@ -52,7 +52,7 @@ class Watcher (threading.Thread):
                     destDBList = []
                     # reset sent job for analysis
                     if job.jobStatus == 'sent' and job.commandToPilot != 'tobekilled' and \
-                           (not job.prodSourceLabel in ['managed']):
+                           (not job.prodSourceLabel in ['managed']) and (not job.processingType in ['ITB_INTEGRATION']):
                         _logger.debug(' -> reset Sent job : PandaID:%s' % job.PandaID)
                         job.jobStatus = 'activated'
                         job.startTime = None
