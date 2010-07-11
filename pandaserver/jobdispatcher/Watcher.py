@@ -59,7 +59,7 @@ class Watcher (threading.Thread):
                         job.endTime   = None                        
                     # retry analysis jobs 
                     elif (job.prodSourceLabel in ['user','panda']) and job.attemptNr<2 \
-                             and job.commandToPilot != 'tobekilled':
+                             and job.commandToPilot != 'tobekilled' and (not job.processingType in ['ITB_INTEGRATION']):
                         # reset
                         _logger.debug(' -> reset %s job : PandaID:%s #%s' % (job.prodSourceLabel,job.PandaID,job.attemptNr))
                         job.jobStatus = 'activated'
