@@ -1903,7 +1903,8 @@ class DBProxy:
                             sqlMeta = "SELECT metaData FROM ATLAS_PANDA.metaTable WHERE PandaID=:PandaID"
                             self.cur.execute(sqlMeta+comment, varMap)
                             for clobMeta, in self.cur:
-                                resMeta = clobMeta.read()
+                                if clobMeta != None:
+                                    resMeta = clobMeta.read()
                                 break
                         # job parameters
                         job.jobParameters = None
@@ -1912,7 +1913,8 @@ class DBProxy:
                         varMap[':PandaID'] = job.PandaID
                         self.cur.execute(sqlJobP+comment, varMap)
                         for clobJobP, in self.cur:
-                            job.jobParameters = clobJobP.read()
+                            if clobJobP != None:
+                                job.jobParameters = clobJobP.read()
                             break
                         # commit
                         if not self._commit():
@@ -6069,7 +6071,8 @@ class DBProxy:
                         sqlMeta = "SELECT metaData FROM %s WHERE PandaID=:PandaID" % metaTableName
                         self.cur.execute(sqlMeta+comment, varMap)
                         for clobMeta, in self.cur:
-                            job.metadata = clobMeta.read()
+                            if clobMeta != None:
+                                job.metadata = clobMeta.read()
                             break
                         # job parameters
                         job.jobParameters = None
@@ -6079,7 +6082,8 @@ class DBProxy:
                         varMap[':PandaID'] = job.PandaID
                         self.cur.execute(sqlJobP+comment, varMap)
                         for clobJobP, in self.cur:
-                            job.jobParameters = clobJobP.read()
+                            if clobJobP != None:
+                                job.jobParameters = clobJobP.read()
                             break
                         # commit
                         if not self._commit():

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * protection against meta/para=None in peekJob
   * kill ITB_INTEGRATION jobs in sent status
   * batchID
   * ignore dis/sub in PD2P
