@@ -222,6 +222,9 @@ class DynDataDistributer:
             dq2ID = re.sub('_[^_]+DISK','_DATADISK',dq2ID)
         elif dataset.startswith('mc'):
             dq2ID = re.sub('_[^_]+DISK','_MCDISK',dq2ID)
+        # patch for MWT2_UC
+        if dq2ID == 'MWT2_UC_DATADISK':
+            dq2ID = 'MWT2_DATADISK'
         # make subscription    
         optSrcPolicy = 001000 | 010000
         nTry = 3

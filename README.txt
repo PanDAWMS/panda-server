@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * change MWT2_UC_DATADISK to MWT2_DATADISK in PD2P
   * delete replicas from T2 when locations != []
   * protection against meta/para=None in peekJob
   * kill ITB_INTEGRATION jobs in sent status
