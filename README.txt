@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * use Data Brokering fr PD2P
   * change MWT2_UC_DATADISK to MWT2_DATADISK in PD2P
   * delete replicas from T2 when locations != []
   * protection against meta/para=None in peekJob

@@ -232,7 +232,7 @@ class DynDataDistributer:
             # register subscription
             self.putLog('%s/%s registerDatasetSubscription %s %s' % (iDDMTry,nTry,dataset,dq2ID))
             status,out = ddm.DQ2.main('registerDatasetSubscription',dataset,dq2ID,0,0,{},{},optSrcPolicy,
-                                      0,None,0,"production",None,'Data Consolidation','secondary')
+                                      0,None,0,"production",None,'Data Brokering','secondary')
             if out.find('DQSubscriptionExistsException') != -1:
                 break
             elif status != 0 or (not self.isDQ2ok(out)):
