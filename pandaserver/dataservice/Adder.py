@@ -437,7 +437,7 @@ class Adder (threading.Thread):
                                                     tmpSrcToken = file.destinationDBlockToken.split(',')[0]
                                                     if self.siteMapper.getSite(self.job.computingSite).setokens.has_key(tmpSrcToken):
                                                         dq2ID = self.siteMapper.getSite(self.job.computingSite).setokens[tmpSrcToken]
-                                                    optSource[dq2ID] = {'policy' : 0}                                                    
+                                                    optSource[dq2ID] = {'policy' : 0}
                                             # use another location when token is set
                                             if not file.destinationDBlockToken in ['NULL','']:
                                                 tmpDQ2IDList = []
@@ -465,8 +465,8 @@ class Adder (threading.Thread):
                                                         subMap[file.destinationDBlock].append((dq2ID,optSub,optSource))
                                             else:
                                                 # use default DDM
-                                                dq2ID = tmpDstDDM
-                                                subMap[file.destinationDBlock].append((dq2ID,optSub,optSource))
+                                                for dq2ID in tmpDstDDM.split(','):
+                                                    subMap[file.destinationDBlock].append((dq2ID,optSub,optSource))
                 except:
                     # status
                     file.status = 'failed'

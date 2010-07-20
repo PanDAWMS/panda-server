@@ -36,7 +36,7 @@ class DynDataDistributer:
     def run(self):
         try:
             # check cloud
-            if not self.jobs[0].cloud in ['US']:
+            if not self.jobs[0].cloud in ['US','FR']:
                 return
             self.putLog("start for %s" % self.jobs[0].cloud)
             # get input datasets
