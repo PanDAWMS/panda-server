@@ -102,6 +102,7 @@ class DynDataDistributer:
                         continue
                     # run brokerage
                     tmpJob = JobSpec()
+                    tmpJob.AtlasRelease = ''
                     self.putLog("run brokerage for %s" % tmpDS)
                     brokerage.broker.schedule([tmpJob],self.taskBuffer,self.siteMapper,True,candSites,True)
                     self.putLog("site -> %s" % tmpJob.computingSite)

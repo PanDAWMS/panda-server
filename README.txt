@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed AtlasRelese for PD2P
   * enabled WN brokerage for ANALY_GLASGOW
   * updated Adder for --destSE=multiSites
   * use Data Brokering fr PD2P

@@ -31,7 +31,7 @@ class MemProxy:
     # insert files
     def setFiles(self,pandaID,site,node,files):
         try:
-            _logger.debug("setFiles PandaID=%s start" % pandaID)
+            _logger.debug("setFiles site=%s node=%s start" % (site,node))
             # key prefix
             keyPrefix = self.getKeyPrefix(site,node)
             # failed to get key prefix   
@@ -48,10 +48,10 @@ class MemProxy:
                                                 key_prefix=keyPrefix)
             # failed
             if failedList != []:
-                _logger.error("setFiles failed to insert %s values for PandaID=%s" % \
-                              (len(failedList),pandaID))
+                _logger.error("setFiles failed to insert %s values for site=%s node=%s" % \
+                              (len(failedList),site,node))
                 return False
-            _logger.debug("setFiles PandaID=%s completed" % pandaID)
+            _logger.debug("setFiles site=%s node=%s completed" % (site,node))
             return True
         except:
             errType,errValue = sys.exc_info()[:2]
