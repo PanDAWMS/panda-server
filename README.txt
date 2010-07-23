@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed PD2P to take non-PD2P sites into account when checking comp/incomp
   * fixed AtlasRelese for PD2P
   * enabled WN brokerage for ANALY_GLASGOW
   * updated Adder for --destSE=multiSites

@@ -145,8 +145,9 @@ class DynDataDistributer:
             # analysis only
             if not tmpSiteName.startswith('ANALY'):
                 continue
-            # check cached SE flag
-            if tmpSiteSpec.cachedse != 1:
+            # online
+            if not tmpSiteSpec.status in ['online']:
+                self.putLog("skip %s due to status=%s" % (tmpSiteName,tmpSiteSpec.status))
                 continue
             allSiteSpecs.append(tmpSiteSpec)
         # DQ2 prefix of T1
@@ -174,6 +175,9 @@ class DynDataDistributer:
             for tmpSiteSpec in allSiteSpecs:
                 # prefix of DQ2 ID
                 prefixDQ2 = re.sub('[^_]+DISK$','',tmpSiteSpec.ddm)
+                # skip T1
+                if prefixDQ2 == prefixDQ2T1:
+                    continue
                 # check if corresponding DQ2 ID is a replica location
                 hasReplica = False
                 for tmpDQ2ID,tmpStatMap in tmpRepMap.iteritems():
@@ -187,7 +191,7 @@ class DynDataDistributer:
                         hasReplica = True
                         break
                 # site doesn't have a replica
-                if not hasReplica:
+                if (not hasReplica) and tmpSiteSpec.cachedse == 1:
                     candSites.append(tmpSiteSpec.sitename)
                 # the number of subscriptions
                 for tmpUserSub in userSubscriptions:
