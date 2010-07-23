@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * enabled WN brokerage for ANALY_GLASGOW
   * updated Adder for --destSE=multiSites
   * use Data Brokering fr PD2P
   * change MWT2_UC_DATADISK to MWT2_DATADISK in PD2P
