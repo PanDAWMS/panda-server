@@ -39,6 +39,11 @@ class DynDataDistributer:
             if not self.jobs[0].cloud in ['US','FR']:
                 return
             self.putLog("start for %s" % self.jobs[0].cloud)
+            # ignore HC and group production
+            if self.jobs[0].processingType in ['hammercloud','gangarobot']:
+                self.putLog("skip due to processingType=%s" % self.jobs[0].processingType)
+                self.putLog("end for %s" % self.jobs[0].cloud)
+                return
             # get input datasets
             inputDatasets = []
             for tmpJob in self.jobs:
