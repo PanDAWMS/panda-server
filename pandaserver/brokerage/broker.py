@@ -332,7 +332,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 if forAnalysis and tmpSiteSpec.status == 'brokeroff' and tmpSiteSpec.accesscontrol == 'grouplist':
                                     # ignore brokeroff for grouplist site
                                     pass
-                                elif forAnalysis and  prevProType in ['hammercloud']:
+                                elif forAnalysis and  prevProType in ['hammercloud','gangarobot']:
                                     # ignore site status for HC
                                     pass
                                 else:
