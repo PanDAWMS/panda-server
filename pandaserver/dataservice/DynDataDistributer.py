@@ -44,6 +44,11 @@ class DynDataDistributer:
                 self.putLog("skip due to processingType=%s" % self.jobs[0].processingType)
                 self.putLog("end for %s" % self.jobs[0].cloud)
                 return
+            # ignore HC and group production
+            if not self.jobs[0].workingGroup in ['NULL',None,'']:
+                self.putLog("skip due to workingGroup=%s" % self.jobs[0].workingGroup)
+                self.putLog("end for %s" % self.jobs[0].cloud)
+                return
             # get input datasets
             inputDatasets = []
             for tmpJob in self.jobs:
