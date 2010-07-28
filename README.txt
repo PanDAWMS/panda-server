@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed PD2P to remove the cloud boundary when counting nSites
   * disable brokerage for gangarobot
   * ignore HC and group jobs in PD2P
   * fixed PD2P to take non-PD2P sites into account when checking comp/incomp

@@ -20,7 +20,11 @@ from pandalogger.PandaLogger import PandaLogger
 _logger = PandaLogger().getLogger('DynDataDistributer')
 
 # NG datasets
-ngDataTypes = ['RAW','HITS','RDO'] 
+ngDataTypes = ['RAW','HITS','RDO']
+
+# clods to be used
+pd2pClouds = ['US','FR']
+
 
 class DynDataDistributer:
 
@@ -36,9 +40,9 @@ class DynDataDistributer:
     def run(self):
         try:
             # check cloud
-            if not self.jobs[0].cloud in ['US','FR']:
+            if not self.jobs[0].cloud in pd2pClouds:
                 return
-            self.putLog("start for %s" % self.jobs[0].cloud)
+            self.putLog("start for %s" % self.jobs[0].PandaID)
             # ignore HC and group production
             if self.jobs[0].processingType in ['hammercloud','gangarobot']:
                 self.putLog("skip due to processingType=%s" % self.jobs[0].processingType)
@@ -47,7 +51,7 @@ class DynDataDistributer:
             # ignore HC and group production
             if not self.jobs[0].workingGroup in ['NULL',None,'']:
                 self.putLog("skip due to workingGroup=%s" % self.jobs[0].workingGroup)
-                self.putLog("end for %s" % self.jobs[0].cloud)
+                self.putLog("end for %s" % self.jobs[0].PandaID)
                 return
             # get input datasets
             inputDatasets = []
@@ -80,57 +84,67 @@ class DynDataDistributer:
                     continue
                 # get candidate sites
                 self.putLog("get candidates for %s" % inputDS)
-                status,sitesMaps = self.getCandidates(inputDS,self.jobs[0].cloud)
+                status,sitesMaps = self.getCandidates(inputDS)
                 if not status:
                     self.putLog("failed to get candidates")
                     continue
                 # loop over all datasets
-                for tmpDS,(candSites,sitesComDS,sitesIncomDS,nUserSub,t1HasReplica) in sitesMaps.iteritems():
-                    self.putLog("constituent DS %s" % tmpDS)                    
-                    self.putLog("sites with comp DS %s - incomp %s - candidates %s - nSub %s - T1 %s" % \
-                                (str(sitesComDS),str(sitesIncomDS),str(candSites),nUserSub,t1HasReplica))
-                    # no candidates
-                    if candSites == []:
-                        self.putLog("skip since no candidates")
-                        continue
-                    # no replica in the cloud
-                    if sitesComDS == [] and not t1HasReplica:
-                        self.putLog("no replica in the cloud")
-                        continue
+                for tmpDS,tmpVal in sitesMaps.iteritems():
+                    self.putLog("constituent DS %s" % tmpDS)
+                    allCandidates = []
+                    totalUserSub = 0
+                    allCompPd2pSites = []
+                    for tmpCloud,(candSites,sitesComDS,sitesPd2pDS,nUserSub,t1HasReplica) in tmpVal.iteritems():
+                        self.putLog("%s sites with comp DS %s - compPD2P %s - candidates %s - nSub %s - T1 %s" % \
+                                    (tmpCloud,str(sitesComDS),str(sitesPd2pDS),str(candSites),nUserSub,t1HasReplica))
+                        # add
+                        totalUserSub += nUserSub 
+                        allCompPd2pSites += sitesPd2pDS
+                        # no replica in the cloud
+                        if sitesComDS == [] and not t1HasReplica:
+                            self.putLog("unused since no replica in the cloud")
+                            continue
+                        # use candidates
+                        allCandidates += candSites
+                    self.putLog("PD2P sites with comp replicas : %s" % str(allCompPd2pSites))
+                    self.putLog("PD2P candidates : %s" % str(allCandidates))
+                    self.putLog("PD2P subscriptions : %s" % totalUserSub)
                     # check number of replicas
                     maxSitesHaveDS = 1
-                    if not t1HasReplica:
-                        maxSitesHaveDS += 1
-                    if len(sitesComDS) >= maxSitesHaveDS:
-                        self.putLog("skip since many sites (%s>=%s) have the replica" % (len(sitesComDS),maxSitesHaveDS))
+                    if len(allCompPd2pSites) >= maxSitesHaveDS:
+                        self.putLog("skip since many PD2P sites (%s>=%s) have the replica" % (len(allCompPd2pSites),maxSitesHaveDS))
                         continue
                     # check the number of subscriptions
-                    maxNumSubInCloud = 1
-                    if nUserSub >= maxNumSubInCloud:
+                    maxNumSubInAllCloud = 1
+                    if totalUserSub >= maxNumSubInAllCloud:
                         self.putLog("skip since enough subscriptions (%s>=%s) were already made" % \
-                                    (nUserSub,maxNumSubInCloud))
+                                    (totalUserSub,maxNumSubInAllCloud))
+                        continue
+                    # no candidates
+                    if len(allCandidates) == 0:
+                        self.putLog("skip since no candidates")
                         continue
                     # run brokerage
                     tmpJob = JobSpec()
                     tmpJob.AtlasRelease = ''
                     self.putLog("run brokerage for %s" % tmpDS)
-                    brokerage.broker.schedule([tmpJob],self.taskBuffer,self.siteMapper,True,candSites,True)
+                    brokerage.broker.schedule([tmpJob],self.taskBuffer,self.siteMapper,True,allCandidates,True)
                     self.putLog("site -> %s" % tmpJob.computingSite)
                     # make subscription
                     subRet,dq2ID = self.makeSubscription(tmpDS,tmpJob.computingSite)
                     # update database
                     if subRet:
                         self.taskBuffer.addUserSubscription(tmpDS,[dq2ID])
-            self.putLog("end for %s" % self.jobs[0].cloud)
+            self.putLog("end for %s" % self.jobs[0].PandaID)
         except:
             errType,errValue = sys.exc_info()[:2]
             self.putLog("%s %s" % (errType,errValue),'error')
 
 
     # get candidate sites for subscription
-    def getCandidates(self,inputDS,cloud):
+    def getCandidates(self,inputDS):
         # return for failure
-        failedRet = False,{'':([],[],[],0,False)}
+        failedRet = False,{'':{'':([],[],[],0,False)}}
         # get replica locations
         if inputDS.endswith('/'):
             # container
@@ -144,10 +158,10 @@ class DynDataDistributer:
             self.putLog("failed to get replica locations for %s" % inputDS,'error')
             return failedRet
         # get all sites
-        allSiteSpecs = []
+        allSiteMap = {}
         for tmpSiteName,tmpSiteSpec in self.siteMapper.siteSpecList.iteritems():
             # check cloud
-            if tmpSiteSpec.cloud != cloud:
+            if not tmpSiteSpec.cloud in pd2pClouds:
                 continue
             # ignore test sites
             if 'test' in tmpSiteName.lower():
@@ -159,57 +173,69 @@ class DynDataDistributer:
             if not tmpSiteSpec.status in ['online']:
                 self.putLog("skip %s due to status=%s" % (tmpSiteName,tmpSiteSpec.status))
                 continue
-            allSiteSpecs.append(tmpSiteSpec)
-        # DQ2 prefix of T1
-        tmpT1SiteID = self.siteMapper.getCloud(cloud)['source']
-        tmpT1DQ2ID  = self.siteMapper.getSite(tmpT1SiteID).ddm
-        prefixDQ2T1 = re.sub('[^_]+DISK$','',tmpT1DQ2ID)
-        # loop over all datasets     
+            if not allSiteMap.has_key(tmpSiteSpec.cloud):
+                allSiteMap[tmpSiteSpec.cloud] = []
+            allSiteMap[tmpSiteSpec.cloud].append(tmpSiteSpec)
+        # loop over all datasets
         returnMap = {}
-        for tmpDS,tmpRepMap in tmpRepMaps.iteritems():
-            candSites    = []
-            sitesComDS   = []
-            sitesIncomDS = []
-            # check T1 has a replica
-            t1HasReplica = False
-            for tmpDQ2ID,tmpStatMap in tmpRepMap.iteritems():
-                if tmpDQ2ID.startswith(prefixDQ2T1):
-                    if tmpStatMap[0]['total'] == tmpStatMap[0]['found']:
-                        t1HasReplica = True
-                        break
-            # get on-going subscriptions
-            timeRangeSub = 7
-            userSubscriptions = self.taskBuffer.getUserSubscriptions(tmpDS,timeRangeSub)
-            # check sites
-            nUserSub = 0
-            for tmpSiteSpec in allSiteSpecs:
-                # prefix of DQ2 ID
-                prefixDQ2 = re.sub('[^_]+DISK$','',tmpSiteSpec.ddm)
-                # skip T1
-                if prefixDQ2 == prefixDQ2T1:
-                    continue
-                # check if corresponding DQ2 ID is a replica location
-                hasReplica = False
+        for cloud in pd2pClouds:
+            # DQ2 prefix of T1
+            tmpT1SiteID = self.siteMapper.getCloud(cloud)['source']
+            tmpT1DQ2ID  = self.siteMapper.getSite(tmpT1SiteID).ddm
+            prefixDQ2T1 = re.sub('[^_]+DISK$','',tmpT1DQ2ID)
+            # loop over all datasets     
+            for tmpDS,tmpRepMap in tmpRepMaps.iteritems():
+                candSites     = []
+                sitesComDS    = []
+                sitesCompPD2P = []
+                # check T1 has a replica
+                t1HasReplica = False
                 for tmpDQ2ID,tmpStatMap in tmpRepMap.iteritems():
-                    if tmpDQ2ID.startswith(prefixDQ2):
-                        if tmpStatMap[0]['total'] != tmpStatMap[0]['found']:
-                            # incomplete
-                            sitesIncomDS.append(tmpSiteSpec.sitename)
-                        else:
-                            # complete
-                            sitesComDS.append(tmpSiteSpec.sitename)
-                        hasReplica = True
-                        break
-                # site doesn't have a replica
-                if (not hasReplica) and tmpSiteSpec.cachedse == 1:
-                    candSites.append(tmpSiteSpec.sitename)
-                # the number of subscriptions
-                for tmpUserSub in userSubscriptions:
-                    if tmpUserSub.startswith(prefixDQ2):
-                        nUserSub += 1
-                        break
-            # append
-            returnMap[tmpDS] = (candSites,sitesComDS,sitesIncomDS,nUserSub,t1HasReplica)
+                    if tmpDQ2ID.startswith(prefixDQ2T1):
+                        if tmpStatMap[0]['total'] == tmpStatMap[0]['found']:
+                            t1HasReplica = True
+                            break
+                # get on-going subscriptions
+                timeRangeSub = 7
+                userSubscriptions = self.taskBuffer.getUserSubscriptions(tmpDS,timeRangeSub)
+                # unused cloud
+                if not allSiteMap.has_key(cloud):
+                    continue
+                # check sites
+                nUserSub = 0
+                for tmpSiteSpec in allSiteMap[cloud]:
+                    # check cloud
+                    if tmpSiteSpec.cloud != cloud:
+                        continue
+                    self.putLog(tmpSiteSpec.sitename)
+                    # prefix of DQ2 ID
+                    prefixDQ2 = re.sub('[^_]+DISK$','',tmpSiteSpec.ddm)
+                    # skip T1
+                    if prefixDQ2 == prefixDQ2T1:
+                        continue
+                    # check if corresponding DQ2 ID is a replica location
+                    hasReplica = False
+                    for tmpDQ2ID,tmpStatMap in tmpRepMap.iteritems():
+                        if tmpDQ2ID.startswith(prefixDQ2):
+                            if tmpStatMap[0]['total'] == tmpStatMap[0]['found']:
+                                # complete
+                                sitesComDS.append(tmpSiteSpec.sitename)
+                                if tmpSiteSpec.cachedse == 1:
+                                    sitesCompPD2P.append(tmpSiteSpec.sitename)                                    
+                            hasReplica = True
+                            break
+                    # site doesn't have a replica
+                    if (not hasReplica) and tmpSiteSpec.cachedse == 1:
+                        candSites.append(tmpSiteSpec.sitename)
+                    # the number of subscriptions
+                    for tmpUserSub in userSubscriptions:
+                        if tmpUserSub.startswith(prefixDQ2):
+                            nUserSub += 1
+                            break
+                # append
+                if not returnMap.has_key(tmpDS):
+                    returnMap[tmpDS] = {}
+                returnMap[tmpDS][cloud] = (candSites,sitesComDS,sitesCompPD2P,nUserSub,t1HasReplica)
         # return
         return True,returnMap
 
