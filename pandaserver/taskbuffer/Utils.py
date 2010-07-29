@@ -23,25 +23,34 @@ def isAlive(req):
 def putFile(req,file):
     if not Protocol.isSecure(req):
         return False
-    _logger.debug("putFile : start %s" % req.subprocess_env['SSL_CLIENT_S_DN'])
+    _logger.debug("putFile : start %s %s" % (req.subprocess_env['SSL_CLIENT_S_DN'],file.filename))
     # size check
-    sizeLimit = 10*1024*1024
+    fullSizeLimit = 768*1024*1024
     if not file.filename.startswith('sources.'):
-        # get file size
-        contentLength = 0
-        try:
-            contentLength = long(req.headers_in["content-length"])
-        except:
-            if req.headers_in.has_key("content-length"):
-                _logger.error("cannot get CL : %s" % req.headers_in["content-length"])
-            else:
-                _logger.error("no CL")
-        _logger.debug("size %s" % contentLength)
-        if contentLength > sizeLimit:
-            errStr = "ERROR : Upload failure. Exceeded size limit %s>%s. Please submit job without --noBuild/--libDS" % (contentLength,sizeLimit)
-            _logger.error(errStr)
-            _logger.debug("putFile : end")            
-            return errStr
+        noBuild = True
+        sizeLimit = 10*1024*1024
+    else:
+        noBuild = False
+        sizeLimit = fullSizeLimit
+    # get file size
+    contentLength = 0
+    try:
+        contentLength = long(req.headers_in["content-length"])
+    except:
+        if req.headers_in.has_key("content-length"):
+            _logger.error("cannot get CL : %s" % req.headers_in["content-length"])
+        else:
+            _logger.error("no CL")
+    _logger.debug("size %s" % contentLength)
+    if contentLength > sizeLimit:
+        errStr = "ERROR : Upload failure. Exceeded size limit %s>%s." % (contentLength,sizeLimit)
+        if noBuild:
+            errStr += " Please submit the job without --noBuild/--libDS since those options impose a tighter size limit"
+        else:
+            errStr += " Please remove redundant files from your workarea"
+        _logger.error(errStr)
+        _logger.debug("putFile : end")            
+        return errStr
     fo = open('%s/%s' % (panda_config.cache_dir,file.filename),'wb')
     fo.write(file.file.read())
     fo.close()

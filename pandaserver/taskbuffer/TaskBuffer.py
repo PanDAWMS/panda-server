@@ -176,6 +176,9 @@ class TaskBuffer:
             # set relocation flag
             if job.computingSite != 'NULL':
                 job.relocationFlag = 1
+            # protection agains empty jobParameters
+            if job.jobParameters in ['',None,'NULL']:
+                job.jobParameters = ' '
             # set country group and nJobs (=taskID)
             if job.prodSourceLabel in ['user','panda']:
                 job.countryGroup = userCountry

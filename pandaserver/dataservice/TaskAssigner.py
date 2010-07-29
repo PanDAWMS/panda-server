@@ -34,13 +34,14 @@ taskTypesSub = ['simul']
 
 class TaskAssigner:
     # constructor
-    def __init__(self,taskBuffer,siteMapper,taskID,prodSourceLabel):
+    def __init__(self,taskBuffer,siteMapper,taskID,prodSourceLabel,job):
         self.taskBuffer = taskBuffer
         self.siteMapper = siteMapper
         self.taskID     = taskID
         self.cloudTask  = None
         self.prodSourceLabel = prodSourceLabel
-
+        self.cloudForSubs = []
+        self.job = job
 
     # check cloud
     def checkCloud(self):
@@ -76,6 +77,7 @@ class TaskAssigner:
             prioMap  = {}
             fullRWs  = {}
             tt2Map   = {}
+            diskCount = 0
             usingOpenDS = False
             try:
                 # parse metadata
@@ -94,15 +96,19 @@ class TaskAssigner:
                     exec "tt2Map = %s"  % metadata.split(';')[5]
             except:
                 pass
-            message = '%s taskType=%s prio=%s RW=%s' % (self.taskID,taskType,prioMap[self.taskID],
-                                                        expRWs[self.taskID])
+            try:
+                diskCount = int(self.job.maxDiskCount)
+            except:
+                pass
+            message = '%s taskType=%s prio=%s RW=%s DiskCount=%s' % (self.taskID,taskType,prioMap[self.taskID],
+                                                                     expRWs[self.taskID],diskCount)
             _logger.debug(message)
             self.sendMesg(message)
-            _logger.debug('%s RWs     =%s' % (self.taskID,str(RWs)))
-            _logger.debug('%s expRWs  =%s' % (self.taskID,str(expRWs)))
-            _logger.debug('%s prioMap =%s' % (self.taskID,str(prioMap)))            
-            _logger.debug('%s fullRWs =%s' % (self.taskID,str(fullRWs)))
-            _logger.debug('%s tt2Map  =%s' % (self.taskID,str(tt2Map)))            
+            _logger.debug('%s RWs     = %s' % (self.taskID,str(RWs)))
+            _logger.debug('%s expRWs  = %s' % (self.taskID,str(expRWs)))
+            _logger.debug('%s prioMap = %s' % (self.taskID,str(prioMap)))            
+            _logger.debug('%s fullRWs = %s' % (self.taskID,str(fullRWs)))
+            _logger.debug('%s tt2Map  = %s' % (self.taskID,str(tt2Map)))
             # get cloud list
             cloudList = self.siteMapper.getCloudList()
             # get pilot statistics
@@ -164,8 +170,17 @@ class TaskAssigner:
                     _logger.debug(message)
                     self.sendMesg(message)
                     continue
+                # check disk count
+                if diskCount != 0: 
+                    enoughSpace = self.checkDiskCount(diskCount,tmpCloudName)
+                    if not enoughSpace:
+                        message = "%s    %s skip : no online sites have enough space for DiskCount=%s" % (self.taskID,tmpCloudName,diskCount)
+                        _logger.debug(message)
+                        self.sendMesg(message)
+                        continue
                 # append
                 tmpCloudList.append(tmpCloudName)
+                self.cloudForSubs.append(tmpCloudName)
             cloudList = tmpCloudList
             # DQ2 location info
             _logger.debug('%s DQ2 locations %s' % (self.taskID,str(locations)))
@@ -499,6 +514,28 @@ class TaskAssigner:
         time.sleep(1)
 
 
+    # check disk count
+    def checkDiskCount(self,diskCount,cloud):
+        scanSiteList = self.siteMapper.getCloud(cloud)['sites']
+        # loop over all sites
+        for tmpSiteName in scanSiteList:
+            if 'test' in tmpSiteName.lower():
+                continue
+            # get sitespec
+            tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
+            # use online only
+            if not tmpSiteSpec.status in ['online']:
+                continue
+            # no size limit
+            if tmpSiteSpec.maxinputsize == 0:
+                return True
+            # enough space for input
+            if int(tmpSiteSpec.maxinputsize) > int(diskCount):
+                return True
+        # no sites have enough space
+        return False
+
+
     # get available space
     def getAvailableSpace(self,space,fullRW,expRW):
         # calculate available space = totalT1space - ((RW(cloud)+RW(thistask))*GBperSI2kday))   
@@ -511,9 +548,11 @@ class TaskAssigner:
         nDDMtry = 3
         cloudList = []
         # collect clouds which don't hold datasets
+        message = '%s possible clouds : %s' % (self.taskID,str(self.cloudForSubs))
+        _logger.debug(message)
         for tmpDS,tmpClouds in dsCloudMap.iteritems():
             for tmpCloud in tmpClouds:
-                if not tmpCloud in cloudList:
+                if (not tmpCloud in cloudList) and tmpCloud in self.cloudForSubs:
                     cloudList.append(tmpCloud)
         message = '%s candidates for subscription : %s' % (self.taskID,str(cloudList))
         _logger.debug(message)

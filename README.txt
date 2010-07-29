@@ -1,6 +1,9 @@
 Release Note
 
 * current
+  * imposed a size limit on uploaded files by users
+  * fixed the task brokerage to take maxDiskCount into account
+  * added a protection againt empty jobParameters only for new jobs
   * fixed PD2P to remove the cloud boundary when counting nSites
   * disable brokerage for gangarobot
   * ignore HC and group jobs in PD2P

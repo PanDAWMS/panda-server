@@ -982,7 +982,7 @@ class Setupper (threading.Thread):
                     if not cloudMap.has_key(job.taskID):
                         # instantiate TaskAssigner
                         cloudResolver = TaskAssigner.TaskAssigner(self.taskBuffer,self.siteMapper,
-                                                                  job.taskID,job.prodSourceLabel)
+                                                                  job.taskID,job.prodSourceLabel,job)
                         # check cloud
                         _logger.debug("%s check cloud for %s" % (self.timestamp,job.taskID))
                         retCloud = cloudResolver.checkCloud()
@@ -1153,7 +1153,7 @@ class Setupper (threading.Thread):
                 if not cloudMap.has_key(job.taskID):
                     # instantiate TaskAssigner
                     cloudResolver = TaskAssigner.TaskAssigner(self.taskBuffer,self.siteMapper,
-                                                              job.taskID,job.prodSourceLabel)
+                                                              job.taskID,job.prodSourceLabel,job)
                     # check cloud
                     _logger.debug("%s check cloud for %s" % (self.timestamp,job.taskID))
                     retCloud = cloudResolver.checkCloud()
