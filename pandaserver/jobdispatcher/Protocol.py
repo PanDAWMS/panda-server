@@ -145,6 +145,8 @@ class Response:
         self.data['cmtConfig'] = job.cmtConfig
         # processingType
         self.data['processingType'] = job.processingType
+        # transferType
+        self.data['transferType'] = job.transferType
             
 
     # set proxy key

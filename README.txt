@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * get list of PD2P clouds dynamically
+  * send transferType to the pilot
   * imposed a size limit on uploaded files by users
   * fixed the task brokerage to take maxDiskCount into account
   * added a protection againt empty jobParameters only for new jobs

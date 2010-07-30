@@ -22,8 +22,6 @@ _logger = PandaLogger().getLogger('DynDataDistributer')
 # NG datasets
 ngDataTypes = ['RAW','HITS','RDO']
 
-# clods to be used
-pd2pClouds = ['US','FR']
 
 
 class DynDataDistributer:
@@ -34,19 +32,34 @@ class DynDataDistributer:
         self.taskBuffer = taskBuffer
         self.siteMapper = siteMapper
         self.token = datetime.datetime.utcnow().isoformat(' ')
+        self.pd2pClouds = []
 
 
     # main
     def run(self):
         try:
-            # check cloud
-            if not self.jobs[0].cloud in pd2pClouds:
-                return
+            # get a list of PD2P clouds
+            for tmpSiteName,tmpSiteSpec in self.siteMapper.siteSpecList.iteritems():
+                # ignore test sites
+                if 'test' in tmpSiteName.lower():
+                    continue
+                # analysis only
+                if not tmpSiteName.startswith('ANALY'):
+                    continue
+                # using PD2P
+                if tmpSiteSpec.cachedse == 1:
+                    if not tmpSiteSpec.cloud in self.pd2pClouds:
+                        self.pd2pClouds.append(tmpSiteSpec.cloud)
             self.putLog("start for %s" % self.jobs[0].PandaID)
+            # check cloud
+            if not self.jobs[0].cloud in self.pd2pClouds:
+                self.putLog("skip cloud=%s not one of PD2P clouds %s" % (self.jobs[0].cloud,str(self.pd2pClouds)))
+                self.putLog("end for %s" % self.jobs[0].PandaID)
+                return
             # ignore HC and group production
             if self.jobs[0].processingType in ['hammercloud','gangarobot']:
                 self.putLog("skip due to processingType=%s" % self.jobs[0].processingType)
-                self.putLog("end for %s" % self.jobs[0].cloud)
+                self.putLog("end for %s" % self.jobs[0].PandaID)
                 return
             # ignore HC and group production
             if not self.jobs[0].workingGroup in ['NULL',None,'']:
@@ -161,7 +174,7 @@ class DynDataDistributer:
         allSiteMap = {}
         for tmpSiteName,tmpSiteSpec in self.siteMapper.siteSpecList.iteritems():
             # check cloud
-            if not tmpSiteSpec.cloud in pd2pClouds:
+            if not tmpSiteSpec.cloud in self.pd2pClouds:
                 continue
             # ignore test sites
             if 'test' in tmpSiteName.lower():
@@ -178,7 +191,7 @@ class DynDataDistributer:
             allSiteMap[tmpSiteSpec.cloud].append(tmpSiteSpec)
         # loop over all datasets
         returnMap = {}
-        for cloud in pd2pClouds:
+        for cloud in self.pd2pClouds:
             # DQ2 prefix of T1
             tmpT1SiteID = self.siteMapper.getCloud(cloud)['source']
             tmpT1DQ2ID  = self.siteMapper.getSite(tmpT1SiteID).ddm
