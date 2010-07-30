@@ -3338,8 +3338,8 @@ class DBProxy:
                 # instantiate CloudTask
                 cloudTask = CloudTaskSpec()
                 cloudTask.pack(res[0])
-                # update tmod if status <> 'assigned'
-                if cloudTask.status <> 'assigned':
+                # update tmod if status is defined
+                if cloudTask.status == 'defined':
                     sql = "UPDATE ATLAS_PANDA.cloudtasks SET tmod=CURRENT_DATE WHERE taskid=:taskid"
                     varMap = {}
                     varMap[':taskid'] = cloudTask.taskid
@@ -3471,10 +3471,10 @@ class DBProxy:
             # start transaction
             self.conn.begin()
             # select
-            sql = "SELECT taskid FROM ATLAS_PANDA.cloudtasks WHERE status<>:status AND tmod>:tmod"
+            sql = "SELECT taskid FROM ATLAS_PANDA.cloudtasks WHERE status=:status AND tmod>:tmod"
             varMap = {}
             varMap[':tmod']   = timeLimit
-            varMap[':status'] = 'assigned'
+            varMap[':status'] = 'defined'
             self.cur.arraysize = 100                        
             self.cur.execute(sql+comment, varMap)
             res = self.cur.fetchall()
@@ -3496,6 +3496,64 @@ class DBProxy:
             type, value, traceBack = sys.exc_info()
             _logger.error("getAssigningTask : %s %s" % (type,value))
             return []
+
+
+    # set CloudTask by user
+    def setCloudTaskByUser(self,user,tid,cloud,status):
+        comment = ' /* setCloudTaskByUser */'        
+        try:
+            _logger.debug("setCloudTaskByUser(tid=%s,cloud=%s,status=%s) by %s" % (tid,cloud,status,user))
+            # check tid
+            if tid in [None,'NULL']:
+                tmpMsg = "invalid TID : %s" % tid
+                _logger.error(tmpMsg)
+                return "ERROR: " + tmpMsg
+            # check status
+            statusList = ['tobeaborted']
+            if not status in statusList:
+                tmpMsg = "invalid status=%s. Must be one of %s" (status,str(statusList))
+                _logger.error(tmpMsg)
+                return "ERROR: " + tmpMsg
+            # start transaction
+            self.conn.begin()
+            # get CloudTask
+            sql  = "SELECT %s FROM ATLAS_PANDA.cloudtasks " % CloudTaskSpec.columnNames()
+            sql += "WHERE taskid=:taskid"
+            varMap = {}
+            varMap[':taskid'] = tid 
+            # select
+            self.cur.arraysize = 10            
+            self.cur.execute(sql+comment, varMap)
+            res = self.cur.fetchall()
+            # already exist
+            if res != None and len(res) != 0:
+                # set status
+                sql = "UPDATE ATLAS_PANDA.cloudtasks SET status=:status,tmod=CURRENT_DATE WHERE taskid=:taskid"
+                varMap = {}
+                varMap[':taskid'] = tid
+                varMap[':status'] = status
+                self.cur.execute(sql+comment, varMap)
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                return "SUCCEEDED"
+            # insert new CloudTask
+            sql = "INSERT INTO ATLAS_PANDA.cloudtasks (id,taskid,status,tmod,tenter) VALUES(ATLAS_PANDA.CLOUDTASKS_ID_SEQ.nextval,:taskid,:status,CURRENT_DATE,CURRENT_DATE)"
+            varMap = {}
+            varMap[':taskid'] = tid
+            varMap[':status'] = status
+            self.cur.execute(sql+comment, varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            return "SUCCEEDED"
+        except:
+            # roll back
+            self._rollback()
+            # error
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("setCloudTaskByUser() : %s %s" % (errType,errValue))
+            return "ERROR: database error"
 
         
     # query files with map

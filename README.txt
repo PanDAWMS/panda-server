@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added setCloudTaskByUser
   * get list of PD2P clouds dynamically
   * send transferType to the pilot
   * imposed a size limit on uploaded files by users

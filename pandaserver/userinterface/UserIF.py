@@ -174,6 +174,13 @@ class UserIF:
         return pickle.dumps(ret)
 
 
+    # set task by user
+    def setCloudTaskByUser(self,user,tid,cloud,status):
+        # run
+        ret = self.taskBuffer.setCloudTaskByUser(user,tid,cloud,status)
+        return ret
+
+
     # add files to memcached
     def addFilesToMemcached(self,site,node,files):
         # add
@@ -575,6 +582,21 @@ def _getDN(req):
     return realDN
                                         
 
+# check role
+def _isProdRoleATLAS(req):
+    # check role
+    prodManager = False
+    # get FQANs
+    fqans = _getFQAN(req)
+    # loop over all FQANs
+    for fqan in fqans:
+        # check production role
+        for rolePat in ['/atlas/usatlas/Role=production','/atlas/Role=production']:
+            if fqan.startswith(rolePat):
+                return True
+    return False
+
+
 
 """
 web service interface
@@ -635,6 +657,18 @@ def getAssigningTask(req):
 # get assigned cloud for tasks
 def seeCloudTask(req,ids):
     return userIF.seeCloudTask(ids)
+
+
+# set task by user
+def setCloudTaskByUser(req,tid,cloud='',status=''):
+    # get DN
+    if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        return "ERROR: SSL connection is required"
+    user = _getDN(req)
+    # check role
+    if not _isProdRoleATLAS(req):
+        return "ERROR: production role is required"
+    return userIF.setCloudTaskByUser(user,tid,cloud,status)
 
 
 # add files to memcached

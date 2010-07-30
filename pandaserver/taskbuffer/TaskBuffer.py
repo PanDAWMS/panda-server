@@ -1154,6 +1154,18 @@ class TaskBuffer:
         return ret
 
 
+    # set cloud to CloudTask by user
+    def setCloudTaskByUser(self,user,tid,cloud,status):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # count
+        ret = proxy.setCloudTaskByUser(user,tid,cloud,status)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
     # update site data
     def updateSiteData(self,hostID,pilotRequests):
         # get DBproxy
