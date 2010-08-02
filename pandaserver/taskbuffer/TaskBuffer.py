@@ -52,7 +52,7 @@ class TaskBuffer:
         priorityOffset = 0
         userVO         = 'atlas'
         userCountry    = None
-        if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda']):
+        if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda','ptest']):
             # get DB proxy
             proxy = self.proxyPool.getProxy()
             # check quota
@@ -176,7 +176,7 @@ class TaskBuffer:
                    and (job.attemptNr in [0,'0','NULL'] or (not job.jobExecutionID in [0,'0','NULL'])):
                 job.jobDefinitionID = userJobID
             # set jobsetID    
-            if job.prodSourceLabel in ['user','panda']:
+            if job.prodSourceLabel in ['user','panda','ptest']:
                 job.jobsetID = userJobsetID
             # set relocation flag
             if job.computingSite != 'NULL':
@@ -227,7 +227,7 @@ class TaskBuffer:
                         firstLiveLog = False
                 # append
                 newJobs.append(job)
-            if job.prodSourceLabel in ['user','panda']:                
+            if job.prodSourceLabel in ['user','panda','ptest']:                
                 ret.append((job.PandaID,job.jobDefinitionID,{'jobsetID':job.jobsetID}))
             else:
                 ret.append((job.PandaID,job.jobDefinitionID,job.jobName))                

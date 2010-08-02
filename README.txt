@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * set jobsetID for ptest
   * changes for output container and short LFN for analysis
 
 * 0.0.10 (8/2/2010)
