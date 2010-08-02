@@ -1,5 +1,8 @@
 Release Note
 
+* current
+  * changes for output container and short LFN for analysis
+
 * 0.0.10 (8/2/2010)
   * tagged for output container and short LFN for analysis
   * added setCloudTaskByUser

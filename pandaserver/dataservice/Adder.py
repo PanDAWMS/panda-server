@@ -655,6 +655,9 @@ class Adder (threading.Thread):
                 # ignore DBRelease
                 if re.search('DBRelease',file.lfn) != None:
                     continue
+                # ignore when noshadow is set
+                if file.destinationDBlockToken == 'noshadow':
+                    continue
                 # fsize
                 fsize = None
                 if not file.fsize in ['NULL','',0]:

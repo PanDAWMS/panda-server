@@ -171,8 +171,16 @@ class Closer (threading.Thread):
         _logger.debug('%s source:%s complete:%s' % (self.pandaID,self.job.prodSourceLabel,flagComplete))
         if (self.job.jobStatus != 'transferring') and ((flagComplete and self.job.prodSourceLabel=='user') or \
            (self.job.jobStatus=='failed' and self.job.prodSourceLabel=='panda')):
-            nThr = Notifier(self.taskBuffer,self.job,self.destinationDBlocks)
-            nThr.start()
-            nThr.join()            
+            useNotifier = True
+            summaryInfo = {}
+            # check all jobDefIDs in jobsetID
+            if not self.job.jobsetID in [0,None,'NULL']:
+                useNotifier,summaryInfo = self.taskBuffer.checkDatasetStatusForNotifier(self.job.jobsetID,self.job.jobDefinitionID,
+                                                                                        self.job.prodUserName)
+                _logger.debug('%s useNotifier:%s' % (self.pandaID,useNotifier))
+            if useNotifier:    
+                nThr = Notifier(self.taskBuffer,self.job,self.destinationDBlocks,summaryInfo)
+                nThr.start()
+                nThr.join()            
             
         _logger.debug('%s End' % self.pandaID)

@@ -38,12 +38,12 @@ _ngWordsInMailAddr = ['support','system','stuff','service','secretariat','club',
 
 class Notifier (threading.Thread):
     # constructor
-    def __init__(self,taskBuffer,job,datasets):
+    def __init__(self,taskBuffer,job,datasets,summary={}):
         threading.Thread.__init__(self)
         self.job = job
         self.datasets = datasets
         self.taskBuffer = taskBuffer
-
+        self.summary = summary
 
     # main
     def run(self):
@@ -71,9 +71,16 @@ class Notifier (threading.Thread):
                 _logger.debug("not send to %s" % self.job.prodUserID)
                 _logger.debug("%s end" % self.job.PandaID)
                 return
+            # use all datasets
+            if self.summary != {}:
+                self.datasets = []
+                for tmpJobID,tmpDsList in self.summary.iteritems():
+                    if tmpDsList == []:
+                        continue
+                    self.datasets += tmpDsList
             # get IDs
-            tmpIDs = self.taskBuffer.queryPandaIDwithDataset(self.datasets)
             ids = []
+            tmpIDs = self.taskBuffer.queryPandaIDwithDataset(self.datasets)
             for tmpID in tmpIDs:
                 if not tmpID in ids:
                     ids.append(tmpID)
@@ -87,25 +94,40 @@ class Notifier (threading.Thread):
                 nFailed    = 0
                 nPartial   = 0
                 nCancel    = 0
-                # job ID
-                jobID = self.job.jobDefinitionID
                 # time info
                 creationTime = self.job.creationTime
                 endTime      = self.job.modificationTime
                 if isinstance(endTime,datetime.datetime):
                     endTime = endTime.strftime('%Y-%m-%d %H:%M:%S')
-                # site
-                siteName = self.job.computingSite   
                 # datasets
                 iDSList = []
                 oDSList = []
-                for file in self.job.Files:
-                    if file.type == 'input':
-                        if not file.dataset in iDSList:
-                            iDSList.append(file.dataset)
-                    else:
-                        if not file.dataset in oDSList:
-                            oDSList.append(file.dataset)
+                siteMap = {}
+                for tmpJob in jobs:
+                    if not siteMap.has_key(tmpJob.jobDefinitionID):
+                        siteMap[tmpJob.jobDefinitionID] = tmpJob.computingSite
+                    for file in tmpJob.Files:
+                        if file.type == 'input':
+                            if not file.dataset in iDSList:
+                                iDSList.append(file.dataset)
+                        else:
+                            if not file.dataset in oDSList:
+                                oDSList.append(file.dataset)
+                # job/jobset IDs and site
+                if self.summary == {}:                
+                    jobIDsite = "%s/%s" % (self.job.jobDefinitionID,self.job.computingSite)
+                    jobsetID = self.job.jobDefinitionID
+                    jobDefIDList = [self.job.jobDefinitionID]
+                else:
+                    jobDefIDList = self.summary.keys()
+                    jobDefIDList.sort()
+                    jobIDsite = ''
+                    tmpIndent = "             "
+                    for tmpJobID in jobDefIDList:
+                        jobIDsite += '%s/%s\n%s' % (tmpJobID,siteMap[tmpJobID],tmpIndent)
+                    remCount = len(tmpIndent) + 1
+                    jobIDsite = jobIDsite[:-remCount]
+                    jobsetID = self.job.jobsetID
                 # count
                 for job in jobs:
                     if job == None:
@@ -127,44 +149,65 @@ class Notifier (threading.Thread):
                         nCancel += 1
                 # make message
                 fromadd = panda_config.emailSender
-                message = \
+                if self.job.jobsetID in [0,'NULL',None]:
+                    message = \
 """Subject: PANDA notification for JobID : %s
 From: %s
 To: %s
 
 Summary of JobID : %s
 
+Site : %s""" % (self.job.jobDefinitionID,fromadd,mailAddr,self.job.jobDefinitionID,self.job.computingSite)
+                else:
+                    message = \
+"""Subject: PANDA notification for JobsetID : %s
+From: %s
+To: %s
+
+Summary of JobsetID : %s
+
+JobID/Site : %s""" % (jobsetID,fromadd,mailAddr,jobsetID,jobIDsite)
+                message += \
+"""                    
+
 Created : %s (UTC)
 Ended   : %s (UTC)
-
-Site    : %s
 
 Total Number of Jobs : %s
            Succeeded : %s
            Partial   : %s
            Failed    : %s
            Cancelled : %s
-""" % (jobID,fromadd,mailAddr,jobID,creationTime,endTime,siteName,nTotal,
-       nSucceeded,nPartial,nFailed,nCancel)
+""" % (creationTime,endTime,nTotal,nSucceeded,nPartial,nFailed,nCancel)
+                # input datasets 
                 for iDS in iDSList:
                     message += \
 """
 In  : %s""" % iDS
+                # output datasets                     
                 for oDS in oDSList:
                     message += \
 """
 Out : %s""" % oDS
-                urlData = {}
-                urlData['job'] = '*'
-                urlData['jobDefinitionID'] = jobID
-                urlData['user'] = self.job.prodUserName
+                # URLs to PandaMon
+                for tmpIdx,tmpJobID in enumerate(jobDefIDList):
+                    urlData = {}
+                    urlData['job'] = '*'
+                    urlData['jobDefinitionID'] = tmpJobID
+                    urlData['user'] = self.job.prodUserName
+                    if tmpIdx == 0:
+                        message += \
+"""
+
+PandaMonURL : http://panda.cern.ch:25980/server/pandamon/query?%s""" % urllib.urlencode(urlData)
+                    else:
+                        message += \
+"""
+              http://panda.cern.ch:25980/server/pandamon/query?%s""" % urllib.urlencode(urlData)
+                # tailer            
                 message += \
 """
 
-PandaMonURL : http://panda.cern.ch:25980/server/pandamon/query?%s
-""" % urllib.urlencode(urlData)
-                message += \
-"""
 
 Report Panda problems of any sort to
 

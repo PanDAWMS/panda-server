@@ -5,6 +5,7 @@ from threading import Lock
 from DBProxyPool import DBProxyPool
 from brokerage.SiteMapper import SiteMapper
 from dataservice.Setupper import Setupper
+from dataservice.Closer import Closer
 from dataservice.TaLauncher import TaLauncher
 
 
@@ -42,10 +43,11 @@ class TaskBuffer:
 
                                                         
     # store Jobs into DB
-    def storeJobs(self,jobs,user,joinThr=False,forkSetupper=False,fqans=[],hostname=''):
+    def storeJobs(self,jobs,user,joinThr=False,forkSetupper=False,fqans=[],hostname='',resetLocInSetupper=False):
         # check quota for priority calculation
         weight         = 0.0
         userJobID      = -1
+        userJobsetID   = -1
         userStatus     = True
         priorityOffset = 0
         userVO         = 'atlas'
@@ -56,7 +58,7 @@ class TaskBuffer:
             # check quota
             weight = proxy.checkQuota(user)
             # get JobID and status
-            userJobID,userStatus = proxy.getUserParameter(user,jobs[0].jobDefinitionID)
+            userJobID,userJobsetID,userStatus = proxy.getUserParameter(user,jobs[0].jobDefinitionID,jobs[0].jobsetID)
             # get site access
             userSiteAccess = proxy.checkSiteAccess(jobs[0].computingSite,user)
             # release proxy
@@ -173,6 +175,9 @@ class TaskBuffer:
             if userJobID != -1 and job.prodSourceLabel in ['user','panda'] \
                    and (job.attemptNr in [0,'0','NULL'] or (not job.jobExecutionID in [0,'0','NULL'])):
                 job.jobDefinitionID = userJobID
+            # set jobsetID    
+            if job.prodSourceLabel in ['user','panda']:
+                job.jobsetID = userJobsetID
             # set relocation flag
             if job.computingSite != 'NULL':
                 job.relocationFlag = 1
@@ -222,18 +227,21 @@ class TaskBuffer:
                         firstLiveLog = False
                 # append
                 newJobs.append(job)
-            ret.append((job.PandaID,job.jobDefinitionID,job.jobName))
+            if job.prodSourceLabel in ['user','panda']:                
+                ret.append((job.PandaID,job.jobDefinitionID,{'jobsetID':job.jobsetID}))
+            else:
+                ret.append((job.PandaID,job.jobDefinitionID,job.jobName))                
             serNum += 1
         # release DB proxy
         self.proxyPool.putProxy(proxy)
         # set up dataset
         if joinThr:
-            thr = Setupper(self,newJobs,pandaDDM=usePandaDDM,forkRun=forkSetupper)
+            thr = Setupper(self,newJobs,pandaDDM=usePandaDDM,forkRun=forkSetupper,resetLocation=resetLocInSetupper)
             thr.start()
             thr.join()
         else:
             # cannot use 'thr =' because it may trigger garbage collector
-            Setupper(self,newJobs,pandaDDM=usePandaDDM,forkRun=forkSetupper).start()
+            Setupper(self,newJobs,pandaDDM=usePandaDDM,forkRun=forkSetupper,resetLocation=resetLocInSetupper).start()
         # return jobIDs
         return ret
 
@@ -559,11 +567,23 @@ class TaskBuffer:
 
 
     # reset buildJob for re-brokerage
-    def resetJobForReBrokerage(self,userName,jobID,nJobs,buildJob):
+    def resetBuildJobForReBrokerage(self,pandaID):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get IDs
-        ret = proxy.resetJobForReBrokerage(userName,jobID,nJobs,buildJob)
+        ret = proxy.resetBuildJobForReBrokerage(pandaID)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # make buildJob for re-brokerage
+    def makeNewBuildJobForRebrokerage(self,buildJob):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get IDs
+        ret = proxy.makeNewBuildJobForRebrokerage(buildJob)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -571,11 +591,23 @@ class TaskBuffer:
 
 
     # get PandaIDs using libDS for re-brokerage
-    def getPandaIDsForReBrokerage(self,libDS,userName,jobID):
+    def getPandaIDsForReBrokerage(self,userName,jobID,fromActive):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get IDs
-        ret = proxy.getPandaIDsForReBrokerage(libDS,userName,jobID)
+        ret = proxy.getPandaIDsForReBrokerage(userName,jobID,fromActive)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # get input datasets for rebroerage
+    def getInDatasetsForReBrokerage(self,jobID,userName):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get IDs
+        ret = proxy.getInDatasetsForReBrokerage(jobID,userName)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -630,11 +662,30 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         rets = []
         # kill jobs
+        pandaIDforCloser = None 
         for id in ids:
-            ret = proxy.killJob(id,user,code,prodManager)
+            ret,userInfo = proxy.killJob(id,user,code,prodManager,True)
             rets.append(ret)
+            if ret and userInfo['prodSourceLabel'] == 'user':
+                pandaIDforCloser = id
         # release proxy
         self.proxyPool.putProxy(proxy)
+        # run Closer
+        try:
+            if pandaIDforCloser != None:
+                tmpJobs = self.peekJobs([pandaIDforCloser])
+                tmpJob = tmpJobs[0]
+                if tmpJob != None:
+                    tmpDestDBlocks = []
+                    # get destDBlock
+                    for tmpFile in tmpJob.Files:
+                        if tmpFile.type in ['output','log']:
+                            if not tmpFile.destinationDBlock in tmpDestDBlocks:
+                                tmpDestDBlocks.append(tmpFile.destinationDBlock)
+                    # run            
+                    Closer(self,tmpDestDBlocks,tmpJob).start()
+        except:
+            pass
         # return
         return rets
 
@@ -1495,6 +1546,18 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # get
         ret = proxy.getActiveDatasets(computingSite,prodSourceLabel)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # check status of all sub datasets to trigger Notifier
+    def checkDatasetStatusForNotifier(self,jobsetID,jobDefinitionID,prodUserName):
+        # query an SQL return Status  
+        proxy = self.proxyPool.getProxy()
+        # get
+        ret = proxy.checkDatasetStatusForNotifier(jobsetID,jobDefinitionID,prodUserName)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

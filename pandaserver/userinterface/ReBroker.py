@@ -30,18 +30,18 @@ class ReBroker (threading.Thread):
     def __init__(self,taskBuffer,cloud=None,excludedSite=None,overrideSite=True,
                  simulation=False):
         threading.Thread.__init__(self)
-        self.job          = None
-        self.jobID        = None
-        self.pandaID      = None
-        self.cloud        = cloud
-        self.libDS        = ''
-        self.nJobs        = 0
-        self.buildStatus  = None
-        self.taskBuffer   = taskBuffer
-        self.token        = None
-        self.pandaJobsMap = {}
-        self.simulation   = simulation
-        self.excludedSite = excludedSite
+        self.job           = None
+        self.jobID         = None
+        self.pandaID       = None
+        self.cloud         = cloud
+        self.libDS         = ''
+        self.pandaJobList  = []
+        self.buildStatus   = None
+        self.taskBuffer    = taskBuffer
+        self.token         = None
+        self.newDatasetMap = {}
+        self.simulation    = simulation
+        self.excludedSite  = excludedSite
         self.overrideSite = overrideSite
         
 
@@ -49,22 +49,39 @@ class ReBroker (threading.Thread):
     def run(self):
         try:
             # get job
-            tmpJobs = self.taskBuffer.getFullJobStatus([self.pandaID])
+            tmpJobs = self.taskBuffer.getFullJobStatus([self.rPandaID])
             if tmpJobs == [] or tmpJobs[0] == None:
-                _logger.debug("cannot find job for PandaID=%s" % self.pandaID)
+                _logger.debug("cannot find job for PandaID=%s" % self.rPandaID)
                 return
             self.job = tmpJobs[0]
             _logger.debug("%s start" % self.token)
+            # using output container
+            if not self.job.destinationDBlock.endswith('/'):
+                _logger.debug("%s ouput dataset container is required" % self.token)
+                _logger.debug("%s end" % self.token)
+                return
+            # check jobsetID
+            if self.job.jobsetID in [0,'NULL',None]:
+                _logger.debug("%s jobsetID is undefined" % self.token)
+                _logger.debug("%s end" % self.token)
+                return
             # check metadata 
             if self.job.metadata in [None,'NULL']:
                 _logger.debug("%s metadata is unavailable" % self.token)
-                _logger.debug("%s failed" % self.token)
+                _logger.debug("%s end" % self.token)
                 return
-            # check --site
-            if (not self.simulation) and (not self.overrideSite):
-                match = re.search("--site( +|=)([^ \"\';$]+)",self.job.metadata)
-                _logger.debug("%s --site was being used" % self.token)
-                _logger.debug("%s failed" % self.token)
+            # check --disableRebrokerage
+            match = re.search("--disableRebrokerage",self.job.metadata)
+            if match != None:
+                _logger.debug("%s diabled rebrokerage" % self.token)
+                _logger.debug("%s end" % self.token)
+                return
+            # check --workingGroup since it is site-specific 
+            match = re.search("--workingGroup",self.job.metadata)
+            if match != None:
+                _logger.debug("%s workingGroup is specified" % self.token)
+                _logger.debug("%s end" % self.token)
+                return
             # check excludedSite
             if self.excludedSite == None:
                 self.excludedSite = []
@@ -72,34 +89,20 @@ class ReBroker (threading.Thread):
                 if match != None:
                     self.excludedSite = match.group(2).split(',')
             _logger.debug("%s excludedSite=%s" % (self.token,str(self.excludedSite)))
-            # extract inDS from metadata
-            inputDS = []
-            match = re.search("--inDS( +|=)([^ \"\';$]+)",self.job.metadata)
-            if match != None:
-                inputDS = match.group(2).split(',')
-            # look for parentDS
-            match = re.search("--parentDS( +|=)([^ \"\';$]+)",self.job.metadata)
-            if match != None:
-                inputDS = match.group(2).split(',')
-            _logger.debug("%s inDS=%s" % (self.token,str(inputDS)))
-            # expand *
-            newInDS = []
-            for tmpDS in inputDS:
-                if re.search('\*',tmpDS) == None:
-                    newInDS.append(tmpDS)
-                else:
-                    # get list using wild-card
-                    status,tmpList = self.getListDatasets(tmpDS)
-                    if not status:
-                        # failed
-                        _logger.debug("%s failed" % self.token)
-                        return 
-                    # append
-                    newInDS += tmpList
-            # replace
-            inputDS = newInDS
+            # get inDS/LFNs
+            status,tmpMapInDS = self.taskBuffer.getInDatasetsForReBrokerage(self.jobID,self.userName)
+            if not status:
+                # failed
+                _logger.error("%s failed to get inDS/LFN from DB" % self.token)
+                return
+            status,inputDS = self.getListDatasetsUsedByJob(tmpMapInDS)
+            if not status:
+                # failed
+                _logger.error("%s failed" % self.token)
+                return 
             # get relicas
-            replicaMap = {} 
+            replicaMap = {}
+            unknownSites = {} 
             for tmpDS in inputDS:
                 if tmpDS.endswith('/'):
                     # container
@@ -115,6 +118,17 @@ class ReBroker (threading.Thread):
                 # make map per site
                 for tmpDS,tmpRepMap in tmpRepMaps.iteritems():
                     for tmpSite,tmpStat in tmpRepMap.iteritems():
+                        # ignore special sites
+                        if tmpSite in ['CERN-PROD_TZERO','CERN-PROD_DAQ']:
+                            continue
+                        # ignore tape sites
+                        if tmpSite.endswith('TAPE'):
+                            continue
+                        # keep sites with unknown replica info 
+                        if tmpStat[-1]['found'] == None:
+                            if not unknownSites.has_key(tmpDS):
+                                unknownSites[tmpDS] = []
+                            unknownSites[tmpDS].append(tmpSite)
                         # change DISK to SCRATCHDISK
                         tmpSite = re.sub('_[^_-]+DISK$','_SCRATCHDISK',tmpSite)
                         # change PERF-XYZ to SCRATCHDISK
@@ -127,6 +141,8 @@ class ReBroker (threading.Thread):
                             replicaMap[tmpSite] = {}
                         replicaMap[tmpSite][tmpDS] = tmpStat[-1]
             _logger.debug("%s replica map -> %s" % (self.token,str(replicaMap)))
+            # refresh replica info in needed
+            self.refreshReplicaInfo(unknownSites)
             # instantiate SiteMapper
             siteMapper = SiteMapper(self.taskBuffer)
             # get original DDM
@@ -144,7 +160,8 @@ class ReBroker (threading.Thread):
                 for tmpOrigDS,tmpOrigVal in replicaMap[origSiteDDM].iteritems():
                     # loop over all sites
                     for tmpSite,tmpDsVal in replicaMap.iteritems():
-                        if tmpDsVal.has_key(tmpOrigDS) and tmpDsVal[tmpOrigDS]['found'] == tmpOrigVal['found']:
+                        if tmpDsVal.has_key(tmpOrigDS) and tmpDsVal[tmpOrigDS]['found'] != None and \
+                               tmpOrigVal['found'] != None and tmpDsVal[tmpOrigDS]['found'] >= tmpOrigVal['found']:
                             # add in the first loop
                             if firstLoop:
                                 maxDQ2Sites.append(tmpSite)
@@ -169,6 +186,9 @@ class ReBroker (threading.Thread):
                     if re.search('_test',tmpSiteID,re.I) != None:
                         continue
                     if re.search('_local',tmpSiteID,re.I) != None:
+                        continue
+                    # use online only
+                    if tmpSiteSpec.status != 'online':
                         continue
                     # excluded sites
                     excludedFlag = False
@@ -212,30 +232,24 @@ class ReBroker (threading.Thread):
                         return 
                     # get new site spec
                     newSiteSpec = siteMapper.getSite(newSiteID)
-                    # check repetition
+                    # avoid repetition
                     if newSiteSpec.ddm == origSiteDDM:
                         _logger.debug("%s assigned to the same site %s " % (self.token,newSiteID))
+                        _logger.debug("%s end" % self.token)                        
                         return
-                    # prepare outputDS
-                    status = self.prepareDS()
-                    if not status:
-                        _logger.error("%s failed to prepare outputDSs" % self.token)
-                    else:
-                        # simulation mode
-                        if self.simulation:
-                            _logger.debug("%s end simulation" % self.token)                        
-                            return
-                        # move jobs to jobsDefined
-                        status = self.updateJob()
-                        if not status:
-                            _logger.error("%s failed to move jobs to jobsDefined" % self.token)
+                    # simulation mode
+                    if self.simulation:
+                        _logger.debug("%s end simulation" % self.token)                        
+                        return
+                    # prepare jobs
+                    status = self.prepareJob(newSiteID,newSiteSpec.cloud)
+                    if status:
+                        # run SetUpper
+                        statusSetUp = self.runSetUpper()
+                        if not statusSetUp:
+                            _logger.debug("%s runSetUpper failed" % self.token)
                         else:
-                            # run SetUpper
-                            statusSetUp = self.runSetUpper(newSiteID,newSiteSpec.cloud)
-                            if not statusSetUp:
-                                _logger.debug("%s runSetUpper failed" % self.token)
-                            else:
-                                _logger.debug("%s successfully assigned to %s" % (self.token,newSiteID))
+                            _logger.debug("%s successfully assigned to %s" % (self.token,newSiteID))
             _logger.debug("%s end" % self.token)
         except:
             errType,errValue,errTraceBack = sys.exc_info()
@@ -256,198 +270,202 @@ class ReBroker (threading.Thread):
         # keep jobID and libDS
         self.jobID = jobID
         self.libDS = libDS
-        # set PandaID,nJobs,buildStatus,userName
-        self.pandaID     = resVal['PandaID']
-        self.nJobs       = resVal['nJobs']
+        # set PandaID,buildStatus,userName
+        self.rPandaID    = resVal['rPandaID']        
+        self.bPandaID    = resVal['bPandaID']
         self.userName    = resVal['userName']
-        self.buildStatus = resVal['status']
-        _logger.debug("%s nJobs=%s buildPandaID=%s buildStatus=%s" % (self.token,self.nJobs,
-                                                                      self.pandaID,self.buildStatus))
+        self.buildStatus = resVal['bStatus']
+        self.buildJobID  = resVal['bJobID']
+        _logger.debug("%s run PandaID=%s / build PandaID=%s Status=%s JobID=%s" % \
+                      (self.token,self.rPandaID,self.bPandaID,self.buildStatus,self.buildJobID))
         # return
         return True,''
 
 
     # move build job to jobsDefined4
-    def updateJob(self):
-        _logger.debug("%s updateJob" % self.token)
-        if self.buildStatus in ['activated']:
-            # buildJob is in activated state
-            ret = self.taskBuffer.resetJobForReBrokerage(self.userName,self.jobID,1,self.job)
-        elif self.buildStatus in ['finished']:
-            # buildJob finished
-            if self.jobID == self.job.jobDefinitionID:
-                # normal build+run
-                ret = self.taskBuffer.resetJobForReBrokerage(self.userName,self.jobID,self.nJobs-1,self.job)
-            else:
-                # libDS
-                ret = self.taskBuffer.resetJobForReBrokerage(self.userName,self.jobID,self.nJobs,self.job)                
-        elif self.buildStatus in [None]:
-            # noBuild
-            ret = self.taskBuffer.resetJobForReBrokerage(self.userName,self.jobID,self.nJobs,None)
-        else:
-            # do nothing for others
-            ret = True
-        return ret
-
-
-    # get and sort jobs
-    def getSortJobs(self,tmpPandaIDs):
-        # get jobs        
-        iBunchJobs = 0
-        nBunchJobs = 500
-        tmpJobsMap = {}
-        while iBunchJobs < len(tmpPandaIDs):
-            # get IDs
-            tmpJobs = self.taskBuffer.peekJobs(tmpPandaIDs[iBunchJobs:iBunchJobs+nBunchJobs],True,True,False,False)
-            # split by jobID
-            for idxjob,tmpJob in enumerate(tmpJobs):
-                # not found in DB
-                if tmpJob == None:
-                    _logger.error("%s cannot find PandaID=%s in DB" % (self.token,tmpPandaIDs[iBunchJobs+idxjob]))
-                    return False,{}
-                # check jobID
-                if not tmpJobsMap.has_key(tmpJob.jobDefinitionID):
-                    tmpJobsMap[tmpJob.jobDefinitionID] = []
-                # append
-                tmpJobsMap[tmpJob.jobDefinitionID].append(tmpJob)
-            # increment index
-            iBunchJobs += nBunchJobs
-        # return
-        return True,tmpJobsMap
-
-        
-    # prepare libDS and check outDS
-    def prepareDS(self):
-        _logger.debug("%s prepareDS" % self.token)        
-        # get all outDSs
-        if self.libDS != '' and self.buildStatus in ['activated']:
-            # get jobs when buildJob is in activated
-            tmpPandaIDs = self.taskBuffer.getPandaIDsForReBrokerage(self.libDS,self.userName,self.jobID)
+    def prepareJob(self,site,cloud):
+        _logger.debug("%s prepareJob" % self.token)
+        # reuse buildJob + all runJobs
+        if self.jobID == self.buildJobID and self.buildStatus in ['defined','activated']:
+            if self.buildStatus == 'activated':
+                # move build job to jobsDefined4                
+                ret = self.taskBuffer.resetBuildJobForReBrokerage(self.bPandaID)
+                if not ret:
+                    _logger.error("%s failed to move build job %s to jobsDefined" % (self.token,self.bPandaID))
+                    return False
+            # get PandaIDs from jobsDefined4    
+            tmpPandaIDs = self.taskBuffer.getPandaIDsForReBrokerage(self.userName,self.jobID,False)
             if tmpPandaIDs == []:
                 _logger.error("%s cannot find PandaDSs" % self.token)
                 return False
-            # get jobs
-            tmpStat,tmpJobsMap = self.getSortJobs(tmpPandaIDs)
-            # failed
-            if not tmpStat:
-                return False
-            # keep map
-            self.pandaJobsMap = tmpJobsMap
-            dsWithNewLoc = []
-            tmpJobIDList = tmpJobsMap.keys()
-            # loop over all jobIDs to get outDS
-            for tmpJobID in tmpJobIDList:
-                tmpJobs = tmpJobsMap[tmpJobID]
-                # loop over all jobs to get outDS
+            # get jobSpecs
+            iBunchJobs = 0
+            nBunchJobs = 500
+            tmpJobsMap = {}
+            while iBunchJobs < len(tmpPandaIDs):
+                # get IDs
+                tmpJobs = self.taskBuffer.peekJobs(tmpPandaIDs[iBunchJobs:iBunchJobs+nBunchJobs],True,False,False,False)
                 for tmpJob in tmpJobs:
-                    # set destinationSE when --destSE is not used
-                    newDestSE = False
-                    if tmpJob.destinationSE == tmpJob.computingSite:
-                        newDestSE = True
-                    # loop over all files
-                    for tmpFile in tmpJob.Files:
-                        if tmpFile.type in ['output','log']:
-                            # get datasets with new location 
-                            if newDestSE and not tmpFile.dataset in dsWithNewLoc:
-                                dsWithNewLoc.append(tmpFile.dataset)
+                    if tmpJob != None and tmpJob.jobStatus in ['defined','assigned']: 
+                        self.pandaJobList.append(tmpJob)
+                # increment index
+                iBunchJobs += nBunchJobs
+        # make new bunch
         else:
-            # get list of outDSs
-            tmpStat,tmpOutDSs,computingSite,destinationSE = self.taskBuffer.getOutDSsForReBrokerage(self.userName,self.jobID)
-            if not tmpStat:
-                _logger.error("%s cannot find outDSs" % self.token)
+            # make new buildJob
+            if self.bPandaID != None:            
+                tmpJobs = self.taskBuffer.getFullJobStatus([self.bPandaID])
+                if tmpJobs == [] or tmpJobs[0] == None:
+                    _logger.debug("cannot find build job for PandaID=%s" % self.bPandaID)
+                    return False
+                # make
+                tmpBuildJob,oldLibDS,newLibDS = self.taskBuffer.makeNewBuildJobForRebrokerage(tmpJobs[0])
+                # set parameters
+                tmpBuildJob.jobExecutionID = self.jobID
+                # regisger
+                status = self.registerNewDataset(newLibDS)
+                if not status:
+                    _logger.debug("%s failed to register new libDS" % self.token)
+                    return False
+                # append
+                self.pandaJobList = [tmpBuildJob]
+            # prepare outputDS
+            status = self.prepareDS()
+            if not status:
+                _logger.error("%s failed to prepare outputDS" % self.token)
                 return False
-            # check only when --destSE is unused
-            dsWithNewLoc = []
-            if computingSite == destinationSE:
-                dsWithNewLoc = tmpOutDSs
-        # check active jobs in Panda
-        status,jobInfo = self.taskBuffer.getNumWaitingJobsWithOutDS(dsWithNewLoc)
-        if not status:
-            _logger.error("%s failed to get job info with %s" % (self.token,str(dsWithNewLoc)))
+            # get PandaIDs
+            if self.buildStatus in ['finished',None]:
+                # from jobsActivated when buildJob already finished or noBuild
+                tmpPandaIDs = self.taskBuffer.getPandaIDsForReBrokerage(self.userName,self.jobID,True)                
+            else:
+                # from jobsDefined
+                tmpPandaIDs = self.taskBuffer.getPandaIDsForReBrokerage(self.userName,self.jobID,False)
+            if tmpPandaIDs == []:
+                _logger.error("%s cannot find PandaDSs" % self.token)
+                return False
+            # get jobSpecs
+            iBunchJobs = 0
+            nBunchJobs = 500
+            tmpJobsMap = {}
+            while iBunchJobs < len(tmpPandaIDs):
+                # get jobs
+                tmpJobs = self.taskBuffer.peekJobs(tmpPandaIDs[iBunchJobs:iBunchJobs+nBunchJobs],True,True,False,False)
+                for tmpJob in tmpJobs:
+                    # check job status. activated jobs were changed to holding by getPandaIDsForReBrokerage
+                    if tmpJob != None and tmpJob.jobStatus in ['defined','assigned','holding']:
+                        # reset parameter
+                        tmpJob.parentID = tmpJob.PandaID
+                        tmpJob.PandaID = None
+                        tmpJob.jobExecutionID = tmpJob.jobDefinitionID
+                        tmpJob.jobParameters = re.sub(oldLibDS,newLibDS,tmpJob.jobParameters)
+                        for tmpFile in tmpJob.Files:
+                            tmpFile.row_ID = None
+                            tmpFile.PandaID = None
+                            if tmpFile.type == 'input':
+                                if tmpFile.dataset == oldLibDS:
+                                    tmpFile.status  = 'unknown'
+                                    tmpFile.GUID    = None
+                                    tmpFile.dataset = newLibDS
+                                    tmpFile.dispatchDBlock = newLibDS
+                                    tmpFile.lfn = re.sub(oldLibDS,newLibDS,tmpFile.lfn)
+                            else:
+                                # use new dataset
+                                tmpFile.destinationDBlock = re.sub('_sub\d+$','',tmpFile.destinationDBlock)
+                                if not self.newDatasetMap.has_key(tmpFile.destinationDBlock):
+                                    _logger.error("%s cannot find new dataset for %s:%s" % (self.token,tmpFile.PandaID,tmpFile.destinationDBlock))
+                                    return False
+                                tmpFile.destinationDBlock = self.newDatasetMap[tmpFile.destinationDBlock] 
+                        # append
+                        self.pandaJobList.append(tmpJob)
+                # increment index
+                iBunchJobs += nBunchJobs
+        # no jobs
+        if self.pandaJobList == []:
+            _logger.error("%s no jobs" % self.token)
             return False
-        # other job are using this outDS 
-        if len(jobInfo) != 1:
-            _logger.error("%s JobID=%s are using %s" % (self.token,str(jobInfo.keys()),str(dsWithNewLoc)))
-            return False
-        # check if output datasets are empty
-        if not self.checkDatasetContents(dsWithNewLoc):
-            return False
-        # succeeded
+        # set cloud and site
+        for tmpJob in self.pandaJobList:
+            # check if --destSE is used
+            newDestSE = False
+            if tmpJob.destinationSE == tmpJob.computingSite:
+                newDestSE = True
+                tmpJob.destinationSE = site
+            # set site and cloud    
+            tmpJob.computingSite = site
+            tmpJob.cloud = cloud
+            # reset destinationDBlock
+            for tmpFile in tmpJob.Files:
+                if tmpFile.type in ['output','log']:
+                    # set destSE
+                    if newDestSE:
+                        tmpFile.destinationSE = tmpJob.destinationSE
+                    else:
+                        tmpFile.destinationSE = site
+        # return
         return True
+
+        
+    # prepare libDS 
+    def prepareDS(self):
+        _logger.debug("%s prepareDS" % self.token)        
+        # get all outDSs
+        for tmpFile in self.job.Files:
+            if tmpFile.type in ['output','log']:
+                tmpDS = re.sub('_sub\d+$','',tmpFile.destinationDBlock)
+                if not tmpDS in self.newDatasetMap:
+                    # get new rev number
+                    sn,dummyFlag = self.taskBuffer.getSerialNumber(tmpDS)
+                    # append new rev number
+                    match = re.search('_rev(\d+)$',tmpDS)
+                    if match == None:
+                        newDS = tmpDS + '_rev%s' % sn
+                    else:
+                        newDS = re.sub('_rev(\d+)$','_rev%s' % sn,tmpDS)
+                    # register
+                    status = self.registerNewDataset(newDS,tmpFile.dataset)
+                    if not status:
+                        _logger.debug("%s prepareDS failed" % self.token)                                
+                        return False
+                    # append
+                    self.newDatasetMap[tmpDS] = newDS
+        return True            
 
 
     # run SetUpper
-    def runSetUpper(self,site,cloud):
-        # get Panda jobs if not yet
-        if self.pandaJobsMap == {}:
-            # get PandaIDs
-            if self.libDS != '' and self.buildStatus in ['finished']:
-                # use new libDS
-                tmpPandaIDs = self.taskBuffer.getPandaIDsForReBrokerage(self.job.destinationDBlock,self.userName,self.jobID)
-            else:
-                tmpPandaIDs = self.taskBuffer.getPandaIDsForReBrokerage(self.libDS,self.userName,self.jobID)
-            # get jobs
-            tmpStat,self.pandaJobsMap = self.getSortJobs(tmpPandaIDs)
-            # failed
-            if not tmpStat:
+    def runSetUpper(self):
+        # reuse buildJob + all runJobs
+        if self.jobID == self.buildJobID and self.buildStatus in ['defined','activated']:
+            _logger.debug("%s start Setupper for JobID=%s" % (self.token,self.jobID))
+            thr = Setupper(self.taskBuffer,self.pandaJobList,resetLocation=True)
+            thr.start()
+            thr.join()
+        # new bunch    
+        else:
+            # fake FQANs
+            fqans = []
+            if not self.job.countryGroup in ['','NULL',None]:
+                fqans.append('/atlas/%s/Role=NULL' % self.job.countryGroup)
+            if self.job.destinationDBlock.startswith('group') and not self.job.workingGroup in ['','NULL',None]:
+                fqans.append('/atlas/%s/Role=production' % self.job.workingGroup)
+            # insert jobs
+            _logger.debug("%s start storeJobs for JobID=%s" % (self.token,self.jobID))            
+            ret = self.taskBuffer.storeJobs(self.pandaJobList,self.job.prodUserID,True,False,fqans,self.job.creationHost,True)
+            if ret == []:
+                _logger.error("%s storeJobs failed with [] for JobID=%s" % (self.token,self.jobID))
                 return False
-        # loop over all jobID
-        newJobsMap = {}
-        dsWithNewLoc = []
-        tmpJobIDList = self.pandaJobsMap.keys()
-        tmpJobIDList.sort()
-        for tmpJobID in tmpJobIDList:
-            _logger.debug("%s preparation for JobID=%s" % (self.token,tmpJobID))
-            tmpJobs = self.pandaJobsMap[tmpJobID]
-            if tmpJobs[0].prodSourceLabel == 'panda':
-                tmpNumJobs = 1 + ((len(tmpJobs)-1) << 1)
-            else:
-                tmpNumJobs = (len(tmpJobs)-1) << 1
-            # set new parameters
-            for tmpJob in tmpJobs:
-                # set nJobs (=taskID)
-                tmpJob.taskID = tmpNumJobs
-                # set destinationSE when --destSE is not used
-                newDestSE = False
-                if tmpJob.destinationSE == tmpJob.computingSite:
-                    newDestSE = True
-                    tmpJob.destinationSE = site
-                # set site and cloud    
-                tmpJob.computingSite = site
-                tmpJob.cloud = cloud
-                # reset destinationDBlock
-                for tmpFile in tmpJob.Files:
-                    if tmpFile.type in ['output','log']:
-                        # reset destinationDBlock
-                        tmpFile.destinationDBlock = tmpFile.dataset
-                        # set destSE
-                        if newDestSE:
-                            tmpFile.destinationSE = tmpJob.destinationSE
-                            # get datasets with new location 
-                            if not tmpFile.dataset in dsWithNewLoc:
-                                dsWithNewLoc.append(tmpFile.dataset)
-            # append
-            newJobsMap[tmpJobID] = tmpJobs
-        # register newLibDS
-        retNew = self.registerNewDataset(self.job.destinationDBlock)
-        if not retNew:
-            return False
-        # delete datasets and locations
-        if dsWithNewLoc != []:
-            # delete from Panda DB to trigger location registration in following Setupper
-            self.taskBuffer.deleteDatasets(dsWithNewLoc)
-        # run setupper at this stage for following jobIDs not to delete locations
-        tmpJobIDList = newJobsMap.keys()
-        tmpJobIDList.sort()
-        for tmpJobID in tmpJobIDList:
-            tmpJobs = newJobsMap[tmpJobID]
-            if tmpJobs != []:
-                _logger.debug("%s start Setupper for JobID=%s" % (self.token,tmpJobID))
-                thr = Setupper(self.taskBuffer,tmpJobs,resetLocation=True)
-                thr.start()
-                thr.join()
-                _logger.debug("%s end Setupper for JobID=%s" % (self.token,tmpJobID))
+            # get PandaIDs to be killed
+            pandaIDsTobeKilled = []
+            for tmpIndex,tmpItem in enumerate(ret):
+                if not tmpItem[0] in ['NULL',None]:
+                    tmpJob = self.pandaJobList[tmpIndex]
+                    if not tmpJob.parentID in [0,None,'NULL']:                    
+                        pandaIDsTobeKilled.append(tmpJob.parentID)
+            if pandaIDsTobeKilled != []:
+                _logger.debug("%s kill jobs for JobID=%s : %s" % (self.token,self.jobID,str(pandaIDsTobeKilled)))
+                self.taskBuffer.killJobs(pandaIDsTobeKilled,'rebrokerage','9',True)
         # succeeded
+        _logger.debug("%s completed for JobID=%s" % (self.token,self.jobID))
         return True
 
     
@@ -621,7 +639,7 @@ class ReBroker (threading.Thread):
                 
 
     # register dataset
-    def registerNewDataset(self,dataset):
+    def registerNewDataset(self,dataset,container=''):
         nTry = 3
         for iDDMTry in range(nTry):
             _logger.debug("%s %s/%s registerNewDataset %s" % (self.token,iDDMTry,nTry,dataset))
@@ -640,8 +658,121 @@ class ReBroker (threading.Thread):
             _logger.error(self.token+' '+out)
             _logger.error('%s failed to register new dataset %s' % (self.token,dataset))            
             return False
+        # remove /CN=proxy and /CN=limited from DN
+        tmpRealDN = self.job.prodUserID
+        tmpRealDN = re.sub('/CN=limited proxy','',tmpRealDN)
+        tmpRealDN = re.sub('/CN=proxy','',tmpRealDN)
+        # set owner
+        for iDDMTry in range(nTry):
+            _logger.debug("%s %s/%s setMetaDataAttribute %s" % (self.token,iDDMTry,nTry,dataset))
+            status,out = ddm.DQ2.main('setMetaDataAttribute',dataset,'owner',tmpRealDN)            
+            if status != 0 or (not self.isDQ2ok(out)):
+                time.sleep(60)
+            else:
+                break
+        if status != 0 or out.startswith('Error'):
+            _logger.error(self.token+' '+out)
+            _logger.error('%s failed to set owner to dataset %s' % (self.token,dataset))            
+            return False
+        # add to contaner
+        if container != '' and container.endswith('/'):
+            for iDDMTry in range(nTry):
+                _logger.debug("%s %s/%s registerDatasetsInContainer %s to %s" % (self.token,iDDMTry,nTry,dataset,container))
+                status,out = ddm.DQ2.main('registerDatasetsInContainer',container,[dataset])
+                if status != 0 or (not self.isDQ2ok(out)):
+                    time.sleep(60)
+                else:
+                    break
+            if status != 0 or out.startswith('Error'):
+                _logger.error(self.token+' '+out)
+                _logger.error('%s add %s to container:%s' % (self.token,dataset,container))            
+                return False
         # return
         return True
                     
-                
+
+    # get list of dataset used by the job             
+    def getListDatasetsUsedByJob(self,mapDsLFN):
+        # response for failure
+        resForFailure = False,[]
+        # loop over all datasets
+        retList = []
+        for tmpDsContainer,tmpLFNs in mapDsLFN.iteritems():
+            # not a container
+            if not tmpDsContainer.endswith('/'):
+                if not tmpDsContainer in retList:
+                    retList.append(tmpDsContainer)
+                continue
+            # get datasets in container
+            nTry = 3
+            for iDDMTry in range(nTry):
+                _logger.debug('%s %s/%s listDatasetsInContainer %s' % (self.token,iDDMTry,nTry,tmpDsContainer))
+                status,out = ddm.DQ2.main('listDatasetsInContainer',tmpDsContainer)
+                if status != 0 or (not self.isDQ2ok(out)):
+                    time.sleep(60)
+                else:
+                    break
+            if status != 0 or out.startswith('Error'):
+                _logger.error(self.token+' '+out)
+                _logger.error('%s bad DQ2 response for %s' % (self.token,tmpDsContainer))
+                return resForFailure
+            tmpDatasets = []
+            try:
+                # convert to list
+                exec "tmpDatasets = %s" % out
+            except:
+                _logger.error('%s could not convert HTTP-res to dataset list for %s' % (self.token,tmpDsContainer))
+                return resForFailure
+            # get files in dataset
+            for tmpDS in tmpDatasets:
+                if tmpDS in retList:
+                    continue
+                nTry = 3
+                for iDDMTry in range(nTry):
+                    _logger.debug('%s %s/%s listFilesInDataset %s' % (self.token,iDDMTry,nTry,tmpDS))
+                    status,out = ddm.DQ2.main('listFilesInDataset',tmpDS)
+                    if status != 0 or (not self.isDQ2ok(out)):
+                        time.sleep(60)
+                    else:
+                        break
+                if status != 0 or out.startswith('Error'):
+                    _logger.error(self.token+' '+out)
+                    _logger.error('%s bad DQ2 response for %s' % (self.token,tmpDS))
+                    return resForFailure
+                # get LFN map
+                tmpMapDQ2 = {}
+                try:
+                    # convert to list
+                    exec "tmpMapDQ2 = %s[0]" % out
+                    for tmpGUID,tmpVal in tmpMapDQ2.iteritems():
+                        # check if a file in DS is used by the job
+                        if tmpVal['lfn'] in tmpLFNs:
+                            # append
+                            if not tmpDS in retList:
+                                retList.append(tmpDS)
+                            break
+                except:
+                    _logger.error('%s could not convert HTTP-res to LFN map for %s' % (self.token,tmpDS))
+                    return resForFailure
+        # return
+        _logger.debug('%s getListDatasetsUsedByJob done %s' % (self.token,str(retList)))
+        return True,retList
             
+
+    # refresh replica info in needed
+    def refreshReplicaInfo(self,unknownSites):
+        for tmpDS,sites in unknownSites.iteritems():
+            nTry = 3
+            for iDDMTry in range(nTry):
+                _logger.debug("%s %s/%s listFileReplicasBySites %s %s" % (self.token,iDDMTry,nTry,tmpDS,str(sites)))
+                status,out =  ddm.DQ2_iter.listFileReplicasBySites(tmpDS,0,sites,0,300)
+                if status != 0 or (not self.isDQ2ok(out)):
+                    time.sleep(60)
+                else:
+                    break
+            # result    
+            if status != 0 or out.startswith('Error'):
+                _logger.error(self.token+' '+out)
+                _logger.error('%s bad DQ2 response for %s' % (self.token,dataset))
+        # return
+        return True
