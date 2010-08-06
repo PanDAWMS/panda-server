@@ -98,6 +98,14 @@ class SiteMapper:
                         # overwrite status
                         if not ret.status in ['offline','']:
                             self.siteSpecList[tmpID].status = ret.status
+                            # use larger maxinputsize and memory
+                            if ret.status in ['online']:
+                                if self.siteSpecList[tmpID].maxinputsize < ret.maxinputsize or \
+                                       ret.maxinputsize == 0:
+                                    self.siteSpecList[tmpID].maxinputsize = ret.maxinputsize
+                                if self.siteSpecList[tmpID].memory < ret.memory or \
+                                       ret.memory == 0:
+                                    self.siteSpecList[tmpID].memory = ret.memory
             # make cloudSpec
             for siteSpec in self.siteSpecList.values():
                 # choose only prod sites

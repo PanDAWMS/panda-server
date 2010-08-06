@@ -190,20 +190,31 @@ In  : %s""" % iDS
 """
 Out : %s""" % oDS
                 # URLs to PandaMon
-                for tmpIdx,tmpJobID in enumerate(jobDefIDList):
-                    urlData = {}
-                    urlData['job'] = '*'
-                    urlData['jobDefinitionID'] = tmpJobID
-                    urlData['user'] = self.job.prodUserName
-                    if tmpIdx == 0:
-                        message += \
+                if self.job.jobsetID in [0,'NULL',None]:                
+                    for tmpIdx,tmpJobID in enumerate(jobDefIDList):
+                        urlData = {}
+                        urlData['job'] = '*'
+                        urlData['jobDefinitionID'] = tmpJobID
+                        urlData['user'] = self.job.prodUserName
+                        if tmpIdx == 0:
+                            message += \
 """
 
 PandaMonURL : http://panda.cern.ch:25980/server/pandamon/query?%s""" % urllib.urlencode(urlData)
-                    else:
-                        message += \
+                        else:
+                            message += \
 """
               http://panda.cern.ch:25980/server/pandamon/query?%s""" % urllib.urlencode(urlData)
+                else:
+                    urlData = {}
+                    urlData['job'] = '*'
+                    urlData['jobsetID'] = self.job.jobsetID
+                    urlData['user'] = self.job.prodUserName
+                    message += \
+"""
+
+PandaMonURL : http://panda.cern.ch:25980/server/pandamon/query?%s""" % urllib.urlencode(urlData)
+                    
                 # tailer            
                 message += \
 """

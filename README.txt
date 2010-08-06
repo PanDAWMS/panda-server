@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * use jobsetID in Notifier
+  * use max memory/inputsize for each site
   * set jobsetID for ptest
   * changes for output container and short LFN for analysis
 
