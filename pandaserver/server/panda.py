@@ -40,7 +40,7 @@ from userinterface.UserIF        import submitJobs,getJobStatus,queryPandaIDs,ki
      getNUserJobs,addSiteAccess,listSiteAccess,getFilesInUseForAnal,updateSiteAccess,\
      getPandaClientVer,getSlimmedFileInfoPandaIDs,runReBrokerage,deleteFilesFromCacheDB,\
      addFilesToCacheDB,flushCacheDB,checkFilesWithCacheDB,getQueuedAnalJobs,getHighestPrioJobStat,\
-     getActiveDatasets,setCloudTaskByUser
+     getActiveDatasets,setCloudTaskByUser,getSerialNumberForGroupJob
 
 
 # FastCGI/WSGI entry

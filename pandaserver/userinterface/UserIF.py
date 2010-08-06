@@ -85,6 +85,14 @@ class UserIF:
         return pickle.dumps(ret)
 
 
+    # get serial number for group job
+    def getSerialNumberForGroupJob(self,name):
+        # get
+        ret = self.taskBuffer.getSerialNumberForGroupJob(name)
+        # serialize 
+        return pickle.dumps(ret)
+
+
     # run rebrokerage
     def runReBrokerage(self,dn,jobID,libDS,cloud,strExcludedSite):
         returnVal = "True"
@@ -842,6 +850,17 @@ def runReBrokerage(req,jobID,libDS='',cloud=None,excludedSite=None):
     if dn == '':
         return "ERROR: could not get DN"
     return userIF.runReBrokerage(dn,jobID,libDS,cloud,excludedSite)
+
+# get serial number for group job
+def getSerialNumberForGroupJob(req):
+    # check SSL
+    if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        return "ERROR: SSL connection is required"
+    # get DN
+    dn = _getDN(req)
+    if dn == '':
+        return "ERROR: could not get DN"
+    return userIF.getSerialNumberForGroupJob(dn)
 
 # register proxy key
 def registerProxyKey(req,credname,origin,myproxy):

@@ -3276,6 +3276,37 @@ class DBProxy:
             return (-1,False)
 
 
+    # get serial number for group job
+    def getSerialNumberForGroupJob(self,name):
+        comment = ' /* DBProxy.getSerialNumberForGroupJob */'
+        retVal = {'sn':'','status':False}
+        try:
+            _logger.debug("getSerialNumberForGroupJob(%s)" % name)
+            # start transaction
+            self.conn.begin()
+            # get serial number
+            sql = "SELECT ATLAS_PANDA.GROUP_JOBID_SEQ.nextval FROM dual";
+            self.cur.execute(sql+comment, {})
+            sn, = self.cur.fetchone()            
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            strSN = "%04d" % sn
+            # return
+            retVal['sn'] = strSN
+            retVal['status'] = True
+            _logger.debug("getSerialNumberForGroupJob : %s %s" % (name,str(retVal)))
+            return retVal
+        except:
+            # roll back
+            self._rollback()
+            # error
+            errtype,errvalue = sys.exc_info()[:2]
+            _logger.error("getSerialNumberForGroupJob : %s %s" % (errtype,errvalue))
+            retVal['status'] = False
+            return retVal
+
+
     # update transfer status for a dataset
     def updateTransferStatus(self,datasetname,bitMap):
         comment = ' /* DBProxy.updateTransferStatus */'        

@@ -1005,6 +1005,18 @@ class TaskBuffer:
         return ret
 
 
+    # get serial number for group job
+    def getSerialNumberForGroupJob(self,name):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get serial number
+        ret = proxy.getSerialNumberForGroupJob(name)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
     # add metadata
     def addMetadata(self,ids,metadataList):
         # get DBproxy

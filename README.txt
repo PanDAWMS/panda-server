@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added getSerialNumberForGroupJob
   * use jobsetID in Notifier
   * use max memory/inputsize for each site
   * set jobsetID for ptest
