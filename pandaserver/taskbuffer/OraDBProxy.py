@@ -176,7 +176,7 @@ class DBProxy:
 
 
     # insert job to jobsDefined
-    def insertNewJob(self,job,user,serNum,weight=0.0,priorityOffset=0,userVO=None):
+    def insertNewJob(self,job,user,serNum,weight=0.0,priorityOffset=0,userVO=None,groupJobSN=0):
         comment = ' /* DBProxy.insertNewJob */'                    
         sql1 = "INSERT INTO ATLAS_PANDA.jobsDefined4 (%s) " % JobSpec.columnNames()
         sql1+= JobSpec.bindValuesExpression(useSeq=True)
@@ -211,6 +211,8 @@ class DBProxy:
         # usergroup
         if job.prodSourceLabel == 'regional':
             job.computingSite= "BNLPROD"
+        # group job SN
+        groupJobSN = "%05d" % groupJobSN
         try:
             # begin transaction
             self.conn.begin()
@@ -240,6 +242,7 @@ class DBProxy:
                 # replace $JOBSETID with real jobsetID
                 if not job.prodSourceLabel in ['managed']:
                     file.lfn = re.sub('\$JOBSETID', jobsetID, file.lfn)
+                    file.lfn = re.sub('\$GROUPJOBSN', groupJobSN, file.lfn)
                 # insert
                 varMap = file.valuesMap(useSeq=True)
                 varMap[':newRowID'] = self.cur.var(cx_Oracle.NUMBER)
@@ -256,6 +259,7 @@ class DBProxy:
             # job parameters
             if not job.prodSourceLabel in ['managed']:
                 job.jobParameters = re.sub('\$JOBSETID', jobsetID, job.jobParameters)
+                job.jobParameters = re.sub('\$GROUPJOBSN', groupJobSN, job.jobParameters)                
             sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters) VALUES (:PandaID,:param)"
             varMap = {}
             varMap[':PandaID'] = job.PandaID
@@ -3291,9 +3295,8 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
-            strSN = "%04d" % sn
             # return
-            retVal['sn'] = strSN
+            retVal['sn'] = sn
             retVal['status'] = True
             _logger.debug("getSerialNumberForGroupJob : %s %s" % (name,str(retVal)))
             return retVal

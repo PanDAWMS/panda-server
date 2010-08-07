@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * $GROUPJOBSN
   * added getSerialNumberForGroupJob
   * use jobsetID in Notifier
   * use max memory/inputsize for each site

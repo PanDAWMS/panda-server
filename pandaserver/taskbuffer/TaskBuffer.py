@@ -165,6 +165,15 @@ class TaskBuffer:
             # using build for analysis
             if jobs[0].prodSourceLabel == 'panda':
                 usingBuild = True
+        # get group job serial number
+        groupJobSerialNum = 0
+        if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda']):
+            for tmpFile in jobs[-1].Files:
+                if tmpFile.type in ['output','log'] and '$GROUPJOBSN' in tmpFile.lfn:
+                    tmpSnRet = proxy.getSerialNumberForGroupJob(user)
+                    if tmpSnRet['status']: 
+                        groupJobSerialNum = tmpSnRet['sn']
+                    break
         # loop over all jobs
         ret =[]
         newJobs=[]
@@ -209,7 +218,7 @@ class TaskBuffer:
             if hostname != '':
                 job.creationHost = hostname
             # insert job to DB
-            if not proxy.insertNewJob(job,user,serNum,weight,priorityOffset,userVO):
+            if not proxy.insertNewJob(job,user,serNum,weight,priorityOffset,userVO,groupJobSerialNum):
                 # reset if failed
                 job.PandaID = None
             else:
