@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * use installedSW for base-release matching for analysis
   * $GROUPJOBSN
   * added getSerialNumberForGroupJob
   * use jobsetID in Notifier

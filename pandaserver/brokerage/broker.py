@@ -289,7 +289,11 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         if re.search('-\d+\.\d+\.\d+\.\d+',prevRelease) != None:
                             useCacheVersion = True
                             siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,caches=prevRelease)
-                            _log.debug('  cache          %s' % prevRelease)                            
+                            _log.debug('  using installSW for cache %s' % prevRelease)
+                        elif re.search('-\d+\.\d+\.\d+$',prevRelease) != None:
+                            useCacheVersion = True
+                            siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,releases=prevRelease)
+                            _log.debug('  using installSW for relese %s' % prevRelease)
                     elif previousCloud in ['DE','NL','FR','CA','ES','IT','TW','UK'] and (not prevProType in ['reprocessing']):
                             useCacheVersion = True
                             # change / to -
@@ -297,7 +301,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,caches=convedPrevHomePkg)
                             _log.debug('  cache          %s' % prevHomePkg)
                     if useCacheVersion:        
-                        _log.debug('  cacheSites     %s' % str(siteListWithCache))
+                        _log.debug('  cache/relSites     %s' % str(siteListWithCache))
                     # release/cmtconfig check
                     foundRelease   = False
                     # the number/size of inputs per job 
@@ -359,7 +363,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             if prevProType in ['reprocessing']:
                                 # use validated releases for reprocessing
                                 releases = tmpSiteSpec.validatedreleases
-                            _log.debug('   %s' % str(releases))
+                            if not useCacheVersion:    
+                                _log.debug('   %s' % str(releases))
                             _log.debug('   %s' % str(tmpSiteSpec.cmtconfig))
                             if forAnalysis and (tmpSiteSpec.cloud in ['US','ND','CERN'] or prevRelease==''):
                                 # doesn't check releases for US analysis
