@@ -165,6 +165,10 @@ class TaskBuffer:
             # using build for analysis
             if jobs[0].prodSourceLabel == 'panda':
                 usingBuild = True
+            # reset nJob/weight for HC   
+            if jobs[0].processingType in ['hammercloud','gangarobot','gangarobot-squid']:
+                serNum = 0
+                weight = 0.0
         # get group job serial number
         groupJobSerialNum = 0
         if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda']):

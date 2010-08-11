@@ -336,7 +336,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 if forAnalysis and tmpSiteSpec.status == 'brokeroff' and tmpSiteSpec.accesscontrol == 'grouplist':
                                     # ignore brokeroff for grouplist site
                                     pass
-                                elif forAnalysis and  prevProType in ['hammercloud','gangarobot']:
+                                elif forAnalysis and  prevProType in ['hammercloud','gangarobot','gangarobot-squid']:
                                     # ignore site status for HC
                                     pass
                                 else:
@@ -344,7 +344,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     if forAnalysis and trustIS:
                                         resultsForAnal['pilot'].append(site)
                                     continue
-                            if tmpSiteSpec.status == 'test' and (not prevProType in ['prod_test','hammercloud']):
+                            if tmpSiteSpec.status == 'test' and (not prevProType in ['prod_test','hammercloud','gangarobot','gangarobot-squid']):
                                 _log.debug(' skip: status %s for %s' % (tmpSiteSpec.status,prevProType))
                                 if forAnalysis and trustIS:
                                     resultsForAnal['pilot'].append(site)

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * disabled priority decreasing for HC jobs
   * use installedSW for base-release matching for analysis
   * $GROUPJOBSN
   * added getSerialNumberForGroupJob
