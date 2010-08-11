@@ -57,7 +57,7 @@ class DynDataDistributer:
                 self.putLog("end for %s" % self.jobs[0].PandaID)
                 return
             # ignore HC and group production
-            if self.jobs[0].processingType in ['hammercloud','gangarobot']:
+            if self.jobs[0].processingType in ['hammercloud','gangarobot'] or self.jobs[0].processingType.startswith('gangarobot'):
                 self.putLog("skip due to processingType=%s" % self.jobs[0].processingType)
                 self.putLog("end for %s" % self.jobs[0].PandaID)
                 return
