@@ -116,8 +116,12 @@ class TaskBuffer:
                 if match != None:
                     tmpCountry = match.group(1)
                     # use country code or usatlas
-                    if len(tmpCountry) == 2 or tmpCountry in ['usatlas']:
+                    if len(tmpCountry) == 2:
                         userCountry = tmpCountry
+                        break
+                    # usatlas
+                    if tmpCountry in ['usatlas']:
+                        userCountry = 'us'
                         break
         # check production role
         withProdRole,workingGroup = self.checkProdRole(fqans)

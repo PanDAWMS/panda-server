@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed countryGroup=ustlas to us
   * ignore gangarobot family in PD2P 
   * disabled priority decreasing for HC jobs
   * use installedSW for base-release matching for analysis
