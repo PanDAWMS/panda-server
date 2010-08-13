@@ -383,7 +383,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                        (not tmpCmtConfig in tmpSiteSpec.cmtconfig))):
                                     _log.debug(' skip: cache %s/%s not found' % (prevHomePkg.replace('\n',' '),prevCmtConfig))
                                     continue
-                            elif (prevRelease != None and ((releases != [] and (not previousCloud in ['US','ND','CERN'])) or \
+                            elif (prevRelease != None and ((not useCacheVersion and releases != [] and (not previousCloud in ['US','ND','CERN'])) or \
                                                            prevProType in ['reprocessing']) and \
                                   (not _checkRelease(prevRelease,releases))) or \
                                   (tmpCmtConfig != None and tmpSiteSpec.cmtconfig != [] and \
