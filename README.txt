@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed error message in brokerage for sites with status!=brokeroff
   * fixed brokerage for release check when schedconfig.rel != ''
   * changed countryGroup=ustlas to us
   * ignore gangarobot family in PD2P 

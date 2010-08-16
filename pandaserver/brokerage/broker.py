@@ -199,7 +199,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
         jobs.sort(_compFunc)
         # brokerage for analysis 
         candidateForAnal = True
-        resultsForAnal   = {'rel':[],'pilot':[],'disk':[]}
+        resultsForAnal   = {'rel':[],'pilot':[],'disk':[],'status':[]}
         relCloudMap      = {}
         loggerMessages   = []
         # loop over all jobs + terminator(None)
@@ -342,12 +342,12 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 else:
                                     _log.debug(' skip: status %s' % tmpSiteSpec.status)
                                     if forAnalysis and trustIS:
-                                        resultsForAnal['pilot'].append(site)
+                                        resultsForAnal['status'].append(site)
                                     continue
                             if tmpSiteSpec.status == 'test' and (not prevProType in ['prod_test','hammercloud','gangarobot','gangarobot-squid']):
                                 _log.debug(' skip: status %s for %s' % (tmpSiteSpec.status,prevProType))
                                 if forAnalysis and trustIS:
-                                    resultsForAnal['pilot'].append(site)
+                                    resultsForAnal['status'].append(site)
                                 continue
                             _log.debug('   status=%s' % tmpSiteSpec.status)
                             # change NULL cmtconfig to slc3/4
@@ -590,6 +590,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 resultsForAnalStr += '%s are inactive (no pilots for last 3 hours). ' % str(resultsForAnal['pilot'])
                             if resultsForAnal['disk'] != []:
                                 resultsForAnalStr += 'Disk shortage < %sGB at %s. ' % (diskThreshold,str(resultsForAnal['disk']))
+                            if resultsForAnal['status'] != []:
+                                resultsForAnalStr += '%s are not online. ' % str(resultsForAnal['status'])
                             resultsForAnalStr = resultsForAnalStr[:-1]
                             tmpJob.computingSite = resultsForAnalStr
                         else:
