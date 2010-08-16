@@ -222,6 +222,11 @@ class TaskBuffer:
                     tmpNunRun = len(jobs)
                 # encode    
                 job.taskID = tmpNumBuild + (tmpNunRun << 1)
+                # change TRF URL just in case
+                if job.transformation.startswith('http://www.usatlas.bnl.gov/svn/panda/pathena/trf'):
+                    job.transformation = re.sub('^http://www.usatlas.bnl.gov/svn/panda/pathena/trf/',
+                                                'http://pandaserver.cern.ch:25080/trf/user/',
+                                                job.transformation)
             # set hostname
             if hostname != '':
                 job.creationHost = hostname

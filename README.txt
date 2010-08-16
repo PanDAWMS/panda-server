@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * changed hint in DBProxy.updateTransferStatus
+  * changing TRF URL from BNL to CERN on the server side
   * fixed error message in brokerage for sites with status!=brokeroff
   * fixed brokerage for release check when schedconfig.rel != ''
   * changed countryGroup=ustlas to us

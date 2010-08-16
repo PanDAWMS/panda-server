@@ -3319,13 +3319,13 @@ class DBProxy:
             self.conn.begin()
             retTransSt = 0
             # update bitmap
-            sqlU = "UPDATE /*+ INDEX(tab DATASETS_NAME_IDX)*/ ATLAS_PANDA.Datasets tab SET transferStatus=ATLAS_PANDA.BITOR(transferStatus,:bitMap) WHERE name=:name"
+            sqlU = 'UPDATE /*+ OUTLINE_LEAF(@"SEL$1") INDEX_RS_ASC(@"SEL$1" "TAB"@"SEL$1" ("DATASETS"."NAME")) */ ATLAS_PANDA.Datasets tab SET transferStatus=ATLAS_PANDA.BITOR(transferStatus,:bitMap) WHERE name=:name'
             varMap = {}
             varMap[':bitMap'] = bitMap
             varMap[':name'] = datasetname
             retU = self.cur.execute(sqlU+comment, varMap)
             # get transferStatus
-            sqlS = "SELECT /*+ INDEX(tab DATASETS_NAME_IDX)*/ transferStatus FROM ATLAS_PANDA.Datasets tab WHERE name=:name"
+            sqlS = 'SELECT /*+ OUTLINE_LEAF(@"SEL$1") INDEX_RS_ASC(@"SEL$1" "TAB"@"SEL$1" ("DATASETS"."NAME")) */ transferStatus FROM ATLAS_PANDA.Datasets tab WHERE name=:name'
             varMap = {}
             varMap[':name'] = datasetname
             self.cur.arraysize = 10                        
