@@ -3325,7 +3325,7 @@ class DBProxy:
             varMap[':name'] = datasetname
             retU = self.cur.execute(sqlU+comment, varMap)
             # get transferStatus
-            sqlS = 'SELECT /*+ OUTLINE_LEAF(@"SEL$1") INDEX_RS_ASC(@"SEL$1" "TAB"@"SEL$1" ("DATASETS"."NAME")) */ transferStatus FROM ATLAS_PANDA.Datasets tab WHERE name=:name'
+            sqlS = 'SELECT /*+ INDEX_RS_ASC(TAB("DATASETS"."NAME")) */ transferStatus FROM ATLAS_PANDA.Datasets tab WHERE name=:name'
             varMap = {}
             varMap[':name'] = datasetname
             self.cur.arraysize = 10                        
