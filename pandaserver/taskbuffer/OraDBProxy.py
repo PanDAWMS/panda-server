@@ -2169,7 +2169,10 @@ class DBProxy:
             # select
             for table in tables:
                 # make sql
-                sql  = "SELECT jobDefinitionID FROM %s " % table
+                if table == 'ATLAS_PANDA.jobsArchived4':
+                    sql  = 'SELECT /*+ INDEX_RS_ASC(TAB("JOBSARCHIVED4"."PRODUSERNAME")) NO_INDEX(TAB("JOBSARCHIVED4"."MODIFICATIONTIME")) */ jobDefinitionID FROM %s tab ' % table
+                else:
+                    sql  = "SELECT jobDefinitionID FROM %s " % table                    
                 sql += "WHERE prodUserName=:prodUserName AND modificationTime>:modificationTime "
                 sql += "AND prodSourceLabel=:prodSourceLabel GROUP BY jobDefinitionID"
                 varMap = {}
