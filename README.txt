@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added a hint to getJobIDsInTimeRange against jobsActive4
   * added a hint to getJobIDsInTimeRange against jobsArchived4
   * changed hint in DBProxy.updateTransferStatus
   * changing TRF URL from BNL to CERN on the server side

@@ -2171,6 +2171,8 @@ class DBProxy:
                 # make sql
                 if table == 'ATLAS_PANDA.jobsArchived4':
                     sql  = 'SELECT /*+ INDEX_RS_ASC(TAB("JOBSARCHIVED4"."PRODUSERNAME")) NO_INDEX(TAB("JOBSARCHIVED4"."MODIFICATIONTIME")) */ jobDefinitionID FROM %s tab ' % table
+                elif table == 'ATLAS_PANDA.jobsActive4':
+                    sql  = 'SELECT /*+ INDEX_RS_ASC(TAB("JOBSACTIVE4"."PRODUSERNAME")) NO_INDEX(TAB("JOBSACTIVE4"."MODIFICATIONTIME")) */ jobDefinitionID FROM %s tab ' % table
                 else:
                     sql  = "SELECT jobDefinitionID FROM %s " % table                    
                 sql += "WHERE prodUserName=:prodUserName AND modificationTime>:modificationTime "
