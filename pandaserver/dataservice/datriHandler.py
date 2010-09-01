@@ -1,11 +1,11 @@
 """
-DaTRI Handler (uses curl)
+DaTRI Handler for external applications (uses curl)
 CERN, ATLAS Distributed Computing (March 2010)
 
 @author: Mikhail Titov
 @contact: mikhail.titov@cern.ch
-@data: April 27, 2010
-@version: 0.7
+@data: August 31, 2010
+@version: 0.92
 """
 
 import commands
@@ -15,6 +15,14 @@ import urllib
 HTTPS_PORT = 25943
 PANDAMON_HOST = 'panda.cern.ch'
 PANDAMON_URI = '/server/pandamon/query'
+
+PARAMS_LIST = ['mode', 'action', 'dpat', 'site', 'userid']
+
+MODE = {
+    'pathena': 'ddm_pathenareq',
+    'ganga': 'ddm_gangareq',
+    'group': 'ddm_groupreq'
+    }
 
 
 class datriHandler(object):
@@ -32,24 +40,36 @@ class datriHandler(object):
         """
         Init definition
         
-        @type: 'external'|'pathena'|'ganga'
+        @type: 'pathena'|'ganga'|'group'
         """
 
         self.curl = pandamonCurl()
-        self.info['mode'] = ''
-        if (type == 'pathena'):
-            self.info['mode'] = 'ddm_pathenareq'
-        elif (type == 'ganga'):
-            self.info['mode'] = 'ddm_gangareq'
-        elif (type == 'external'):
-            self.info['mode'] = 'ddm_exreq'
+        if MODE.has_key(type):
+            self.info['mode'] = MODE[type]
+        else:
+            self.err_message = 'datriHandler: mode is incorrect'
 
     def __del__(self):
         self.info.clear()
         self.err_message = ''
         self.curl = None
 
-    def setParameters(self, data_pattern, site, userid):
+    def isParamsExist(self):
+
+        """
+        Check parameters
+        
+        Returns True/False
+        """
+
+        for p in PARAMS_LIST:
+            if not self.info.has_key(p):
+                return False
+            elif not self.info[p]:
+                return False
+        return True
+
+    def setParameters(self, data_pattern, site, userid, **kwargs):
 
         """
         Define request parameters
@@ -61,8 +81,10 @@ class datriHandler(object):
 
         if (data_pattern and site and userid):
             self.info.update({'dpat': data_pattern, 'site': site, 'userid': userid})
+            if kwargs:
+                self.info.update(kwargs)
         else:
-            self.err_message = 'datriHandler: not all data is defined'
+            self.err_message = 'datriHandler: required data have not been defined'
 
     def checkData(self):
 
@@ -74,7 +96,10 @@ class datriHandler(object):
 
         if not self.err_message:
             self.info['action'] = 'Check'
-            return self.curl.get(**self.info)
+            if self.isParamsExist():
+                return self.curl.get(**self.info)
+            else:
+                self.err_message = 'datriHandler: required data have not been defined'
         return 4, self.err_message
 
 
@@ -88,7 +113,10 @@ class datriHandler(object):
 
         if not self.err_message:
             self.info['action'] = 'Submit'
-            return self.curl.get(**self.info)
+            if self.isParamsExist():
+                return self.curl.get(**self.info)
+            else:
+                self.err_message = 'datriHandler: required data have not been defined'
         return 4, self.err_message
 
 
@@ -136,21 +164,25 @@ class pandamonCurl(object):
         Returns status code and response message
         """
 
-        cmd = '%s --silent --get ' % self.cmd
+        if not self.err_message:
 
-        if kwargs:
-            params = urllib.urlencode(kwargs)
-            cmd += '--url "%(url)s?%(params)s" ' % {'url': self.url, 'params': params}
-        else:
-            return 2, 'pandamonCurl: input parameters are not defined'
+            cmd = '%s --silent --get ' % self.cmd
 
-        (s, o) = commands.getstatusoutput(cmd)
-        if not s:
-            if ('OK.' in o):
-                return s, o
-            return 1, o
+            if kwargs:
+                params = urllib.urlencode(kwargs)
+                cmd += '--url "%(url)s?%(params)s" ' % {'url': self.url, 'params': params}
+            else:
+                return 2, 'pandamonCurl: input parameters are not defined'
+
+            (s, o) = commands.getstatusoutput(cmd)
+            if not s:
+                if ('OK.' in o):
+                    return s, o
+                return 1, o
+            else:
+                o = ' (' + o + ')' if o else (' (' + self.err_message.strip() + ')' if self.err_message else '')
+                return 3, 'pandamonCurl: executing error%s' % o
         else:
-            o = ' (' + o + ')' if o else (' (' + self.err_message.strip() + ')' if self.err_message else '')
-            return 3, 'pandamonCurl: executing error%s' % o
+            return 5, 'pandamonCurl: %s' % self.err_message
 
 

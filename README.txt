@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * updated datriHandler to prevent false http-requests
   * added a hint to getJobIDsInTimeRange against jobsActive4
   * added a hint to getJobIDsInTimeRange against jobsArchived4
   * changed hint in DBProxy.updateTransferStatus
