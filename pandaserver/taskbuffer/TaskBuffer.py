@@ -52,7 +52,7 @@ class TaskBuffer:
         priorityOffset = 0
         userVO         = 'atlas'
         userCountry    = None
-        if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda','ptest']):
+        if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda','ptest','rctest']):
             # get DB proxy
             proxy = self.proxyPool.getProxy()
             # check quota
@@ -193,7 +193,7 @@ class TaskBuffer:
                    and (job.attemptNr in [0,'0','NULL'] or (not job.jobExecutionID in [0,'0','NULL'])):
                 job.jobDefinitionID = userJobID
             # set jobsetID    
-            if job.prodSourceLabel in ['user','panda','ptest']:
+            if job.prodSourceLabel in ['user','panda','ptest','rctest']:
                 job.jobsetID = userJobsetID
             # set relocation flag
             if job.computingSite != 'NULL':
@@ -249,7 +249,7 @@ class TaskBuffer:
                         firstLiveLog = False
                 # append
                 newJobs.append(job)
-            if job.prodSourceLabel in ['user','panda','ptest']:                
+            if job.prodSourceLabel in ['user','panda','ptest','rctest']:                
                 ret.append((job.PandaID,job.jobDefinitionID,{'jobsetID':job.jobsetID}))
             else:
                 ret.append((job.PandaID,job.jobDefinitionID,job.jobName))                
@@ -386,14 +386,25 @@ class TaskBuffer:
         return returns
 
 
+    # delete stalled jobs
+    def deleteStalledJobs(self,libFileName):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()        
+        # execute
+        ret = proxy.deleteStalledJobs(libFileName)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+
     # get jobs
     def getJobs(self,nJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-                atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup):
+                atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get waiting jobs
         jobs,nSent = proxy.getJobs(nJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-                                   atlasRelease,prodUserID,countryGroup,workingGroup)
+                                   atlasRelease,prodUserID,countryGroup,workingGroup,allowOtherCountry)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # get Proxy Key

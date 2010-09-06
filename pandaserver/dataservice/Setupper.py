@@ -371,7 +371,7 @@ class Setupper (threading.Thread):
                 if not destError.has_key(dest):
                     destError[dest] = ''
                     originalName = ''
-                    if (job.prodSourceLabel == 'panda') or (job.prodSourceLabel=='ptest' and job.processingType=='pathena'):
+                    if (job.prodSourceLabel == 'panda') or (job.prodSourceLabel in ['ptest','rctest'] and job.processingType=='pathena'):
                         # keep original name
                         nameList = [file.destinationDBlock]
                     else:    
@@ -421,7 +421,7 @@ class Setupper (threading.Thread):
                                 vuidStr = ""
                                 # ignore 'already exists' ERROR because original dataset may be registered by upstream.
                                 # atFailed > 0 is for the case in which the first attempt succeeded but report failure
-                                if (job.prodSourceLabel == 'panda' or (job.prodSourceLabel=='ptest' and job.processingType=='pathena') \
+                                if (job.prodSourceLabel == 'panda' or (job.prodSourceLabel in ['ptest','rctest'] and job.processingType=='pathena') \
                                     or name == originalName or atFailed > 0) and \
                                        out.find('DQDatasetExistsException') != -1:
                                     _logger.debug('%s ignored DQDatasetExistsException' % self.timestamp)
@@ -445,7 +445,7 @@ class Setupper (threading.Thread):
                                 tmpDstDDM = self.siteMapper.getSite(file.destinationSE).ddm
                             tmpTokenList = file.destinationDBlockToken.split(',')
                             if name == originalName or tmpSrcDDM != tmpDstDDM or \
-                                   job.prodSourceLabel == 'panda' or (job.prodSourceLabel=='ptest' and job.processingType=='pathena') \
+                                   job.prodSourceLabel == 'panda' or (job.prodSourceLabel in ['ptest','rctest'] and job.processingType=='pathena') \
                                    or len(tmpTokenList) > 1:
                                 time.sleep(1)
                                 # register location
@@ -525,10 +525,10 @@ class Setupper (threading.Thread):
                                 status,out = 0,''
                             if status != 0 or out.find('Error') != -1:
                                 destError[dest] = "Setupper._setupDestination() could not register location : %s" % name
-                            elif job.prodSourceLabel == 'panda' or (job.prodSourceLabel=='ptest' and job.processingType=='pathena'):
+                            elif job.prodSourceLabel == 'panda' or (job.prodSourceLabel in ['ptest','rctest'] and job.processingType=='pathena'):
                                 # do nothing for "panda" job
                                 pass
-                            elif name == originalName and job.prodSourceLabel in ['managed','test','rc_test','ptest']:
+                            elif name == originalName and job.prodSourceLabel in ['managed','test','rc_test','ptest','rctest']:
                                 # set metadata
                                 time.sleep(1)
                                 dq2ID = self.siteMapper.getSite(file.destinationSE).ddm
@@ -1283,7 +1283,7 @@ class Setupper (threading.Thread):
         tmpJobList = tuple(jobsProcessed)
         for job in tmpJobList:
             # check only production/test jobs
-            if not job.prodSourceLabel in ['managed','test','software','rc_test','ptest']:
+            if not job.prodSourceLabel in ['managed','test','software','rc_test','ptest','rctest']:
                 continue
             missingFlag = False
             for file in job.Files:

@@ -55,6 +55,10 @@ class DBProxy:
         self.useOtherError = useOtherError
         # memcached client
         self.memcache = None
+        # pledge resource ratio
+        self.beyondPledgeRatio = {}
+        # update time for pledge resource ratio
+        self.updateTimeForPledgeRatio = None
         
         
     # connect to DB
@@ -370,7 +374,7 @@ class DBProxy:
             return True
         _logger.debug("activateJob : %s" % job.PandaID)                        
         sql0 = "SELECT row_ID FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type=:type AND status!=:status "
-        sql1 = "UPDATE ATLAS_PANDA.jobsDefined4 SET jobStatus=:newJobStatus "
+        sql1 = "DELETE FROM ATLAS_PANDA.jobsDefined4 "
         sql1+= "WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2) AND commandToPilot IS NULL"
         sql2 = "INSERT INTO ATLAS_PANDA.jobsActive4 (%s) " % JobSpec.columnNames()
         sql2+= JobSpec.bindValuesExpression()
@@ -401,10 +405,9 @@ class DBProxy:
                 if len(res) == 0 or allOK:
                     # change status
                     job.jobStatus = "activated"
-                    # update. Not delete for InnoDB
+                    # delete
                     varMap = {}
                     varMap[':PandaID']       = job.PandaID
-                    varMap[':newJobStatus']  = 'activated'
                     varMap[':oldJobStatus1'] = 'assigned'
                     varMap[':oldJobStatus2'] = 'defined'
                     self.cur.execute(sql1+comment, varMap)
@@ -473,7 +476,7 @@ class DBProxy:
     def keepJob(self,job):
         comment = ' /* DBProxy.keepJob */'        
         _logger.debug("keepJob : %s" % job.PandaID)                        
-        sql1 = "UPDATE ATLAS_PANDA.jobsDefined4 SET jobStatus=:newJobStatus "
+        sql1 = "DELETE FROM ATLAS_PANDA.jobsDefined4 "
         sql1+= "WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2) AND commandToPilot IS NULL"
         sql2 = "INSERT INTO ATLAS_PANDA.jobsWaiting4 (%s) " % JobSpec.columnNames()
         sql2+= JobSpec.bindValuesExpression()
@@ -488,7 +491,6 @@ class DBProxy:
                 # delete
                 varMap = {}
                 varMap[':PandaID']       = job.PandaID
-                varMap[':newJobStatus']  = 'waiting'
                 varMap[':oldJobStatus1'] = 'assigned'
                 varMap[':oldJobStatus2'] = 'defined'
                 self.cur.execute(sql1+comment, varMap)
@@ -528,7 +530,7 @@ class DBProxy:
         comment = ' /* DBProxy.archiveJob */'                
         _logger.debug("archiveJob : %s" % job.PandaID)                
         if fromJobsDefined:
-            sql1 = "UPDATE ATLAS_PANDA.jobsDefined4 SET jobStatus=:newJobStatus WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2)"
+            sql1 = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2)"
         else:
             sql1 = "DELETE FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID"            
         sql2 = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
@@ -542,7 +544,6 @@ class DBProxy:
                 varMap = {}
                 varMap[':PandaID'] = job.PandaID
                 if fromJobsDefined:
-                    varMap[':newJobStatus']  = 'failed'
                     varMap[':oldJobStatus1'] = 'assigned'
                     varMap[':oldJobStatus2'] = 'defined'
                 self.cur.execute(sql1+comment, varMap)
@@ -577,7 +578,7 @@ class DBProxy:
                     sqlD   = "SELECT PandaID FROM ATLAS_PANDA.filesTable4 WHERE type=:type AND lfn=:lfn GROUP BY PandaID"
                     sqlDJS = "SELECT %s " % JobSpec.columnNames()
                     sqlDJS+= "FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
-                    sqlDJD = "UPDATE ATLAS_PANDA.jobsDefined4 SET jobStatus=:jobStatus WHERE PandaID=:PandaID"
+                    sqlDJD = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
                     sqlDJI = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
                     sqlDJI+= JobSpec.bindValuesExpression()
                     for upFile in upOutputs:
@@ -586,7 +587,7 @@ class DBProxy:
                         varMap = {}
                         varMap[':lfn']  = upFile
                         varMap[':type'] = 'input'
-                        self.cur.arraysize = 3000                        
+                        self.cur.arraysize = 100000
                         self.cur.execute(sqlD+comment, varMap)
                         res = self.cur.fetchall()
                         for downID, in res:
@@ -605,7 +606,6 @@ class DBProxy:
                             # delete
                             varMap = {}
                             varMap[':PandaID'] = downID
-                            varMap[':jobStatus'] = 'failed'
                             self.cur.execute(sqlDJD+comment, varMap)
                             retD = self.cur.rowcount
                             if retD == 0:
@@ -805,7 +805,7 @@ class DBProxy:
                     sqlFile+= "WHERE PandaID=:PandaID"
                     varMap = {}
                     varMap[':PandaID'] = pandaID
-                    self.cur.arraysize = 1000
+                    self.cur.arraysize = 100000
                     self.cur.execute(sqlFile+comment, varMap)
                     resFs = self.cur.fetchall()
                     for resF in resFs:
@@ -821,7 +821,7 @@ class DBProxy:
                     sqlD   = "SELECT PandaID FROM ATLAS_PANDA.filesTable4 WHERE type=:type AND lfn=:lfn GROUP BY PandaID"
                     sqlDJS = "SELECT %s " % JobSpec.columnNames()
                     sqlDJS+= "FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
-                    sqlDJD = "UPDATE ATLAS_PANDA.jobsDefined4 SET jobStatus=:jobStatus WHERE PandaID=:PandaID"
+                    sqlDJD = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
                     sqlDJI = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
                     sqlDJI+= JobSpec.bindValuesExpression()
                     for upFile in upOutputs:
@@ -830,7 +830,7 @@ class DBProxy:
                         varMap = {}
                         varMap[':lfn'] = upFile
                         varMap[':type'] = 'input'
-                        self.cur.arraysize = 3000
+                        self.cur.arraysize = 100000
                         self.cur.execute(sqlD+comment, varMap)
                         res = self.cur.fetchall()
                         for downID, in res:
@@ -849,7 +849,6 @@ class DBProxy:
                             # delete
                             varMap = {}
                             varMap[':PandaID'] = downID
-                            varMap[':jobStatus'] = 'failed'
                             self.cur.execute(sqlDJD+comment, varMap)                            
                             retD = self.cur.rowcount
                             if retD == 0:
@@ -877,6 +876,72 @@ class DBProxy:
                 type, value, traceBack = sys.exc_info()
                 _logger.error("archiveJobLite : %s %s" % (type,value))
                 return False
+
+
+    # delete stalled jobs
+    def deleteStalledJobs(self,libFileName):
+        comment = ' /* DBProxy.deleteStalledJobs */'                
+        _logger.debug("deleteStalledJobs : %s" % libFileName)
+        sql2 = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
+        sql2+= JobSpec.bindValuesExpression()
+        nTry=3
+        try:
+            # begin transaction
+            self.conn.begin()
+            # look for downstream jobs
+            sqlD   = "SELECT PandaID FROM ATLAS_PANDA.filesTable4 WHERE type=:type AND lfn=:lfn GROUP BY PandaID"
+            sqlDJS = "SELECT %s " % JobSpec.columnNames()
+            sqlDJS+= "FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
+            sqlDJD = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
+            sqlDJI = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
+            sqlDJI+= JobSpec.bindValuesExpression()
+            _logger.debug("deleteStalledJobs : look for downstream jobs for %s" % libFileName)
+            # select PandaID
+            varMap = {}
+            varMap[':lfn']  = libFileName
+            varMap[':type'] = 'input'
+            self.cur.arraysize = 100000
+            self.cur.execute(sqlD+comment, varMap)
+            res = self.cur.fetchall()
+            for downID, in res:
+                _logger.debug("deleteStalledJobs : delete %s" % downID)        
+                # select jobs
+                varMap = {}
+                varMap[':PandaID'] = downID
+                self.cur.arraysize = 10
+                self.cur.execute(sqlDJS+comment, varMap)
+                resJob = self.cur.fetchall()
+                if len(resJob) == 0:
+                    continue
+                # instantiate JobSpec
+                dJob = JobSpec()
+                dJob.pack(resJob[0])
+                # delete
+                varMap = {}
+                varMap[':PandaID'] = downID
+                self.cur.execute(sqlDJD+comment, varMap)
+                retD = self.cur.rowcount
+                if retD == 0:
+                    continue
+                # error code
+                dJob.jobStatus = 'cancelled'
+                dJob.endTime   = datetime.datetime.utcnow()
+                dJob.taskBufferErrorCode = ErrorCode.EC_Kill
+                dJob.taskBufferErrorDiag = 'killed by Panda server : upstream job failed'
+                dJob.modificationTime = dJob.endTime
+                dJob.stateChangeTime  = dJob.endTime
+                # insert
+                self.cur.execute(sqlDJI+comment, dJob.valuesMap())
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            return True
+        except:
+            # roll back
+            self._rollback(True)
+            errtype,errvalue = sys.exc_info()[:2]
+            _logger.error("deleteStalledJobs : %s %s" % (errtype,errvalue))
+            return False
 
 
     # update Job status in jobsActive
@@ -1121,7 +1186,7 @@ class DBProxy:
         
     # get jobs
     def getJobs(self,nJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-                atlasRelease,prodUserID,countryGroup,workingGroup):
+                atlasRelease,prodUserID,countryGroup,workingGroup,allowOtherCountry):
         comment = ' /* DBProxy.getJobs */'
         # use memcache
         useMemcache = False
@@ -1182,7 +1247,15 @@ class DBProxy:
             sql1+= "AND prodUserName=:prodUserName " 
             getValMap[':prodUserName'] = compactDN
         # country group
-        if prodSourceLabel == 'user' or (isinstance(prodSourceLabel,types.StringType) and re.search('test',prodSourceLabel) != None): 
+        if prodSourceLabel == 'user' or (isinstance(prodSourceLabel,types.StringType) and re.search('test',prodSourceLabel) != None):
+            # update pledge resource ratio
+            self.getPledgeResourceRatio()
+            # other country is allowed to use the pilot
+            if allowOtherCountry=='True' and self.beyondPledgeRatio.has_key(siteName) and self.beyondPledgeRatio[siteName] > 0:
+                # check if countryGroup needs to be used for beyond-pledge
+                if self.checkCountryGroupForBeyondPledge(siteName):
+                    countryGroup = self.beyondPledgeRatio[siteName]['countryGroup']
+            # countryGroup
             if not countryGroup in ['',None]:
                 sql1+= "AND countryGroup IN ("
                 idxCountry = 1
@@ -1193,6 +1266,7 @@ class DBProxy:
                     idxCountry += 1
                 sql1 = sql1[:-1]
                 sql1+= ") "
+            # workingGroup    
             if not workingGroup in ['',None]:
                 sql1+= "AND workingGroup IN ("
                 idxWorking = 1
@@ -1743,7 +1817,7 @@ class DBProxy:
         sql2 = "SELECT %s " % JobSpec.columnNames()
         sql2+= "FROM %s WHERE PandaID=:PandaID AND jobStatus<>:jobStatus"
         sql3 = "DELETE FROM %s WHERE PandaID=:PandaID"
-        sqlU = "UPDATE ATLAS_PANDA.jobsDefined4 SET jobStatus=:newJobStatus WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2)"
+        sqlU = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2)"
         sql4 = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
         sql4+= JobSpec.bindValuesExpression()
         sqlF = "UPDATE ATLAS_PANDA.filesTable4 SET status=:status WHERE PandaID=:PandaID AND type IN (:type1,:type2)"
@@ -1818,7 +1892,6 @@ class DBProxy:
                 if table=='ATLAS_PANDA.jobsDefined4':
                     varMap = {}
                     varMap[':PandaID'] = pandaID
-                    varMap[':newJobStatus']  = 'cancelled'
                     varMap[':oldJobStatus1'] = 'assigned'
                     varMap[':oldJobStatus2'] = 'defined'
                     self.cur.execute(sqlU+comment, varMap)
@@ -1893,6 +1966,8 @@ class DBProxy:
         for iTry in range(nTry):
             try:
                 tables=[]
+                if fromDefined:
+                    tables.append('ATLAS_PANDA.jobsDefined4')
                 if fromActive:
                     tables.append('ATLAS_PANDA.jobsActive4')
                 if fromArchived:
@@ -1900,7 +1975,7 @@ class DBProxy:
                 if fromWaiting:
                     tables.append('ATLAS_PANDA.jobsWaiting4')
                 if fromDefined:
-                    # defined needs to be the last one due to InnoDB's auto_increment
+                    # for jobs which are just reset
                     tables.append('ATLAS_PANDA.jobsDefined4')
                 # select
                 varMap = {}
@@ -5084,6 +5159,147 @@ class DBProxy:
             # roll back
             self._rollback()
             return {}
+
+
+    # check if countryGroup is used for beyond-pledge
+    def checkCountryGroupForBeyondPledge(self,siteName):
+        comment = ' /* DBProxy.checkCountryGroupForBeyondPledge */'        
+        _logger.debug("checkCountryGroupForBeyondPledge %s" % siteName)
+        try:
+            # counties for beyond-pledge
+            countryForBeyondPledge = self.beyondPledgeRatio[siteName]['countryGroup'].split(',')
+            # set autocommit on
+            self.conn.begin()
+            # check if countryGroup has activated jobs
+            varMap = {}
+            varMap[':jobStatus'] = 'activated'
+            varMap[':computingSite'] = siteName
+            varMap[':prodSourceLabel1'] = 'user'
+            varMap[':prodSourceLabel2'] = 'panda'
+            sql  = "SELECT /*+ INDEX_COMBINE(tab JOBSACTIVE4_JOBSTATUS_IDX JOBSACTIVE4_COMPSITE_IDX) */ PandaID "
+            sql += "FROM ATLAS_PANDA.jobsActive4 tab WHERE jobStatus=:jobStatus "
+            sql += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
+            sql += "AND computingSite=:computingSite "
+            sql += "AND countryGroup IN ("
+            for idxCountry,tmptmpCountry in enumerate(countryForBeyondPledge):
+                tmpKey = ":countryGroup%s" % idxCountry
+                sql += "%s," % tmpKey
+                varMap[tmpKey] = tmptmpCountry
+            sql = sql[:-1]    
+            sql += ") AND rownum <= 1" 
+            self.cur.arraysize = 10                        
+            self.cur.execute(sql+comment,varMap)
+            res = self.cur.fetchall()
+            # no activated jobs
+            if res == None or len(res) == 0:
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                _logger.debug("checkCountryGroupForBeyondPledge : ret=False - no activated")
+                return False
+            # get ratio
+            varMap = {}
+            varMap[':jobStatus1'] = 'running'
+            varMap[':jobStatus2'] = 'sent'            
+            varMap[':computingSite'] = siteName
+            varMap[':prodSourceLabel1'] = 'user'
+            varMap[':prodSourceLabel2'] = 'panda'
+            sql  = "SELECT /*+ INDEX_COMBINE(tab JOBSACTIVE4_JOBSTATUS_IDX JOBSACTIVE4_COMPSITE_IDX) */ COUNT(*),countryGroup "            
+            sql += "FROM ATLAS_PANDA.jobsActive4 tab WHERE jobStatus IN (:jobStatus1,:jobStatus2) "
+            sql += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
+            sql += "AND computingSite=:computingSite "
+            sql += "GROUP BY countryGroup "
+            self.cur.arraysize = 1000
+            self.cur.execute(sql+comment,varMap)
+            res = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            beyondCount = 0
+            totalCount  = 0
+            if res != None and len(res) != 0:
+                for cnt,countryGroup in res:
+                    totalCount += cnt
+                    # counties for beyond pledge 
+                    if countryGroup in countryForBeyondPledge:
+                        beyondCount += cnt
+            # no running
+            if totalCount == 0:
+                _logger.debug("checkCountryGroupForBeyondPledge : ret=False - no running")
+                return False
+            # check ratio
+            ratioVal = float(beyondCount)/float(totalCount)
+            if ratioVal < self.beyondPledgeRatio[siteName]['ratio']:
+                retVal = True
+            else:
+                retVal = False
+            _logger.debug("checkCountryGroupForBeyondPledge : ret=%s - %s/total=%s/%s=%s thr=%s" % \
+                          (retVal,self.beyondPledgeRatio[siteName]['countryGroup'],beyondCount,totalCount,
+                           ratioVal,self.beyondPledgeRatio[siteName]['ratio'])) 
+            return retVal
+        except:
+            errtype,errvalue = sys.exc_info()[:2]
+            _logger.error("checkCountryGroupForBeyondPledge : %s %s" % (errtype,errvalue))
+            # roll back
+            self._rollback()
+            return
+
+
+    # get beyond pledge resource ratio
+    def getPledgeResourceRatio(self):
+        comment = ' /* DBProxy.getPledgeResourceRatio */'
+        # check utime
+        if self.updateTimeForPledgeRatio != None and (datetime.datetime.utcnow()-self.updateTimeForPledgeRatio) < datetime.timedelta(hours=3):
+            return
+        # update utime
+        self.updateTimeForPledgeRatio = datetime.datetime.utcnow()
+        _logger.debug("getPledgeResourceRatio")
+        try:
+            # set autocommit on
+            self.conn.begin()
+            # select
+            sql  = "SELECT siteid,countryGroup,availableCPU,availableStorage,pledgedCPU,pledgedStorage "
+            sql += "FROM ATLAS_PANDAMETA.schedconfig WHERE countryGroup IS NOT NULL AND siteid LIKE 'ANALY_%' "
+            self.cur.arraysize = 100000            
+            self.cur.execute(sql+comment)
+            res = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # update ratio
+            self.beyondPledgeRatio = {}
+            if res != None and len(res) != 0:
+                for siteid,countryGroup,tmp_availableCPU,tmp_availableStorage,tmp_pledgedCPU,tmp_pledgedStorage in res:
+                    # ignore when countryGroup is undefined
+                    if countryGroup in ['',None]:
+                        continue
+                    # append
+                    self.beyondPledgeRatio[siteid] = {} 
+                    self.beyondPledgeRatio[siteid]['countryGroup'] = countryGroup
+                    # convert to float
+                    try:
+                        availableCPU = float(tmp_availableCPU)
+                    except:
+                        availableCPU = 0
+                    try:
+                        pledgedCPU = float(tmp_pledgedCPU)
+                    except:
+                        pledgedCPU = 0
+                    # calculate ratio
+                    if availableCPU == 0 or pledgedCPU == 0:
+                        # set 0% when CPU ratio is undefined
+                        self.beyondPledgeRatio[siteid]['ratio'] = 0
+                    else:
+                        # ratio = (availableCPU-pledgedCPU)/availableCPU*(1-storageTerm)
+                        self.beyondPledgeRatio[siteid]['ratio'] = (availableCPU-pledgedCPU)/availableCPU
+            _logger.debug("getPledgeResourceRatio -> %s" % str(self.beyondPledgeRatio))
+            return
+        except:
+            errtype,errvalue = sys.exc_info()[:2]
+            _logger.error("getPledgeResourceRatio : %s %s" % (errtype,errvalue))
+            # roll back
+            self._rollback()
+            return
 
 
     # get cloud list

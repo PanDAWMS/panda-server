@@ -1,6 +1,10 @@
 Release Note
 
 * current
+  * rctest
+  * deleteStalledJobs
+  * removed hacks for last_insert_id of InnoDB
+  * allowOtherCountry
   * updated datriHandler to prevent false http-requests
   * added a hint to getJobIDsInTimeRange against jobsActive4
   * added a hint to getJobIDsInTimeRange against jobsArchived4

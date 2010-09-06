@@ -229,4 +229,122 @@ for prodUserName,wgValMap in usageBreakDownPerUser.iteritems():
 		status,res = taskBuffer.querySQLS(sql,varMap,arraySize=10)	
 		_logger.debug("   database return : %s" % res)
 
+
+# redo stalled analysis jobs
+_logger.debug("=== redo stalled jobs")
+try:
+	varMap = {}
+	varMap[':prodSourceLabel'] = 'user'
+	sqlJ =  "SELECT jobDefinitionID,prodUserName FROM ATLAS_PANDA.jobsDefined4 "
+	sqlJ += "WHERE prodSourceLabel=:prodSourceLabel AND modificationTime<CURRENT_DATE-2/24 "
+	sqlJ += "GROUP BY jobDefinitionID,prodUserName"
+	sqlP  = "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 "
+	sqlP += "WHERE jobDefinitionID=:jobDefinitionID ANd prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName AND rownum <= 1"
+	sqlF  = "SELECT lfn,type,destinationDBlock FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND status=:status"
+	sqlL  = "SELECT guid,status,PandaID,dataset FROM ATLAS_PANDA.filesTable4 WHERE lfn=:lfn AND type=:type"
+	sqlA  = "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 "
+	sqlA += "WHERE jobDefinitionID=:jobDefinitionID ANd prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName"
+	sqlU  = "UPDATE ATLAS_PANDA.jobsDefined4 SET modificationTime=CURRENT_DATE "
+	sqlU += "WHERE jobDefinitionID=:jobDefinitionID ANd prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName"
+	# get stalled jobs
+	staJ,resJ = taskBuffer.querySQLS(sqlJ,varMap)
+	if resJ == None or len(resJ) == 0:
+		pass
+	else:
+		# loop over all jobID/users
+		for jobDefinitionID,prodUserName in resJ:
+			_logger.debug(" user:%s jobID:%s" % (prodUserName,jobDefinitionID))
+			# get stalled jobs
+			varMap = {}
+			varMap[':prodSourceLabel'] = 'user'
+			varMap[':jobDefinitionID'] = jobDefinitionID
+			varMap[':prodUserName']    = prodUserName
+			stP,resP = taskBuffer.querySQLS(sqlP,varMap)
+			if resP == None or len(resP) == 0:
+				_logger.debug("  no PandaID")
+				continue
+			useLib    = False
+			libStatus = None
+			libGUID   = None
+			libLFN    = None
+			libDSName = None
+			destReady = False
+			# use the first PandaID
+			for PandaID, in resP:
+				_logger.debug("  check PandaID:%s" % PandaID)
+				# get files
+				varMap = {}
+				varMap[':PandaID'] = PandaID
+				varMap[':status']  = 'unknown'
+				stF,resF = taskBuffer.querySQLS(sqlF,varMap)
+				if resF == None or len(resF) == 0:
+					_logger.debug("  no files")
+				else:
+					# get lib.tgz and destDBlock
+					for lfn,filetype,destinationDBlock in resF:
+						if filetype == 'input' and lfn.endswith('.lib.tgz'):
+							useLib = True
+							libLFN = lfn
+							varMap = {}
+							varMap[':lfn'] = lfn
+							varMap[':type']  = 'output'
+							stL,resL = taskBuffer.querySQLS(sqlL,varMap)
+							# not found
+							if resL == None or len(resL) == 0:
+								_logger.error("  cannot find status of %s" % lfn)
+								continue
+							# check status
+							guid,outFileStatus,pandaIDOutLibTgz,tmpLibDsName = resL[0]
+							_logger.debug("  PandaID:%s produces %s:%s GUID=%s status=%s" % (pandaIDOutLibTgz,tmpLibDsName,lfn,guid,outFileStatus))
+							libStatus = outFileStatus
+							libGUID   = guid
+							libDSName = tmpLibDsName
+						elif filetype in ['log','output']:
+							if destinationDBlock != None and re.search('_sub\d+$',destinationDBlock) != None:
+								destReady = True
+					break
+			_logger.debug("  useLib:%s libStatus:%s libDsName:%s libLFN:%s libGUID:%s destReady:%s" % (useLib,libStatus,libDSName,libLFN,libGUID,destReady))
+			if libStatus == 'failed':
+				# delete downstream jobs
+				_logger.debug("  -> delete downstream jobs")
+				# FIXME
+				#taskBuffer.deleteStalledJobs(libLFN)
+			else:
+				# activate
+				if useLib and libStatus == 'ready' and (not libGUID in [None,'']) and (not libDSName in [None,'']):
+					# update GUID
+					_logger.debug("  set GUID:%s for %s" % (libGUID,libLFN))
+					#retG = taskBuffer.setGUIDs([{'lfn':libLFN,'guid':libGUID}])
+					# FIXME
+					retG = True
+					if not retG:
+						_logger.error("  failed to update GUID for %s" % libLFN)
+					else:
+						# get PandaID with lib.tgz
+						#ids = taskBuffer.updateInFilesReturnPandaIDs(libDSName,'ready')
+						ids = []
+						# get jobs
+						jobs = taskBuffer.peekJobs(ids,fromActive=False,fromArchived=False,fromWaiting=False)
+						# remove None and unknown
+						acJobs = []
+						for job in jobs:
+							if job == None or job.jobStatus == 'unknown':
+								continue
+							acJobs.append(job)
+						# activate
+						_logger.debug("  -> activate downstream jobs")
+						#taskBuffer.activateJobs(acJobs)
+				else:
+					# wait
+					_logger.debug("  -> wait")
+					varMap = {}
+					varMap[':prodSourceLabel'] = 'user'
+					varMap[':jobDefinitionID'] = jobDefinitionID
+					varMap[':prodUserName']    = prodUserName
+					# FIXME
+					#stU,resU = taskBuffer.querySQLS(sqlU,varMap)
+except:
+	errtype,errvalue = sys.exc_info()[:2]
+	_logger.error("failed to redo stalled jobs with %s %s" % (errtype,errvalue))
+			    
 _logger.debug("-------------- end")
