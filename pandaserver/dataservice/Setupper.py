@@ -366,6 +366,9 @@ class Setupper (threading.Thread):
                 # ignore input files
                 if file.type == 'input':
                     continue
+                # don't touch with outDS for unmerge jobs
+                if job.prodSourceLabel == 'panda' and job.processingType == 'unmerge' and file.type != 'log':
+                    continue
                 # extract destinationDBlock, destinationSE and computingSite
                 dest = (file.destinationDBlock,file.destinationSE,job.computingSite,file.destinationDBlockToken)
                 if not destError.has_key(dest):

@@ -39,6 +39,10 @@ class DDMHandler (threading.Thread):
             # activate jobs in jobsDefined
             Activator(self.taskBuffer,dataset).start()
         if dataset.type == 'output':
-            # finish transferring jobs
-            Finisher(self.taskBuffer,dataset,site=self.site).start()
+            if dataset.name != None and re.search('^panda\..*_zip$',dataset.name) != None:
+                # start unmerge jobs
+                Activator(self.taskBuffer,dataset).start()
+            else:
+                # finish transferring jobs
+                Finisher(self.taskBuffer,dataset,site=self.site).start()
         _logger.debug("end: %s" % self.vuid)

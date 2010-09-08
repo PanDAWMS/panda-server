@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changes for merge/unmerge jobs
   * rctest
   * deleteStalledJobs
   * removed hacks for last_insert_id of InnoDB

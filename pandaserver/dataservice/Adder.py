@@ -360,6 +360,10 @@ class Adder (threading.Thread):
                 # add only log file for failed jobs
                 if self.jobStatus == 'failed' and file.type != 'log':
                     continue
+                # add only log file for unmerge jobs
+                if self.job.prodSourceLabel == 'panda' and self.job.processingType in ['unmerge'] \
+                   and file.type != 'log':
+                    continue
                 # look for GUID with LFN
                 try:
                     i = lfns.index(file.lfn)

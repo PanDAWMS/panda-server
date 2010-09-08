@@ -149,10 +149,14 @@ class Closer (threading.Thread):
                                 ddmJobs.append(ddmjob)
                     # start Activator
                     if re.search('_sub\d+$',dataset.name) == None:
-                        if self.job.jobStatus == 'finished':
-                            aThr = Activator(self.taskBuffer,dataset)
-                            aThr.start()
-                            aThr.join()
+                        if self.job.prodSourceLabel=='panda' and self.job.processingType in ['merge','unmerge']:
+                            # don't trigger Activator for merge jobs
+                            pass
+                        else:
+                            if self.job.jobStatus == 'finished':
+                                aThr = Activator(self.taskBuffer,dataset)
+                                aThr.start()
+                                aThr.join()
                 else:
                     # unset flag since another thread already updated 
                     flagComplete = False
@@ -171,16 +175,17 @@ class Closer (threading.Thread):
         _logger.debug('%s source:%s complete:%s' % (self.pandaID,self.job.prodSourceLabel,flagComplete))
         if (self.job.jobStatus != 'transferring') and ((flagComplete and self.job.prodSourceLabel=='user') or \
            (self.job.jobStatus=='failed' and self.job.prodSourceLabel=='panda')):
-            useNotifier = True
-            summaryInfo = {}
-            # check all jobDefIDs in jobsetID
-            if not self.job.jobsetID in [0,None,'NULL']:
-                useNotifier,summaryInfo = self.taskBuffer.checkDatasetStatusForNotifier(self.job.jobsetID,self.job.jobDefinitionID,
-                                                                                        self.job.prodUserName)
-                _logger.debug('%s useNotifier:%s' % (self.pandaID,useNotifier))
-            if useNotifier:    
-                nThr = Notifier(self.taskBuffer,self.job,self.destinationDBlocks,summaryInfo)
-                nThr.start()
-                nThr.join()            
-            
+            # don't send email for merge jobs
+            if not self.job.processingType in ['merge','unmerge']:
+                useNotifier = True
+                summaryInfo = {}
+                # check all jobDefIDs in jobsetID
+                if not self.job.jobsetID in [0,None,'NULL']:
+                    useNotifier,summaryInfo = self.taskBuffer.checkDatasetStatusForNotifier(self.job.jobsetID,self.job.jobDefinitionID,
+                                                                                            self.job.prodUserName)
+                    _logger.debug('%s useNotifier:%s' % (self.pandaID,useNotifier))
+                if useNotifier:    
+                    nThr = Notifier(self.taskBuffer,self.job,self.destinationDBlocks,summaryInfo)
+                    nThr.start()
+                    nThr.join()            
         _logger.debug('%s End' % self.pandaID)

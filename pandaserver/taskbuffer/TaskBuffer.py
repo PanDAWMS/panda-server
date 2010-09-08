@@ -52,7 +52,8 @@ class TaskBuffer:
         priorityOffset = 0
         userVO         = 'atlas'
         userCountry    = None
-        if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda','ptest','rctest']):
+        if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda','ptest','rctest']) \
+               and (not jobs[0].processingType in ['merge','unmerge']):
             # get DB proxy
             proxy = self.proxyPool.getProxy()
             # check quota
@@ -148,7 +149,8 @@ class TaskBuffer:
         userDefinedWG = False
         validWorkingGroup = False
         usingBuild = False
-        if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda']):
+        if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda']) \
+               and (not jobs[0].processingType in ['merge','unmerge']):
             # set high prioryty for production role
             if withProdRole:
                 serNum = 0
@@ -175,7 +177,8 @@ class TaskBuffer:
                 weight = 0.0
         # get group job serial number
         groupJobSerialNum = 0
-        if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda']):
+        if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda']) \
+               and (not jobs[0].processingType in ['merge','unmerge']):
             for tmpFile in jobs[-1].Files:
                 if tmpFile.type in ['output','log'] and '$GROUPJOBSN' in tmpFile.lfn:
                     tmpSnRet = proxy.getSerialNumberForGroupJob(user)
@@ -190,7 +193,8 @@ class TaskBuffer:
         for job in jobs:
             # set JobID. keep original JobID when retry
             if userJobID != -1 and job.prodSourceLabel in ['user','panda'] \
-                   and (job.attemptNr in [0,'0','NULL'] or (not job.jobExecutionID in [0,'0','NULL'])):
+                   and (job.attemptNr in [0,'0','NULL'] or (not job.jobExecutionID in [0,'0','NULL'])) \
+                   and (not jobs[0].processingType in ['merge','unmerge']):
                 job.jobDefinitionID = userJobID
             # set jobsetID    
             if job.prodSourceLabel in ['user','panda','ptest','rctest']:
