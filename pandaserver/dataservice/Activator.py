@@ -13,16 +13,17 @@ _logger = PandaLogger().getLogger('Activator')
 
 class Activator (threading.Thread):
     # constructor
-    def __init__(self,taskBuffer,dataset):
+    def __init__(self,taskBuffer,dataset,enforce=False):
         threading.Thread.__init__(self)
         self.dataset = dataset
         self.taskBuffer = taskBuffer
+        self.enforce = enforce
 
 
     # main
     def run(self):
         _logger.debug("start: %s" % self.dataset.name)
-        if self.dataset.status == 'completed':
+        if self.dataset.status == 'completed' and not self.enforce:
             _logger.debug("   skip: %s" % self.dataset.name)
         else:
             # update input files

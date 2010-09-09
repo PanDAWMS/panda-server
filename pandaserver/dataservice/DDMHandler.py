@@ -41,7 +41,7 @@ class DDMHandler (threading.Thread):
         if dataset.type == 'output':
             if dataset.name != None and re.search('^panda\..*_zip$',dataset.name) != None:
                 # start unmerge jobs
-                Activator(self.taskBuffer,dataset).start()
+                Activator(self.taskBuffer,dataset,enforce=True).start()
             else:
                 # finish transferring jobs
                 Finisher(self.taskBuffer,dataset,site=self.site).start()

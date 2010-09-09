@@ -710,6 +710,9 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                        and job.destinationSE != 'local':
                     destSE = siteMapper.getCloud(job.cloud)['dest'] 
                     job.destinationSE = destSE
+            # use CERN-PROD_EOSDATADISK for CERN-EOS jobs
+            if job.computingSite in ['CERN-EOS']:
+                overwriteSite = True
             if overwriteSite:
                 # overwrite SE for analysis jobs which set non-existing sites
                 destSE = job.computingSite
