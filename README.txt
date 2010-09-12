@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added -9 to killTask
   * added forceKill for prod jobs 
   * changed the brokerage to use CERN-PROD_EOSDATADISK as the dest for CERN-EOS jobs  
   * added enforce to Activator
