@@ -1812,15 +1812,16 @@ class DBProxy:
             if getUserInfo:
                 return False,{}                
             return False
-        sql0 = "SELECT prodUserID,prodSourceLabel FROM %s WHERE PandaID=:PandaID"        
-        sql1 = "UPDATE %s SET commandToPilot=:commandToPilot,taskBufferErrorDiag=:taskBufferErrorDiag WHERE PandaID=:PandaID AND commandToPilot IS NULL"
-        sql2 = "SELECT %s " % JobSpec.columnNames()
-        sql2+= "FROM %s WHERE PandaID=:PandaID AND jobStatus<>:jobStatus"
-        sql3 = "DELETE FROM %s WHERE PandaID=:PandaID"
-        sqlU = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2)"
-        sql4 = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
-        sql4+= JobSpec.bindValuesExpression()
-        sqlF = "UPDATE ATLAS_PANDA.filesTable4 SET status=:status WHERE PandaID=:PandaID AND type IN (:type1,:type2)"
+        sql0  = "SELECT prodUserID,prodSourceLabel FROM %s WHERE PandaID=:PandaID"        
+        sql1  = "UPDATE %s SET commandToPilot=:commandToPilot,taskBufferErrorDiag=:taskBufferErrorDiag WHERE PandaID=:PandaID AND commandToPilot IS NULL"
+        sql1F = "UPDATE %s SET commandToPilot=:commandToPilot,taskBufferErrorDiag=:taskBufferErrorDiag WHERE PandaID=:PandaID"
+        sql2  = "SELECT %s " % JobSpec.columnNames()
+        sql2 += "FROM %s WHERE PandaID=:PandaID AND jobStatus<>:jobStatus"
+        sql3  = "DELETE FROM %s WHERE PandaID=:PandaID"
+        sqlU  = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2)"
+        sql4  = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
+        sql4 += JobSpec.bindValuesExpression()
+        sqlF  = "UPDATE ATLAS_PANDA.filesTable4 SET status=:status WHERE PandaID=:PandaID AND type IN (:type1,:type2)"
         try:
             flagCommand = False
             flagKilled  = False
@@ -1870,7 +1871,11 @@ class DBProxy:
                 varMap[':PandaID'] = pandaID
                 varMap[':commandToPilot'] = 'tobekilled'
                 varMap[':taskBufferErrorDiag'] = 'killed by %s' % user
-                self.cur.execute((sql1+comment) % table, varMap)
+                if userProdSourceLabel in ['managed','test'] and code in ['9',]:
+                    # ignore commandToPilot for force kill
+                    self.cur.execute((sql1F+comment) % table, varMap)
+                else:
+                    self.cur.execute((sql1+comment) % table, varMap)
                 retU = self.cur.rowcount
                 if retU == 0:
                     continue
@@ -1879,7 +1884,11 @@ class DBProxy:
                 # select
                 varMap = {}
                 varMap[':PandaID'] = pandaID
-                varMap[':jobStatus'] = 'running'
+                if userProdSourceLabel in ['managed','test'] and code in ['9',]:
+                    # use dummy for force kill
+                    varMap[':jobStatus'] = 'dummy'
+                else:
+                    varMap[':jobStatus'] = 'running'
                 self.cur.arraysize = 10
                 self.cur.execute((sql2+comment) % table, varMap)
                 res = self.cur.fetchall()
