@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * don't check missing files with LFC when site is already set
   * added -9 to killTask
   * added forceKill for prod jobs 
   * changed the brokerage to use CERN-PROD_EOSDATADISK as the dest for CERN-EOS jobs  

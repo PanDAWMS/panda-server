@@ -1288,6 +1288,9 @@ class Setupper (threading.Thread):
             # check only production/test jobs
             if not job.prodSourceLabel in ['managed','test','software','rc_test','ptest','rctest']:
                 continue
+            # don't check if site is already set
+            if job.prodSourceLabel in ['managed','test'] and not job.computingSite in ['NULL','',None]:
+                continue
             missingFlag = False
             for file in job.Files:
                 if file.type == 'input':
