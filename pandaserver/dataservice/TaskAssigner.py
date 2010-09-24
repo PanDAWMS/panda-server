@@ -307,20 +307,22 @@ class TaskAssigner:
                 weightParams[tmpCloudName]['mcshare'] = tmpCloud['mcshare']
                 _logger.debug('%s  MC share    %s' % (self.taskID,tmpCloud['mcshare']))
                 # calculate available space = totalT1space - ((RW(cloud)+RW(thistask))*GBperSI2kday))
-                aveSpace = self.getAvailableSpace(weightParams[tmpCloudName]['space'],
-                                                  fullRWs[tmpCloudName],
-                                                  expRWs[self.taskID])
+                aveSpace,sizeCloud,sizeThis = self.getAvailableSpace(weightParams[tmpCloudName]['space'],
+                                                                     fullRWs[tmpCloudName],
+                                                                     expRWs[self.taskID])
                 # no task is assigned if available space is less than 1TB
                 if aveSpace < thr_space_low:
-                    message = '%s    %s skip : space=%s total=%s' % \
-                              (self.taskID,tmpCloudName,aveSpace,weightParams[tmpCloudName]['space'])
+                    message = '%s    %s skip : space:%s (total:%s - assigned:%s - this:%s) < %sGB' % \
+                              (self.taskID,tmpCloudName,aveSpace,weightParams[tmpCloudName]['space'],
+                               sizeCloud,sizeThis,thr_space_low)
                     _logger.debug(message)
                     self.sendMesg(message,msgType='warning')
                     del weightParams[tmpCloudName]                    
                     continue
                 else:
-                    _logger.debug('%s    %s pass : space=%s total=%s' % \
-                                  (self.taskID,tmpCloudName,aveSpace,weightParams[tmpCloudName]['space']))
+                    _logger.debug('%s    %s pass : space:%s (total:%s - assigned:%s - this:%s)' % \
+                                  (self.taskID,tmpCloudName,aveSpace,weightParams[tmpCloudName]['space'],
+                                   sizeCloud,sizeThis))
                 # not assign tasks when RW is too high
                 if RWs.has_key(tmpCloudName) and RWs[tmpCloudName] > thr_RW_high*weightParams[tmpCloudName]['mcshare']:
                     message = '%s    %s skip : too high RW=%s > %s' % \
@@ -538,9 +540,11 @@ class TaskAssigner:
 
     # get available space
     def getAvailableSpace(self,space,fullRW,expRW):
-        # calculate available space = totalT1space - ((RW(cloud)+RW(thistask))*GBperSI2kday))   
-        aveSpace = space - (fullRW+expRW)*0.2
-        return aveSpace
+        # calculate available space = totalT1space - ((RW(cloud)+RW(thistask))*GBperSI2kday))
+        sizeCloud = fullRW * 0.2
+        sizeThis  = expRW * 0.2
+        aveSpace = space - (sizeCloud + sizeThis)
+        return aveSpace,sizeCloud,sizeThis
 
 
     # make subscription

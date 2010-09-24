@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * improved the space shortage message in TA
   * don't check missing files with LFC when site is already set
   * added -9 to killTask
   * added forceKill for prod jobs 
