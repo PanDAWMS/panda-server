@@ -4074,7 +4074,8 @@ class DBProxy:
         if len(datasets) == 0:
             return []
         # make SQL query
-        sql1 = "SELECT /*+ index(tab FILESTABLE4_DATASET_IDX) */ MAX(PandaID) FROM ATLAS_PANDA.filesTable4 tab WHERE dataset=:dataset AND type=:type"
+        sql1 = "SELECT /*+ index(tab FILESTABLE4_DATASET_IDX) */ MAX(lfn) FROM ATLAS_PANDA.filesTable4 tab WHERE dataset=:dataset AND type=:type"
+        sqlL = "SELECT /*+ index(tab FILESTABLE4_DATASET_IDX) */ MAX(PandaID) FROM ATLAS_PANDA.filesTable4 tab WHERE dataset=:dataset AND type=:type AND lfn=:lfn"
         sql2 = "SELECT lfn FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type=:type"
         # execute
         try:
@@ -4082,7 +4083,7 @@ class DBProxy:
             for dataset in datasets:
                 # start transaction
                 self.conn.begin()
-                # select PandaID
+                # select max LFN
                 varMap = {}
                 varMap[':type'] = 'output'
                 varMap[':dataset'] = dataset
@@ -4092,16 +4093,25 @@ class DBProxy:
                 # found
                 retList = []
                 if res != None:
-                    pandaID = res[0]
-                    # select LFNs
                     varMap = {}
-                    varMap[':PandaID'] = pandaID
+                    varMap[':lfn'] = res[0]
                     varMap[':type'] = 'output'
-                    self.cur.arraysize = 100
-                    self.cur.execute(sql2+comment, varMap)
-                    res = self.cur.fetchall()
-                    for r in res:
-                        retList.append(r[0])
+                    varMap[':dataset'] = dataset
+                    # get corresponding PandaID
+                    self.cur.arraysize = 10
+                    self.cur.execute(sqlL+comment, varMap)
+                    res = self.cur.fetchone()
+                    if res != None:
+                        pandaID = res[0]
+                        # select LFNs
+                        varMap = {}
+                        varMap[':PandaID'] = pandaID
+                        varMap[':type'] = 'output'
+                        self.cur.arraysize = 100
+                        self.cur.execute(sql2+comment, varMap)
+                        res = self.cur.fetchall()
+                        for r in res:
+                            retList.append(r[0])
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
@@ -6638,7 +6648,7 @@ class DBProxy:
                     resSs = self.cur.fetchall()
                     # check status and mod time
                     for tmpStatus,tmpModificationDate in resSs:
-                        if not tmpStatus in ['closed','tobeclosed']:
+                        if not tmpStatus in ['closed','tobeclosed','completed']:
                             # some datasets are still active 
                             allClosed = False
                             _logger.debug("checkDatasetStatusForNotifier(%s,%s) wait due to %s %s %s" % \

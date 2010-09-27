@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * fixed useNiotifier in Closer for completed sub datasets
+  * changed queryLastFilesInDataset to use MAX(lfn)
   * improved the space shortage message in TA
   * don't check missing files with LFC when site is already set
   * added -9 to killTask
