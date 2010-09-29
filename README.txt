@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * removed apostrophes from prodUserName
   * fixed useNiotifier in Closer for completed sub datasets
   * changed queryLastFilesInDataset to use MAX(lfn)
   * improved the space shortage message in TA

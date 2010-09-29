@@ -5611,6 +5611,7 @@ class DBProxy:
                 username = mat.group(1)
             username = username.replace('(','')
             username = username.replace(')','')
+            username = username.replace("'",'')
             return username
         except:
             return id
