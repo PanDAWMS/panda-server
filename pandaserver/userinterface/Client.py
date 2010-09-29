@@ -659,6 +659,18 @@ def deleteFile(file):
     return curl.post(url,data)
 
 
+# touch file
+def touchFile(sourceURL,filename):
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+    # execute
+    url = sourceURL + '/server/panda/touchFile'
+    data = {'filename':filename}
+    return curl.post(url,data)
+
+
 # resubmit jobs
 def resubmitJobs(ids):
     # serialize

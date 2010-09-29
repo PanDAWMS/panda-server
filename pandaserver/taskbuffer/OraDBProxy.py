@@ -1135,6 +1135,9 @@ class DBProxy:
                         # set new GUID
                         if file.type == 'log':
                             file.GUID = commands.getoutput('uuidgen')
+                        # don't change lib.tgz    
+                        if file.type == 'output' and job.prodSourceLabel == 'panda':
+                            continue
                         # append attemptNr to LFN
                         oldName = file.lfn
                         file.lfn = re.sub('\.\d+$','',file.lfn)
@@ -1802,6 +1805,12 @@ class DBProxy:
 
     # kill job
     def killJob(self,pandaID,user,code,prodManager,getUserInfo=False):
+        # code
+        # 2 : expire
+        # 3 : aborted
+        # 4 : expire in waiting
+        # 8 : rebrokerage
+        # 9 : force kill
         comment = ' /* DBProxy.killJob */'        
         _logger.debug("killJob : %s %s %s %s" % (code,pandaID,prodManager,user))
         # check PandaID
@@ -1856,7 +1865,7 @@ class DBProxy:
                 # prevent prod proxy from killing analysis jobs
                 userProdSourceLabel = res[1]
                 if prodManager:
-                    if res[1] in ['user','panda'] and (not code in ['2','4','9']):
+                    if res[1] in ['user','panda'] and (not code in ['2','4','8','9']):
                         _logger.debug("ignore killJob -> prod proxy tried to kill analysis job type=%s" % res[1])
                         break
                 else:   
@@ -1930,6 +1939,10 @@ class DBProxy:
                     # aborted
                     job.taskBufferErrorCode = ErrorCode.EC_Aborted
                     job.taskBufferErrorDiag = 'aborted by ExtIF'
+                elif code=='8':
+                    # reassigned by rebrokeage
+                    job.taskBufferErrorCode = ErrorCode.EC_Reassigned
+                    job.taskBufferErrorDiag = 'reassigned to another site by rebrokerage. new %s' % user
                 else:
                     # killed
                     job.taskBufferErrorCode = ErrorCode.EC_Kill
@@ -2354,9 +2367,9 @@ class DBProxy:
 
 
     # lock job for re-brokerage
-    def lockJobForReBrokerage(self,dn,jobID,libDS,simulation):
+    def lockJobForReBrokerage(self,dn,jobID,simulation,forceOpt):
         comment = ' /* lockJobForReBrokerage */'                        
-        _logger.debug("lockJobForReBrokerage : %s %s %s %s" % (dn,jobID,libDS,simulation))
+        _logger.debug("lockJobForReBrokerage : %s %s %s %s" % (dn,jobID,simulation,forceOpt))
         try:
             errMsg = ''
             # get compact DN
@@ -2369,7 +2382,9 @@ class DBProxy:
             buildJobStatus    = None
             buildJobDefID     = None
             buildCreationTime = None
-            runPandaID   = None            
+            runPandaID        = None
+            minPandaIDlibDS   = None
+            maxPandaIDlibDS   = None
             # get one runXYZ job
             if errMsg == '':
                 for table in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4']:
@@ -2483,8 +2498,22 @@ class DBProxy:
                     # check status
                     if errMsg != '':
                         if not buildJobStatus in ['defined','activated','finished','cancelled']:
-                            errMsg = "status of buildJob is '%s' != defined/activated/finished which cannot be reassigned" \
+                            errMsg = "status of buildJob is '%s' != defined/activated/finished/cancelled which cannot be reassigned" \
                                      % buildJobStatus
+            # get max/min PandaIDs using the libDS
+            if errMsg == '':
+                sql = "SELECT /*+ index(tab FILESTABLE4_DATASET_IDX) */ MAX(PandaID),MIN(PandaID) FROM ATLAS_PANDA.filesTable4 tab "
+                sql += "WHERE type=:type AND dataset=:dataset"
+                varMap = {}
+                varMap[':type']    = 'input'
+                varMap[':dataset'] = libDS
+                self.cur.arraysize = 10
+                self.cur.execute(sql+comment, varMap)
+                res = self.cur.fetchone()
+                if res == None:
+                    errMsg = "cannot get MAX/MIN PandaID for multiple usage for %s" % libDS
+                else:
+                    maxPandaIDlibDS,minPandaIDlibDS = res
             # check creationDate of buildJob
             if errMsg == '':
                 # buildJob has already finished
@@ -2494,7 +2523,7 @@ class DBProxy:
             # check modificationTime
             if errMsg == '':
                 # make sql
-                if buildJobStatus in ['defined']:
+                if buildJobStatus in ['defined'] or (buildJobDefID != None and jobID != buildJobDefID):
                     sql  = "SELECT modificationTime FROM ATLAS_PANDA.jobsDefined4 "
                 else:
                     sql  = "SELECT modificationTime FROM ATLAS_PANDA.jobsActive4 "
@@ -2519,7 +2548,7 @@ class DBProxy:
                     timeLimit = datetime.datetime.utcnow()-datetime.timedelta(hours=1)
                     if simulation:
                         pass
-                    elif timeLimit < tmpModificationTime:
+                    elif timeLimit < tmpModificationTime and not forceOpt:
                         errMsg = "last mod time is %s > current-1hour. Cannot run (re)brokerage more than once in one hour" \
                                  % tmpModificationTime.strftime('%Y-%m-%d %H:%M:%S')
                     else:
@@ -2531,7 +2560,7 @@ class DBProxy:
                         sql += 'SET modificationTime=CURRENT_DATE '
                         sql += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
                         sql += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND jobStatus IN (:jobStatus1,:jobStatus2) "
-                        self.cur.execute(sql+comment, varMap)                        
+                        self.cur.execute(sql+comment, varMap)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -2540,9 +2569,11 @@ class DBProxy:
                 _logger.debug('lockJobForReBrokerage : '+errMsg)
                 return False,{'err':errMsg}
             # return
-            _logger.debug("lockJobForReBrokerage buildJob ID=%s status=%s" % (buildJobPandaID,buildJobStatus))
-            return True,{'bPandaID':buildJobPandaID,'bStatus':buildJobStatus,'userName':compactDN,
-                         'bJobID':buildJobDefID,'rPandaID':runPandaID}
+            retMap = {'bPandaID':buildJobPandaID,'bStatus':buildJobStatus,'userName':compactDN,
+                      'bJobID':buildJobDefID,'rPandaID':runPandaID,
+                      'maxPandaIDlibDS':maxPandaIDlibDS,'minPandaIDlibDS':minPandaIDlibDS}
+            _logger.debug("lockJobForReBrokerage %s" % str(retMap))
+            return True,retMap
         except:
             # roll back
             self._rollback()
@@ -2552,77 +2583,76 @@ class DBProxy:
             return False,{'err':'database error'}
 
 
-    # get input datasets for rebroerage
+    # get input datasets for rebrokerage
     def getInDatasetsForReBrokerage(self,jobID,userName):
         comment = ' /* DBProxy.getInDatasetsForReBrokerage */'        
-        sqlSub  = "SELECT /*+ index(tab FILESTABLE4_DATASET_IDX) */ destinationDBlock,PandaID FROM ATLAS_PANDA.filesTable4 tab "
-        sqlSub += "WHERE dataset=:dataset AND type IN (:type1,:type2) AND status=:fileStatus GROUP BY destinationDBlock,PandaID"
-        sqlPan  = "SELECT jobStatus FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID"
-        sqlDis  = "SELECT distinct dispatchDBlock FROM ATLAS_PANDA.filesTable4 "
-        sqlDis += "WHERE PandaID=:PandaID AND type=:type"
-        sqlLfn  = "SELECT /*+ index(tab FILESTABLE4_DISPDBLOCK_IDX) */ lfn,PandaID FROM ATLAS_PANDA.filesTable4 tab "
-        sqlLfn += "WHERE dispatchDBlock=:dispatchDBlock AND type=:type"
-        failedRet = False,{}
+        failedRet = False,{},None
         try:
             _logger.debug("getInDatasetsForReBrokerage(%s,%s)" % (jobID,userName))
             # start transaction
             self.conn.begin()
             # get pandaID
-            pandaID = None
+            pandaIDs = []
+            maxTotalFileSize = None
             for table in ['jobsActive4','jobsDefined4']:
                 sql  = "SELECT PandaID FROM ATLAS_PANDA.%s WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID " % table
-                sql += "AND prodSourceLabel=:prodSourceLabel AND rownum <=1"
+                sql += "AND prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2)"
                 varMap = {}
                 varMap[':prodUserName'] = userName
                 varMap[':jobDefinitionID']  = jobID
                 varMap[':prodSourceLabel'] = 'user'
-                self.cur.arraysize = 100
+                varMap[':jobStatus1'] = 'defined'
+                varMap[':jobStatus2'] = 'activated'
+                self.cur.arraysize = 10000
                 self.cur.execute(sql+comment, varMap)
-                res = self.cur.fetchone()
-                if res != None:
-                    pandaID, = res
-                    break
+                res = self.cur.fetchall()
+                if res != []:
+                    for tmpItem in res:
+                        pandaIDs.append(tmpItem[0])
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
             # not found    
-            if pandaID == None:
-                _logger.debug("getInDatasetsForReBrokerage : PandaID not found")
-                # commit
-                if not self._commit():
-                    raise RuntimeError, 'Commit error'
+            if pandaIDs == []:
+                _logger.debug("getInDatasetsForReBrokerage : PandaIDs not found")
                 return failedRet
-            # get dispatchDBlocks
-            sql  = "SELECT distinct dispatchDBlock FROM ATLAS_PANDA.filesTable4 "
-            sql += "WHERE PandaID=:PandaID AND type=:type"
-            varMap = {}
-            varMap[':PandaID'] = pandaID
-            varMap[':type'] = 'input'                        
-            self.cur.arraysize = 100
-            retD = self.cur.execute(sql+comment, varMap)
-            resD = self.cur.fetchall()
-            # get LFNs
+            # get dataset and lfn
             retMapLFN = {}
-            for disDataset, in resD:
-                # use new style only
-                if not disDataset.startswith('user_disp.'):
-                    continue
-                sql  = "SELECT /*+ index(tab FILESTABLE4_DISPDBLOCK_IDX) */ dataset,lfn FROM ATLAS_PANDA.filesTable4 tab "
-                sql += "WHERE dispatchDBlock=:dispatchDBlock AND type=:type"
+            sql  = "SELECT dataset,lfn,fsize FROM ATLAS_PANDA.filesTable4 "
+            sql += "WHERE PandaID=:PandaID AND type=:type"
+            for pandaID in pandaIDs:
                 varMap = {}
-                varMap[':dispatchDBlock'] = disDataset
-                varMap[':type'] = 'input'
-                self.cur.arraysize = 100000
+                varMap[':PandaID'] = pandaID
+                varMap[':type'] = 'input'                        
+                # start transaction
+                self.conn.begin()
+                self.cur.arraysize = 10000
                 self.cur.execute(sql+comment, varMap)
                 resL = self.cur.fetchall()
                 # append
-                for tmpDataset,tmpLFN in resL:
+                tmpTotalFileSize = 0
+                for tmpDataset,tmpLFN,tmpFileSize in resL:
+                    # ignore lib.tgz
+                    if tmpLFN.endswith('.lib.tgz'):
+                        continue
                     if not retMapLFN.has_key(tmpDataset):
                         retMapLFN[tmpDataset] = []
                     if not tmpLFN in retMapLFN[tmpDataset]:
                         retMapLFN[tmpDataset].append(tmpLFN)
-            # commit
-            if not self._commit():
-                raise RuntimeError, 'Commit error'
+                    try:
+                        tmpTotalFileSize += long(tmpFileSize)
+                    except:
+                        pass
+                if maxTotalFileSize == None or maxTotalFileSize < tmpTotalFileSize:
+                    maxTotalFileSize = tmpTotalFileSize
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
             _logger.debug("getInDatasetsForReBrokerage : done")
-            return True,retMapLFN
+            # max size in MB
+            maxTotalFileSize /= (1024*1024)
+            # return
+            return True,retMapLFN,maxTotalFileSize
         except:
             # roll back
             self._rollback()
@@ -2638,7 +2668,7 @@ class DBProxy:
         try:
             # make sql to move jobs
             sql1 = "SELECT %s FROM ATLAS_PANDA.jobsActive4 " % JobSpec.columnNames()
-            sql1+= "WHERE PandaID=:PandaID"
+            sql1+= "WHERE PandaID=:PandaID AND jobStatus=:jobStatus1"
             sql3 = "INSERT INTO ATLAS_PANDA.jobsDefined4 (%s) " % JobSpec.columnNames()
             sql3+= JobSpec.bindValuesExpression()
             # start transaction
@@ -2646,6 +2676,7 @@ class DBProxy:
             # select
             varMap = {}
             varMap[':PandaID'] = pandaID
+            varMap[':jobStatus1'] = 'activated'
             self.cur.arraysize = 10
             self.cur.execute(sql1+comment,varMap)
             res = self.cur.fetchone()
@@ -2675,7 +2706,8 @@ class DBProxy:
             # delete from Active
             varMap = {}
             varMap[':PandaID'] = pandaID
-            sql2 = "DELETE FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID"
+            varMap[':jobStatus1'] = 'activated'
+            sql2 = "DELETE FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID AND jobStatus=:jobStatus1"
             self.cur.execute(sql2+comment,varMap)
             retD = self.cur.rowcount
             # delete failed
@@ -2697,61 +2729,6 @@ class DBProxy:
             _logger.error("resetBuildJobForReBrokerage : %s %s" % (type,value))
             # return empty list
             return False
-
-
-    # make buildJob for re-brokerage
-    def makeNewBuildJobForRebrokerage(self,buildJob):
-        comment = ' /* makeNewBuildJobForRebrokerage */'                        
-        _logger.debug("makeNewBuildJobForRebrokerage : start")
-        try:
-            # start transaction
-            self.conn.begin()
-            # get serial number
-            sql = "SELECT ATLAS_PANDA.SUBCOUNTER_SUBID_SEQ.nextval FROM dual";
-            self.cur.execute(sql+comment, {})
-            sn, = self.cur.fetchone()
-            # commit
-            if not self._commit():
-                raise RuntimeError, 'Commit error'
-            # new libDS
-            oldLibDS = buildJob.destinationDBlock
-            match = re.search('_rev(\d+)$',oldLibDS)
-            if match == None:
-                newLibDS = oldLibDS + '_rev%s' % sn
-            else:
-                newLibDS = re.sub('_rev(\d+)$','_rev%s' % sn,oldLibDS)
-            # reset parameters
-            buildJob.PandaID           = None
-            buildJob.jobStatus         = None
-            buildJob.commandToPilot    = None
-            buildJob.schedulerID       = None
-            buildJob.pilotID           = None
-            for attr in buildJob._attributes:
-                if attr.endswith('ErrorCode') or attr.endswith('ErrorDiag'):
-                    setattr(buildJob,attr,None)
-            buildJob.transExitCode     = None
-            buildJob.creationTime      = datetime.datetime.utcnow()
-            buildJob.modificationTime  = buildJob.creationTime
-            buildJob.startTime         = None
-            buildJob.endTime           = None
-            buildJob.destinationDBlock = newLibDS
-            buildJob.jobParameters = re.sub(oldLibDS,newLibDS,buildJob.jobParameters)
-            for tmpFile in buildJob.Files:
-                tmpFile.row_ID  = None
-                tmpFile.GUID    = None
-                tmpFile.status  = 'unknown'
-                tmpFile.PandaID = None
-                tmpFile.dataset = newLibDS
-                tmpFile.destinationDBlock = tmpFile.dataset
-                tmpFile.lfn = re.sub(oldLibDS,newLibDS,tmpFile.lfn)
-            return buildJob,oldLibDS,newLibDS
-        except:
-            # roll back
-            self._rollback()
-            type, value, traceBack = sys.exc_info()
-            _logger.error("makeNewBuildJobForRebrokerage : %s %s" % (type,value))
-            # return empty list
-            return None,'',''
 
         
     # get PandaIDs using userName/jobID for re-brokerage
@@ -5523,6 +5500,40 @@ class DBProxy:
             _logger.error("getSitesWithReleaseInCloud : %s %s" % (type,value))
             return []
 
+
+    # get list of cache prefix
+    def getCachePrefixes(self):
+        comment = ' /* DBProxy.getCachePrefixes */'        
+        try:
+            _logger.debug("getCachePrefixes")
+            # select
+            sql  = "SELECT distinct cache FROM ATLAS_PANDAMETA.installedSW WHERE cache IS NOT NULL"
+            # start transaction
+            self.conn.begin()
+            self.cur.arraysize = 10000
+            # execute
+            self.cur.execute(sql+comment, {})
+            resList = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # append
+            tmpList = []
+            for tmpItem, in resList:
+                match = re.search('^([^-]+)-',tmpItem)
+                if match != None:
+                    tmpPrefix = match.group(1)
+                    if not tmpPrefix in tmpList:
+                        tmpList.append(tmpPrefix)
+            _logger.debug("getCachePrefixes -> %s" % tmpList)
+            return tmpList
+        except:
+            # roll back
+            self._rollback()
+            type,value,traceBack = sys.exc_info()
+            _logger.error("getCachePrefixes : %s %s" % (type,value))
+            return []
+
         
     # get pilot owners
     def getPilotOwners(self):
@@ -5703,7 +5714,7 @@ class DBProxy:
                 if item[1] in ['disabled']:
                     retStatus = False
                 # use larger JobID
-                if dbJobID >= int(retJobID):
+                if dbJobID >= int(retJobID) or (jobsetID == -1 and dbJobID >= int(retJobsetID)):
                     if jobsetID == -1:
                         # generate new jobsetID = 1 + exsiting jobID
                         retJobsetID = dbJobID+1

@@ -385,7 +385,7 @@ class Setupper (threading.Thread):
                             continue
                         # new dataset name
                         newnameList[dest] = "%s_sub0%s" % (file.destinationDBlock,sn)
-                        if freshFlag:
+                        if freshFlag or self.resetLocation:
                             # register original dataset and new dataset
                             nameList = [file.destinationDBlock,newnameList[dest]]
                             originalName = file.destinationDBlock

@@ -483,13 +483,13 @@ class TaskBuffer:
 
 
     # peek at jobs
-    def peekJobs(self,jobIDs,fromDefined=True,fromActive=True,fromArchived=True,fromWaiting=True):
+    def peekJobs(self,jobIDs,fromDefined=True,fromActive=True,fromArchived=True,fromWaiting=True,forAnal=False):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         retJobs = []
         # peek at job
         for jobID in jobIDs:
-            res = proxy.peekJob(jobID,fromDefined,fromActive,fromArchived,fromWaiting)
+            res = proxy.peekJob(jobID,fromDefined,fromActive,fromArchived,fromWaiting,forAnal)
             if res:
                 retJobs.append(res)
             else:
@@ -592,11 +592,11 @@ class TaskBuffer:
 
 
     # lock job for re-brokerage
-    def lockJobForReBrokerage(self,dn,jobID,libDS,simulation):
+    def lockJobForReBrokerage(self,dn,jobID,simulation,forceOpt):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get IDs
-        ret = proxy.lockJobForReBrokerage(dn,jobID,libDS,simulation)
+        ret = proxy.lockJobForReBrokerage(dn,jobID,simulation,forceOpt)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -609,18 +609,6 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # get IDs
         ret = proxy.resetBuildJobForReBrokerage(pandaID)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
-
-    # make buildJob for re-brokerage
-    def makeNewBuildJobForRebrokerage(self,buildJob):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get IDs
-        ret = proxy.makeNewBuildJobForRebrokerage(buildJob)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -1344,6 +1332,18 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # check
         ret = proxy.getSitesWithReleaseInCloud(cloud,releases,caches,validation)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # get list of cache prefix
+    def getCachePrefixes(self):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # check
+        ret = proxy.getCachePrefixes()
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

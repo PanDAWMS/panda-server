@@ -63,9 +63,23 @@ def deleteFile(req,file):
     if not Protocol.isSecure(req):
         return 'False'
     try:
-        os.remove('%s/%s' % (panda_config.cache_dir,file))
+        # may be reused for rebrokreage 
+        #os.remove('%s/%s' % (panda_config.cache_dir,file))
         return 'True'
     except:
+        return 'False'        
+
+
+# touch file 
+def touchFile(req,filename):
+    if not Protocol.isSecure(req):
+        return 'False'
+    try:
+        os.utime('%s/%s' % (panda_config.cache_dir,filename),None)
+        return 'True'
+    except:
+        errtype,errvalue = sys.exc_info()[:2]
+        _logger.error("touchFile : %s %s" % (errtype,errvalue))
         return 'False'        
                         
 

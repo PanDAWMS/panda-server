@@ -14,7 +14,6 @@ from config import panda_config
 from taskbuffer.JobSpec import JobSpec
 from brokerage.SiteMapper import SiteMapper
 from pandalogger.PandaLogger import PandaLogger
-from ReBroker import ReBroker
 
 # logger
 _logger = PandaLogger().getLogger('UserIF')
@@ -95,31 +94,7 @@ class UserIF:
 
     # run rebrokerage
     def runReBrokerage(self,dn,jobID,libDS,cloud,strExcludedSite):
-        returnVal = "True"
-        try:
-            if strExcludedSite == None:
-                # excludedSite is unchanged
-                excludedSite = None
-            else:
-                # convert str to list
-                excludedSite = []
-                for tmpItem in strExcludedSite.split(','):
-                    if tmpItem != '':
-                        excludedSite.append(tmpItem)
-            # instantiate ReBroker
-            thr = ReBroker(self.taskBuffer,cloud,excludedSite)
-            # lock
-            stLock,retLock = thr.lockJob(dn,jobID,libDS)
-            # failed
-            if not stLock:
-                returnVal = "ERROR: "+retLock
-            else:
-                # start ReBroker
-                thr.start()
-        except:
-            erType,errValue,errTraceBack = sys.exc_info()
-            _logger.error("runReBrokerage: %s %s" % (errType,errValue))
-            returnVal = "ERROR: runReBrokerage crashed"
+        returnVal = "ERROR: ReBrokerage must be done on the server side"
         # return
         return returnVal
 
@@ -420,6 +395,14 @@ class UserIF:
         siteMapper = SiteMapper(self.taskBuffer)
         # serialize
         return pickle.dumps(siteMapper.cloudSpec)
+
+
+    # get list of cache prefix
+    def getCachePrefixes(self):
+        # get
+        ret = self.taskBuffer.getCachePrefixes()
+        # serialize 
+        return pickle.dumps(ret)
 
 
     # run brokerage
@@ -826,6 +809,10 @@ def getSiteSpecs(req,siteType=None):
 # get list of cloud spec
 def getCloudSpecs(req):
     return userIF.getCloudSpecs()
+
+# get list of cache prefix
+def getCachePrefixes(req):
+    return userIF.getCachePrefixes()
 
 # get client version
 def getPandaClientVer(req):

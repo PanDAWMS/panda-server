@@ -29,7 +29,8 @@ from userinterface.UserIF import userIF
 userIF.init(taskBuffer)
 
 # import web I/F
-from taskbuffer.Utils            import isAlive,putFile,deleteFile,getServer,updateLog,fetchLog
+from taskbuffer.Utils            import isAlive,putFile,deleteFile,getServer,updateLog,fetchLog,\
+     touchFile
 from dataservice.DataService     import datasetCompleted,updateFileStatusInDisp
 from jobdispatcher.JobDispatcher import getJob,updateJob,getStatus,genPilotToken
 from userinterface.UserIF        import submitJobs,getJobStatus,queryPandaIDs,killJobs,reassignJobs,\
@@ -40,7 +41,7 @@ from userinterface.UserIF        import submitJobs,getJobStatus,queryPandaIDs,ki
      getNUserJobs,addSiteAccess,listSiteAccess,getFilesInUseForAnal,updateSiteAccess,\
      getPandaClientVer,getSlimmedFileInfoPandaIDs,runReBrokerage,deleteFilesFromCacheDB,\
      addFilesToCacheDB,flushCacheDB,checkFilesWithCacheDB,getQueuedAnalJobs,getHighestPrioJobStat,\
-     getActiveDatasets,setCloudTaskByUser,getSerialNumberForGroupJob
+     getActiveDatasets,setCloudTaskByUser,getSerialNumberForGroupJob,getCachePrefixes
 
 
 # FastCGI/WSGI entry

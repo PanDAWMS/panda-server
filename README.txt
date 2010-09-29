@@ -1,6 +1,9 @@
 Release Note
 
 * current
+  * added code=8 to killJob fore rebrokerage
+  * first implementation of auto rebrokerage
+  * added getCachePrefixes 
   * removed apostrophes from prodUserName
   * fixed useNiotifier in Closer for completed sub datasets
   * changed queryLastFilesInDataset to use MAX(lfn)

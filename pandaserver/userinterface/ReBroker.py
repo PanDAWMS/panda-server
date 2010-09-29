@@ -28,21 +28,22 @@ class ReBroker (threading.Thread):
 
     # constructor
     def __init__(self,taskBuffer,cloud=None,excludedSite=None,overrideSite=True,
-                 simulation=False):
+                 simulation=False,forceOpt=False):
         threading.Thread.__init__(self)
         self.job           = None
         self.jobID         = None
         self.pandaID       = None
         self.cloud         = cloud
-        self.libDS         = ''
         self.pandaJobList  = []
         self.buildStatus   = None
         self.taskBuffer    = taskBuffer
         self.token         = None
         self.newDatasetMap = {}
         self.simulation    = simulation
+        self.forceOpt      = forceOpt
         self.excludedSite  = excludedSite
         self.overrideSite = overrideSite
+        self.maxPandaIDlibDS = None
         
 
     # main
@@ -72,8 +73,20 @@ class ReBroker (threading.Thread):
                 return
             # check --disableRebrokerage
             match = re.search("--disableRebrokerage",self.job.metadata)
-            if match != None:
+            if match != None and (not self.simulation) and (not self.forceOpt):
                 _logger.debug("%s diabled rebrokerage" % self.token)
+                _logger.debug("%s end" % self.token)
+                return
+            # check --site
+            match = re.search("--site",self.job.metadata)
+            if match != None and (not self.simulation) and (not self.forceOpt):
+                _logger.debug("%s --site is used" % self.token)
+                _logger.debug("%s end" % self.token)
+                return
+            # check --libDS
+            match = re.search("--libDS",self.job.metadata)
+            if match != None:
+                _logger.debug("%s --libDS is used" % self.token)
                 _logger.debug("%s end" % self.token)
                 return
             # check --workingGroup since it is site-specific 
@@ -82,6 +95,29 @@ class ReBroker (threading.Thread):
                 _logger.debug("%s workingGroup is specified" % self.token)
                 _logger.debug("%s end" % self.token)
                 return
+            # avoid too many rebrokerage
+            if not self.checkRev():
+                _logger.debug("%s avoid too many rebrokerage" % self.token)
+                _logger.debug("%s end" % self.token)
+                return
+            # check if multiple JobIDs use the same libDS
+            if self.bPandaID != None and self.buildStatus not in ['finished','failed']:
+                if self.minPandaIDlibDS == None or self.maxPandaIDlibDS == None:
+                    _logger.debug("%s max/min PandaIDs are unavailable for the libDS" % self.token)
+                    _logger.debug("%s end" % self.token)
+                    return
+                tmpPandaIDsForLibDS = self.taskBuffer.getFullJobStatus([self.minPandaIDlibDS,self.maxPandaIDlibDS])
+                if len(tmpPandaIDsForLibDS) != 2 or tmpPandaIDsForLibDS[0] == None or tmpPandaIDsForLibDS[1] == None:
+                    _logger.debug("%s failed to get max/min PandaIDs for the libDS" % self.token)
+                    _logger.debug("%s end" % self.token)
+                    return
+                # check
+                if tmpPandaIDsForLibDS[0].jobDefinitionID != tmpPandaIDsForLibDS[1].jobDefinitionID:
+                    _logger.debug("%s multiple JobIDs use the libDS %s:%s %s:%s" % (self.token,tmpPandaIDsForLibDS[0].jobDefinitionID,
+                                                                                    self.minPandaIDlibDS,tmpPandaIDsForLibDS[1].jobDefinitionID,
+                                                                                    self.maxPandaIDlibDS))
+                    _logger.debug("%s end" % self.token)
+                    return
             # check excludedSite
             if self.excludedSite == None:
                 self.excludedSite = []
@@ -90,7 +126,7 @@ class ReBroker (threading.Thread):
                     self.excludedSite = match.group(2).split(',')
             _logger.debug("%s excludedSite=%s" % (self.token,str(self.excludedSite)))
             # get inDS/LFNs
-            status,tmpMapInDS = self.taskBuffer.getInDatasetsForReBrokerage(self.jobID,self.userName)
+            status,tmpMapInDS,maxFileSize = self.taskBuffer.getInDatasetsForReBrokerage(self.jobID,self.userName)
             if not status:
                 # failed
                 _logger.error("%s failed to get inDS/LFN from DB" % self.token)
@@ -129,6 +165,9 @@ class ReBroker (threading.Thread):
                             if not unknownSites.has_key(tmpDS):
                                 unknownSites[tmpDS] = []
                             unknownSites[tmpDS].append(tmpSite)
+                        # ignore ToBeDeleted
+                        if tmpStat[-1]['archived'] in ['ToBeDeleted',]:
+                            continue
                         # change DISK to SCRATCHDISK
                         tmpSite = re.sub('_[^_-]+DISK$','_SCRATCHDISK',tmpSite)
                         # change PERF-XYZ to SCRATCHDISK
@@ -177,6 +216,8 @@ class ReBroker (threading.Thread):
                 _logger.debug("%s no DQ2 candidate" % self.token)
             else:
                 maxPandaSites = []
+                # original maxinputsize
+                origMaxInputSize = siteMapper.getSite(self.job.computingSite).maxinputsize
                 # look for Panda siteIDs
                 for tmpSiteID,tmpSiteSpec in siteMapper.siteSpecList.iteritems():
                     # use ANALY_ only
@@ -198,6 +239,10 @@ class ReBroker (threading.Thread):
                             break
                     if excludedFlag:    
                         continue
+                    # check maxinputsize
+                    if (maxFileSize == None and origMaxInputSize > siteMapper.getSite(tmpSiteID).maxinputsize) or \
+                           maxFileSize > siteMapper.getSite(tmpSiteID).maxinputsize:
+                        continue
                     # check DQ2 ID
                     if self.cloud in [None,tmpSiteSpec.cloud] \
                            and (tmpSiteSpec.ddm in maxDQ2Sites or inputDS == []):
@@ -218,6 +263,10 @@ class ReBroker (threading.Thread):
                         tmpJobForBrokerage.AtlasRelease = ''
                     else:
                         tmpJobForBrokerage.AtlasRelease = self.job.AtlasRelease
+                    # use cache
+                    matchCache = re.search('^AnalysisTransforms-([^/]+)',self.job.homepackage)
+                    if matchCache != None:
+                        tmpJobForBrokerage.AtlasRelease = matchCache.group(1).replace('_','-')
                     # run brokerage
                     if not self.job.cmtConfig in ['NULL',None]:    
                         tmpJobForBrokerage.cmtConfig = self.job.cmtConfig
@@ -257,25 +306,26 @@ class ReBroker (threading.Thread):
 
 
     # lock job to disable multiple broker running in parallel
-    def lockJob(self,dn,jobID,libDS):
+    def lockJob(self,dn,jobID):
         # make token
         tmpProxy = DBProxy()
         self.token = "%s:%s:" % (tmpProxy.cleanUserID(dn),jobID)
         _logger.debug("%s lockJob" % self.token)        
         # lock
-        resST,resVal = self.taskBuffer.lockJobForReBrokerage(dn,jobID,libDS,self.simulation)
+        resST,resVal = self.taskBuffer.lockJobForReBrokerage(dn,jobID,self.simulation,self.forceOpt)
         # failed
         if not resST:
             return False,resVal['err']
-        # keep jobID and libDS
+        # keep jobID
         self.jobID = jobID
-        self.libDS = libDS
         # set PandaID,buildStatus,userName
         self.rPandaID    = resVal['rPandaID']        
         self.bPandaID    = resVal['bPandaID']
         self.userName    = resVal['userName']
         self.buildStatus = resVal['bStatus']
         self.buildJobID  = resVal['bJobID']
+        self.minPandaIDlibDS = resVal['minPandaIDlibDS']
+        self.maxPandaIDlibDS = resVal['maxPandaIDlibDS']
         _logger.debug("%s run PandaID=%s / build PandaID=%s Status=%s JobID=%s" % \
                       (self.token,self.rPandaID,self.bPandaID,self.buildStatus,self.buildJobID))
         # return
@@ -306,7 +356,11 @@ class ReBroker (threading.Thread):
                 # get IDs
                 tmpJobs = self.taskBuffer.peekJobs(tmpPandaIDs[iBunchJobs:iBunchJobs+nBunchJobs],True,False,False,False)
                 for tmpJob in tmpJobs:
-                    if tmpJob != None and tmpJob.jobStatus in ['defined','assigned']: 
+                    if tmpJob != None and tmpJob.jobStatus in ['defined','assigned']:
+                        # remove _sub suffix
+                        for tmpFile in tmpJob.Files:
+                            if tmpFile.type != 'input':
+                                tmpFile.destinationDBlock = re.sub('_sub\d+$','',tmpFile.destinationDBlock)
                         self.pandaJobList.append(tmpJob)
                 # increment index
                 iBunchJobs += nBunchJobs
@@ -319,10 +373,12 @@ class ReBroker (threading.Thread):
                     _logger.debug("cannot find build job for PandaID=%s" % self.bPandaID)
                     return False
                 # make
-                tmpBuildJob,oldLibDS,newLibDS = self.taskBuffer.makeNewBuildJobForRebrokerage(tmpJobs[0])
+                tmpBuildJob,oldLibDS,newLibDS = self.makeNewBuildJobForRebrokerage(tmpJobs[0])
                 # set parameters
                 tmpBuildJob.jobExecutionID = self.jobID
-                # regisger
+                tmpBuildJob.jobsetID       = -1
+                tmpBuildJob.sourceSite     = self.job.jobsetID
+                # register
                 status = self.registerNewDataset(newLibDS)
                 if not status:
                     _logger.debug("%s failed to register new libDS" % self.token)
@@ -350,7 +406,7 @@ class ReBroker (threading.Thread):
             tmpJobsMap = {}
             while iBunchJobs < len(tmpPandaIDs):
                 # get jobs
-                tmpJobs = self.taskBuffer.peekJobs(tmpPandaIDs[iBunchJobs:iBunchJobs+nBunchJobs],True,True,False,False)
+                tmpJobs = self.taskBuffer.peekJobs(tmpPandaIDs[iBunchJobs:iBunchJobs+nBunchJobs],True,True,False,False,True)
                 for tmpJob in tmpJobs:
                     # check job status. activated jobs were changed to holding by getPandaIDsForReBrokerage
                     if tmpJob != None and tmpJob.jobStatus in ['defined','assigned','holding']:
@@ -358,12 +414,15 @@ class ReBroker (threading.Thread):
                         tmpJob.parentID = tmpJob.PandaID
                         tmpJob.PandaID = None
                         tmpJob.jobExecutionID = tmpJob.jobDefinitionID
-                        tmpJob.jobParameters = re.sub(oldLibDS,newLibDS,tmpJob.jobParameters)
+                        tmpJob.jobsetID       = -1
+                        tmpJob.sourceSite     = self.job.jobsetID
+                        if self.bPandaID != None:
+                            tmpJob.jobParameters = re.sub(oldLibDS,newLibDS,tmpJob.jobParameters)
                         for tmpFile in tmpJob.Files:
                             tmpFile.row_ID = None
                             tmpFile.PandaID = None
                             if tmpFile.type == 'input':
-                                if tmpFile.dataset == oldLibDS:
+                                if self.bPandaID != None and tmpFile.dataset == oldLibDS:
                                     tmpFile.status  = 'unknown'
                                     tmpFile.GUID    = None
                                     tmpFile.dataset = newLibDS
@@ -414,14 +473,12 @@ class ReBroker (threading.Thread):
             if tmpFile.type in ['output','log']:
                 tmpDS = re.sub('_sub\d+$','',tmpFile.destinationDBlock)
                 if not tmpDS in self.newDatasetMap:
-                    # get new rev number
-                    sn,dummyFlag = self.taskBuffer.getSerialNumber(tmpDS)
                     # append new rev number
                     match = re.search('_rev(\d+)$',tmpDS)
                     if match == None:
-                        newDS = tmpDS + '_rev%s' % sn
+                        newDS = tmpDS + '_rev%s' % 1
                     else:
-                        newDS = re.sub('_rev(\d+)$','_rev%s' % sn,tmpDS)
+                        newDS = re.sub('_rev(\d+)$','_rev%s' % (int(match.group(1))+1),tmpDS)
                     # register
                     status = self.registerNewDataset(newDS,tmpFile.dataset)
                     if not status:
@@ -456,14 +513,22 @@ class ReBroker (threading.Thread):
                 return False
             # get PandaIDs to be killed
             pandaIDsTobeKilled = []
+            newJobDefinitionID = None
+            newJobsetID = None
             for tmpIndex,tmpItem in enumerate(ret):
                 if not tmpItem[0] in ['NULL',None]:
                     tmpJob = self.pandaJobList[tmpIndex]
                     if not tmpJob.parentID in [0,None,'NULL']:                    
                         pandaIDsTobeKilled.append(tmpJob.parentID)
+                        if newJobDefinitionID == None:
+                            newJobDefinitionID = tmpItem[1]
+                        if newJobsetID == None:
+                            newJobsetID = tmpItem[2]['jobsetID']
             if pandaIDsTobeKilled != []:
-                _logger.debug("%s kill jobs for JobID=%s : %s" % (self.token,self.jobID,str(pandaIDsTobeKilled)))
-                self.taskBuffer.killJobs(pandaIDsTobeKilled,'rebrokerage','9',True)
+                strNewJobIDs = "JobsetID=%s JobID=%s" % (newJobsetID,newJobDefinitionID)
+                _logger.debug("%s kill jobs for JobID=%s -> new %s : %s" % \
+                              (self.token,self.jobID,strNewJobIDs,str(pandaIDsTobeKilled)))
+                self.taskBuffer.killJobs(pandaIDsTobeKilled,strNewJobIDs,'8',True)
         # succeeded
         _logger.debug("%s completed for JobID=%s" % (self.token,self.jobID))
         return True
@@ -776,3 +841,59 @@ class ReBroker (threading.Thread):
                 _logger.error('%s bad DQ2 response for %s' % (self.token,dataset))
         # return
         return True
+
+
+    # check rev to avoid too many rebrokerage
+    def checkRev(self):
+        # look for output/log
+        revNum = 0
+        for tmpFile in self.job.Files:
+            if tmpFile.type in ['output','log']:
+                tmpDS = re.sub('_sub\d+$','',tmpFile.destinationDBlock)
+                # get rev number
+                match = re.search('_rev(\d+)$',tmpDS)
+                if match == None:
+                    revNum = 0
+                else:
+                    revNum = int(match.group(1))
+                break
+        # check with limit
+        if revNum < 2:
+            return True
+        return False
+                                                                                                                                    
+
+    # make buildJob for re-brokerage
+    def makeNewBuildJobForRebrokerage(self,buildJob):
+        # new libDS
+        oldLibDS = buildJob.destinationDBlock
+        match = re.search('_rev(\d+)$',oldLibDS)
+        if match == None:
+            newLibDS = oldLibDS + '_rev%s' % 1
+        else:
+            newLibDS = re.sub('_rev(\d+)$','_rev%s' % (int(match.group(1))+1),oldLibDS)
+        # reset parameters
+        buildJob.PandaID           = None
+        buildJob.jobStatus         = None
+        buildJob.commandToPilot    = None
+        buildJob.schedulerID       = None
+        buildJob.pilotID           = None
+        for attr in buildJob._attributes:
+            if attr.endswith('ErrorCode') or attr.endswith('ErrorDiag'):
+                setattr(buildJob,attr,None)
+        buildJob.transExitCode     = None
+        buildJob.creationTime      = datetime.datetime.utcnow()
+        buildJob.modificationTime  = buildJob.creationTime
+        buildJob.startTime         = None
+        buildJob.endTime           = None
+        buildJob.destinationDBlock = newLibDS
+        buildJob.jobParameters = re.sub(oldLibDS,newLibDS,buildJob.jobParameters)
+        for tmpFile in buildJob.Files:
+            tmpFile.row_ID  = None
+            tmpFile.GUID    = None
+            tmpFile.status  = 'unknown'
+            tmpFile.PandaID = None
+            tmpFile.dataset = newLibDS
+            tmpFile.destinationDBlock = tmpFile.dataset
+            tmpFile.lfn = re.sub(oldLibDS,newLibDS,tmpFile.lfn)
+        return buildJob,oldLibDS,newLibDS
