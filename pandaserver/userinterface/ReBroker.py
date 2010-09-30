@@ -55,10 +55,15 @@ class ReBroker (threading.Thread):
                 _logger.debug("cannot find job for PandaID=%s" % self.rPandaID)
                 return
             self.job = tmpJobs[0]
-            _logger.debug("%s start" % self.token)
+            _logger.debug("%s start %s:%s:%s" % (self.token,self.job.jobDefinitionID,self.job.prodUserName,self.job.computingSite))
             # using output container
             if not self.job.destinationDBlock.endswith('/'):
                 _logger.debug("%s ouput dataset container is required" % self.token)
+                _logger.debug("%s end" % self.token)
+                return
+            # FIXEME : dont' touch group jobs for now
+            if self.job.destinationDBlock.startswith('group'):
+                _logger.debug("%s skip group jobs" % self.token)
                 _logger.debug("%s end" % self.token)
                 return
             # check processingType
@@ -176,12 +181,14 @@ class ReBroker (threading.Thread):
                         if tmpStat[-1]['archived'] in ['ToBeDeleted',]:
                             continue
                         # change DISK to SCRATCHDISK
-                        tmpSite = re.sub('_[^_-]+DISK$','_SCRATCHDISK',tmpSite)
+                        tmpSite = re.sub('_[^_-]+DISK$','',tmpSite)
                         # change PERF-XYZ to SCRATCHDISK
-                        tmpSite = re.sub('_PERF-[^_-]+$','_SCRATCHDISK',tmpSite)
+                        tmpSite = re.sub('_PERF-[^_-]+$','',tmpSite)
+                        # change PHYS-XYZ to SCRATCHDISK
+                        tmpSite = re.sub('_PHYS-[^_-]+$','',tmpSite)
                         # patch for BNLPANDA
-                        if tmpSite in ['BNLPANDA','BNL-OSG2_SCRATCHDISK']:
-                            tmpSite = 'BNL-OSG2_USERDISK'
+                        if tmpSite in ['BNLPANDA']:
+                            tmpSite = 'BNL-OSG2'
                         # add to map    
                         if not replicaMap.has_key(tmpSite):
                             replicaMap[tmpSite] = {}
@@ -192,7 +199,7 @@ class ReBroker (threading.Thread):
             # instantiate SiteMapper
             siteMapper = SiteMapper(self.taskBuffer)
             # get original DDM
-            origSiteDDM = siteMapper.getSite(self.job.computingSite).ddm
+            origSiteDDM = self.getAggName(siteMapper.getSite(self.job.computingSite).ddm)
             maxDQ2Sites = []
             if inputDS != []:
                 # check original is there
@@ -235,24 +242,27 @@ class ReBroker (threading.Thread):
                         continue
                     if re.search('_local',tmpSiteID,re.I) != None:
                         continue
-                    # use online only
-                    if tmpSiteSpec.status != 'online':
-                        continue
-                    # excluded sites
-                    excludedFlag = False
-                    for tmpExcSite in self.excludedSite:
-                        if re.search(tmpExcSite,tmpSiteID) != None:
-                            excludedFlag = True
-                            break
-                    if excludedFlag:    
-                        continue
-                    # check maxinputsize
-                    if (maxFileSize == None and origMaxInputSize > siteMapper.getSite(tmpSiteID).maxinputsize) or \
-                           maxFileSize > siteMapper.getSite(tmpSiteID).maxinputsize:
-                        continue
                     # check DQ2 ID
                     if self.cloud in [None,tmpSiteSpec.cloud] \
-                           and (tmpSiteSpec.ddm in maxDQ2Sites or inputDS == []):
+                           and (self.getAggName(tmpSiteSpec.ddm) in maxDQ2Sites or inputDS == []):
+                        # excluded sites
+                        excludedFlag = False
+                        for tmpExcSite in self.excludedSite:
+                            if re.search(tmpExcSite,tmpSiteID) != None:
+                                excludedFlag = True
+                                break
+                        if excludedFlag:
+                            _logger.debug("%s skip %s since excluded" % (self.token,tmpSiteID))
+                            continue
+                        # use online only
+                        if tmpSiteSpec.status != 'online':
+                            _logger.debug("%s skip %s status=%s" % (self.token,tmpSiteID,tmpSiteSpec.status))
+                            continue
+                        # check maxinputsize
+                        if (maxFileSize == None and origMaxInputSize > siteMapper.getSite(tmpSiteID).maxinputsize) or \
+                               maxFileSize > siteMapper.getSite(tmpSiteID).maxinputsize:
+                            _logger.debug("%s skip %s due to maxinputsize" % (self.token,tmpSiteID))
+                            continue
                         # append
                         if not tmpSiteID in maxPandaSites:
                             maxPandaSites.append(tmpSiteID)
@@ -289,7 +299,7 @@ class ReBroker (threading.Thread):
                     # get new site spec
                     newSiteSpec = siteMapper.getSite(newSiteID)
                     # avoid repetition
-                    if newSiteSpec.ddm == origSiteDDM:
+                    if self.getAggName(newSiteSpec.ddm) == origSiteDDM:
                         _logger.debug("%s assigned to the same site %s " % (self.token,newSiteID))
                         _logger.debug("%s end" % self.token)                        
                         return
@@ -312,6 +322,11 @@ class ReBroker (threading.Thread):
             _logger.error("%s run() : %s %s" % (self.token,errType,errValue))
 
 
+    # get aggregated DQ2 ID
+    def getAggName(self,origName):
+        return re.sub('_[^_-]+DISK$','',origName)
+    
+        
     # lock job to disable multiple broker running in parallel
     def lockJob(self,dn,jobID):
         # make token

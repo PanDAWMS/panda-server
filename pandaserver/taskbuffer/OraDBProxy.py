@@ -2439,11 +2439,11 @@ class DBProxy:
                     # look for buildJob in archived table
                     sql  = "SELECT /*+ INDEX_COMBINE(tab JOBS_MODTIME_IDX JOBS_PRODUSERNAME_IDX) */ PandaID,jobStatus,jobDefinitionID,creationTime "
                     sql += "FROM ATLAS_PANDAARCH.jobsArchived tab "
-                    sql += "WHERE prodUserName=:prodUserName AND prodSourceLabel=':prodSourceLable1 "
-                    sql += "AND modificationTime>(CURRENT_DATE-30) ORDER BY PandaID DESC"
+                    sql += "WHERE prodUserName=:prodUserName AND prodSourceLabel=:prodSourceLable1 "
+                    sql += "AND modificationTime>(CURRENT_DATE-10) ORDER BY PandaID DESC"
                     varMap = {}
                     varMap[':prodUserName'] = compactDN
-                    varMap[':prodSourceLabel'] = 'panda'
+                    varMap[':prodSourceLable1'] = 'panda'
                     # select
                     self.cur.arraysize = 10000
                     self.cur.execute(sql+comment, varMap)
@@ -2451,7 +2451,7 @@ class DBProxy:
                     # loop over PandaIDs to find corresponding libDS
                     sql  = "SELECT /*+ INDEX(tab FILES_ARCH_PANDAID_IDX)*/ PandaID FROM ATLAS_PANDAARCH.filesTable_ARCH tab "
                     sql += "WHERE PandaID=:PandaID AND type=:type AND dataset=:dataset AND status=:status "
-                    sql += "AND modificationTime>(CURRENT_DATE-30)"
+                    sql += "AND modificationTime>(CURRENT_DATE-10)"
                     self.cur.arraysize = 10
                     for tmpID,tmpJobStatus,tmpJobDefID,tmpCreationTime in resList:
                         varMap = {}
@@ -2475,7 +2475,7 @@ class DBProxy:
                 else:
                     # get PandaID of buildJob
                     buildJobPandaID, = res
-                # found buildJob       
+                # found buildJob
                 if errMsg == '':
                     # get current buildJob status
                     if buildJobStatus == None:
@@ -2523,10 +2523,10 @@ class DBProxy:
             # check modificationTime
             if errMsg == '':
                 # make sql
-                if buildJobStatus in ['defined'] or (buildJobDefID != None and jobID != buildJobDefID):
-                    sql  = "SELECT modificationTime FROM ATLAS_PANDA.jobsDefined4 "
-                else:
-                    sql  = "SELECT modificationTime FROM ATLAS_PANDA.jobsActive4 "
+                tables = ['ATLAS_PANDA.jobsDefined4']
+                if not buildJobStatus in ['defined']:
+                    tables.append('ATLAS_PANDA.jobsActive4')
+                sql  = "SELECT modificationTime FROM %s "
                 sql += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
                 sql += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND jobStatus IN (:jobStatus1,:jobStatus2) "
                 sql += "AND rownum <=1"
@@ -2536,10 +2536,13 @@ class DBProxy:
                 varMap[':prodSourceLabel1'] = 'user'
                 varMap[':prodSourceLabel2'] = 'panda'
                 varMap[':jobStatus1'] = 'defined'
-                varMap[':jobStatus2'] = 'activated'                
-                # select
-                self.cur.execute(sql+comment, varMap)
-                res = self.cur.fetchone()
+                varMap[':jobStatus2'] = 'activated'
+                for tableName in tables:
+                    # select
+                    self.cur.execute((sql % tableName)+comment, varMap)
+                    res = self.cur.fetchone()
+                    if res != None:
+                        break
                 if res == None:                                 
                     errMsg = "no defined/activated jobs to be reassigned"
                 else:

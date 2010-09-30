@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added auto rebrokerage to copyArchive
   * report new PandaID to taskBufferErrorDiag when rebrokered
   * check procesingType in rebrokerage 
   * added code=8 to killJob for rebrokerage

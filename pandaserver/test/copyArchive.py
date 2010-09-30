@@ -1525,6 +1525,69 @@ for ii in range(1000):
             fThr.join()
         _logger.debug("done")
 
+# rebrokerage
+_logger.debug("Rebrokerage start")
+try:
+    sql  = "SELECT jobDefinitionID,prodUserName,prodUserID FROM ATLAS_PANDA.jobsActive4 "
+    sql += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND jobStatus=:jobStatus "
+    sql += "AND modificationTime<:modificationTime "
+    sql += "AND jobsetID IS NOT NULL "    
+    sql += "AND processingType IN (:processingType1,:processingType2) "
+    sql += "GROUP BY jobDefinitionID,prodUserName,prodUserID " 
+    varMap = {}
+    varMap[':prodSourceLabel1'] = 'user'
+    varMap[':prodSourceLabel2'] = 'panda'
+    varMap[':modificationTime'] = datetime.datetime.utcnow() - datetime.timedelta(days=3)
+    varMap[':processingType1']  = 'pathena'
+    varMap[':processingType2']  = 'prun'
+    varMap[':jobStatus']        = 'activated'
+    # get jobs older than 3 days
+    ret,res = taskBuffer.querySQLS(sql, varMap)
+    sql  = "SELECT PandaID,modificationTime FROM %s WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
+    sql += "AND modificationTime>:modificationTime AND rownum <= 1"
+    if res != None:
+        from userinterface.ReBroker import ReBroker
+        timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
+        # loop over all user/jobID combinations
+        for jobDefinitionID,prodUserName,prodUserID in res:
+            # check if jobs with the jobID have run recently
+            varMap = {}
+            varMap[':prodUserName']     = prodUserName
+            varMap[':jobDefinitionID']  = jobDefinitionID
+            varMap[':modificationTime'] = timeLimit
+            _logger.debug(" rebro:%s:%s" % (jobDefinitionID,prodUserName))
+            hasRecentJobs = False
+            for tableName in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsArchived4']: 
+                retU,resU = taskBuffer.querySQLS(sql % tableName, varMap)
+                if resU == None:
+                    # database error
+                    raise RuntimeError,"failed to check modTime"
+                if resU != []:
+                    # found recent jobs
+                    hasRecentJobs = True
+                    _logger.debug("    -> skip %s ran recently at %s" % (resU[0][0],resU[0][1]))
+                    break
+            if hasRecentJobs:    
+                # skip since some jobs have run recently
+                continue
+            else:
+                reBroker = ReBroker(taskBuffer)
+                # try to lock
+                rebRet,rebOut = reBroker.lockJob(prodUserID,jobDefinitionID)
+                if not rebRet:
+                    # failed to lock
+                    _logger.debug("    -> failed to lock : %s" % rebOut)
+                    continue
+                else:
+                    # start
+                    _logger.debug("    -> start")
+                    reBroker.start()
+                    reBroker.join()
+except:
+    errType,errValue = sys.exc_info()[:2]
+    _logger.error("rebrokerage failed with %s:%s" % (errType,errValue))
+
+                    
 # update email DB        
 _memoryCheck("email")
 _logger.debug("Update emails")
