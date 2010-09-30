@@ -61,6 +61,13 @@ class ReBroker (threading.Thread):
                 _logger.debug("%s ouput dataset container is required" % self.token)
                 _logger.debug("%s end" % self.token)
                 return
+            # check processingType
+            typesForRebro = ['pathena','prun']
+            if not self.job.processingType in typesForRebro:
+                _logger.debug("%s skip processingType=%s not in %s" % \
+                              (self.token,self.job.processingType,str(typesForRebro)))
+                _logger.debug("%s end" % self.token)
+                return
             # check jobsetID
             if self.job.jobsetID in [0,'NULL',None]:
                 _logger.debug("%s jobsetID is undefined" % self.token)
@@ -515,6 +522,7 @@ class ReBroker (threading.Thread):
             pandaIDsTobeKilled = []
             newJobDefinitionID = None
             newJobsetID = None
+            strNewIDsList = []
             for tmpIndex,tmpItem in enumerate(ret):
                 if not tmpItem[0] in ['NULL',None]:
                     tmpJob = self.pandaJobList[tmpIndex]
@@ -524,11 +532,14 @@ class ReBroker (threading.Thread):
                             newJobDefinitionID = tmpItem[1]
                         if newJobsetID == None:
                             newJobsetID = tmpItem[2]['jobsetID']
+                        strNewIDs = 'PandaID=%s JobsetID=%s JobID=%s' % (tmpItem[0],newJobsetID,newJobDefinitionID)
+                        strNewIDsList.append(strNewIDs)
             if pandaIDsTobeKilled != []:
                 strNewJobIDs = "JobsetID=%s JobID=%s" % (newJobsetID,newJobDefinitionID)
                 _logger.debug("%s kill jobs for JobID=%s -> new %s : %s" % \
                               (self.token,self.jobID,strNewJobIDs,str(pandaIDsTobeKilled)))
-                self.taskBuffer.killJobs(pandaIDsTobeKilled,strNewJobIDs,'8',True)
+                for tmpIdx,tmpPandaID in enumerate(pandaIDsTobeKilled):
+                    self.taskBuffer.killJobs([tmpPandaID],strNewIDsList[tmpIdx],'8',True)
         # succeeded
         _logger.debug("%s completed for JobID=%s" % (self.token,self.jobID))
         return True

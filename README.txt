@@ -1,7 +1,9 @@
 Release Note
 
 * current
-  * added code=8 to killJob fore rebrokerage
+  * report new PandaID to taskBufferErrorDiag when rebrokered
+  * check procesingType in rebrokerage 
+  * added code=8 to killJob for rebrokerage
   * first implementation of auto rebrokerage
   * added getCachePrefixes 
   * removed apostrophes from prodUserName
