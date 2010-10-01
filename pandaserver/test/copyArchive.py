@@ -195,39 +195,58 @@ else:
         
 # delete
 _logger.debug("get PandaIDs for Delete")
+sql = "SELECT COUNT(*) FROM ATLAS_PANDA.jobsArchived4 WHERE modificationTime<:modificationTime"
 varMap = {}
 varMap[':modificationTime'] = timeLimit
-status,res = taskBuffer.querySQLS("SELECT PandaID,modificationTime FROM ATLAS_PANDA.jobsArchived4 WHERE modificationTime<:modificationTime",
-                              varMap,arraySize=1000000)
-if res == None:
-    _logger.debug("total %s " % res)
+status,res = taskBuffer.querySQLS(sql,varMap)
+if res != None:
+    tmpTotal = res[0][0]
 else:
-    _logger.debug("total %s " % len(res))
-    tmpIndex = 0
-    tmpTotal = len(res)
-    random.shuffle(res)
-    # loop over all jobs
-    for (id,srcEndTime) in res:
-        tmpIndex += 1        
-        try:
-            # check
-            sql = "SELECT PandaID from %s WHERE PandaID=:PandaID" % jobATableName
-            varMap = {}
-            varMap[':PandaID'] = id
-            status,check = taskBuffer.querySQLS(sql,varMap)
-            if check == None or len(check) == 0:
-                # no record in ArchivedDB
-                _logger.error("No backup for %s" % id)
-            else:
-                # delete
-                _logger.debug("DEL %s : endTime %s" % (id,srcEndTime))
-                proxyS = taskBuffer.proxyPool.getProxy()
-                proxyS.deleteJobSimple(id)
-                taskBuffer.proxyPool.putProxy(proxyS)
-            if tmpIndex % 100 == 1:
-                _logger.debug(" deleted %s/%s" % (tmpIndex,tmpTotal))
-        except:
-            pass
+    tmpTotal = None
+maxBunch = 1000
+nBunch = 100
+tmpIndex = 0
+while True:
+    sql  = "SELECT PandaID,modificationTime FROM ATLAS_PANDA.jobsArchived4 "
+    sql += "WHERE modificationTime<:modificationTime AND rownum<=:rowRange"
+    varMap = {}
+    varMap[':modificationTime'] = timeLimit
+    varMap[':rowRange'] = maxBunch
+    status,res = taskBuffer.querySQLS(sql,varMap)
+    if res == None:
+        _logger.error("failed to get PandaIDs to be deleted")
+        break
+    else:
+        _logger.debug("got %s for deletion" % len(res))            
+        if len(res) == 0:
+            _logger.debug("no jobs left for for deletion")
+            break
+        else:
+            maxBunch = len(res)
+            random.shuffle(res)
+            res = res[:nBunch]
+            # loop over all jobs
+            for (id,srcEndTime) in res:
+                tmpIndex += 1        
+                try:
+                    # check
+                    sql = "SELECT PandaID from %s WHERE PandaID=:PandaID" % jobATableName
+                    varMap = {}
+                    varMap[':PandaID'] = id
+                    status,check = taskBuffer.querySQLS(sql,varMap)
+                    if check == None or len(check) == 0:
+                        # no record in ArchivedDB
+                        _logger.error("No backup for %s" % id)
+                    else:
+                        # delete
+                        _logger.debug("DEL %s : endTime %s" % (id,srcEndTime))
+                        proxyS = taskBuffer.proxyPool.getProxy()
+                        proxyS.deleteJobSimple(id)
+                        taskBuffer.proxyPool.putProxy(proxyS)
+                    if tmpIndex % 1000 == 1:
+                        _logger.debug(" deleted %s/%s" % (tmpIndex,tmpTotal))
+                except:
+                    pass
 del res
 
 
