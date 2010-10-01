@@ -66,6 +66,13 @@ class Watcher (threading.Thread):
                         job.startTime = None
                         job.endTime   = None                                                
                         job.attemptNr = job.attemptNr + 1
+                        # remove flag regarding to pledge-resource handling
+                        if not job.specialHandling in [None,'NULL','']:
+                            newSpecialHandling = re.sub(',*localpool','',job.specialHandling)
+                            if newSpecialHandling == '':
+                                job.specialHandling = None
+                            else:
+                                job.specialHandling = newSpecialHandling
                         # TEMPORARY : send it to long queue
                         oldComputingSite = job.computingSite
                         if job.computingSite.startswith('ANALY') and (not job.computingSite.startswith('ANALY_LONG_')):

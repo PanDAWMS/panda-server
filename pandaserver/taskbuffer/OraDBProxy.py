@@ -1107,6 +1107,13 @@ class DBProxy:
                     job.startTime = None
                     job.modificationTime = datetime.datetime.utcnow()
                     job.attemptNr = job.attemptNr + 1
+                    # remove flag regarding to pledge-resource handling
+                    if not job.specialHandling in [None,'NULL','']:
+                        newSpecialHandling = re.sub(',*localpool','',job.specialHandling)
+                        if newSpecialHandling == '':
+                            job.specialHandling = None
+                        else:
+                            job.specialHandling = newSpecialHandling
                     # send it to long queue for analysis jobs
                     oldComputingSite = job.computingSite
                     if job.computingSite.startswith('ANALY') and (not job.computingSite.startswith('ANALY_LONG_')):
@@ -1250,6 +1257,7 @@ class DBProxy:
             sql1+= "AND prodUserName=:prodUserName " 
             getValMap[':prodUserName'] = compactDN
         # country group
+        specialHandled = False
         if prodSourceLabel == 'user' or (isinstance(prodSourceLabel,types.StringType) and re.search('test',prodSourceLabel) != None):
             # update pledge resource ratio
             self.getPledgeResourceRatio()
@@ -1258,6 +1266,9 @@ class DBProxy:
                 # check if countryGroup needs to be used for beyond-pledge
                 if self.checkCountryGroupForBeyondPledge(siteName):
                     countryGroup = self.beyondPledgeRatio[siteName]['countryGroup']
+                    specialHandled = True
+                else:
+                    countryGroup = ''
             # countryGroup
             if not countryGroup in ['',None]:
                 sql1+= "AND countryGroup IN ("
@@ -1371,6 +1382,7 @@ class DBProxy:
                     if (datetime.datetime.utcnow() - timeStart) < timeLimit:
                         toGetPandaIDs = True
                         pandaIDs = []
+                        specialHandlingMap = {}
                         # get max priority for analysis jobs
                         if prodSourceLabel in ['panda','user']:
                             sqlMX = "SELECT /*+ INDEX_COMBINE(tab JOBSACTIVE4_JOBSTATUS_IDX JOBSACTIVE4_COMPSITE_IDX) */ MAX(currentPriority) FROM ATLAS_PANDA.jobsActive4 tab "
@@ -1395,7 +1407,7 @@ class DBProxy:
                         maxAttemptIDx = 10
                         if toGetPandaIDs:
                             # get PandaIDs
-                            sqlP = "SELECT /*+ INDEX_COMBINE(tab JOBSACTIVE4_JOBSTATUS_IDX JOBSACTIVE4_COMPSITE_IDX) */ PandaID,currentPriority FROM ATLAS_PANDA.jobsActive4 tab "
+                            sqlP = "SELECT /*+ INDEX_COMBINE(tab JOBSACTIVE4_JOBSTATUS_IDX JOBSACTIVE4_COMPSITE_IDX) */ PandaID,currentPriority,specialHandling FROM ATLAS_PANDA.jobsActive4 tab "
                             sqlP+= sql1
                             _logger.debug(sqlP+comment+str(getValMap))
                             # start transaction
@@ -1409,12 +1421,13 @@ class DBProxy:
                                 raise RuntimeError, 'Commit error'
                             maxCurrentPriority = None
                             # get max priority and min PandaID
-                            for tmpPandaID,tmpCurrentPriority in resIDs:
+                            for tmpPandaID,tmpCurrentPriority,tmpSpecialHandling in resIDs:
                                 if maxCurrentPriority==None or maxCurrentPriority < tmpCurrentPriority:
                                     maxCurrentPriority = tmpCurrentPriority
                                     pandaIDs = [tmpPandaID]
                                 elif maxCurrentPriority == tmpCurrentPriority:
                                     pandaIDs.append(tmpPandaID)
+                                specialHandlingMap[tmpPandaID] = tmpSpecialHandling    
                             # sort
                             pandaIDs.sort()
                         if pandaIDs == []:
@@ -1478,6 +1491,17 @@ class DBProxy:
                                 if computingElement != None:
                                     sqlJ+= ",computingElement=:computingElement"
                                     varMap[':computingElement'] =  computingElement
+                                # set special handlng
+                                if specialHandled:
+                                    sqlJ+= ",specialHandling=:specialHandling"
+                                    spString = 'localpool'
+                                    if specialHandlingMap.has_key(tmpPandaID) and isinstance(specialHandlingMap[tmpPandaID],types.StringType):
+                                        if not spString in specialHandlingMap[tmpPandaID]:
+                                            varMap[':specialHandling'] = specialHandlingMap[tmpPandaID]+','+spString
+                                        else:
+                                            varMap[':specialHandling'] = specialHandlingMap[tmpPandaID]
+                                    else:
+                                        varMap[':specialHandling'] = spString
                                 sqlJ+= " WHERE PandaID=:PandaID AND jobStatus=:oldJobStatus"
                                 # SQL to get nSent
                                 sentLimit = timeStart - datetime.timedelta(seconds=60)

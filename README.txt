@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * set localpool to specialHandling when beyond-pledge pilot got the job
   * fixed makeSub in TA for getAva change
   * added random sleep for Finisher in copyArchive
   * improved del in copyArchive to avoid redundant deletion
