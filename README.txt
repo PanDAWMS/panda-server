@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added random sleep for Finisher in copyArchive
   * improved del in copyArchive to avoid redundant deletion
   * increased timelimit for copyArchive
   * added auto rebrokerage to copyArchive

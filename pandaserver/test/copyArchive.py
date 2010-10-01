@@ -1600,7 +1600,6 @@ for ii in range(1000):
                         if not lfn in okFiles:
                             _logger.debug("    -> %s" % lfn)
             upJobs.append(job)
-            time.sleep(2)
         # update
         _logger.debug("updating ...")
         taskBuffer.updateJobs(upJobs,False)
@@ -1610,6 +1609,7 @@ for ii in range(1000):
             fThr.start()
             fThr.join()
         _logger.debug("done")
+        time.sleep(random.randint(1,10))
 
                     
 # update email DB        
