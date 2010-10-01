@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * increased timelimit for copyArchive
   * added auto rebrokerage to copyArchive
   * report new PandaID to taskBufferErrorDiag when rebrokered
   * check procesingType in rebrokerage 
