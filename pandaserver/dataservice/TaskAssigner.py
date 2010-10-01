@@ -693,9 +693,9 @@ class TaskAssigner:
             # calculate available space
             if not fullRWs.has_key(tmpCloudName):
                 fullRWs[tmpCloudName] = 0
-            aveSpace = self.getAvailableSpace(tmpT1Site.space,
-                                              fullRWs[tmpCloudName],
-                                              expRWs[self.taskID])
+            aveSpace,sizeCloud,sizeThis = self.getAvailableSpace(tmpT1Site.space,
+                                                                 fullRWs[tmpCloudName],
+                                                                 expRWs[self.taskID])
             # reduce requred space
             for tmpDS,tmpClouds in dsCloudMap.iteritems():
                 if tmpCloudName in tmpClouds:
