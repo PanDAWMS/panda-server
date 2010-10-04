@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * enabled user-triggered rebrokerage
   * send currentPriority in dispatcher
   * set localpool to specialHandling when beyond-pledge pilot got the job
   * fixed makeSub in TA for getAva change

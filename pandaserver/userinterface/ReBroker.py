@@ -28,7 +28,7 @@ class ReBroker (threading.Thread):
 
     # constructor
     def __init__(self,taskBuffer,cloud=None,excludedSite=None,overrideSite=True,
-                 simulation=False,forceOpt=False):
+                 simulation=False,forceOpt=False,userRequest=False):
         threading.Thread.__init__(self)
         self.job           = None
         self.jobID         = None
@@ -44,6 +44,7 @@ class ReBroker (threading.Thread):
         self.excludedSite  = excludedSite
         self.overrideSite = overrideSite
         self.maxPandaIDlibDS = None
+        self.userRequest   = userRequest
         
 
     # main
@@ -62,7 +63,7 @@ class ReBroker (threading.Thread):
                 _logger.debug("%s end" % self.token)
                 return
             # FIXEME : dont' touch group jobs for now
-            if self.job.destinationDBlock.startswith('group'):
+            if self.job.destinationDBlock.startswith('group') and (not self.userRequest):
                 _logger.debug("%s skip group jobs" % self.token)
                 _logger.debug("%s end" % self.token)
                 return
@@ -85,13 +86,15 @@ class ReBroker (threading.Thread):
                 return
             # check --disableRebrokerage
             match = re.search("--disableRebrokerage",self.job.metadata)
-            if match != None and (not self.simulation) and (not self.forceOpt):
+            if match != None and (not self.simulation) and (not self.forceOpt) \
+                   and (not self.userRequest):
                 _logger.debug("%s diabled rebrokerage" % self.token)
                 _logger.debug("%s end" % self.token)
                 return
             # check --site
             match = re.search("--site",self.job.metadata)
-            if match != None and (not self.simulation) and (not self.forceOpt):
+            if match != None and (not self.simulation) and (not self.forceOpt) \
+                   and (not self.userRequest):
                 _logger.debug("%s --site is used" % self.token)
                 _logger.debug("%s end" % self.token)
                 return

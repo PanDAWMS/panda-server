@@ -14,6 +14,7 @@ from config import panda_config
 from taskbuffer.JobSpec import JobSpec
 from brokerage.SiteMapper import SiteMapper
 from pandalogger.PandaLogger import PandaLogger
+from ReBroker import ReBroker
 
 # logger
 _logger = PandaLogger().getLogger('UserIF')
@@ -93,8 +94,32 @@ class UserIF:
 
 
     # run rebrokerage
-    def runReBrokerage(self,dn,jobID,libDS,cloud,strExcludedSite):
-        returnVal = "ERROR: ReBrokerage must be done on the server side"
+    def runReBrokerage(self,dn,jobID,cloud,strExcludedSite):
+        returnVal = "True"
+        try:
+            if strExcludedSite == None:
+                # excludedSite is unchanged
+                excludedSite = None
+            else:
+                # convert str to list
+                excludedSite = []
+                for tmpItem in strExcludedSite.split(','):
+                    if tmpItem != '':
+                        excludedSite.append(tmpItem)
+            # instantiate ReBroker
+            thr = ReBroker(self.taskBuffer,cloud,excludedSite,userRequest=True)
+            # lock
+            stLock,retLock = thr.lockJob(dn,jobID)
+            # failed
+            if not stLock:
+                returnVal = "ERROR: "+retLock
+            else:
+                # start ReBroker
+                thr.start()
+        except:
+            erType,errValue,errTraceBack = sys.exc_info()
+            _logger.error("runReBrokerage: %s %s" % (errType,errValue))
+            returnVal = "ERROR: runReBrokerage crashed"
         # return
         return returnVal
 
@@ -836,7 +861,12 @@ def runReBrokerage(req,jobID,libDS='',cloud=None,excludedSite=None):
     dn = _getDN(req)
     if dn == '':
         return "ERROR: could not get DN"
-    return userIF.runReBrokerage(dn,jobID,libDS,cloud,excludedSite)
+    # convert jobID to long
+    try:
+        jobID = long(jobID)
+    except:
+        return "ERROR: jobID is not an integer"        
+    return userIF.runReBrokerage(dn,jobID,cloud,excludedSite)
 
 # get serial number for group job
 def getSerialNumberForGroupJob(req):
