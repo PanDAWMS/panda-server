@@ -225,7 +225,7 @@ class Adder (threading.Thread):
                     if not file.destinationDBlock in destDBList:
                         destDBList.append(file.destinationDBlock)
                     # collect GUIDs
-                    if (self.job.prodSourceLabel=='panda' or (self.job.prodSourceLabel in ['ptest','rctest'] and self.job.processingType=='pathena')) \
+                    if (self.job.prodSourceLabel=='panda' or (self.job.prodSourceLabel in ['ptest','rc_test'] and self.job.processingType=='pathena')) \
                            and file.type == 'output':
                         guidList.append({'lfn':file.lfn, 'guid':file.GUID, 'type':file.type})
                 if guidList != []:
@@ -351,7 +351,7 @@ class Adder (threading.Thread):
                     if self.job.prodSourceLabel in ['user','panda']:
                         # skipped file
                         file.status = 'skipped'
-                    elif self.job.prodSourceLabel in ['managed','test','rc_test','ptest','rctest']:
+                    elif self.job.prodSourceLabel in ['managed','test','rc_test','ptest','rc_test']:
                         # failed by pilot
                         file.status = 'failed'
             elif file.type == 'output' or file.type == 'log':
@@ -389,7 +389,7 @@ class Adder (threading.Thread):
                                                           'size'     : fsize,
                                                           'checksum' : file.checksum})
                     # for subscription
-                    if self.job.prodSourceLabel in ['managed','test','software','rc_test','ptest','user','rctest'] and \
+                    if self.job.prodSourceLabel in ['managed','test','software','rc_test','ptest','user','rc_test'] and \
                            re.search('_sub\d+$',file.destinationDBlock) != None and (not self.addToTopOnly) and \
                            self.job.destinationSE != 'local':
                         if self.siteMapper == None:

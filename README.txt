@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * rctest -> rc_test
   * reduced time interval to reassign waiting jobs to 30min
   * enabled user-triggered rebrokerage
   * send currentPriority in dispatcher
