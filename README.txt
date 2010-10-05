@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * reduced time interval to reassign waiting jobs to 30min
   * enabled user-triggered rebrokerage
   * send currentPriority in dispatcher
   * set localpool to specialHandling when beyond-pledge pilot got the job

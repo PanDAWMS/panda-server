@@ -925,7 +925,7 @@ if len(jobs):
 
 
 # reassign long waiting jobs
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=7)
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
 varMap = {}
 varMap[':prodSourceLabel'] = 'managed'
 varMap[':modificationTime'] = timeLimit
