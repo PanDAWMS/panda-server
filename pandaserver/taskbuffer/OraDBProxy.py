@@ -574,6 +574,7 @@ class DBProxy:
                     for file in job.Files:
                         if file.type == 'output':
                             upOutputs.append(file.lfn)
+                    toBeClosedSubList = {} 
                     # look for downstream jobs
                     sqlD   = "SELECT PandaID FROM ATLAS_PANDA.filesTable4 WHERE type=:type AND lfn=:lfn GROUP BY PandaID"
                     sqlDJS = "SELECT %s " % JobSpec.columnNames()
@@ -581,6 +582,9 @@ class DBProxy:
                     sqlDJD = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
                     sqlDJI = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
                     sqlDJI+= JobSpec.bindValuesExpression()
+                    sqlGetSub = "SELECT DISTINCT destinationDBlock FROM ATLAS_PANDA.filesTable4 WHERE type=:type AND PandaID=:PandaID"
+                    sqlCloseSub  = 'UPDATE /*+ INDEX_RS_ASC(TAB("DATASETS"."NAME")) */ ATLAS_PANDA.Datasets tab '
+                    sqlCloseSub += 'SET status=:status,modificationDate=CURRENT_DATE WHERE name=:name'
                     for upFile in upOutputs:
                         _logger.debug("look for downstream jobs for %s" % upFile)
                         # select PandaID
@@ -619,6 +623,31 @@ class DBProxy:
                             dJob.stateChangeTime  = dJob.endTime
                             # insert
                             self.cur.execute(sqlDJI+comment, dJob.valuesMap())
+                            # set tobeclosed to sub datasets
+                            if not toBeClosedSubList.has_key(dJob.jobDefinitionID):
+                                # init
+                                toBeClosedSubList[dJob.jobDefinitionID] = []
+                                # get sub datasets
+                                varMap = {}
+                                varMap[':type'] = 'output'
+                                varMap[':PandaID'] = downID
+                                self.cur.arraysize = 1000
+                                self.cur.execute(sqlGetSub+comment, varMap)
+                                resGetSub = self.cur.fetchall()
+                                if len(resGetSub) == 0:
+                                    continue
+                                # loop over all sub datasets
+                                for tmpDestinationDBlock, in resGetSub:
+                                    if re.search('_sub\d+$',tmpDestinationDBlock) == None:
+                                        continue
+                                    if not tmpDestinationDBlock in toBeClosedSubList[dJob.jobDefinitionID]:
+                                        # set tobeclosed
+                                        varMap = {}
+                                        varMap[':status'] = 'tobeclosed'
+                                        varMap[':name'] = tmpDestinationDBlock
+                                        self.cur.execute(sqlCloseSub+comment, varMap)
+                                        # append
+                                        toBeClosedSubList[dJob.jobDefinitionID].append(tmpDestinationDBlock)
                 elif job.prodSourceLabel == 'ddm' and job.jobStatus == 'failed' and job.transferType=='dis':
                     # get corresponding jobs for production movers
                     vuid = ''
