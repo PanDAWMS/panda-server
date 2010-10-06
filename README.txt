@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added archivelogs
   * set tobeclosed to sub datasets of failed downstream jobs
   * rctest -> rc_test
   * reduced time interval to reassign waiting jobs to 30min

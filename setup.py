@@ -178,7 +178,8 @@ setup(
                 # crons
                 ('usr/bin', ['templates/panda_server-add.sh.exe.template',
                              'templates/panda_server-priority.sh.exe.template',
-                             'templates/panda_server-copyArchive.sh.exe.template',                             
+                             'templates/panda_server-copyArchive.sh.exe.template',
+                             'templates/panda_server-archivelog.sh.exe.template',
                              ]
                  ),
                 # var dirs
