@@ -336,14 +336,14 @@ class TaskBuffer:
 
 
     # update job jobStatus only
-    def updateJobStatus(self,jobID,jobStatus,param):
+    def updateJobStatus(self,jobID,jobStatus,param,updateStateChange=False):
         # get DB proxy
         proxy = self.proxyPool.getProxy()        
         # update DB and buffer
         if re.match('^finished$',jobStatus,re.I) or re.match('^failed$',jobStatus,re.I):
             ret = proxy.archiveJobLite(jobID,jobStatus,param)
         else:
-            ret = proxy.updateJobStatus(jobID,jobStatus,param)
+            ret = proxy.updateJobStatus(jobID,jobStatus,param,updateStateChange)
         # release proxy
         self.proxyPool.putProxy(proxy)
         return ret

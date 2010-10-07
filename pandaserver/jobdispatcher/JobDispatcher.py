@@ -134,13 +134,16 @@ class JobDipatcher:
             self.taskBuffer.addMetadata([jobID],[metadata])
         # update
         tmpStatus = jobStatus
+        updateStateChange = False
         if jobStatus == 'failed' or jobStatus == 'finished':
             tmpStatus = 'holding'
+            # update stateChangeTime to prevent Watcher from finding this job
+            updateStateChange = True
         if tmpStatus == 'holding':
             tmpWrapper = _TimedMethod(self.taskBuffer.updateJobStatus,None)
         else:
             tmpWrapper = _TimedMethod(self.taskBuffer.updateJobStatus,timeout)            
-        tmpWrapper.run(jobID,tmpStatus,param)
+        tmpWrapper.run(jobID,tmpStatus,param,updateStateChange)
         # make response
         if tmpWrapper.result == Protocol.TimeOutToken:
             # timeout

@@ -974,11 +974,11 @@ class DBProxy:
 
 
     # update Job status in jobsActive
-    def updateJobStatus(self,pandaID,jobStatus,param):
+    def updateJobStatus(self,pandaID,jobStatus,param,updateStateChange=False):
         comment = ' /* DBProxy.updateJobStatus */'        
         _logger.debug("updateJobStatus : %s" % pandaID)
         sql1 = "UPDATE ATLAS_PANDA.jobsActive4 SET jobStatus=:jobStatus,modificationTime=CURRENT_DATE"
-        if jobStatus in ['starting']:
+        if updateStateChange or jobStatus in ['starting']:
             sql1 += ",stateChangeTime=CURRENT_DATE"
         varMap = {}
         varMap[':jobStatus'] = jobStatus

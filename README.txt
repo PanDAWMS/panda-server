@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * not reset holding analysis jobs when stateChangeTime=modTime
+  * set stateChangeTime when job goes to holding for finished/failed
   * job chain for rc_test + gangarobot-rctest
   * added archivelogs
   * set tobeclosed to sub datasets of failed downstream jobs
