@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * more fix to SetUpper for rc_test
   * not reset holding analysis jobs when stateChangeTime=modTime
   * set stateChangeTime when job goes to holding for finished/failed
   * job chain for rc_test + gangarobot-rctest
