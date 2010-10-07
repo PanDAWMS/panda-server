@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * job chain for rc_test + gangarobot-rctest
   * added archivelogs
   * set tobeclosed to sub datasets of failed downstream jobs
   * rctest -> rc_test
