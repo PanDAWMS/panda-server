@@ -109,17 +109,6 @@ class Watcher (threading.Thread):
                                     oldPatt = match[0]+oldName+match[-1]
                                     newPatt = match[0]+newName+match[-1]
                                     job.jobParameters = re.sub(oldPatt,newPatt,job.jobParameters)
-                    # hold production jobs         
-                    elif job.prodSourceLabel=='managed' and job.commandToPilot != 'tobekilled' \
-                             and (not job.jobStatus in ['holding','sent']) \
-                             and (self.siteMapper==None or self.siteMapper.getSite(job.computingSite).retry):
-                        _logger.debug(' -> hold Prod job : PandaID:%s' % job.PandaID)
-                        job.jobStatus = 'holding'
-                        job.jobDispatcherErrorCode = ErrorCode.EC_Watcher
-                        job.jobDispatcherErrorDiag = 'lost heartbeat : %s' % str(job.modificationTime)
-                        if job.endTime == 'NULL':
-                            # normal lost heartbeat
-                            job.endTime = job.modificationTime
                     else:
                         if job.jobStatus == 'sent':
                             # sent job didn't receive reply from pilot within 30 min
