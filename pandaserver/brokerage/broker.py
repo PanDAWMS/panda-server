@@ -382,6 +382,15 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                       (tmpCmtConfig != None and tmpSiteSpec.cmtconfig != [] and 
                                        (not tmpCmtConfig in tmpSiteSpec.cmtconfig))):
                                     _log.debug(' skip: cache %s/%s not found' % (prevHomePkg.replace('\n',' '),prevCmtConfig))
+                                    # send message to logger
+                                    try:
+                                        if prevSourceLabel in ['managed','test']:
+                                            # make message
+                                            message = '%s - cache %s/%s not found' % (site,prevHomePkg.replace('\n',' '),prevCmtConfig)
+                                            if not message in loggerMessages:
+                                                loggerMessages.append(message)
+                                    except:
+                                        pass
                                     continue
                             elif (prevRelease != None and ((not useCacheVersion and releases != [] and (not previousCloud in ['US','ND','CERN'])) or \
                                                            prevProType in ['reprocessing']) and \
@@ -392,15 +401,6 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 _log.debug(' skip: release %s/%s not found' % (prevRelease.replace('\n',' '),prevCmtConfig))
                                 if forAnalysis and trustIS:
                                     resultsForAnal['rel'].append(site)
-                                # keep message to logger
-                                try:
-                                    if prevSourceLabel in ['managed','test']:
-                                        # make message
-                                        message = '%s - release %s/%s not found' % (site,prevRelease.replace('\n',' '),prevCmtConfig)
-                                        if not message in loggerMessages:
-                                            loggerMessages.append(message)
-                                except:
-                                    pass
                                 continue
                             elif not foundRelease:
                                 # found at least one site has the release
