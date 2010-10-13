@@ -157,6 +157,19 @@ class TaskAssigner:
                     _logger.debug(message)
                     self.sendMesg(message)
                     continue
+                # skip non-validation cloud if validation
+                if self.prodSourceLabel in ['validation'] and tmpCloud['validation'] != 'true':
+                    message = "%s    %s skip : validation='%s'" % (self.taskID,tmpCloudName,tmpCloud['validation'])
+                    _logger.debug(message)
+                    self.sendMesg(message)
+                    continue
+                # check fast track
+                if ((taskType in ['evgen'] and prioMap[self.taskID] >= 700) or
+                    (taskType in ['simul'] and prioMap[self.taskID] >= 800)) and tmpCloud['fasttrack'] != 'true':
+                    message = "%s    %s skip : fasttrack='%s'" % (self.taskID,tmpCloudName,tmpCloud['fasttrack'])
+                    _logger.debug(message)
+                    self.sendMesg(message)
+                    continue
                 # check disk count
                 if diskCount != 0: 
                     enoughSpace = self.checkDiskCount(diskCount,tmpCloudName)
