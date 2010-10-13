@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * don't reuse the same site in a single PD2P cycle 
   * fixed brokerage to send warning when cache is missing
   * removed redundant holding for prod jobs in Watcher
   * more fix to SetUpper for rc_test

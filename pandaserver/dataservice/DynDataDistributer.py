@@ -102,6 +102,7 @@ class DynDataDistributer:
                     self.putLog("failed to get candidates")
                     continue
                 # loop over all datasets
+                usedSites = []
                 for tmpDS,tmpVal in sitesMaps.iteritems():
                     self.putLog("constituent DS %s" % tmpDS)
                     allCandidates = []
@@ -117,8 +118,10 @@ class DynDataDistributer:
                         if sitesComDS == [] and not t1HasReplica:
                             self.putLog("unused since no replica in the cloud")
                             continue
-                        # use candidates
-                        allCandidates += candSites
+                        # add candidates
+                        for tmpCandSite in candSites:
+                            if not tmpCandSite in usedSites:
+                                allCandidates.append(tmpCandSite)
                     self.putLog("PD2P sites with comp replicas : %s" % str(allCompPd2pSites))
                     self.putLog("PD2P candidates : %s" % str(allCandidates))
                     self.putLog("PD2P subscriptions : %s" % totalUserSub)
@@ -145,6 +148,7 @@ class DynDataDistributer:
                     self.putLog("site -> %s" % tmpJob.computingSite)
                     # make subscription
                     subRet,dq2ID = self.makeSubscription(tmpDS,tmpJob.computingSite)
+                    usedSites.append(tmpJob.computingSite)
                     # update database
                     if subRet:
                         self.taskBuffer.addUserSubscription(tmpDS,[dq2ID])
