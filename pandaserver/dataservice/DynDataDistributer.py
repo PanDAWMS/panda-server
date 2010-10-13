@@ -22,6 +22,8 @@ _logger = PandaLogger().getLogger('DynDataDistributer')
 # NG datasets
 ngDataTypes = ['RAW','HITS','RDO']
 
+# excluded provenance
+ngProvenance = ['GP',]
 
 
 class DynDataDistributer:
@@ -105,6 +107,9 @@ class DynDataDistributer:
                 usedSites = []
                 for tmpDS,tmpVal in sitesMaps.iteritems():
                     self.putLog("constituent DS %s" % tmpDS)
+                    # increment used counter
+                    self.taskBuffer.incrementUsedCounterSubscription(tmpDS)
+                    # collect candidates
                     allCandidates = []
                     totalUserSub = 0
                     allCompPd2pSites = []
@@ -195,6 +200,7 @@ class DynDataDistributer:
             allSiteMap[tmpSiteSpec.cloud].append(tmpSiteSpec)
         # loop over all datasets
         returnMap = {}
+        checkedMetaMap = {}
         for cloud in self.pd2pClouds:
             # DQ2 prefix of T1
             tmpT1SiteID = self.siteMapper.getCloud(cloud)['source']
@@ -205,6 +211,19 @@ class DynDataDistributer:
                 candSites     = []
                 sitesComDS    = []
                 sitesCompPD2P = []
+                # check metadata
+                if not checkedMetaMap.has_key(tmpDS):
+                    checkedMetaMap[tmpDS] = self.getDatasetMetadata(tmpDS)
+                retMeta,tmpMetadata = checkedMetaMap[tmpDS]    
+                if not retMeta:
+                    self.putLog("failed to get metadata for %s" % tmpDS,'error')
+                    continue
+                if not tmpMetadata.has_key('provenance'):
+                    self.putLog("provenance is unavailable in metadata for %s" % tmpDS,'error')
+                    continue
+                if tmpMetadata['provenance'] in ngProvenance:
+                    self.putLog("provenance=%s of %s is excluded " % (tmpMetadata['provenance'],tmpDS))
+                    continue
                 # check T1 has a replica
                 t1HasReplica = False
                 for tmpDQ2ID,tmpStatMap in tmpRepMap.iteritems():
@@ -371,6 +390,35 @@ class DynDataDistributer:
         # return
         self.putLog('getListDatasetReplicasInContainer done')
         return True,allRepMap            
+
+
+    # get dataset metadata
+    def getDatasetMetadata(self,datasetName):
+        # response for failure
+        resForFailure = False,{}
+        # get datasets in container
+        nTry = 3
+        for iDDMTry in range(nTry):
+            self.putLog('%s/%s getMetaDataAttribute %s' % (iDDMTry,nTry,datasetName))
+            status,out = ddm.DQ2.main('getMetaDataAttribute',datasetName,['provenance','physicsgroup'])
+            if status != 0 or (not self.isDQ2ok(out)):
+                time.sleep(60)
+            else:
+                break
+        if status != 0 or out.startswith('Error'):
+            self.putLog(out,'error')
+            self.putLog('bad DQ2 response for %s' % datasetName, 'error')
+            return resForFailure
+        metadata = {}
+        try:
+            # convert to map
+            exec "metadata = %s" % out
+        except:
+            self.putLog('could not convert HTTP-res to dataset list for %s' % datasetName, 'error')
+            return resForFailure
+        # return
+        self.putLog('getDatasetMetadata -> %s' % str(metadata))
+        return True,metadata
 
 
     # put log

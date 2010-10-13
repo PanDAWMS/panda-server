@@ -1,6 +1,9 @@
 Release Note
 
 * current
+  * set/increment nUsed in PD2P
+  * use LFN for WN-level matchmaking
+  * ignore datasets with provenance=GP for PD2P
   * don't reuse the same site in a single PD2P cycle 
   * fixed brokerage to send warning when cache is missing
   * removed redundant holding for prod jobs in Watcher

@@ -688,15 +688,15 @@ def setCloudTaskByUser(req,tid,cloud='',status=''):
 
 
 # add files to memcached
-def addFilesToCacheDB(req,site,node,guids):
+def addFilesToCacheDB(req,site,node,guids='',lfns=''):
     # exec
-    return userIF.addFilesToMemcached(site,node,guids)
+    return userIF.addFilesToMemcached(site,node,lfns)
 
 
 # delete files from memcached
-def deleteFilesFromCacheDB(req,site,node,guids):
+def deleteFilesFromCacheDB(req,site,node,guids='',lfns=''):
     # exec
-    return userIF.deleteFilesFromMemcached(site,node,guids)
+    return userIF.deleteFilesFromMemcached(site,node,lfns)
 
 
 # flush memcached
@@ -706,9 +706,9 @@ def flushCacheDB(req,site,node):
 
 
 # check files with memcached
-def checkFilesWithCacheDB(req,site,node,guids):
+def checkFilesWithCacheDB(req,site,node,guids='',lfns=''):
     # exec
-    return userIF.checkFilesWithMemcached(site,node,guids)
+    return userIF.checkFilesWithMemcached(site,node,lfns)
 
 
 # query PandaIDs

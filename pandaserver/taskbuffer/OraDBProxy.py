@@ -1471,7 +1471,7 @@ class DBProxy:
                                 # get input files
                                 availableFileMap = {}
                                 self.cur.arraysize = 100000
-                                sqlMemFile = "SELECT GUID FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type=:type"
+                                sqlMemFile = "SELECT lfn FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type=:type"
                                 for tmpPandaID in pandaIDs:
                                     varMap = {}
                                     varMap[':type'] = 'input'
@@ -1624,13 +1624,6 @@ class DBProxy:
                     job.addFile(file)
                 # append
                 retJobs.append(job)
-                # insert to memcached
-                """
-                pcache itself inserts files to memcache
-                if useMemcache:
-                    if fileMapForMem.has_key(job.PandaID):
-                        self.memcache.setFiles(job.PandaID,siteName,node,fileMapForMem[job.PandaID])
-                """        
             return retJobs,nSent
         except:
             # roll back
@@ -6577,8 +6570,8 @@ class DBProxy:
         comment = ' /* DBProxy.addUserSubscription */'                        
         _logger.debug("addUserSubscription(%s,%s)" % (datasetName,dq2IDs))
         sql0  = "INSERT INTO ATLAS_PANDAMETA.UserSubs "
-        sql0 += "(datasetName,site,creationDate,modificationDate) "
-        sql0 += "VALUES (:datasetName,:site,CURRENT_DATE,CURRENT_DATE)"
+        sql0 += "(datasetName,site,creationDate,modificationDate,nUsed) "
+        sql0 += "VALUES (:datasetName,:site,CURRENT_DATE,CURRENT_DATE,:nUsed)"
         try:
             # start transaction
             self.conn.begin()
@@ -6586,6 +6579,7 @@ class DBProxy:
                 varMap = {}
                 varMap[':datasetName'] = datasetName
                 varMap[':site']        = site
+                varMap[':nUsed']       = 0
                 # insert
                 self.cur.execute(sql0+comment, varMap)
             # commit
@@ -6600,6 +6594,31 @@ class DBProxy:
             return False
 
     
+    # increment counter for subscription
+    def incrementUsedCounterSubscription(self,datasetName):
+        comment = ' /* DBProxy.incrementUsedCounterSubscription */'                        
+        _logger.debug("incrementUsedCounterSubscription(%s)" % datasetName)
+        sql0  = "UPDATE ATLAS_PANDAMETA.UserSubs SET nUsed=nUsed+1 "
+        sql0 += "WHERE datasetName=:datasetName AND nUsed IS NOT NULL"
+        try:
+            # start transaction
+            self.conn.begin()
+            varMap = {}
+            varMap[':datasetName'] = datasetName
+            # update
+            self.cur.execute(sql0+comment,varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            return True
+        except:
+            # roll back
+            self._rollback()
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("incrementUsedCounterSubscription : %s %s" % (errType,errValue))
+            return False
+
+        
     # get active datasets
     def getActiveDatasets(self,computingSite,prodSourceLabel):
         comment = ' /* DBProxy.getActiveDatasets */'                        
