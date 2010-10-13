@@ -1,7 +1,6 @@
 Release Note
 
 * current
-  * removed fasttrack and validation from task brokerage
   * set/increment nUsed in PD2P
   * use LFN for WN-level matchmaking
   * ignore datasets with provenance=GP for PD2P
