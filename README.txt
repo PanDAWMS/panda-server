@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * ignore hidden datasets in PD2P
   * don't use modTime index on jobs_ARCH
   * set/increment nUsed in PD2P
   * use LFN for WN-level matchmaking

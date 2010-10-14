@@ -218,11 +218,11 @@ class DynDataDistributer:
                 if not retMeta:
                     self.putLog("failed to get metadata for %s" % tmpDS,'error')
                     continue
-                if not tmpMetadata.has_key('provenance'):
-                    self.putLog("provenance is unavailable in metadata for %s" % tmpDS,'error')
-                    continue
                 if tmpMetadata['provenance'] in ngProvenance:
-                    self.putLog("provenance=%s of %s is excluded " % (tmpMetadata['provenance'],tmpDS))
+                    self.putLog("provenance=%s of %s is excluded" % (tmpMetadata['provenance'],tmpDS))
+                    continue
+                if tmpMetadata['hidden'] in [True,'True']:
+                    self.putLog("%s is hidden" % tmpDS)
                     continue
                 # check T1 has a replica
                 t1HasReplica = False
@@ -396,11 +396,12 @@ class DynDataDistributer:
     def getDatasetMetadata(self,datasetName):
         # response for failure
         resForFailure = False,{}
+        metaDataAttrs = ['provenance','hidden']
         # get datasets in container
         nTry = 3
         for iDDMTry in range(nTry):
             self.putLog('%s/%s getMetaDataAttribute %s' % (iDDMTry,nTry,datasetName))
-            status,out = ddm.DQ2.main('getMetaDataAttribute',datasetName,['provenance','physicsgroup'])
+            status,out = ddm.DQ2.main('getMetaDataAttribute',datasetName,metaDataAttrs)
             if status != 0 or (not self.isDQ2ok(out)):
                 time.sleep(60)
             else:
@@ -416,6 +417,11 @@ class DynDataDistributer:
         except:
             self.putLog('could not convert HTTP-res to dataset list for %s' % datasetName, 'error')
             return resForFailure
+        # check whether all attributes are available
+        for tmpAttr in metaDataAttrs:
+            if not metadata.has_key(tmpAttr):
+                self.putLog('%s is missing in %s' % (tmpAttr,str(metadata)), 'error')
+                return resForFailure
         # return
         self.putLog('getDatasetMetadata -> %s' % str(metadata))
         return True,metadata
