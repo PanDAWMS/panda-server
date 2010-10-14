@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * don't use modTime index for JobsArch
   * set/increment nUsed in PD2P
   * use LFN for WN-level matchmaking
   * ignore datasets with provenance=GP for PD2P
