@@ -553,12 +553,14 @@ class TaskBuffer:
         retJobIDs = proxy.getJobIDsInTimeRange(dn,timeRange,retJobIDs)
         # release proxy
         self.proxyPool.putProxy(proxy)
-        # get ArchiveDBproxy
-        proxy = self.proxyPool.getProxy()
-        # get JobIDs
-        retJobIDs = proxy.getJobIDsInTimeRangeLog(dn,timeRange,retJobIDs)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
+        # read ARCH when time window is more than 3days (- 3 hours as a margin)
+        if timeRange < datetime.datetime.utcnow() - datetime.timedelta(days=2,hours=21) :
+            # get ArchiveDBproxy
+            proxy = self.proxyPool.getProxy()
+            # get JobIDs
+            retJobIDs = proxy.getJobIDsInTimeRangeLog(dn,timeRange,retJobIDs)
+            # release proxy
+            self.proxyPool.putProxy(proxy)
         # return
         return retJobIDs
 

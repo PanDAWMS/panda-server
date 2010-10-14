@@ -2483,7 +2483,8 @@ class DBProxy:
                 # not found in active table
                 if res == None:
                     # look for buildJob in archived table
-                    sql  = "SELECT /*+ INDEX_COMBINE(tab JOBS_MODTIME_IDX JOBS_PRODUSERNAME_IDX) */ PandaID,jobStatus,jobDefinitionID,creationTime "
+                    sql  = "SELECT /*+ NO_INDEX(tab JOBS_MODTIME_IDX) INDEX_COMBINE(tab JOBS_PRODSOURCELABEL_IDX JOBS_PRODUSERNAME_IDX) */ "
+                    sql += "PandaID,jobStatus,jobDefinitionID,creationTime "
                     sql += "FROM ATLAS_PANDAARCH.jobsArchived tab "
                     sql += "WHERE prodUserName=:prodUserName AND prodSourceLabel=:prodSourceLable1 "
                     sql += "AND modificationTime>(CURRENT_DATE-10) ORDER BY PandaID DESC"
@@ -6341,7 +6342,8 @@ class DBProxy:
             # select
             for table in tables:
                 # make sql
-                sql  = "SELECT /*+ INDEX_COMBINE(tab JOBS_MODTIME_IDX JOBS_PRODUSERNAME_IDX) */ jobDefinitionID FROM %s tab " % table
+                sql  = "SELECT /*+ NO_INDEX(tab JOBS_MODTIME_IDX) INDEX_COMBINE(tab JOBS_PRODSOURCELABEL_IDX JOBS_PRODUSERNAME_IDX) */ "
+                sql += "jobDefinitionID FROM %s tab " % table
                 sql += "WHERE prodUserName=:prodUserName AND modificationTime>:modificationTime "
                 sql += "AND prodSourceLabel=:prodSourceLabel GROUP BY jobDefinitionID"
                 varMap = {}
@@ -6390,7 +6392,8 @@ class DBProxy:
                 if nJobs > 0 and len(idStatus) >= nJobs:
                     continue
                 # make sql
-                sql  = "SELECT PandaID,jobStatus,commandToPilot,prodSourceLabel FROM %s " % table                
+                sql  = "SELECT /*+ NO_INDEX(tab JOBS_MODTIME_IDX) INDEX_COMBINE(tab JOBS_PRODUSERNAME_IDX JOBS_JOBDEFID_IDX) */ "
+                sql += "PandaID,jobStatus,commandToPilot,prodSourceLabel FROM %s tab " % table                
                 sql += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
                 sql += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND modificationTime>(CURRENT_DATE-30) "
                 varMap = {}
