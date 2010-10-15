@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * updated PD2P to use a negative weight based on the number of subs
   * ignore hidden datasets in PD2P
   * don't use modTime index on jobs_ARCH
   * set/increment nUsed in PD2P

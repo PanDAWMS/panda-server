@@ -6568,6 +6568,33 @@ class DBProxy:
             return []
 
 
+    # get the number of user subscriptions
+    def getNumUserSubscriptions(self):
+        comment = ' /* DBProxy.getNumUserSubscriptions */'                        
+        _logger.debug("getNumUserSubscriptions")
+        sql0  = "SELECT site,COUNT(*) FROM ATLAS_PANDAMETA.UserSubs "
+        sql0 += "WHERE creationDate>CURRENT_DATE-2 GROUP BY site"
+        try:
+            # start transaction
+            self.conn.begin()
+            # select
+            self.cur.execute(sql0+comment,{})
+            resSs = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            retList = {}
+            for tmpSite,countNum in resSs:
+                retList[tmpSite] = countNum
+            return retList
+        except:
+            # roll back
+            self._rollback()
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("getNumUserSubscriptions : %s %s" % (errType,errValue))
+            return []
+
+
     # add user subscriptions
     def addUserSubscription(self,datasetName,dq2IDs):
         comment = ' /* DBProxy.addUserSubscription */'                        

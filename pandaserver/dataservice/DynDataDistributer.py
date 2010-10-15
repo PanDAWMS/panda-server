@@ -145,11 +145,15 @@ class DynDataDistributer:
                     if len(allCandidates) == 0:
                         self.putLog("skip since no candidates")
                         continue
+                    # get weight for brokerage
+                    weightForBrokerage = self.getWeightForBrokerage(allCandidates,tmpDS)
+                    self.putLog("weight %s" % str(weightForBrokerage))
                     # run brokerage
                     tmpJob = JobSpec()
                     tmpJob.AtlasRelease = ''
                     self.putLog("run brokerage for %s" % tmpDS)
-                    brokerage.broker.schedule([tmpJob],self.taskBuffer,self.siteMapper,True,allCandidates,True)
+                    brokerage.broker.schedule([tmpJob],self.taskBuffer,self.siteMapper,True,allCandidates,
+                                              True,specialWeight=weightForBrokerage)
                     self.putLog("site -> %s" % tmpJob.computingSite)
                     # make subscription
                     subRet,dq2ID = self.makeSubscription(tmpDS,tmpJob.computingSite)
@@ -286,22 +290,39 @@ class DynDataDistributer:
         return True
     
 
+    # get map of DQ2 IDs
+    def getDQ2ID(self,sitename,dataset):
+        # get DQ2 ID
+        if not self.siteMapper.checkSite(sitename):
+            self.putLog("cannot find SiteSpec for %s" % sitename)
+            return ''
+        dq2ID = self.siteMapper.getSite(sitename).ddm
+        if dataset.startswith('data'):
+            # data
+            dq2ID = re.sub('_[^_]+DISK','_DATADISK',dq2ID)
+        elif dataset.startswith('mc'):
+            # mc    
+            dq2ID = re.sub('_[^_]+DISK','_MCDISK',dq2ID)
+        else:
+            # unsupported prefix for subscription
+            self.putLog('%s has unsupported prefix for subscription' % dataset,'error')
+            return ''
+        # patch for MWT2_UC
+        if dq2ID == 'MWT2_UC_DATADISK':
+            dq2ID = 'MWT2_DATADISK'
+        # return
+        return dq2ID
+        
+
     # get list of datasets
     def makeSubscription(self,dataset,sitename):
         # return for failuer
         retFailed = False,''
-        # get DQ2 ID
-        if not self.siteMapper.checkSite(sitename):
-            self.putLog("cannot find SiteSpec for %s" % sitename)
+        # get DQ2 IDs
+        dq2ID = self.getDQ2ID(sitename,dataset)
+        if dq2ID == '':
+            self.putLog("cannot find DQ2 ID for %s:%s" % (sitename,dataset))
             return retFailed
-        dq2ID = self.siteMapper.getSite(sitename).ddm
-        if dataset.startswith('data'):
-            dq2ID = re.sub('_[^_]+DISK','_DATADISK',dq2ID)
-        elif dataset.startswith('mc'):
-            dq2ID = re.sub('_[^_]+DISK','_MCDISK',dq2ID)
-        # patch for MWT2_UC
-        if dq2ID == 'MWT2_UC_DATADISK':
-            dq2ID = 'MWT2_DATADISK'
         # make subscription    
         optSrcPolicy = 001000 | 010000
         nTry = 3
@@ -328,6 +349,29 @@ class DynDataDistributer:
         return True,dq2ID
 
             
+    # get weight for brokerage
+    def getWeightForBrokerage(self,sitenames,dataset):
+        # return for failuer
+        retFailed = False,{}
+        retMap = {}
+        # get the number of subscriptions for last 24 hours
+        numUserSubs = self.taskBuffer.getNumUserSubscriptions()
+        # loop over all sites
+        for sitename in sitenames:
+            # get DQ2 ID
+            dq2ID = self.getDQ2ID(sitename,dataset)
+            if dq2ID == '':
+                self.putLog("cannot find DQ2 ID for %s:%s" % (sitename,dataset))
+                return retFailed
+            # append
+            if numUserSubs.has_key(dq2ID):
+                retMap[sitename] = numUserSubs[dq2ID]
+            else:
+                retMap[sitename] = 0
+        # return
+        return retMap
+
+        
     # get list of replicas for a dataset
     def getListDatasetReplicas(self,dataset):
         nTry = 3

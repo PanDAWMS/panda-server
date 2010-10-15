@@ -157,8 +157,10 @@ def _isTooManyInput(nFilesPerJob,inputSizePerJob):
 
 # schedule
 def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],trustIS=False,
-             distinguishedName=None):
+             distinguishedName=None,specialWeight={}):
     _log.debug('start %s %s %s %s' % (forAnalysis,str(setScanSiteList),trustIS,distinguishedName))
+    if specialWeight != {}:
+        _log.debug('PD2P weight : %s' % str(specialWeight))
     # no jobs
     if len(jobs) == 0:
         _log.debug('finished : no jobs')        
@@ -483,26 +485,33 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             nAssJobs = jobStatBroker[site][tmpProGroup]['assigned']
                             nActJobs = jobStatBroker[site][tmpProGroup]['activated']
                             # calculate weight
-                            _log.debug('   %s assigned:%s activated:%s running:%s nPilots:%s nJobsPerNode:%s' %
-                                       (site,nAssJobs,nActJobs,jobStatistics[site]['running'],nPilots,nJobsPerNode))
-                            if nPilots != 0:
-                                winv = (float(nAssJobs+nActJobs)) / float(nPilots) / nJobsPerNode
+                            if specialWeight != {}:
+                                nSubs = 1
+                                if specialWeight.has_key(site):
+                                    nSubs += specialWeight[site]
+                                _log.debug('   %s nSubs:%s nPilots:%s nJobsPerNode:%s' % (site,nSubs,nPilots,nJobsPerNode))
+                                winv = float(nSubs) / float(nPilots+1) / nJobsPerNode
                             else:
-                                winv = (float(nAssJobs+nActJobs)) / nJobsPerNode
-                            # send jobs to T1 when they require many or large inputs
-                            if _isTooManyInput(nFilesPerJob,inputSizePerJob):
-                                if site == siteMapper.getCloud(previousCloud)['source']:
-                                    cloudT1Weight = 2.0
-                                    # use weight in cloudconfig
-                                    try:
-                                        tmpCloudT1Weight = float(siteMapper.getCloud(previousCloud)['weight'])
-                                        if tmpCloudT1Weight != 0.0:
-                                            cloudT1Weight = tmpCloudT1Weight
-                                    except:
-                                        pass
-                                    winv /= cloudT1Weight
-                                    _log.debug('   special weight for %s : nInputs/Job=%s inputSize/Job=%s weight=%s' % 
-                                               (site,nFilesPerJob,inputSizePerJob,cloudT1Weight))
+                                _log.debug('   %s assigned:%s activated:%s running:%s nPilots:%s nJobsPerNode:%s' %
+                                           (site,nAssJobs,nActJobs,jobStatistics[site]['running'],nPilots,nJobsPerNode))
+                                if nPilots != 0:
+                                    winv = (float(nAssJobs+nActJobs)) / float(nPilots) / nJobsPerNode
+                                else:
+                                    winv = (float(nAssJobs+nActJobs)) / nJobsPerNode
+                                # send jobs to T1 when they require many or large inputs
+                                if _isTooManyInput(nFilesPerJob,inputSizePerJob):
+                                    if site == siteMapper.getCloud(previousCloud)['source']:
+                                        cloudT1Weight = 2.0
+                                        # use weight in cloudconfig
+                                        try:
+                                            tmpCloudT1Weight = float(siteMapper.getCloud(previousCloud)['weight'])
+                                            if tmpCloudT1Weight != 0.0:
+                                                cloudT1Weight = tmpCloudT1Weight
+                                        except:
+                                            pass
+                                        winv /= cloudT1Weight
+                                        _log.debug('   special weight for %s : nInputs/Job=%s inputSize/Job=%s weight=%s' % 
+                                                   (site,nFilesPerJob,inputSizePerJob,cloudT1Weight))
                             _log.debug('Site:%s 1/Weight:%s' % (site,winv))
                             # choose largest nMinSites weights
                             minSites[site] = winv

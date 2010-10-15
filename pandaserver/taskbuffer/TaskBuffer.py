@@ -1579,6 +1579,18 @@ class TaskBuffer:
         return ret
 
 
+    # get the number of user subscriptions
+    def getNumUserSubscriptions(self):
+        # query an SQL return Status  
+        proxy = self.proxyPool.getProxy()
+        # get
+        ret = proxy.getNumUserSubscriptions()
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
     # add user subscriptions
     def addUserSubscription(self,datasetName,dq2IDs):
         # query an SQL return Status  
