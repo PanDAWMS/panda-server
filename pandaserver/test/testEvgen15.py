@@ -17,8 +17,8 @@ for i in range(1):
     job = JobSpec()
     job.jobDefinitionID   = int(time.time()) % 10000
     job.jobName           = "%s_%d" % (commands.getoutput('uuidgen'),i)
-    job.AtlasRelease      = 'Atlas-15.3.1'
-    job.homepackage       = 'AtlasProduction/15.3.1.6'
+    job.AtlasRelease      = 'Atlas-15.6.10'
+    job.homepackage       = 'AtlasProduction/15.6.10.1'
     job.transformation    = 'Evgen_trf.py'
     job.destinationDBlock = datasetName
     job.destinationSE     = destName
@@ -26,7 +26,7 @@ for i in range(1):
     job.prodSourceLabel   = 'test'
     job.computingSite     = site
     job.cloud             = cloud
-    job.cmtConfig         = 'i686-slc4-gcc34-opt'
+    job.cmtConfig         = 'i686-slc5-gcc43-opt'
 
     file = FileSpec()
     file.lfn = "%s.evgen.pool.root" % job.jobName
@@ -44,7 +44,7 @@ for i in range(1):
     fileOL.type = 'log'
     job.addFile(fileOL)
     
-    job.jobParameters="10000 105815 12330001 5000 12467 MC9.105815.JF140_pythia_jet_filter.py %s NONE NONE NONE MC09JobOpts-00-00-11.tar.gz" % file.lfn
+    job.jobParameters="10000 105815 12330001 5000 12467 MC9.105815.JF140_pythia_jet_filter.py %s NONE NONE NONE MC09JobOpts-00-01-88.tar.gz" % file.lfn
     jobList.append(job)
 
 for i in range(1):
