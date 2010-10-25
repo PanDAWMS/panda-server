@@ -1585,7 +1585,7 @@ class Setupper (threading.Thread):
                                                             commands.getoutput('uuidgen'),iLoop,
                                                             tmpVal['PandaID'])
                 iLoop += 1
-                _logger.debug((self.timestamp,'registerNewDataset',disDBlock,lfns,guids,fsizes,chksums))
+                _logger.debug((self.timestamp,'ext registerNewDataset',disDBlock,lfns,guids,fsizes,chksums))
                 for iDDMTry in range(3):
                     status,out = ddm.DQ2.main('registerNewDataset',disDBlock,lfns,guids,fsizes,chksums)
                     if status != 0 and out.find('DQDatasetExistsException') != -1:
