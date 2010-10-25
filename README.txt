@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * make new dis datasets even if files are already available at T2 
+  * short/long mapping for ANALY_LYON-T2
   * updated PD2P to use a negative weight based on the number of subs
   * ignore hidden datasets in PD2P
   * don't use modTime index on jobs_ARCH
