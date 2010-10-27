@@ -52,6 +52,7 @@ class TaskBuffer:
         priorityOffset = 0
         userVO         = 'atlas'
         userCountry    = None
+        nExpressJobs   = 0
         if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda','ptest','rc_test']) \
                and (not jobs[0].processingType in ['merge','unmerge']):
             # get DB proxy
@@ -62,6 +63,11 @@ class TaskBuffer:
             userJobID,userJobsetID,userStatus = proxy.getUserParameter(user,jobs[0].jobDefinitionID,jobs[0].jobsetID)
             # get site access
             userSiteAccess = proxy.checkSiteAccess(jobs[0].computingSite,user)
+            # check quota for express jobs
+            if 'express' in jobs[0].specialHandling:
+                expressQuota = proxy.getExpressJobs(user)
+                if expressQuota != None and expressQuota['status'] and expressQuota['quota'] > 0:
+                    nExpressJobs = expressQuota['quota']
             # release proxy
             self.proxyPool.putProxy(proxy)
             # get site spec
@@ -190,15 +196,23 @@ class TaskBuffer:
         newJobs=[]
         usePandaDDM = False
         firstLiveLog = True
+        nRunJob = 0
         for job in jobs:
             # set JobID. keep original JobID when retry
             if userJobID != -1 and job.prodSourceLabel in ['user','panda'] \
                    and (job.attemptNr in [0,'0','NULL'] or (not job.jobExecutionID in [0,'0','NULL'])) \
                    and (not jobs[0].processingType in ['merge','unmerge']):
                 job.jobDefinitionID = userJobID
-            # set jobsetID    
+            # set jobsetID
             if job.prodSourceLabel in ['user','panda','ptest','rc_test']:
                 job.jobsetID = userJobsetID
+            # set specialHandling
+            if job.prodSourceLabel in ['user','panda']:
+                if nRunJob >= nExpressJobs:
+                    # reset when quota exceeds
+                    job.specialHandling = ''
+                if job.prodSourceLabel != 'panda':
+                    nRunJob += 1
             # set relocation flag
             if job.computingSite != 'NULL':
                 job.relocationFlag = 1

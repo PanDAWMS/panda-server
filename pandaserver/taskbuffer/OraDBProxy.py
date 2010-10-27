@@ -210,8 +210,12 @@ class DBProxy:
             job.currentPriority = job.assignedPriority
         if job.prodSourceLabel == 'user':
             job.currentPriority = 1000 + priorityOffset - (serNum / 5) - int(100 * weight)
+            if 'express' in job.specialHandling:
+                job.currentPriority = 6000
         elif job.prodSourceLabel == 'panda':
             job.currentPriority = 2000
+            if 'express' in job.specialHandling:
+                job.currentPriority = 6500
         # usergroup
         if job.prodSourceLabel == 'regional':
             job.computingSite= "BNLPROD"
@@ -2122,6 +2126,125 @@ class DBProxy:
                 job.PandaID = pandaID
                 job.jobStatus = 'unknown'
                 return job
+
+
+    # get express jobs
+    def getExpressJobs(self,dn):
+        comment = ' /* DBProxy.getExpressJobs */'                        
+        _logger.debug("getExpressJobs : %s" % dn)
+        sqlX  = "SELECT specialHandling,COUNT(*) FROM %s "
+        sqlX += "WHERE prodUserName=:prodUserName AND prodSourceLabel=:prodSourceLabel1 "
+        sqlX += "AND specialHandling IS NOT NULL "
+        sqlXJob  = "SELECT PandaID,jobStatus,prodSourceLabel,modificationTime,jobDefinitionID,jobsetID,startTime,endTime FROM %s "
+        sqlXJob += "WHERE prodUserName=:prodUserName AND prodSourceLabel=:prodSourceLabel1 "
+        sqlXJob += "AND specialHandling IS NOT NULL AND specialHandling=:specialHandling "
+        sqlQ  = sqlX
+        sqlQ += "GROUP BY specialHandling "
+        sqlQJob  = sqlXJob
+        sqlA  = sqlX
+        sqlA += "AND modificationTime>:modificationTime GROUP BY specialHandling "
+        sqlAJob  = sqlXJob
+        sqlAJob += "modificationTime>:modificationTime "
+        try:
+            # get compact DN
+            compactDN = self.cleanUserID(dn)
+            if compactDN in ['','NULL',None]:
+                compactDN = dn
+            expressStr = 'express'
+            activeExpressU = []            
+            timeUsageU  = datetime.timedelta(0)
+            executionTimeU = datetime.timedelta(hours=1)
+            jobCreditU  = 3            
+            timeCreditU = executionTimeU * jobCreditU
+            timeNow   = datetime.datetime.utcnow()
+            timeLimit = timeNow - datetime.timedelta(hours=6)
+            # loop over tables
+            for table in ['ATLAS_PANDA.jobsDefined4','ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsArchived4']:
+                varMap = {}
+                varMap[':prodUserName'] = compactDN
+                varMap[':prodSourceLabel1'] = 'user'
+                if table == 'ATLAS_PANDA.jobsArchived4':                
+                    varMap[':modificationTime'] = timeLimit
+                    sql = sqlA % table
+                    sqlJob = sqlAJob % table
+                else:
+                    sql = sqlQ % table
+                    sqlJob = sqlQJob % table                    
+                # start transaction
+                self.conn.begin()
+                # get the number of jobs for each specialHandling
+                self.cur.arraysize = 10
+                _logger.debug(sql+comment+str(varMap))
+                self.cur.execute(sql+comment, varMap)
+                res = self.cur.fetchall()
+                _logger.debug("getExpressJobs %s" % str(res))
+                for specialHandling,countJobs in res:
+                    if specialHandling == None:
+                        continue
+                    # look for express jobs
+                    if expressStr in specialHandling:
+                        varMap[':specialHandling'] = specialHandling
+                        self.cur.arraysize = 1000
+                        self.cur.execute(sqlJob+comment, varMap)
+                        resJobs = self.cur.fetchall()
+                        _logger.debug("getExpressJobs %s" % str(resJobs))
+                        for tmp_PandaID,tmp_jobStatus,tmp_prodSourceLabel,tmp_modificationTime,\
+                                tmp_jobDefinitionID,tmp_jobsetID,tmp_startTime,tmp_endTime \
+                                in resJobs:
+                            # collect active jobs
+                            if not tmp_jobStatus in ['finished','failed','cancelled']:
+                                activeExpressU.append((tmp_PandaID,tmp_jobsetID,tmp_jobDefinitionID))
+                            # get time usage
+                            if not tmp_jobStatus in ['defined','activated']:
+                                # check only jobs which actually use or used CPU on WN
+                                if tmp_startTime != None:
+                                    # running or not
+                                    if tmp_endTime == None:
+                                        # job got started before/after the time limit
+                                        if timeLimit > tmp_startTime:
+                                            timeDelta = timeNow - timeLimit
+                                        else:
+                                            timeDelta = timeNow - tmp_startTime
+                                    else:
+                                        # job got started before/after the time limit
+                                        if timeLimit > tmp_startTime:
+                                            timeDelta = tmp_endTime - timeLimit
+                                        else:
+                                            timeDelta = tmp_endTime - tmp_startTime
+                                    # add
+                                    if timeDelta > datetime.timedelta(0):
+                                        timeUsageU += timeDelta                                            
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+            # check quota
+            rRet = True
+            rRetStr = ''
+            rQuota = 0            
+            if len(activeExpressU) >= jobCreditU:
+                rRetStr += "The number of queued runXYZ exceeds the limit = %s. " % jobCreditU
+                rRet = False
+            if timeUsageU >= timeCreditU:
+                rRetStr += "The total execution time for runXYZ exceeds the limit = %s min. " % (timeCreditU.seconds / 60)
+                rRet = False
+            # calculate available quota
+            if rRet:
+                tmpQuota = jobCreditU - len(activeExpressU) - timeUsageU.seconds/executionTimeU.seconds
+                if tmpQuota < 0:
+                    rRetStr += "Quota for runXYZ exceeds. "
+                    rRet = False
+                else:
+                    rQuota = tmpQuota
+            # return        
+            retVal = {'status':rRet,'quota':rQuota,'output':rRetStr,'usage':timeUsageU,'jobs':activeExpressU}
+            _logger.debug("getExpressJobs : %s" % str(retVal))
+            return retVal
+        except:
+            # roll back
+            self._rollback()
+            errtype,errvalue = sys.exc_info()[:2]
+            _logger.error("getExpressJobs : %s %s" % (errtype,errvalue))
+            return None
 
 
     # get number of activated/defined jobs with output datasets
