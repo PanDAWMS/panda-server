@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added retry to Notifier when failing to send notifications
   * express jobs
   * make new dis datasets even if files are already available at T2 
   * short/long mapping for ANALY_LYON-T2

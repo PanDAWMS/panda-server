@@ -12,6 +12,7 @@ import urllib
 import shelve
 import smtplib
 import datetime
+import time
 
 from config import panda_config
 from taskbuffer.OraDBProxy import DBProxy
@@ -231,17 +232,29 @@ Report Panda problems of any sort to
 
                 # send mail
                 _logger.debug("%s send to %s\n%s" % (self.job.PandaID,mailAddr,message))
-                server = smtplib.SMTP(panda_config.emailSMTPsrv)
-                server.set_debuglevel(1)
-                server.ehlo()
-                server.starttls()
-                server.login(panda_config.emailLogin,panda_config.emailPass)
-                out = server.sendmail(fromadd,mailAddr,message)
-                _logger.debug(out)
-                server.quit()
+                nTry = 3
+                for iTry in range(nTry):
+                    try:
+                        server = smtplib.SMTP(panda_config.emailSMTPsrv)
+                        server.set_debuglevel(1)
+                        server.ehlo()
+                        server.starttls()
+                        server.login(panda_config.emailLogin,panda_config.emailPass)
+                        out = server.sendmail(fromadd,mailAddr,message)
+                        _logger.debug(out)
+                        server.quit()
+                        break
+                    except:
+                        errType,errValue = sys.exc_info()[:2]
+                        if iTry+1 < nTry:
+                            # sleep for retry
+                            _logger.debug("sleep due to %s %s" % (errType,errValue))
+                            time.sleep(60)
+                        else:
+                            _logger.error("%s %s %s" % (self.job.PandaID,errType,errValue))
         except:
-            type, value, traceBack = sys.exc_info()
-            _logger.error("%s %s" % (type,value))
+            errType,errValue = sys.exc_info()[:2]            
+            _logger.error("%s %s %s" % (self.job.PandaID,errType,errValue))
 
         _logger.debug("%s end" % self.job.PandaID)
 
