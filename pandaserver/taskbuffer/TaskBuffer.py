@@ -668,14 +668,14 @@ class TaskBuffer:
 
 
     # get full job status
-    def getFullJobStatus(self,jobIDs):
+    def getFullJobStatus(self,jobIDs,fromDefined=True,fromActive=True,fromArchived=True,fromWaiting=True,forAnal=True):
         retJobMap = {}
         # peek at job
         for jobID in jobIDs:
             # get DBproxy for each job to avoid occupying connection for long time
             proxy = self.proxyPool.getProxy()
             # peek job
-            res = proxy.peekJob(jobID,True,True,True,True,True)
+            res = proxy.peekJob(jobID,fromDefined,fromActive,fromArchived,fromWaiting,forAnal)
             retJobMap[jobID] = res
             # release proxy
             self.proxyPool.putProxy(proxy)

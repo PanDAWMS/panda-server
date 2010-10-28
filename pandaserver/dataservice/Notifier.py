@@ -93,8 +93,9 @@ class Notifier (threading.Thread):
                         ids.append(tmpID)
                 _logger.debug("%s IDs: %s" % (self.job.PandaID,ids))
                 if len(ids) != 0:
-                    # get job
-                    jobs = self.taskBuffer.peekJobs(ids,fromDefined=False,fromActive=False,fromWaiting=False)
+                    # get jobs
+                    jobs = self.taskBuffer.getFullJobStatus(ids,fromDefined=False,fromActive=False,
+                                                            fromWaiting=False,forAnal=False)
                     # statistics
                     nTotal     = len(jobs)
                     nSucceeded = 0

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * use getFullJobStatus in Notifier since some jobs can go to ARCH before notification
   * seprate retry for Notifier
   * added retry to Notifier when failing to send notifications
   * express jobs
