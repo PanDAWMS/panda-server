@@ -184,8 +184,10 @@ class Closer (threading.Thread):
                     useNotifier,summaryInfo = self.taskBuffer.checkDatasetStatusForNotifier(self.job.jobsetID,self.job.jobDefinitionID,
                                                                                             self.job.prodUserName)
                     _logger.debug('%s useNotifier:%s' % (self.pandaID,useNotifier))
-                if useNotifier:    
+                if useNotifier:
+                    _logger.debug('%s start Notifier' % self.pandaID)
                     nThr = Notifier(self.taskBuffer,self.job,self.destinationDBlocks,summaryInfo)
                     nThr.start()
-                    nThr.join()            
+                    nThr.join()
+                    _logger.debug('%s end Notifier' % self.pandaID)                    
         _logger.debug('%s End' % self.pandaID)

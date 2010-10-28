@@ -235,10 +235,11 @@ class Adder (threading.Thread):
                     # start Closer
                     cThr = Closer(self.taskBuffer,destDBList,self.job,pandaDDM=self.pandaDDM,
                                   datasetMap=self.datasetMap)
-                    #cThr = Closer(self.taskBuffer,destDBList,self.job,pandaDDM=True)
+                    _logger.debug("%s start Closer" % self.jobID)                    
                     cThr.start()
                     if self.joinCloser:
                         cThr.join()
+                    _logger.debug("%s end Closer" % self.jobID)
             _logger.debug("%s end" % self.jobID)
             try:
                 # remove Catalog

@@ -2,6 +2,8 @@ import os
 import re
 import sys
 import time
+import glob
+import fcntl
 import random
 import datetime
 import commands
@@ -156,6 +158,50 @@ try:
 except:
     errType,errValue = sys.exc_info()[:2]
     _logger.error("updateJob/getJob : %s %s" % (errType,errValue))
+
+
+# mail sender
+class MailSender (threading.Thread):
+    def __init__(self):
+        threading.Thread.__init__(self)
+
+    def run(self):
+        _logger.debug("mail : start")
+        tmpFileList = glob.glob('%s/mail_*' % panda_config.logdir)
+        for tmpFile in tmpFileList:
+            # check timestamp to avoid too new files
+            timeStamp = os.path.getmtime(tmpFile)
+            if datetime.datetime.utcnow() - datetime.datetime.fromtimestamp(timeStamp) < datetime.timedelta(minutes=1):
+                continue
+            # lock
+            mailFile = open(tmpFile)
+            try:
+                fcntl.flock(mailFile.fileno(), fcntl.LOCK_EX|fcntl.LOCK_NB)
+            except:
+                _logger.debug("mail : failed to lock %s" % tmpFile.split('/')[-1])
+                mailFile.close()
+                continue
+            # start notifier
+            from dataservice.Notifier import Notifier
+            nThr = Notifier(None,None,None,None,mailFile,tmpFile)
+            nThr.start()
+            nThr.join()
+            # remove
+            try:
+                os.remove(tmpFile)
+            except:
+                pass
+            # unlock
+            try:
+                fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
+                mailFile.close()
+            except:
+                pass
+            
+# start sender
+mailSender =  MailSender()
+mailSender.start()
+            
     
 # thread pool
 class ThreadPool:
@@ -308,5 +354,8 @@ while len(fileList) != 0:
 
 # join all threads
 adderThreadPool.join()
+
+# join sender
+mailSender.join()
 
 _logger.debug("===================== end =====================")
