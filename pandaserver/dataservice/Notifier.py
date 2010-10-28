@@ -175,7 +175,7 @@ To: %s
 Summary of JobsetID : %s
 
 JobID/Site : %s""" % (jobsetID,fromadd,mailAddr,jobsetID,jobIDsite)
-                        message += \
+                    message += \
 """                    
 
 Created : %s (UTC)
