@@ -34,7 +34,7 @@ if len(jobs):
         iJob += nJob
         time.sleep(10)
 
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=0)
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
 varMap = {}
 varMap[':jobStatus']        = 'activated'
 varMap[':modificationTime'] = timeLimit
