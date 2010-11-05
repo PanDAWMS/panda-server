@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added SQLDumer
   * added reassignTask
   * use getFullJobStatus in Notifier since some jobs can go to ARCH before notification
   * seprate retry for Notifier

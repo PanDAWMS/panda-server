@@ -85,6 +85,13 @@ class DBProxy:
             self.conn = cx_Oracle.connect(dsn=self.dbhost,user=self.dbuser,
                                           password=self.dbpasswd,threaded=True)
             self.cur=self.conn.cursor()
+            try:
+                # use SQL dumper
+                if panda_config.dump_sql:
+                    import SQLDumper
+                    self.cur = SQLDumper.SQLDumper(self.cur)
+            except:
+                pass
             # get hostname
             self.cur.execute("SELECT SYS_CONTEXT('USERENV','HOST') FROM dual")
             res = self.cur.fetchone()

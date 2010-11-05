@@ -115,6 +115,9 @@ dbtimeout = 300
 # verbose in bridge
 dbbridgeverbose = False
 
+# SQL dumper
+dump_sql = False
+
 
 
 ##########################
