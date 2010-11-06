@@ -900,7 +900,7 @@ for tmpCloud in siteMapper.getCloudList():
 
 
 # reassign too long-standing jobs in active table
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=1)
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=2)
 varMap = {}
 varMap[':jobStatus'] = 'activated'
 varMap[':prodSourceLabel'] = 'managed'
