@@ -884,19 +884,19 @@ for tmpCloud in siteMapper.getCloudList():
     varMap[':processingType2']  = 'simul'
     varMap[':modificationTime'] = timeLimit
     varMap[':computingSite']    = siteMapper.getCloud(tmpCloud)['tier1']
-    status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND prodSourceLabel=:prodSourceLabel AND modificationTime<:modificationTime AND processingType IN (:processingType1,:processingType2) AND computingSite=:computingSite ORDER BY PandaID",
-                                      varMap)
-    jobs = []
-    if res != None:
+    while True:
+        status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND prodSourceLabel=:prodSourceLabel AND modificationTime<:modificationTime AND processingType IN (:processingType1,:processingType2) AND computingSite=:computingSite ORDER BY PandaID",
+                                          varMap)
+        jobs = []
+        if res == None:
+            break
         for (id,) in res:
             jobs.append(id)
-    if len(jobs):
+        if len(jobs) == 0:
+            break
         nJob = 100
-        iJob = 0
-        while iJob < len(jobs):
-            _logger.debug('reassignJobs for Active evgensimul (%s)' % jobs[iJob:iJob+nJob])
-            taskBuffer.reassignJobs(jobs[iJob:iJob+nJob],joinThr=True)
-            iJob += nJob
+        _logger.debug('reassignJobs for Active evgensimul (%s)' % jobs[:nJob])
+        taskBuffer.reassignJobs(jobs[:nJob],joinThr=True)
 
 
 # reassign too long-standing jobs in active table
