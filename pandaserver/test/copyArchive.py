@@ -871,8 +871,36 @@ if len(jobs):
         iJob += nJob
 
 
+# reassign too long-standing evgen/simul jobs with active state at T1
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=4)
+for tmpCloud in siteMapper.getCloudList():
+    # ignore special clouds
+    if tmpCloud in ['CERN','OSG']:
+        continue
+    varMap = {}
+    varMap[':jobStatus']        = 'activated'
+    varMap[':prodSourceLabel']  = 'managed'
+    varMap[':processingType1']  = 'evgen'
+    varMap[':processingType2']  = 'simul'
+    varMap[':modificationTime'] = timeLimit
+    varMap[':computingSite']    = siteMapper.getCloud(tmpCloud)['tier1']
+    status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND prodSourceLabel=:prodSourceLabel AND modificationTime<:modificationTime AND processingType IN (:processingType1,:processingType2) AND computingSite=:computingSite ORDER BY PandaID",
+                                      varMap)
+    jobs = []
+    if res != None:
+        for (id,) in res:
+            jobs.append(id)
+    if len(jobs):
+        nJob = 100
+        iJob = 0
+        while iJob < len(jobs):
+            _logger.debug('reassignJobs for Active evgensimul (%s)' % jobs[iJob:iJob+nJob])
+            taskBuffer.reassignJobs(jobs[iJob:iJob+nJob],joinThr=True)
+            iJob += nJob
+
+
 # reassign too long-standing jobs in active table
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=2)
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=1)
 varMap = {}
 varMap[':jobStatus'] = 'activated'
 varMap[':prodSourceLabel'] = 'managed'

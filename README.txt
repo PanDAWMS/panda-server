@@ -1,7 +1,9 @@
 Release Note
 
 * current
-  * added SQLDumer
+  * reassign evgen/simul with active state at T1 more aggressively
+  * made SQLDumper iterable
+  * added SQLDumper
   * added reassignTask
   * use getFullJobStatus in Notifier since some jobs can go to ARCH before notification
   * seprate retry for Notifier
