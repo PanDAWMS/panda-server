@@ -905,19 +905,19 @@ varMap = {}
 varMap[':jobStatus'] = 'activated'
 varMap[':prodSourceLabel'] = 'managed'
 varMap[':modificationTime'] = timeLimit
-status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND prodSourceLabel=:prodSourceLabel AND modificationTime<:modificationTime ORDER BY PandaID",
-                              varMap)
-jobs = []
-if res != None:
+while True:
+    status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND prodSourceLabel=:prodSourceLabel AND modificationTime<:modificationTime ORDER BY PandaID",
+                                      varMap)
+    jobs = []
+    if res == None:
+        break
     for (id,) in res:
         jobs.append(id)
-if len(jobs):
+    if len(jobs) == 0:
+        break
     nJob = 100
-    iJob = 0
-    while iJob < len(jobs):
-        _logger.debug('reassignJobs for Active (%s)' % jobs[iJob:iJob+nJob])
-        taskBuffer.reassignJobs(jobs[iJob:iJob+nJob],joinThr=True)
-        iJob += nJob
+    _logger.debug('reassignJobs for Active (%s)' % jobs[:nJob])
+    taskBuffer.reassignJobs(jobs[:nJob],joinThr=True)
 
 
 # kill too long-standing analysis jobs in active table
