@@ -872,7 +872,7 @@ if len(jobs):
 
 
 # reassign too long-standing evgen/simul jobs with active state at T1
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=4)
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
 for tmpCloud in siteMapper.getCloudList():
     # ignore special clouds
     if tmpCloud in ['CERN','OSG']:
