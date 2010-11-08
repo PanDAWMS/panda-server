@@ -17,6 +17,9 @@ def run(inFile,v_onlyTA):
     # password
     from config import panda_config
     passwd = panda_config.dbpasswd
+    # initialize cx_Oracle using dummy connection
+    from taskbuffer.Initializer import initializer
+    initializer.init()
     # instantiate TB
     from taskbuffer.TaskBuffer import taskBuffer
     taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
