@@ -14,6 +14,7 @@ import traceback
 import ErrorCode
 import TaskAssigner
 from DDM import ddm
+from dataservice.DDM import dq2Common
 from taskbuffer.JobSpec import JobSpec
 from taskbuffer.FileSpec import FileSpec
 from taskbuffer.DatasetSpec import DatasetSpec
@@ -506,24 +507,30 @@ class Setupper (threading.Thread):
                                                 tmpRealDN = job.prodUserID
                                                 tmpRealDN = re.sub('/CN=limited proxy','',tmpRealDN)
                                                 tmpRealDN = re.sub('/CN=proxy','',tmpRealDN)
-                                                _logger.debug((self.timestamp,'setReplicaMetaDataAttribute',name,dq2ID,'owner',tmpRealDN))
-                                                for iDDMTry in range(3):
-                                                    status,out = ddm.DQ2.main('setReplicaMetaDataAttribute',name,dq2ID,'owner',tmpRealDN)
-                                                    if status != 0 or out.find("DQ2 internal server exception") != -1 \
-                                                           or out.find("An error occurred on the central catalogs") != -1 \
-                                                           or out.find("MySQL server has gone away") != -1:
-                                                        time.sleep(60)
-                                                    else:
-                                                        break
-                                                # failed
-                                                if status != 0 or out.find('Error') != -1:
+                                                status,out = dq2Common.parse_dn(tmpRealDN)
+                                                if status != 0:
                                                     _logger.error("%s %s" % (self.timestamp,out))
-                                                    break
-                                                # delete old replicas
-                                                tmpDelStat = self.deleteDatasetReplicas([name],[dq2ID])
-                                                if not tmpDelStat:
-                                                    status,out = 1,'failed to delete old replicas for %s' % name
-                                                    break
+                                                    status,out = 1,'failed to truncate DN:%s' % job.prodUserID
+                                                else:
+                                                    tmpRealDN = out
+                                                    _logger.debug((self.timestamp,'setReplicaMetaDataAttribute',name,dq2ID,'owner',tmpRealDN))
+                                                    for iDDMTry in range(3):
+                                                        status,out = ddm.DQ2.main('setReplicaMetaDataAttribute',name,dq2ID,'owner',tmpRealDN)
+                                                        if status != 0 or out.find("DQ2 internal server exception") != -1 \
+                                                               or out.find("An error occurred on the central catalogs") != -1 \
+                                                               or out.find("MySQL server has gone away") != -1:
+                                                            time.sleep(60)
+                                                        else:
+                                                            break
+                                                    # failed
+                                                    if status != 0 or out.find('Error') != -1:
+                                                        _logger.error("%s %s" % (self.timestamp,out))
+                                                        break
+                                                    # delete old replicas
+                                                    tmpDelStat = self.deleteDatasetReplicas([name],[dq2ID])
+                                                    if not tmpDelStat:
+                                                        status,out = 1,'failed to delete old replicas for %s' % name
+                                                        break
                                     # failed
                                     if status != 0 or out.find('Error') != -1:
                                         _logger.error("%s %s" % (self.timestamp,out))

@@ -11,6 +11,7 @@ import datetime
 import threading
 
 from dataservice.DDM import ddm
+from dataservice.DDM import dq2Common
 from taskbuffer.JobSpec import JobSpec
 from taskbuffer.OraDBProxy import DBProxy
 from dataservice.Setupper import Setupper
@@ -756,9 +757,15 @@ class ReBroker (threading.Thread):
         tmpRealDN = self.job.prodUserID
         tmpRealDN = re.sub('/CN=limited proxy','',tmpRealDN)
         tmpRealDN = re.sub('/CN=proxy','',tmpRealDN)
+        status,out = dq2Common.parse_dn(tmpRealDN)
+        if status != 0:
+            _logger.error(self.token+' '+out)
+            _logger.error('%s failed to truncate DN:%s' % (self.token,self.job.prodUserID))
+            return False
+        tmpRealDN = out
         # set owner
         for iDDMTry in range(nTry):
-            _logger.debug("%s %s/%s setMetaDataAttribute %s" % (self.token,iDDMTry,nTry,dataset))
+            _logger.debug("%s %s/%s setMetaDataAttribute %s %s" % (self.token,iDDMTry,nTry,dataset,tmpRealDN))
             status,out = ddm.DQ2.main('setMetaDataAttribute',dataset,'owner',tmpRealDN)            
             if status != 0 or (not self.isDQ2ok(out)):
                 time.sleep(60)

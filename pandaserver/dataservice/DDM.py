@@ -186,3 +186,39 @@ class DQ2Info:
 # instantiate
 dq2Info = DQ2Info()
 del DQ2Info
+
+
+# method object wrapping dq2 common
+class _DQ2CommonMethod:
+    # constructor
+    def __init__(self,methodName):
+        self.methodName = methodName
+
+    # method emulation
+    def __call__(self,*args):
+        args = list(args)
+        # build command
+        com  = 'from dq2.common import %s; ' % self.methodName
+        com += 'print %s(' % self.methodName
+        # expand args
+        for i in range(len(args)):
+            arg = args[i]
+            if isinstance(arg,types.StringType):
+                com += "'%s'," % arg
+            else:
+                com = '%s,' % arg
+        com = com[:-1]        
+        com += ")"
+        # execute
+        return commands.getstatusoutput('%s env %s python -c "%s"' % (_cwd,_env,com))
+
+
+# TOA module class
+class DQ2Common:
+    def __getattr__(self,methodName):
+        return _DQ2CommonMethod(methodName)
+
+    
+# instantiate
+dq2Common = DQ2Common()
+del DQ2Common

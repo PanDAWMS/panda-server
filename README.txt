@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * use truncated DN when setting dataset owner 
   * reassign evgen/simul with active state at T1 more aggressively
   * made SQLDumper iterable
   * added SQLDumper
