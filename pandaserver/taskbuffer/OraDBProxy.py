@@ -347,6 +347,84 @@ class DBProxy:
             return False
 
 
+    # simply insert job to a table without reading
+    def insertJobSimpleUnread(self,pandaID,modTime):
+        comment = ' /* DBProxy.insertJobSimpleUnread */'                            
+        _logger.debug("insertJobSimpleUnlread : %s" % pandaID)
+        # check
+        sqlC = "SELECT PandaID FROM ATLAS_PANDAARCH.jobsArchived "
+        sqlC += "WHERE PandaID=:pandaID AND rownum<=1 "
+        # job
+        sqlJ  = "INSERT INTO ATLAS_PANDAARCH.jobsArchived (%s) " % JobSpec.columnNames()
+        sqlJ += "SELECT %s FROM ATLAS_PANDA.jobsArchived4 " % JobSpec.columnNames()
+        sqlJ += "WHERE PandaID=:pandaID "
+        # file
+        sqlF  = "INSERT INTO ATLAS_PANDAARCH.filesTable_ARCH (%s) " % FileSpec.columnNames(withMod=True)
+        sqlF += "SELECT %s,:modTime FROM ATLAS_PANDA.filesTable4 " % FileSpec.columnNames(withMod=False)
+        sqlF += "WHERE PandaID=:pandaID "
+        # parameters
+        sqlP  = "INSERT INTO ATLAS_PANDAARCH.jobParamsTable_ARCH (PandaID,jobParameters,modificationTime) "
+        sqlP += "SELECT PandaID,jobParameters,:modTime FROM ATLAS_PANDA.jobParamsTable "
+        sqlP += "WHERE PandaID=:pandaID "
+        # metadata
+        sqlM1  = "SELECT PandaID FROM ATLAS_PANDA.metaTable "
+        sqlM1 += "WHERE PandaID=:pandaID AND rownum<=1 "
+        sqlM2  = "INSERT INTO ATLAS_PANDAARCH.metaTable_ARCH (PandaID,metaData,modificationTime) "
+        sqlM2 += "SELECT PandaID,metaData,:modTime FROM ATLAS_PANDA.metaTable "
+        sqlM2 += "WHERE PandaID=:pandaID "
+        try:
+            # begin transaction
+            self.conn.begin()
+            # check
+            varMap = {}
+            varMap[':pandaID'] = pandaID
+            self.cur.execute(sqlC+comment,varMap)
+            res = self.cur.fetchone()
+            if res != None:
+                _logger.debug("insertJobSimpleUnlread : %s skip" % pandaID)                
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                return True
+            # insert
+            varMap = {}
+            varMap[':pandaID'] = pandaID
+            self.cur.execute(sqlJ+comment,varMap)
+            varMap = {}
+            varMap[':pandaID'] = pandaID
+            varMap[':modTime'] = modTime
+            self.cur.execute(sqlF+comment,varMap)
+            varMap = {}
+            varMap[':pandaID'] = pandaID
+            varMap[':modTime'] = modTime
+            self.cur.execute(sqlP+comment,varMap)
+            varMap = {}
+            varMap[':pandaID'] = pandaID
+            self.cur.execute(sqlM1+comment,varMap)
+            res = self.cur.fetchone()
+            if res != None:
+                varMap = {}
+                varMap[':pandaID'] = pandaID
+                varMap[':modTime'] = modTime
+                self.cur.execute(sqlM2+comment,varMap)                                    
+            # set flag to avoid duplicated insertion attempts
+            varMap = {}
+            varMap[':PandaID']      = pandaID
+            varMap[':archivedFlag'] = 1
+            sqlArch = "UPDATE ATLAS_PANDA.jobsArchived4 SET archivedFlag=:archivedFlag WHERE PandaID=:PandaID"
+            self.cur.execute(sqlArch+comment, varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            return True
+        except:
+            type, value, traceBack = sys.exc_info()
+            _logger.error("insertJobSimpleUnread %s : %s %s" % (pandaID,type,value))
+            # roll back
+            self._rollback()
+            return False
+
+
     # delete job
     def deleteJobSimple(self,pandaID):
         comment = ' /* DBProxy.deleteJobSimple */'                            

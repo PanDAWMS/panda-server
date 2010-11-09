@@ -71,7 +71,7 @@ _memoryCheck("start")
 # kill old dq2 process
 try:
     # time limit
-    timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=2)
+    timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
     # get process list
     scriptName = sys.argv[0]
     out = commands.getoutput('ps axo user,pid,lstart,args | grep dq2.clientapi | grep -v PYTHONPATH | grep -v grep')
@@ -163,35 +163,13 @@ else:
     for (id,srcEndTime) in res:
         tmpIndex += 1
         try:
-            # check if already recorded
-            _logger.debug("check  %s " % id)
-            sql = "SELECT PandaID from %s WHERE PandaID=:PandaID" % jobATableName
-            varMap = {}
-            varMap[':PandaID'] = id
-            status,check = taskBuffer.querySQLS(sql,varMap)
             # copy
-            if len(check) == 0:
-                # get jobs
-                job = taskBuffer.peekJobs([id],False,False,True,False)[0]
-                # insert to archived
-                if job != None and job.jobStatus != 'unknown':
-                    proxyS = taskBuffer.proxyPool.getProxy()
-                    proxyS.insertJobSimple(job,jobATableName,filesATableName,paramATableName,metaATableName)
-                    taskBuffer.proxyPool.putProxy(proxyS)
-                    _logger.debug("INSERT %s" % id)
-                else:
-                    _logger.error("Failed to peek at %s" % id)
-            else:
-                # set archivedFlag            
-                varMap = {}
-                varMap[':PandaID'] = id
-                varMap[':archivedFlag'] = 1
-                sqlUpdate = "UPDATE ATLAS_PANDA.jobsArchived4 SET archivedFlag=:archivedFlag WHERE PandaID=:PandaID"
-                taskBuffer.querySQLS(sqlUpdate,varMap)
+            proxyS = taskBuffer.proxyPool.getProxy()
+            proxyS.insertJobSimpleUnread(id,srcEndTime)
+            _logger.debug("INSERT %s" % id)
             if tmpIndex % 100 == 1:
                 _logger.debug(" copied %s/%s" % (tmpIndex,tmpTotal))
         except:
             pass
-
 
 _logger.debug("===================== end =====================")
