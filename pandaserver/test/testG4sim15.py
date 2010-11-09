@@ -6,8 +6,9 @@ import userinterface.Client as Client
 from taskbuffer.JobSpec import JobSpec
 from taskbuffer.FileSpec import FileSpec
 
-site  = None
-cloud = 'DE'
+site  = sys.argv[1]
+cloud = sys.argv[2]
+
 prodDBlock = 'mc09_10TeV.105807.JF35_pythia_jet_filter.evgen.EVNT.e469_tid095268'
 inputFile = 'EVNT.095268._000110.pool.root.1'
 

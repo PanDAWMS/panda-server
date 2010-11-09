@@ -22,7 +22,7 @@ for i in range(1):
     job.transformation    = 'Evgen_trf.py'
     job.destinationDBlock = datasetName
     job.destinationSE     = destName
-    job.currentPriority   = 1000
+    job.currentPriority   = 10000
     job.prodSourceLabel   = 'test'
     job.computingSite     = site
     job.cloud             = cloud
