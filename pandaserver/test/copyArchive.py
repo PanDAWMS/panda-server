@@ -147,6 +147,7 @@ metaATableName  = "ATLAS_PANDAARCH.metaTable_ARCH"
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=3)
 
 # copy
+"""
 _logger.debug("get PandaIDs for Archive")
 varMap = {}
 varMap[':archivedFlag'] = 0
@@ -192,6 +193,7 @@ else:
                 _logger.debug(" copied %s/%s" % (tmpIndex,tmpTotal))
         except:
             pass
+"""
         
 # delete
 _logger.debug("get PandaIDs for Delete")

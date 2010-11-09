@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * split arch procedure to another cron
   * call taskbuffer.Initializer in forkSetupper.py to acquire Oracle environment handle correctly
   * use truncated DN when setting dataset owner 
   * reassign evgen/simul with active state at T1 more aggressively
