@@ -352,8 +352,8 @@ class DBProxy:
         comment = ' /* DBProxy.insertJobSimpleUnread */'                            
         _logger.debug("insertJobSimpleUnread : %s" % pandaID)
         # check
-        sqlC = "SELECT PandaID FROM ATLAS_PANDAARCH.jobsArchived "
-        sqlC += "WHERE PandaID=:pandaID AND rownum<=1 "
+        sqlC = "SELECT archivedFlag FROM ATLAS_PANDA.jobsArchived4 "
+        sqlC += "WHERE PandaID=:pandaID "
         # job
         sqlJ  = "INSERT INTO ATLAS_PANDAARCH.jobsArchived (%s) " % JobSpec.columnNames()
         sqlJ += "SELECT %s FROM ATLAS_PANDA.jobsArchived4 " % JobSpec.columnNames()
@@ -380,8 +380,11 @@ class DBProxy:
             varMap[':pandaID'] = pandaID
             self.cur.execute(sqlC+comment,varMap)
             res = self.cur.fetchone()
-            if res != None:
-                _logger.debug("insertJobSimpleUnlread : %s skip" % pandaID)                
+            if res == None or res[0] == 1:
+                if res == None:
+                    _logger.error("insertJobSimpleUnread : %s cannot get archivedFlag" % pandaID)
+                else:
+                    _logger.debug("insertJobSimpleUnread : %s skip" % pandaID)
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
