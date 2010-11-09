@@ -166,6 +166,7 @@ else:
             # copy
             proxyS = taskBuffer.proxyPool.getProxy()
             proxyS.insertJobSimpleUnread(id,srcEndTime)
+            taskBuffer.proxyPool.putProxy(proxyS)            
             _logger.debug("INSERT %s" % id)
             if tmpIndex % 100 == 1:
                 _logger.debug(" copied %s/%s" % (tmpIndex,tmpTotal))

@@ -350,7 +350,7 @@ class DBProxy:
     # simply insert job to a table without reading
     def insertJobSimpleUnread(self,pandaID,modTime):
         comment = ' /* DBProxy.insertJobSimpleUnread */'                            
-        _logger.debug("insertJobSimpleUnlread : %s" % pandaID)
+        _logger.debug("insertJobSimpleUnread : %s" % pandaID)
         # check
         sqlC = "SELECT PandaID FROM ATLAS_PANDAARCH.jobsArchived "
         sqlC += "WHERE PandaID=:pandaID AND rownum<=1 "
