@@ -210,9 +210,10 @@ nBunch = 100
 tmpIndex = 0
 while True:
     sql  = "SELECT PandaID,modificationTime FROM ATLAS_PANDA.jobsArchived4 "
-    sql += "WHERE modificationTime<:modificationTime AND rownum<=:rowRange"
+    sql += "WHERE modificationTime<:modificationTime AND archivedFlag=:archivedFlag AND rownum<=:rowRange"
     varMap = {}
     varMap[':modificationTime'] = timeLimit
+    varMap[':archivedFlag'] = 1    
     varMap[':rowRange'] = maxBunch
     status,res = taskBuffer.querySQLS(sql,varMap)
     if res == None:
