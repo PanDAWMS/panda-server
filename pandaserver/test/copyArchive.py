@@ -196,6 +196,7 @@ else:
 """
         
 # delete
+"""
 _logger.debug("get PandaIDs for Delete")
 sql = "SELECT COUNT(*) FROM ATLAS_PANDA.jobsArchived4 WHERE modificationTime<:modificationTime"
 varMap = {}
@@ -251,7 +252,7 @@ while True:
                 except:
                     pass
 del res
-
+"""
 
 # increase priorities for long-waiting analysis jobs
 """

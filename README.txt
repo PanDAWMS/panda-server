@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added deleteJobs.py
   * split arch procedure to another cron
   * call taskbuffer.Initializer in forkSetupper.py to acquire Oracle environment handle correctly
   * use truncated DN when setting dataset owner 

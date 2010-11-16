@@ -181,6 +181,7 @@ setup(
                              'templates/panda_server-copyArchive.sh.exe.template',
                              'templates/panda_server-archivelog.sh.exe.template',
                              'templates/panda_server-backupJobArch.sh.exe.template',
+                             'templates/panda_server-deleteJobs.sh.exe.template',
                              ]
                  ),
                 # var dirs
