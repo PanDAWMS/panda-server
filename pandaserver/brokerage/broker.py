@@ -157,7 +157,7 @@ def _isTooManyInput(nFilesPerJob,inputSizePerJob):
 
 # schedule
 def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],trustIS=False,
-             distinguishedName=None,specialWeight={}):
+             distinguishedName=None,specialWeight={},getWeight=False):
     _log.debug('start %s %s %s %s' % (forAnalysis,str(setScanSiteList),trustIS,distinguishedName))
     if specialWeight != {}:
         _log.debug('PD2P weight : %s' % str(specialWeight))
@@ -192,6 +192,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
 
     diskThreshold = 200
     manyInputsThr = 20
+
+    weightUsedByBrokerage = {}
     
     try:
         # get statistics
@@ -491,6 +493,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     nSubs += specialWeight[site]
                                 _log.debug('   %s nSubs:%s nPilots:%s nJobsPerNode:%s' % (site,nSubs,nPilots,nJobsPerNode))
                                 winv = float(nSubs) / float(nPilots+1) / nJobsPerNode
+                                if getWeight:
+                                    weightUsedByBrokerage[site] = "%.2f/%s" % (float(nPilots+1)*nJobsPerNode,nSubs)
                             else:
                                 _log.debug('   %s assigned:%s activated:%s running:%s nPilots:%s nJobsPerNode:%s' %
                                            (site,nAssJobs,nActJobs,jobStatistics[site]['running'],nPilots,nJobsPerNode))
@@ -775,7 +779,11 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
         except:
             pass
         _log.debug('finished')
+        if getWeight:
+            return weightUsedByBrokerage
     except:
         type, value, traceBack = sys.exc_info()
         _log.error("schedule : %s %s" % (type,value))
+        if getWeight:
+            return {}
 

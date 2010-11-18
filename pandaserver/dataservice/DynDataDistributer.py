@@ -25,6 +25,9 @@ ngDataTypes = ['RAW','HITS','RDO']
 # excluded provenance
 ngProvenance = ['GP',]
 
+# threshold for hot dataset
+nUsedForHotDS = 10
+
 
 class DynDataDistributer:
 
@@ -106,13 +109,14 @@ class DynDataDistributer:
                 # loop over all datasets
                 usedSites = []
                 for tmpDS,tmpVal in sitesMaps.iteritems():
-                    self.putLog("constituent DS %s" % tmpDS)
+                    self.putLog("triggered for %s" % tmpDS,sendLog=True)
                     # increment used counter
-                    self.taskBuffer.incrementUsedCounterSubscription(tmpDS)
+                    nUsed = self.taskBuffer.incrementUsedCounterSubscription(tmpDS)
                     # collect candidates
                     allCandidates = []
                     totalUserSub = 0
                     allCompPd2pSites = []
+                    allOKClouds = []
                     for tmpCloud,(candSites,sitesComDS,sitesPd2pDS,nUserSub,t1HasReplica) in tmpVal.iteritems():
                         self.putLog("%s sites with comp DS %s - compPD2P %s - candidates %s - nSub %s - T1 %s" % \
                                     (tmpCloud,str(sitesComDS),str(sitesPd2pDS),str(candSites),nUserSub,t1HasReplica))
@@ -127,23 +131,33 @@ class DynDataDistributer:
                         for tmpCandSite in candSites:
                             if not tmpCandSite in usedSites:
                                 allCandidates.append(tmpCandSite)
+                        # add clouds
+                        if not tmpCloud in allOKClouds:
+                            allOKClouds.append(tmpCloud)
                     self.putLog("PD2P sites with comp replicas : %s" % str(allCompPd2pSites))
                     self.putLog("PD2P candidates : %s" % str(allCandidates))
-                    self.putLog("PD2P subscriptions : %s" % totalUserSub)
+                    self.putLog("PD2P # of subscriptions : %s" % totalUserSub)
+                    self.putLog("PD2P nUsed : %s" % nUsed)
                     # check number of replicas
                     maxSitesHaveDS = 1
+                    if nUsed > nUsedForHotDS:
+                        maxSitesHaveDS = 2
                     if len(allCompPd2pSites) >= maxSitesHaveDS:
-                        self.putLog("skip since many PD2P sites (%s>=%s) have the replica" % (len(allCompPd2pSites),maxSitesHaveDS))
+                        self.putLog("skip since many PD2P sites (%s>=%s) have the replica" % (len(allCompPd2pSites),maxSitesHaveDS),
+                                    sendLog=True)
                         continue
                     # check the number of subscriptions
                     maxNumSubInAllCloud = 1
+                    if nUsed > nUsedForHotDS:
+                        maxNumSubInAllCloud = 2                    
                     if totalUserSub >= maxNumSubInAllCloud:
                         self.putLog("skip since enough subscriptions (%s>=%s) were already made" % \
-                                    (totalUserSub,maxNumSubInAllCloud))
+                                    (totalUserSub,maxNumSubInAllCloud),
+                                    sendLog=True)
                         continue
                     # no candidates
                     if len(allCandidates) == 0:
-                        self.putLog("skip since no candidates")
+                        self.putLog("skip since no candidates",sendLog=True)
                         continue
                     # get weight for brokerage
                     weightForBrokerage = self.getWeightForBrokerage(allCandidates,tmpDS)
@@ -152,11 +166,14 @@ class DynDataDistributer:
                     tmpJob = JobSpec()
                     tmpJob.AtlasRelease = ''
                     self.putLog("run brokerage for %s" % tmpDS)
-                    brokerage.broker.schedule([tmpJob],self.taskBuffer,self.siteMapper,True,allCandidates,
-                                              True,specialWeight=weightForBrokerage)
+                    usedWeight = brokerage.broker.schedule([tmpJob],self.taskBuffer,self.siteMapper,True,allCandidates,
+                                                           True,specialWeight=weightForBrokerage,getWeight=True)
+                    for tmpWeightSite,tmpWeightStr in usedWeight.iteritems():
+                        self.putLog("weight %s %s" % (tmpWeightSite,tmpWeightStr),sendLog=True)
                     self.putLog("site -> %s" % tmpJob.computingSite)
                     # make subscription
                     subRet,dq2ID = self.makeSubscription(tmpDS,tmpJob.computingSite)
+                    self.putLog("made subscription to %s:%s" % (tmpJob.computingSite,dq2ID),sendLog=True)
                     usedSites.append(tmpJob.computingSite)
                     # update database
                     if subRet:
@@ -472,12 +489,24 @@ class DynDataDistributer:
 
 
     # put log
-    def putLog(self,msg,type='debug'):
+    def putLog(self,msg,type='debug',sendLog=False):
         tmpMsg = self.token+' '+msg
         if type == 'error':
             _logger.error(tmpMsg)
         else:
             _logger.debug(tmpMsg)
+        # send to logger
+        if sendLog:
+            tmpPandaLogger = PandaLogger()
+            tmpPandaLogger.lock()
+            tmpPandaLogger.setParams({'Type':'pd2p'})
+            tmpLog = tmpPandaLogger.getHttpLogger(panda_config.loggername)
+            # add message
+            tmpLog.info(tmpMsg)
+            # release HTTP handler
+            tmpPandaLogger.release()
+            time.sleep(1)
+                                                                                                                            
             
                 
             

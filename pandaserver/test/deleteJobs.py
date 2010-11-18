@@ -125,7 +125,7 @@ if res != None:
 else:
     tmpTotal = None
 maxBunch = 1000
-nBunch = 100
+nBunch = 500
 tmpIndex = 0
 while True:
     sql  = "SELECT PandaID,modificationTime FROM ATLAS_PANDA.jobsArchived4 "
@@ -169,5 +169,7 @@ while True:
                         _logger.debug(" deleted %s/%s" % (tmpIndex,tmpTotal))
                 except:
                     pass
-
+            # terminate
+            if maxBunch < nBunch:
+                break
 _logger.debug("===================== end =====================")

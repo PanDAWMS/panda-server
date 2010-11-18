@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * added the number of succeeded jobs to the subject of Notification
+  * added pd2p logging
   * added deleteJobs.py
   * split arch procedure to another cron
   * call taskbuffer.Initializer in forkSetupper.py to acquire Oracle environment handle correctly

@@ -156,25 +156,29 @@ class Notifier (threading.Thread):
                         elif job.jobStatus == 'cancelled':
                             nCancel += 1
                     # make message
+                    if nSucceeded == nTotal:
+                        finalStatInSub = "(All Succeeded)"
+                    else:
+                        finalStatInSub = "(%s/%s Succeeded)" % (nSucceeded,nTotal)
                     fromadd = panda_config.emailSender
                     if self.job.jobsetID in [0,'NULL',None]:
                         message = \
-"""Subject: PANDA notification for JobID : %s
+"""Subject: PANDA notification for JobID : %s  %s
 From: %s
 To: %s
 
 Summary of JobID : %s
 
-Site : %s""" % (self.job.jobDefinitionID,fromadd,mailAddr,self.job.jobDefinitionID,self.job.computingSite)
+Site : %s""" % (self.job.jobDefinitionID,finalStatInSub,fromadd,mailAddr,self.job.jobDefinitionID,self.job.computingSite)
                     else:
                         message = \
-"""Subject: PANDA notification for JobsetID : %s
+"""Subject: PANDA notification for JobsetID : %s  %s
 From: %s
 To: %s
 
 Summary of JobsetID : %s
 
-JobID/Site : %s""" % (jobsetID,fromadd,mailAddr,jobsetID,jobIDsite)
+JobID/Site : %s""" % (jobsetID,finalStatInSub,fromadd,mailAddr,jobsetID,jobIDsite)
                     message += \
 """                    
 

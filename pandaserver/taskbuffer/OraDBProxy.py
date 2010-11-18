@@ -6841,6 +6841,8 @@ class DBProxy:
         _logger.debug("incrementUsedCounterSubscription(%s)" % datasetName)
         sql0  = "UPDATE ATLAS_PANDAMETA.UserSubs SET nUsed=nUsed+1 "
         sql0 += "WHERE datasetName=:datasetName AND nUsed IS NOT NULL"
+        sqlU  = "SELECT MAX(nUsed) FROM ATLAS_PANDAMETA.UserSubs "
+        sqlU += "WHERE datasetName=:datasetName"
         try:
             # start transaction
             self.conn.begin()
@@ -6848,16 +6850,26 @@ class DBProxy:
             varMap[':datasetName'] = datasetName
             # update
             self.cur.execute(sql0+comment,varMap)
+            # get nUsed
+            nUsed = 0
+            retU = self.cur.rowcount
+            if retU > 0:
+                # get nUsed
+                self.cur.execute(sqlU+comment,varMap)
+                self.cur.arraysize = 10
+                res = self.cur.fetchone()
+                if res != None:
+                    nUsed = res[0]
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
-            return True
+            return nUsed
         except:
             # roll back
             self._rollback()
             errType,errValue = sys.exc_info()[:2]
             _logger.error("incrementUsedCounterSubscription : %s %s" % (errType,errValue))
-            return False
+            return -1
 
         
     # get active datasets
