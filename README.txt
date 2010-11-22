@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * use function index in getPandaIDsForProdDB 
   * reduced the number of rotated logs
   * use cernmx.cern.ch
   * added getLockDatasets

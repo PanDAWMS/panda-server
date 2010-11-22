@@ -3277,7 +3277,8 @@ class DBProxy:
         _logger.debug("getPandaIDsForProdDB %s" % limit)
         sql0 = "SELECT PandaID,jobStatus,stateChangeTime,attemptNr,jobDefinitionID,jobExecutionID FROM %s "
         sql0+= "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND lockedby=:lockedby "
-        sql0+= "AND stateChangeTime>prodDBUpdateTime "
+        sqlX = "AND stateChangeTime>prodDBUpdateTime "
+        sqlA = "AND (CASE WHEN stateChangeTime>prodDBUpdateTime THEN 1 ELSE null END) = 1 "
         sql1 = "AND rownum<=:limit "
         varMap = {}
         varMap[':lockedby'] = lockedby
@@ -3293,10 +3294,16 @@ class DBProxy:
                 self.conn.begin()
                 # select
                 sql = sql0 % table
+                if table in ['ATLAS_PANDA.jobsArchived4']:
+                    sql += sqlA
+                else:
+                    sql += sqlX
                 sql += sql1    
-                self.cur.arraysize = limit                
+                self.cur.arraysize = limit
+                _logger.debug("getPandaIDsForProdDB %s %s" % (sql+comment,str(varMap)))
                 self.cur.execute(sql+comment, varMap)
                 res = self.cur.fetchall()
+                _logger.debug("getPandaIDsForProdDB got %s" % len(res))
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
