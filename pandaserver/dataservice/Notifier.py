@@ -274,7 +274,7 @@ Report Panda problems of any sort to
                 server.set_debuglevel(1)
                 server.ehlo()
                 server.starttls()
-                server.login(panda_config.emailLogin,panda_config.emailPass)
+                #server.login(panda_config.emailLogin,panda_config.emailPass)
                 out = server.sendmail(fromadd,mailAddr,message)
                 _logger.debug('%s %s' % (pandaID,str(out)))
                 server.quit()

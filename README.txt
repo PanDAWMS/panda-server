@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * reduced the number of rotated logs
+  * use cernmx.cern.ch
   * added getLockDatasets
   * added the number of succeeded jobs to the subject of Notification
   * added pd2p logging

@@ -149,7 +149,7 @@ httpProxy = ""
 emailDB = %(logdir)s/email_db
 
 # SMTP server
-emailSMTPsrv = smtp.cern.ch
+emailSMTPsrv = cernmx.cern.ch
 
 # sender address for notification
 emailSender = atlpan@cern.ch
