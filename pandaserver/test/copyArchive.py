@@ -1141,8 +1141,10 @@ while True:
     varMap[':modificationdateL'] = timeLimitL    
     varMap[':type']   = 'output'
     varMap[':status'] = 'tobeclosed'
-    status,res = taskBuffer.querySQLS("SELECT vuid,name,modificationdate FROM ATLAS_PANDA.Datasets WHERE type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= 10",
-                                  varMap)
+    sqlQuery = "type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= 500"    
+    proxyS = taskBuffer.proxyPool.getProxy()
+    res = proxyS.getLockDatasets(sqlQuery,varMap)
+    taskBuffer.proxyPool.putProxy(proxyS)
     if res == None:
         _logger.debug("# of datasets to be closed: %s" % res)
     else:
@@ -1151,9 +1153,6 @@ while True:
         closeProxyLock.release()
         closeLock.release()
         break
-    # update to prevent other process from picking up
-    for (vuid,name,modDate) in res:
-        taskBuffer.querySQLS("UPDATE ATLAS_PANDA.Datasets SET modificationdate=CURRENT_DATE WHERE vuid=:vuid", {':vuid':vuid})
     # release
     closeProxyLock.release()
     closeLock.release()
@@ -1244,9 +1243,8 @@ while True:
     # lock
     freezeLock.acquire()
     # get datasets
-    sql = "SELECT vuid,name,modificationdate FROM ATLAS_PANDA.Datasets " + \
-          "WHERE type=:type AND status IN (:status1,:status2,:status3) " + \
-          "AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND REGEXP_LIKE(name,:pattern) AND rownum <= 20"
+    sqlQuery = "type=:type AND status IN (:status1,:status2,:status3) " + \
+               "AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND REGEXP_LIKE(name,:pattern) AND rownum <= 500"
     varMap = {}
     varMap[':modificationdateU'] = timeLimitU
     varMap[':modificationdateL'] = timeLimitL    
@@ -1256,7 +1254,9 @@ while True:
     varMap[':status3'] = 'defined'
     varMap[':pattern'] = '_sub[[:digit:]]+$'
     freezeProxyLock.acquire()
-    ret,res = taskBuffer.querySQLS(sql, varMap)
+    proxyS = taskBuffer.proxyPool.getProxy()
+    res = proxyS.getLockDatasets(sqlQuery,varMap)
+    taskBuffer.proxyPool.putProxy(proxyS)
     if res == None:
         _logger.debug("# of datasets to be frozen: %s" % res)
     else:
@@ -1265,9 +1265,6 @@ while True:
         freezeProxyLock.release()
         freezeLock.release()
         break
-    # update to prevent other process from picking up
-    for (vuid,name,modDate) in res:
-        taskBuffer.querySQLS("UPDATE ATLAS_PANDA.Datasets SET modificationdate=CURRENT_DATE WHERE vuid=:vuid", {':vuid':vuid})        
     freezeProxyLock.release()            
     # release
     freezeLock.release()
@@ -1370,9 +1367,11 @@ while True:
     varMap[':modificationdateL'] = timeLimitL    
     varMap[':type']   = 'output'
     varMap[':status'] = 'cleanup'
+    sqlQuery = "type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= 500"    
     t2cleanProxyLock.acquire()
-    status,res = taskBuffer.querySQLS("SELECT vuid,name,modificationdate FROM ATLAS_PANDA.Datasets WHERE type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= 10",
-                                  varMap)
+    proxyS = taskBuffer.proxyPool.getProxy()
+    res = proxyS.getLockDatasets(sqlQuery,varMap)
+    taskBuffer.proxyPool.putProxy(proxyS)
     if res == None:
         _logger.debug("# of datasets to be deleted from T2: %s" % res)
     else:
@@ -1381,9 +1380,6 @@ while True:
         t2cleanProxyLock.release()
         t2cleanLock.release()
         break
-    # update to prevent other process from picking up
-    for (vuid,name,modDate) in res:
-        taskBuffer.querySQLS("UPDATE ATLAS_PANDA.Datasets SET modificationdate=CURRENT_DATE WHERE vuid=:vuid", {':vuid':vuid})        
     t2cleanProxyLock.release()            
     # release
     t2cleanLock.release()

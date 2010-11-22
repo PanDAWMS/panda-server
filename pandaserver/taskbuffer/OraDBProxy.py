@@ -3458,6 +3458,43 @@ class DBProxy:
             return False
 
 
+    # get and lock dataset with a query
+    def getLockDatasets(self,sqlQuery,varMapGet):
+        comment = ' /* DBProxy.getLockDatasets */'        
+        _logger.debug("getLockDatasets(%s,%s)" % (sqlQuery,str(varMapGet)))
+        sqlGet  = "SELECT vuid,name,modificationdate FROM ATLAS_PANDA.Datasets WHERE " + sqlQuery
+        sqlLock = "UPDATE ATLAS_PANDA.Datasets SET modificationdate=CURRENT_DATE WHERE vuid=:vuid"
+        retList = []
+        try:
+            # begin transaction
+            self.conn.begin()
+            # get datasets
+            self.cur.arraysize = 10000
+            self.cur.execute(sqlGet+comment,varMapGet)            
+            res = self.cur.fetchall()
+            # loop over all datasets
+            if res != None and len(res) != 0:
+                for vuid,name,modificationdate in res:
+                    # append
+                    retList.append((vuid,name,modificationdate))
+                    # lock
+                    varMapLock = {}
+                    varMapLock[':vuid'] = vuid
+                    self.cur.execute(sqlLock+comment,varMapLock)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # retrun 
+            return retList
+        except:
+            # roll back
+            self._rollback()
+            # error
+            type, value, traceBack = sys.exc_info()
+            _logger.error("getLockDatasets : %s %s" % (type,value))
+            return []
+
+
     # query dataset with map
     def queryDatasetWithMap(self,map):
         comment = ' /* DBProxy.queryDatasetWithMap */'               
