@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * check free disk size in PD2P using DQ2.queryStorageUsage
   * use function index in getPandaIDsForProdDB 
   * reduced the number of rotated logs
   * use cernmx.cern.ch

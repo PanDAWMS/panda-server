@@ -162,12 +162,18 @@ class DynDataDistributer:
                     # get weight for brokerage
                     weightForBrokerage = self.getWeightForBrokerage(allCandidates,tmpDS)
                     self.putLog("weight %s" % str(weightForBrokerage))
+                    # get free disk size
+                    retFreeSizeMap,freeSizeMap = self.getFreeDiskSize(tmpDS,allCandidates)
+                    if not retFreeSizeMap:
+                        self.putLog("failed to get free disk size",type='error',sendLog=True)
+                        continue
                     # run brokerage
                     tmpJob = JobSpec()
                     tmpJob.AtlasRelease = ''
                     self.putLog("run brokerage for %s" % tmpDS)
                     usedWeight = brokerage.broker.schedule([tmpJob],self.taskBuffer,self.siteMapper,True,allCandidates,
-                                                           True,specialWeight=weightForBrokerage,getWeight=True)
+                                                           True,specialWeight=weightForBrokerage,getWeight=True,
+                                                           sizeMapForCheck=freeSizeMap)
                     for tmpWeightSite,tmpWeightStr in usedWeight.iteritems():
                         self.putLog("weight %s %s" % (tmpWeightSite,tmpWeightStr),sendLog=True)
                     self.putLog("site -> %s" % tmpJob.computingSite)
@@ -388,6 +394,50 @@ class DynDataDistributer:
         # return
         return retMap
 
+
+    # get free disk size
+    def getFreeDiskSize(self,dataset,siteList):
+        # return for failuer
+        retFailed = False,{}
+        # loop over all sites
+        sizeMap = {}
+        for sitename in siteList:
+            # get DQ2 IDs
+            dq2ID = self.getDQ2ID(sitename,dataset)
+            if dq2ID == '':
+                self.putLog("cannot find DQ2 ID for %s:%s" % (sitename,dataset))
+                return retFailed
+            for valueItem in ['used','total']:
+                nTry = 3
+                for iDDMTry in range(nTry):
+                    self.putLog("%s/%s queryStorageUsage key=%s value=%s site=%s" % (iDDMTry,nTry,'srm',valueItem,dq2ID))
+                    status,out = ddm.DQ2.main('queryStorageUsage','srm',valueItem,dq2ID)
+                    if status != 0 or (not self.isDQ2ok(out)):
+                        time.sleep(60)
+                    else:
+                        break
+                # result    
+                if status != 0 or out.startswith('Error'):
+                    self.putLog(out,'error')
+                    self.putLog('bad DQ2 response for %s:%s' % (dq2ID,valueItem), 'error')            
+                    return retFailed
+                try:
+                    # convert res to map
+                    exec "tmpGigaVal = %s[0]['giga']" % out
+                    if not sizeMap.has_key(sitename):
+                        sizeMap[sitename] = {}
+                    # append
+                    sizeMap[sitename][valueItem] = tmpGigaVal
+                    self.putLog(out)
+                except:
+                    self.putLog(out,'error')            
+                    self.putLog('could not convert HTTP-res to free size map for %s%s' % (dq2ID,valueItem), 'error')
+                    return retFailed
+        # return
+        self.putLog('getFreeDiskSize done->%s' % str(sizeMap))
+        return True,sizeMap
+            
+
         
     # get list of replicas for a dataset
     def getListDatasetReplicas(self,dataset):
@@ -502,7 +552,10 @@ class DynDataDistributer:
             tmpPandaLogger.setParams({'Type':'pd2p'})
             tmpLog = tmpPandaLogger.getHttpLogger(panda_config.loggername)
             # add message
-            tmpLog.info(tmpMsg)
+            if type == 'error':
+                tmpLog.error(tmpMsg)
+            else:
+                tmpLog.info(tmpMsg)                
             # release HTTP handler
             tmpPandaLogger.release()
             time.sleep(1)

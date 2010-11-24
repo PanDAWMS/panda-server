@@ -157,7 +157,7 @@ def _isTooManyInput(nFilesPerJob,inputSizePerJob):
 
 # schedule
 def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],trustIS=False,
-             distinguishedName=None,specialWeight={},getWeight=False):
+             distinguishedName=None,specialWeight={},getWeight=False,sizeMapForCheck={}):
     _log.debug('start %s %s %s %s' % (forAnalysis,str(setScanSiteList),trustIS,distinguishedName))
     if specialWeight != {}:
         _log.debug('PD2P weight : %s' % str(specialWeight))
@@ -190,8 +190,9 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
     indexJob = 0
     vomsOK = None
 
-    diskThreshold = 200
-    manyInputsThr = 20
+    diskThreshold     = 200
+    diskThresholdPD2P = 1024
+    manyInputsThr     = 20
 
     weightUsedByBrokerage = {}
     
@@ -444,8 +445,19 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             # if no jobs in jobsActive/jobsDefined
                             if not jobStatistics.has_key(site):
                                 jobStatistics[site] = {'assigned':0,'activated':0,'running':0}
-                            # check space for T2
-                            if site != siteMapper.getCloud(previousCloud)['source']:
+                            # check space
+                            if specialWeight != {}:
+                                # for PD2P
+                                if sizeMapForCheck.has_key(site):
+                                    remSpace = sizeMapForCheck[site]['total'] - sizeMapForCheck[site]['used']
+                                    _log.debug('   space available=%s remain=%s' % (sizeMapForCheck[site]['total'],remSpace))
+                                    if remSpace < diskThresholdPD2P:
+                                        _log.debug('  skip: disk shortage < %s' % diskThresholdPD2P)
+                                        if getWeight:
+                                            weightUsedByBrokerage[site] = "NA : disk shortage"
+                                        continue
+                            elif site != siteMapper.getCloud(previousCloud)['source']:
+                                # for T2
                                 if tmpSiteSpec.space != 0:
                                     nRemJobs = jobStatistics[site]['assigned']+jobStatistics[site]['activated']+jobStatistics[site]['running']
                                     if not forAnalysis:
