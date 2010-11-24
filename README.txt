@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed DQ2 ID conversion in PD2P for EOS
   * check free disk size in PD2P using DQ2.queryStorageUsage
   * use function index in getPandaIDsForProdDB 
   * reduced the number of rotated logs

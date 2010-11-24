@@ -322,10 +322,18 @@ class DynDataDistributer:
         dq2ID = self.siteMapper.getSite(sitename).ddm
         if dataset.startswith('data'):
             # data
-            dq2ID = re.sub('_[^_]+DISK','_DATADISK',dq2ID)
+            matchEOS = re.search('_EOS[^_]+DISK$',dq2ID)
+            if matchEOS != None:
+                dq2ID = re.sub('_EOS[^_]+DISK','_EOSDATADISK',dq2ID)
+            else:
+                dq2ID = re.sub('_[^_]+DISK','_DATADISK',dq2ID)
         elif dataset.startswith('mc'):
-            # mc    
-            dq2ID = re.sub('_[^_]+DISK','_MCDISK',dq2ID)
+            # mc
+            matchEOS = re.search('_EOS[^_]+DISK$',dq2ID)
+            if matchEOS!= None:
+                dq2ID = re.sub('_EOS[^_]+DISK','_EOSMCDISK',dq2ID)
+            else:
+                dq2ID = re.sub('_[^_]+DISK','_MCDISK',dq2ID)
         else:
             # unsupported prefix for subscription
             self.putLog('%s has unsupported prefix for subscription' % dataset,'error')
