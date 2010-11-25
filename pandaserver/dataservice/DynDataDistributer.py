@@ -587,28 +587,34 @@ class DynDataDistributer:
         self.putLog("start making EOS subscription for %s" % datasetName)
         destDQ2IDs = ['CERN-PROD_EOSDATADISK']
         # get dataset replica locations
-        statRep,replicaMap = self.getListDatasetReplicas(datasetName)
+        if datasetName.endswith('/'):
+            statRep,replicaMaps = self.getListDatasetReplicasInContainer(datasetName)
+        else:
+            statRep,replicaMap = self.getListDatasetReplicas(datasetName)
+            replicaMaps = {datasetName:replicaMap}
         if not statRep:
             self.putLog("failed to get replica map for EOS",type='error')
             return False
-        # check if replica is already there
-        for destDQ2ID in destDQ2IDs:
-            if replicaMap.has_key(destDQ2ID):
-                self.putLog("skip EOS sub for %s:%s since replica is already there" % (destDQ2ID,datasetName))
-            else:
-                statSubEx,subExist = self.checkSubscriptionInfo(destDQ2ID,datasetName)
-                if not statSubEx:
-                    self.putLog("failed to check subscription for %s:%s" % (destDQ2ID,datasetName),type='error')
-                    continue
-                # make subscription
-                if subExist:
-                    self.putLog("skip EOS sub for %s:%s since subscription is already there" % (destDQ2ID,datasetName))                    
+        # loop over all datasets
+        for tmpDsName,replicaMap in replicaMaps.iteritems():
+            # check if replica is already there
+            for destDQ2ID in destDQ2IDs:
+                if replicaMap.has_key(destDQ2ID):
+                    self.putLog("skip EOS sub for %s:%s since replica is already there" % (destDQ2ID,tmpDsName))
                 else:
-                    statMkSub,retMkSub = self.makeSubscription(datasetName,'',destDQ2ID)
-                    if statMkSub:
-                        self.putLog("made subscription to %s for %s" % (destDQ2ID,datasetName))
+                    statSubEx,subExist = self.checkSubscriptionInfo(destDQ2ID,tmpDsName)
+                    if not statSubEx:
+                        self.putLog("failed to check subscription for %s:%s" % (destDQ2ID,tmpDsName),type='error')
+                        continue
+                    # make subscription
+                    if subExist:
+                        self.putLog("skip EOS sub for %s:%s since subscription is already there" % (destDQ2ID,tmpDsName))                    
                     else:
-                        self.putLog("failed to make subscription to %s for %s" % (destDQ2ID,datasetName),type='error')
+                        statMkSub,retMkSub = self.makeSubscription(tmpDsName,'',destDQ2ID)
+                        if statMkSub:
+                            self.putLog("made subscription to %s for %s" % (destDQ2ID,tmpDsName))
+                        else:
+                            self.putLog("failed to make subscription to %s for %s" % (destDQ2ID,tmpDsName),type='error')
         # return
         self.putLog("end making EOS subscription for %s" % datasetName)        
         return True
