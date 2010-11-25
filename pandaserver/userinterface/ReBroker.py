@@ -469,8 +469,13 @@ class ReBroker (threading.Thread):
         if self.pandaJobList == []:
             _logger.error("%s no jobs" % self.token)
             return False
-        # set cloud and site
+        # set cloud, site, and specialHandling 
         for tmpJob in self.pandaJobList:
+            # set specialHandling
+            if tmpJob.specialHandling in [None,'NULL','']:
+                tmpJob.specialHandling = 'rebro'
+            else:
+                tmpJob.specialHandling += ',rebro'            
             # check if --destSE is used
             newDestSE = False
             if tmpJob.destinationSE == tmpJob.computingSite:
@@ -533,7 +538,8 @@ class ReBroker (threading.Thread):
                 fqans.append('/atlas/%s/Role=production' % self.job.workingGroup)
             # insert jobs
             _logger.debug("%s start storeJobs for JobID=%s" % (self.token,self.jobID))            
-            ret = self.taskBuffer.storeJobs(self.pandaJobList,self.job.prodUserID,True,False,fqans,self.job.creationHost,True)
+            ret = self.taskBuffer.storeJobs(self.pandaJobList,self.job.prodUserID,True,False,fqans,
+                                            self.job.creationHost,True,checkSpecialHandling=False)
             if ret == []:
                 _logger.error("%s storeJobs failed with [] for JobID=%s" % (self.token,self.jobID))
                 return False

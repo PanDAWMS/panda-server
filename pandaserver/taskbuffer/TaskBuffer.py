@@ -43,7 +43,8 @@ class TaskBuffer:
 
                                                         
     # store Jobs into DB
-    def storeJobs(self,jobs,user,joinThr=False,forkSetupper=False,fqans=[],hostname='',resetLocInSetupper=False):
+    def storeJobs(self,jobs,user,joinThr=False,forkSetupper=False,fqans=[],hostname='',resetLocInSetupper=False,
+                  checkSpecialHandling=True):
         # check quota for priority calculation
         weight         = 0.0
         userJobID      = -1
@@ -208,7 +209,7 @@ class TaskBuffer:
                 job.jobsetID = userJobsetID
             # set specialHandling
             if job.prodSourceLabel in ['user','panda']:
-                if nRunJob >= nExpressJobs:
+                if nRunJob >= nExpressJobs and checkSpecialHandling:
                     # reset when quota exceeds
                     job.specialHandling = ''
                 if job.prodSourceLabel != 'panda':

@@ -138,6 +138,9 @@ class DynDataDistributer:
                     self.putLog("PD2P candidates : %s" % str(allCandidates))
                     self.putLog("PD2P # of subscriptions : %s" % totalUserSub)
                     self.putLog("PD2P nUsed : %s" % nUsed)
+                    # make any data subscriptions to EOS
+                    if allOKClouds != [] and inputDS.startswith('data'):
+                        self.makeSubscriptionToEOS(inputDS)
                     # check number of replicas
                     maxSitesHaveDS = 1
                     if nUsed > nUsedForHotDS:
@@ -228,6 +231,7 @@ class DynDataDistributer:
         # loop over all datasets
         returnMap = {}
         checkedMetaMap = {}
+        userSubscriptionsMap = {}
         for cloud in self.pd2pClouds:
             # DQ2 prefix of T1
             tmpT1SiteID = self.siteMapper.getCloud(cloud)['source']
@@ -260,7 +264,9 @@ class DynDataDistributer:
                             break
                 # get on-going subscriptions
                 timeRangeSub = 7
-                userSubscriptions = self.taskBuffer.getUserSubscriptions(tmpDS,timeRangeSub)
+                if not userSubscriptionsMap.has_key(tmpDS):
+                    userSubscriptionsMap[tmpDS] = self.taskBuffer.getUserSubscriptions(tmpDS,timeRangeSub)
+                userSubscriptions = userSubscriptionsMap[tmpDS]
                 # unused cloud
                 if not allSiteMap.has_key(cloud):
                     continue
@@ -346,11 +352,14 @@ class DynDataDistributer:
         
 
     # get list of datasets
-    def makeSubscription(self,dataset,sitename):
+    def makeSubscription(self,dataset,sitename,givenDQ2ID=None):
         # return for failuer
         retFailed = False,''
         # get DQ2 IDs
-        dq2ID = self.getDQ2ID(sitename,dataset)
+        if givenDQ2ID == None:
+            dq2ID = self.getDQ2ID(sitename,dataset)
+        else:
+            dq2ID = givenDQ2ID
         if dq2ID == '':
             self.putLog("cannot find DQ2 ID for %s:%s" % (sitename,dataset))
             return retFailed
@@ -544,6 +553,65 @@ class DynDataDistributer:
         # return
         self.putLog('getDatasetMetadata -> %s' % str(metadata))
         return True,metadata
+
+
+    # check subscription info
+    def checkSubscriptionInfo(self,destDQ2ID,datasetName):
+        resForFailure = (False,False)
+        # get datasets in container
+        nTry = 3
+        for iDDMTry in range(nTry):
+            self.putLog('%s/%s listSubscriptionInfo %s %s' % (iDDMTry,nTry,destDQ2ID,datasetName))
+            status,out = ddm.DQ2.main('listSubscriptionInfo',datasetName,destDQ2ID,0)
+            if status != 0:
+                time.sleep(60)
+            else:
+                break
+        if status != 0 or out.startswith('Error'):
+            self.putLog(out,'error')
+            self.putLog('bad DQ2 response for %s' % datasetName, 'error')
+            return resForFailure
+        self.putLog(out)
+        if out == '()':
+            # no subscription
+            retVal = False
+        else:
+            # already exists
+            retVal = True
+        self.putLog('checkSubscriptionInfo -> %s' % retVal)
+        return True,retVal
+
+
+    # make subscriptions to EOS 
+    def makeSubscriptionToEOS(self,datasetName):
+        self.putLog("start making EOS subscription for %s" % datasetName)
+        destDQ2IDs = ['CERN-PROD_EOSDATADISK']
+        # get dataset replica locations
+        statRep,replicaMap = self.getListDatasetReplicas(datasetName)
+        if not statRep:
+            self.putLog("failed to get replica map for EOS",type='error')
+            return False
+        # check if replica is already there
+        for destDQ2ID in destDQ2IDs:
+            if replicaMap.has_key(destDQ2ID):
+                self.putLog("skip EOS sub for %s:%s since replica is already there" % (destDQ2ID,datasetName))
+            else:
+                statSubEx,subExist = self.checkSubscriptionInfo(destDQ2ID,datasetName)
+                if not statSubEx:
+                    self.putLog("failed to check subscription for %s:%s" % (destDQ2ID,datasetName),type='error')
+                    continue
+                # make subscription
+                if subExist:
+                    self.putLog("skip EOS sub for %s:%s since subscription is already there" % (destDQ2ID,datasetName))                    
+                else:
+                    statMkSub,retMkSub = self.makeSubscription(datasetName,'',destDQ2ID)
+                    if statMkSub:
+                        self.putLog("made subscription to %s for %s" % (destDQ2ID,datasetName))
+                    else:
+                        self.putLog("failed to make subscription to %s for %s" % (destDQ2ID,datasetName),type='error')
+        # return
+        self.putLog("end making EOS subscription for %s" % datasetName)        
+        return True
 
 
     # put log
