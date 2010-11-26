@@ -191,7 +191,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
     vomsOK = None
 
     diskThreshold     = 200
-    diskThresholdPD2P = 1024
+    diskThresholdPD2P = 1024 * 5
     manyInputsThr     = 20
 
     weightUsedByBrokerage = {}

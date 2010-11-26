@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * added killJobsInTask
+  * set disk threshold in PD2P to 5GB
   * updated PD2P so that any analysis job using data makes subscriptions to CERN EOS
   * set specialHandling=rebro when reassigned by rebrokerage 
   * fixed DQ2 ID conversion in PD2P for EOS
