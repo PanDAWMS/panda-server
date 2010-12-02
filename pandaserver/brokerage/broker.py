@@ -157,7 +157,8 @@ def _isTooManyInput(nFilesPerJob,inputSizePerJob):
 
 # schedule
 def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],trustIS=False,
-             distinguishedName=None,specialWeight={},getWeight=False,sizeMapForCheck={}):
+             distinguishedName=None,specialWeight={},getWeight=False,sizeMapForCheck={},
+             datasetSize=0):
     _log.debug('start %s %s %s %s' % (forAnalysis,str(setScanSiteList),trustIS,distinguishedName))
     if specialWeight != {}:
         _log.debug('PD2P weight : %s' % str(specialWeight))
@@ -191,7 +192,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
     vomsOK = None
 
     diskThreshold     = 200
-    diskThresholdPD2P = 1024 * 5
+    diskThresholdPD2P = 1024 * 3
     manyInputsThr     = 20
 
     weightUsedByBrokerage = {}
@@ -449,10 +450,15 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             if specialWeight != {}:
                                 # for PD2P
                                 if sizeMapForCheck.has_key(site):
+                                    # threshold for PD2P max(5%,3TB)
+                                    thrForThisSite = long(sizeMapForCheck[site]['total'] * 5 / 100)
+                                    if thrForThisSite < diskThresholdPD2P:
+                                        thrForThisSite = diskThresholdPD2P
                                     remSpace = sizeMapForCheck[site]['total'] - sizeMapForCheck[site]['used']
-                                    _log.debug('   space available=%s remain=%s' % (sizeMapForCheck[site]['total'],remSpace))
-                                    if remSpace < diskThresholdPD2P:
-                                        _log.debug('  skip: disk shortage < %s' % diskThresholdPD2P)
+                                    _log.debug('   space available=%s remain=%s thr=%s' % (sizeMapForCheck[site]['total'],
+                                                                                           remSpace,thrForThisSite))
+                                    if remSpace-datasetSize < thrForThisSite:
+                                        _log.debug('  skip: disk shortage %s-%s< %s' % (remSpace,datasetSize,thrForThisSite))
                                         if getWeight:
                                             weightUsedByBrokerage[site] = "NA : disk shortage"
                                         continue

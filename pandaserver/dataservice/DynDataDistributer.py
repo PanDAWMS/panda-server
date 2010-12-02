@@ -170,13 +170,18 @@ class DynDataDistributer:
                     if not retFreeSizeMap:
                         self.putLog("failed to get free disk size",type='error',sendLog=True)
                         continue
+                    # get dataset size
+                    retDsSize,dsSize = self.getDatasetSize(tmpDS)
+                    if not retDsSize:
+                        self.putLog("failed to get dataset size of %s" % tmpDS,type='error',sendLog=True)
+                        continue
                     # run brokerage
                     tmpJob = JobSpec()
                     tmpJob.AtlasRelease = ''
                     self.putLog("run brokerage for %s" % tmpDS)
                     usedWeight = brokerage.broker.schedule([tmpJob],self.taskBuffer,self.siteMapper,True,allCandidates,
                                                            True,specialWeight=weightForBrokerage,getWeight=True,
-                                                           sizeMapForCheck=freeSizeMap)
+                                                           sizeMapForCheck=freeSizeMap,datasetSize=dsSize)
                     for tmpWeightSite,tmpWeightStr in usedWeight.iteritems():
                         self.putLog("weight %s %s" % (tmpWeightSite,tmpWeightStr),sendLog=True)
                     self.putLog("site -> %s" % tmpJob.computingSite)
@@ -582,6 +587,39 @@ class DynDataDistributer:
         return True,retVal
 
 
+    # get size of dataset
+    def getDatasetSize(self,datasetName):
+        self.putLog("get size of %s" % datasetName)
+        resForFailure = (False,0)
+        # get size of datasets
+        nTry = 3
+        for iDDMTry in range(nTry):
+            self.putLog('%s/%s listFilesInDataset %s' % (iDDMTry,nTry,datasetName))
+            status,out = ddm.DQ2.listFilesInDataset(datasetName)
+            if status != 0:
+                time.sleep(60)
+            else:
+                break
+        if status != 0 or out.startswith('Error'):
+            self.putLog(out,'error')
+            self.putLog('bad DQ2 response to get size of %s' % datasetName, 'error')
+            return resForFailure
+        self.putLog(out)
+        # get total size
+        dsSize = 0
+        try:
+            exec "outList = %s" % out
+            for guid,vals in outList[0].iteritems():
+                dsSize += long(vals['filesize'])
+        except:
+            self.putLog('failed to get size from DQ2 response for %s' % datasetName, 'error')
+            return resForFailure
+        # GB
+        dsSize /= (1024*1024*1024)
+        self.putLog("dataset size = %s" % dsSize)
+        return True,dsSize
+        
+        
     # make subscriptions to EOS 
     def makeSubscriptionToEOS(self,datasetName):
         self.putLog("start making EOS subscription for %s" % datasetName)

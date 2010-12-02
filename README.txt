@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * use diskThr=max(5%,3TB)-diskSize in PD2P
   * added killJobsInTask
   * set disk threshold in PD2P to 5GB
   * updated PD2P so that any analysis job using data makes subscriptions to CERN EOS
