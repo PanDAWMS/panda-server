@@ -43,7 +43,7 @@ for lfn in files.keys():
     job.processingType    = 'test'
     job.currentPriority   = 10000
     job.cloud             = cloud
-    job.cmtConfig         = 'i686-slc4-gcc34-opt'
+    job.cmtConfig         = 'i686-slc5-gcc43-opt'
 
     fileI = FileSpec()
     fileI.dataset    = job.prodDBlock

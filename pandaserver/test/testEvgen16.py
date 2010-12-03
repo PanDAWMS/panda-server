@@ -44,7 +44,7 @@ for i in range(1):
     fileOL.type = 'log'
     job.addFile(fileOL)
     
-    job.jobParameters="10000 105815 12330001 5000 12467 MC9.105815.JF140_pythia_jet_filter.py %s NONE NONE NONE MC09JobOpts-00-01-88.tar.gz" % file.lfn
+    job.jobParameters="2760 105048 19901 101 200 MC10.105048.PythiaB_ccmu3mu1X.py %s NONE NONE NONE MC10JobOpts-00-00-81.tar.gz" % file.lfn
     jobList.append(job)
 
 for i in range(1):
