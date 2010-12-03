@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added testG4sim16.py and testEvgen16.py
   * use diskThr=max(5%,3TB)-diskSize in PD2P
   * added killJobsInTask
   * set disk threshold in PD2P to 5GB
