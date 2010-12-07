@@ -144,7 +144,8 @@ class DynDataDistributer:
                     # check number of replicas
                     maxSitesHaveDS = 1
                     if nUsed > nUsedForHotDS:
-                        maxSitesHaveDS = 2
+                        #maxSitesHaveDS = 2
+                        maxSitesHaveDS = 1
                     if len(allCompPd2pSites) >= maxSitesHaveDS:
                         self.putLog("skip since many PD2P sites (%s>=%s) have the replica" % (len(allCompPd2pSites),maxSitesHaveDS),
                                     sendLog=True)
@@ -152,7 +153,9 @@ class DynDataDistributer:
                     # check the number of subscriptions
                     maxNumSubInAllCloud = 1
                     if nUsed > nUsedForHotDS:
-                        maxNumSubInAllCloud = 2                    
+                        #maxNumSubInAllCloud = 2
+                        maxNumSubInAllCloud = 1
+                    maxNumSubInAllCloud = maxNumSubInAllCloud - len(allCompPd2pSites)    
                     if totalUserSub >= maxNumSubInAllCloud:
                         self.putLog("skip since enough subscriptions (%s>=%s) were already made" % \
                                     (totalUserSub,maxNumSubInAllCloud),

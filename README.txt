@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * disabled extra replica making in PD2P
   * trigger PD2P for EOS when nUsed >= 2
   * added testG4sim16.py and testEvgen16.py
   * use diskThr=max(5%,3TB)-diskSize in PD2P
