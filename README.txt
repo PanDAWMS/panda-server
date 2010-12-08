@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * update modificationTime when going to Archived4
   * disabled extra replica making in PD2P
   * trigger PD2P for EOS when nUsed >= 2
   * added testG4sim16.py and testEvgen16.py

@@ -656,6 +656,16 @@ class DBProxy:
                         varMap = file.valuesMap()
                         varMap[':row_ID'] = file.row_ID
                         self.cur.execute(sqlF+comment, varMap)
+                    # update metadata and parameters
+                    sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"                    
+                    sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
+                    sqlPMod = "UPDATE ATLAS_PANDA.jobParamsTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
+                    varMap = {}
+                    varMap[':PandaID'] = job.PandaID
+                    varMap[':modificationTime'] = job.modificationTime
+                    self.cur.execute(sqlFMod+comment,varMap)
+                    self.cur.execute(sqlMMod+comment,varMap)
+                    self.cur.execute(sqlPMod+comment,varMap)
                 # delete downstream jobs
                 ddmIDs     = []
                 newJob     = None
@@ -674,6 +684,9 @@ class DBProxy:
                     sqlDJD = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
                     sqlDJI = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
                     sqlDJI+= JobSpec.bindValuesExpression()
+                    sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
+                    sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
+                    sqlPMod = "UPDATE ATLAS_PANDA.jobParamsTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
                     sqlGetSub = "SELECT DISTINCT destinationDBlock FROM ATLAS_PANDA.filesTable4 WHERE type=:type AND PandaID=:PandaID"
                     sqlCloseSub  = 'UPDATE /*+ INDEX_RS_ASC(TAB("DATASETS"."NAME")) */ ATLAS_PANDA.Datasets tab '
                     sqlCloseSub += 'SET status=:status,modificationDate=CURRENT_DATE WHERE name=:name'
@@ -715,6 +728,13 @@ class DBProxy:
                             dJob.stateChangeTime  = dJob.endTime
                             # insert
                             self.cur.execute(sqlDJI+comment, dJob.valuesMap())
+                            # update files,metadata,parametes
+                            varMap = {}
+                            varMap[':PandaID'] = downID
+                            varMap[':modificationTime'] = dJob.modificationTime
+                            self.cur.execute(sqlFMod+comment,varMap)
+                            self.cur.execute(sqlMMod+comment,varMap)
+                            self.cur.execute(sqlPMod+comment,varMap)
                             # set tobeclosed to sub datasets
                             if not toBeClosedSubList.has_key(dJob.jobDefinitionID):
                                 # init
@@ -781,6 +801,9 @@ class DBProxy:
                                 sqlDJD = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
                                 sqlDJI = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
                                 sqlDJI+= JobSpec.bindValuesExpression()
+                                sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
+                                sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
+                                sqlPMod = "UPDATE ATLAS_PANDA.jobParamsTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
                                 lostJobIDs = []
                                 for tmpID, in resLost:
                                     _logger.debug("fail due to lost files : %s" % tmpID)
@@ -810,6 +833,13 @@ class DBProxy:
                                     dJob.stateChangeTime  = dJob.endTime
                                     # insert
                                     self.cur.execute(sqlDJI+comment, dJob.valuesMap())
+                                    # update files,metadata,parametes
+                                    varMap = {}
+                                    varMap[':PandaID'] = tmpID
+                                    varMap[':modificationTime'] = dJob.modificationTime
+                                    self.cur.execute(sqlFMod+comment,varMap)
+                                    self.cur.execute(sqlMMod+comment,varMap)
+                                    self.cur.execute(sqlPMod+comment,varMap)
                                     # append
                                     lostJobIDs.append(tmpID)
                                 # get PandaIDs
@@ -880,6 +910,9 @@ class DBProxy:
         sql2 = "DELETE FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID"
         sql3 = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
         sql3+= JobSpec.bindValuesExpression()
+        sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
+        sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
+        sqlPMod = "UPDATE ATLAS_PANDA.jobParamsTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
         nTry=3
         for iTry in range(nTry):
             try:
@@ -919,6 +952,13 @@ class DBProxy:
                         varMap = file.valuesMap()
                         varMap[':row_ID'] = file.row_ID
                         self.cur.execute(sqlF+comment, varMap)
+                    # update files,metadata,parametes
+                    varMap = {}
+                    varMap[':PandaID'] = pandaID
+                    varMap[':modificationTime'] = job.modificationTime
+                    self.cur.execute(sqlFMod+comment,varMap)
+                    self.cur.execute(sqlMMod+comment,varMap)
+                    self.cur.execute(sqlPMod+comment,varMap)
                 # delete downstream jobs
                 if job.prodSourceLabel == 'panda' and job.jobStatus == 'failed':
                     # file select
@@ -983,6 +1023,13 @@ class DBProxy:
                             dJob.stateChangeTime  = dJob.endTime
                             # insert
                             self.cur.execute(sqlDJI+comment, dJob.valuesMap())
+                            # update files,metadata,parametes
+                            varMap = {}
+                            varMap[':PandaID'] = downID
+                            varMap[':modificationTime'] = dJob.modificationTime
+                            self.cur.execute(sqlFMod+comment,varMap)
+                            self.cur.execute(sqlMMod+comment,varMap)
+                            self.cur.execute(sqlPMod+comment,varMap)
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
@@ -1016,6 +1063,9 @@ class DBProxy:
             sqlDJD = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
             sqlDJI = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
             sqlDJI+= JobSpec.bindValuesExpression()
+            sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
+            sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
+            sqlPMod = "UPDATE ATLAS_PANDA.jobParamsTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
             _logger.debug("deleteStalledJobs : look for downstream jobs for %s" % libFileName)
             # select PandaID
             varMap = {}
@@ -1053,6 +1103,13 @@ class DBProxy:
                 dJob.stateChangeTime  = dJob.endTime
                 # insert
                 self.cur.execute(sqlDJI+comment, dJob.valuesMap())
+                # update files,metadata,parametes
+                varMap = {}
+                varMap[':PandaID'] = downID
+                varMap[':modificationTime'] = dJob.modificationTime
+                self.cur.execute(sqlFMod+comment,varMap)
+                self.cur.execute(sqlMMod+comment,varMap)
+                self.cur.execute(sqlPMod+comment,varMap)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -1969,6 +2026,9 @@ class DBProxy:
         sql4  = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
         sql4 += JobSpec.bindValuesExpression()
         sqlF  = "UPDATE ATLAS_PANDA.filesTable4 SET status=:status WHERE PandaID=:PandaID AND type IN (:type1,:type2)"
+        sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
+        sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
+        sqlPMod = "UPDATE ATLAS_PANDA.jobParamsTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
         try:
             flagCommand = False
             flagKilled  = False
@@ -2094,6 +2154,13 @@ class DBProxy:
                 varMap[':type1'] = 'output'
                 varMap[':type2'] = 'log'
                 self.cur.execute(sqlF+comment,varMap)
+                # update files,metadata,parametes
+                varMap = {}
+                varMap[':PandaID'] = pandaID
+                varMap[':modificationTime'] = job.modificationTime
+                self.cur.execute(sqlFMod+comment,varMap)
+                self.cur.execute(sqlMMod+comment,varMap)
+                self.cur.execute(sqlPMod+comment,varMap)
                 flagKilled = True
                 break
             # commit
