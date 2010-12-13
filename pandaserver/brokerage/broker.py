@@ -186,6 +186,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
     prevSourceLabel= None
     prevDiskCount  = None
     prevHomePkg    = None
+    prevDirectAcc  = None
     
     nWNmap = {}
     indexJob = 0
@@ -243,7 +244,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                    or previousCloud != job.cloud or prevRelease != job.AtlasRelease \
                    or prevCmtConfig != job.cmtConfig \
                    or (computingSite in ['RAL_REPRO','INFN-T1_REPRO'] and len(fileList)>=2) \
-                   or (prevProType in skipBrokerageProTypes and iJob > 0):
+                   or (prevProType in skipBrokerageProTypes and iJob > 0) \
+                   or prevDirectAcc != job.transferType:
                 if indexJob > 1:
                     _log.debug('new bunch')
                     _log.debug('  iJob           %s'    % iJob)
@@ -254,6 +256,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     _log.debug('  prodDBlock     %s' % prodDBlock)
                     _log.debug('  computingSite  %s' % computingSite)
                     _log.debug('  processingType %s' % prevProType)
+                    _log.debug('  transferType   %s' % prevDirectAcc)                    
                 # determine site
                 if iJob == 0 or chosen_ce != 'TOBEDONE':
                      # file scan for pre-assigned jobs
@@ -411,6 +414,10 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             elif not foundRelease:
                                 # found at least one site has the release
                                 foundRelease = True
+                            # direct access
+                            if prevDirectAcc == 'direct' and not tmpSiteSpec.allowdirectaccess:
+                                _log.debug(' skip: no direct access support')
+                                continue
                             # check memory
                             if tmpSiteSpec.memory != 0 and (not prevMemory in [None,0,'NULL']):
                                 try:
@@ -716,6 +723,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             prevSourceLabel = job.prodSourceLabel
             prevDiskCount   = job.maxDiskCount
             prevHomePkg     = job.homepackage
+            prevDirectAcc   = job.transferType
             # assign site
             if chosen_ce != 'TOBEDONE':
                 job.computingSite = chosen_ce.sitename
