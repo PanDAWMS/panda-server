@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * trigger PD2P for EOS when nUsed >= 3  
   * updated brokerage to take transferType into account
   * update modificationTime when going to Archived4
   * disabled extra replica making in PD2P
