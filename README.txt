@@ -1,6 +1,9 @@
 Release Note
 
 * current
+  * set lifetime for dis and sub datasets
+  * added --jobsetID to killUser.py
+  * added protection against missing argument for jobID/jobsetID to killUser.py
   * trigger PD2P for EOS when nUsed >= 3  
   * updated brokerage to take transferType into account
   * update modificationTime when going to Archived4

@@ -10,12 +10,17 @@ from config import panda_config
 optP = optparse.OptionParser(conflict_handler="resolve")
 optP.add_option('--user', action='store',dest='user', default=None,help='prodUserName')
 optP.add_option('--jobID',action='store',dest='jobID',default=None,help='jobDefinitionID')
+optP.add_option('--jobsetID',action='store',dest='jobsetID',default=None,help="jobsetID, or 'all' to kill all jobs")
 
 options,args = optP.parse_args()
 
 if options.user == None:
     print "--user=<prodUserName> is required"
     sys.exit(1)
+if options.jobID == None and options.jobsetID == None:
+    print "--jobID=<jobDefinitionID> or --jobsetID=<jobsetID or 'all'> is required"
+    sys.exit(1)
+
 
 proxyS = DBProxy()
 proxyS.connect(panda_config.dbhost,panda_config.dbpasswd,panda_config.dbuser,panda_config.dbname)
@@ -29,14 +34,19 @@ varMap[':src2'] = 'panda'
 varMap[':prodUserName'] = options.user
 if options.jobID != None:
     varMap[':jobDefinitionID'] = options.jobID
+if not options.jobsetID in (None,'all'):
+    varMap[':jobsetID'] = options.jobsetID
+
 
 jobs = []
 tables = ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4','ATLAS_PANDA.jobsDefined4']
 for table in tables:
+    sql = "SELECT PandaID FROM %s WHERE prodUserName=:prodUserName AND prodSourceLabel IN (:src1,:src2) " % table
     if options.jobID != None:
-        sql = "SELECT PandaID FROM %s WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID AND prodSourceLabel IN (:src1,:src2) ORDER BY PandaID" % table
-    else:
-        sql = "SELECT PandaID FROM %s WHERE prodUserName=:prodUserName AND prodSourceLabel IN (:src1,:src2) ORDER BY PandaID" % table        
+        sql += "AND jobDefinitionID=:jobDefinitionID "
+    if not options.jobsetID in (None,'all'):
+        sql += "AND jobsetID=:jobsetID "
+    sql += "ORDER BY PandaID "    
     status,res = proxyS.querySQLS(sql,varMap)
     if res != None:
         for id, in res:

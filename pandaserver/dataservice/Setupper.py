@@ -481,10 +481,13 @@ class Setupper (threading.Thread):
                                             if not dq2ID in dq2IDList:
                                                 dq2IDList.append(dq2ID)
                                 # loop over all locations
+                                repLifeTime = None
+                                if name != originalName:
+                                    repLifeTime = "14 days"
                                 for dq2ID in dq2IDList:
-                                    _logger.debug((self.timestamp,'registerDatasetLocation',name,dq2ID))
+                                    _logger.debug((self.timestamp,'registerDatasetLocation',name,dq2ID,0,0,None,None,None,repLifeTime))
                                     for iDDMTry in range(3):                            
-                                        status,out = ddm.DQ2.main('registerDatasetLocation',name,dq2ID)
+                                        status,out = ddm.DQ2.main('registerDatasetLocation',name,dq2ID,0,0,None,None,None,repLifeTime)
                                         if status != 0 and out.find('DQLocationExistsException') != -1:
                                             break
                                         elif status != 0 or out.find("DQ2 internal server exception") != -1 \
@@ -710,9 +713,9 @@ class Setupper (threading.Thread):
                             dq2IDList = [dq2ID]
                         for dq2ID in dq2IDList:
                             time.sleep(1)
-                            _logger.debug((self.timestamp,'registerDatasetLocation',job.dispatchDBlock,dq2ID,0,1))
+                            _logger.debug((self.timestamp,'registerDatasetLocation',job.dispatchDBlock,dq2ID,0,1,None,None,None,"7 days"))
                             for iDDMTry in range(3):                                            
-                                status,out = ddm.DQ2.main('registerDatasetLocation',job.dispatchDBlock,dq2ID,0,1)
+                                status,out = ddm.DQ2.main('registerDatasetLocation',job.dispatchDBlock,dq2ID,0,1,None,None,None,"7 days")
                                 if status != 0 or out.find("DQ2 internal server exception") != -1 \
                                        or out.find("An error occurred on the central catalogs") != -1 \
                                        or out.find("MySQL server has gone away") != -1:
@@ -775,9 +778,9 @@ class Setupper (threading.Thread):
                             # set sources to handle T2s in another cloud and to transfer dis datasets being split in multiple sites 
                             for tmpDQ2ID in dq2IDList:
                                 optSource[tmpDQ2ID] = {'policy' : 0}
-                        _logger.debug((self.timestamp,'registerDatasetSubscription',job.dispatchDBlock,dq2ID,0,0,optSub,optSource,optSrcPolicy,0,None,0,"production",None,"Production"))
+                        _logger.debug((self.timestamp,'registerDatasetSubscription',job.dispatchDBlock,dq2ID,0,0,optSub,optSource,optSrcPolicy,0,None,0,"production",None,"Production",None,"7 days"))
                         for iDDMTry in range(3):                                                                
-                            status,out = ddm.DQ2.main('registerDatasetSubscription',job.dispatchDBlock,dq2ID,0,0,optSub,optSource,optSrcPolicy,0,None,0,"production",None,"Production")
+                            status,out = ddm.DQ2.main('registerDatasetSubscription',job.dispatchDBlock,dq2ID,0,0,optSub,optSource,optSrcPolicy,0,None,0,"production",None,"Production",None,"7 days")
                             if status != 0 or out.find("DQ2 internal server exception") != -1 \
                                    or out.find("An error occurred on the central catalogs") != -1 \
                                    or out.find("MySQL server has gone away") != -1:
@@ -1625,9 +1628,9 @@ class Setupper (threading.Thread):
                     continue
                 _logger.debug("%s %s" % (self.timestamp,out))                
                 # register location
-                _logger.debug((self.timestamp,'registerDatasetLocation',disDBlock,tmpLocation,0,1))
+                _logger.debug((self.timestamp,'registerDatasetLocation',disDBlock,tmpLocation,0,1,None,None,None,"7 days"))
                 for iDDMTry in range(3):
-                    status,out = ddm.DQ2.main('registerDatasetLocation',disDBlock,tmpLocation,0,1)
+                    status,out = ddm.DQ2.main('registerDatasetLocation',disDBlock,tmpLocation,0,1,None,None,None,"7 days")
                     if status != 0 or out.find("DQ2 internal server exception") != -1 \
                            or out.find("An error occurred on the central catalogs") != -1 \
                            or out.find("MySQL server has gone away") != -1:

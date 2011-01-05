@@ -550,10 +550,10 @@ class Adder (threading.Thread):
             for tmpName,tmpVal in subMap.iteritems():
                 for dq2ID,optSub,optSource in tmpVal:
                     _logger.debug((self.jobID,'registerDatasetSubscription',tmpName,dq2ID,0,0,optSub,
-                                   optSource,001000 | 010000,0,None,0,"production",None,subActivity))
+                                   optSource,001000 | 010000,0,None,0,"production",None,subActivity,None,"14 days"))
                     for iDDMTry in range(3):                                                        
                         status,out = ddm.DQ2.main('registerDatasetSubscription',tmpName,dq2ID,0,0,optSub,
-                                                  optSource,001000 | 010000,0,None,0,"production",None,subActivity)
+                                                  optSource,001000 | 010000,0,None,0,"production",None,subActivity,None,"14 days")
                         if (status != 0 or out.find("DQ2 internal server exception") != -1 \
                                or out.find("An error occurred on the central catalogs") != -1 \
                                or out.find("MySQL server has gone away") != -1) and \
