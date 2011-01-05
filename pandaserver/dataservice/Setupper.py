@@ -482,7 +482,7 @@ class Setupper (threading.Thread):
                                                 dq2IDList.append(dq2ID)
                                 # loop over all locations
                                 repLifeTime = None
-                                if name != originalName:
+                                if name != originalName and re.search('_sub\d+$',name) != None:
                                     repLifeTime = "14 days"
                                 for dq2ID in dq2IDList:
                                     _logger.debug((self.timestamp,'registerDatasetLocation',name,dq2ID,0,0,None,None,None,repLifeTime))
