@@ -704,28 +704,33 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         rets = []
         # kill jobs
-        pandaIDforCloser = None 
+        pandaIDforCloserMap = {}
         for id in ids:
             ret,userInfo = proxy.killJob(id,user,code,prodManager,True)
             rets.append(ret)
             if ret and userInfo['prodSourceLabel'] == 'user':
-                pandaIDforCloser = id
+                jobIDKey = (userInfo['prodUserID'],userInfo['jobDefinitionID'],userInfo['jobsetID'])
+                if not pandaIDforCloserMap.has_key(jobIDKey):
+                    pandaIDforCloserMap[jobIDKey] = id
         # release proxy
         self.proxyPool.putProxy(proxy)
         # run Closer
         try:
-            if pandaIDforCloser != None:
-                tmpJobs = self.peekJobs([pandaIDforCloser])
-                tmpJob = tmpJobs[0]
-                if tmpJob != None:
-                    tmpDestDBlocks = []
-                    # get destDBlock
-                    for tmpFile in tmpJob.Files:
-                        if tmpFile.type in ['output','log']:
-                            if not tmpFile.destinationDBlock in tmpDestDBlocks:
-                                tmpDestDBlocks.append(tmpFile.destinationDBlock)
-                    # run            
-                    Closer(self,tmpDestDBlocks,tmpJob).start()
+            if pandaIDforCloserMap != {}:
+                for pandaIDforCloser in pandaIDforCloserMap.values():
+                    tmpJobs = self.peekJobs([pandaIDforCloser])
+                    tmpJob = tmpJobs[0]
+                    if tmpJob != None:
+                        tmpDestDBlocks = []
+                        # get destDBlock
+                        for tmpFile in tmpJob.Files:
+                            if tmpFile.type in ['output','log']:
+                                if not tmpFile.destinationDBlock in tmpDestDBlocks:
+                                    tmpDestDBlocks.append(tmpFile.destinationDBlock)
+                        # run            
+                        cThr = Closer(self,tmpDestDBlocks,tmpJob)
+                        cThr.start()
+                        cThr.join()
         except:
             pass
         # return

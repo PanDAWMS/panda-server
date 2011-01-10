@@ -676,7 +676,8 @@ class DBProxy:
                     for file in job.Files:
                         if file.type == 'output':
                             upOutputs.append(file.lfn)
-                    toBeClosedSubList = {} 
+                    toBeClosedSubList = {}
+                    topUserDsList = []
                     # look for downstream jobs
                     sqlD   = "SELECT PandaID FROM ATLAS_PANDA.filesTable4 WHERE type=:type AND lfn=:lfn GROUP BY PandaID"
                     sqlDJS = "SELECT %s " % JobSpec.columnNames()
@@ -684,6 +685,7 @@ class DBProxy:
                     sqlDJD = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
                     sqlDJI = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
                     sqlDJI+= JobSpec.bindValuesExpression()
+                    sqlDFup = "UPDATE ATLAS_PANDA.filesTable4 SET status=:status WHERE PandaID=:PandaID AND type IN (:type1,:type2)"
                     sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
                     sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
                     sqlPMod = "UPDATE ATLAS_PANDA.jobParamsTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
@@ -728,6 +730,13 @@ class DBProxy:
                             dJob.stateChangeTime  = dJob.endTime
                             # insert
                             self.cur.execute(sqlDJI+comment, dJob.valuesMap())
+                            # update file status
+                            varMap = {}
+                            varMap[':PandaID'] = downID
+                            varMap[':status']  = 'failed'
+                            varMap[':type1']   = 'output'
+                            varMap[':type2']   = 'log'
+                            self.cur.execute(sqlDFup+comment, varMap)
                             # update files,metadata,parametes
                             varMap = {}
                             varMap[':PandaID'] = downID
@@ -758,8 +767,20 @@ class DBProxy:
                                         varMap[':status'] = 'tobeclosed'
                                         varMap[':name'] = tmpDestinationDBlock
                                         self.cur.execute(sqlCloseSub+comment, varMap)
+                                        _logger.debug("set tobeclosed for %s" % tmpDestinationDBlock)
                                         # append
                                         toBeClosedSubList[dJob.jobDefinitionID].append(tmpDestinationDBlock)
+                                        # close top-level user dataset
+                                        topUserDsName = re.sub('_sub\d+$','',tmpDestinationDBlock)
+                                        if topUserDsName != tmpDestinationDBlock and not topUserDsName in topUserDsList:
+                                            # set tobeclosed
+                                            varMap = {}
+                                            varMap[':status'] = 'tobeclosed'
+                                            varMap[':name'] = topUserDsName
+                                            self.cur.execute(sqlCloseSub+comment, varMap)
+                                            _logger.debug("set tobeclosed for %s" % topUserDsName)
+                                            # append
+                                            topUserDsList.append(topUserDsName)
                 elif job.prodSourceLabel == 'ddm' and job.jobStatus == 'failed' and job.transferType=='dis':
                     # get corresponding jobs for production movers
                     vuid = ''
@@ -2016,7 +2037,7 @@ class DBProxy:
             if getUserInfo:
                 return False,{}                
             return False
-        sql0  = "SELECT prodUserID,prodSourceLabel FROM %s WHERE PandaID=:PandaID"        
+        sql0  = "SELECT prodUserID,prodSourceLabel,jobDefinitionID,jobsetID FROM %s WHERE PandaID=:PandaID"        
         sql1  = "UPDATE %s SET commandToPilot=:commandToPilot,taskBufferErrorDiag=:taskBufferErrorDiag WHERE PandaID=:PandaID AND commandToPilot IS NULL"
         sql1F = "UPDATE %s SET commandToPilot=:commandToPilot,taskBufferErrorDiag=:taskBufferErrorDiag WHERE PandaID=:PandaID"
         sql2  = "SELECT %s " % JobSpec.columnNames()
@@ -2032,7 +2053,10 @@ class DBProxy:
         try:
             flagCommand = False
             flagKilled  = False
+            userProdUserID      = ''
             userProdSourceLabel = ''
+            userJobDefinitionID = ''
+            userJobsetID        = ''
             # begin transaction
             self.conn.begin()
             for table in ('ATLAS_PANDA.jobsDefined4','ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4'):
@@ -2061,7 +2085,7 @@ class DBProxy:
                             break
                     return distinguishedName
                 # prevent prod proxy from killing analysis jobs
-                userProdSourceLabel = res[1]
+                userProdUserID,userProdSourceLabel,userJobDefinitionID,userJobsetID = res
                 if prodManager:
                     if res[1] in ['user','panda'] and (not code in ['2','4','8','9']):
                         _logger.debug("ignore killJob -> prod proxy tried to kill analysis job type=%s" % res[1])
@@ -2168,7 +2192,10 @@ class DBProxy:
                 raise RuntimeError, 'Commit error'
             _logger.debug("killJob : com=%s kill=%s " % (flagCommand,flagKilled))
             if getUserInfo:
-                return (flagCommand or flagKilled),{'prodSourceLabel':userProdSourceLabel}
+                return (flagCommand or flagKilled),{'prodUserID':userProdUserID,
+                                                    'prodSourceLabel':userProdSourceLabel,
+                                                    'jobDefinitionID':userJobDefinitionID,
+                                                    'jobsetID':userJobsetID}
             return (flagCommand or flagKilled)
         except:
             type, value, traceBack = sys.exc_info()

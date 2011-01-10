@@ -41,6 +41,7 @@ class Closer (threading.Thread):
         _logger.debug('%s Start %s' % (self.pandaID,self.job.jobStatus))
         flagComplete = True
         ddmJobs = []
+        topUserDsList = []
         for destinationDBlock in self.destinationDBlocks:
             dsList = []
             _logger.debug('%s start %s' % (self.pandaID,destinationDBlock))
@@ -83,6 +84,31 @@ class Closer (threading.Thread):
                 _logger.debug('%s close dataset : %s' % (self.pandaID,destinationDBlock))
                 # set status
                 dataset.status = finalStatus
+                # close user datasets
+                if self.job.prodSourceLabel in ['user'] and self.job.destinationDBlock.endswith('/') \
+                       and (dataset.name.startswith('user') or dataset.name.startswith('group')):
+                    # get top-level user dataset 
+                    topUserDsName = re.sub('_sub\d+$','',dataset.name)
+                    # update if it is the first attempt
+                    if topUserDsName != dataset.name and not topUserDsName in topUserDsList:
+                        topUserDs = self.taskBuffer.queryDatasetWithMap({'name':topUserDsName})
+                        if topUserDs != None:
+                            # check status
+                            if topUserDs.status in ['completed','cleanup','tobeclosed']:
+                                _logger.debug('%s skip %s due to status=%s' % (self.pandaID,topUserDsName,topUserDs.status))
+                            else:
+                                # set status
+                                topUserDs.status = finalStatus
+                                # append to avoid repetition
+                                topUserDsList.append(topUserDsName)
+                                # update DB
+                                retTopT = self.taskBuffer.updateDatasets([topUserDs],withLock=True,withCriteria="status<>:crStatus",
+                                                                         criteriaMap={':crStatus':finalStatus})
+                                if len(retTopT) > 0 and retTopT[0]==1:
+                                    _logger.debug('%s close top dataset : %s' % (self.pandaID,topUserDsName))
+                                    pass
+                                else:
+                                    _logger.debug('%s failed to update top dataset : %s' % (self.pandaID,topUserDsName))
                 # update dataset in DB
                 retT = self.taskBuffer.updateDatasets(dsList,withLock=True,withCriteria="status<>:crStatus",
                                                       criteriaMap={':crStatus':finalStatus})

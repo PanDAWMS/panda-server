@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * close user datasets in container
   * set lifetime for dis and sub datasets
   * added --jobsetID to killUser.py
   * added protection against missing argument for jobID/jobsetID to killUser.py
