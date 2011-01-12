@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * enabled rebrokerage for ganga-rbtest
   * fixed ReBroker for EOS
   * fixed ReBroker to add _shadow
   * use DATADISK for all PD2P subscriptions
