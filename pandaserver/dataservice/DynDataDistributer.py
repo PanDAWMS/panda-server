@@ -334,20 +334,13 @@ class DynDataDistributer:
             self.putLog("cannot find SiteSpec for %s" % sitename)
             return ''
         dq2ID = self.siteMapper.getSite(sitename).ddm
-        if dataset.startswith('data'):
+        if True:
             # data
             matchEOS = re.search('_EOS[^_]+DISK$',dq2ID)
             if matchEOS != None:
                 dq2ID = re.sub('_EOS[^_]+DISK','_EOSDATADISK',dq2ID)
             else:
                 dq2ID = re.sub('_[^_]+DISK','_DATADISK',dq2ID)
-        elif dataset.startswith('mc'):
-            # mc
-            matchEOS = re.search('_EOS[^_]+DISK$',dq2ID)
-            if matchEOS!= None:
-                dq2ID = re.sub('_EOS[^_]+DISK','_EOSMCDISK',dq2ID)
-            else:
-                dq2ID = re.sub('_[^_]+DISK','_MCDISK',dq2ID)
         else:
             # unsupported prefix for subscription
             self.putLog('%s has unsupported prefix for subscription' % dataset,'error')

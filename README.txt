@@ -1,6 +1,9 @@
 Release Note
 
 * current
+  * fixed ReBroker for EOS
+  * fixed ReBroker to add _shadow
+  * use DATADISK for all PD2P subscriptions
   * close user datasets in container
   * set lifetime for dis and sub datasets
   * added --jobsetID to killUser.py

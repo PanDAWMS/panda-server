@@ -184,6 +184,9 @@ class ReBroker (threading.Thread):
                         # ignore ToBeDeleted
                         if tmpStat[-1]['archived'] in ['ToBeDeleted',]:
                             continue
+                        # change EOS
+                        if tmpSite.startswith('CERN-PROD_EOS'):
+                            tmpSite = 'CERN-PROD_EOS'
                         # change DISK to SCRATCHDISK
                         tmpSite = re.sub('_[^_-]+DISK$','',tmpSite)
                         # change PERF-XYZ to SCRATCHDISK
@@ -328,6 +331,8 @@ class ReBroker (threading.Thread):
 
     # get aggregated DQ2 ID
     def getAggName(self,origName):
+        if origName.startswith('CERN-PROD_EOS'):
+            return 'CERN-PROD_EOS'
         return re.sub('_[^_-]+DISK$','',origName)
     
         
@@ -500,16 +505,25 @@ class ReBroker (threading.Thread):
     def prepareDS(self):
         _logger.debug("%s prepareDS" % self.token)        
         # get all outDSs
+        shadowDsName = None
         for tmpFile in self.job.Files:
             if tmpFile.type in ['output','log']:
                 tmpDS = re.sub('_sub\d+$','',tmpFile.destinationDBlock)
+                # append new rev number
+                match = re.search('_rev(\d+)$',tmpDS)
+                if match == None:
+                    newDS = tmpDS + '_rev%s' % 1
+                else:
+                    newDS = re.sub('_rev(\d+)$','_rev%s' % (int(match.group(1))+1),tmpDS)
+                # add shadow    
+                if shadowDsName == None and tmpFile.type == 'log':
+                    shadowDsName = "%s_shadow" % newDS
+                    status = self.registerNewDataset(shadowDsName)
+                    if not status:
+                        _logger.debug("%s prepareDS failed for shadow" % self.token)
+                        return False
+                # add datasets                                                    
                 if not tmpDS in self.newDatasetMap:
-                    # append new rev number
-                    match = re.search('_rev(\d+)$',tmpDS)
-                    if match == None:
-                        newDS = tmpDS + '_rev%s' % 1
-                    else:
-                        newDS = re.sub('_rev(\d+)$','_rev%s' % (int(match.group(1))+1),tmpDS)
                     # register
                     status = self.registerNewDataset(newDS,tmpFile.dataset)
                     if not status:
