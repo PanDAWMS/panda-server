@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * removed REGEXP from Datasets cleanup
   * enabled rebrokerage for ganga-rbtest
   * fixed ReBroker for EOS
   * fixed ReBroker to add _shadow

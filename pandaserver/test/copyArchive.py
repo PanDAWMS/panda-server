@@ -1023,7 +1023,7 @@ _memoryCheck("closing")
 timeLimitDnS = datetime.datetime.utcnow() - datetime.timedelta(days=60)
 timeLimitTop = datetime.datetime.utcnow() - datetime.timedelta(days=90)
 nDelDS = 1000
-for dsType,dsPrefix in [('output','sub'),('dispatch','dis'),('','top')]:
+for dsType,dsPrefix in [('','top'),]:
     sql = "DELETE FROM ATLAS_PANDA.Datasets "
     if dsType != '':
         # dis or sub
