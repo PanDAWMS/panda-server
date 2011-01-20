@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added comment_ to SiteSpec
   * put hacks back to TA and Setupper for split T1 which uses NIKHEF as src 
   * set hidden metadata to _dis and _sub
   * removed REGEXP from Datasets cleanup
