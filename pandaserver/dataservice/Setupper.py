@@ -714,6 +714,12 @@ class Setupper (threading.Thread):
                                     # MCTAPE
                                     if not mctapeID in dq2IDList:
                                         dq2IDList.append(mctapeID)
+                                # hack for split T1        
+                                if job.cloud == 'NL' and tmpRepMap.has_key('NIKHEF-ELPROD_DATADISK') \
+                                       and not tmpRepMap.has_key('SARA-MATRIX_MCDISK') \
+                                       and not tmpRepMap.has_key('SARA-MATRIX_DATADISK'):
+                                    if not 'NIKHEF-ELPROD_DATADISK' in dq2IDList:
+                                        dq2IDList.append('NIKHEF-ELPROD_DATADISK')                                        
                         # use default location if empty
                         if dq2IDList == []:
                             dq2IDList = [dq2ID]
@@ -1293,6 +1299,14 @@ class Setupper (threading.Thread):
                             match = re.search('.+://([^:/]+):*\d*/*',tmpSrcSiteSE)
                             if match != None:
                                 dq2SE.append(match.group(1))
+                    # hack for split T1
+                    if cloudKey == 'NL':
+                        tmpSplitSite = self.siteMapper.getSite('NIKHEF-ELPROD')
+                        if tmpSplitSite.se != None:
+                            for tmpSrcSiteSE in tmpSplitSite.se.split(','):
+                                match = re.search('.+://([^:/]+):*\d*/*',tmpSrcSiteSE)
+                                if match != None:
+                                    dq2SE.append(match.group(1))
                 else:
                     # LRC
                     dq2URL = tmpSrcSite.dq2url
