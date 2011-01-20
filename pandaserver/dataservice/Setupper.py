@@ -275,10 +275,10 @@ class Setupper (threading.Thread):
                 # register dispatch dataset
                 disFiles = fileList[dispatchDBlock]
                 _logger.debug((self.timestamp,'registerNewDataset',dispatchDBlock,disFiles['lfns'],disFiles['guids'],
-                               disFiles['fsizes'],disFiles['chksums']))
+                               disFiles['fsizes'],disFiles['chksums'],None,None,None,True))
                 for iDDMTry in range(3):
                     status,out = ddm.DQ2.main('registerNewDataset',dispatchDBlock,disFiles['lfns'],disFiles['guids'],
-                              disFiles['fsizes'],disFiles['chksums'])
+                              disFiles['fsizes'],disFiles['chksums'],None,None,None,True)
                     if status != 0 and out.find('DQDatasetExistsException') != -1:
                         break
                     elif status != 0 or out.find("DQ2 internal server exception") != -1 \
@@ -406,10 +406,16 @@ class Setupper (threading.Thread):
                         if (not self.pandaDDM) and (job.prodSourceLabel != 'ddm') and (job.destinationSE != 'local'):
                             # register dataset
                             time.sleep(1)
-                            _logger.debug((self.timestamp,'registerNewDataset',name))
+                            # set hidden flag for _sub
+                            tmpHiddenFlag = False
+                            if name != originalName and re.search('_sub\d+$',name) != None:
+                                tmpHiddenFlag = True
+                            _logger.debug((self.timestamp,'registerNewDataset',name,[],[],[],[],
+                                           None,None,None,tmpHiddenFlag))
                             atFailed = 0
                             for iDDMTry in range(3):
-                                status,out = ddm.DQ2.main('registerNewDataset',name)
+                                status,out = ddm.DQ2.main('registerNewDataset',name,[],[],[],[],
+                                                          None,None,None,tmpHiddenFlag)
                                 if status != 0 and out.find('DQDatasetExistsException') != -1:
                                     atFailed = iDDMTry
                                     break
@@ -1595,9 +1601,11 @@ class Setupper (threading.Thread):
                                                             commands.getoutput('uuidgen'),iLoop,
                                                             tmpVal['PandaID'])
                 iLoop += 1
-                _logger.debug((self.timestamp,'ext registerNewDataset',disDBlock,lfns,guids,fsizes,chksums))
+                _logger.debug((self.timestamp,'ext registerNewDataset',disDBlock,lfns,guids,fsizes,chksums,
+                               None,None,None,True))
                 for iDDMTry in range(3):
-                    status,out = ddm.DQ2.main('registerNewDataset',disDBlock,lfns,guids,fsizes,chksums)
+                    status,out = ddm.DQ2.main('registerNewDataset',disDBlock,lfns,guids,fsizes,chksums,
+                                              None,None,None,True)
                     if status != 0 and out.find('DQDatasetExistsException') != -1:
                         break
                     elif status != 0 or out.find("DQ2 internal server exception") != -1 \

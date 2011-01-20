@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * set hidden metadata to _dis and _sub
   * removed REGEXP from Datasets cleanup
   * enabled rebrokerage for ganga-rbtest
   * fixed ReBroker for EOS
