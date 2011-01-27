@@ -376,6 +376,8 @@ class DynDataDistributer:
                                       0,None,0,"production",None,'Data Brokering','secondary')
             if out.find('DQSubscriptionExistsException') != -1:
                 break
+            elif out.find('DQLocationExistsException') != -1:
+                break
             elif status != 0 or (not self.isDQ2ok(out)):
                 time.sleep(60)
             else:

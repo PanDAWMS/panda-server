@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed PD2P not to make sub when dataset is being deleted
   * changed PD2P not to send ESD to EOS
   * added a hint to getPandaIDsForProdDB to enforce function index
   * added comment_ to SiteSpec
