@@ -176,7 +176,7 @@ class TaskAssigner:
                     if not enoughSpace:
                         message = "%s    %s skip : no online sites have enough space for DiskCount=%s" % (self.taskID,tmpCloudName,diskCount)
                         _logger.debug(message)
-                        self.sendMesg(message)
+                        self.sendMesg(message,msgType='warning')
                         continue
                 # append
                 tmpCloudList.append(tmpCloudName)
@@ -540,7 +540,7 @@ class TaskAssigner:
             if tmpSiteSpec.maxinputsize == 0:
                 return True
             # enough space for input
-            if int(tmpSiteSpec.maxinputsize) > int(diskCount):
+            if int(tmpSiteSpec.maxinputsize) >= int(diskCount):
                 return True
         # no sites have enough space
         return False

@@ -3369,8 +3369,8 @@ class DBProxy:
     def getPandaIDsForProdDB(self,limit,lockedby):
         comment = ' /* DBProxy.getPandaIDsForProdDB */'                
         _logger.debug("getPandaIDsForProdDB %s" % limit)
-        sql0 = "SELECT PandaID,jobStatus,stateChangeTime,attemptNr,jobDefinitionID,jobExecutionID FROM %s "
-        sql0+= "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND lockedby=:lockedby "
+        sql0 = "PandaID,jobStatus,stateChangeTime,attemptNr,jobDefinitionID,jobExecutionID FROM %s "
+        sqlW = "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND lockedby=:lockedby "
         sqlX = "AND stateChangeTime>prodDBUpdateTime "
         sqlA = "AND (CASE WHEN stateChangeTime>prodDBUpdateTime THEN 1 ELSE null END) = 1 "
         sql1 = "AND rownum<=:limit "
@@ -3389,9 +3389,9 @@ class DBProxy:
                 # select
                 sql = sql0 % table
                 if table in ['ATLAS_PANDA.jobsArchived4']:
-                    sql += sqlA
+                    sql = "SELECT /*+ INDEX_RS_ASC(tab JOBSARCHIVED4_CHANGETIME) NO_INDEX(tab(PRODSOURCELABEL))*/ " + sql + " tab " + sqlW + sqlA
                 else:
-                    sql += sqlX
+                    sql = "SELECT " + sql + sqlW + sqlX
                 sql += sql1    
                 self.cur.arraysize = limit
                 _logger.debug("getPandaIDsForProdDB %s %s" % (sql+comment,str(varMap)))
