@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added forceOpt to runReBrokerage
   * fixed PD2P not to make sub when dataset is being deleted
   * changed PD2P not to send ESD to EOS
   * added a hint to getPandaIDsForProdDB to enforce function index

@@ -94,7 +94,7 @@ class UserIF:
 
 
     # run rebrokerage
-    def runReBrokerage(self,dn,jobID,cloud,strExcludedSite):
+    def runReBrokerage(self,dn,jobID,cloud,strExcludedSite,forceRebro):
         returnVal = "True"
         try:
             if strExcludedSite == None:
@@ -106,8 +106,9 @@ class UserIF:
                 for tmpItem in strExcludedSite.split(','):
                     if tmpItem != '':
                         excludedSite.append(tmpItem)
+            _logger.debug("runReBrokerage %s JobID:%s cloud=%s ex=%s forceOpt=%s" % (dn,jobID,cloud,str(excludedSite),forceRebro))
             # instantiate ReBroker
-            thr = ReBroker(self.taskBuffer,cloud,excludedSite,userRequest=True)
+            thr = ReBroker(self.taskBuffer,cloud,excludedSite,forceOpt=forceRebro,userRequest=True)
             # lock
             stLock,retLock = thr.lockJob(dn,jobID)
             # failed
@@ -117,7 +118,7 @@ class UserIF:
                 # start ReBroker
                 thr.start()
         except:
-            erType,errValue,errTraceBack = sys.exc_info()
+            errType,errValue,errTraceBack = sys.exc_info()
             _logger.error("runReBrokerage: %s %s" % (errType,errValue))
             returnVal = "ERROR: runReBrokerage crashed"
         # return
@@ -853,7 +854,7 @@ def runBrokerage(req,sites,cmtConfig=None,atlasRelease=None,trustIS=False,proces
     return userIF.runBrokerage(sites,cmtConfig,atlasRelease,trustIS,processingType,dn)
 
 # run rebrokerage
-def runReBrokerage(req,jobID,libDS='',cloud=None,excludedSite=None):
+def runReBrokerage(req,jobID,libDS='',cloud=None,excludedSite=None,forceOpt=None):
     # check SSL
     if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
         return "ERROR: SSL connection is required"
@@ -865,8 +866,13 @@ def runReBrokerage(req,jobID,libDS='',cloud=None,excludedSite=None):
     try:
         jobID = long(jobID)
     except:
-        return "ERROR: jobID is not an integer"        
-    return userIF.runReBrokerage(dn,jobID,cloud,excludedSite)
+        return "ERROR: jobID is not an integer"
+    # force option
+    if forceOpt == 'True':
+        forceOpt = True
+    else:
+        forceOpt = False
+    return userIF.runReBrokerage(dn,jobID,cloud,excludedSite,forceOpt)
 
 # get serial number for group job
 def getSerialNumberForGroupJob(req):
