@@ -139,7 +139,9 @@ class DynDataDistributer:
                     self.putLog("PD2P # of subscriptions : %s" % totalUserSub)
                     self.putLog("PD2P nUsed : %s" % nUsed)
                     # make any data subscriptions to EOS
-                    if allOKClouds != [] and inputDS.startswith('data') and nUsed >= 3:
+                    tmpItems = inputDS.split('.')
+                    if allOKClouds != [] and inputDS.startswith('data') and nUsed >= 5 and \
+                       not (len(tmpItems) >= 5 and tmpItems[4] in ['ESD']):
                         self.makeSubscriptionToEOS(inputDS)
                     # check number of replicas
                     maxSitesHaveDS = 1

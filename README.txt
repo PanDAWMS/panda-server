@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed PD2P not to send ESD to EOS
   * added a hint to getPandaIDsForProdDB to enforce function index
   * added comment_ to SiteSpec
   * put hacks back to TA and Setupper for split T1 which uses NIKHEF as src 
