@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * removed hacks from TA and Setupper for split T1
   * added forceOpt to runReBrokerage
   * fixed PD2P not to make sub when dataset is being deleted
   * changed PD2P not to send ESD to EOS
