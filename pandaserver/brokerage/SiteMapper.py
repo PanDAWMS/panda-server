@@ -116,15 +116,16 @@ class SiteMapper:
                 if siteSpec.type != 'production':
                     continue
                 # append prod site in cloud
-                if self.cloudSpec.has_key(siteSpec.cloud):
-                    if not siteSpec.sitename in self.cloudSpec[siteSpec.cloud]['sites']:
-                        # append
-                        self.cloudSpec[siteSpec.cloud]['sites'].append(siteSpec.sitename)
-                else:
-                    # append to the default cloud
-                    if not siteSpec.sitename in self.defCloudSites:
-                        # append
-                        self.defCloudSites.append(siteSpec.sitename)
+                for tmpCloud in siteSpec.cloudlist:
+                    if self.cloudSpec.has_key(tmpCloud):
+                        if not siteSpec.sitename in self.cloudSpec[tmpCloud]['sites']:
+                            # append
+                            self.cloudSpec[tmpCloud]['sites'].append(siteSpec.sitename)
+                    else:
+                        # append to the default cloud
+                        if not siteSpec.sitename in self.defCloudSites:
+                            # append
+                            self.defCloudSites.append(siteSpec.sitename)
             # set defCloudSites for backward compatibility
             if self.cloudSpec.has_key('US'):
                 # use US sites

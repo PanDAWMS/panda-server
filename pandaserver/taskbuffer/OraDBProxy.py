@@ -5477,7 +5477,7 @@ class DBProxy:
                     ret.sitename   = siteid
                     ret.nickname   = nickname
                     ret.dq2url     = dq2url
-                    ret.cloud      = cloud
+                    ret.cloud      = cloud.split(',')[0]
                     ret.ddm        = ddm.split(',')[0]
                     ret.lfchost    = lfchost
                     ret.se         = se
@@ -5494,6 +5494,11 @@ class DBProxy:
                     ret.copysetup     = copysetup
                     ret.maxinputsize  = maxinputsize
                     ret.comment       = comment
+                    # cloud list
+                    if cloud != '':
+                        ret.cloudlist = cloud.split(',')
+                    else:
+                        ret.cloudlist = []
                     # job recoverty
                     ret.retry = True
                     if retry == 'FALSE':

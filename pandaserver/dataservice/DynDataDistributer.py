@@ -28,6 +28,9 @@ ngProvenance = ['GP',]
 # threshold for hot dataset
 nUsedForHotDS = 10
 
+# files in datasets
+g_filesInDsMap = {}
+
 
 class DynDataDistributer:
 
@@ -618,6 +621,54 @@ class DynDataDistributer:
         dsSize /= (1024*1024*1024)
         self.putLog("dataset size = %s" % dsSize)
         return True,dsSize
+
+
+    # get file from dataset
+    def getFileFromDataset(self,datasetName,guid,randomMode=False,nSamples=1):
+        resForFailure = (False,None)
+        # get files in datasets
+        global g_filesInDsMap
+        if not g_filesInDsMap.has_key(datasetName):
+            nTry = 3
+            for iDDMTry in range(nTry):
+                self.putLog('%s/%s listFilesInDataset %s' % (iDDMTry,nTry,datasetName))
+                status,out = ddm.DQ2.listFilesInDataset(datasetName)
+                if status != 0:
+                    time.sleep(60)
+                else:
+                    break
+            if status != 0 or out.startswith('Error'):
+                self.putLog(out,'error')
+                self.putLog('bad DQ2 response to get size of %s' % datasetName, 'error')
+                return resForFailure
+            # get file
+            try:
+                exec "outList = %s" % out
+                # append
+                g_filesInDsMap[datasetName] = outList[0]
+            except:
+                self.putLog('failed to get file list from DQ2 response for %s' % datasetName, 'error')
+                return resForFailure
+        # random mode
+        if randomMode:
+            tmpList = g_filesInDsMap[datasetName].keys()
+            random.shuffle(tmpList)
+            retList = []
+            for iSamples in range(nSamples):
+                if iSamples < len(tmpList):
+                    guid = tmpList[iSamples]
+                    retMap = g_filesInDsMap[datasetName][guid]
+                    retMap['guid'] = guid
+                    retMap['dataset'] = datasetName
+                    retList.append(retMap)
+            return True,retList        
+        # return
+        if g_filesInDsMap[datasetName].has_key(guid):
+            retMap = g_filesInDsMap[datasetName][guid]
+            retMap['guid'] = guid
+            retMap['dataset'] = datasetName            
+            return True,retMap
+        return resForFailure
         
         
     # make subscriptions to EOS 
@@ -657,6 +708,290 @@ class DynDataDistributer:
         self.putLog("end making EOS subscription for %s" % datasetName)        
         return True
 
+
+    # register new dataset container with datasets
+    def registerDatasetContainerWithDatasets(self,containerName,files,replicaMap):
+        # sort by locations
+        filesMap = {}
+        for tmpFile in files:
+            tmpLocations = replicaMap[tmpFile['dataset']]
+            tmpLocations.sort()
+            tmpKey = tuple(tmpLocations)
+            if not filesMap.has_key(tmpKey):
+                filesMap[tmpKey] = []
+            # append file
+            filesMap[tmpKey].append(tmpFile)
+        # register new datasets
+        datasetNames = []
+        tmpIndex = 1
+        for tmpLocations,tmpFiles in filesMap.iteritems():
+            tmpDsName = containerName[:-1] + '_%04d' % tmpIndex
+            tmpRet = self.registerDatasetWithLocation(tmpDsName,tmpFiles,tmpLocations)
+            # failed
+            if not tmpRet:
+                self.putLog('failed to register %s' % tmpDsName, 'error')
+                return False
+            # append dataset
+            datasetNames.append(tmpDsName)
+            tmpIndex += 1
+        # register container
+        nTry = 3
+        for iDDMTry in range(nTry):
+            self.putLog('%s/%s registerContainer %s' % (iDDMTry,nTry,containerName))
+            status,out = ddm.DQ2.main('registerContainer',containerName,datasetNames)
+            if status != 0 and out.find('DQDatasetExistsException') != -1:
+                time.sleep(60)
+            else:
+                break
+        if status != 0 or out.startswith('Error'):
+            self.putLog(out,'error')
+            self.putLog('bad DQ2 response to register %s' % containerName, 'error')
+            return False
+        # return
+        return True
+        
+            
+
+    # register new dataset with locations
+    def registerDatasetWithLocation(self,datasetName,files,locations):
+        resForFailure = False
+        # get file info
+        guids   = []
+        lfns    = []
+        fsizes  = []
+        chksums = []
+        for tmpFile in files:
+            guids.append(tmpFile['guid'])
+            lfns.append(tmpFile['lfn'])
+            fsizes.append(None)
+            chksums.append(None)
+        # register new dataset    
+        nTry = 3
+        for iDDMTry in range(nTry):
+            self.putLog('%s/%s registerNewDataset %s' % (iDDMTry,nTry,datasetName))
+            status,out = ddm.DQ2.main('registerNewDataset',datasetName,lfns,guids,fsizes,chksums,
+                                      None,None,None,True)
+            if status != 0 and out.find('DQDatasetExistsException') != -1:
+                time.sleep(60)
+            else:
+                break
+        if status != 0 or out.startswith('Error'):
+            self.putLog(out,'error')
+            self.putLog('bad DQ2 response to register %s' % datasetName, 'error')
+            return resForFailure
+        # freeze dataset    
+        nTry = 3
+        for iDDMTry in range(nTry):
+            self.putLog('%s/%s freezeDataset %s' % (iDDMTry,nTry,datasetName))
+            status,out = ddm.DQ2.main('freezeDataset',datasetName)
+            if status != 0:
+                time.sleep(60)
+            else:
+                break
+        if status != 0 or out.startswith('Error'):
+            self.putLog(out,'error')
+            self.putLog('bad DQ2 response to freeze %s' % datasetName, 'error')
+            return resForFailure
+        # register locations
+        for tmpLocation in locations:
+            nTry = 3
+            for iDDMTry in range(nTry):
+                self.putLog('%s/%s registerDatasetLocation %s %s' % (iDDMTry,nTry,datasetName,tmpLocation))
+                status,out = ddm.DQ2.main('registerDatasetLocation',datasetName,tmpLocation,0,1,None,None,None,"7 days")
+                if status != 0 and out.find('DQLocationExistsException') != -1:
+                    time.sleep(60)
+                else:
+                    break
+            if out.find('DQLocationExistsException') != -1:
+                pass
+            if status != 0 or out.startswith('Error'):
+                self.putLog(out,'error')
+                self.putLog('bad DQ2 response to freeze %s' % datasetName, 'error')
+                return resForFailure
+        return True
+
+
+    # list datasets by file GUIDs
+    def listDatasetsByGUIDs(self,guids,dsFilters):
+        resForFailure = (False,{})
+        # get size of datasets
+        nTry = 3
+        for iDDMTry in range(nTry):
+            self.putLog('%s/%s listDatasetsByGUIDs' % (iDDMTry,nTry))
+            status,out = ddm.DQ2.listDatasetsByGUIDs(guids)
+            if status != 0:
+                time.sleep(60)
+            else:
+                break
+        if status != 0 or out.startswith('Error'):
+            self.putLog(out,'error')
+            self.putLog('bad DQ2 response to list datasets by GUIDs','error')
+            return resForFailure
+        self.putLog(out)
+        # get map
+        retMap = {}
+        try:
+            exec "outMap = %s" % out
+            for guid in guids:
+                tmpDsNames = []
+                # GUID not found
+                if not outMap.has_key(guid):
+                    self.putLog('GUID=%s not found' % guid,'error')
+                    return resForFailure
+                # ignore junk datasets
+                for tmpDsName in outMap[guid]:
+                    if tmpDsName.startswith('panda') or \
+                           tmpDsName.startswith('user') or \
+                           tmpDsName.startswith('group') or \
+                           re.search('_sub\d+$',tmpDsName) != None or \
+                           re.search('_dis\d+$',tmpDsName) != None or \
+                           re.search('_shadow$',tmpDsName) != None:
+                        continue
+                    # check with filters
+                    if dsFilters != []:
+                        flagMatch = False
+                        for tmpFilter in dsFilters:
+                            if re.search(tmpFilter,tmpDsName) != None:
+                                flagMatch = True
+                                break
+                        # not match
+                        if not flagMatch:
+                            continue
+                    # append
+                    tmpDsNames.append(tmpDsName)
+                # empty
+                if tmpDsNames == []:
+                    self.putLog('no datasets found for GUID=%s' % guid)
+                    continue
+                # duplicated
+                if len(tmpDsNames) != 1:
+                    self.putLog('there are multiple datasets %s for GUID:%s' % (str(tmpDsNames),guid),'error')
+                    return resForFailure
+                # append
+                retMap[guid] = tmpDsNames[0]
+        except:
+            self.putLog('failed to list datasets by GUIDs','error')
+            return resForFailure
+        return True,retMap
+
+
+    # conver event/run list to datasets
+    def convertEvtRunToDatasets(self,runEvtList,dsType,streamName,dsFilters):
+        self.putLog('convertEvtRunToDatasets %s %s %s' % (dsType,streamName,str(dsFilters)))
+        # check data type
+        failedRet = False,[]
+        if dsType == 'AOD':
+            streamRef = 'StreamAOD_ref'
+        elif dsType == 'ESD':
+            streamRef = 'StreamESD_ref'
+        elif dsType == 'RAW':
+            streamRef = 'StreamRAW_ref'
+        else:
+            self.putLog("invalid data type %s for EventRun conversion" % dsType,type='error')
+            return failedRet
+        # import event lookup client
+        from eventLookupClient import eventLookupClient
+        elssiIF = eventLookupClient()
+        # loop over all events
+        runEvtGuidMap = {}
+        nEventsPerLoop = 500
+        iEventsTotal = 0
+        while iEventsTotal < len(runEvtList):
+            tmpRunEvtList = runEvtList[iEventsTotal:iEventsTotal+nEventsPerLoop]
+            iEventsTotal += nEventsPerLoop
+            if streamName == '':
+                guidListELSSI = elssiIF.doLookup(tmpRunEvtList,tokens=streamRef,extract=True)
+            else:
+                guidListELSSI = elssiIF.doLookup(tmpRunEvtList,stream=streamName,tokens=streamRef,extract=True)
+            # failed
+            if guidListELSSI == None or len(guidListELSSI) == 0:
+                errStr = ''
+                for tmpLine in elssiIF.output:
+                    errStr += tmpLine
+                self.putLog(errStr,type='error')
+                self.putLog("invalid retrun from EventLookup",type='error')
+                return failedRet
+            # check attribute
+            attrNames, attrVals = guidListELSSI
+            def getAttributeIndex(attr):
+                for tmpIdx,tmpAttrName in enumerate(attrNames):
+                    if tmpAttrName.strip() == attr:
+                        return tmpIdx
+                return None
+            # get index
+            indexEvt = getAttributeIndex('EventNumber')
+            indexRun = getAttributeIndex('RunNumber')
+            indexTag = getAttributeIndex(streamRef)
+            if indexEvt == None or indexRun == None or indexTag == None:
+                self.putLog("failed to get attribute index from %s" % str(attrNames),type='error')
+                return failedRet
+            # check events
+            for runNr,evtNr in tmpRunEvtList:
+                paramStr = 'Run:%s Evt:%s Stream:%s' % (runNr,evtNr,streamName)
+                self.putLog(paramStr)
+                # collect GUIDs
+                tmpguids = []
+                for attrVal in attrVals:
+                    if runNr == attrVal[indexRun] and evtNr == attrVal[indexEvt]:
+                        tmpGuid = attrVal[indexTag]
+                        # check non existing
+                        if tmpGuid == 'NOATTRIB':
+                            continue
+                        if not tmpGuid in tmpguids:
+                            tmpguids.append(tmpGuid)
+                # not found
+                if tmpguids == []:
+                    errStr = "no GUIDs were found in Event Lookup service for %s" % paramStr
+                    self.putLog(errStr,type='error')
+                    return failedRet                    
+                # append
+                runEvtGuidMap[(runNr,evtNr)] = tmpguids
+        # convert to datasets
+        allDatasets  = []
+        allFiles     = []
+        allLocations = []
+        for tmpIdx,tmpguids in runEvtGuidMap.iteritems():
+            runNr,evtNr = tmpIdx
+            tmpDsRet,tmpDsMap = self.listDatasetsByGUIDs(tmpguids,dsFilters)
+            # failed
+            if not tmpDsRet:
+                self.putLog("failed to convert GUIDs to datasets",type='error')
+                return failedRet
+            # empty
+            if tmpDsMap == {}:
+                self.putLog("there is no dataset for Run:%s Evt:%s" % (runNr,evtNr),type='error')
+                return failedRet
+            if len(tmpDsMap) != 1:
+                self.putLog("there are multiple datasets %s for Run:%s Evt:%s" % (str(tmpDsMap),runNr,evtNr),
+                            type='error')
+                return failedRet
+            # append
+            for tmpGUID,tmpDsName in tmpDsMap.iteritems():
+                # collect dataset names
+                if not tmpDsName in allDatasets:
+                    allDatasets.append(tmpDsName)
+                    # get location
+                    statRep,replicaMap = self.getListDatasetReplicas(tmpDsName)
+                    # failed
+                    if not statRep:
+                        self.putLog("failed to get locations for DS:%s" % tmpDsName,type='error')
+                        return failedRet
+                    # collect locations
+                    for tmpLocation in replicaMap.keys():
+                        if not tmpLocation in allLocations:
+                            allLocations.append(tmpLocation)
+                # get file info
+                tmpFileRet,tmpFileInfo = self.getFileFromDataset(tmpDsName,tmpGUID)
+                # failed
+                if not tmpFileRet:
+                    self.putLog("failed to get fileinfo for GUID:%s DS:%s" % (tmpGUID,tmpDsName),type='error')
+                    return failedRet
+                # collect files
+                allFiles.append(tmpFileInfo)
+        # return
+        self.putLog('converted to %s, %s, %s' % (str(allDatasets),str(allLocations),str(allFiles)))
+        return True,allDatasets,allLocations,allFiles
+        
 
     # put log
     def putLog(self,msg,type='debug',sendLog=False):

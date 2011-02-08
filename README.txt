@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * added EventLookup to PD2P
+  * updated SiteMapper for multi-cloud
   * removed hacks from TA and Setupper for split T1
   * added forceOpt to runReBrokerage
   * fixed PD2P not to make sub when dataset is being deleted
