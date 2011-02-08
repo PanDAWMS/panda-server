@@ -344,6 +344,14 @@ class TaskAssigner:
                             match = re.search('.+://([^:/]+):*\d*/*',tmpSrcSiteSE)
                             if match != None:
                                 tmpSE.append(match.group(1))
+                # hack for split T1
+                if tmpCloudName == 'NL':
+                    tmpSplitSite = self.siteMapper.getSite('NIKHEF-ELPROD')
+                    if tmpSplitSite.se != None:
+                        for tmpSrcSiteSE in tmpSplitSite.se.split(','):
+                            match = re.search('.+://([^:/]+):*\d*/*',tmpSrcSiteSE)
+                            if match != None: 
+                                tmpSE.append(match.group(1))                                
                 # get files from LRC
                 weightParams[tmpCloudName]['nFiles'] = 0
                 # loop over all files

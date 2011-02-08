@@ -158,10 +158,11 @@ def _isTooManyInput(nFilesPerJob,inputSizePerJob):
 # schedule
 def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],trustIS=False,
              distinguishedName=None,specialWeight={},getWeight=False,sizeMapForCheck={},
-             datasetSize=0):
+             datasetSize=0,replicaMap={}):
     _log.debug('start %s %s %s %s' % (forAnalysis,str(setScanSiteList),trustIS,distinguishedName))
     if specialWeight != {}:
         _log.debug('PD2P weight : %s' % str(specialWeight))
+    _log.debug('replicaMap : %s' % str(replicaMap))
     # no jobs
     if len(jobs) == 0:
         _log.debug('finished : no jobs')        
@@ -217,6 +218,39 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 pass
             elif job.jobStatus == 'failed':
                 continue
+            # hack for split T1
+            if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
+               and job.cloud == 'NL':
+                # loop over all input datasets
+                tmpCheckedDS = []
+                useSplitT1 = None
+                for tmpFile in job.Files:
+                    if tmpFile.type == 'input' and (not tmpFile.dataset.startswith('ddo')) \
+                       and (not tmpFile.dataset in tmpCheckedDS):
+                        # init
+                        if useSplitT1 == None:
+                            useSplitT1 = True
+                        # no replica map
+                        if not replicaMap.has_key(tmpFile.dataset):
+                            # not set
+                            useSplitT1 = False
+                            break
+                        # check if input datasets are available only at NIKHEF
+                        tmpRepMap = replicaMap[tmpFile.dataset]
+                        if tmpRepMap.has_key('NIKHEF-ELPROD_DATADISK') \
+                               and not tmpRepMap.has_key('SARA-MATRIX_MCDISK') \
+                               and not tmpRepMap.has_key('SARA-MATRIX_DATADISK') \
+                               and not tmpRepMap.has_key('SARA-MATRIX_MCTAPE') \
+                               and not tmpRepMap.has_key('SARA-MATRIX_DATATAPE'):
+                            pass
+                        else:
+                            # not set
+                            useSplitT1 = False
+                            break
+                # set
+                if useSplitT1 == True:
+                    job.computingSite = 'NIKHEF-ELPROD'
+                    _log.debug('PandaID:%s -> use split T1 : %s' % (job.PandaID,job.computingSite))
             # set computingSite to T1 for high priority jobs
             if job != None and job.currentPriority >= 950 and job.computingSite == 'NULL' \
                    and job.prodSourceLabel in ('test','managed'):
@@ -224,6 +258,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 #job.computingSite = siteMapper.getCloud(job.cloud)['source']                
                 if not job.cmtConfig in ['x86_64-slc5-gcc43']: 
                     job.computingSite = siteMapper.getCloud(job.cloud)['source']
+                    _log.debug('PandaID:%s -> use T1 for high prio : %s' % (job.PandaID,job.computingSite))                    
             # set computingSite to T1 when too many inputs are required
             if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed'):
                 # counts # of inputs
@@ -236,6 +271,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     #job.computingSite = siteMapper.getCloud(job.cloud)['source']
                     if not job.cmtConfig in ['x86_64-slc5-gcc43']: 
                         job.computingSite = siteMapper.getCloud(job.cloud)['source']
+                        _log.debug('PandaID:%s -> use T1 for too many inputs : %s' % (job.PandaID,job.computingSite))
             overwriteSite = False
             # new bunch or terminator
             if job == None or len(fileList) >= nFile \

@@ -66,7 +66,9 @@ class Setupper (threading.Thread):
         self.allReplicaMap = {}
         # reset locations
         self.resetLocation = resetLocation
-
+        # replica map for special brokerage
+        self.replicaMapForBroker = {}
+        
     # main
     def run(self):
         try:
@@ -84,7 +86,8 @@ class Setupper (threading.Thread):
                 if not self.onlyTA:
                     # invoke brokerage
                     _logger.debug('%s brokerSchedule' % self.timestamp)        
-                    brokerage.broker.schedule(self.jobs,self.taskBuffer,self.siteMapper)
+                    brokerage.broker.schedule(self.jobs,self.taskBuffer,self.siteMapper,
+                                              replicaMap=self.replicaMapForBroker)
                     # setup dispatch dataset
                     _logger.debug('%s setupSource' % self.timestamp)        
                     self._setupSource()
@@ -714,6 +717,14 @@ class Setupper (threading.Thread):
                                     # MCTAPE
                                     if not mctapeID in dq2IDList:
                                         dq2IDList.append(mctapeID)
+                            # hack for split T1
+                            if job.cloud == 'NL' and tmpRepMap.has_key('NIKHEF-ELPROD_DATADISK') \
+                                   and not tmpRepMap.has_key('SARA-MATRIX_MCDISK') \
+                                   and not tmpRepMap.has_key('SARA-MATRIX_DATADISK') \
+                                   and not tmpRepMap.has_key('SARA-MATRIX_MCTAPE') \
+                                   and not tmpRepMap.has_key('SARA-MATRIX_DATATAPE'):
+                                if not 'NIKHEF-ELPROD_DATADISK' in dq2IDList:
+                                    dq2IDList.append('NIKHEF-ELPROD_DATADISK')
                         # use default location if empty
                         if dq2IDList == []:
                             dq2IDList = [dq2ID]
@@ -1108,7 +1119,10 @@ class Setupper (threading.Thread):
                             _logger.error(prodError[dataset])
                             _logger.error(out)
                     # get replica locations        
-                    if self.onlyTA and prodError[dataset] == '' and (not replicaMap.has_key(dataset)):
+                    #if self.onlyTA and prodError[dataset] == '' and (not replicaMap.has_key(dataset)):
+                    # hack for split T1
+                    if (self.onlyTA or (job.cloud == 'NL' and job.prodSourceLabel in ['managed','test'])) \
+                           and prodError[dataset] == '' and (not replicaMap.has_key(dataset)):
                         if dataset.endswith('/'):
                             status,out = self.getListDatasetReplicasInContainer(dataset)
                         else:                
@@ -1136,6 +1150,9 @@ class Setupper (threading.Thread):
                                 prodError[dataset] = 'could not convert HTTP-res to replica map for %s' % dataset
                                 _logger.error(prodError[dataset])
                                 _logger.error(out)
+                            # append except DBR
+                            if not dataset.startswith('ddo'):
+                                self.replicaMapForBroker[dataset] = tmpRepSites
             # error
             isFailed = False
             # check for failed
@@ -1293,6 +1310,14 @@ class Setupper (threading.Thread):
                             match = re.search('.+://([^:/]+):*\d*/*',tmpSrcSiteSE)
                             if match != None:
                                 dq2SE.append(match.group(1))
+                    # hack for split T1
+                    if cloudKey == 'NL':
+                        tmpSplitSite = self.siteMapper.getSite('NIKHEF-ELPROD')
+                        if tmpSplitSite.se != None:
+                            for tmpSrcSiteSE in tmpSplitSite.se.split(','):
+                                match = re.search('.+://([^:/]+):*\d*/*',tmpSrcSiteSE)
+                                if match != None:
+                                    dq2SE.append(match.group(1)) 
                 else:
                     # LRC
                     dq2URL = tmpSrcSite.dq2url
