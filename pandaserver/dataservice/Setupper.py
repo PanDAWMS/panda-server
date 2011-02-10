@@ -1353,6 +1353,33 @@ class Setupper (threading.Thread):
                                 if oJob.PandaID == job.PandaID:
                                     jobsWaiting.append(oJob)
                                     break
+        # set data summary fields
+        for tmpJob in self.jobs:
+            try:
+                # set only for production/analysis/test
+                if not tmpJob.prodSourceLabel in ['managed','test','rc_test','ptest','user']:
+                    continue
+                # set input type and project
+                if not tmpJob.prodDBlock in ['',None,'NULL']:
+                    tmpInputItems = tmpJob.prodDBlock.split('.')
+                    # input project
+                    tmpJob.inputFileProject = tmpInputItems[0]
+                    # input type. ignore user/group/groupXY 
+                    if len(tmpInputItems) > 4 and (not tmpInputItems[0] in ['','NULL','user','group']) \
+                           and (not tmpInputItems[0].startswith('group')):
+                        tmpJob.inputFileType = tmpInputItems[4]
+                # loop over all files
+                tmpJob.nInputDataFiles = 0
+                tmpJob.inputFileBytes = 0
+                for tmpFile in tmpJob.Files:
+                    # use input files and ignore DBR/lib.tgz
+                    if tmpFile.type == 'input' and (not tmpFile.dataset.startswith('ddo')) \
+                       and not tmpFile.lfn.endswith('.lib.tgz'):
+                        tmpJob.nInputDataFiles += 1
+                        tmpJob.inputFileBytes += tmpFile.fsize
+            except:
+                errType,errValue = sys.exc_info()[:2]
+                _logger.error("failed to set data summary fields for PandaID=%s: %s %s" % (tmpJob.PandaID,errType,errValue))
         # send jobs to jobsWaiting
         self.taskBuffer.keepJobs(jobsWaiting)
         # update failed job

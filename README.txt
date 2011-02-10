@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added nInputDataFiles,inputFileType,inputFileProject,inputFileBytes
   * add hacks again to TA and Setupper for split T1
   * added EventLookup to PD2P
   * updated SiteMapper for multi-cloud

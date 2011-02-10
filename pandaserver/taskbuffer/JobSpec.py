@@ -20,7 +20,7 @@ class JobSpec(object):
                    'taskID','cmtConfig','stateChangeTime','prodDBUpdateTime','lockedby','relocationFlag',
                    'jobExecutionID','VO','pilotTiming','workingGroup','processingType','prodUserName',
                    'nInputFiles','countryGroup','batchID','parentID','specialHandling','jobsetID',
-                   'coreCount')
+                   'coreCount','nInputDataFiles','inputFileType','inputFileProject','inputFileBytes')
     # slots
     __slots__ = _attributes+('Files',)
     # attributes which have 0 by default
