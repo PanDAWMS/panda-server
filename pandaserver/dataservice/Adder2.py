@@ -551,7 +551,7 @@ class Adder (threading.Thread):
                 if (iTry+1) == nTry or isFatal:
                     self.job.jobStatus = 'failed'
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
-                    errMsg = "Adder._updateOutputs() could not add files to %s\n " % idMap.keys()
+                    errMsg = "Adder._updateOutputs() could not add files : "
                     self.job.ddmErrorDiag = errMsg + out.split('\n')[-1]
                     return
                 _logger.error("%s Try:%s" % (self.jobID,iTry))
@@ -762,7 +762,7 @@ class Adder (threading.Thread):
                 if (iTry+1) == nTry or isFatal:
                     self.job.jobStatus = 'failed'
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
-                    errMsg = "Adder._updateOutputs() could not add files to %s\n " % idMap.keys()
+                    errMsg = "Adder._updateOutputs() could not add files : "
                     self.job.ddmErrorDiag = errMsg + out.split('\n')[-1]
                     return
                 _logger.error("%s shadow Try:%s" % (self.jobID,iTry))
