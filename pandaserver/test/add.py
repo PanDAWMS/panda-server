@@ -10,7 +10,7 @@ import commands
 import threading
 from taskbuffer.TaskBuffer import taskBuffer
 from pandalogger.PandaLogger import PandaLogger
-from dataservice.Adder import Adder
+from dataservice.Adder2 import Adder
 from brokerage.SiteMapper import SiteMapper
 
 # password

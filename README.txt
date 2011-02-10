@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * using DQ2 API directly in Adder 
   * added nInputDataFiles,inputFileType,inputFileProject,inputFileBytes
   * add hacks again to TA and Setupper for split T1
   * added EventLookup to PD2P
