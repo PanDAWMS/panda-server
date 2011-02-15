@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * set source to _subs for all clouds
   * using DQ2 API directly in Adder 
   * added nInputDataFiles,inputFileType,inputFileProject,inputFileBytes
   * add hacks again to TA and Setupper for split T1

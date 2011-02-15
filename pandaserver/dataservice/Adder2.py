@@ -436,19 +436,18 @@ class Adder (threading.Thread):
                                             subMap[file.destinationDBlock] = []
                                             # sources
                                             optSource = {}
-                                            # set sources for NL/FR/ES to handle T2s in another cloud
-                                            if self.job.cloud in ['NL','FR','ES']:
-                                                if file.destinationDBlockToken in ['NULL','']:
-                                                    # use default DQ2 ID as source
-                                                    optSource[tmpSrcDDM] = {'policy' : 0}
-                                                else:
-                                                    # convert token to DQ2 ID
-                                                    dq2ID = tmpSrcDDM
-                                                    # use the first token's location as source for T1D1
-                                                    tmpSrcToken = file.destinationDBlockToken.split(',')[0]
-                                                    if self.siteMapper.getSite(self.job.computingSite).setokens.has_key(tmpSrcToken):
-                                                        dq2ID = self.siteMapper.getSite(self.job.computingSite).setokens[tmpSrcToken]
-                                                    optSource[dq2ID] = {'policy' : 0}
+                                            # set sources
+                                            if file.destinationDBlockToken in ['NULL','']:
+                                                # use default DQ2 ID as source
+                                                optSource[tmpSrcDDM] = {'policy' : 0}
+                                            else:
+                                                # convert token to DQ2 ID
+                                                dq2ID = tmpSrcDDM
+                                                # use the first token's location as source for T1D1
+                                                tmpSrcToken = file.destinationDBlockToken.split(',')[0]
+                                                if self.siteMapper.getSite(self.job.computingSite).setokens.has_key(tmpSrcToken):
+                                                    dq2ID = self.siteMapper.getSite(self.job.computingSite).setokens[tmpSrcToken]
+                                                optSource[dq2ID] = {'policy' : 0}
                                             # use another location when token is set
                                             if not file.destinationDBlockToken in ['NULL','']:
                                                 tmpDQ2IDList = []
