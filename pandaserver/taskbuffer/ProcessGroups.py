@@ -31,7 +31,7 @@ def countJobsPerGroup(valMap):
         # loop over all sites
         for site,siteVal in cloudVal.iteritems():
             # add site
-            if not ret.has_key(site):
+            if not ret[cloud].has_key(site):
                 ret[cloud][site] = {}
             # loop over all types
             for pType,typeVal in siteVal.iteritems():

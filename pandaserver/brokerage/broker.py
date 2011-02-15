@@ -206,7 +206,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             jobStatBroker = {}
             jobStatBrokerClouds = taskBuffer.getJobStatisticsBrokerage()
         else:
-            jobStatBroker = taskBuffer.getJobStatisticsAnalBrokerage()            
+            jobStatBroker = taskBuffer.getJobStatisticsAnalBrokerage()
         # sort jobs by siteID. Some jobs may already define computingSite
         jobs.sort(_compFunc)
         # brokerage for analysis 
