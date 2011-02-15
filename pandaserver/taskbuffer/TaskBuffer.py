@@ -877,12 +877,12 @@ class TaskBuffer:
 
 
     # update input files and return corresponding PandaIDs
-    def updateInFilesReturnPandaIDs(self,dataset,status):
+    def updateInFilesReturnPandaIDs(self,dataset,status,fileGUID=''):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         retList = []
         # query PandaID
-        retList = proxy.updateInFilesReturnPandaIDs(dataset,status)
+        retList = proxy.updateInFilesReturnPandaIDs(dataset,status,fileGUID)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -1127,6 +1127,20 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         # convert
         conRet = ProcessGroups.countJobsPerGroup(ret)
+        # return
+        return conRet
+
+
+    # get job statistics for analysis brokerage
+    def getJobStatisticsAnalBrokerage(self):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get stat
+        ret = proxy.getJobStatisticsAnalBrokerage()
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # convert
+        conRet = ProcessGroups.countJobsPerGroupForAnal(ret)
         # return
         return conRet
 

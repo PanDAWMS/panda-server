@@ -202,7 +202,11 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
     try:
         # get statistics
         jobStatistics = taskBuffer.getJobStatistics()
-        jobStatBroker = taskBuffer.getJobStatisticsBrokerage()        
+        if not forAnalysis:
+            jobStatBroker = {}
+            jobStatBrokerClouds = taskBuffer.getJobStatisticsBrokerage()
+        else:
+            jobStatBroker = taskBuffer.getJobStatisticsAnalBrokerage()            
         # sort jobs by siteID. Some jobs may already define computingSite
         jobs.sort(_compFunc)
         # brokerage for analysis 
@@ -541,12 +545,38 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             if prevProType in skipBrokerageProTypes:
                                 # use original processingType since prod_test is in the test category and thus is interfered by validations 
                                 tmpProGroup = prevProType
+                            # the number of assigned and activated
+                            if not forAnalysis:                                
+                                if not jobStatBrokerClouds.has_key(previousCloud):
+                                    jobStatBrokerClouds[previousCloud] = {}
+                                # use number of jobs in the cloud    
+                                jobStatBroker = jobStatBrokerClouds[previousCloud]
                             if not jobStatBroker.has_key(site):
                                 jobStatBroker[site] = {}
                             if not jobStatBroker[site].has_key(tmpProGroup):
                                 jobStatBroker[site][tmpProGroup] = {'assigned':0,'activated':0,'running':0}
                             nAssJobs = jobStatBroker[site][tmpProGroup]['assigned']
                             nActJobs = jobStatBroker[site][tmpProGroup]['activated']
+                            # get ratio of running jobs = run(cloud)/run(all) for multi cloud
+                            multiCloudFactor = 1
+                            if not forAnalysis:                                
+                                tmpTotalRunningMulti = 0
+                                tmpNCloudMulti = 0
+                                for tmpCloudMulti,tmpCloudValMulti in jobStatBrokerClouds.iteritems():
+                                    if tmpCloudValMulti.has_key(site):
+                                        if tmpCloudValMulti[site].has_key(tmpProGroup):
+                                            tmpNCloudMulti += 1
+                                            if tmpCloudValMulti[site][tmpProGroup].has_key('running'):
+                                                tmpTotalRunningMulti += tmpCloudValMulti[site][tmpProGroup]['running']
+                                # no running
+                                if tmpTotalRunningMulti == 0:
+                                    if tmpNCloudMulti != 0:
+                                        multiCloudFactor = tmpNCloudMulti
+                                else:
+                                    multiCloudFactor = float(tmpTotalRunningMulti+1)/float(jobStatBroker[site][tmpProGroup]['running']+1)
+                                _log.debug('   totalRun:%s cloudRun:%s multiCloud:%s' % (tmpTotalRunningMulti,
+                                                                                         jobStatBroker[site][tmpProGroup]['running'],
+                                                                                         multiCloudFactor))
                             # calculate weight
                             if specialWeight != {}:
                                 nSubs = 1
@@ -557,12 +587,13 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 if getWeight:
                                     weightUsedByBrokerage[site] = "%.2f/%s" % (float(nPilots+1)*nJobsPerNode,nSubs)
                             else:
-                                _log.debug('   %s assigned:%s activated:%s running:%s nPilots:%s nJobsPerNode:%s' %
-                                           (site,nAssJobs,nActJobs,jobStatistics[site]['running'],nPilots,nJobsPerNode))
+                                _log.debug('   %s assigned:%s activated:%s running:%s nPilots:%s nJobsPerNode:%s multiCloud:%s' %
+                                           (site,nAssJobs,nActJobs,jobStatistics[site]['running'],nPilots,nJobsPerNode,multiCloudFactor))
                                 if nPilots != 0:
                                     winv = (float(nAssJobs+nActJobs)) / float(nPilots) / nJobsPerNode
                                 else:
                                     winv = (float(nAssJobs+nActJobs)) / nJobsPerNode
+                                winv *= float(multiCloudFactor)    
                                 # send jobs to T1 when they require many or large inputs
                                 if _isTooManyInput(nFilesPerJob,inputSizePerJob):
                                     if site == siteMapper.getCloud(previousCloud)['source']:

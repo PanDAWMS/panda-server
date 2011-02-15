@@ -4242,7 +4242,7 @@ class DBProxy:
 
 
     # update input files and return corresponding PandaIDs
-    def updateInFilesReturnPandaIDs(self,dataset,status):
+    def updateInFilesReturnPandaIDs(self,dataset,status,fileGUID=''):
         comment = ' /* DBProxy.updateInFilesReturnPandaIDs */'                                
         _logger.debug("updateInFilesReturnPandaIDs(%s)" % dataset)
         sql0 = "SELECT /*+ index(tab FILESTABLE4_DISPDBLOCK_IDX) */ row_ID,PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE status<>:status AND dispatchDBlock=:dispatchDBlock"
@@ -4250,6 +4250,10 @@ class DBProxy:
         varMap = {}
         varMap[':status'] = status
         varMap[':dispatchDBlock'] = dataset
+        if fileGUID != '':
+            sql0 += " GUID=:guid"
+            sql1 += " GUID=:guid"
+            varMap[':guid'] = fileGUID
         for iTry in range(self.nTry):
             try:
                 # start transaction
@@ -4674,9 +4678,72 @@ class DBProxy:
     def getJobStatisticsBrokerage(self):
         comment = ' /* DBProxy.getJobStatisticsBrokerage */'        
         _logger.debug("getJobStatisticsBrokerage()")
+        sql0 = "SELECT cloud,computingSite,jobStatus,processingType,COUNT(*) FROM %s WHERE "
+        sql0 += "prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4,:prodSourceLabel5) "
+        sql0 += "GROUP BY cloud,computingSite,jobStatus,processingType"
+        tables = ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4']
+        ret = {}
+        nTry=3
+        for iTry in range(nTry):
+            try:
+                for table in tables:
+                    # start transaction
+                    self.conn.begin()
+                    # select
+                    varMap = {}
+                    varMap[':prodSourceLabel1'] = 'managed'
+                    varMap[':prodSourceLabel2'] = 'user'
+                    varMap[':prodSourceLabel3'] = 'panda'
+                    varMap[':prodSourceLabel4'] = 'ddm'
+                    varMap[':prodSourceLabel5'] = 'rc_test'                    
+                    self.cur.arraysize = 10000                        
+                    self.cur.execute((sql0+comment) % table, varMap)
+                    res = self.cur.fetchall()
+                    # commit
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+                    # create map
+                    for cloud,computingSite,jobStatus,processingType,count in res:
+                        # add cloud
+                        if not ret.has_key(cloud):
+                            ret[cloud] = {}                            
+                        # add site
+                        if not ret[cloud].has_key(computingSite):
+                            ret[cloud][computingSite] = {}
+                        # add processingType
+                        if not ret[cloud][computingSite].has_key(processingType):
+                            ret[cloud][computingSite][processingType] = {}
+                        # add jobStatus
+                        if not ret[cloud][computingSite][processingType].has_key(jobStatus):
+                            ret[cloud][computingSite][processingType][jobStatus] = count
+                # for zero
+                for cloud,cloudVal in ret.iteritems():
+                    for site,siteVal in cloudVal.iteritems():
+                        for pType,typeVal in siteVal.iteritems():
+                            for stateItem in ['assigned','activated','running']:
+                                if not typeVal.has_key(stateItem):
+                                    typeVal[stateItem] = 0
+                # return
+                return ret
+            except:
+                # roll back
+                self._rollback()
+                if iTry+1 < nTry:
+                    _logger.debug("getJobStatisticsBrokerage retry : %s" % iTry)
+                    time.sleep(2)
+                    continue
+                type, value, traceBack = sys.exc_info()
+                _logger.error("getJobStatisticsBrokerage : %s %s" % (type, value))
+                return {}
+
+
+    # get job statistics for analysis brokerage
+    def getJobStatisticsAnalBrokerage(self):
+        comment = ' /* DBProxy.getJobStatisticsAnalBrokerage */'        
+        _logger.debug("getJobStatisticsAnalBrokerage()")
         sql0 = "SELECT computingSite,jobStatus,processingType,COUNT(*) FROM %s WHERE "
         sql0 += "prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4,:prodSourceLabel5) "
-        sql0 += "GROUP BY computingSite,jobStatus,processingType"
+        sql0 += "GROUP BY cloud,computingSite,jobStatus,processingType"
         tables = ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4']
         ret = {}
         nTry=3
@@ -4721,11 +4788,11 @@ class DBProxy:
                 # roll back
                 self._rollback()
                 if iTry+1 < nTry:
-                    _logger.debug("getJobStatisticsBrokerage retry : %s" % iTry)
+                    _logger.debug("getJobStatisticsAnalBrokerage retry : %s" % iTry)
                     time.sleep(2)
                     continue
                 type, value, traceBack = sys.exc_info()
-                _logger.error("getJobStatisticsBrokerage : %s %s" % (type, value))
+                _logger.error("getJobStatisticsAnalBrokerage : %s %s" % (type, value))
                 return {}
 
 
