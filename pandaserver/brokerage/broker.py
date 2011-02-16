@@ -343,7 +343,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             useCacheVersion = True
                             siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,releases=prevRelease)
                             _log.debug('  using installSW for relese %s' % prevRelease)
-                    elif previousCloud in ['DE','NL','FR','CA','ES','IT','TW','UK'] and (not prevProType in ['reprocessing']):
+                    elif previousCloud in ['DE','NL','FR','CA','ES','IT','TW','UK','US'] and (not prevProType in ['reprocessing']):
                             useCacheVersion = True
                             # change / to -
                             convedPrevHomePkg = prevHomePkg.replace('/','-')
@@ -415,8 +415,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             if not useCacheVersion:    
                                 _log.debug('   %s' % str(releases))
                             _log.debug('   %s' % str(tmpSiteSpec.cmtconfig))
-                            if forAnalysis and (tmpSiteSpec.cloud in ['US','ND','CERN'] or prevRelease==''):
-                                # doesn't check releases for US analysis
+                            if forAnalysis and (tmpSiteSpec.cloud in ['ND','CERN'] or prevRelease==''):
+                                # doesn't check releases for analysis
                                 _log.debug(' skip release check')
                                 pass
                             elif forAnalysis and useCacheVersion:
@@ -441,7 +441,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     except:
                                         pass
                                     continue
-                            elif (prevRelease != None and ((not useCacheVersion and releases != [] and (not previousCloud in ['US','ND','CERN'])) or \
+                            elif (prevRelease != None and ((not useCacheVersion and releases != [] and (not previousCloud in ['ND','CERN'])) or \
                                                            prevProType in ['reprocessing']) and \
                                   (not _checkRelease(prevRelease,releases))) or \
                                   (tmpCmtConfig != None and tmpSiteSpec.cmtconfig != [] and \

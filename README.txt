@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * enabled release/cache check for US
   * using nRunning(cloud) in brokerage for multi-cloud
   * added fileGUID to updateInFilesReturnPandaIDs for file-level callback 
   * set source to _subs for all clouds
