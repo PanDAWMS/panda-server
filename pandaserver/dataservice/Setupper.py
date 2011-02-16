@@ -1376,7 +1376,7 @@ class Setupper (threading.Thread):
                     if tmpFile.type == 'input' and (not tmpFile.dataset.startswith('ddo')) \
                        and not tmpFile.lfn.endswith('.lib.tgz'):
                         tmpJob.nInputDataFiles += 1
-                        tmpJob.inputFileBytes += tmpFile.fsize
+                        tmpJob.inputFileBytes += long(tmpFile.fsize)
             except:
                 errType,errValue = sys.exc_info()[:2]
                 _logger.error("failed to set data summary fields for PandaID=%s: %s %s" % (tmpJob.PandaID,errType,errValue))
