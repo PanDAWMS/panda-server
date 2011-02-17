@@ -903,6 +903,66 @@ for tmpCloud in siteMapper.getCloudList():
         taskBuffer.reassignJobs(jobs[:nJob],joinThr=True)
 
 
+# reassign too long-standing evgen/simul jobs with active state at T2
+try:
+    _logger.debug('looking for stuck T2s to reassign evgensimul')
+    timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+    varMap = {}
+    varMap[':jobStatus1']       = 'activated'
+    varMap[':jobStatus2']       = 'running'
+    varMap[':prodSourceLabel']  = 'managed'
+    varMap[':processingType1']  = 'evgen'
+    varMap[':processingType2']  = 'simul'
+    status,res = taskBuffer.querySQLS("SELECT cloud,computingSite,jobStatus,COUNT(*) FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus IN (:jobStatus1,:jobStatus2) AND prodSourceLabel=:prodSourceLabel AND processingType IN (:processingType1,:processingType2) GROUP BY cloud,computingSite,jobStatus",
+                                      varMap)
+    if res != None:
+        # get ratio of activated/running
+        siteStatData = {}
+        for tmpCloud,tmpComputingSite,tmpJobStatus,tmpCount in res:
+            # skip T1
+            if tmpComputingSite == siteMapper.getCloud(tmpCloud)['tier1']:
+                continue
+            # add cloud/site
+            tmpKey = (tmpCloud,tmpComputingSite)
+            if not siteStatData.has_key(tmpKey):
+                siteStatData[tmpKey] = {'activated':0,'running':0}
+            # add the number of jobs
+            if siteStatData[tmpKey].has_key(tmpJobStatus):
+                siteStatData[tmpKey][tmpJobStatus] += tmpCount
+        # look for stuck site
+        stuckThr = 10
+        stuckSites = []
+        for tmpKey,tmpStatData in siteStatData.iteritems():
+            if tmpStatData['running'] == 0 or \
+                   float(tmpStatData['activated'])/float(tmpStatData['running']) > stuckThr:
+                tmpCloud,tmpComputingSite = tmpKey
+                _logger.debug(' %s:%s %s/%s > %s' % (tmpCloud,tmpComputingSite,tmpStatData['activated'],tmpStatData['running'],stuckThr))
+                # get stuck jobs
+                varMap = {}
+                varMap[':jobStatus']        = 'activated'
+                varMap[':prodSourceLabel']  = 'managed'
+                varMap[':processingType1']  = 'evgen'
+                varMap[':processingType2']  = 'simul'
+                varMap[':modificationTime'] = timeLimit
+                varMap[':cloud']            = tmpCloud
+                varMap[':computingSite']    = tmpComputingSite
+                while True:
+                    status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND prodSourceLabel=:prodSourceLabel AND modificationTime<:modificationTime AND processingType IN (:processingType1,:processingType2) AND computingSite=:computingSite AND cloud=:cloud ORDER BY PandaID",
+                                                      varMap)
+                    jobs = []
+                    if res == None:
+                        break
+                    for (id,) in res:
+                        jobs.append(id)
+                    if len(jobs) == 0:
+                        break
+                    nJob = 100
+                    _logger.debug('reassignJobs for Active T2 evgensimul (%s)' % jobs[:nJob])
+                    taskBuffer.reassignJobs(jobs[:nJob],joinThr=True)
+except:
+    errType,errValue = sys.exc_info()[:2]
+    _logger.error("failed to reassign T2 evgensimul with %s:%s" % (errType,errValue))
+
 # reassign too long-standing jobs in active table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=2)
 varMap = {}

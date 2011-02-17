@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * reassign stuck T2 evgensimul more frequently
   * enabled release/cache check for US
   * using nRunning(cloud) in brokerage for multi-cloud
   * added fileGUID to updateInFilesReturnPandaIDs for file-level callback 
