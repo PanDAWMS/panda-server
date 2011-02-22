@@ -120,8 +120,6 @@ PandaSiteIDs = {
     'INFN-PADOVA'            : {'nickname':'INFN-PADOVA-prod-ce-01-atlas-lcglsf','status':'notOK'},
     'INFN-PISA'              : {'nickname':'INFN-PISA-gridce2-atlas4-lcglsf','status':'notOK'},
     'INFN-ROMA1'             : {'nickname':'INFN-ROMA1-atlas-ce-01-atlasglong-lcglsf','status':'OK'},
-    'INFN-ROMA2'             : {'nickname':'INFN-ROMA2-grid003-atlas-lcgpbs','status':'notOK'},
-    'INFN-ROMA3'             : {'nickname':'INFN-ROMA3-gridce-atlas-lcgpbs','status':'notOK'},
     'INFN-T1'                : {'nickname':'INFN-T1-ce05-lcg-atlas-lcglsf','status':'OK'},
     'INFN-T1_REPRO'          : {'nickname':'INFN-T1_REPRO','status':'notOK'},    
     'INFN-TORINO'            : {'nickname':'INFN-TORINO-t2-ce-01-atlas-lcgpbs','status':'notOK'},
