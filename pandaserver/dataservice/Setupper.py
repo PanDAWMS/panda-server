@@ -688,10 +688,26 @@ class Setupper (threading.Thread):
                         # make list
                         if self.replicaMap.has_key(job.dispatchDBlock):
                             # set DQ2 ID for DISK
-                            hotID  = re.sub('_MCDISK','_HOTDISK', srcDQ2ID)
-                            diskID = re.sub('_MCDISK','_DATADISK',srcDQ2ID)
-                            tapeID = re.sub('_MCDISK','_DATATAPE',srcDQ2ID)
-                            mctapeID = re.sub('_MCDISK','_MCTAPE',srcDQ2ID)
+                            if not srcDQ2ID.endswith('_DATADISK'):
+                                hotID  = re.sub('_MCDISK','_HOTDISK', srcDQ2ID)
+                                diskID = re.sub('_MCDISK','_DATADISK',srcDQ2ID)
+                                tapeID = re.sub('_MCDISK','_DATATAPE',srcDQ2ID)
+                                mctapeID = re.sub('_MCDISK','_MCTAPE',srcDQ2ID)
+                            else:
+                                hotID  = re.sub('_DATADISK','_HOTDISK', srcDQ2ID)
+                                diskID = re.sub('_DATADISK','_DATADISK',srcDQ2ID)
+                                tapeID = re.sub('_DATADISK','_DATATAPE',srcDQ2ID)
+                                mctapeID = re.sub('_DATADISK','_MCTAPE',srcDQ2ID)
+                            # DQ2 ID is mixed with TAIWAN-LCG2 and TW-FTT     
+                            if job.cloud in ['TW',]:
+                                tmpSiteSpec = self.siteMapper.getSite(tmpSrcID)
+                                if tmpSiteSpec.setokens.has_key('ATLASDATADISK'):
+                                    diskID = tmpSiteSpec.setokens['ATLASDATADISK']
+                                if tmpSiteSpec.setokens.has_key('ATLASDATATAPE'):    
+                                    tapeID = tmpSiteSpec.setokens['ATLASDATATAPE']
+                                if tmpSiteSpec.setokens.has_key('ATLASMCTAPE'):                                        
+                                    mctapeID = tmpSiteSpec.setokens['ATLASMCTAPE']
+                                hotID  = re.sub('_DATADISK','_HOTDISK', diskID)
                             for tmpDataset,tmpRepMap in self.replicaMap[job.dispatchDBlock].iteritems():
                                 if tmpRepMap.has_key(hotID):
                                     # HOTDISK
