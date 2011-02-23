@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * using home cloud to skip release check in the brokerage
   * reassign stuck T2 evgensimul more frequently
   * enabled release/cache check for US
   * using nRunning(cloud) in brokerage for multi-cloud

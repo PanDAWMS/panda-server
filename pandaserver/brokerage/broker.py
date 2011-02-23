@@ -342,8 +342,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         elif re.search('-\d+\.\d+\.\d+$',prevRelease) != None:
                             useCacheVersion = True
                             siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,releases=prevRelease)
-                            _log.debug('  using installSW for relese %s' % prevRelease)
-                    elif previousCloud in ['DE','NL','FR','CA','ES','IT','TW','UK','US'] and (not prevProType in ['reprocessing']):
+                            _log.debug('  using installSW for release %s' % prevRelease)
+                    elif previousCloud in ['DE','NL','FR','CA','ES','IT','TW','UK','US','ND'] and (not prevProType in ['reprocessing']):
                             useCacheVersion = True
                             # change / to -
                             convedPrevHomePkg = prevHomePkg.replace('/','-')
@@ -426,10 +426,11 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     if trustIS:
                                         resultsForAnal['rel'].append(site)
                                     continue
-                            elif prevRelease != None and useCacheVersion and (not prevProType in ['reprocessing']) \
-                                 and ((not site in siteListWithCache) or 
-                                      (tmpCmtConfig != None and tmpSiteSpec.cmtconfig != [] and 
-                                       (not tmpCmtConfig in tmpSiteSpec.cmtconfig))):
+                            elif prevRelease != None and (useCacheVersion and not tmpSiteSpec.cloud in ['ND','CERN']) \
+                                     and (not prevProType in ['reprocessing']) \
+                                     and ((not site in siteListWithCache) or 
+                                          (tmpCmtConfig != None and tmpSiteSpec.cmtconfig != [] and 
+                                           (not tmpCmtConfig in tmpSiteSpec.cmtconfig))):
                                     _log.debug(' skip: cache %s/%s not found' % (prevHomePkg.replace('\n',' '),prevCmtConfig))
                                     # send message to logger
                                     try:
