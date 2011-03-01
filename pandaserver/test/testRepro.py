@@ -91,6 +91,7 @@ for lfn in files.keys():
         fileO.destinationDBlock = job.destinationDBlock
         fileO.destinationSE     = job.destinationSE
         fileO.dataset           = job.destinationDBlock
+        fileO.destinationDBlockToken = 'ATLASDATADISK'
         fileO.type = 'output'
         job.addFile(fileO)
         newParams = newParams.replace(arg+'='+vars[0],arg+'='+fileO.lfn)            
@@ -100,6 +101,7 @@ for lfn in files.keys():
     fileOL.destinationDBlock = job.destinationDBlock
     fileOL.destinationSE     = job.destinationSE
     fileOL.dataset           = job.destinationDBlock
+    fileOL.destinationDBlockToken = 'ATLASDATADISK'    
     fileOL.type = 'log'
     job.addFile(fileOL)
     

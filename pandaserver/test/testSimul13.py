@@ -57,8 +57,8 @@ for lfn in files.keys():
     fileOE.destinationDBlock = job.destinationDBlock
     fileOE.destinationSE     = job.destinationSE
     fileOE.dataset           = job.destinationDBlock
+    fileOE.destinationDBlockToken = 'ATLASDATADISK'
     fileOE.type = 'output'
-    fileOE.destinationDBlockToken = "ATLASMCDISK"
     job.addFile(fileOE)
 
     fileOL = FileSpec()
@@ -66,6 +66,7 @@ for lfn in files.keys():
     fileOL.destinationDBlock = job.destinationDBlock
     fileOL.destinationSE     = job.destinationSE
     fileOL.dataset           = job.destinationDBlock
+    fileOL.destinationDBlockToken = 'ATLASDATADISK'
     fileOL.type = 'log'
     job.addFile(fileOL)
 

@@ -63,6 +63,7 @@ for lfn in files.keys():
     fileOE.destinationDBlock = job.destinationDBlock
     fileOE.destinationSE     = job.destinationSE
     fileOE.dataset           = job.destinationDBlock
+    fileOE.destinationDBlockToken = 'ATLASDATADISK'
     fileOE.type = 'output'
     job.addFile(fileOE)
 
@@ -71,6 +72,7 @@ for lfn in files.keys():
     fileOA.destinationDBlock = job.destinationDBlock
     fileOA.destinationSE     = job.destinationSE
     fileOA.dataset           = job.destinationDBlock
+    fileOA.destinationDBlockToken = 'ATLASDATADISK'    
     fileOA.type = 'output'
     job.addFile(fileOA)
 
@@ -79,6 +81,7 @@ for lfn in files.keys():
     fileOC.destinationDBlock = job.destinationDBlock
     fileOC.destinationSE     = job.destinationSE
     fileOC.dataset           = job.destinationDBlock
+    fileOC.destinationDBlockToken = 'ATLASDATADISK'    
     fileOC.type = 'output'
     job.addFile(fileOC)
     
@@ -87,6 +90,7 @@ for lfn in files.keys():
     fileOL.destinationDBlock = job.destinationDBlock
     fileOL.destinationSE     = job.destinationSE
     fileOL.dataset           = job.destinationDBlock
+    fileOL.destinationDBlockToken = 'ATLASDATADISK'    
     fileOL.type = 'log'
     job.addFile(fileOL)
 
