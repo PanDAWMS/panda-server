@@ -52,6 +52,10 @@ class Response:
         self.data['transformation'] = job.transformation
         # job name
         self.data['jobName'] = job.jobName
+        # job definition ID
+        self.data['jobDefinitionID'] = job.jobDefinitionID
+        # cloud
+        self.data['cloud'] = job.cloud
         # files
         strIFiles = ''
         strOFiles = ''
