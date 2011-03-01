@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * send jobDefID and cloud to the pilot
+  * updated Setupper/Adder2 for T1 used as T2
   * set destDBlockToken to DATADISK
   * using home cloud to skip release check in the brokerage
   * reassign stuck T2 evgensimul more frequently
