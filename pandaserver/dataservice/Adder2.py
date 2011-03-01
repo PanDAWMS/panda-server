@@ -448,8 +448,17 @@ class Adder (threading.Thread):
                                                 if self.siteMapper.getSite(self.job.computingSite).setokens.has_key(tmpSrcToken):
                                                     dq2ID = self.siteMapper.getSite(self.job.computingSite).setokens[tmpSrcToken]
                                                 optSource[dq2ID] = {'policy' : 0}
+                                            # use PRODDISK for T1 used as T2
+                                            usingPRODDISK = False
+                                            if self.siteMapper.getSite(self.job.computingSite).cloud != self.job.cloud and \
+                                               (not tmpSrcDDM.endswith('PRODDISK')) and  \
+                                               self.siteMapper.getSite(self.job.computingSite).setokens.has_key('ATLASPRODDISK') and \
+                                               (not self.job.prodSourceLabel in ['user','panda']):
+                                                dq2ID = self.siteMapper.getSite(self.job.computingSite).setokens['ATLASPRODDISK']
+                                                usingPRODDISK = True
+                                                optSource[dq2ID] = {'policy' : 0}
                                             # use another location when token is set
-                                            if not file.destinationDBlockToken in ['NULL','']:
+                                            if (not usingPRODDISK) and (not file.destinationDBlockToken in ['NULL','']):
                                                 tmpDQ2IDList = []
                                                 tmpDstTokens = file.destinationDBlockToken.split(',')
                                                 # remove the first one because it is already used as a location

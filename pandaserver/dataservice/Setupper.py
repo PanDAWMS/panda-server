@@ -467,12 +467,22 @@ class Setupper (threading.Thread):
                                    or len(tmpTokenList) > 1:
                                 time.sleep(1)
                                 # register location
+                                usingPRODDISK = False
                                 if job.prodSourceLabel == 'user' and not self.siteMapper.siteSpecList.has_key(computingSite):
                                     dq2IDList = [self.siteMapper.getSite(job.computingSite).ddm]
                                 else:
-                                    dq2IDList = [self.siteMapper.getSite(computingSite).ddm]
+                                    if self.siteMapper.getSite(computingSite).cloud != job.cloud and \
+                                       re.search('_sub\d+$',name) != None and \
+                                       (not job.prodSourceLabel in ['user','panda']) and \
+                                       (not self.siteMapper.getSite(computingSite).ddm.endswith('PRODDISK')) and \
+                                       self.siteMapper.getSite(computingSite).setokens.has_key('ATLASPRODDISK'):
+                                        # T1 used as T2
+                                        dq2IDList = [self.siteMapper.getSite(computingSite).setokens['ATLASPRODDISK']]
+                                        usingPRODDISK = True
+                                    else:
+                                        dq2IDList = [self.siteMapper.getSite(computingSite).ddm]
                                 # use another location when token is set
-                                if not file.destinationDBlockToken in ['NULL','']:
+                                if (not usingPRODDISK) and (not file.destinationDBlockToken in ['NULL','']):
                                     dq2IDList = []
                                     for tmpToken in tmpTokenList:
                                         # set default
@@ -811,6 +821,15 @@ class Setupper (threading.Thread):
                             # set sources to handle T2s in another cloud and to transfer dis datasets being split in multiple sites 
                             for tmpDQ2ID in dq2IDList:
                                 optSource[tmpDQ2ID] = {'policy' : 0}
+                            # T1 used as T2
+                            if job.cloud != self.siteMapper.getSite(job.computingSite).cloud and \
+                                   (not dstDQ2ID.endswith('PRODDISK')) and \
+                                   (not job.prodSourceLabel in ['user','panda']):
+                                seTokens = self.siteMapper.getSite(job.computingSite).setokens
+                                # use T1_PRODDISK
+                                if seTokens.has_key('ATLASPRODDISK'):
+                                    dq2ID = seTokens['ATLASPRODDISK']
+                        # register subscription        
                         _logger.debug((self.timestamp,'registerDatasetSubscription',job.dispatchDBlock,dq2ID,0,0,optSub,optSource,optSrcPolicy,0,None,0,"production",None,"Production",None,"7 days"))
                         for iDDMTry in range(3):                                                                
                             status,out = ddm.DQ2.main('registerDatasetSubscription',job.dispatchDBlock,dq2ID,0,0,optSub,optSource,optSrcPolicy,0,None,0,"production",None,"Production",None,"7 days")
