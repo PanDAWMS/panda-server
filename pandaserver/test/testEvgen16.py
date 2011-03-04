@@ -33,6 +33,7 @@ for i in range(1):
     file.destinationDBlock = job.destinationDBlock
     file.destinationSE     = job.destinationSE
     file.dataset           = job.destinationDBlock
+    file.destinationDBlockToken = 'ATLASDATADISK'
     file.type = 'output'
     job.addFile(file)
     
@@ -41,10 +42,11 @@ for i in range(1):
     fileOL.destinationDBlock = job.destinationDBlock
     fileOL.destinationSE     = job.destinationSE
     fileOL.dataset           = job.destinationDBlock
+    fileOL.destinationDBlockToken = 'ATLASDATADISK'
     fileOL.type = 'log'
     job.addFile(fileOL)
     
-    job.jobParameters="2760 105048 19901 101 200 MC10.105048.PythiaB_ccmu3mu1X.py %s NONE NONE NONE MC10JobOpts-00-00-81.tar.gz" % file.lfn
+    job.jobParameters="2760 105048 19901 101 200 MC10.105048.PythiaB_ccmu3mu1X.py %s NONE NONE NONE MC10JobOpts-00-00-83.tar.gz" % file.lfn
     jobList.append(job)
 
 for i in range(1):

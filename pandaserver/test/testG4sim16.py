@@ -9,8 +9,8 @@ from taskbuffer.FileSpec import FileSpec
 site  = sys.argv[1]
 cloud = sys.argv[2]
 
-prodDBlock = 'mc10_2TeV.106047.PythiaZmumu_no_filter.evgen.EVNT.e646_tid212132_00'
-inputFile = 'EVNT.212132._000014.pool.root.1'
+prodDBlock = 'mc10_7TeV.105001.pythia_minbias.evgen.EVNT.e574_tid153937_00'
+inputFile = 'EVNT.153937._000184.pool.root.1'
 
 if len(sys.argv)==5:
     site       = sys.argv[1]
@@ -32,8 +32,8 @@ for lfn in files.keys():
     job = JobSpec()
     job.jobDefinitionID   = (time.time()) % 10000
     job.jobName           = "%s_%d" % (commands.getoutput('uuidgen'),index)
-    job.AtlasRelease      = 'Atlas-16.2.1'
-    job.homepackage       = 'AtlasProduction/16.2.1.2'
+    job.AtlasRelease      = 'Atlas-16.6.2'
+    job.homepackage       = 'AtlasProduction/16.6.2.1'
     job.transformation    = 'AtlasG4_trf.py'
     job.destinationDBlock = datasetName
     job.computingSite     = site
@@ -53,9 +53,9 @@ for lfn in files.keys():
     job.addFile(fileI)
 
     fileD = FileSpec()
-    fileD.dataset    = 'ddo.000001.Atlas.Ideal.DBRelease.v130101'
+    fileD.dataset    = 'ddo.000001.Atlas.Ideal.DBRelease.v140201'
     fileD.prodDBlock = fileD.dataset
-    fileD.lfn = 'DBRelease-13.1.1.tar.gz'
+    fileD.lfn = 'DBRelease-14.2.1.tar.gz'
     fileD.type = 'input'
     job.addFile(fileD)
 
