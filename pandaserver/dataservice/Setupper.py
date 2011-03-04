@@ -103,6 +103,8 @@ class Setupper (threading.Thread):
                     else:
                         # at a burst
                         self._setupDestination()
+                    # make dis datasets for existing files
+                    self._makeDisDatasetsForExistingfiles()
                     # update jobs
                     _logger.debug('%s updateJobs' % self.timestamp)        
                     self._updateJobs()
@@ -111,8 +113,6 @@ class Setupper (threading.Thread):
                     self._subscribeDistpatchDB()
                     # dynamic data placement for analysis jobs
                     self._dynamicDataPlacement()
-                    # make dis datasets for existing files
-                    self._makeDisDatasetsForExistingfiles()
             else:
                 # write jobs to file
                 import os
@@ -1650,6 +1650,7 @@ class Setupper (threading.Thread):
                 dsFileMap[destDQ2ID] = {'taskID':tmpJob.taskID,
                                         'PandaID':tmpJob.PandaID,
                                         'files':{}}
+            # add files    
             for tmpFile in tmpJob.Files:
                 if tmpFile.type != 'input':
                     continue
@@ -1661,7 +1662,10 @@ class Setupper (threading.Thread):
                     continue
                 if not dsFileMap[destDQ2ID]['files'].has_key(tmpFile.lfn):
                     dsFileMap[destDQ2ID]['files'][tmpFile.lfn] = {'lfn' :tmpFile.lfn,
-                                                                  'guid':tmpFile.GUID}
+                                                                  'guid':tmpFile.GUID,
+                                                                  'fileSpecs':[]}
+                # add file spec
+                dsFileMap[destDQ2ID]['files'][tmpFile.lfn]['fileSpecs'].append(tmpFile)
         # loop over all locations
         for tmpLocation,tmpVal in dsFileMap.iteritems():
             tmpFileList = tmpVal['files']
@@ -1674,6 +1678,10 @@ class Setupper (threading.Thread):
                 subFileNames = tmpFileList.keys()[iFiles:iFiles+nMaxFiles]
                 if len(subFileNames) == 0:
                     break
+                # dis name
+                disDBlock = "panda.%s.%s.%s.%s_dis0%s%s" % (tmpVal['taskID'],time.strftime('%m.%d'),'GEN',
+                                                            commands.getoutput('uuidgen'),iLoop,
+                                                            tmpVal['PandaID'])
                 iFiles += nMaxFiles
                 lfns    = []
                 guids   = []
@@ -1684,10 +1692,11 @@ class Setupper (threading.Thread):
                     guids.append(tmpFileList[tmpSubFileName]['guid'])
                     fsizes.append(None)
                     chksums.append(None)
+                    # set dis name
+                    for tmpFileSpec in tmpFileList[tmpSubFileName]['fileSpecs']:
+                        if tmpFileSpec.status in ['ready'] and tmpFileSpec.dispatchDBlock == 'NULL':
+                            tmpFileSpec.dispatchDBlock = disDBlock
                 # register datasets
-                disDBlock = "panda.%s.%s.%s.%s_dis0%s%s" % (tmpVal['taskID'],time.strftime('%m.%d'),'GEN',
-                                                            commands.getoutput('uuidgen'),iLoop,
-                                                            tmpVal['PandaID'])
                 iLoop += 1
                 _logger.debug((self.timestamp,'ext registerNewDataset',disDBlock,lfns,guids,fsizes,chksums,
                                None,None,None,True))
