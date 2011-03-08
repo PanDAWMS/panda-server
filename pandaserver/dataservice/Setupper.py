@@ -717,7 +717,7 @@ class Setupper (threading.Thread):
                                     tapeID = tmpSiteSpec.setokens['ATLASDATATAPE']
                                 if tmpSiteSpec.setokens.has_key('ATLASMCTAPE'):                                        
                                     mctapeID = tmpSiteSpec.setokens['ATLASMCTAPE']
-                                hotID  = re.sub('_DATADISK','_HOTDISK', diskID)
+                                hotID  = 'TAIWAN-LCG2_HOTDISK'
                             for tmpDataset,tmpRepMap in self.replicaMap[job.dispatchDBlock].iteritems():
                                 if tmpRepMap.has_key(hotID):
                                     # HOTDISK

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * use TAIWAN-LCG2_HOTDISK for TW HOTDISK
   * disabled PD2P for ESD
   * set file.dispDBlock even if they are already available at the site
   * send jobDefID and cloud to the pilot
