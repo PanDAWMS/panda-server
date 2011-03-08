@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * disabled PD2P for ESD
   * set file.dispDBlock even if they are already available at the site
   * send jobDefID and cloud to the pilot
   * updated Setupper/Adder2 for T1 used as T2

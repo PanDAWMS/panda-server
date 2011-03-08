@@ -20,7 +20,7 @@ from pandalogger.PandaLogger import PandaLogger
 _logger = PandaLogger().getLogger('DynDataDistributer')
 
 # NG datasets
-ngDataTypes = ['RAW','HITS','RDO']
+ngDataTypes = ['RAW','HITS','RDO','ESD']
 
 # excluded provenance
 ngProvenance = ['GP',]
