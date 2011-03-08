@@ -29,7 +29,7 @@ class Merger:
         self.job        = job
 
 
-    # main
+    # main returns None for unrecoverable 
     def run(self):
         try:
             _logger.debug("%s start" % self.job.PandaID)
@@ -37,12 +37,12 @@ class Merger:
             if not self.job.prodSourceLabel in ['user',]:
                 _logger.debug("%s do nothing for non-user job" % self.job.PandaID)
                 _logger.debug("%s end" % self.job.PandaID)
-                return
+                return None
             # check command-line parameter
-            if not "--mergeOutput" in self.job.metadata:
+            if not "--mergeOutput" in self.job.jobParameters:
                 _logger.debug("%s skip no-merge" % self.job.PandaID)
                 _logger.debug("%s end" % self.job.PandaID)
-                return
+                return None
             # instantiate DQ2
             self.dq2api = DQ2.DQ2()
             # get list of datasets
@@ -75,13 +75,13 @@ class Merger:
                     except DQ2.DQUnknownDatasetException:
                         _logger.error("%s DQ2 doesn't know %s" % (self.job.PandaID,tmpDsName))
                         _logger.debug("%s end" % self.job.PandaID)
-                        return
+                        return None
                     except:
                         if (iTry+1) == nTry:
                             errType,errValue = sys.exc_info()[:2]
                             _logger.error("%s DQ2 failed with %s:%s to get file list for %s" % (self.job.PandaID,errType,errValue,tmpDsName))
                             _logger.debug("%s end" % self.job.PandaID)
-                            return
+                            return False
                         # sleep
                         time.sleep(60)
                 for tmpGUID,tmpVal in tmpRet.iteritems():
@@ -94,7 +94,7 @@ class Merger:
                     if tmpMatch == None:
                         _logger.error("%s cannot get type for %s" % (self.job.PandaID,tmpVal['lfn']))
                         _logger.debug("%s end" % self.job.PandaID)
-                        return
+                        return None
                     tmpType = (tmpMatch.group(1),tmpMatch.group(2),tmpContName,tmpDsName)
                     # append
                     if not tmpAllFileMap.has_key(tmpType):
@@ -170,7 +170,7 @@ class Merger:
                                 errType,errValue = sys.exc_info()[:2]
                                 _logger.error("%s DQ2 failed with %s:%s to register %s" % (self.job.PandaID,errType,errValue,tmpNewDS))
                                 _logger.debug("%s end" % self.job.PandaID)
-                                return
+                                return False
                             # sleep
                             time.sleep(60)
                     # set owner
@@ -184,7 +184,7 @@ class Merger:
                                 errType,errValue = sys.exc_info()[:2]
                                 _logger.error("%s DQ2 failed with %s:%s to set owner for %s" % (self.job.PandaID,errType,errValue,tmpNewDS))
                                 _logger.debug("%s end" % self.job.PandaID)
-                                return
+                                return False
                             # sleep
                             time.sleep(60)
                 # add to container
@@ -203,7 +203,7 @@ class Merger:
                                 errType,errValue = sys.exc_info()[:2]
                                 _logger.error("%s DQ2 failed with %s:%s to add datasets to %s" % (self.job.PandaID,errType,errValue,tmpDsContainer))
                                 _logger.debug("%s end" % self.job.PandaID)
-                                return
+                                return False
                             # sleep
                             time.sleep(60)
             # submit new jobs                 
@@ -221,12 +221,20 @@ class Merger:
                 if ret == []:
                     _logger.error("%s storeJobs failed with [] for %s" % (self.job.PandaID,tmpDsName))
                     _logger.debug("%s end" % self.job.PandaID)                    
-                    return
+                    return False
+                else:
+                    strPandaIDs = ''
+                    for tmpItem in ret:
+                        strPandaIDs += '%s,' % tmpItem[0]
+                    _logger.debug("%s mergeJobs=%s" % (self.job.PandaID,strPandaIDs[:-1]))
+            # return
+            _logger.debug("%s end" % self.job.PandaID)
+            return True
         except:
             errType,errValue = sys.exc_info()[:2]
             _logger.error("%s failed with %s:%s" % (self.job.PandaID,errType,errValue))
             _logger.debug("%s end" % self.job.PandaID)
-            return
+            return None
         
 
     # make merge job
