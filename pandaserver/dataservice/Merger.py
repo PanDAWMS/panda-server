@@ -261,7 +261,7 @@ class Merger:
         tmpJob.processingType    = 'usermerge'
         tmpJob.jobsetID          = self.job.jobsetID
         tmpJob.jobDefinitionID   = 0
-        tmpJob.transformation    = "http://pandaserver.cern.ch:25080/trf/user/runMerge"
+        tmpJob.transformation    = "http://pandaserver.cern.ch:25080/trf/user/runMerge-00-00-01"
         # decompose fileType
         filePrefix,fileSuffix,containerName,datasetName = fileType
         # output dataset name
