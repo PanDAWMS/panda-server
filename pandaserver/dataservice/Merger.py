@@ -275,7 +275,6 @@ class Merger:
                 params += " --libTgz %s" % tmpFile.lfn
                 break
         # input
-        inStr = ' --in '
         serNum = None
         for tmpFileName in fileList:
             # extract serial number
@@ -297,8 +296,8 @@ class Merger:
             tmpFile.type       = 'input'
             tmpFile.status     = 'ready'
             tmpJob.addFile(tmpFile)
-            inStr += '%s,' % tmpFile.lfn
-        params += inStr[:-1]    
+        params += " -t %s" % fileType
+        params += " -i \"%s\"" % repr(fileList)
         # output
         tmpFile = FileSpec()
         tmpFile.lfn = "%s.%s.merge.%s" % (filePrefix,serNum,fileSuffix)
@@ -307,7 +306,7 @@ class Merger:
         tmpFile.dataset           = containerName
         tmpFile.type = 'output'
         tmpJob.addFile(tmpFile)
-        params += " --outFile %s" % tmpFile.lfn
+        params += " -o %s" % tmpFile.lfn
         # log
         tmpItems = filePrefix.split('.')
         if len(tmpItems) > 3:

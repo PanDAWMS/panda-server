@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed parameter convention for Merger
   * added merge job generation
   * set secondary for TA subscription
   * use TAIWAN-LCG2_HOTDISK for TW HOTDISK
