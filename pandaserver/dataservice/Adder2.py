@@ -15,13 +15,14 @@ import ErrorCode
 from dq2.clientapi import DQ2
 
 import brokerage.broker_util
-from Closer import Closer
+import Closer
 
 from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
 
 # logger
 _logger = PandaLogger().getLogger('Adder')
+Closer.initLogger(_logger)
 
 
 class Adder (threading.Thread):
@@ -254,9 +255,9 @@ class Adder (threading.Thread):
                     retG = self.taskBuffer.setGUIDs(guidList)
                 if destDBList != []:
                     # start Closer
-                    cThr = Closer(self.taskBuffer,destDBList,self.job,pandaDDM=self.pandaDDM,
-                                  datasetMap=self.datasetMap)
-                    _logger.debug("%s start Closer" % self.jobID)                    
+                    cThr = Closer.Closer(self.taskBuffer,destDBList,self.job,pandaDDM=self.pandaDDM,
+                                         datasetMap=self.datasetMap)
+                    _logger.debug("%s start Closer" % self.jobID)
                     cThr.start()
                     if self.joinCloser:
                         cThr.join()

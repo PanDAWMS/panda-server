@@ -23,6 +23,11 @@ import brokerage.broker_util
 # logger
 _logger = PandaLogger().getLogger('Closer')
 
+def initLogger(pLogger):
+    # redirect logging to parent as it doesn't work in nested threads
+    global _logger
+    _logger = pLogger
+    
 
 class Closer (threading.Thread):
     # constructor

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * updated Closer to redirect logging to parent as it doesn't work in nested threads
   * changed parameter convention for Merger
   * added merge job generation
   * set secondary for TA subscription
