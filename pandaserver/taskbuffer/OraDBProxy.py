@@ -2429,6 +2429,41 @@ class DBProxy:
             return None
 
 
+    # get PandaID with destinationDBlock
+    def getPandaIDwithDestDBlock(self,destinationDBlock):
+        comment = ' /* DBProxy.getPandaIDwithDestDBlock */'                        
+        _logger.debug("getPandaIDwithDestDBlock : %s" % destinationDBlock)
+        try:
+            sqlP  = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ PandaID FROM ATLAS_PANDA.filesTable4 tab "
+            sqlP += "WHERE type IN (:type1,:type2) AND destinationDBlock=:destinationDBlock AND rownum<=1"
+            # start transaction
+            self.conn.begin()
+            pandaID = None
+            varMap = {}
+            varMap[':type1'] = 'log'
+            varMap[':type2'] = 'output'
+            varMap[':destinationDBlock'] = destinationDBlock
+            # select
+            self.cur.arraysize = 10
+            self.cur.execute(sqlP+comment, varMap)
+            res = self.cur.fetchone()
+            # append
+            if res != None:
+                pandaID, = res
+            # commit to release tables
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # return
+            return pandaID
+        except:
+            # roll back
+            self._rollback()
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("getPandaIDwithDestDBlock : %s %s" % (errType,errValue))
+            # return empty list
+            return None
+            
+
     # get number of activated/defined jobs with output datasets
     def getNumWaitingJobsWithOutDS(self,outputDSs):
         comment = ' /* DBProxy.getNumWaitingJobsWithOutDS */'                        
@@ -4145,6 +4180,37 @@ class DBProxy:
                 type, value, traceBack = sys.exc_info()
                 _logger.error("countFilesWithMap(%s) : %s %s" % (map,type,value))
                 return -1
+
+
+    # count the number of pending files
+    def countPendingFiles(self,pandaID):
+        comment = ' /* DBProxy.countPendingFiles */'        
+        sql1 = "SELECT COUNT(*) FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:pandaID AND type=:type AND status<>:status "
+        varMap = {}
+        varMap[':pandaID'] = pandaID
+        varMap[':type'] = 'input'
+        varMap[':status'] = 'ready'
+        try:
+            # start transaction
+            self.conn.begin()
+            # select
+            _logger.debug("countPendingFiles : %s start" % pandaID)
+            self.cur.arraysize = 10                
+            retS = self.cur.execute(sql1+comment, varMap)
+            res = self.cur.fetchone()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            nFiles = -1
+            if res != None:
+                nFiles=res[0]
+            return nFiles
+        except:
+            # roll back
+            self._rollback()
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("countPendingFiles : %s : %s %s" % (pandaID,errType,errValue))
+            return -1
 
 
     # get input files currently in use for analysis

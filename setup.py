@@ -182,6 +182,7 @@ setup(
                              'templates/panda_server-archivelog.sh.exe.template',
                              'templates/panda_server-backupJobArch.sh.exe.template',
                              'templates/panda_server-deleteJobs.sh.exe.template',
+                             'templates/panda_server-merge.sh.exe.template',
                              ]
                  ),
                 # var dirs

@@ -1040,6 +1040,18 @@ class TaskBuffer:
         return ret
 
 
+    # count the number of pending files
+    def countPendingFiles(self,pandaID):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # count files
+        ret = proxy.countPendingFiles(pandaID)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
     # get serial number for dataset
     def getSerialNumber(self,datasetname):
         # get DBproxy

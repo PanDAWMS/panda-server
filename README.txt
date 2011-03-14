@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added merge job generation
   * set secondary for TA subscription
   * use TAIWAN-LCG2_HOTDISK for TW HOTDISK
   * disabled PD2P for ESD

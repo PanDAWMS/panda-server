@@ -176,6 +176,23 @@ class Adder (threading.Thread):
                             _logger.debug("%s : %s %s" % (self.jobID,type,value))
                             _logger.debug("%s cannot unlock XML" % self.jobID)            
                         return
+                # remove unmerged
+                if self.job.processingType == 'usermerge' and self.job.prodSourceLabel == 'user' and \
+                   self.jobStatus == 'finished' and self.job.ddmErrorDiag == 'NULL':
+                    retMerge = self._removeUnmerged()
+                    # ignore DDMError
+                    if self.ignoreDDMError and retMerge == None:
+                        _logger.debug('%s : ignore %s ' % (self.jobID,self.job.ddmErrorDiag))
+                        _logger.debug('%s escape' % self.jobID)
+                        # unlock XML
+                        try:
+                            fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
+                            self.lockXML.close()                            
+                        except:
+                            type, value, traceBack = sys.exc_info()
+                            _logger.debug("%s : %s %s" % (self.jobID,type,value))
+                            _logger.debug("%s cannot unlock XML" % self.jobID)            
+                        return
                 # set file status
                 if self.job.jobStatus == 'failed':
                     for file in self.job.Files:
@@ -780,3 +797,76 @@ class Adder (threading.Thread):
                 _logger.debug('%s %s' % (self.jobID,out))
                 break
         _logger.debug("%s addFilesToShadow end" % self.jobID)
+
+
+    # remove unmerged files
+    def _removeUnmerged(self):
+        _logger.debug("%s removeUnmerged" % self.jobID)
+        # get input files
+        inputFileGUIDs = []
+        inputFileStr = ''
+        for file in self.job.Files:
+            if file.type == 'input':
+                # remove skipped files
+                if file.status in ['skipped']:
+                    continue
+                # ignore lib.tgz
+                if re.search('lib\.tgz\.*\d*',file.lfn) != None:
+                    continue
+                # ignore DBRelease
+                if re.search('DBRelease',file.lfn) != None:
+                    continue
+                # append
+                inputFileGUIDs.append(file.GUID)
+                inputFileStr += '%s,' % file.lfn
+        # extract parent dataset name
+        tmpMatch = re.search('--parentDS ([^ \'\"]+)',self.job.jobParameters)
+        # failed
+        if tmpMatch == None:
+            _logger.error("%s failed to extract parentDS from params=%s" % (self.jobID,self.job.jobParameters))
+            return False
+        parentDS = tmpMatch.group(1)
+        # delete
+        _logger.debug("%s deleteFilesFromDataset %s %s" % (self.jobID,parentDS,inputFileStr[:-1]))
+        nTry = 3
+        for iTry in range(nTry):
+            # add data to datasets
+            isFailed = False
+            isFatal  = False
+            out = 'OK'
+            try:
+                self.dq2api.deleteFilesFromDataset(parentDS,inputFileGUIDs)
+            except (DQ2.DQClosedDatasetException,
+                    DQ2.DQFrozenDatasetException,
+                    DQ2.DQUnknownDatasetException,
+                    DQ2.DQFileMetaDataMismatchException):
+                # fatal errors
+                errType,errValue = sys.exc_info()[:2]
+                out = '%s : %s' % (errType,errValue)
+                isFatal = True
+            except:
+                # unknown errors
+                errType,errValue = sys.exc_info()[:2]
+                out = '%s : %s' % (errType,errValue)
+                isFailed = False
+            # failed
+            if isFailed or isFatal:
+                _logger.error('%s %s' % (self.jobID,out))
+                if (iTry+1) == nTry or isFatal:
+                    self.job.jobStatus = 'failed'
+                    self.job.ddmErrorCode = ErrorCode.EC_Adder
+                    errMsg = "failed to remove unmerged files : "
+                    self.job.ddmErrorDiag = errMsg + out.split('\n')[-1]
+                    if not isFatal:
+                        # retrun None to retry later
+                        return None
+                    return False
+                _logger.error("%s removeUnmerged Try:%s" % (self.jobID,iTry))
+                # sleep
+                time.sleep(120)                    
+            else:
+                _logger.debug('%s %s' % (self.jobID,out))
+                break
+        # succeeded    
+        _logger.debug("%s removeUnmerged end" % self.jobID)
+        return True

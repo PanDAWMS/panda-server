@@ -39,9 +39,11 @@ class Closer (threading.Thread):
     # main
     def run(self):
         _logger.debug('%s Start %s' % (self.pandaID,self.job.jobStatus))
-        flagComplete = True
-        ddmJobs = []
-        topUserDsList = []
+        flagComplete    = True
+        ddmJobs         = []
+        topUserDsList   = []
+        usingMerger     = False        
+        disableNotifier = False
         for destinationDBlock in self.destinationDBlocks:
             dsList = []
             _logger.debug('%s start %s' % (self.pandaID,destinationDBlock))
@@ -76,12 +78,20 @@ class Closer (threading.Thread):
             _logger.debug('%s notFinish:%s' % (self.pandaID,notFinish))
             if self.job.destinationSE == 'local' and self.job.prodSourceLabel in ['user','panda']:
                 # close non-DQ2 destinationDBlock immediately
-                finalStatus = 'closed'                
+                finalStatus = 'closed'
+            elif self.job.prodSourceLabel in ['user'] and "--mergeOutput" in self.job.jobParameters \
+                     and self.job.processingType != 'usermerge':
+                # merge output files
+                finalStatus = 'tobemerged'
+                # set merging to top dataset
+                usingMerger = True
+                # disable Notifier
+                disableNotifier = True
             else:
                 # set status to 'tobeclosed' to trigger DQ2 closing
                 finalStatus = 'tobeclosed'
             if notFinish==0: 
-                _logger.debug('%s close dataset : %s' % (self.pandaID,destinationDBlock))
+                _logger.debug('%s set %s to dataset : %s' % (self.pandaID,finalStatus,destinationDBlock))
                 # set status
                 dataset.status = finalStatus
                 # close user datasets
@@ -94,21 +104,52 @@ class Closer (threading.Thread):
                         topUserDs = self.taskBuffer.queryDatasetWithMap({'name':topUserDsName})
                         if topUserDs != None:
                             # check status
-                            if topUserDs.status in ['completed','cleanup','tobeclosed']:
+                            if topUserDs.status in ['completed','cleanup','tobeclosed',
+                                                    'tobemerged','merging']:
                                 _logger.debug('%s skip %s due to status=%s' % (self.pandaID,topUserDsName,topUserDs.status))
                             else:
                                 # set status
-                                topUserDs.status = finalStatus
+                                if not usingMerger:
+                                    topUserDs.status = finalStatus
+                                else:
+                                    topUserDs.status = 'merging'
                                 # append to avoid repetition
                                 topUserDsList.append(topUserDsName)
                                 # update DB
                                 retTopT = self.taskBuffer.updateDatasets([topUserDs],withLock=True,withCriteria="status<>:crStatus",
-                                                                         criteriaMap={':crStatus':finalStatus})
+                                                                         criteriaMap={':crStatus':topUserDs.status})
                                 if len(retTopT) > 0 and retTopT[0]==1:
-                                    _logger.debug('%s close top dataset : %s' % (self.pandaID,topUserDsName))
-                                    pass
+                                    _logger.debug('%s set %s to top dataset : %s' % (self.pandaID,topUserDs.status,topUserDsName))
                                 else:
                                     _logger.debug('%s failed to update top dataset : %s' % (self.pandaID,topUserDsName))
+                    # get parent dataset for merge job
+                    if self.job.processingType == 'usermerge':
+                        tmpMatch = re.search('--parentDS ([^ \'\"]+)',self.job.jobParameters)
+                        if tmpMatch == None:
+                            _logger.error('%s failed to extract parentDS' % self.pandaID)
+                        else:
+                            unmergedDsName = tmpMatch.group(1)
+                            # update if it is the first attempt
+                            if not unmergedDsName in topUserDsList:
+                                unmergedDs = self.taskBuffer.queryDatasetWithMap({'name':unmergedDsName})
+                                if unmergedDs == None:
+                                    _logger.error('%s failed to get parentDS=%s from DB' % (self.pandaID,unmergedDsName))
+                                else:
+                                    # check status
+                                    if unmergedDs.status in ['completed','cleanup','tobeclosed']:
+                                        _logger.debug('%s skip %s due to status=%s' % (self.pandaID,unmergedDsName,unmergedDs.status))
+                                    else:
+                                        # set status
+                                        unmergedDs.status = finalStatus
+                                        # append to avoid repetition
+                                        topUserDsList.append(unmergedDsName)
+                                        # update DB
+                                        retTopT = self.taskBuffer.updateDatasets([unmergedDs],withLock=True,withCriteria="status<>:crStatus",
+                                                                                 criteriaMap={':crStatus':unmergedDs.status})
+                                        if len(retTopT) > 0 and retTopT[0]==1:
+                                            _logger.debug('%s set %s to parent dataset : %s' % (self.pandaID,unmergedDs.status,unmergedDsName))
+                                        else:
+                                            _logger.debug('%s failed to update parent dataset : %s' % (self.pandaID,unmergedDsName))
                 # update dataset in DB
                 retT = self.taskBuffer.updateDatasets(dsList,withLock=True,withCriteria="status<>:crStatus",
                                                       criteriaMap={':crStatus':finalStatus})
@@ -202,7 +243,7 @@ class Closer (threading.Thread):
         if (self.job.jobStatus != 'transferring') and ((flagComplete and self.job.prodSourceLabel=='user') or \
            (self.job.jobStatus=='failed' and self.job.prodSourceLabel=='panda')):
             # don't send email for merge jobs
-            if not self.job.processingType in ['merge','unmerge']:
+            if (not disableNotifier) and not self.job.processingType in ['merge','unmerge']:
                 useNotifier = True
                 summaryInfo = {}
                 # check all jobDefIDs in jobsetID

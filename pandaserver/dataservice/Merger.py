@@ -309,8 +309,13 @@ class Merger:
         tmpJob.addFile(tmpFile)
         params += " --outFile %s" % tmpFile.lfn
         # log
+        tmpItems = filePrefix.split('.')
+        if len(tmpItems) > 3:
+            logPrefix = "%s.%s.%s" % tuple(tmpItems[:3])
+        else:
+            logPrefix = filePrefix
         tmpFile = FileSpec()
-        tmpFile.lfn = '%s._$PANDAID.log.tgz' % filePrefix
+        tmpFile.lfn = '%s._$PANDAID.log.tgz' % logPrefix
         tmpFile.destinationDBlock = outDsName
         tmpFile.destinationSE     = self.job.destinationSE
         tmpFile.dataset           = containerName
