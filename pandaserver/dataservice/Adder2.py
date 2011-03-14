@@ -12,11 +12,10 @@ import commands
 import threading
 import xml.dom.minidom
 import ErrorCode
-import brokerage.broker_util
-#from DDM import ddm
-from Closer import Closer
-
 from dq2.clientapi import DQ2
+
+import brokerage.broker_util
+from Closer import Closer
 
 from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
