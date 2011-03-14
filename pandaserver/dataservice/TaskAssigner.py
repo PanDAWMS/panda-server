@@ -765,7 +765,8 @@ class TaskAssigner:
             iTry = 0
             while True:
                 # execute
-                status,out = ddm.DQ2.main('registerDatasetSubscription',tmpDS,dq2ID,0,0,{},{},optSrcPolicy,0,None,0,"production")
+                status,out = ddm.DQ2.main('registerDatasetSubscription',tmpDS,dq2ID,0,0,{},{},optSrcPolicy,0,None,0,
+                                          "production",None,None,'secondary')
                 # succeed
                 if status == 0:
                     break
