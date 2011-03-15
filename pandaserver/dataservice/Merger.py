@@ -27,7 +27,21 @@ class Merger:
     def __init__(self,taskBuffer,job):
         self.taskBuffer = taskBuffer
         self.job        = job
+        self.mergeType  = ""
+        self.supportedMergeType = ['hist','ntuple','pool','user', 'log', 'text']
 
+    # parse jobParameters and get mergeType specified by the client
+    def getMergeType(self, params):
+        type = ""
+
+        try:
+            paramList = re.split('\W+', params.strip())
+            type = paramList[ paramList.index('mergeType') + 1 ]
+        except Except:
+            __logger.debug("cannot find --mergeType parameter from parent job")
+            pass
+
+        return type
 
     # main returns None for unrecoverable 
     def run(self):
@@ -43,6 +57,15 @@ class Merger:
                 _logger.debug("%s skip no-merge" % self.job.PandaID)
                 _logger.debug("%s end" % self.job.PandaID)
                 return None
+
+            # check if the merging type is given and is supported
+            self.mergeType = self.getMergeType(self.job.jobParameters)
+
+            if self.mergeType not in self.supportedMergeType:
+                _logger.debug("%s skip not supported merging type \"%s\"" % (self.job.PandaID, self.mergeType))
+                _logger.debug("%s end" % self.job.PandaID)
+                return None
+
             # instantiate DQ2
             self.dq2api = DQ2.DQ2()
             # get list of datasets
@@ -134,7 +157,7 @@ class Merger:
                         # append
                         if not mergeJobList.has_key(tmpDsName):
                             mergeJobList[tmpDsName] = []
-                        mergeJobList[tmpDsName].append(tmpMergeJob)    
+                        mergeJobList[tmpDsName].append(tmpMergeJob)
             # get list of new datasets
             newDatasetMap = {}
             for tmpDsName,tmpJobList in mergeJobList.iteritems():
@@ -296,7 +319,11 @@ class Merger:
             tmpFile.type       = 'input'
             tmpFile.status     = 'ready'
             tmpJob.addFile(tmpFile)
-        params += " -t %s" % fileType
+
+        if 'log' in fileTyp[1]:
+            params += " -t log"
+        else:
+            params += " -t %s" % self.MergeType
         params += " -i \"%s\"" % repr(fileList)
         # output
         tmpFile = FileSpec()
