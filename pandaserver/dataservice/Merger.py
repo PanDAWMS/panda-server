@@ -23,26 +23,166 @@ _logger = PandaLogger().getLogger('Merger')
 
 
 class Merger:
+
     # constructor
-    def __init__(self,taskBuffer,job):
-        self.taskBuffer = taskBuffer
-        self.job        = job
-        self.mergeType  = ""
-        self.supportedMergeType = ['hist','ntuple','pool','user', 'log', 'text']
+    def __init__(self,taskBuffer,job,simulFlag=False):
+        self.taskBuffer   = taskBuffer
+        self.job          = job
+        self.mergeType    = ""
+        self.mergeTypeMap = {}        
+        self.supportedMergeType = ['hist','ntuple','pool','user','log','text']
+        self.simulFlag    = simulFlag
+
 
     # parse jobParameters and get mergeType specified by the client
-    def getMergeType(self, params):
+    def getMergeType(self):
         type = ""
-
         try:
-            paramList = re.split('\W+', params.strip())
+            paramList = re.split('\W+',self.job.jobParameters.strip())
             type = paramList[ paramList.index('mergeType') + 1 ]
-        except Except:
-            __logger.debug("cannot find --mergeType parameter from parent job")
-            pass
-
+        except:
+            _logger.debug("%s cannot find --mergeType parameter from parent job" % self.job.PandaID)
         return type
 
+
+    # get file type
+    def getFileType(self,tmpLFN):
+        tmpLFN = re.sub('\.\d+$','',tmpLFN)
+        tmpMatch = re.search('^(.+)\._\d+\.(.+)$',tmpLFN)
+        if tmpMatch != None:
+            return (tmpMatch.group(1),tmpMatch.group(2))
+        return None
+    
+        
+    # parse jobSpec to get merge type automatically
+    def getMergeTypeAuto(self):
+        # look for outmap
+        try:
+            tmpMatch = re.search('-o \"([^\"]+)\"',self.job.jobParameters)
+            outMapStr = tmpMatch.group(1)
+            exec "outMap="+outMapStr
+        except:
+            errType,errValue = sys.exc_info()[:2]            
+            _logger.debug("%s cannot extract outMap from jobParameters=%s %s:%s" % \
+                          (self.job.PandaID,self.job.jobParameters,errType,errValue))
+            return False
+        # convert output type to merge type
+        if '/runGen-' in self.job.transformation:
+            # loop over all output files for runGen
+            for oldName,newName in outMap.iteritems():
+                # get file type
+                tmpKey = self.getFileType(newName)
+                if tmpKey != None:
+                    # check extension
+                    if re.search('\.pool\.root(\.\d+)*$',newName) != None:
+                        # POOL
+                        tmpType = 'pool'
+                    elif re.search('\.root(\.\d+)*$',newName) != None:
+                        # map all root files to ntuple
+                        tmpType = 'ntuple'
+                    else:
+                        # catch all using zip
+                        tmpType = 'text'                        
+                    # append
+                    self.mergeTypeMap[tmpKey] = tmpType
+        else:
+            # hist
+            if outMap.has_key('hist'):
+                tmpType = 'hist'
+                tmpKey = self.getFileType(outMap['hist'])
+                if tmpKey != None:
+                    # append
+                    self.mergeTypeMap[tmpKey] = tmpType
+            # ntuple        
+            if outMap.has_key('ntuple'):
+                tmpType = 'ntuple'
+                for sName,fName in outMap['ntuple']:
+                    tmpKey = self.getFileType(fName)
+                    if tmpKey != None:
+                        # append
+                        self.mergeTypeMap[tmpKey] = tmpType
+            # AANT
+            if outMap.has_key('AANT'):
+                # map AANT to ntuple for now
+                tmpType = 'ntuple'
+                for aName,sName,fName in outMap['AANT']:
+                    tmpKey = self.getFileType(fName)
+                    if tmpKey != None:
+                        # append
+                        self.mergeTypeMap[tmpKey] = tmpType
+            # THIST
+            if outMap.has_key('THIST'):
+                tmpType = 'ntuple'
+                for aName,sName,fName in outMap['THIST']:
+                    tmpKey = self.getFileType(fName)
+                    if tmpKey != None:
+                        # append only when the stream is not used by AANT
+                        if not self.mergeTypeMap.has_key(tmpKey):
+                            self.mergeTypeMap[tmpKey] = tmpType
+            # POOL
+            for tmpOutType,tmpOutVal in outMap.iteritems():
+                # TAG is mapped to POOL for now
+                if tmpOutType in ['RDO','ESD','AOD','TAG','Stream1','Stream2']:
+                    tmpType = 'pool'
+                    tmpKey = self.getFileType(tmpOutVal)
+                    if tmpKey != None:
+                        # append
+                        self.mergeTypeMap[tmpKey] = tmpType
+            # general POOL stream
+            if outMap.has_key('StreamG'):
+                tmpType = 'pool'
+                for sName,fName in outMap['StreamG']:
+                    tmpKey = self.getFileType(fName)
+                    if tmpKey != None:
+                        # append
+                        self.mergeTypeMap[tmpKey] = tmpType
+            # meta
+            if outMap.has_key('Meta'):
+                tmpType = 'pool'
+                for sName,fName in outMap['Meta']:
+                    tmpKey = self.getFileType(fName)
+                    if tmpKey != None:
+                        # append only when the stream is not used by another
+                        if not self.mergeTypeMap.has_key(tmpKey):
+                            self.mergeTypeMap[tmpKey] = tmpType
+            # UserData
+            if outMap.has_key('UserData'):
+                tmpType = 'pool'
+                for fName in outMap['UserData']:
+                    tmpKey = self.getFileType(fName)
+                    if tmpKey != None:
+                        # append
+                        self.mergeTypeMap[tmpKey] = tmpType
+            # BS
+            if outMap.has_key('BS'):
+                # ByteStream is mapped to text to use zip for now
+                tmpType = 'text'
+                tmpKey = self.getFileType(outMap['BS'])
+                if tmpKey != None:
+                    # append
+                    self.mergeTypeMap[tmpKey] = tmpType
+            # extra outputs
+            if outMap.has_key('IROOT'):
+                for oldName,newName in outMap['IROOT']:
+                    tmpKey = self.getFileType(newName)
+                    if tmpKey != None:
+                        # check extension
+                        if re.search('\.pool\.root(\.\d+)*$',newName) != None:
+                            # POOL
+                            tmpType = 'pool'
+                        elif re.search('\.root(\.\d+)*$',newName) != None:
+                            # map all root files to ntuple
+                            tmpType = 'ntuple'
+                        else:
+                            # catch all using zip
+                            tmpType = 'text'                        
+                        # append
+                        self.mergeTypeMap[tmpKey] = tmpType
+        # dump                
+        _logger.debug("%s automatic merge type mapping -> %s" % (self.job.PandaID,str(self.mergeTypeMap)))
+        return True
+            
+                        
     # main returns None for unrecoverable 
     def run(self):
         try:
@@ -53,19 +193,25 @@ class Merger:
                 _logger.debug("%s end" % self.job.PandaID)
                 return None
             # check command-line parameter
-            if not "--mergeOutput" in self.job.jobParameters:
+            if not self.simulFlag and not "--mergeOutput" in self.job.jobParameters:
                 _logger.debug("%s skip no-merge" % self.job.PandaID)
                 _logger.debug("%s end" % self.job.PandaID)
                 return None
-
-            # check if the merging type is given and is supported
-            self.mergeType = self.getMergeType(self.job.jobParameters)
-
-            if self.mergeType not in self.supportedMergeType:
-                _logger.debug("%s skip not supported merging type \"%s\"" % (self.job.PandaID, self.mergeType))
-                _logger.debug("%s end" % self.job.PandaID)
-                return None
-
+            # get mergeType from jobParams
+            self.mergeType = self.getMergeType()
+            if self.mergeType != '':
+                # check if the merging type is given and is supported
+                if self.mergeType not in self.supportedMergeType:
+                    _logger.error("%s skip not supported merging type \"%s\"" % (self.job.PandaID, self.mergeType))
+                    _logger.debug("%s end" % self.job.PandaID)
+                    return None
+            else:
+                # automatic merge type detection
+                tmpRet = self.getMergeTypeAuto()
+                if not tmpRet:
+                    _logger.error("%s failed to detect merge type automatically" % self.job.PandaID)
+                    _logger.debug("%s end" % self.job.PandaID)
+                    return None
             # instantiate DQ2
             self.dq2api = DQ2.DQ2()
             # get list of datasets
@@ -111,14 +257,12 @@ class Merger:
                     # set GUID
                     tmpVal['guid'] = tmpGUID
                     # get type
-                    tmpLFN = tmpVal['lfn']
-                    tmpLFN = re.sub('\.\d+$','',tmpLFN)
-                    tmpMatch = re.search('^(.+)\._\d+\.(.+)$',tmpLFN)
+                    tmpMatch = self.getFileType(tmpVal['lfn'])
                     if tmpMatch == None:
                         _logger.error("%s cannot get type for %s" % (self.job.PandaID,tmpVal['lfn']))
                         _logger.debug("%s end" % self.job.PandaID)
                         return None
-                    tmpType = (tmpMatch.group(1),tmpMatch.group(2),tmpContName,tmpDsName)
+                    tmpType = (tmpMatch[0],tmpMatch[1],tmpContName,tmpDsName)
                     # append
                     if not tmpAllFileMap.has_key(tmpType):
                         tmpAllFileMap[tmpType] = {}
@@ -158,6 +302,9 @@ class Merger:
                         if not mergeJobList.has_key(tmpDsName):
                             mergeJobList[tmpDsName] = []
                         mergeJobList[tmpDsName].append(tmpMergeJob)
+            # terminate simulation
+            if self.simulFlag:
+                return True
             # get list of new datasets
             newDatasetMap = {}
             for tmpDsName,tmpJobList in mergeJobList.iteritems():
@@ -294,7 +441,7 @@ class Merger:
         # look for lib.tgz
         for tmpFile in self.job.Files:
             if tmpFile.type == 'input' and tmpFile.lfn.endswith('.lib.tgz'):
-                tmpJob.addTmpFile(tmpFile)
+                tmpJob.addFile(tmpFile)
                 params += " --libTgz %s" % tmpFile.lfn
                 break
         # input
@@ -319,11 +466,16 @@ class Merger:
             tmpFile.type       = 'input'
             tmpFile.status     = 'ready'
             tmpJob.addFile(tmpFile)
-
-        if 'log' in fileTyp[1]:
+        # file type    
+        if fileSuffix.endswith('log.tgz'):
+            # log
             params += " -t log"
+        elif self.mergeType != '':
+            # user specified
+            params += " -t %s" % self.mergeType
         else:
-            params += " -t %s" % self.MergeType
+            # auto detection
+            params += " -t %s" % self.mergeTypeMap[(filePrefix,fileSuffix)]
         params += " -i \"%s\"" % repr(fileList)
         # output
         tmpFile = FileSpec()
