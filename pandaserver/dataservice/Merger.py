@@ -240,7 +240,7 @@ class Merger:
                 nTry = 3
                 for iTry in range(nTry):
                     try:
-                        tmpRet,tmpTimeStamp = self.dq2api.listFilesInDataset(tmpDsName)
+                        tmpRetTimeStamp = self.dq2api.listFilesInDataset(tmpDsName)
                     except DQ2.DQUnknownDatasetException:
                         _logger.error("%s DQ2 doesn't know %s" % (self.job.PandaID,tmpDsName))
                         _logger.debug("%s end" % self.job.PandaID)
@@ -253,6 +253,18 @@ class Merger:
                             return False
                         # sleep
                         time.sleep(60)
+                # empty
+                if tmpRetTimeStamp == ():
+                    # close dataset
+                    varMap = {}
+                    varMap[':name'] = tmpDsName
+                    varMap[':status'] = 'tobeclosed'
+                    uSQL  = "UPDATE /*+ INDEX(tab DATASETS_NAME_IDX)*/ ATLAS_PANDA.Datasets "
+                    uSQL += "SET status=:status,modificationdate=CURRENT_DATE WHERE name=:name "
+                    self.taskBuffer.querySQLS(uSQL,varMap)
+                    continue
+                # loop over all GUIDs
+                tmpRet,tmpTimeStamp = tmpRetTimeStamp        
                 for tmpGUID,tmpVal in tmpRet.iteritems():
                     # set GUID
                     tmpVal['guid'] = tmpGUID
@@ -439,8 +451,18 @@ class Merger:
         # job parameter
         params = '--parentDS %s --parentContainer %s --outDS %s' % (datasetName,containerName,outDsName)
         # look for lib.tgz
-        for tmpFile in self.job.Files:
-            if tmpFile.type == 'input' and tmpFile.lfn.endswith('.lib.tgz'):
+        for tmpLibFile in self.job.Files:
+            if tmpLibFile.type == 'input' and tmpLibFile.lfn.endswith('.lib.tgz'):
+                tmpFile = FileSpec()
+                tmpFile.lfn        = tmpLibFile.lfn
+                tmpFile.GUID       = tmpLibFile.GUID
+                tmpFile.fsize      = tmpLibFile.fsize
+                tmpFile.md5sum     = tmpLibFile.md5sum
+                tmpFile.checksum   = tmpLibFile.checksum
+                tmpFile.dataset    = tmpLibFile.dataset
+                tmpFile.prodDBlock = tmpLibFile.prodDBlock
+                tmpFile.type       = 'input'
+                tmpFile.status     = 'ready'
                 tmpJob.addFile(tmpFile)
                 params += " --libTgz %s" % tmpFile.lfn
                 break

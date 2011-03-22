@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * updated brokerage to give T1 weight to NIKHEF for repro jobs
+  * fixed Merger for lib.tgz
   * added automatic merge type detection to Merger
   * updated Closer to redirect logging to parent as it doesn't work in nested threads
   * changed parameter convention for Merger
