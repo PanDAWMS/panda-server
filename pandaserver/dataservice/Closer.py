@@ -51,6 +51,7 @@ class Closer (threading.Thread):
             topUserDsList   = []
             usingMerger     = False        
             disableNotifier = False
+            firstIndvDS     = True
             for destinationDBlock in self.destinationDBlocks:
                 dsList = []
                 _logger.debug('%s start %s' % (self.pandaID,destinationDBlock))
@@ -89,7 +90,12 @@ class Closer (threading.Thread):
                 elif self.job.prodSourceLabel in ['user'] and "--mergeOutput" in self.job.jobParameters \
                          and self.job.processingType != 'usermerge':
                     # merge output files
-                    finalStatus = 'tobemerged'
+                    if firstIndvDS:
+                        # set 'tobemerged' to only the first dataset to avoid triggering many Mergers for --individualOutDS
+                        finalStatus = 'tobemerged'
+                        firstIndvDS = False
+                    else:
+                        finalStatus = 'tobeclosed'
                     # set merging to top dataset
                     usingMerger = True
                     # disable Notifier

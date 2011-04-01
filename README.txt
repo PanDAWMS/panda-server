@@ -1,6 +1,9 @@
 Release Note
 
 * current
+  * added protection to Adder2 against DQ2 failure for jumbo datasets
+  * updated Adder2 to avoid making DaTRI request for unmerged files
+  * added protection against generating multiple Mergers for --individualOutDS
   * updated brokerage to give T1 weight to NIKHEF for repro jobs
   * fixed Merger for lib.tgz
   * added automatic merge type detection to Merger

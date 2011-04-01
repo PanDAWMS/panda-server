@@ -143,6 +143,7 @@ class Adder (threading.Thread):
                         re.search('DQFrozenDatasetException',self.job.ddmErrorDiag) == None and \
                         re.search('DQUnknownDatasetException',self.job.ddmErrorDiag) == None and \
                         re.search('DQFileMetaDataMismatchException',self.job.ddmErrorDiag) == None and \
+                        re.search('Exceeded the maximum number of files',self.job.ddmErrorDiag) == None and \
                         re.search('KeyError',self.job.ddmErrorDiag) == None:                       
                     _logger.debug('%s : ignore %s ' % (self.jobID,self.job.ddmErrorDiag))
                     _logger.debug('%s escape' % self.jobID)
@@ -164,6 +165,7 @@ class Adder (threading.Thread):
                            and re.search('DQClosedDatasetException',self.job.ddmErrorDiag) == None \
                            and re.search('DQFrozenDatasetException',self.job.ddmErrorDiag) == None \
                            and re.search('DQFileMetaDataMismatchException',self.job.ddmErrorDiag) == None \
+                           and re.search('Exceeded the maximum number of files',self.job.ddmErrorDiag) == None \
                            and re.search('KeyError',self.job.ddmErrorDiag) == None:                           
                         _logger.debug('%s : ignore %s ' % (self.jobID,self.job.ddmErrorDiag))
                         _logger.debug('%s escape' % self.jobID)
@@ -621,8 +623,8 @@ class Adder (threading.Thread):
                     self.datasetMap[tmpName].status = 'running'
             # keep subscriptions
             self.subscriptionMap = subMap
-        else:
-            # send request to DaTRI
+        elif not "--mergeOutput" in self.job.jobParameters:
+            # send request to DaTRI unless files will be merged
             tmpTopDatasets = {}
             # collect top-level datasets
             for tmpName,tmpVal in subMap.iteritems():

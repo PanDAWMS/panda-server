@@ -262,6 +262,7 @@ class Merger:
                     uSQL  = "UPDATE /*+ INDEX(tab DATASETS_NAME_IDX)*/ ATLAS_PANDA.Datasets "
                     uSQL += "SET status=:status,modificationdate=CURRENT_DATE WHERE name=:name "
                     self.taskBuffer.querySQLS(uSQL,varMap)
+                    _logger.debug("%s %s is empty" % (self.job.PandaID,tmpDsName))                    
                     continue
                 # loop over all GUIDs
                 tmpRet,tmpTimeStamp = tmpRetTimeStamp        
