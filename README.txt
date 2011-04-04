@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * gave T1 weight to IN2P3-CC_VL
   * added protection to Adder2 against DQ2 failure for jumbo datasets
   * updated Adder2 to avoid making DaTRI request for unmerged files
   * added protection against generating multiple Mergers for --individualOutDS

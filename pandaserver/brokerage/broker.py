@@ -598,7 +598,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 # send jobs to T1 when they require many or large inputs
                                 if _isTooManyInput(nFilesPerJob,inputSizePerJob):
                                     if site == siteMapper.getCloud(previousCloud)['source'] or \
-                                       (site=='NIKHEF-ELPROD' and previousCloud=='NL' and prevProType=='reprocessing'):
+                                       (site=='NIKHEF-ELPROD' and previousCloud=='NL' and prevProType=='reprocessing') or \
+                                       (site=='IN2P3-CC_VL' and previousCloud=='FR'):
                                         cloudT1Weight = 2.0
                                         # use weight in cloudconfig
                                         try:
