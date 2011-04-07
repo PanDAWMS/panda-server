@@ -255,14 +255,21 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 if useSplitT1 == True:
                     job.computingSite = 'NIKHEF-ELPROD'
                     _log.debug('PandaID:%s -> use split T1 : %s' % (job.PandaID,job.computingSite))
+            # list of sites for special brokerage
+            specialBrokergageSiteList = []
             # set computingSite to T1 for high priority jobs
             if job != None and job.currentPriority >= 950 and job.computingSite == 'NULL' \
                    and job.prodSourceLabel in ('test','managed'):
                 # FIXME : just for slc5-gcc43 validation
                 #job.computingSite = siteMapper.getCloud(job.cloud)['source']                
-                if not job.cmtConfig in ['x86_64-slc5-gcc43']: 
-                    job.computingSite = siteMapper.getCloud(job.cloud)['source']
-                    _log.debug('PandaID:%s -> use T1 for high prio : %s' % (job.PandaID,job.computingSite))                    
+                if not job.cmtConfig in ['x86_64-slc5-gcc43']:
+                    if job.cloud != 'FR':                    
+                        job.computingSite = siteMapper.getCloud(job.cloud)['source']
+                        _log.debug('PandaID:%s -> use T1 for high prio : %s' % (job.PandaID,job.computingSite))
+                    else:
+                        # set site list to use T1 and T1_VL
+                        specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source'],'IN2P3-CC_VL']
+                        _log.debug('PandaID:%s -> set SiteList=%s for high prio' % (job.PandaID,specialBrokergageSiteList))
             # set computingSite to T1 when too many inputs are required
             if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed'):
                 # counts # of inputs
@@ -273,9 +280,14 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 if tmpTotalInput >= manyInputsThr:
                     # FIXME : just for slc5-gcc43 validation
                     #job.computingSite = siteMapper.getCloud(job.cloud)['source']
-                    if not job.cmtConfig in ['x86_64-slc5-gcc43']: 
-                        job.computingSite = siteMapper.getCloud(job.cloud)['source']
-                        _log.debug('PandaID:%s -> use T1 for too many inputs : %s' % (job.PandaID,job.computingSite))
+                    if not job.cmtConfig in ['x86_64-slc5-gcc43']:
+                        if job.cloud != 'FR':
+                            job.computingSite = siteMapper.getCloud(job.cloud)['source']
+                            _log.debug('PandaID:%s -> use T1 for too many inputs : %s' % (job.PandaID,job.computingSite))
+                        else:
+                            # set site list to use T1 and T1_VL
+                            specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source'],'IN2P3-CC_VL']
+                            _log.debug('PandaID:%s -> set SiteList=%s for too many inputs' % (job.PandaID,specialBrokergageSiteList))
             overwriteSite = False
             # new bunch or terminator
             if job == None or len(fileList) >= nFile \
@@ -285,7 +297,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                    or prevCmtConfig != job.cmtConfig \
                    or (computingSite in ['RAL_REPRO','INFN-T1_REPRO'] and len(fileList)>=2) \
                    or (prevProType in skipBrokerageProTypes and iJob > 0) \
-                   or prevDirectAcc != job.transferType:
+                   or prevDirectAcc != job.transferType \
+                   or specialBrokergageSiteList != []:
                 if indexJob > 1:
                     _log.debug('new bunch')
                     _log.debug('  iJob           %s'    % iJob)
@@ -316,7 +329,10 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     # load balancing
                     minSites = {}
                     nMinSites = 2
-                    if setScanSiteList == []:
+                    if specialBrokergageSiteList != []:
+                        # special brokerage
+                        scanSiteList = specialBrokergageSiteList
+                    elif setScanSiteList == []:
                         if siteMapper.checkCloud(previousCloud):
                             # use cloud sites                    
                             scanSiteList = siteMapper.getCloud(previousCloud)['sites']
