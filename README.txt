@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed auto type detection of Merger for THIST
   * use IN2P3-CC_VL for too many input or high prio jobs
   * gave T1 weight to IN2P3-CC_VL
   * added protection to Adder2 against DQ2 failure for jumbo datasets

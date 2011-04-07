@@ -113,7 +113,7 @@ class Merger:
             # THIST
             if outMap.has_key('THIST'):
                 tmpType = 'ntuple'
-                for aName,sName,fName in outMap['THIST']:
+                for aName,fName in outMap['THIST']:
                     tmpKey = self.getFileType(fName)
                     if tmpKey != None:
                         # append only when the stream is not used by AANT
