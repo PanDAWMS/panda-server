@@ -241,6 +241,8 @@ class DynDataDistributer:
             if not allSiteMap.has_key(tmpSiteSpec.cloud):
                 allSiteMap[tmpSiteSpec.cloud] = []
             allSiteMap[tmpSiteSpec.cloud].append(tmpSiteSpec)
+        # NG DQ2 IDs
+        ngDQ2SuffixList = ['LOCALGROUPDISK']
         # loop over all datasets
         returnMap = {}
         checkedMetaMap = {}
@@ -271,6 +273,14 @@ class DynDataDistributer:
                 # check T1 has a replica
                 t1HasReplica = False
                 for tmpDQ2ID,tmpStatMap in tmpRepMap.iteritems():
+                    # check NG suffix
+                    ngSuffixFlag = False
+                    for tmpNGSuffix in ngDQ2SuffixList:
+                        if tmpDQ2ID.endswith(tmpNGSuffix):
+                            ngSuffixFlag = True
+                            break
+                    if ngSuffixFlag:
+                        continue
                     if tmpDQ2ID.startswith(prefixDQ2T1):
                         if tmpStatMap[0]['total'] == tmpStatMap[0]['found']:
                             t1HasReplica = True
@@ -298,6 +308,14 @@ class DynDataDistributer:
                     # check if corresponding DQ2 ID is a replica location
                     hasReplica = False
                     for tmpDQ2ID,tmpStatMap in tmpRepMap.iteritems():
+                        # check NG suffix
+                        ngSuffixFlag = False
+                        for tmpNGSuffix in ngDQ2SuffixList:
+                            if tmpDQ2ID.endswith(tmpNGSuffix):
+                                ngSuffixFlag = True
+                                break
+                        if ngSuffixFlag:
+                            continue
                         if tmpDQ2ID.startswith(prefixDQ2):
                             if tmpStatMap[0]['total'] == tmpStatMap[0]['found']:
                                 # complete

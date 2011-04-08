@@ -85,6 +85,13 @@ class Notifier (threading.Thread):
                         if tmpDsList == []:
                             continue
                         self.datasets += tmpDsList
+                # get full jobSpec including metadata
+                self.job = self.taskBuffer.peekJobs([self.job.PandaID],fromDefined=False,
+                                    fromActive=False,fromWaiting=False)[0]
+                if self.job == None:
+                    _logger.error('%s : not found in DB' % self.job.PandaID)
+                    _logger.debug("%s end" % self.job.PandaID)
+                    return
                 # get IDs
                 ids = []
                 tmpIDs = self.taskBuffer.queryPandaIDwithDataset(self.datasets)
@@ -201,6 +208,12 @@ In  : %s""" % iDS
                         message += \
 """
 Out : %s""" % oDS
+                    # command
+                    if not self.job.metadata in ['','NULL',None]:
+                        message += \
+"""
+
+Parameters : %s""" % self.job.metadata
                     # URLs to PandaMon
                     if self.job.jobsetID in [0,'NULL',None]:                
                         for tmpIdx,tmpJobID in enumerate(jobDefIDList):
