@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * skip init for jobDispather,dataService,userIF when nCon=0
   * added parameters in email notification
   * ignore LOCALGROUPDISK in PD2P 
   * fixed auto type detection of Merger for THIST

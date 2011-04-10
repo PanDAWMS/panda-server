@@ -18,15 +18,18 @@ taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,panda_config.nDBConnec
 
 # initialize JobDispatcher
 from jobdispatcher.JobDispatcher import jobDispatcher
-jobDispatcher.init(taskBuffer)
+if panda_config.nDBConnection != 0:
+    jobDispatcher.init(taskBuffer)
 
 # initialize DataService
 from dataservice.DataService import dataService
-dataService.init(taskBuffer)
+if panda_config.nDBConnection != 0:
+    dataService.init(taskBuffer)
 
 # initialize UserIF
 from userinterface.UserIF import userIF
-userIF.init(taskBuffer)
+if panda_config.nDBConnection != 0:
+    userIF.init(taskBuffer)
 
 # import web I/F
 from taskbuffer.Utils            import isAlive,putFile,deleteFile,getServer,updateLog,fetchLog,\
