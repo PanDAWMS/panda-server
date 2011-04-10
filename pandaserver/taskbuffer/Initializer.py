@@ -16,6 +16,9 @@ class Initializer:
 
     def init(self):
         _logger.debug("init new=%s" % self.first)
+        # do nothing when nDBConnection is 0
+        if panda_config.nDBConnection == 0:
+            return True
         # lock
         self.lock.acquire()
         if self.first:
