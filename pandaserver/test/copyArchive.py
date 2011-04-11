@@ -1500,17 +1500,17 @@ try:
     varMap = {}
     varMap[':prodSourceLabel1'] = 'user'
     varMap[':prodSourceLabel2'] = 'panda'
-    varMap[':modificationTime'] = datetime.datetime.utcnow() - datetime.timedelta(days=3)
+    varMap[':modificationTime'] = datetime.datetime.utcnow() - datetime.timedelta(days=1)
     varMap[':processingType1']  = 'pathena'
     varMap[':processingType2']  = 'prun'
     varMap[':jobStatus']        = 'activated'
-    # get jobs older than 3 days
+    # get jobs older than 1 days
     ret,res = taskBuffer.querySQLS(sql, varMap)
     sql  = "SELECT PandaID,modificationTime FROM %s WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
     sql += "AND modificationTime>:modificationTime AND rownum <= 1"
     if res != None:
         from userinterface.ReBroker import ReBroker
-        timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
+        timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
         # loop over all user/jobID combinations
         for jobDefinitionID,prodUserName,prodUserID in res:
             # check if jobs with the jobID have run recently

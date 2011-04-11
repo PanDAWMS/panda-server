@@ -1,6 +1,10 @@
 Release Note
 
 * current
+  * modified runMerger to kill old process
+  * disable Initializer when nDBConnection is 0
+  * increased max attempt for rebrokerage to 5
+  * changed the rebrokerage interval to 24h
   * skip init for jobDispather,dataService,userIF when nCon=0
   * added parameters in email notification
   * ignore LOCALGROUPDISK in PD2P 

@@ -2,19 +2,56 @@ import os
 import re
 import sys
 import datetime
+import commands
 import threading
+
+from config import panda_config
+
+# initialize cx_Oracle using dummy connection
+from taskbuffer.Initializer import initializer
+initializer.init()
+
 from dataservice.Merger import Merger
 from taskbuffer.TaskBuffer import taskBuffer
 from pandalogger.PandaLogger import PandaLogger
 
-# password
-from config import panda_config
-passwd = panda_config.dbpasswd
 
 # logger
 _logger = PandaLogger().getLogger('runMerger')
 
 _logger.debug("================= start ==================")
+
+# overall timeout value
+overallTimeout = 60
+
+# kill old process
+try:
+    # time limit
+    timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=overallTimeout)
+    # get process list
+    scriptName = sys.argv[0]
+    out = commands.getoutput('env TZ=UTC ps axo user,pid,lstart,args | grep %s' % scriptName)
+    for line in out.split('\n'):
+        items = line.split()
+        # owned process
+        if not items[0] in ['sm','atlpan','root']: # ['os.getlogin()']: doesn't work in cron
+            continue
+        # look for python
+        if re.search('python',line) == None:
+            continue
+        # PID
+        pid = items[1]
+        # start time
+        timeM = re.search('(\S+\s+\d+ \d+:\d+:\d+ \d+)',line)
+        startTime = datetime.datetime(*time.strptime(timeM.group(1),'%b %d %H:%M:%S %Y')[:6])
+        # kill old process
+        if startTime < timeLimit:
+            _logger.debug("old process : %s %s" % (pid,startTime))
+            _logger.debug(line)            
+            commands.getoutput('kill -9 %s' % pid)
+except:
+    type, value, traceBack = sys.exc_info()
+    _logger.error("kill process : %s %s" % (type,value))
 
 # time limit
 timeLimitU = datetime.datetime.utcnow() - datetime.timedelta(minutes=5)

@@ -914,7 +914,7 @@ class ReBroker (threading.Thread):
                     revNum = int(match.group(1))
                 break
         # check with limit
-        if revNum < 2:
+        if revNum < 5:
             return True
         return False
                                                                                                                                     
