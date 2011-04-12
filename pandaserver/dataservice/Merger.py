@@ -464,6 +464,7 @@ class Merger:
                 tmpFile.prodDBlock = tmpLibFile.prodDBlock
                 tmpFile.type       = 'input'
                 tmpFile.status     = 'ready'
+                tmpFile.prodDBlockToken = 'local'                
                 tmpJob.addFile(tmpFile)
                 params += " --libTgz %s" % tmpFile.lfn
                 break
@@ -488,6 +489,7 @@ class Merger:
             tmpFile.prodDBlock = tmpFile.dataset
             tmpFile.type       = 'input'
             tmpFile.status     = 'ready'
+            tmpFile.prodDBlockToken = 'local'
             tmpJob.addFile(tmpFile)
         # file type    
         if fileSuffix.endswith('log.tgz'):
