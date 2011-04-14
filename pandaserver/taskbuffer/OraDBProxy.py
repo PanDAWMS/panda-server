@@ -2326,7 +2326,7 @@ class DBProxy:
         sqlA  = sqlX
         sqlA += "AND modificationTime>:modificationTime GROUP BY specialHandling "
         sqlAJob  = sqlXJob
-        sqlAJob += "modificationTime>:modificationTime "
+        sqlAJob += "AND modificationTime>:modificationTime "
         try:
             # get compact DN
             compactDN = self.cleanUserID(dn)

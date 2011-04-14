@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed getExpressJobs
   * use c-t-s for all files in merge jobs
   * modified runMerger to kill old process
   * disable Initializer when nDBConnection is 0
