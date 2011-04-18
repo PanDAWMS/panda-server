@@ -61,7 +61,7 @@ class DynDataDistributer:
             # use a fixed list since some clouds don't have active T2s
             self.pd2pClouds = ['CA','DE','ES','FR','IT','ND','NL','TW','UK','US']
             # check cloud
-            if not self.jobs[0].cloud in self.pd2pClouds:
+            if not self.jobs[0].cloud in self.pd2pClouds+['CERN',]:
                 self.putLog("skip cloud=%s not one of PD2P clouds %s" % (self.jobs[0].cloud,str(self.pd2pClouds)))
                 self.putLog("end for %s" % self.jobs[0].PandaID)
                 return

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * included CERN to trigger PD2P 
   * fixed typo in PD2P skip message
   * fixed zero-division in PD2P
   * enabled T1-T1 in PD2P
