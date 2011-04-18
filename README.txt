@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * improved PD2P logger
   * included CERN to trigger PD2P 
   * fixed typo in PD2P skip message
   * fixed zero-division in PD2P
