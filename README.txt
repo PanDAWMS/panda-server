@@ -1,6 +1,6 @@
 Release Note
 
-* current
+* 0.0.11 (4/18/2011)
   * fixed getExpressJobs
   * use c-t-s for all files in merge jobs
   * modified runMerger to kill old process
