@@ -1,5 +1,8 @@
 Release Note
 
+* current
+  * enabled T1-T1 in PD2P
+
 * 0.0.11 (4/18/2011)
   * fixed getExpressJobs
   * use c-t-s for all files in merge jobs

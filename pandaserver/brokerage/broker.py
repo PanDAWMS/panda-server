@@ -158,7 +158,7 @@ def _isTooManyInput(nFilesPerJob,inputSizePerJob):
 # schedule
 def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],trustIS=False,
              distinguishedName=None,specialWeight={},getWeight=False,sizeMapForCheck={},
-             datasetSize=0,replicaMap={}):
+             datasetSize=0,replicaMap={},pd2pT1=False):
     _log.debug('start %s %s %s %s' % (forAnalysis,str(setScanSiteList),trustIS,distinguishedName))
     if specialWeight != {}:
         _log.debug('PD2P weight : %s' % str(specialWeight))
@@ -596,13 +596,21 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                                                                          multiCloudFactor))
                             # calculate weight
                             if specialWeight != {}:
-                                nSubs = 1
-                                if specialWeight.has_key(site):
-                                    nSubs += specialWeight[site]
-                                _log.debug('   %s nSubs:%s nPilots:%s nJobsPerNode:%s' % (site,nSubs,nPilots,nJobsPerNode))
-                                winv = float(nSubs) / float(nPilots+1) / nJobsPerNode
-                                if getWeight:
-                                    weightUsedByBrokerage[site] = "%.2f/%s" % (float(nPilots+1)*nJobsPerNode,nSubs)
+                                if not pd2pT1:
+                                    # weight for T2 PD2P
+                                    nSubs = 1
+                                    if specialWeight.has_key(site):
+                                        nSubs = specialWeight[site]
+                                    _log.debug('   %s nSubs:%s nPilots:%s nJobsPerNode:%s' % (site,nSubs,nPilots,nJobsPerNode))
+                                    winv = float(nSubs) / float(nPilots+1) / nJobsPerNode
+                                    if getWeight:
+                                        weightUsedByBrokerage[site] = "%.2f/%s" % (float(nPilots+1)*nJobsPerNode,nSubs)
+                                else:
+                                    # weight for T1 PD2P
+                                    _log.debug('   %s MoU:%s nPilots:%s nJobsPerNode:%s' % (site,specialWeight[site],nPilots,nJobsPerNode))
+                                    winv = 1.0 / float(nPilots+1) / nJobsPerNode / float(specialWeight[site])
+                                    if getWeight:
+                                        weightUsedByBrokerage[site] = "%.2f/%s" % (float(nPilots+1)*nJobsPerNode,specialWeight[site])
                             else:
                                 _log.debug('   %s assigned:%s activated:%s running:%s nPilots:%s nJobsPerNode:%s multiCloud:%s' %
                                            (site,nAssJobs,nActJobs,jobStatistics[site]['running'],nPilots,nJobsPerNode,multiCloudFactor))

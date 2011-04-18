@@ -2752,6 +2752,91 @@ class DBProxy:
             return {},None
 
 
+    # get the number of waiting jobs with a dataset
+    def getNumWaitingJobsForPD2P(self,datasetName):
+        comment = ' /* DBProxy.getNumWaitingJobsForPD2P */'                        
+        _logger.debug("getNumWaitingJobsForPD2P : %s" % datasetName)
+        try:
+            tables = ['ATLAS_PANDA.jobsDefined4','ATLAS_PANDA.jobsActive4']
+            nJobs = 0
+            # select
+            for table in tables:
+                # make sql
+                sql  = "SELECT COUNT(*) FROM %s " % table                
+                sql += "WHERE prodDBlock=:prodDBlock AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
+                sql += "AND jobStatus IN (:jobStatus1,:jobStatus2) "
+                varMap = {}
+                varMap[':prodDBlock'] = datasetName
+                varMap[':jobStatus1'] = 'defined'
+                varMap[':jobStatus2'] = 'activated'                
+                varMap[':prodSourceLabel1'] = 'user'
+                varMap[':prodSourceLabel2'] = 'panda'
+                # start transaction
+                self.conn.begin()
+                # select
+                self.cur.arraysize = 10
+                self.cur.execute(sql+comment, varMap)
+                res = self.cur.fetchone()
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                if res != None: 
+                    tmpN, = res
+                    nJobs += tmpN
+            _logger.debug("getNumWaitingJobsForPD2P : %s -> %s" % (datasetName,nJobs))
+            return nJobs
+        except:
+            # roll back
+            self._rollback()
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("getNumWaitingJobsForPD2P : %s %s" % (errType,errValue))
+            # return 0
+            return 0
+
+
+    # get the number of waiting jobsets with a dataset
+    def getNumWaitingJobsetsForPD2P(self,datasetName):
+        comment = ' /* DBProxy.getNumWaitingJobsetsForPD2P */'                        
+        _logger.debug("getNumWaitingJobsetsForPD2P : %s" % datasetName)
+        try:
+            tables = ['ATLAS_PANDA.jobsDefined4','ATLAS_PANDA.jobsActive4']
+            jobsetIDuserList = []
+            # select
+            for table in tables:
+                # make sql
+                sql  = "SELECT jobsetID,prodUserName FROM %s " % table                
+                sql += "WHERE prodDBlock=:prodDBlock AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
+                sql += "AND jobStatus IN (:jobStatus1,:jobStatus2) GROUP BY jobsetID,prodUserName"
+                varMap = {}
+                varMap[':prodDBlock'] = datasetName
+                varMap[':jobStatus1'] = 'defined'
+                varMap[':jobStatus2'] = 'activated'                
+                varMap[':prodSourceLabel1'] = 'user'
+                varMap[':prodSourceLabel2'] = 'panda'
+                # start transaction
+                self.conn.begin()
+                # select
+                self.cur.arraysize = 10000
+                self.cur.execute(sql+comment, varMap)
+                resList = self.cur.fetchall()
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                for jobsetID,prodUserName in resList:
+                    tmpKey = (jobsetID,prodUserName)
+                    if not tmpKey in jobsetIDuserList:
+                        jobsetIDuserList.append(tmpKey)
+            _logger.debug("getNumWaitingJobsetsForPD2P : %s -> %s" % (datasetName,len(jobsetIDuserList)))
+            return len(jobsetIDuserList)
+        except:
+            # roll back
+            self._rollback()
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("getNumWaitingJobsetsForPD2P : %s %s" % (errType,errValue))
+            # return 0
+            return 0
+
+
     # lock job for re-brokerage
     def lockJobForReBrokerage(self,dn,jobID,simulation,forceOpt):
         comment = ' /* lockJobForReBrokerage */'                        

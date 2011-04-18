@@ -6,6 +6,8 @@ find candidate site to distribute input datasets
 import re
 import sys
 import time
+import math
+import types
 import random
 import datetime
 
@@ -23,10 +25,19 @@ _logger = PandaLogger().getLogger('DynDataDistributer')
 ngDataTypes = ['RAW','HITS','RDO','ESD']
 
 # excluded provenance
-ngProvenance = ['GP',]
+ngProvenance = []
 
-# threshold for hot dataset
-nUsedForHotDS = 10
+# protection for max number of replicas
+protectionMaxNumReplicas  = 4
+
+# max number of waiting jobs
+maxWaitingJobs = 200
+
+# max number of waiting jobsets
+maxWaitingJobsets = 2
+
+# clouds with small T1 to make replica at T2
+cloudsWithSmallT1 = ['IT']
 
 # files in datasets
 g_filesInDsMap = {}
@@ -46,19 +57,9 @@ class DynDataDistributer:
     # main
     def run(self):
         try:
-            # get a list of PD2P clouds
-            for tmpSiteName,tmpSiteSpec in self.siteMapper.siteSpecList.iteritems():
-                # ignore test sites
-                if 'test' in tmpSiteName.lower():
-                    continue
-                # analysis only
-                if not tmpSiteName.startswith('ANALY'):
-                    continue
-                # using PD2P
-                if tmpSiteSpec.cachedse == 1:
-                    if not tmpSiteSpec.cloud in self.pd2pClouds:
-                        self.pd2pClouds.append(tmpSiteSpec.cloud)
             self.putLog("start for %s" % self.jobs[0].PandaID)
+            # use a fixed list since some clouds don't have active T2s
+            self.pd2pClouds = ['CA','DE','ES','FR','IT','ND','NL','TW','UK','US']
             # check cloud
             if not self.jobs[0].cloud in self.pd2pClouds:
                 self.putLog("skip cloud=%s not one of PD2P clouds %s" % (self.jobs[0].cloud,str(self.pd2pClouds)))
@@ -84,9 +85,9 @@ class DynDataDistributer:
                                 inputDatasets.append(tmpFile.dataset)
             # loop over all input datasets
             for inputDS in inputDatasets:
-                # only mc or data datasets
+                # only mc/data/group datasets
                 moveFlag = False
-                for projectName in ['mc','data']:
+                for projectName in ['mc','data','gr']:
                     if inputDS.startswith(projectName):
                         moveFlag = True
                 if not moveFlag:
@@ -109,27 +110,49 @@ class DynDataDistributer:
                 if not status:
                     self.putLog("failed to get candidates")
                     continue
+                # get size of input container
+                totalInputSize = 0
+                if inputDS.endswith('/'):
+                    status,totalInputSize = self.getDatasetSize(inputDS)
+                    if not status:
+                        self.putLog("failed to get size of %s" % inputDS)
+                        continue
+                # get number of waiting jobs and jobsets
+                nWaitingJobsAll = self.taskBuffer.getNumWaitingJobsForPD2P(inputDS)
+                nWaitingJobsets = self.taskBuffer.getNumWaitingJobsetsForPD2P(inputDS)
                 # loop over all datasets
                 usedSites = []
                 for tmpDS,tmpVal in sitesMaps.iteritems():
                     self.putLog("triggered for %s" % tmpDS,sendLog=True)
                     # increment used counter
                     nUsed = self.taskBuffer.incrementUsedCounterSubscription(tmpDS)
+                    # insert dummy for new dataset which is used to keep track of usage even if subscription is not made
+                    if nUsed == 0:
+                        self.taskBuffer.addUserSubscription(tmpDS,['DUMMY'])
                     # collect candidates
                     allCandidates = []
                     totalUserSub = 0
                     allCompPd2pSites = []
                     allOKClouds = []
-                    for tmpCloud,(candSites,sitesComDS,sitesPd2pDS,nUserSub,t1HasReplica) in tmpVal.iteritems():
-                        self.putLog("%s sites with comp DS %s - compPD2P %s - candidates %s - nSub %s - T1 %s" % \
-                                    (tmpCloud,str(sitesComDS),str(sitesPd2pDS),str(candSites),nUserSub,t1HasReplica))
+                    totalSecReplicas = 0
+                    allT1Candidates = []
+                    totalT1Sub = 0
+                    cloudCandMap = {}
+                    nReplicasInCloud = {}
+                    for tmpCloud,(candSites,sitesComDS,sitesPd2pDS,nUserSub,t1HasReplica,t1HasPrimary,nSecReplicas,nT1Sub) in tmpVal.iteritems():
+                        self.putLog("%s sites with comp DS:%s compPD2P:%s candidates:%s nSub:%s T1:%s Pri:%s nSec:%s nT1Sub:%s" % \
+                                    (tmpCloud,str(sitesComDS),str(sitesPd2pDS),str(candSites),nUserSub,t1HasReplica,t1HasPrimary,
+                                     nSecReplicas,nT1Sub))
                         # add
-                        totalUserSub += nUserSub 
+                        totalUserSub += nUserSub
+                        totalT1Sub += nT1Sub
                         allCompPd2pSites += sitesPd2pDS
-                        # no replica in the cloud
-                        if sitesComDS == [] and not t1HasReplica:
-                            self.putLog("unused since no replica in the cloud")
-                            continue
+                        totalSecReplicas += nSecReplicas
+                        cloudCandMap[tmpCloud] = candSites
+                        nReplicasInCloud[tmpCloud] = len(sitesComDS) + len(sitesPd2pDS)
+                        # cloud is candidate for T1-T1 when T1 doesn't have primary or secondary replicas or old subscriptions
+                        if not t1HasPrimary and nSecReplicas == 0 and nT1Sub == 0:
+                            allT1Candidates.append(tmpCloud)
                         # add candidates
                         for tmpCandSite in candSites:
                             if not tmpCandSite in usedSites:
@@ -138,50 +161,86 @@ class DynDataDistributer:
                         if not tmpCloud in allOKClouds:
                             allOKClouds.append(tmpCloud)
                     self.putLog("PD2P sites with comp replicas : %s" % str(allCompPd2pSites))
-                    self.putLog("PD2P candidates : %s" % str(allCandidates))
-                    self.putLog("PD2P # of subscriptions : %s" % totalUserSub)
+                    self.putLog("PD2P T2 candidates : %s" % str(allCandidates))
+                    self.putLog("PD2P # of T2 subscriptions : %s" % totalUserSub)
+                    self.putLog("PD2P # of T1 secondaries   : %s" % totalSecReplicas)
+                    self.putLog("PD2P # of T1 subscriptions : %s" % nT1Sub)
+                    self.putLog("PD2P T1 candidates : %s" % str(allT1Candidates))
                     self.putLog("PD2P nUsed : %s" % nUsed)
                     # make any data subscriptions to EOS
                     tmpItems = inputDS.split('.')
                     if allOKClouds != [] and inputDS.startswith('data') and nUsed >= 5 and \
                        not (len(tmpItems) >= 5 and tmpItems[4] in ['ESD']):
                         self.makeSubscriptionToEOS(inputDS)
-                    # check number of replicas
-                    maxSitesHaveDS = 1
-                    if nUsed > nUsedForHotDS:
-                        #maxSitesHaveDS = 2
-                        maxSitesHaveDS = 1
-                    if len(allCompPd2pSites) >= maxSitesHaveDS:
-                        self.putLog("skip since many PD2P sites (%s>=%s) have the replica" % (len(allCompPd2pSites),maxSitesHaveDS),
-                                    sendLog=True)
-                        continue
-                    # check the number of subscriptions
-                    maxNumSubInAllCloud = 1
-                    if nUsed > nUsedForHotDS:
-                        #maxNumSubInAllCloud = 2
-                        maxNumSubInAllCloud = 1
-                    maxNumSubInAllCloud = maxNumSubInAllCloud - len(allCompPd2pSites)    
-                    if totalUserSub >= maxNumSubInAllCloud:
-                        self.putLog("skip since enough subscriptions (%s>=%s) were already made" % \
-                                    (totalUserSub,maxNumSubInAllCloud),
-                                    sendLog=True)
-                        continue
-                    # no candidates
-                    if len(allCandidates) == 0:
-                        self.putLog("skip since no candidates",sendLog=True)
-                        continue
-                    # get weight for brokerage
-                    weightForBrokerage = self.getWeightForBrokerage(allCandidates,tmpDS)
-                    self.putLog("weight %s" % str(weightForBrokerage))
-                    # get free disk size
-                    retFreeSizeMap,freeSizeMap = self.getFreeDiskSize(tmpDS,allCandidates)
-                    if not retFreeSizeMap:
-                        self.putLog("failed to get free disk size",type='error',sendLog=True)
-                        continue
                     # get dataset size
                     retDsSize,dsSize = self.getDatasetSize(tmpDS)
                     if not retDsSize:
                         self.putLog("failed to get dataset size of %s" % tmpDS,type='error',sendLog=True)
+                        continue
+                    self.putLog("PD2P nWaitingJobsets : %s" % nWaitingJobsets)
+                    self.putLog("PD2P nWaitingJobs    : %s = %s(all)*%s(dsSize)/%s(contSize)" % \
+                                (int((float(nWaitingJobsAll * dsSize) / float(totalInputSize))),
+                                 nWaitingJobsAll,dsSize,totalInputSize))
+                    # extract integer part. log10(nUsed) and log10(nUsed)+1 are used to avoid round-off error
+                    intLog10nUsed = int(math.log10(nUsed))
+                    useSmallT1 = None
+                    # make T1-T1
+                    if nUsed > 0 and int(math.log10(nUsed)) > totalSecReplicas and \
+                           (nUsed == 10**intLog10nUsed or nUsed == 10**(intLog10nUsed+1)) and \
+                           nT1Sub == 0 and allT1Candidates != []:
+                        self.putLog("making T1-T1",sendLog=True)
+                        # make subscription
+                        retT1Sub,useSmallT1 = self.makeT1Subscription(allT1Candidates,tmpDS,dsSize)
+                        self.putLog("done for T1-T1")                        
+                    # make a copy if small cloud is used
+                    if useSmallT1 != None:
+                        # change candidates
+                        if cloudCandMap.has_key(useSmallT1):
+                            allCandidates = cloudCandMap[useSmallT1]
+                        else:
+                            allCandidates = []
+                        self.putLog("Changed candidates due to small cloud: %s" % str(allCandidates))
+                    else:
+                        # set the number of PD2P replicas
+                        maxSitesHaveDS = 1
+                        # additional replicas
+                        if nWaitingJobsets > maxWaitingJobsets:
+                            # the number of waiting jobs for this dataset
+                            if totalInputSize != 0:
+                                # dataset in container
+                                tmpN = float(nWaitingJobsAll * dsSize) / float(totalInputSize)
+                            else:
+                                # dataset
+                                tmpN = float(nWaitingJobsAll)
+                            tmpN = int(math.log10(tmpN/float(maxWaitingJobs)))
+                            maxSitesHaveDS = max(maxSitesHaveDS,tmpN)
+                        # protection against too many replications
+                        maxSitesHaveDS = min(maxSitesHaveDS,protectionMaxNumReplicas)
+                        self.putLog("PD2P maxSitesHaveDS : %s" % maxSitesHaveDS)
+                        # check number of replicas                        
+                        if len(allCompPd2pSites) >= maxSitesHaveDS:
+                            self.putLog("skip since many PD2P sites (%s>=%s) have the replica" % (len(allCompPd2pSites),maxSitesHaveDS),
+                                        sendLog=True)
+                            continue
+                        # check the number of subscriptions
+                        maxNumSubInAllCloud = max(0,maxSitesHaveDS-len(allCompPd2pSites))
+                        self.putLog("PD2P maxNumSubInAllCloud : %s" % maxNumSubInAllCloud)
+                        if totalUserSub >= maxNumSubInAllCloud:
+                            self.putLog("skip since enough subscriptions (%s>=%s) were already made" % \
+                                        (totalUserSub,maxNumSubInAllCloud),
+                                        sendLog=True)
+                            continue
+                    # no candidates
+                    if len(allCandidates) == 0:
+                        self.putLog("skip since no candidates",sendLog=True)
+                        continue
+                    # get inverse weight for brokerage
+                    weightForBrokerage = self.getWeightForBrokerage(allCandidates,tmpDS,nReplicasInCloud)
+                    self.putLog("inverse weight %s" % str(weightForBrokerage))
+                    # get free disk size
+                    retFreeSizeMap,freeSizeMap = self.getFreeDiskSize(tmpDS,allCandidates)
+                    if not retFreeSizeMap:
+                        self.putLog("failed to get free disk size",type='error',sendLog=True)
                         continue
                     # run brokerage
                     tmpJob = JobSpec()
@@ -209,11 +268,20 @@ class DynDataDistributer:
     # get candidate sites for subscription
     def getCandidates(self,inputDS):
         # return for failure
-        failedRet = False,{'':{'':([],[],[],0,False)}}
+        failedRet = False,{'':{'':([],[],[],0,False,False,0,0)}}
         # get replica locations
         if inputDS.endswith('/'):
             # container
             status,tmpRepMaps = self.getListDatasetReplicasInContainer(inputDS)
+            # get used datasets
+            if status:
+                status,tmpUsedDsList = self.getUsedDatasets(tmpRepMaps)
+                # remove unused datasets
+                newRepMaps = {}
+                for tmpKey,tmpVal in tmpRepMaps.iteritems():
+                    if tmpKey in tmpUsedDsList:
+                        newRepMaps[tmpKey] = tmpVal
+                tmpRepMaps = newRepMaps        
         else:
             # normal dataset
             status,tmpRepMap = self.getListDatasetReplicas(inputDS)
@@ -243,11 +311,12 @@ class DynDataDistributer:
             allSiteMap[tmpSiteSpec.cloud].append(tmpSiteSpec)
         # NG DQ2 IDs
         ngDQ2SuffixList = ['LOCALGROUPDISK']
-        # loop over all datasets
+        # loop over all clouds
         returnMap = {}
         checkedMetaMap = {}
         userSubscriptionsMap = {}
         for cloud in self.pd2pClouds:
+            self.putLog("cloud=%s" % tmpSiteSpec.cloud)
             # DQ2 prefix of T1
             tmpT1SiteID = self.siteMapper.getCloud(cloud)['source']
             tmpT1DQ2ID  = self.siteMapper.getSite(tmpT1SiteID).ddm
@@ -263,15 +332,21 @@ class DynDataDistributer:
                 retMeta,tmpMetadata = checkedMetaMap[tmpDS]    
                 if not retMeta:
                     self.putLog("failed to get metadata for %s" % tmpDS,'error')
-                    continue
+                    return failedRet
                 if tmpMetadata['provenance'] in ngProvenance:
                     self.putLog("provenance=%s of %s is excluded" % (tmpMetadata['provenance'],tmpDS))
                     continue
                 if tmpMetadata['hidden'] in [True,'True']:
                     self.putLog("%s is hidden" % tmpDS)
                     continue
+                if tmpDS.startswith('gr') and tmpMetadata['provenance'] != 'GP':
+                    self.putLog("group dataset % is excluded since provenance='%s' != GP" % \
+                                (tmpDS,tmpMetadata['provenance']))
+                    continue
                 # check T1 has a replica
                 t1HasReplica = False
+                t1HasPrimary = False
+                nSecReplicas = 0
                 for tmpDQ2ID,tmpStatMap in tmpRepMap.iteritems():
                     # check NG suffix
                     ngSuffixFlag = False
@@ -284,6 +359,22 @@ class DynDataDistributer:
                     if tmpDQ2ID.startswith(prefixDQ2T1):
                         if tmpStatMap[0]['total'] == tmpStatMap[0]['found']:
                             t1HasReplica = True
+                        # check replica metadata to get archived info
+                        retRepMeta,tmpRepMetadata = self.getReplicaMetadata(tmpDS,tmpDQ2ID)
+                        if not retRepMeta:
+                            self.putLog("failed to get replica metadata for %s:%s" % \
+                                        (tmpDS,tmpDQ2ID),'error')
+                            return failedRet
+                        # check archived field
+                        if isinstance(tmpRepMetadata,types.DictType) and tmpRepMetadata.has_key('archived') and \
+                            tmpRepMetadata['archived'] == 'primary':
+                            # primary
+                            t1HasPrimary = True
+                            break
+                        elif isinstance(tmpRepMetadata,types.DictType) and tmpRepMetadata.has_key('archived') and \
+                            tmpRepMetadata['archived'] == 'secondary':
+                            # secondary
+                            nSecReplicas += 1
                             break
                 # get on-going subscriptions
                 timeRangeSub = 7
@@ -293,13 +384,18 @@ class DynDataDistributer:
                 # unused cloud
                 if not allSiteMap.has_key(cloud):
                     continue
+                # count the number of T1 subscriptions
+                nT1Sub = 0
+                for tmpUserSub in userSubscriptions:
+                    if tmpUserSub.startswith(prefixDQ2T1):
+                        nT1Sub += 1
                 # check sites
                 nUserSub = 0
                 for tmpSiteSpec in allSiteMap[cloud]:
                     # check cloud
                     if tmpSiteSpec.cloud != cloud:
                         continue
-                    self.putLog(tmpSiteSpec.sitename)
+                    self.putLog("%s" % tmpSiteSpec.sitename)
                     # prefix of DQ2 ID
                     prefixDQ2 = re.sub('[^_]+DISK$','',tmpSiteSpec.ddm)
                     # skip T1
@@ -335,7 +431,7 @@ class DynDataDistributer:
                 # append
                 if not returnMap.has_key(tmpDS):
                     returnMap[tmpDS] = {}
-                returnMap[tmpDS][cloud] = (candSites,sitesComDS,sitesCompPD2P,nUserSub,t1HasReplica)
+                returnMap[tmpDS][cloud] = (candSites,sitesComDS,sitesCompPD2P,nUserSub,t1HasReplica,t1HasPrimary,nSecReplicas,nT1Sub)
         # return
         return True,returnMap
 
@@ -416,7 +512,7 @@ class DynDataDistributer:
 
             
     # get weight for brokerage
-    def getWeightForBrokerage(self,sitenames,dataset):
+    def getWeightForBrokerage(self,sitenames,dataset,nReplicasInCloud):
         # return for failuer
         retFailed = False,{}
         retMap = {}
@@ -431,9 +527,12 @@ class DynDataDistributer:
                 return retFailed
             # append
             if numUserSubs.has_key(dq2ID):
-                retMap[sitename] = numUserSubs[dq2ID]
+                retMap[sitename] = 1 + numUserSubs[dq2ID]
             else:
-                retMap[sitename] = 0
+                retMap[sitename] = 1
+            # negative weight if a cloud already has replicas
+            tmpCloud = self.siteMapper.getSite(sitename).cloud
+            retMap[sitename] *= (1 + nReplicasInCloud[tmpCloud])
         # return
         return retMap
 
@@ -569,7 +668,7 @@ class DynDataDistributer:
             # convert to map
             exec "metadata = %s" % out
         except:
-            self.putLog('could not convert HTTP-res to dataset list for %s' % datasetName, 'error')
+            self.putLog('could not convert HTTP-res to metadata for %s' % datasetName, 'error')
             return resForFailure
         # check whether all attributes are available
         for tmpAttr in metaDataAttrs:
@@ -578,6 +677,36 @@ class DynDataDistributer:
                 return resForFailure
         # return
         self.putLog('getDatasetMetadata -> %s' % str(metadata))
+        return True,metadata
+
+
+    # get replica metadata
+    def getReplicaMetadata(self,datasetName,locationName):
+        # response for failure
+        resForFailure = False,{}
+        # get metadata
+        nTry = 3
+        for iDDMTry in range(nTry):
+            self.putLog('%s/%s listMetaDataReplica %s %s' % (iDDMTry,nTry,datasetName,locationName))
+            status,out = ddm.DQ2.main('listMetaDataReplica',locationName,datasetName)
+            if status != 0 or (not self.isDQ2ok(out)):
+                time.sleep(60)
+            else:
+                break
+        if status != 0 or out.startswith('Error'):
+            self.putLog(out,'error')
+            self.putLog('bad DQ2 response for %s' % datasetName, 'error')
+            return resForFailure
+        metadata = {}
+        try:
+            # convert to map
+            exec "metadata = %s" % out
+        except:
+            self.putLog('could not convert HTTP-res to replica metadata for %s:%s' % \
+                        (datasetName,locationName), 'error')
+            return resForFailure
+        # return
+        self.putLog('getReplicaMetadata -> %s' % str(metadata))
         return True,metadata
 
 
@@ -625,7 +754,7 @@ class DynDataDistributer:
             self.putLog(out,'error')
             self.putLog('bad DQ2 response to get size of %s' % datasetName, 'error')
             return resForFailure
-        self.putLog(out)
+        self.putLog("OK")
         # get total size
         dsSize = 0
         try:
@@ -639,6 +768,52 @@ class DynDataDistributer:
         dsSize /= (1024*1024*1024)
         self.putLog("dataset size = %s" % dsSize)
         return True,dsSize
+
+
+    # get datasets used by jobs
+    def getUsedDatasets(self,datasetMap):
+        resForFailure = (False,[])
+        # loop over all datasets
+        usedDsList = []
+        for datasetName in datasetMap.keys():
+            # get file list
+            nTry = 3
+            for iDDMTry in range(nTry):
+                self.putLog('%s/%s listFilesInDataset %s' % (iDDMTry,nTry,datasetName))
+                status,out = ddm.DQ2.listFilesInDataset(datasetName)
+                if status != 0:
+                    time.sleep(60)
+                else:
+                    break
+            if status != 0 or out.startswith('Error'):
+                self.putLog(out,'error')
+                self.putLog('bad DQ2 response to get size of %s' % datasetName, 'error')
+                return resForFailure
+            # convert to map
+            try:
+                tmpLfnList = []
+                exec "outList = %s" % out
+                for guid,vals in outList[0].iteritems():
+                    tmpLfnList.append(vals['lfn'])
+            except:
+                self.putLog('failed to get file list from DQ2 response for %s' % datasetName, 'error')
+                return resForFailure
+            # check if jobs use the dataset
+            usedFlag = False
+            for tmpJob in self.jobs:
+                for tmpFile in tmpJob.Files:
+                    if tmpFile.type == 'input' and tmpFile.lfn in tmpLfnList:
+                        usedFlag = True
+                        break
+                # escape    
+                if usedFlag:
+                    break
+            # used
+            if usedFlag:
+                usedDsList.append(datasetName)
+        # return
+        self.putLog("used datasets = %s" % str(usedDsList))
+        return True,usedDsList
 
 
     # get file from dataset
@@ -1033,6 +1208,51 @@ class DynDataDistributer:
             tmpPandaLogger.release()
             time.sleep(1)
                                                                                                                             
+
+    # make T1 subscription
+    def makeT1Subscription(self,allCloudCandidates,tmpDS,dsSize):
+        useSmallT1 = None
+        # no candidate
+        if allCloudCandidates == []:
+            return True,useSmallT1
+        # convert to siteIDs
+        t1Candidates = []
+        t1Weights    = {}
+        siteToCloud  = {}
+        for tmpCloud in allCloudCandidates:
+            tmpCloudSpec = self.siteMapper.getCloud(tmpCloud)
+            tmpT1SiteID = tmpCloudSpec['source']
+            t1Candidates.append(tmpT1SiteID)
+            # use MoU share
+            t1Weights[tmpT1SiteID] = tmpCloudSpec['mcshare']
+            # reverse lookup
+            siteToCloud[tmpT1SiteID] = tmpCloud
+        # get free disk size
+        retFreeSizeMap,freeSizeMap = self.getFreeDiskSize(tmpDS,t1Candidates)
+        if not retFreeSizeMap:
+            self.putLog("failed to get free disk size",type='error',sendLog=True)
+            return False,useSmallT1
+        # run brokerage
+        tmpJob = JobSpec()
+        tmpJob.AtlasRelease = ''
+        self.putLog("run brokerage for T1-T1 for %s" % tmpDS)
+        usedWeight = brokerage.broker.schedule([tmpJob],self.taskBuffer,self.siteMapper,True,t1Candidates,
+                                               True,specialWeight=t1Weights,getWeight=True,
+                                               sizeMapForCheck=freeSizeMap,datasetSize=dsSize,
+                                               pd2pT1=True)
+        self.putLog("site for T1-T1 -> %s" % tmpJob.computingSite)
+        # make subscription
+        subRet,dq2ID = self.makeSubscription(tmpDS,tmpJob.computingSite)
+        self.putLog("made subscription for T1-T1 to %s:%s" % (tmpJob.computingSite,dq2ID),sendLog=True)
+        # check if small cloud is used
+        if siteToCloud[tmpJob.computingSite] in cloudsWithSmallT1:
+            useSmallT1 = siteToCloud[tmpJob.computingSite]
+        # update database
+        if subRet:
+            self.taskBuffer.addUserSubscription(tmpDS,[dq2ID])
+            return True,useSmallT1
+        else:
+            return False,useSmallT1
             
                 
             

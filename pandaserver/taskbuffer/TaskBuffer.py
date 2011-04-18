@@ -608,6 +608,30 @@ class TaskBuffer:
         return idStatus
 
 
+    # get the number of waiting jobs with a dataset
+    def getNumWaitingJobsForPD2P(self,datasetName):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get
+        nJobs = proxy.getNumWaitingJobsForPD2P(datasetName)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return nJobs
+
+
+    # get the number of waiting jobsets with a dataset
+    def getNumWaitingJobsetsForPD2P(self,datasetName):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get
+        nJobs = proxy.getNumWaitingJobsetsForPD2P(datasetName)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return nJobs
+
+
     # lock job for re-brokerage
     def lockJobForReBrokerage(self,dn,jobID,simulation,forceOpt):
         # get DBproxy
