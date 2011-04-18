@@ -178,9 +178,13 @@ class DynDataDistributer:
                         self.putLog("failed to get dataset size of %s" % tmpDS,type='error',sendLog=True)
                         continue
                     self.putLog("PD2P nWaitingJobsets : %s" % nWaitingJobsets)
-                    self.putLog("PD2P nWaitingJobs    : %s = %s(all)*%s(dsSize)/%s(contSize)" % \
-                                (int((float(nWaitingJobsAll * dsSize) / float(totalInputSize))),
-                                 nWaitingJobsAll,dsSize,totalInputSize))
+                    if totalInputSize != 0:
+                        self.putLog("PD2P nWaitingJobs    : %s = %s(all)*%s(dsSize)/%s(contSize)" % \
+                                    (int((float(nWaitingJobsAll * dsSize) / float(totalInputSize))),
+                                     nWaitingJobsAll,dsSize,totalInputSize))
+                    else:
+                        self.putLog("PD2P nWaitingJobs    : %s = %s(all)" % \
+                                    (nWaitingJobsAll,nWaitingJobsAll))
                     # extract integer part. log10(nUsed) and log10(nUsed)+1 are used to avoid round-off error
                     intLog10nUsed = int(math.log10(nUsed))
                     useSmallT1 = None
@@ -329,7 +333,7 @@ class DynDataDistributer:
                 # check metadata
                 if not checkedMetaMap.has_key(tmpDS):
                     checkedMetaMap[tmpDS] = self.getDatasetMetadata(tmpDS)
-                retMeta,tmpMetadata = checkedMetaMap[tmpDS]    
+                retMeta,tmpMetadata = checkedMetaMap[tmpDS]
                 if not retMeta:
                     self.putLog("failed to get metadata for %s" % tmpDS,'error')
                     return failedRet
@@ -340,7 +344,7 @@ class DynDataDistributer:
                     self.putLog("%s is hidden" % tmpDS)
                     continue
                 if tmpDS.startswith('gr') and tmpMetadata['provenance'] != 'GP':
-                    self.putLog("group dataset % is excluded since provenance='%s' != GP" % \
+                    self.putLog("group dataset %s is excluded since provenance='%s' != GP" % \
                                 (tmpDS,tmpMetadata['provenance']))
                     continue
                 # check T1 has a replica

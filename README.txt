@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * fixed typo in PD2P skip message
+  * fixed zero-division in PD2P
   * enabled T1-T1 in PD2P
 
 * 0.0.11 (4/18/2011)
