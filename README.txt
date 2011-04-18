@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * put cloud-boundary back to US
+  * use SourcesPolicy.ALL_SOURCES for PD2P subscriptions
   * improved PD2P logger
   * included CERN to trigger PD2P 
   * fixed typo in PD2P skip message

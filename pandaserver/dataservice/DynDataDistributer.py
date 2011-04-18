@@ -153,6 +153,10 @@ class DynDataDistributer:
                         # cloud is candidate for T1-T1 when T1 doesn't have primary or secondary replicas or old subscriptions
                         if not t1HasPrimary and nSecReplicas == 0 and nT1Sub == 0:
                             allT1Candidates.append(tmpCloud)
+                        # no replica in the cloud : FIXME when SS in US is updated to support multi-hopping
+                        if sitesComDS == [] and not t1HasReplica and tmpCloud in ['US']:
+                            self.putLog("unused %s since no replica in the cloud" % tmpCloud)
+                            continue
                         # add candidates
                         for tmpCandSite in candSites:
                             if not tmpCandSite in usedSites:
@@ -488,7 +492,7 @@ class DynDataDistributer:
             self.putLog("cannot find DQ2 ID for %s:%s" % (sitename,dataset))
             return retFailed
         # make subscription    
-        optSrcPolicy = 001000 | 010000
+        optSrcPolicy = 000001
         nTry = 3
         for iDDMTry in range(nTry):
             # register subscription
