@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * remove '' for |pilotOwners|
   * put cloud-boundary back to US
   * use SourcesPolicy.ALL_SOURCES for PD2P subscriptions
   * improved PD2P logger
