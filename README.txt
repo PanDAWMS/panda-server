@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * fixed brokerge for test jobs at test sites
+  * use release matching for T2s in CERN cloud
   * skip release check for CERN and ND
   * set correct info to brokerageErrorDiag 
   * send jobs to waiting when release/cache is missing

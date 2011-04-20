@@ -371,7 +371,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             useCacheVersion = True
                             siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,releases=prevRelease)
                             _log.debug('  using installSW for release %s' % prevRelease)
-                    elif previousCloud in ['DE','NL','FR','CA','ES','IT','TW','UK','US','ND']:
+                    elif previousCloud in ['DE','NL','FR','CA','ES','IT','TW','UK','US','ND','CERN']:
                             useCacheVersion = True
                             # change / to -
                             convedPrevHomePkg = prevHomePkg.replace('/','-')
@@ -414,7 +414,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     if forAnalysis and trustIS:
                                         resultsForAnal['status'].append(site)
                                     continue
-                            if tmpSiteSpec.status == 'test' and (not prevProType in ['prod_test','hammercloud','gangarobot','gangarobot-squid']):
+                            if tmpSiteSpec.status == 'test' and (not prevProType in ['prod_test','hammercloud','gangarobot','gangarobot-squid']) \
+                                   and not prevSourceLabel in ['test']:
                                 _log.debug(' skip: status %s for %s' % (tmpSiteSpec.status,prevProType))
                                 if forAnalysis and trustIS:
                                     resultsForAnal['status'].append(site)
