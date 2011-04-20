@@ -750,15 +750,24 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             tmpJob.jobStatus          = 'waiting'
                             tmpJob.brokerageErrorCode = ErrorCode.EC_Release                            
                             if tmpJob.relocationFlag == 1:
-                                tmpJob.brokerageErrorDiag = '%s/%s not found at %s' % (tmpJob.AtlasRelease,tmpJob.cmtConfig,tmpJob.computingSite)
+                                if useCacheVersion:
+                                    tmpJob.brokerageErrorDiag = '%s/%s not found at %s' % (tmpJob.homepackage,tmpJob.cmtConfig,tmpJob.computingSite)
+                                else:
+                                    tmpJob.brokerageErrorDiag = '%s/%s not found at %s' % (tmpJob.AtlasRelease,tmpJob.cmtConfig,tmpJob.computingSite)
                             elif not prevBrokergageSiteList in [[],None]:
                                 tmpSiteStr = ''
                                 for tmpSiteItem in prevBrokergageSiteList:
                                     tmpSiteStr += '%s,' % tmpSiteItem
-                                tmpSiteStr = tmpSiteStr[:-1]    
-                                tmpJob.brokerageErrorDiag = '%s/%s not found at %s' % (tmpJob.AtlasRelease,tmpJob.cmtConfig,tmpSiteStr)
+                                tmpSiteStr = tmpSiteStr[:-1]
+                                if useCacheVersion:
+                                    tmpJob.brokerageErrorDiag = '%s/%s not found at %s' % (tmpJob.homepackage,tmpJob.cmtConfig,tmpSiteStr)
+                                else:
+                                    tmpJob.brokerageErrorDiag = '%s/%s not found at %s' % (tmpJob.AtlasRelease,tmpJob.cmtConfig,tmpSiteStr)
                             elif prevProType in ['reprocessing']:
-                                tmpJob.brokerageErrorDiag = '%s/%s not found at reprocessing sites' % (tmpJob.AtlasRelease,tmpJob.cmtConfig)
+                                if useCacheVersion:
+                                    tmpJob.brokerageErrorDiag = '%s/%s not found at reprocessing sites' % (tmpJob.homepackage,tmpJob.cmtConfig)
+                                else:
+                                    tmpJob.brokerageErrorDiag = '%s/%s not found at reprocessing sites' % (tmpJob.AtlasRelease,tmpJob.cmtConfig)
                             elif not useCacheVersion:
                                 tmpJob.brokerageErrorDiag = '%s/%s not found at online sites' % (tmpJob.AtlasRelease,tmpJob.cmtConfig)
                             else:
