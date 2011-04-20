@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * send jobs to waiting when release/cache is missing
   * remove '' for |pilotOwners|
   * put cloud-boundary back to US
   * use SourcesPolicy.ALL_SOURCES for PD2P subscriptions

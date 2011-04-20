@@ -88,6 +88,8 @@ class Setupper (threading.Thread):
                     _logger.debug('%s brokerSchedule' % self.timestamp)        
                     brokerage.broker.schedule(self.jobs,self.taskBuffer,self.siteMapper,
                                               replicaMap=self.replicaMapForBroker)
+                    # remove waiting jobs
+                    self.removeWaitingJobs()
                     # setup dispatch dataset
                     _logger.debug('%s setupSource' % self.timestamp)        
                     self._setupSource()
@@ -1433,6 +1435,21 @@ class Setupper (threading.Thread):
         del cloudMap
         del missLFNs
 
+
+    # remove waiting jobs
+    def removeWaitingJobs(self):
+        jobsWaiting   = []
+        jobsProcessed = []
+        for tmpJob in self.jobs:
+            if tmpJob.jobStatus == 'waiting':
+                jobsWaiting.append(tmpJob)
+            else:
+                jobsProcessed.append(tmpJob)
+        # send jobs to jobsWaiting
+        self.taskBuffer.keepJobs(jobsWaiting)
+        # remove waiting/failed jobs
+        self.jobs = jobsProcessed
+        
 
     # memory checker
     def _memoryCheck(self):

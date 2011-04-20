@@ -188,6 +188,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
     prevDiskCount  = None
     prevHomePkg    = None
     prevDirectAcc  = None
+    prevBrokergageSiteList = None
     
     nWNmap = {}
     indexJob = 0
@@ -198,7 +199,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
     manyInputsThr     = 20
 
     weightUsedByBrokerage = {}
-    
+
     try:
         # get statistics
         jobStatistics = taskBuffer.getJobStatistics()
@@ -222,9 +223,11 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 pass
             elif job.jobStatus == 'failed':
                 continue
+            # list of sites for special brokerage
+            specialBrokergageSiteList = []
             # hack for split T1
             if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
-               and job.cloud == 'NL':
+               and job.cloud == 'NL' and specialBrokergageSiteList == []:
                 # loop over all input datasets
                 tmpCheckedDS = []
                 useSplitT1 = None
@@ -253,25 +256,22 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             break
                 # set
                 if useSplitT1 == True:
-                    job.computingSite = 'NIKHEF-ELPROD'
-                    _log.debug('PandaID:%s -> use split T1 : %s' % (job.PandaID,job.computingSite))
-            # list of sites for special brokerage
-            specialBrokergageSiteList = []
+                    specialBrokergageSiteList = ['NIKHEF-ELPROD']
+                    _log.debug('PandaID:%s -> set SiteList=%s for split T1' % (job.PandaID,specialBrokergageSiteList))
             # set computingSite to T1 for high priority jobs
             if job != None and job.currentPriority >= 950 and job.computingSite == 'NULL' \
-                   and job.prodSourceLabel in ('test','managed'):
+                   and job.prodSourceLabel in ('test','managed') and specialBrokergageSiteList == []:
                 # FIXME : just for slc5-gcc43 validation
-                #job.computingSite = siteMapper.getCloud(job.cloud)['source']                
                 if not job.cmtConfig in ['x86_64-slc5-gcc43']:
                     if job.cloud != 'FR':                    
-                        job.computingSite = siteMapper.getCloud(job.cloud)['source']
-                        _log.debug('PandaID:%s -> use T1 for high prio : %s' % (job.PandaID,job.computingSite))
+                        specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source']]
                     else:
                         # set site list to use T1 and T1_VL
                         specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source'],'IN2P3-CC_VL']
-                        _log.debug('PandaID:%s -> set SiteList=%s for high prio' % (job.PandaID,specialBrokergageSiteList))
+                    _log.debug('PandaID:%s -> set SiteList=%s for high prio' % (job.PandaID,specialBrokergageSiteList))
             # set computingSite to T1 when too many inputs are required
-            if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed'):
+            if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
+                   and specialBrokergageSiteList == []:
                 # counts # of inputs
                 tmpTotalInput = 0
                 for tmpFile in job.Files:
@@ -279,15 +279,17 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         tmpTotalInput += 1
                 if tmpTotalInput >= manyInputsThr:
                     # FIXME : just for slc5-gcc43 validation
-                    #job.computingSite = siteMapper.getCloud(job.cloud)['source']
                     if not job.cmtConfig in ['x86_64-slc5-gcc43']:
                         if job.cloud != 'FR':
-                            job.computingSite = siteMapper.getCloud(job.cloud)['source']
-                            _log.debug('PandaID:%s -> use T1 for too many inputs : %s' % (job.PandaID,job.computingSite))
+                            specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source']]
                         else:
                             # set site list to use T1 and T1_VL
                             specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source'],'IN2P3-CC_VL']
-                            _log.debug('PandaID:%s -> set SiteList=%s for too many inputs' % (job.PandaID,specialBrokergageSiteList))
+                        _log.debug('PandaID:%s -> set SiteList=%s for too many inputs' % (job.PandaID,specialBrokergageSiteList))
+            # manually set site
+            if job != None and job.computingSite != 'NULL' and job.prodSourceLabel in ('test','managed') \
+                   and specialBrokergageSiteList == []:
+                specialBrokergageSiteList = [job.computingSite]
             overwriteSite = False
             # new bunch or terminator
             if job == None or len(fileList) >= nFile \
@@ -298,7 +300,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                    or (computingSite in ['RAL_REPRO','INFN-T1_REPRO'] and len(fileList)>=2) \
                    or (prevProType in skipBrokerageProTypes and iJob > 0) \
                    or prevDirectAcc != job.transferType \
-                   or specialBrokergageSiteList != []:
+                   or prevBrokergageSiteList != specialBrokergageSiteList:
                 if indexJob > 1:
                     _log.debug('new bunch')
                     _log.debug('  iJob           %s'    % iJob)
@@ -311,7 +313,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     _log.debug('  processingType %s' % prevProType)
                     _log.debug('  transferType   %s' % prevDirectAcc)                    
                 # determine site
-                if iJob == 0 or chosen_ce != 'TOBEDONE':
+                if (iJob == 0 or chosen_ce != 'TOBEDONE') and prevBrokergageSiteList in [None,[]]:
                      # file scan for pre-assigned jobs
                      jobsInBunch = jobs[indexJob-iJob-1:indexJob-1]
                      if jobsInBunch != [] and fileList != [] and (not computingSite in prestageSites) \
@@ -329,9 +331,9 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     # load balancing
                     minSites = {}
                     nMinSites = 2
-                    if specialBrokergageSiteList != []:
+                    if prevBrokergageSiteList != []:
                         # special brokerage
-                        scanSiteList = specialBrokergageSiteList
+                        scanSiteList = prevBrokergageSiteList
                     elif setScanSiteList == []:
                         if siteMapper.checkCloud(previousCloud):
                             # use cloud sites                    
@@ -347,6 +349,16 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             if tmpShortQueue in scanSiteList:
                                 if not tmpLongQueue in scanSiteList:
                                     scanSiteList.append(tmpLongQueue)
+                    # the number/size of inputs per job 
+                    nFilesPerJob    = float(totalNumInputs)/float(iJob)
+                    inputSizePerJob = float(totalInputSize)/float(iJob)
+                    # use T1 for jobs with many inputs when weight is negative
+                    if (not forAnalysis) and _isTooManyInput(nFilesPerJob,inputSizePerJob) and \
+                           siteMapper.getCloud(previousCloud)['weight'] < 0:
+                        if previousCloud != 'FR':
+                            scanSiteList = [siteMapper.getCloud(previousCloud)['source']]
+                        else:
+                            scanSiteList = [siteMapper.getCloud(previousCloud)['source'],'IN2P3-CC_VL']
                     # get availabe sites with cache
                     useCacheVersion = False
                     siteListWithCache = []
@@ -359,7 +371,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             useCacheVersion = True
                             siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,releases=prevRelease)
                             _log.debug('  using installSW for release %s' % prevRelease)
-                    elif previousCloud in ['DE','NL','FR','CA','ES','IT','TW','UK','US','ND'] and (not prevProType in ['reprocessing']):
+                    elif previousCloud in ['DE','NL','FR','CA','ES','IT','TW','UK','US','ND']:
                             useCacheVersion = True
                             # change / to -
                             convedPrevHomePkg = prevHomePkg.replace('/','-')
@@ -369,15 +381,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         _log.debug('  cache/relSites     %s' % str(siteListWithCache))
                     # release/cmtconfig check
                     foundRelease   = False
-                    # the number/size of inputs per job 
-                    nFilesPerJob    = float(totalNumInputs)/float(iJob)
-                    inputSizePerJob = float(totalInputSize)/float(iJob)
-                    # use T1 for jobs with many inputs when weight is negative
-                    if (not forAnalysis) and _isTooManyInput(nFilesPerJob,inputSizePerJob) and \
-                           siteMapper.getCloud(previousCloud)['weight'] < 0:
-                        minSites[siteMapper.getCloud(previousCloud)['source']] = 0
-                        foundRelease = True
-                    else:
+                    # get cnadidates    
+                    if True:
                         # loop over all sites    
                         for site in scanSiteList:
                             _log.debug('calculate weight for site:%s' % site)                    
@@ -397,7 +402,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 _log.debug(" skip: %s doesn't exist in DB" % site)
                                 continue
                             # check status
-                            if tmpSiteSpec.status in ['offline','brokeroff']:
+                            if tmpSiteSpec.status in ['offline','brokeroff'] and computingSite in ['NULL',None,'']:
                                 if forAnalysis and tmpSiteSpec.status == 'brokeroff' and tmpSiteSpec.accesscontrol == 'grouplist':
                                     # ignore brokeroff for grouplist site
                                     pass
@@ -460,7 +465,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     continue
                             elif (prevRelease != None and ((not useCacheVersion and releases != [] and (not previousCloud in ['ND','CERN'])) or \
                                                            prevProType in ['reprocessing']) and \
-                                  (not _checkRelease(prevRelease,releases))) or \
+                                  (not _checkRelease(prevRelease,releases) or not site in siteListWithCache)) or \
                                   (tmpCmtConfig != None and tmpSiteSpec.cmtconfig != [] and \
                                    (not tmpCmtConfig in tmpSiteSpec.cmtconfig)):
                                 # release matching
@@ -737,14 +742,27 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 tmpJob.computingElement = chosenCE.gatekeeper
                         # fail jobs if no sites have the release
                         if (not foundRelease) and (tmpJob.prodSourceLabel in ['managed','test']):
-                            tmpJob.jobStatus          = 'failed'
-                            tmpJob.brokerageErrorCode = ErrorCode.EC_Release
-                            if prevProType in ['reprocessing']:
-                                tmpJob.brokerageErrorDiag = '%s/%s not validated for reprocessing in this cloud' % (tmpJob.AtlasRelease,tmpJob.cmtConfig)
+                            # reset
+                            if tmpJob.relocationFlag != 1:
+                                tmpJob.computingSite = None
+                                tmpJob.computingElement = None
+                            # go to waiting
+                            tmpJob.jobStatus          = 'waiting'
+                            tmpJob.brokerageErrorCode = ErrorCode.EC_Release                            
+                            if tmpJob.relocationFlag == 1:
+                                tmpJob.brokerageErrorDiag = '%s/%s not found at %s' % (tmpJob.AtlasRelease,tmpJob.cmtConfig,tmpJob.computingSite)
+                            elif not prevBrokergageSiteList in [[],None]:
+                                tmpSiteStr = ''
+                                for tmpSiteItem in prevBrokergageSiteList:
+                                    tmpSiteStr += '%s,' % tmpSiteItem
+                                tmpSiteStr = tmpSiteStr[:-1]    
+                                tmpJob.brokerageErrorDiag = '%s/%s not found at %s' % (tmpJob.AtlasRelease,tmpJob.cmtConfig,tmpSiteStr)
+                            elif prevProType in ['reprocessing']:
+                                tmpJob.brokerageErrorDiag = '%s/%s not found at reprocessing sites' % (tmpJob.AtlasRelease,tmpJob.cmtConfig)
                             elif not useCacheVersion:
-                                tmpJob.brokerageErrorDiag = '%s/%s not found in this cloud' % (tmpJob.AtlasRelease,tmpJob.cmtConfig)
+                                tmpJob.brokerageErrorDiag = '%s/%s not found at online sites' % (tmpJob.AtlasRelease,tmpJob.cmtConfig)
                             else:
-                                tmpJob.brokerageErrorDiag = '%s/%s not found in this cloud' % (tmpJob.homepackage,tmpJob.cmtConfig)
+                                tmpJob.brokerageErrorDiag = '%s/%s not found at online sites' % (tmpJob.homepackage,tmpJob.cmtConfig)
                             _log.debug(tmpJob.brokerageErrorDiag)
                             continue
                         # set 'ready' if files are already there
@@ -818,6 +836,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             prevDiskCount   = job.maxDiskCount
             prevHomePkg     = job.homepackage
             prevDirectAcc   = job.transferType
+            prevBrokergageSiteList = specialBrokergageSiteList
             # assign site
             if chosen_ce != 'TOBEDONE':
                 job.computingSite = chosen_ce.sitename

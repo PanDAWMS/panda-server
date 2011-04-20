@@ -1883,7 +1883,10 @@ class DBProxy:
             # host and time information
             job.modificationHost = self.hostname
             job.modificationTime = datetime.datetime.utcnow()
-            job.stateChangeTime  = job.modificationTime           
+            job.stateChangeTime  = job.modificationTime
+            # reset
+            job.brokerageErrorDiag = None
+            job.brokerageErrorCode = None
             # insert
             self.cur.execute(sql3+comment, job.valuesMap())
             # job parameters
