@@ -463,9 +463,9 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     except:
                                         pass
                                     continue
-                            elif (prevRelease != None and ((not useCacheVersion and releases != [] and (not previousCloud in ['ND','CERN'])) or \
+                            elif (prevRelease != None and ((not useCacheVersion and releases != [] and (not tmpSiteSpec.cloud in ['ND','CERN'])) or \
                                                            prevProType in ['reprocessing']) and \
-                                  (not _checkRelease(prevRelease,releases) or not site in siteListWithCache)) or \
+                                  ((not _checkRelease(prevRelease,releases) or not site in siteListWithCache) and not tmpSiteSpec.cloud in ['ND','CERN'])) or \
                                   (tmpCmtConfig != None and tmpSiteSpec.cmtconfig != [] and \
                                    (not tmpCmtConfig in tmpSiteSpec.cmtconfig)):
                                 # release matching
@@ -764,10 +764,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 else:
                                     tmpJob.brokerageErrorDiag = '%s/%s not found at %s' % (tmpJob.AtlasRelease,tmpJob.cmtConfig,tmpSiteStr)
                             elif prevProType in ['reprocessing']:
-                                if useCacheVersion:
-                                    tmpJob.brokerageErrorDiag = '%s/%s not found at reprocessing sites' % (tmpJob.homepackage,tmpJob.cmtConfig)
-                                else:
-                                    tmpJob.brokerageErrorDiag = '%s/%s not found at reprocessing sites' % (tmpJob.AtlasRelease,tmpJob.cmtConfig)
+                                tmpJob.brokerageErrorDiag = '%s/%s not found at reprocessing sites' % (tmpJob.homepackage,tmpJob.cmtConfig)
                             elif not useCacheVersion:
                                 tmpJob.brokerageErrorDiag = '%s/%s not found at online sites' % (tmpJob.AtlasRelease,tmpJob.cmtConfig)
                             else:

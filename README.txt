@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * skip release check for CERN and ND
   * set correct info to brokerageErrorDiag 
   * send jobs to waiting when release/cache is missing
   * remove '' for |pilotOwners|
