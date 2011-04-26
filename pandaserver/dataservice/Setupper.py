@@ -1094,9 +1094,9 @@ class Setupper (threading.Thread):
             datasets = []
             for file in job.Files:
                 if file.type == 'input' and file.dispatchDBlock == 'NULL' \
-                        and file.GUID == 'NULL':
-                        #and (file.GUID == 'NULL' or re.search('\.(\d+)$',file.lfn) == None):
-                    datasets.append(file.dataset)
+                        and (file.GUID == 'NULL' or job.prodSourceLabel in ['managed','test']):
+                    if not file.dataset in datasets:
+                        datasets.append(file.dataset)
             # get LFN list
             for dataset in datasets:
                 if not dataset in lfnMap.keys():
