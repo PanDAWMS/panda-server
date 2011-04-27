@@ -216,17 +216,19 @@ class Merger:
             self.dq2api = DQ2.DQ2()
             # get list of datasets
             dsList = []
+            dsSubDsMap = {}
             for tmpFile in self.job.Files:
                 # use output/log
                 if not tmpFile.type in ['log','output']:
                     continue
                 tmpContName = tmpFile.dataset
-                tmpDsName = tmpFile.destinationDBlock
+                tmpSubDsName = tmpFile.destinationDBlock
                 # remove _sub
-                tmpDsName = re.sub('_sub\d+$','',tmpDsName)
+                tmpDsName = re.sub('_sub\d+$','',tmpSubDsName)
                 tmpKey = (tmpContName,tmpDsName)
                 if not tmpKey in dsList:
                     dsList.append(tmpKey)
+                    dsSubDsMap[tmpDsName] = tmpSubDsName
             # loop over all datasets
             mergeJobList = {}
             for tmpContName,tmpDsName in dsList:
@@ -406,10 +408,20 @@ class Merger:
                     _logger.debug("%s end" % self.job.PandaID)                    
                     return False
                 else:
+                    # set jobDefID
+                    tmpJobDefID = ret[0][1]
+                    if not tmpJobDefID in ['NULL','',None,-1]:
+                        varMap = {}
+                        varMap[':name'] = dsSubDsMap[tmpDsName]
+                        varMap[':moverID'] = tmpJobDefID
+                        uSQL  = "UPDATE /*+ INDEX(tab DATASETS_NAME_IDX)*/ ATLAS_PANDA.Datasets "
+                        uSQL += "SET moverID=:moverID WHERE name=:name "
+                        self.taskBuffer.querySQLS(uSQL,varMap)
+                    # dump    
                     strPandaIDs = ''
                     for tmpItem in ret:
                         strPandaIDs += '%s,' % tmpItem[0]
-                    _logger.debug("%s mergeJobs=%s" % (self.job.PandaID,strPandaIDs[:-1]))
+                    _logger.debug("%s jobDefID=%s mergeJobs=%s" % (self.job.PandaID,tmpJobDefID,strPandaIDs[:-1]))
             # return
             _logger.debug("%s end" % self.job.PandaID)
             return True
@@ -510,7 +522,7 @@ class Merger:
         tmpFile.dataset           = containerName
         tmpFile.type = 'output'
         tmpJob.addFile(tmpFile)
-        params += " -o %s" % tmpFile.lfn
+        params += ' -o "%s"' % tmpFile.lfn
         # log
         tmpItems = filePrefix.split('.')
         if len(tmpItems) > 3:

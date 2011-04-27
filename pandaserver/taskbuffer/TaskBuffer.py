@@ -478,6 +478,63 @@ class TaskBuffer:
         return res
         
 
+    # check merge job generation status
+    def checkMergeGenerationStatus(self,dn,jobID):
+        # return for NA
+        retNA = {'status':'NA','mergeIDs':[]}
+        try:
+            # get at most 2 PandaIDs
+            idStatus = self.getPandIDsWithJobID(dn,jobID,2)
+            if idStatus == {}:
+                return retNA
+            # use larger PandaID which corresponds to runXYZ
+            tmpKeys = idStatus.keys()
+            tmpKeys.sort()
+            pandaID = tmpKeys[-1]
+            # get job
+            tmpJobs = self.getFullJobStatus([pandaID])
+            if tmpJobs == [] or tmpJobs[0] == None:
+                return retNA
+            pandaJob = tmpJobs[0]
+            # non-merge job
+            if not '--mergeOutput' in pandaJob.jobParameters:
+                return retNA
+            # loop over all sub datasets
+            subDsList = []
+            mergeStatus = None
+            mergeIDs    = []
+            for tmpFile in pandaJob.Files:
+                if tmpFile.type in ['output','log']:
+                    if not tmpFile.destinationDBlock in subDsList:
+                        subDsList.append(tmpFile.destinationDBlock)
+                        # get dataset
+                        tmpDsSpec = self.queryDatasetWithMap({'name':tmpFile.destinationDBlock})
+                        if tmpDsSpec != None:
+                            if tmpDsSpec.status in ['tobemerged']:
+                                # going to be merged
+                                mergeStatus = 'generating'
+                                mergeIDs = []
+                            elif tmpDsSpec.status in ['tobeclosed','closed','completed']:
+                                # another dataset from --individualOutDS is waiting for Merger
+                                if mergeStatus == 'generating':
+                                    continue
+                                # set status
+                                mergeStatus = 'generated'
+                                # collect JobIDs of merge jobs
+                                tmpMergeID = tmpDsSpec.MoverID
+                                if not tmpMergeID in [0,None,'NULL']+mergeIDs:
+                                    mergeIDs.append(tmpMergeID)
+            # no merger most likely because jobs were killed
+            if mergeStatus == 'generated' and mergeIDs == []:
+                mergeStatus = 'aborted'
+            # jobs are still runnign
+            if mergeStatus == None:
+                mergeStatus = 'standby'
+            # return
+            return {'status':mergeStatus,'mergeIDs':mergeIDs}
+        except:
+            return retNA
+
     
     # get job status
     def getJobStatus(self,jobIDs,fromDefined=True,fromActive=True,fromArchived=True,fromWaiting=True):

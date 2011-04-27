@@ -515,6 +515,14 @@ class UserIF:
         return pickle.dumps(ret)
 
 
+    # check merge job generation status
+    def checkMergeGenerationStatus(self,dn,jobID):
+        # check
+        ret = self.taskBuffer.checkMergeGenerationStatus(dn,jobID)
+        # serialize 
+        return pickle.dumps(ret)
+
+
     # get full job status
     def getFullJobStatus(self,idsStr,dn):
         try:
@@ -958,6 +966,21 @@ def getPandIDsWithJobID(req,jobID,nJobs,dn=None):
     _logger.debug("getPandIDsWithJobID %s JobID=%s nJobs=%s" % (dn,jobID,nJobs))
     # execute
     return userIF.getPandIDsWithJobID(dn,jobID,nJobs)
+
+
+# check merge job generation status
+def checkMergeGenerationStatus(req,jobID,dn=None):
+    # check security
+    if not Protocol.isSecure(req):
+        return False
+    # get DN
+    if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        return False
+    if dn == None:
+        dn = _getDN(req)
+    _logger.debug("checkMergeGenerationStatus %s JobID=%s" % (dn,jobID))
+    # execute
+    return userIF.checkMergeGenerationStatus(dn,jobID)
 
 
 # get slimmed file info with PandaIDs

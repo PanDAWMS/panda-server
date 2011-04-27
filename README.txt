@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added checkMergeGenerationStatus
   * enforce LFN-lookup to trigger getting replica map when reassigned
   * fixed brokerge for test jobs at test sites
   * use release matching for T2s in CERN cloud

@@ -88,7 +88,7 @@ class Closer (threading.Thread):
                     # close non-DQ2 destinationDBlock immediately
                     finalStatus = 'closed'
                 elif self.job.prodSourceLabel in ['user'] and "--mergeOutput" in self.job.jobParameters \
-                         and self.job.processingType != 'usermerge':
+                         and self.job.processingType != 'usermerge' and self.job.commandToPilot != 'tobekilled':
                     # merge output files
                     if firstIndvDS:
                         # set 'tobemerged' to only the first dataset to avoid triggering many Mergers for --individualOutDS
