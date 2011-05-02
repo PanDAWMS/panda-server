@@ -171,11 +171,13 @@ class DynDataDistributer:
                     self.putLog("PD2P # of T1 subscriptions : %s" % nT1Sub)
                     self.putLog("PD2P T1 candidates : %s" % str(allT1Candidates))
                     self.putLog("PD2P nUsed : %s" % nUsed)
-                    # make any data subscriptions to EOS
+                    # make any data subscriptions to EOS (disabled on 5/2/2011
+                    """
                     tmpItems = inputDS.split('.')
                     if allOKClouds != [] and inputDS.startswith('data') and nUsed >= 5 and \
                        not (len(tmpItems) >= 5 and tmpItems[4] in ['ESD']):
                         self.makeSubscriptionToEOS(inputDS)
+                    """    
                     # get dataset size
                     retDsSize,dsSize = self.getDatasetSize(tmpDS)
                     if not retDsSize:

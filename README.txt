@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * disabled PD2P to CERN-PROD_EOSDATADISK
   * added checkMergeGenerationStatus
   * enforce LFN-lookup to trigger getting replica map when reassigned
   * fixed brokerge for test jobs at test sites
