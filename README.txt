@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * updated PD2P not to check provenance since group datasets have mc*/data* 
   * disabled PD2P to CERN-PROD_EOSDATADISK
   * added checkMergeGenerationStatus
   * enforce LFN-lookup to trigger getting replica map when reassigned

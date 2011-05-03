@@ -85,9 +85,9 @@ class DynDataDistributer:
                                 inputDatasets.append(tmpFile.dataset)
             # loop over all input datasets
             for inputDS in inputDatasets:
-                # only mc/data/group datasets
+                # only mc/data datasets
                 moveFlag = False
-                for projectName in ['mc','data','gr']:
+                for projectName in ['mc','data']:
                     if inputDS.startswith(projectName):
                         moveFlag = True
                 if not moveFlag:
@@ -348,10 +348,6 @@ class DynDataDistributer:
                     continue
                 if tmpMetadata['hidden'] in [True,'True']:
                     self.putLog("%s is hidden" % tmpDS)
-                    continue
-                if tmpDS.startswith('gr') and tmpMetadata['provenance'] != 'GP':
-                    self.putLog("group dataset %s is excluded since provenance='%s' != GP" % \
-                                (tmpDS,tmpMetadata['provenance']))
                     continue
                 # check T1 has a replica
                 t1HasReplica = False
