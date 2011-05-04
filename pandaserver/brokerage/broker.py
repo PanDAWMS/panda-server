@@ -155,10 +155,42 @@ def _isTooManyInput(nFilesPerJob,inputSizePerJob):
     return False
 
 
+# send analysis brokerage info
+def sendAnalyBrokeageInfo(results,prevRelease,diskThreshold,chosenSite):
+    # send log messages
+    messageList = []
+    for resultType,resultList in results.iteritems():
+        for resultItem in resultList:
+            if resultType == 'rel':
+                msgBody = 'skip %s - %s is missing' % (resultItem,prevRelease)
+            elif resultType == 'pilot':
+                msgBody = 'skip %s - no pilots for last 3 hours' % resultItem
+            elif resultType == 'disk':
+                msgBody = 'skip %s - disk shortage < %sGB' % (resultItem,diskThreshold)
+            elif resultType == 'status':
+                msgBody = 'skip %s - not online' % resultItem 
+            elif resultType == 'weight':
+                tmpSite,tmpWeight = resultItem
+                if tmpSite == chosenSite:
+                    msgBody = 'choose %s - max weight %s' % (tmpSite,tmpWeight)
+                else:
+                    msgBody = 'skip %s - weight %s' % (tmpSite,tmpWeight)
+            else:
+                continue
+            messageList.append(msgBody)
+    # return
+    return messageList
+
+
+# send analysis brokerage info to logger
+def sendMsgToLogger(message):
+    _log.debug(message)
+    
+
 # schedule
 def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],trustIS=False,
              distinguishedName=None,specialWeight={},getWeight=False,sizeMapForCheck={},
-             datasetSize=0,replicaMap={},pd2pT1=False):
+             datasetSize=0,replicaMap={},pd2pT1=False,reportLog=False):
     _log.debug('start %s %s %s %s' % (forAnalysis,str(setScanSiteList),trustIS,distinguishedName))
     if specialWeight != {}:
         _log.debug('PD2P weight : %s' % str(specialWeight))
@@ -212,7 +244,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
         jobs.sort(_compFunc)
         # brokerage for analysis 
         candidateForAnal = True
-        resultsForAnal   = {'rel':[],'pilot':[],'disk':[],'status':[]}
+        resultsForAnal   = {'rel':[],'pilot':[],'disk':[],'status':[],'weight':[]}
         relCloudMap      = {}
         loggerMessages   = []
         # loop over all jobs + terminator(None)
@@ -642,6 +674,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                         _log.debug('   special weight for %s : nInputs/Job=%s inputSize/Job=%s weight=%s' % 
                                                    (site,nFilesPerJob,inputSizePerJob,cloudT1Weight))
                             _log.debug('Site:%s 1/Weight:%s' % (site,winv))
+                            if forAnalysis and trustIS and reportLog:
+                                resultsForAnal['weight'].append((site,'%s*%f/%s' % (nPilots,nJobsPerNode,nAssJobs+nActJobs)))
                             # choose largest nMinSites weights
                             minSites[site] = winv
                             if len(minSites) > nMinSites:
@@ -734,6 +768,10 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             tmpJob.computingSite = resultsForAnalStr
                         else:
                             tmpJob.computingSite = chosenCE.sitename
+                        # send log
+                        if forAnalysis and trustIS and reportLog:
+                            # put logging info to ErrorDiag just to give it back to the caller
+                            tmpJob.brokerageErrorDiag = sendAnalyBrokeageInfo(resultsForAnal,prevRelease,diskThreshold,tmpJob.computingSite)
                         _log.debug('PandaID:%s -> site:%s' % (tmpJob.PandaID,tmpJob.computingSite))
                         if tmpJob.computingElement == 'NULL':
                             if tmpJob.prodSourceLabel == 'ddm':

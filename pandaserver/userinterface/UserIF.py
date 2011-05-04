@@ -70,6 +70,40 @@ class UserIF:
         return pickle.dumps(ret)
 
 
+    # logger interface
+    def sendLogInfo(self,user,msgType,msgListStr):
+        try:
+            # deserialize message
+            msgList = pickle.loads(msgListStr)
+            # short user name
+            cUID = self.taskBuffer.cleanUserID(user)
+            # logging
+            iMsg = 0
+            for msgBody in msgList:
+                # make message
+                message = '%s %s' % (cUID,msgBody)
+                # send message to logger
+                if msgType in ['analy_brokerage']:
+                    brokerage.broker.sendMsgToLogger(message)
+                # get logger
+                _pandaLogger = PandaLogger()            
+                _pandaLogger.lock()
+                _pandaLogger.setParams({'Type':msgType})
+                logger = _pandaLogger.getHttpLogger(panda_config.loggername)
+                # add message
+                logger.info(message)
+                # release HTTP handler
+                _pandaLogger.release()
+                # sleep
+                iMsg += 1
+                if iMsg % 5 == 0:
+                    time.sleep(1)
+        except:
+            pass
+        # return
+        return True
+
+
     # run task assignment
     def runTaskAssignment(self,jobsStr):
         try:
@@ -432,8 +466,12 @@ class UserIF:
 
 
     # run brokerage
-    def runBrokerage(self,sitesStr,cmtConfig,atlasRelease,trustIS=False,processingType=None,dn=None):
-        ret = 'NULL'
+    def runBrokerage(self,sitesStr,cmtConfig,atlasRelease,trustIS=False,processingType=None,
+                     dn=None,loggingFlag=False):
+        if not loggingFlag:
+            ret = 'NULL'
+        else:
+            ret = {'site':'NULL','logInfo':[]}
         try:
             # deserialize sites
             sites = pickle.loads(sitesStr)
@@ -446,9 +484,13 @@ class UserIF:
             if processingType != None:
                 job.processingType = processingType
             # run brokerage
-            brokerage.broker.schedule([job],self.taskBuffer,siteMapper,True,sites,trustIS,dn)
+            brokerage.broker.schedule([job],self.taskBuffer,siteMapper,True,sites,trustIS,dn,
+                                      reportLog=loggingFlag)
             # get computingSite
-            ret = job.computingSite
+            if not loggingFlag:
+                ret = job.computingSite
+            else:
+                ret = pickle.dumps({'site':job.computingSite,'logInfo':job.brokerageErrorDiag})
         except:
             type, value, traceBack = sys.exc_info()
             _logger.error("runBrokerage : %s %s" % (type,value))
@@ -853,13 +895,19 @@ def getPandaClientVer(req):
     return userIF.getPandaClientVer()
 
 # run brokerage
-def runBrokerage(req,sites,cmtConfig=None,atlasRelease=None,trustIS=False,processingType=None):
+def runBrokerage(req,sites,cmtConfig=None,atlasRelease=None,trustIS=False,processingType=None,
+                 loggingFlag=False):
     if trustIS=='True':
         trustIS = True
     else:
         trustIS = False
+    if loggingFlag=='True':
+        loggingFlag = True
+    else:
+        loggingFlag = False
     dn = _getDN(req)
-    return userIF.runBrokerage(sites,cmtConfig,atlasRelease,trustIS,processingType,dn)
+    return userIF.runBrokerage(sites,cmtConfig,atlasRelease,trustIS,processingType,dn,
+                               loggingFlag)
 
 # run rebrokerage
 def runReBrokerage(req,jobID,libDS='',cloud=None,excludedSite=None,forceOpt=None):
@@ -882,6 +930,19 @@ def runReBrokerage(req,jobID,libDS='',cloud=None,excludedSite=None,forceOpt=None
         forceOpt = False
     return userIF.runReBrokerage(dn,jobID,cloud,excludedSite,forceOpt)
 
+
+# logger interface
+def sendLogInfo(req,msgType,msgList):
+    # check SSL
+    if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        return "ERROR: SSL connection is required"
+    # get DN
+    dn = _getDN(req)
+    if dn == '':
+        return "ERROR: could not get DN"
+    return userIF.sendLogInfo(dn,msgType,msgList)
+
+
 # get serial number for group job
 def getSerialNumberForGroupJob(req):
     # check SSL
@@ -892,6 +953,7 @@ def getSerialNumberForGroupJob(req):
     if dn == '':
         return "ERROR: could not get DN"
     return userIF.getSerialNumberForGroupJob(dn)
+
 
 # register proxy key
 def registerProxyKey(req,credname,origin,myproxy):

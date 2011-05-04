@@ -1174,6 +1174,18 @@ class TaskBuffer:
         return retList
 
 
+    # extract name from DN
+    def cleanUserID(self,id):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get 
+        ret = proxy.cleanUserID(id)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
     # get destinationDBlockToken for a dataset
     def getDestTokens(self,dsname):
         # get DBproxy
