@@ -234,6 +234,7 @@ class DynDataDistributer:
                             continue
                         # check the number of subscriptions
                         maxNumSubInAllCloud = max(0,maxSitesHaveDS-len(allCompPd2pSites))
+                        maxNumSubInAllCloud = min(2,maxNumSubInAllCloud)
                         self.putLog("PD2P maxNumSubInAllCloud : %s" % maxNumSubInAllCloud)
                         if totalUserSub >= maxNumSubInAllCloud:
                             self.putLog("skip since enough subscriptions (%s>=%s) were already made for T2 PD2P" % \

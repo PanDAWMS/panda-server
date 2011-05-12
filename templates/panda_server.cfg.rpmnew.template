@@ -89,7 +89,7 @@ home_dir_cwd = /home/atlpan
 #
 
 # host
-dbhost = ATLAS_PANDA
+dbhost = ADCR_PANDA
 
 # user
 dbuser = ATLAS_PANDA_WRITER
@@ -211,3 +211,19 @@ memcached_srvs = voatlas19.cern.ch:11211,voatlas20.cern.ch:11211,voatlas21.cern.
 
 # expiration time in memcached
 memcached_exptime = 86400
+
+
+
+##########################
+#
+# nRunning parameters
+#
+
+# interval
+nrun_interval = 5
+
+# the number of hosts
+nrun_hosts = 3
+
+# serial number
+nrun_snum = FIXME

@@ -5620,6 +5620,163 @@ class DBProxy:
             return {}
 
 
+    # insert nRunning in site data
+    def insertnRunningInSiteData(self):
+        comment = ' /* DBProxy.insertnRunningInSiteData */'                            
+        _logger.debug("insertnRunningInSiteData start")
+        sqlDel =  "DELETE FROM ATLAS_PANDAMETA.SiteData WHERE FLAG IN (:FLAG1,:FLAG2) AND LASTMOD<CURRENT_DATE-1"
+        sqlRun =  "SELECT COUNT(*),computingSite FROM ATLAS_PANDA.jobsActive4 "
+        sqlRun += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
+        sqlRun += "AND jobStatus=:jobStatus GROUP BY computingSite"
+        sqlCh  =  "SELECT COUNT(*) FROM ATLAS_PANDAMETA.SiteData WHERE FLAG=:FLAG AND HOURS=:HOURS AND SITE=:SITE"
+        sqlIn  =  "INSERT INTO ATLAS_PANDAMETA.SiteData (SITE,FLAG,HOURS,GETJOB,UPDATEJOB,LASTMOD,"
+        sqlIn  += "NSTART,FINISHED,FAILED,DEFINED,ASSIGNED,WAITING,ACTIVATED,HOLDING,RUNNING,TRANSFERRING) "
+        sqlIn  += "VALUES (:SITE,:FLAG,:HOURS,0,0,CURRENT_DATE,"
+        sqlIn  += "0,0,0,0,0,0,0,0,:RUNNING,0)"
+        sqlUp  =  "UPDATE ATLAS_PANDAMETA.SiteData SET RUNNING=:RUNNING,LASTMOD=CURRENT_DATE "
+        sqlUp  += "WHERE FLAG=:FLAG AND HOURS=:HOURS AND SITE=:SITE"
+        sqlMax =  "SELECT SITE,MAX(RUNNING) FROM ATLAS_PANDAMETA.SiteData "
+        sqlMax += "WHERE FLAG=:FLAG GROUP BY SITE"
+        try:
+            # use offset(1000)+minites for :HOURS
+            timeNow = datetime.datetime.utcnow()
+            nHours = 1000 + timeNow.hour*24 + timeNow.minute
+            # delete old records
+            varMap = {}
+            varMap[':FLAG1'] = 'max'
+            varMap[':FLAG2'] = 'snapshot'            
+            self.conn.begin()
+            self.cur.execute(sqlDel+comment,varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # get nRunning
+            varMap = {}
+            varMap[':jobStatus'] = 'running' 
+            varMap[':prodSourceLabel1'] = 'user'
+            varMap[':prodSourceLabel2'] = 'panda'
+            self.conn.begin()
+            self.cur.arraysize = 10000
+            self.cur.execute(sqlRun+comment,varMap)
+            res = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # loop over all sites 
+            for nRunning,computingSite in res:
+                # only ANALY_ sites
+                if not computingSite.startswith('ANALY_'):
+                    continue
+                # check if the row is already there
+                varMap = {}
+                varMap[':FLAG']  = 'snapshot'
+                varMap[':SITE']  = computingSite
+                varMap[':HOURS'] = nHours
+                # start transaction
+                self.conn.begin()
+                self.cur.arraysize = 10
+                self.cur.execute(sqlCh+comment,varMap)
+                res = self.cur.fetchone()
+                # row exists or not
+                if res[0] == 0:
+                    sql = sqlIn
+                else:
+                    sql = sqlUp
+                # set current nRunning
+                varMap = {}
+                varMap[':FLAG']    = 'snapshot'
+                varMap[':SITE']    = computingSite
+                varMap[':HOURS']   = nHours
+                varMap[':RUNNING'] = nRunning
+                # insert or update
+                self.cur.execute(sql+comment,varMap)
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+            # get max nRunning
+            varMap = {}
+            varMap[':FLAG']  = 'snapshot'
+            self.conn.begin()
+            self.cur.arraysize = 10000
+            self.cur.execute(sqlMax+comment,varMap)
+            res = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # loop over all sites 
+            for computingSite,maxnRunning in res:
+                # start transaction
+                self.conn.begin()
+                # check if the row is already there
+                varMap = {}
+                varMap[':FLAG']  = 'max'
+                varMap[':SITE']  = computingSite
+                varMap[':HOURS'] = 0
+                self.cur.arraysize = 10
+                self.cur.execute(sqlCh+comment,varMap)
+                res = self.cur.fetchone()
+                # row exists or not
+                if res[0] == 0:
+                    sql = sqlIn
+                else:
+                    sql = sqlUp
+                # set max nRunning
+                varMap = {}
+                varMap[':FLAG']  = 'max'
+                varMap[':SITE']  = computingSite
+                varMap[':HOURS'] = 0                
+                varMap[':RUNNING'] = maxnRunning
+                self.cur.execute(sql+comment,varMap)
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+            _logger.debug("insertnRunningInSiteData done")
+            return True
+        except:
+            # roll back
+            self._rollback()
+            type, value, traceBack = sys.exc_info()
+            _logger.error("insertnRunningInSiteData : %s %s" % (type,value))
+            return False
+
+
+    # get nRunning in site data
+    def getnRunningInSiteData(self):
+        comment = ' /* DBProxy.getnRunningInSiteData */'                            
+        _logger.debug("getnRunningInSiteData start")
+        sqlMax =  "SELECT SITE,RUNNING FROM ATLAS_PANDAMETA.SiteData WHERE HOURS=:HOURS AND FLAG=:FLAG"
+        try:
+            # get nRunning
+            varMap = {}
+            varMap[':FLAG']  = 'max'
+            varMap[':HOURS'] = 0                
+            # start transaction
+            self.conn.begin()
+            self.cur.arraysize = 10000
+            # get
+            self.cur.execute(sqlMax+comment,varMap)
+            self.cur.execute(sqlMax+comment,varMap)
+            res = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # loop over all sites
+            retMap = {}
+            for computingSite,maxnRunning in res:
+                retMap[computingSite] = maxnRunning
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            _logger.debug("getnRunningInSiteData done")
+            return retMap
+        except:
+            # roll back
+            self._rollback()
+            type, value, traceBack = sys.exc_info()
+            _logger.error("getnRunningInSiteData : %s %s" % (type,value))
+            return {}
+
+
     # get list of site
     def getSiteList(self):
         _logger.debug("getSiteList start")

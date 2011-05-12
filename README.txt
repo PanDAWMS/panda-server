@@ -1,6 +1,9 @@
 Release Note
 
 * current
+  * increased # of active subscriptions to 2 in PD2P
+  * added nRunning calculator to add.py
+  * disabled priority reduction for merge jods
   * sending analysis brokerage info to logger
   * updated PD2P not to check provenance since group datasets have mc*/data* 
   * disabled PD2P to CERN-PROD_EOSDATADISK

@@ -1419,6 +1419,30 @@ class TaskBuffer:
         return ret
 
 
+    # insert nRunning in site data
+    def insertnRunningInSiteData(self):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get serial number
+        ret = proxy.insertnRunningInSiteData()
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # get nRunning in site data
+    def getnRunningInSiteData(self):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get serial number
+        ret = proxy.getnRunningInSiteData()
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
     # get site list
     def getSiteList(self):
         # get DBproxy

@@ -25,6 +25,9 @@ _logger.debug("===================== start =====================")
 # overall timeout value
 overallTimeout = 60
 
+# current minute
+currentMinute = datetime.datetime.utcnow().minute
+
 # kill old process
 try:
     # time limit
@@ -158,6 +161,17 @@ try:
 except:
     errType,errValue = sys.exc_info()[:2]
     _logger.error("updateJob/getJob : %s %s" % (errType,errValue))
+
+
+# nRunning
+try:
+    _logger.debug("nRunning session")
+    if (currentMinute % panda_config.nrun_interval) % panda_config.nrun_hosts == panda_config.nrun_snum:
+        retNR = taskBuffer.insertnRunningInSiteData()
+        _logger.debug(retNR)
+except:
+    errType,errValue = sys.exc_info()[:2]
+    _logger.error("nRunning : %s %s" % (errType,errValue))
 
 
 # mail sender
