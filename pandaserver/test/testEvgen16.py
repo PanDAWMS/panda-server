@@ -17,8 +17,8 @@ for i in range(1):
     job = JobSpec()
     job.jobDefinitionID   = int(time.time()) % 10000
     job.jobName           = "%s_%d" % (commands.getoutput('uuidgen'),i)
-    job.AtlasRelease      = 'Atlas-16.2.1'
-    job.homepackage       = 'AtlasProduction/16.2.1.2'
+    job.AtlasRelease      = 'Atlas-16.6.2'
+    job.homepackage       = 'AtlasProduction/16.6.2.1'
     job.transformation    = 'Evgen_trf.py'
     job.destinationDBlock = datasetName
     job.destinationSE     = destName
