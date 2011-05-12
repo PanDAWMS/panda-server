@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed analysis brokerage to use nRunning(max in last 24h)
   * increased # of active subscriptions to 2 in PD2P
   * added nRunning calculator to add.py
   * disabled priority reduction for merge jods

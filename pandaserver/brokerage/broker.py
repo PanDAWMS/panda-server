@@ -240,6 +240,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             jobStatBrokerClouds = taskBuffer.getJobStatisticsBrokerage()
         else:
             jobStatBroker = taskBuffer.getJobStatisticsAnalBrokerage()
+            nRunningMap   = taskBuffer.getnRunningInSiteData()
         # sort jobs by siteID. Some jobs may already define computingSite
         jobs.sort(_compFunc)
         # brokerage for analysis 
@@ -533,10 +534,14 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     _log.error("disk check : %s %s" % (type,value))
                             _log.debug('   maxinput=%s' % tmpSiteSpec.maxinputsize)
                             # get pilot statistics
+                            nPilotsGet = 0
+                            nPilotsUpdate = 0
                             if nWNmap == {}:
                                 nWNmap = taskBuffer.getCurrentSiteData()
                             if nWNmap.has_key(site):    
                                 nPilots = nWNmap[site]['getJob'] + nWNmap[site]['updateJob']
+                                nPilotsGet = nWNmap[site]['getJob']
+                                nPilotsUpdate = nWNmap[site]['updateJob']
                             else:
                                 nPilots = 0
                             # if no pilots
@@ -548,6 +553,10 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             # if no jobs in jobsActive/jobsDefined
                             if not jobStatistics.has_key(site):
                                 jobStatistics[site] = {'assigned':0,'activated':0,'running':0}
+                            # set nRunning 
+                            if forAnalysis:
+                                if not nRunningMap.has_key(site):
+                                    nRunningMap[site] = 0
                             # check space
                             if specialWeight != {}:
                                 # for PD2P
@@ -650,9 +659,15 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     if getWeight:
                                         weightUsedByBrokerage[site] = "%.2f/%s" % (float(nPilots+1)*nJobsPerNode,specialWeight[site])
                             else:
-                                _log.debug('   %s assigned:%s activated:%s running:%s nPilots:%s nJobsPerNode:%s multiCloud:%s' %
-                                           (site,nAssJobs,nActJobs,jobStatistics[site]['running'],nPilots,nJobsPerNode,multiCloudFactor))
-                                if nPilots != 0:
+                                if not forAnalysis:
+                                    _log.debug('   %s assigned:%s activated:%s running:%s nPilots:%s nJobsPerNode:%s multiCloud:%s' %
+                                               (site,nAssJobs,nActJobs,jobStatistics[site]['running'],nPilots,nJobsPerNode,multiCloudFactor))
+                                else:
+                                    _log.debug('   %s assigned:%s activated:%s running:%s nWNsG:%s nWNsU:%s' %
+                                               (site,nAssJobs,nActJobs,nRunningMap[site],nPilotsGet,nPilotsUpdate))
+                                if forAnalysis:
+                                    winv = float(nAssJobs+nActJobs) / float(1+nRunningMap[site]) / (1.0+float(nPilotsGet)/float(1+nPilotsUpdate))
+                                elif nPilots != 0:
                                     winv = (float(nAssJobs+nActJobs)) / float(nPilots) / nJobsPerNode
                                 else:
                                     winv = (float(nAssJobs+nActJobs)) / nJobsPerNode
@@ -675,7 +690,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                                    (site,nFilesPerJob,inputSizePerJob,cloudT1Weight))
                             _log.debug('Site:%s 1/Weight:%s' % (site,winv))
                             if forAnalysis and trustIS and reportLog:
-                                resultsForAnal['weight'].append((site,'%s*%f/%s' % (nPilots,nJobsPerNode,nAssJobs+nActJobs)))
+                                resultsForAnal['weight'].append((site,'(1+%s/%s)*%s/%s' % (nPilotsGet,1+nPilotsUpdate,1+nRunningMap[site],nAssJobs+nActJobs)))
                             # choose largest nMinSites weights
                             minSites[site] = winv
                             if len(minSites) > nMinSites:
