@@ -166,7 +166,7 @@ except:
 # nRunning
 try:
     _logger.debug("nRunning session")
-    if (currentMinute % panda_config.nrun_interval) % panda_config.nrun_hosts == panda_config.nrun_snum:
+    if (currentMinute / panda_config.nrun_interval) % panda_config.nrun_hosts == panda_config.nrun_snum:
         retNR = taskBuffer.insertnRunningInSiteData()
         _logger.debug(retNR)
 except:
