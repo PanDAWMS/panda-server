@@ -5640,7 +5640,7 @@ class DBProxy:
         try:
             # use offset(1000)+minites for :HOURS
             timeNow = datetime.datetime.utcnow()
-            nHours = 1000 + timeNow.hour*24 + timeNow.minute
+            nHours = 1000 + timeNow.hour*60 + timeNow.minute
             # delete old records
             varMap = {}
             varMap[':FLAG1'] = 'max'
