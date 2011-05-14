@@ -686,6 +686,7 @@ while True:
     # escape
     if res == None or len(res) == 0:
         break
+    _logger.debug('reassignJobs for Defined -> #%s' % len(res))
     # convert to list
     jobs = []
     for id, in res:
@@ -696,8 +697,9 @@ while True:
     while iJob < len(jobs):
         _logger.debug('reassignJobs for Defined (%s)' % jobs[iJob:iJob+nJob])
         taskBuffer.reassignJobs(jobs[iJob:iJob+nJob],joinThr=True)
+        _logger.debug('reassignJobs for Defined done %s' % jobs[iJob])
         iJob += nJob
-
+        
                         
 # reassign when ratio of running/notrunning is too unbalanced
 _logger.debug("reassign Unbalanced")
