@@ -447,7 +447,7 @@ class T2Cleaner (threading.Thread):
                         # delete replica for sub
                         if re.search('_sub\d+$',name) != None and t2DDMs != []:
                             _logger.debug(('deleteDatasetReplicas',name,t2DDMs))
-                            status,out = ddm.DQ2.main('deleteDatasetReplicas',name,t2DDMs)
+                            status,out = ddm.DQ2.main('deleteDatasetReplicas',name,t2DDMs,0,False,False,False,False,False,'00:00:00')
                             if status != 0:
                                 _logger.error(out)
                                 if out.find('DQFrozenDatasetException')  == -1 and \
@@ -505,71 +505,6 @@ while True:
     t2cleanr.start()
 
 t2cleanThreadPool.join()
-
-
-_memoryCheck("rebroker")
-
-# rebrokerage
-_logger.debug("Rebrokerage start")
-try:
-    sql  = "SELECT jobDefinitionID,prodUserName,prodUserID FROM ATLAS_PANDA.jobsActive4 "
-    sql += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND jobStatus=:jobStatus "
-    sql += "AND modificationTime<:modificationTime "
-    sql += "AND jobsetID IS NOT NULL "    
-    sql += "AND processingType IN (:processingType1,:processingType2) "
-    sql += "GROUP BY jobDefinitionID,prodUserName,prodUserID " 
-    varMap = {}
-    varMap[':prodSourceLabel1'] = 'user'
-    varMap[':prodSourceLabel2'] = 'panda'
-    varMap[':modificationTime'] = datetime.datetime.utcnow() - datetime.timedelta(days=1)
-    varMap[':processingType1']  = 'pathena'
-    varMap[':processingType2']  = 'prun'
-    varMap[':jobStatus']        = 'activated'
-    # get jobs older than 1 days
-    ret,res = taskBuffer.querySQLS(sql, varMap)
-    sql  = "SELECT PandaID,modificationTime FROM %s WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
-    sql += "AND modificationTime>:modificationTime AND rownum <= 1"
-    if res != None:
-        from userinterface.ReBroker import ReBroker
-        timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
-        # loop over all user/jobID combinations
-        for jobDefinitionID,prodUserName,prodUserID in res:
-            # check if jobs with the jobID have run recently
-            varMap = {}
-            varMap[':prodUserName']     = prodUserName
-            varMap[':jobDefinitionID']  = jobDefinitionID
-            varMap[':modificationTime'] = timeLimit
-            _logger.debug(" rebro:%s:%s" % (jobDefinitionID,prodUserName))
-            hasRecentJobs = False
-            for tableName in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsArchived4']: 
-                retU,resU = taskBuffer.querySQLS(sql % tableName, varMap)
-                if resU == None:
-                    # database error
-                    raise RuntimeError,"failed to check modTime"
-                if resU != []:
-                    # found recent jobs
-                    hasRecentJobs = True
-                    _logger.debug("    -> skip %s ran recently at %s" % (resU[0][0],resU[0][1]))
-                    break
-            if hasRecentJobs:    
-                # skip since some jobs have run recently
-                continue
-            else:
-                reBroker = ReBroker(taskBuffer)
-                # try to lock
-                rebRet,rebOut = reBroker.lockJob(prodUserID,jobDefinitionID)
-                if not rebRet:
-                    # failed to lock
-                    _logger.debug("    -> failed to lock : %s" % rebOut)
-                    continue
-                else:
-                    # start
-                    _logger.debug("    -> start")
-                    reBroker.start()
-                    reBroker.join()
-except:
-    errType,errValue = sys.exc_info()[:2]
-    _logger.error("rebrokerage failed with %s:%s" % (errType,errValue))
 
 
 _memoryCheck("finisher")
@@ -719,118 +654,6 @@ for ii in range(1000):
             fThr.join()
         _logger.debug("done")
         time.sleep(random.randint(1,10))
-
-                    
-# update email DB        
-_memoryCheck("email")
-_logger.debug("Update emails")
-
-# lock file
-_lockGetMail = open(panda_config.lockfile_getMail, 'w')
-# lock email DB
-fcntl.flock(_lockGetMail.fileno(), fcntl.LOCK_EX)
-# open email DB
-pDB = shelve.open(panda_config.emailDB)
-# read
-mailMap = {}
-for name,addr in pDB.iteritems():
-    mailMap[name] = addr
-# close DB
-pDB.close()
-# release file lock
-fcntl.flock(_lockGetMail.fileno(), fcntl.LOCK_UN)
-# set email address
-for name,addr in mailMap.iteritems():
-    # remove _
-    name = re.sub('_$','',name)
-    status,res = taskBuffer.querySQLS("SELECT email FROM ATLAS_PANDAMETA.users WHERE name=:name",{':name':name})
-    # failed or not found
-    if status == -1 or len(res) == 0:
-        _logger.error("%s not found in user DB" % name)
-        continue
-    # already set
-    if not res[0][0] in ['','None',None]:
-        continue
-    # update email
-    _logger.debug("set '%s' to %s" % (name,addr))
-    status,res = taskBuffer.querySQLS("UPDATE ATLAS_PANDAMETA.users SET email=:addr WHERE name=:name",{':addr':addr,':name':name})
-
-# reassign reprocessing jobs in defined table
-_memoryCheck("repro")
-class ReassginRepro (threading.Thread):
-    def __init__(self,taskBuffer,lock,jobs):
-        threading.Thread.__init__(self)
-        self.jobs       = jobs
-        self.lock       = lock
-        self.taskBuffer = taskBuffer
-
-    def run(self):
-        self.lock.acquire()
-        try:
-            if len(self.jobs):
-                nJob = 100
-                iJob = 0
-                while iJob < len(self.jobs):
-                    # reassign jobs one by one to break dis dataset formation
-                    for job in self.jobs[iJob:iJob+nJob]:
-                        _logger.debug('reassignJobs in Pepro (%s)' % [job])
-                        self.taskBuffer.reassignJobs([job],joinThr=True)
-                    iJob += nJob
-        except:
-            pass
-        self.lock.release()
-        
-reproLock = threading.Semaphore(3)
-
-nBunch = 20
-iBunch = 0
-timeLimitMod = datetime.datetime.utcnow() - datetime.timedelta(hours=8)
-timeLimitCre = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
-firstFlag = True
-while True:
-    # lock
-    reproLock.acquire()
-    # get jobs
-    varMap = {}
-    varMap[':jobStatus'] = 'assigned'
-    varMap[':prodSourceLabel'] = 'managed'
-    varMap[':modificationTime'] = timeLimitMod
-    varMap[':creationTime'] = timeLimitCre
-    varMap[':processingType'] = 'reprocessing'
-    if firstFlag:
-        firstFlag = False
-        status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE jobStatus=:jobStatus AND prodSourceLabel=:prodSourceLabel AND modificationTime<:modificationTime AND creationTime<:creationTime AND processingType=:processingType ORDER BY PandaID",
-                                      varMap)
-        if res != None:
-            _logger.debug('total Repro for reassignJobs : %s' % len(res))
-    # get a bunch    
-    status,res = taskBuffer.querySQLS("SELECT * FROM (SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE jobStatus=:jobStatus AND prodSourceLabel=:prodSourceLabel AND modificationTime<:modificationTime AND creationTime<:creationTime AND processingType=:processingType ORDER BY PandaID) WHERE rownum<=%s" % nBunch,
-                                  varMap)
-    # escape
-    if res == None or len(res) == 0:
-        reproLock.release()
-        break
-
-    # get IDs
-    jobs=[]
-    for id, in res:
-        jobs.append(id)
-        
-    # reassign
-    _logger.debug('reassignJobs for Pepro %s' % (iBunch*nBunch))
-    # lock
-    currentTime = datetime.datetime.utcnow()
-    for jobID in jobs:
-        varMap = {}
-        varMap[':PandaID'] = jobID
-        varMap[':modificationTime'] = currentTime
-        status,res = taskBuffer.querySQLS("UPDATE ATLAS_PANDA.jobsDefined4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID",
-                                          varMap)
-    reproLock.release()
-    # run thr
-    reproThr = ReassginRepro(taskBuffer,reproLock,jobs)
-    reproThr.start()
-    iBunch += 1
 
 _memoryCheck("end")
 

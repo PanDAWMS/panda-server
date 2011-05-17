@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * updated T2 cleanup to use grace_period='00:00:00' 
+  * cleanup copyArchive
   * changed analysis brokerage to use nRunning(max in last 24h)
   * increased # of active subscriptions to 2 in PD2P
   * added nRunning calculator to add.py

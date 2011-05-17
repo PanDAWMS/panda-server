@@ -1082,31 +1082,33 @@ _memoryCheck("closing")
 
 
 # delete old datasets
+"""
 timeLimitDnS = datetime.datetime.utcnow() - datetime.timedelta(days=60)
 timeLimitTop = datetime.datetime.utcnow() - datetime.timedelta(days=90)
 nDelDS = 1000
 for dsType,dsPrefix in [('','top'),]:
-    sql = "DELETE FROM ATLAS_PANDA.Datasets "
+    sql = 'DELETE FROM ATLAS_PANDA.Datasets '
     if dsType != '':
         # dis or sub
-        sql += "WHERE type=:type AND modificationdate<:modificationdate "
-        sql += "AND REGEXP_LIKE(name,:pattern) AND rownum <= %s" % nDelDS
+        sql += 'WHERE type=:type AND modificationdate<:modificationdate '
+        sql += 'AND REGEXP_LIKE(name,:pattern) AND rownum <= %s' % nDelDS
         varMap = {}
         varMap[':modificationdate'] = timeLimitDnS
         varMap[':type'] = dsType
         varMap[':pattern'] = '_%s[[:digit:]]+$' % dsPrefix
     else:
         # top level datasets
-        sql+= "WHERE modificationdate<:modificationdate AND rownum <= %s" % nDelDS
+        sql+= 'WHERE modificationdate<:modificationdate AND rownum <= %s' % nDelDS
         varMap = {}
         varMap[':modificationdate'] = timeLimitTop
     for i in range(100):
         # del datasets
         ret,res = taskBuffer.querySQLS(sql, varMap)
-        _logger.debug("# of %s datasets deleted: %s" % (dsPrefix,res))
+        _logger.debug('# of %s datasets deleted: %s' % (dsPrefix,res))
         # no more datasets    
         if res != nDelDS:
             break
+"""            
 
 # thread pool
 class ThreadPool:
@@ -1188,6 +1190,7 @@ class CloserThr (threading.Thread):
         self.lock.release()
 
 # close datasets
+"""
 timeLimitU = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
 timeLimitL = datetime.datetime.utcnow() - datetime.timedelta(days=3)
 closeLock = threading.Semaphore(5)
@@ -1203,14 +1206,14 @@ while True:
     varMap[':modificationdateL'] = timeLimitL    
     varMap[':type']   = 'output'
     varMap[':status'] = 'tobeclosed'
-    sqlQuery = "type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= 500"    
+    sqlQuery = 'type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= 500'
     proxyS = taskBuffer.proxyPool.getProxy()
     res = proxyS.getLockDatasets(sqlQuery,varMap)
     taskBuffer.proxyPool.putProxy(proxyS)
     if res == None:
-        _logger.debug("# of datasets to be closed: %s" % res)
+        _logger.debug('# of datasets to be closed: %s' % res)
     else:
-        _logger.debug("# of datasets to be closed: %s" % len(res))
+        _logger.debug('# of datasets to be closed: %s' % len(res))
     if res==None or len(res)==0:
         closeProxyLock.release()
         closeLock.release()
@@ -1223,7 +1226,7 @@ while True:
     closerThr.start()
 
 closeThreadPool.join()
-
+"""
 
 # thread to freeze dataset
 class Freezer (threading.Thread):
@@ -1296,6 +1299,7 @@ class Freezer (threading.Thread):
         self.lock.release()
                             
 # freeze dataset
+"""
 timeLimitU = datetime.datetime.utcnow() - datetime.timedelta(days=4)
 timeLimitL = datetime.datetime.utcnow() - datetime.timedelta(days=14)
 freezeLock = threading.Semaphore(5)
@@ -1305,8 +1309,8 @@ while True:
     # lock
     freezeLock.acquire()
     # get datasets
-    sqlQuery = "type=:type AND status IN (:status1,:status2,:status3) " + \
-               "AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND REGEXP_LIKE(name,:pattern) AND rownum <= 500"
+    sqlQuery = 'type=:type AND status IN (:status1,:status2,:status3) ' + \
+               'AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND REGEXP_LIKE(name,:pattern) AND rownum <= 500'
     varMap = {}
     varMap[':modificationdateU'] = timeLimitU
     varMap[':modificationdateL'] = timeLimitL    
@@ -1320,9 +1324,9 @@ while True:
     res = proxyS.getLockDatasets(sqlQuery,varMap)
     taskBuffer.proxyPool.putProxy(proxyS)
     if res == None:
-        _logger.debug("# of datasets to be frozen: %s" % res)
+        _logger.debug('# of datasets to be frozen: %s' % res)
     else:
-        _logger.debug("# of datasets to be frozen: %s" % len(res))
+        _logger.debug('# of datasets to be frozen: %s' % len(res))
     if res==None or len(res)==0:
         freezeProxyLock.release()
         freezeLock.release()
@@ -1335,7 +1339,7 @@ while True:
     freezer.start()
 
 freezeThreadPool.join()
-
+"""
 
 # thread to delete dataset replica from T2
 class T2Cleaner (threading.Thread):
@@ -1415,6 +1419,7 @@ class T2Cleaner (threading.Thread):
         self.lock.release()
                             
 # delete dataset replica from T2
+"""
 timeLimitU = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
 timeLimitL = datetime.datetime.utcnow() - datetime.timedelta(days=3)
 t2cleanLock = threading.Semaphore(5)
@@ -1429,15 +1434,15 @@ while True:
     varMap[':modificationdateL'] = timeLimitL    
     varMap[':type']   = 'output'
     varMap[':status'] = 'cleanup'
-    sqlQuery = "type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= 500"    
+    sqlQuery = 'type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= 500'
     t2cleanProxyLock.acquire()
     proxyS = taskBuffer.proxyPool.getProxy()
     res = proxyS.getLockDatasets(sqlQuery,varMap)
     taskBuffer.proxyPool.putProxy(proxyS)
     if res == None:
-        _logger.debug("# of datasets to be deleted from T2: %s" % res)
+        _logger.debug('# of datasets to be deleted from T2: %s' % res)
     else:
-        _logger.debug("# of datasets to be deleted from T2: %s" % len(res))
+        _logger.debug('# of datasets to be deleted from T2: %s' % len(res))
     if res==None or len(res)==0:
         t2cleanProxyLock.release()
         t2cleanLock.release()
@@ -1450,7 +1455,7 @@ while True:
     t2cleanr.start()
 
 t2cleanThreadPool.join()
-
+"""
 
 
 _memoryCheck("delete XML")
@@ -1556,19 +1561,20 @@ except:
 _memoryCheck("finisher")
 
 # finish transferring jobs
+"""
 timeNow   = datetime.datetime.utcnow()
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
-sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND modificationTime<:modificationTime AND rownum<=20"
+sql = 'SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND modificationTime<:modificationTime AND rownum<=20'
 for ii in range(1000):
     varMap = {}
     varMap[':jobStatus'] = 'transferring'
     varMap[':modificationTime'] = timeLimit
     ret,res = taskBuffer.querySQLS(sql, varMap)
     if res == None:
-        _logger.debug("# of jobs to be finished : %s" % res)
+        _logger.debug('# of jobs to be finished : %s' % res)
         break
     else:
-        _logger.debug("# of jobs to be finished : %s" % len(res))
+        _logger.debug('# of jobs to be finished : %s' % len(res))
         if len(res) == 0:
             break
         # get jobs from DB
@@ -1598,7 +1604,7 @@ for ii in range(1000):
                         dq2SE.append(match.group(1))
                 except:
                     type, value, traceBack = sys.exc_info()
-                    _logger.error("Failed to get DQ2/SE for %s with %s %s" % (job.PandaID,type,value))
+                    _logger.error('Failed to get DQ2/SE for %s with %s %s' % (job.PandaID,type,value))
                     continue
             elif siteMapper.checkCloud(job.cloud):
                 # normal production jobs
@@ -1627,16 +1633,16 @@ for ii in range(1000):
                     guids.append(file.GUID)
                     nTokens += len(file.destinationDBlockToken.split(','))
             # get files in LRC
-            _logger.debug("Cloud:%s DQ2URL:%s" % (job.cloud,dq2URL))
+            _logger.debug('Cloud:%s DQ2URL:%s' % (job.cloud,dq2URL))
             okFiles = brokerage.broker_util.getFilesFromLRC(lfns,dq2URL,guids,dq2SE,getPFN=True)
             # count files
             nOkTokens = 0
             for okLFN,okPFNs in okFiles.iteritems():
                 nOkTokens += len(okPFNs)
             # check all files are ready    
-            _logger.debug(" nToken:%s nOkToken:%s" % (nTokens,nOkTokens))
+            _logger.debug(' nToken:%s nOkToken:%s' % (nTokens,nOkTokens))
             if nTokens <= nOkTokens:
-                _logger.debug("Finisher : Finish %s" % job.PandaID)
+                _logger.debug('Finisher : Finish %s' % job.PandaID)
                 for file in job.Files:
                     if file.type == 'output' or file.type == 'log':
                         file.status = 'ready'
@@ -1662,10 +1668,10 @@ for ii in range(1000):
                 if timeOutValue < 1:
                     timeOutValue  = 1
                 timeOut = timeNow - datetime.timedelta(days=timeOutValue)
-                _logger.debug("  Priority:%s Limit:%s End:%s" % (job.currentPriority,str(timeOut),str(endTime)))
+                _logger.debug('  Priority:%s Limit:%s End:%s' % (job.currentPriority,str(timeOut),str(endTime)))
                 if endTime < timeOut:
                     # timeout
-                    _logger.debug("Finisher : Kill %s" % job.PandaID)
+                    _logger.debug('Finisher : Kill %s' % job.PandaID)
                     strMiss = ''
                     for lfn in lfns:
                         if not lfn in okFiles:
@@ -1685,22 +1691,22 @@ for ii in range(1000):
                             guidMap[file.destinationDBlock].append(file.GUID)
                 else:
                     # wait
-                    _logger.debug("Finisher : Wait %s" % job.PandaID)
+                    _logger.debug('Finisher : Wait %s' % job.PandaID)
                     for lfn in lfns:
                         if not lfn in okFiles:
-                            _logger.debug("    -> %s" % lfn)
+                            _logger.debug('    -> %s' % lfn)
             upJobs.append(job)
         # update
-        _logger.debug("updating ...")
+        _logger.debug('updating ...')
         taskBuffer.updateJobs(upJobs,False)
         # run Finisher
         for job in finJobs:
             fThr = Finisher(taskBuffer,None,job)
             fThr.start()
             fThr.join()
-        _logger.debug("done")
+        _logger.debug('done')
         time.sleep(random.randint(1,10))
-
+"""
                     
 # update email DB        
 _memoryCheck("email")
