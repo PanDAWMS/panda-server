@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added priority boost for gangarobot
   * updated T2 cleanup to use grace_period='00:00:00' 
   * cleanup copyArchive
   * changed analysis brokerage to use nRunning(max in last 24h)
