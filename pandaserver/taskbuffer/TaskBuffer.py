@@ -183,6 +183,7 @@ class TaskBuffer:
                    or jobs[0].processingType.startswith('gangarobot-'):
                 serNum = 0
                 weight = 0.0
+            if jobs[0].processingType == 'gangarobot':    
                 priorityOffset = 3000                
         # get group job serial number
         groupJobSerialNum = 0
