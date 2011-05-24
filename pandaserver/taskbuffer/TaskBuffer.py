@@ -1,4 +1,5 @@
 import re
+import types
 import datetime
 import ProcessGroups
 from threading import Lock
@@ -7,6 +8,10 @@ from brokerage.SiteMapper import SiteMapper
 from dataservice.Setupper import Setupper
 from dataservice.Closer import Closer
 from dataservice.TaLauncher import TaLauncher
+
+# logger
+#from pandalogger.PandaLogger import PandaLogger
+#_logger = PandaLogger().getLogger('TaskBuffer')
 
 
 class TaskBuffer:
@@ -792,7 +797,7 @@ class TaskBuffer:
         for id in ids:
             ret,userInfo = proxy.killJob(id,user,code,prodManager,True)
             rets.append(ret)
-            if ret and userInfo['prodSourceLabel'] == 'user':
+            if ret and userInfo['prodSourceLabel'] in ['user','managed','test']:
                 jobIDKey = (userInfo['prodUserID'],userInfo['jobDefinitionID'],userInfo['jobsetID'])
                 if not pandaIDforCloserMap.has_key(jobIDKey):
                     pandaIDforCloserMap[jobIDKey] = id
@@ -826,29 +831,57 @@ class TaskBuffer:
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         jobs = []
+        oldSubMap = {}
         # keep old assignment
         keepSiteFlag = False
         if (attempt % 2) != 0:
             keepSiteFlag = True
         # reset jobs
         for id in ids:
-            # try to reset active job
-            ret = proxy.resetJob(id,keepSite=keepSiteFlag)
-            if ret != None:
-                jobs.append(ret)
-                continue
-            # try to reset waiting job
-            ret = proxy.resetJob(id,False,keepSite=keepSiteFlag)
-            if ret != None:
-                jobs.append(ret)
-                continue
-            # try to reset defined job
-            ret = proxy.resetDefinedJob(id,keepSite=keepSiteFlag)
-            if ret != None:
-                jobs.append(ret)
-                continue
+            try:
+                # try to reset active job
+                tmpRet = proxy.resetJob(id,keepSite=keepSiteFlag,getOldSubs=True)
+                if isinstance(tmpRet,types.TupleType):
+                    ret,tmpOldSubList = tmpRet
+                else:
+                    ret,tmpOldSubList = tmpRet,[]
+                if ret != None:
+                    jobs.append(ret)
+                    for tmpOldSub in tmpOldSubList:
+                        if not oldSubMap.has_key(tmpOldSub):
+                            oldSubMap[tmpOldSub] = ret
+                    continue
+                # try to reset waiting job
+                tmpRet = proxy.resetJob(id,False,keepSite=keepSiteFlag,getOldSubs=False)
+                if isinstance(tmpRet,types.TupleType):
+                    ret,tmpOldSubList = tmpRet
+                else:
+                    ret,tmpOldSubList = tmpRet,[]
+                if ret != None:
+                    jobs.append(ret)
+                    # waiting jobs don't create sub or dis
+                    continue
+                # try to reset defined job
+                tmpRet = proxy.resetDefinedJob(id,keepSite=keepSiteFlag,getOldSubs=True)
+                if isinstance(tmpRet,types.TupleType):
+                    ret,tmpOldSubList = tmpRet
+                else:
+                    ret,tmpOldSubList = tmpRet,[]
+                if ret != None:
+                    jobs.append(ret)
+                    for tmpOldSub in tmpOldSubList:
+                        if not oldSubMap.has_key(tmpOldSub):
+                            oldSubMap[tmpOldSub] = ret
+                    continue
+            except:
+                pass
         # release DB proxy
         self.proxyPool.putProxy(proxy)
+        # run Closer for old sub datasets
+        for tmpOldSub,tmpJob in oldSubMap.iteritems():
+            cThr = Closer(self,[tmpOldSub],tmpJob)
+            cThr.start()
+            cThr.join()
         # setup dataset
         if jobs != []:
             if joinThr:
@@ -992,6 +1025,19 @@ class TaskBuffer:
         retList = []
         # query PandaID
         retList = proxy.updateOutFilesReturnPandaIDs(dataset)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return retList
+
+
+    # get _dis datasets associated to _sub
+    def getAssociatedDisDatasets(self,subDsName):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        retList = []
+        # query
+        retList = proxy.getAssociatedDisDatasets(subDsName)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

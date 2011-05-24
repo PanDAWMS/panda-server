@@ -666,6 +666,13 @@ class DBProxy:
                     self.cur.execute(sqlFMod+comment,varMap)
                     self.cur.execute(sqlMMod+comment,varMap)
                     self.cur.execute(sqlPMod+comment,varMap)
+                    # increment the number of failed jobs in _dis
+                    if job.jobStatus == 'failed' and job.prodSourceLabel in ['managed','test'] and not job.dispatchDBlock in ['','NULL',None]:
+                        varMap = {}
+                        varMap[':name'] = job.dispatchDBlock
+                        sqlFailedInDis  = 'UPDATE /*+ INDEX_RS_ASC(TAB("DATASETS"."NAME")) */ ATLAS_PANDA.Datasets tab '
+                        sqlFailedInDis += 'SET currentfiles=currentfiles+1 WHERE name=:name'
+                        self.cur.execute(sqlFailedInDis+comment,varMap)
                 # delete downstream jobs
                 ddmIDs     = []
                 newJob     = None
@@ -1805,7 +1812,7 @@ class DBProxy:
         
 
     # reset job in jobsActive or jobsWaiting
-    def resetJob(self,pandaID,activeTable=True,keepSite=False):
+    def resetJob(self,pandaID,activeTable=True,keepSite=False,getOldSubs=False):
         comment = ' /* DBProxy.resetJob */'        
         _logger.debug("resetJobs : %s" % pandaID)
         # select table
@@ -1896,6 +1903,7 @@ class DBProxy:
                 job.jobParameters = clobJobP.read()
                 break
             # Files
+            oldSubList = []
             sqlFile = "SELECT %s FROM ATLAS_PANDA.filesTable4 " % FileSpec.columnNames()
             sqlFile+= "WHERE PandaID=:PandaID"
             self.cur.arraysize = 10000
@@ -1907,6 +1915,11 @@ class DBProxy:
                 # reset GUID to trigger LRC/LFC scanning
                 if file.status == 'missing':
                     file.GUID = None
+                # collect old subs
+                if job.prodSourceLabel in ['managed','test'] and file.type in ['output','log'] \
+                       and re.search('_sub\d+$',file.destinationDBlock) != None:
+                    if not file.destinationDBlock in oldSubList:
+                        oldSubList.append(file.destinationDBlock)
                 # reset status, destinationDBlock and dispatchDBlock
                 file.status         ='unknown'
                 file.dispatchDBlock = None
@@ -1921,6 +1934,8 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
+            if getOldSubs:
+                return job,oldSubList
             return job
         except:
             # roll back
@@ -1933,7 +1948,7 @@ class DBProxy:
 
 
     # reset jobs in jobsDefined
-    def resetDefinedJob(self,pandaID,keepSite=False):
+    def resetDefinedJob(self,pandaID,keepSite=False,getOldSubs=False):
         comment = ' /* DBProxy.resetDefinedJob */'                
         _logger.debug("resetDefinedJob : %s" % pandaID)
         sql1  = "UPDATE ATLAS_PANDA.jobsDefined4 SET "
@@ -1990,6 +2005,7 @@ class DBProxy:
                     job.jobParameters = clobJobP.read()
                     break
                 # Files
+                oldSubList = []
                 sqlFile = "SELECT %s FROM ATLAS_PANDA.filesTable4 " % FileSpec.columnNames()
                 sqlFile+= "WHERE PandaID=:PandaID"
                 self.cur.arraysize = 10000
@@ -1998,6 +2014,11 @@ class DBProxy:
                 for resF in resFs:
                     file = FileSpec()
                     file.pack(resF)
+                    # collect old subs
+                    if job.prodSourceLabel in ['managed','test'] and file.type in ['output','log'] \
+                           and re.search('_sub\d+$',file.destinationDBlock) != None:
+                        if not file.destinationDBlock in oldSubList:
+                            oldSubList.append(file.destinationDBlock)
                     # reset status, destinationDBlock and dispatchDBlock
                     file.status         ='unknown'
                     file.dispatchDBlock = None
@@ -2012,6 +2033,8 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
+            if getOldSubs:
+                return job,oldSubList
             return job
         except:
             # error report
@@ -4525,6 +4548,54 @@ class DBProxy:
                 type, value, traceBack = sys.exc_info()
                 _logger.error("updateOutFilesReturnPandaIDs : %s %s" % (type, value))
         return []
+
+
+    # get _dis datasets associated to _sub
+    def getAssociatedDisDatasets(self,subDsName):
+        comment = ' /* DBProxy.getAssociatedDisDatasets */'                        
+        _logger.debug("getAssociatedDisDatasets(%s)" % subDsName)
+        sqlF = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ distinct PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock"
+        sqlJ = "SELECT dispatchDBlock FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID"
+        try:
+            # start transaction
+            self.conn.begin()
+            # get PandaIDs
+            varMap = {}
+            varMap[':destinationDBlock'] = subDsName
+            self.cur.arraysize = 10000                
+            self.cur.execute(sqlF+comment,varMap)
+            resS = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # loop over all PandaIDs
+            retList = []
+            for pandaID, in resS:
+                # start transaction
+                self.conn.begin()
+                # get _dis name
+                varMap = {}
+                varMap[':PandaID'] = pandaID
+                self.cur.arraysize = 10                                
+                self.cur.execute(sqlJ+comment,varMap)
+                res = self.cur.fetchone()
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                # append
+                if res != None:
+                    disName, = res
+                    if disName != None and not disName in retList:
+                        retList.append(disName)
+            # return
+            _logger.debug("getAssociatedDisDatasets : %s" % str(retList))
+            return retList
+        except:
+            # roll back
+            self._rollback()
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("getAssociatedDisDatasets : %s : %s %s" % (subDsName,errType,errValue))
+            return []
 
 
     # set GUIDs

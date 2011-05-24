@@ -163,6 +163,73 @@ for dsType,dsPrefix in [('','top'),]:
         if res != nDelDS:
             break
 
+
+# list with lock
+class ListWithLock:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.list = []
+
+    def __contains__(self,item):
+        self.lock.acquire()
+        ret = self.list.__contains__(item)
+        self.lock.release()
+        return ret
+
+    def append(self,item):
+        appended = False
+        self.lock.acquire()
+        if not item in self.list:
+            self.list.append(item)
+            appended = True
+        self.lock.release()
+        return appended
+    
+
+# list of dis datasets to be deleted
+deletedDisList = ListWithLock()
+
+
+# set tobedeleted to dis dataset 
+def setTobeDeletedToDis(subDsName):
+    try:
+        # only production sub datasets
+        if subDsName.startswith('user') or subDsName.startswith('group') or \
+               subDsName.startswith('pandaddm_') or re.search('_sub\d+$',subDsName)==None:
+            return
+        # get _dis names with _sub
+        disNameList = taskBuffer.getAssociatedDisDatasets(subDsName)
+        _logger.debug("setTobeDeletedToDis : sub:%s has dis:%s" % (subDsName,str(disNameList)))
+        # loop over all _dis datasets
+        for tmpDisName in disNameList:
+            # try to append to locked list
+            if not deletedDisList.append(tmpDisName):
+                # another thread already took care of the _dis
+                continue
+            # get dataset
+            _logger.debug("setTobeDeletedToDis : try to get %s in DB" % tmpDisName)            
+            tmpDS = taskBuffer.queryDatasetWithMap({'name':tmpDisName})
+            if tmpDS == None:
+                _logger.error("setTobeDeletedToDis : cannot get %s in DB" % tmpDisName)
+                continue
+            # check status
+            if tmpDS.status in ['tobedeleted','deleted']:
+                _logger.debug("setTobeDeletedToDis : skip %s since status=%s" % (tmpDisName,tmpDS.status))
+                continue
+            # check the number of failed jobs associated to the _dis
+            if tmpDS.currentfiles != 0:
+                _logger.debug("setTobeDeletedToDis : skip %s since nFailed=%s" % (tmpDisName,tmpDS.currentfiles))
+                continue
+            # update dataset
+            tmpDS.status = 'tobedeleted'
+            retU = taskBuffer.updateDatasets([tmpDS],withLock=True,withCriteria="status<>:crStatus",
+                                             criteriaMap={':crStatus':'deleted'})
+            _logger.debug("setTobeDeletedToDis : set tobedeleted to %s with %s" % (tmpDisName,str(retU)))
+    except:
+        errType,errValue = sys.exc_info()[:2]
+        _logger.error("setTobeDeletedToDis : %s %s %s" % (subDsName,errType,errValue))
+            
+
 # thread pool
 class ThreadPool:
     def __init__(self):
@@ -221,6 +288,8 @@ class CloserThr (threading.Thread):
                     self.proxyLock.release()                    
                     if name.startswith('pandaddm_'):
                         continue
+                    # set tobedeleted to dis
+                    setTobeDeletedToDis(name)
                     # count # of files
                     status,out = ddm.DQ2.main('getNumberOfFiles',name)
                     _logger.debug(out)                                            
@@ -323,6 +392,8 @@ class Freezer (threading.Thread):
                             self.proxyLock.release()                            
                             if name.startswith('pandaddm_'):
                                 continue
+                            # set tobedeleted to dis
+                            setTobeDeletedToDis(name)
                             # count # of files
                             status,out = ddm.DQ2.main('getNumberOfFiles',name)
                             _logger.debug(out)                                            
@@ -415,46 +486,47 @@ class T2Cleaner (threading.Thread):
                     _logger.error(out)
                     continue
                 else:
-                    try:
-                        # convert res to map
-                        exec "tmpRepSites = %s" % out
-                    except:
-                        tmpRepSites = {}
-                        _logger.error("cannot convert to replica map")
-                        _logger.error(out)
-                        continue
-                    # check cloud
-                    cloudName = None
-                    for tmpCloudName in siteMapper.getCloudList():
-                        t1SiteName = siteMapper.getCloud(tmpCloudName)['source']
-                        t1SiteDDMs  = siteMapper.getSite(t1SiteName).setokens.values()
-                        for tmpDDM in t1SiteDDMs:
-                            if tmpRepSites.has_key(tmpDDM):
-                                cloudName = tmpCloudName
-                                break
-                    # cloud is not found
-                    if cloudName == None:        
-                        _logger.error("cannot find cloud for %s : %s" % (name,str(tmpRepSites)))
-                    elif not cloudName in ['DE','CA','ES','FR','IT','NL','UK','TW']:
-                        # FIXME : test only EGEE for now
-                        pass
-                    else:
-                        # look for T2 IDs
-                        t2DDMs = []
-                        for tmpDDM in tmpRepSites.keys():
-                            if not tmpDDM in t1SiteDDMs and tmpDDM.endswith('_PRODDISK'):
-                                t2DDMs.append(tmpDDM)
-                        # delete replica for sub
-                        if re.search('_sub\d+$',name) != None and t2DDMs != []:
-                            _logger.debug(('deleteDatasetReplicas',name,t2DDMs))
-                            status,out = ddm.DQ2.main('deleteDatasetReplicas',name,t2DDMs,0,False,False,False,False,False,'00:00:00')
-                            if status != 0:
-                                _logger.error(out)
-                                if out.find('DQFrozenDatasetException')  == -1 and \
-                                       out.find("DQUnknownDatasetException") == -1 and out.find("DQSecurityException") == -1 and \
-                                       out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1 and \
-                                       out.find("No replica found") == -1:
-                                    continue
+                    if out.find("DQUnknownDatasetException") == -1 and out.find("DQDeletedDatasetException") == -1:
+                        try:
+                            # convert res to map
+                            exec "tmpRepSites = %s" % out
+                        except:
+                            tmpRepSites = {}
+                            _logger.error("cannot convert to replica map")
+                            _logger.error(out)
+                            continue
+                        # check cloud
+                        cloudName = None
+                        for tmpCloudName in siteMapper.getCloudList():
+                            t1SiteName = siteMapper.getCloud(tmpCloudName)['source']
+                            t1SiteDDMs  = siteMapper.getSite(t1SiteName).setokens.values()
+                            for tmpDDM in t1SiteDDMs:
+                                if tmpRepSites.has_key(tmpDDM):
+                                    cloudName = tmpCloudName
+                                    break
+                        # cloud is not found
+                        if cloudName == None:        
+                            _logger.error("cannot find cloud for %s : %s" % (name,str(tmpRepSites)))
+                        elif not cloudName in ['DE','CA','ES','FR','IT','NL','UK','TW']:
+                            # FIXME : test only EGEE for now
+                            pass
+                        else:
+                            # look for T2 IDs
+                            t2DDMs = []
+                            for tmpDDM in tmpRepSites.keys():
+                                if not tmpDDM in t1SiteDDMs and tmpDDM.endswith('_PRODDISK'):
+                                    t2DDMs.append(tmpDDM)
+                            # delete replica for sub
+                            if re.search('_sub\d+$',name) != None and t2DDMs != []:
+                                _logger.debug(('deleteDatasetReplicas',name,t2DDMs))
+                                status,out = ddm.DQ2.main('deleteDatasetReplicas',name,t2DDMs,0,False,False,False,False,False,'00:00:00')
+                                if status != 0:
+                                    _logger.error(out)
+                                    if out.find('DQFrozenDatasetException')  == -1 and \
+                                           out.find("DQUnknownDatasetException") == -1 and out.find("DQSecurityException") == -1 and \
+                                           out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1 and \
+                                           out.find("No replica found") == -1:
+                                        continue
                     # update        
                     self.proxyLock.acquire()
                     varMap = {}
@@ -505,6 +577,87 @@ while True:
     t2cleanr.start()
 
 t2cleanThreadPool.join()
+
+
+# delete dis datasets
+class EraserThr (threading.Thread):
+    def __init__(self,lock,proxyLock,datasets,pool):
+        threading.Thread.__init__(self)
+        self.datasets   = datasets
+        self.lock       = lock
+        self.proxyLock  = proxyLock
+        self.pool       = pool
+        self.pool.add(self)
+                                        
+    def run(self):
+        self.lock.acquire()
+        try:
+            # loop over all datasets
+            for vuid,name,modDate in self.datasets:
+                # only dis datasets
+                if re.search('_dis\d+$',name) == None:
+                    _logger.error("Eraser : non disDS %s" % name)
+                    continue
+                # delete
+                _logger.debug("Eraser delete dis %s %s" % (modDate,name))
+                """
+                status,out = ddm.DQ2.main('eraseDataset',name)
+                if status != 0 and out.find('DQFrozenDatasetException') == -1 and \
+                       out.find("DQUnknownDatasetException") == -1 and out.find("DQSecurityException") == -1 and \
+                       out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1:
+                    _logger.error(out)
+                    continue
+                _logger.debug(out)                            
+                # update
+                self.proxyLock.acquire()
+                varMap = {}
+                varMap[':vuid'] = vuid
+                varMap[':status'] = 'deleted'
+                taskBuffer.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status=:status,modificationdate=CURRENT_DATE WHERE vuid=:vuid",
+                                     varMap)
+                self.proxyLock.release()
+                """
+        except:
+            pass
+        self.pool.remove(self)
+        self.lock.release()
+
+# delete dis datasets
+timeLimitU = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
+timeLimitL = datetime.datetime.utcnow() - datetime.timedelta(days=3)
+disEraseLock = threading.Semaphore(5)
+disEraseProxyLock = threading.Lock()
+disEraseThreadPool = ThreadPool()
+while True:
+    # lock
+    disEraseLock.acquire()
+    # get datasets
+    varMap = {}
+    varMap[':modificationdateU'] = timeLimitU
+    varMap[':modificationdateL'] = timeLimitL    
+    varMap[':type']   = 'dispatch'
+    varMap[':status'] = 'tobedeleted'
+    sqlQuery = "type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= 500"    
+    disEraseProxyLock.acquire()
+    proxyS = taskBuffer.proxyPool.getProxy()
+    res = proxyS.getLockDatasets(sqlQuery,varMap)
+    taskBuffer.proxyPool.putProxy(proxyS)
+    if res == None:
+        _logger.debug("# of dis datasets to be deleted: %s" % res)
+    else:
+        _logger.debug("# of dis datasets to be deleted: %s" % len(res))
+    if res==None or len(res)==0:
+        disEraseProxyLock.release()
+        disEraseLock.release()
+        break
+    disEraseProxyLock.release()            
+    # release
+    disEraseLock.release()
+    # run disEraser
+    disEraser = EraserThr(disEraseLock,disEraseProxyLock,res,disEraseThreadPool)
+    disEraser.start()
+
+disEraseThreadPool.join()
 
 
 _memoryCheck("finisher")

@@ -95,13 +95,37 @@ class Setupper (threading.Thread):
                     self._setupSource()
                     # create dataset for outputs and assign destination
                     if self.jobs != [] and self.jobs[0].prodSourceLabel in ['managed','test'] and self.jobs[0].cloud in ['DE']:
+                        # count the number of jobs per _dis 
+                        iBunch = 0
+                        prevDisDsName = None
+                        nJobsPerDisList = []
+                        for tmpJob in self.jobs:
+                            if prevDisDsName != None and prevDisDsName != tmpJob.dispatchDBlock:
+                                nJobsPerDisList.append(iBunch)
+                                iBunch = 0
+                            # increment
+                            iBunch += 1
+                            # set _dis name
+                            prevDisDsName = tmpJob.dispatchDBlock
+                        # remaining
+                        if iBunch != 0:
+                            nJobsPerDisList.append(iBunch)
                         # split sub datasets
-                        nBunch = 50
-                        nLoop,tmpMod = divmod(len(self.jobs),nBunch)
-                        if tmpMod != 0:
-                            nLoop += 1
-                        for iLoop in range(nLoop):
-                            self._setupDestination(startIdx=iLoop*nBunch,nJobsInLoop=nBunch)
+                        iBunch = 0
+                        nBunchMax = 50
+                        tmpIndexJob = 0
+                        for nJobsPerDis in nJobsPerDisList:
+                            # check _dis boundary so that the same _dis doesn't contribute to many _subs
+                            if iBunch+nJobsPerDis > nBunchMax:
+                                if iBunch != 0:
+                                    self._setupDestination(startIdx=tmpIndexJob,nJobsInLoop=iBunch)
+                                    tmpIndexJob += iBunch
+                                    iBunch = 0
+                            # increment        
+                            iBunch += nJobsPerDis    
+                        # remaining
+                        if iBunch != 0:
+                            self._setupDestination(startIdx=tmpIndexJob,nJobsInLoop=iBunch)                            
                     else:
                         # at a burst
                         self._setupDestination()
@@ -327,14 +351,14 @@ class Setupper (threading.Thread):
             # get VUID
             try:
                 exec "vuid = %s['vuid']" % vuidStr                
-                # dataset spec
+                # dataset spec. currentfiles is used to count the number of failed jobs
                 ds = DatasetSpec()
                 ds.vuid = vuid
                 ds.name = dispatchDBlock
                 ds.type = 'dispatch'
                 ds.status = 'defined'
                 ds.numberfiles  = len(fileList[dispatchDBlock])/2
-                ds.currentfiles = len(fileList[dispatchDBlock])/2
+                ds.currentfiles = 0
                 dispList.append(ds)
                 self.vuidMap[ds.name] = ds.vuid
             except:
@@ -1661,12 +1685,19 @@ class Setupper (threading.Thread):
             dstSEs = brokerage.broker_util.getSEfromSched(self.siteMapper.getSite(tmpJob.computingSite).se)
             if srcSEs == dstSEs:
                 continue
+            # look for log _sub dataset to be used as a key
+            logSubDsName = ''
+            for tmpFile in tmpJob.Files:
+                if tmpFile.type == 'log':
+                    logSubDsName = tmpFile.destinationDBlock
+                    break
             # append site
             destDQ2ID = self.siteMapper.getSite(tmpJob.computingSite).ddm
-            if not dsFileMap.has_key(destDQ2ID):
-                dsFileMap[destDQ2ID] = {'taskID':tmpJob.taskID,
-                                        'PandaID':tmpJob.PandaID,
-                                        'files':{}}
+            mapKey = (destDQ2ID,logSubDsName)
+            if not dsFileMap.has_key(mapKey):
+                dsFileMap[mapKey] = {'taskID':tmpJob.taskID,
+                                     'PandaID':tmpJob.PandaID,
+                                     'files':{}}
             # add files    
             for tmpFile in tmpJob.Files:
                 if tmpFile.type != 'input':
@@ -1677,14 +1708,15 @@ class Setupper (threading.Thread):
                 # ignore DBR
                 if 'DBRelease' in tmpFile.dataset:
                     continue
-                if not dsFileMap[destDQ2ID]['files'].has_key(tmpFile.lfn):
-                    dsFileMap[destDQ2ID]['files'][tmpFile.lfn] = {'lfn' :tmpFile.lfn,
-                                                                  'guid':tmpFile.GUID,
-                                                                  'fileSpecs':[]}
+                if not dsFileMap[mapKey]['files'].has_key(tmpFile.lfn):
+                    dsFileMap[mapKey]['files'][tmpFile.lfn] = {'lfn' :tmpFile.lfn,
+                                                               'guid':tmpFile.GUID,
+                                                               'fileSpecs':[]}
                 # add file spec
-                dsFileMap[destDQ2ID]['files'][tmpFile.lfn]['fileSpecs'].append(tmpFile)
+                dsFileMap[mapKey]['files'][tmpFile.lfn]['fileSpecs'].append(tmpFile)
         # loop over all locations
-        for tmpLocation,tmpVal in dsFileMap.iteritems():
+        for tmpMapKey,tmpVal in dsFileMap.iteritems():
+            tmpLocation,tmpLogSubDsName = tmpMapKey
             tmpFileList = tmpVal['files']
             if tmpFileList == {}:
                 continue
