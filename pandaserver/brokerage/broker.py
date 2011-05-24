@@ -295,7 +295,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             if job != None and job.currentPriority >= 950 and job.computingSite == 'NULL' \
                    and job.prodSourceLabel in ('test','managed') and specialBrokergageSiteList == []:
                 # FIXME : just for slc5-gcc43 validation
-                if not job.cmtConfig in ['x86_64-slc5-gcc43']:
+                if not job.cmtConfig in ['x86_64-slc5-gcc43-opt']:
                     if job.cloud != 'FR':                    
                         specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source']]
                     else:
@@ -312,7 +312,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         tmpTotalInput += 1
                 if tmpTotalInput >= manyInputsThr:
                     # FIXME : just for slc5-gcc43 validation
-                    if not job.cmtConfig in ['x86_64-slc5-gcc43']:
+                    if not job.cmtConfig in ['x86_64-slc5-gcc43-opt']:
                         if job.cloud != 'FR':
                             specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source']]
                         else:
@@ -322,7 +322,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             # manually set site
             if job != None and job.computingSite != 'NULL' and job.prodSourceLabel in ('test','managed') \
                    and specialBrokergageSiteList == []:
-                if not job.cmtConfig in ['x86_64-slc5-gcc43']:
+                # FIXME : just for slc5-gcc43 validation
+                if not job.cmtConfig in ['x86_64-slc5-gcc43-opt']:
                     specialBrokergageSiteList = [job.computingSite]
             overwriteSite = False
             # new bunch or terminator
