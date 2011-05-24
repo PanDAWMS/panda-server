@@ -221,10 +221,10 @@ def setTobeDeletedToDis(subDsName):
                 _logger.debug("setTobeDeletedToDis : skip %s since nFailed=%s" % (tmpDisName,tmpDS.currentfiles))
                 continue
             # update dataset
-            tmpDS.status = 'tobedeleted'
+            tmpDS.status = 'deleting'
             retU = taskBuffer.updateDatasets([tmpDS],withLock=True,withCriteria="status<>:crStatus",
                                              criteriaMap={':crStatus':'deleted'})
-            _logger.debug("setTobeDeletedToDis : set tobedeleted to %s with %s" % (tmpDisName,str(retU)))
+            _logger.debug("setTobeDeletedToDis : set deleting to %s with %s" % (tmpDisName,str(retU)))
     except:
         errType,errValue = sys.exc_info()[:2]
         _logger.error("setTobeDeletedToDis : %s %s %s" % (subDsName,errType,errValue))
@@ -600,7 +600,6 @@ class EraserThr (threading.Thread):
                     continue
                 # delete
                 _logger.debug("Eraser delete dis %s %s" % (modDate,name))
-                """
                 status,out = ddm.DQ2.main('eraseDataset',name)
                 if status != 0 and out.find('DQFrozenDatasetException') == -1 and \
                        out.find("DQUnknownDatasetException") == -1 and out.find("DQSecurityException") == -1 and \
@@ -616,7 +615,6 @@ class EraserThr (threading.Thread):
                 taskBuffer.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status=:status,modificationdate=CURRENT_DATE WHERE vuid=:vuid",
                                      varMap)
                 self.proxyLock.release()
-                """
         except:
             pass
         self.pool.remove(self)
@@ -636,7 +634,7 @@ while True:
     varMap[':modificationdateU'] = timeLimitU
     varMap[':modificationdateL'] = timeLimitL    
     varMap[':type']   = 'dispatch'
-    varMap[':status'] = 'tobedeleted'
+    varMap[':status'] = 'deleting'
     sqlQuery = "type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= 500"    
     disEraseProxyLock.acquire()
     proxyS = taskBuffer.proxyPool.getProxy()

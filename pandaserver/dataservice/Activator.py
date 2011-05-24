@@ -23,7 +23,7 @@ class Activator (threading.Thread):
     # main
     def run(self):
         _logger.debug("start: %s" % self.dataset.name)
-        if self.dataset.status in ['completed','tobedeleted','deleted'] and not self.enforce:
+        if self.dataset.status in ['completed','deleting','deleted'] and not self.enforce:
             _logger.debug("   skip: %s" % self.dataset.name)
         else:
             # update input files

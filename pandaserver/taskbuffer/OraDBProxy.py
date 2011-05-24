@@ -4555,7 +4555,7 @@ class DBProxy:
         comment = ' /* DBProxy.getAssociatedDisDatasets */'                        
         _logger.debug("getAssociatedDisDatasets(%s)" % subDsName)
         sqlF = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ distinct PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock"
-        sqlJ = "SELECT dispatchDBlock FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID"
+        sqlJ = "SELECT distinct dispatchDBlock FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type=:type"
         try:
             # start transaction
             self.conn.begin()
@@ -4575,16 +4575,16 @@ class DBProxy:
                 self.conn.begin()
                 # get _dis name
                 varMap = {}
+                varMap[':type'] = 'input'
                 varMap[':PandaID'] = pandaID
-                self.cur.arraysize = 10                                
+                self.cur.arraysize = 1000                                
                 self.cur.execute(sqlJ+comment,varMap)
-                res = self.cur.fetchone()
+                resD = self.cur.fetchall()                
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
                 # append
-                if res != None:
-                    disName, = res
+                for disName, in resD:
                     if disName != None and not disName in retList:
                         retList.append(disName)
             # return
