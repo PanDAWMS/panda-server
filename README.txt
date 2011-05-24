@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * disabled release check in the brokerage for x86_64-slc5-gcc43
   * implemented aggressive cleaning for PRODDISK
   * added priority boost for gangarobot
   * updated T2 cleanup to use grace_period='00:00:00' 

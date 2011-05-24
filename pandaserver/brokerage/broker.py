@@ -322,7 +322,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             # manually set site
             if job != None and job.computingSite != 'NULL' and job.prodSourceLabel in ('test','managed') \
                    and specialBrokergageSiteList == []:
-                specialBrokergageSiteList = [job.computingSite]
+                if not job.cmtConfig in ['x86_64-slc5-gcc43']:
+                    specialBrokergageSiteList = [job.computingSite]
             overwriteSite = False
             # new bunch or terminator
             if job == None or len(fileList) >= nFile \
