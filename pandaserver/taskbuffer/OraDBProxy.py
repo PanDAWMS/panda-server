@@ -667,12 +667,17 @@ class DBProxy:
                     self.cur.execute(sqlMMod+comment,varMap)
                     self.cur.execute(sqlPMod+comment,varMap)
                     # increment the number of failed jobs in _dis
-                    if job.jobStatus == 'failed' and job.prodSourceLabel in ['managed','test'] and not job.dispatchDBlock in ['','NULL',None]:
-                        varMap = {}
-                        varMap[':name'] = job.dispatchDBlock
-                        sqlFailedInDis  = 'UPDATE /*+ INDEX_RS_ASC(TAB("DATASETS"."NAME")) */ ATLAS_PANDA.Datasets tab '
-                        sqlFailedInDis += 'SET currentfiles=currentfiles+1 WHERE name=:name'
-                        self.cur.execute(sqlFailedInDis+comment,varMap)
+                    myDisList = []
+                    if job.jobStatus == 'failed' and job.prodSourceLabel in ['managed','test']:
+                        for tmpFile in job.Files:
+                            if tmpFile.type == 'input' and not tmpFile.dispatchDBlock in ['','NULL',None] \
+                                   and not tmpFile.dispatchDBlock in myDisList:
+                                varMap = {}
+                                varMap[':name'] = tmpFile.dispatchDBlock
+                                sqlFailedInDis  = 'UPDATE /*+ INDEX_RS_ASC(TAB("DATASETS"."NAME")) */ ATLAS_PANDA.Datasets tab '
+                                sqlFailedInDis += 'SET currentfiles=currentfiles+1 WHERE name=:name'
+                                self.cur.execute(sqlFailedInDis+comment,varMap)
+                                myDisList.append(tmpFile.dispatchDBlock) 
                 # delete downstream jobs
                 ddmIDs     = []
                 newJob     = None

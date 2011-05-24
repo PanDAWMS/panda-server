@@ -1715,6 +1715,7 @@ class Setupper (threading.Thread):
                 # add file spec
                 dsFileMap[mapKey]['files'][tmpFile.lfn]['fileSpecs'].append(tmpFile)
         # loop over all locations
+        dispList = []
         for tmpMapKey,tmpVal in dsFileMap.iteritems():
             tmpLocation,tmpLogSubDsName = tmpMapKey
             tmpFileList = tmpVal['files']
@@ -1766,7 +1767,23 @@ class Setupper (threading.Thread):
                 if status != 0 or out.find('Error') != -1:
                     _logger.error("%s %s" % (self.timestamp,out))                
                     continue
-                _logger.debug("%s %s" % (self.timestamp,out))                
+                _logger.debug("%s %s" % (self.timestamp,out))
+                # get VUID
+                try:
+                    exec "vuid = %s['vuid']" % out
+                    # dataset spec. currentfiles is used to count the number of failed jobs
+                    ds = DatasetSpec()
+                    ds.vuid = vuid
+                    ds.name = disDBlock
+                    ds.type = 'dispatch'
+                    ds.status = 'defined'
+                    ds.numberfiles  = len(lfns)
+                    ds.currentfiles = 0
+                    dispList.append(ds)
+                except:
+                    errType,errValue = sys.exc_info()[:2]
+                    _logger.error("ext registerNewDataset : failed to decode VUID for %s - %s %s" % (disDBlock,errType,errValue))
+                    continue
                 # freezeDataset dispatch dataset
                 _logger.debug((self.timestamp,'freezeDataset',disDBlock))
                 for iDDMTry in range(3):            
@@ -1795,6 +1812,8 @@ class Setupper (threading.Thread):
                 # failure
                 if status != 0 or out.find('Error') != -1:
                     _logger.error("%s %s" % (self.timestamp,out))                                    
-                    continue 
+                    continue
+        # insert datasets to DB
+        self.taskBuffer.insertDatasets(dispList)
         _logger.debug('%s finished to make dis datasets for existing files' % self.timestamp)
         return

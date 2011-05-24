@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * fixed archiveJob for failed jobs with multiple dis
+  * fixed Setupper to store GEN dis
   * disabled release check in the brokerage for x86_64-slc5-gcc43
   * implemented aggressive cleaning for PRODDISK
   * added priority boost for gangarobot
