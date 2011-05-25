@@ -59,7 +59,7 @@ class TaskBuffer:
         userVO         = 'atlas'
         userCountry    = None
         nExpressJobs   = 0
-        if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda','ptest','rc_test']) \
+        if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda','ptest','rc_test','ssc']) \
                and (not jobs[0].processingType in ['merge','unmerge']):
             # get DB proxy
             proxy = self.proxyPool.getProxy()

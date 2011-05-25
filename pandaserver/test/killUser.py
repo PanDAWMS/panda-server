@@ -11,6 +11,8 @@ optP = optparse.OptionParser(conflict_handler="resolve")
 optP.add_option('--user', action='store',dest='user', default=None,help='prodUserName')
 optP.add_option('--jobID',action='store',dest='jobID',default=None,help='jobDefinitionID')
 optP.add_option('--jobsetID',action='store',dest='jobsetID',default=None,help="jobsetID, or 'all' to kill all jobs")
+optP.add_option('--prodSourceLabel',action='store',dest='prodSourceLabel',default=None,help='additional prodSourceLabel')
+
 
 options,args = optP.parse_args()
 
@@ -32,21 +34,25 @@ varMap = {}
 varMap[':src1'] = 'user'
 varMap[':src2'] = 'panda'
 varMap[':prodUserName'] = options.user
+srcSQL = '(:src1,:src2'
 if options.jobID != None:
     varMap[':jobDefinitionID'] = options.jobID
 if not options.jobsetID in (None,'all'):
     varMap[':jobsetID'] = options.jobsetID
-
+if options.prodSourceLabel != None:
+    varMap[':src3'] = options.prodSourceLabel
+    srcSQL += ',:src3'
+srcSQL += ')'
 
 jobs = []
 tables = ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4','ATLAS_PANDA.jobsDefined4']
 for table in tables:
-    sql = "SELECT PandaID FROM %s WHERE prodUserName=:prodUserName AND prodSourceLabel IN (:src1,:src2) " % table
+    sql = "SELECT PandaID FROM %s WHERE prodUserName=:prodUserName AND prodSourceLabel IN %s " % (table,srcSQL)
     if options.jobID != None:
         sql += "AND jobDefinitionID=:jobDefinitionID "
     if not options.jobsetID in (None,'all'):
         sql += "AND jobsetID=:jobsetID "
-    sql += "ORDER BY PandaID "    
+    sql += "ORDER BY PandaID "
     status,res = proxyS.querySQLS(sql,varMap)
     if res != None:
         for id, in res:
@@ -55,4 +61,6 @@ for table in tables:
 if len(jobs):
     print "kill %s" % jobs
     Client.killJobs(jobs,code=9)
+else:
+    print "no job was killed" 
 

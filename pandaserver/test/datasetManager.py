@@ -303,7 +303,7 @@ class CloserThr (threading.Thread):
                                 # erase dataset
                                 _logger.debug('erase %s' % name)
                                 status,out = ddm.DQ2.main('eraseDataset',name)
-                                _logger.debug(out)                            
+                                _logger.debug('OK with %s' % name)
                         except:
                             pass
         except:
@@ -407,7 +407,7 @@ class Freezer (threading.Thread):
                                         # erase dataset
                                         _logger.debug('erase %s' % name)                                
                                         status,out = ddm.DQ2.main('eraseDataset',name)
-                                        _logger.debug(out)                                                                
+                                        _logger.debug('OK with %s' % name)
                                 except:
                                     pass
                     else:
@@ -606,7 +606,7 @@ class EraserThr (threading.Thread):
                        out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1:
                     _logger.error(out)
                     continue
-                _logger.debug(out)                            
+                _logger.debug('OK with %s' % name)
                 # update
                 self.proxyLock.acquire()
                 varMap = {}

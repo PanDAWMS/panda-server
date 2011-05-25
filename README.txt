@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * added prodSourceLabel=ssc as user's label
+  * added --prodSourceLabel to killUser
   * fixed archiveJob for failed jobs with multiple dis
   * fixed Setupper to store GEN dis
   * disabled release check in the brokerage for x86_64-slc5-gcc43
