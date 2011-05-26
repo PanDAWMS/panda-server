@@ -45,7 +45,7 @@ from userinterface.UserIF        import submitJobs,getJobStatus,queryPandaIDs,ki
      getPandaClientVer,getSlimmedFileInfoPandaIDs,runReBrokerage,deleteFilesFromCacheDB,\
      addFilesToCacheDB,flushCacheDB,checkFilesWithCacheDB,getQueuedAnalJobs,getHighestPrioJobStat,\
      getActiveDatasets,setCloudTaskByUser,getSerialNumberForGroupJob,getCachePrefixes,\
-     checkMergeGenerationStatus,sendLogInfo
+     checkMergeGenerationStatus,sendLogInfo,getNumPilots
 
 
 # FastCGI/WSGI entry

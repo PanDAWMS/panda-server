@@ -465,6 +465,24 @@ class UserIF:
         return pickle.dumps(ret)
 
 
+    # get nPilots
+    def getNumPilots(self):
+        # get nPilots
+        ret = self.taskBuffer.getCurrentSiteData()
+        numMap = {}
+        for siteID,siteNumMap in ret.iteritems():
+            nPilots = 0
+            # nPilots = getJob+updateJob
+            if siteNumMap.has_key('getJob'):
+                nPilots += siteNumMap['getJob']
+            if siteNumMap.has_key('updateJob'):
+                nPilots += siteNumMap['updateJob']
+            # append
+            numMap[siteID] = {'nPilots':nPilots}
+        # serialize
+        return pickle.dumps(numMap)
+
+
     # run brokerage
     def runBrokerage(self,sitesStr,cmtConfig,atlasRelease,trustIS=False,processingType=None,
                      dn=None,loggingFlag=False):
@@ -893,6 +911,10 @@ def getCachePrefixes(req):
 # get client version
 def getPandaClientVer(req):
     return userIF.getPandaClientVer()
+    
+# get nPilots
+def getNumPilots(req):
+    return userIF.getNumPilots()
 
 # run brokerage
 def runBrokerage(req,sites,cmtConfig=None,atlasRelease=None,trustIS=False,processingType=None,

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added getNumPilots
   * added prodSourceLabel=ssc as user's label
   * added --prodSourceLabel to killUser
   * fixed archiveJob for failed jobs with multiple dis

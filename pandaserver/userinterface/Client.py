@@ -726,6 +726,22 @@ def getCloudSpecs():
         return EC_Failed,output+'\n'+errStr
 
 
+# get nPilots
+def getNumPilots():
+    # instantiate curl
+    curl = _Curl()
+    # execute
+    url = baseURL + '/getNumPilots'
+    status,output = curl.get(url,{})
+    try:
+        return status,pickle.loads(output)
+    except:
+        type, value, traceBack = sys.exc_info()
+        errStr = "ERROR getNumPilots : %s %s" % (type,value)
+        print errStr
+        return EC_Failed,output+'\n'+errStr
+
+
 # run brokerage
 def runBrokerage(sites,atlasRelease,cmtConfig=None):
     # serialize
