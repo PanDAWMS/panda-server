@@ -46,12 +46,13 @@ g_filesInDsMap = {}
 class DynDataDistributer:
 
     # constructor
-    def __init__(self,jobs,taskBuffer,siteMapper):
+    def __init__(self,jobs,taskBuffer,siteMapper,simul=False):
         self.jobs = jobs
         self.taskBuffer = taskBuffer
         self.siteMapper = siteMapper
         self.token = datetime.datetime.utcnow().isoformat(' ')
         self.pd2pClouds = []
+        self.simul = simul
 
 
     # main
@@ -191,17 +192,18 @@ class DynDataDistributer:
                     else:
                         self.putLog("PD2P nWaitingJobs    : %s = %s(all)" % \
                                     (nWaitingJobsAll,nWaitingJobsAll))
-                    # extract integer part. log10(nUsed) and log10(nUsed)+1 are used to avoid round-off error
-                    intLog10nUsed = int(math.log10(nUsed))
                     useSmallT1 = None
                     # make T1-T1
-                    if nUsed > 0 and int(math.log10(nUsed)) > totalSecReplicas and \
-                           (nUsed == 10**intLog10nUsed or nUsed == 10**(intLog10nUsed+1)) and \
-                           nT1Sub == 0 and allT1Candidates != []:
-                        self.putLog("making T1-T1",sendLog=True)
-                        # make subscription
-                        retT1Sub,useSmallT1 = self.makeT1Subscription(allT1Candidates,tmpDS,dsSize)
-                        self.putLog("done for T1-T1")                        
+                    if nUsed > 0:
+                        # extract integer part. log10(nUsed) and log10(nUsed)+1 are used to avoid round-off error
+                        intLog10nUsed = int(math.log10(nUsed))
+                        if self.simul or (int(math.log10(nUsed)) > totalSecReplicas and \
+                                          (nUsed == 10**intLog10nUsed or nUsed == 10**(intLog10nUsed+1)) and \
+                                          nT1Sub == 0 and allT1Candidates != []):
+                            self.putLog("making T1-T1",sendLog=True)
+                            # make subscription
+                            retT1Sub,useSmallT1 = self.makeT1Subscription(allT1Candidates,tmpDS,dsSize)
+                            self.putLog("done for T1-T1")                        
                     # make a copy if small cloud is used
                     if useSmallT1 != None:
                         # change candidates
@@ -264,12 +266,13 @@ class DynDataDistributer:
                         self.putLog("weight %s %s" % (tmpWeightSite,tmpWeightStr),sendLog=True)
                     self.putLog("site -> %s" % tmpJob.computingSite)
                     # make subscription
-                    subRet,dq2ID = self.makeSubscription(tmpDS,tmpJob.computingSite)
-                    self.putLog("made subscription to %s:%s" % (tmpJob.computingSite,dq2ID),sendLog=True)
-                    usedSites.append(tmpJob.computingSite)
-                    # update database
-                    if subRet:
-                        self.taskBuffer.addUserSubscription(tmpDS,[dq2ID])
+                    if not self.simul:
+                        subRet,dq2ID = self.makeSubscription(tmpDS,tmpJob.computingSite)
+                        self.putLog("made subscription to %s:%s" % (tmpJob.computingSite,dq2ID),sendLog=True)
+                        usedSites.append(tmpJob.computingSite)
+                        # update database
+                        if subRet:
+                            self.taskBuffer.addUserSubscription(tmpDS,[dq2ID])
             self.putLog("end for %s" % self.jobs[0].PandaID)
         except:
             errType,errValue = sys.exc_info()[:2]
@@ -1243,12 +1246,17 @@ class DynDataDistributer:
         tmpJob = JobSpec()
         tmpJob.AtlasRelease = ''
         self.putLog("run brokerage for T1-T1 for %s" % tmpDS)
-        usedWeight = brokerage.broker.schedule([tmpJob],self.taskBuffer,self.siteMapper,True,t1Candidates,
-                                               True,specialWeight=t1Weights,getWeight=True,
-                                               sizeMapForCheck=freeSizeMap,datasetSize=dsSize,
-                                               pd2pT1=True)
-        self.putLog("site for T1-T1 -> %s" % tmpJob.computingSite)
+        selectedSite = self.chooseSite(t1Weights,freeSizeMap,dsSize)
+        self.putLog("site for T1-T1 -> %s" % selectedSite)
+        # simulation
+        if self.simul:
+            return True,useSmallT1
+        # no candidate
+        if selectedSite == None:
+            self.putLog("no candidate for T1-T1")
+            return False,useSmallT1
         # make subscription
+        tmpJob.computingSite = selectedSite
         subRet,dq2ID = self.makeSubscription(tmpDS,tmpJob.computingSite)
         self.putLog("made subscription for T1-T1 to %s:%s" % (tmpJob.computingSite,dq2ID),sendLog=True)
         # check if small cloud is used
@@ -1260,6 +1268,38 @@ class DynDataDistributer:
             return True,useSmallT1
         else:
             return False,useSmallT1
-            
+
+
+    # choose site
+    def chooseSite(self,canWeights,freeSizeMap,datasetSize):
+        # loop over all candidates
+        totalW = 0
+        allCandidates = []
+        for tmpCan,tmpW in canWeights.iteritems():
+            # size check
+            if freeSizeMap.has_key(tmpCan):
+                # threshold for T1 PD2P max(5%,3TB)
+                diskThresholdPD2P = 1024 * 3
+                thrForThisSite = long(freeSizeMap[tmpCan]['total'] * 5 / 100)
+                if thrForThisSite < diskThresholdPD2P:
+                    thrForThisSite = diskThresholdPD2P
+                remSpace = freeSizeMap[tmpCan]['total'] - freeSizeMap[tmpCan]['used']
+                if remSpace-datasetSize < thrForThisSite:
+                    self.putLog('  skip: disk shortage %s-%s< %s' % (remSpace,datasetSize,thrForThisSite))
+                    continue
+            # get total weight    
+            totalW += tmpW
+            # append candidate
+            allCandidates.append(tmpCan)
+        # no candidate
+        if allCandidates == []:
+            return None
+        # choose site    
+        rNumber = random.random() * totalW
+        for tmpCan in allCandidates:
+            rNumber -= canWeights[tmpCan]
+            if rNumber <= 0:
+                return tmpCan
+        return allCandidates[-1]
                 
             

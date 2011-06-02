@@ -650,16 +650,17 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     nSubs = 1
                                     if specialWeight.has_key(site):
                                         nSubs = specialWeight[site]
-                                    _log.debug('   %s nSubs:%s nPilots:%s nJobsPerNode:%s' % (site,nSubs,nPilots,nJobsPerNode))
-                                    winv = float(nSubs) / float(nPilots+1) / nJobsPerNode
+                                    _log.debug('   %s nSubs:%s assigned:%s activated:%s running:%s nWNsG:%s nWNsU:%s' % \
+                                               (site,nSubs,nAssJobs,nActJobs,nRunningMap[site],nPilotsGet,nPilotsUpdate))
+                                    winv = float(nSubs) * float(nAssJobs+nActJobs) / float(1+nRunningMap[site]) / (1.0+float(nPilotsGet)/float(1+nPilotsUpdate))
                                     if getWeight:
-                                        weightUsedByBrokerage[site] = "%.2f/%s" % (float(nPilots+1)*nJobsPerNode,nSubs)
+                                        weightUsedByBrokerage[site] = "(1+%s/%s)*%s/%s/%s" % (nPilotsGet,1+nPilotsUpdate,1+nRunningMap[site],nAssJobs+nActJobs,nSubs)
                                 else:
                                     # weight for T1 PD2P
-                                    _log.debug('   %s MoU:%s nPilots:%s nJobsPerNode:%s' % (site,specialWeight[site],nPilots,nJobsPerNode))
-                                    winv = 1.0 / float(nPilots+1) / nJobsPerNode / float(specialWeight[site])
+                                    _log.debug('   %s MoU:%s' % (site,specialWeight[site]))
+                                    winv = 1.0 / float(specialWeight[site])
                                     if getWeight:
-                                        weightUsedByBrokerage[site] = "%.2f/%s" % (float(nPilots+1)*nJobsPerNode,specialWeight[site])
+                                        weightUsedByBrokerage[site] = "%s" % specialWeight[site]
                             else:
                                 if not forAnalysis:
                                     _log.debug('   %s assigned:%s activated:%s running:%s nPilots:%s nJobsPerNode:%s multiCloud:%s' %
