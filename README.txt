@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * use MoU share for T1 PD2P
   * added getNumPilots
   * added prodSourceLabel=ssc as user's label
   * added --prodSourceLabel to killUser
