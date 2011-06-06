@@ -1529,11 +1529,11 @@ class TaskBuffer:
 
 
     # check sites with release/cache
-    def checkSitesWithRelease(self,sites,releases=None,caches=None):
+    def checkSitesWithRelease(self,sites,releases=None,caches=None,cmtConfig=None):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # check
-        ret = proxy.checkSitesWithRelease(sites,releases,caches)
+        ret = proxy.checkSitesWithRelease(sites,releases,caches,cmtConfig)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

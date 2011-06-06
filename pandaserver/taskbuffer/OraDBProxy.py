@@ -6224,7 +6224,7 @@ class DBProxy:
 
 
     # check sites with release/cache
-    def checkSitesWithRelease(self,sites,releases,caches):
+    def checkSitesWithRelease(self,sites,releases,caches,cmtConfig=None):
         comment = ' /* DBProxy.checkSitesWithRelease */'
         try:
             relStr = releases
@@ -6233,7 +6233,7 @@ class DBProxy:
             caStr = caches
             if caches != None:
                 caStr = caches.replace('\n',' ')
-            _logger.debug("checkSitesWithRelease(%s,%s,%s)" % (sites,relStr,caStr))
+            _logger.debug("checkSitesWithRelease(%s,%s,%s,%s)" % (sites,relStr,caStr,cmtConfig))
             # select
             sql  = "SELECT distinct siteid FROM ATLAS_PANDAMETA.InstalledSW WHERE "
             if not caches in ['','NULL',None]:
@@ -6247,6 +6247,10 @@ class DBProxy:
             else:
                 # don't check
                 return sites
+            checkCMT = False
+            if not cmtConfig in ['','NULL',None]:
+                sql += "AND cmtConfig=:cmtConfig "
+                checkCMT = True
             sql += "AND siteid IN ("
             # start transaction
             self.conn.begin()
@@ -6258,6 +6262,8 @@ class DBProxy:
                 sqlSite = sql
                 varMap = {}
                 varMap[loopKey] = loopVal
+                if checkCMT:
+                    varMap[':cmtConfig'] = cmtConfig
                 tmpRetSites = []
                 # loop over sites
                 nSites = 10
@@ -6285,6 +6291,8 @@ class DBProxy:
                         sqlSite = sql
                         varMap = {}
                         varMap[loopKey] = loopVal
+                        if checkCMT:
+                            varMap[':cmtConfig'] = cmtConfig
                 # set
                 sites = tmpRetSites
                 # escape

@@ -294,14 +294,12 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             # set computingSite to T1 for high priority jobs
             if job != None and job.currentPriority >= 950 and job.computingSite == 'NULL' \
                    and job.prodSourceLabel in ('test','managed') and specialBrokergageSiteList == []:
-                # FIXME : just for slc5-gcc43 validation
-                if not job.cmtConfig in ['x86_64-slc5-gcc43-opt']:
-                    if job.cloud != 'FR':                    
-                        specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source']]
-                    else:
-                        # set site list to use T1 and T1_VL
-                        specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source'],'IN2P3-CC_VL']
-                    _log.debug('PandaID:%s -> set SiteList=%s for high prio' % (job.PandaID,specialBrokergageSiteList))
+                if job.cloud != 'FR':                    
+                    specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source']]
+                else:
+                    # set site list to use T1 and T1_VL
+                    specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source'],'IN2P3-CC_VL']
+                _log.debug('PandaID:%s -> set SiteList=%s for high prio' % (job.PandaID,specialBrokergageSiteList))
             # set computingSite to T1 when too many inputs are required
             if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
                    and specialBrokergageSiteList == []:
@@ -311,20 +309,16 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     if tmpFile.type == 'input':
                         tmpTotalInput += 1
                 if tmpTotalInput >= manyInputsThr:
-                    # FIXME : just for slc5-gcc43 validation
-                    if not job.cmtConfig in ['x86_64-slc5-gcc43-opt']:
-                        if job.cloud != 'FR':
-                            specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source']]
-                        else:
-                            # set site list to use T1 and T1_VL
-                            specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source'],'IN2P3-CC_VL']
-                        _log.debug('PandaID:%s -> set SiteList=%s for too many inputs' % (job.PandaID,specialBrokergageSiteList))
+                    if job.cloud != 'FR':
+                        specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source']]
+                    else:
+                        # set site list to use T1 and T1_VL
+                        specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source'],'IN2P3-CC_VL']
+                    _log.debug('PandaID:%s -> set SiteList=%s for too many inputs' % (job.PandaID,specialBrokergageSiteList))
             # manually set site
             if job != None and job.computingSite != 'NULL' and job.prodSourceLabel in ('test','managed') \
                    and specialBrokergageSiteList == []:
-                # FIXME : just for slc5-gcc43 validation
-                if not job.cmtConfig in ['x86_64-slc5-gcc43-opt']:
-                    specialBrokergageSiteList = [job.computingSite]
+                specialBrokergageSiteList = [job.computingSite]
             overwriteSite = False
             # new bunch or terminator
             if job == None or len(fileList) >= nFile \
@@ -400,17 +394,18 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     if forAnalysis:
                         if re.search('-\d+\.\d+\.\d+\.\d+',prevRelease) != None:
                             useCacheVersion = True
-                            siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,caches=prevRelease)
+                            siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,caches=prevRelease,cmtConfig=prevCmtConfig)
                             _log.debug('  using installSW for cache %s' % prevRelease)
                         elif re.search('-\d+\.\d+\.\d+$',prevRelease) != None:
                             useCacheVersion = True
-                            siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,releases=prevRelease)
+                            siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,releases=prevRelease,cmtConfig=prevCmtConfig)
                             _log.debug('  using installSW for release %s' % prevRelease)
                     elif previousCloud in ['DE','NL','FR','CA','ES','IT','TW','UK','US','ND','CERN']:
                             useCacheVersion = True
                             # change / to -
                             convedPrevHomePkg = prevHomePkg.replace('/','-')
-                            siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,caches=convedPrevHomePkg)
+                            siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,caches=convedPrevHomePkg,
+                                                                                 cmtConfig=prevCmtConfig)
                             _log.debug('  cache          %s' % prevHomePkg)
                     if useCacheVersion:        
                         _log.debug('  cache/relSites     %s' % str(siteListWithCache))
@@ -471,7 +466,6 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 releases = tmpSiteSpec.validatedreleases
                             if not useCacheVersion:    
                                 _log.debug('   %s' % str(releases))
-                            _log.debug('   %s' % str(tmpSiteSpec.cmtconfig))
                             if forAnalysis and (tmpSiteSpec.cloud in ['ND','CERN'] or prevRelease==''):
                                 # doesn't check releases for analysis
                                 _log.debug(' skip release check')
@@ -483,11 +477,10 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     if trustIS:
                                         resultsForAnal['rel'].append(site)
                                     continue
-                            elif prevRelease != None and (useCacheVersion and not tmpSiteSpec.cloud in ['ND','CERN']) \
-                                     and (not prevProType in ['reprocessing']) \
-                                     and ((not site in siteListWithCache) or 
-                                          (tmpCmtConfig != None and tmpSiteSpec.cmtconfig != [] and 
-                                           (not tmpCmtConfig in tmpSiteSpec.cmtconfig))):
+                            elif prevRelease != None and \
+                                     (useCacheVersion and not tmpSiteSpec.cloud in ['ND','CERN']) and \
+                                     (not prevProType in ['reprocessing']) and \
+                                     (not site in siteListWithCache):
                                     _log.debug(' skip: cache %s/%s not found' % (prevHomePkg.replace('\n',' '),prevCmtConfig))
                                     # send message to logger
                                     try:
@@ -499,11 +492,9 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     except:
                                         pass
                                     continue
-                            elif (prevRelease != None and ((not useCacheVersion and releases != [] and (not tmpSiteSpec.cloud in ['ND','CERN'])) or \
-                                                           prevProType in ['reprocessing']) and \
-                                  ((not _checkRelease(prevRelease,releases) or not site in siteListWithCache) and not tmpSiteSpec.cloud in ['ND','CERN'])) or \
-                                  (tmpCmtConfig != None and tmpSiteSpec.cmtconfig != [] and \
-                                   (not tmpCmtConfig in tmpSiteSpec.cmtconfig)):
+                            elif prevRelease != None and \
+                                 ((not useCacheVersion and releases != [] and not tmpSiteSpec.cloud in ['ND','CERN']) or prevProType in ['reprocessing']) and \
+                                 ((not _checkRelease(prevRelease,releases) or not site in siteListWithCache) and not tmpSiteSpec.cloud in ['ND','CERN']):
                                 # release matching
                                 _log.debug(' skip: release %s/%s not found' % (prevRelease.replace('\n',' '),prevCmtConfig))
                                 if forAnalysis and trustIS:
