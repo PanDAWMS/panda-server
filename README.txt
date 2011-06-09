@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * using basename in Utils methods
   * fixed fetchLog to disallow chdir
   * fixed panda.py to disallow unexpected methods
   * added getVomsAttr

@@ -51,7 +51,7 @@ def putFile(req,file):
         _logger.error(errStr)
         _logger.debug("putFile : end")            
         return errStr
-    fo = open('%s/%s' % (panda_config.cache_dir,file.filename),'wb')
+    fo = open('%s/%s' % (panda_config.cache_dir,file.filename.split('/')[-1]),'wb')
     fo.write(file.file.read())
     fo.close()
     _logger.debug("putFile : %s end" % file.filename)
@@ -64,7 +64,7 @@ def deleteFile(req,file):
         return 'False'
     try:
         # may be reused for rebrokreage 
-        #os.remove('%s/%s' % (panda_config.cache_dir,file))
+        #os.remove('%s/%s' % (panda_config.cache_dir,file.split('/')[-1]))
         return 'True'
     except:
         return 'False'        
@@ -75,7 +75,7 @@ def touchFile(req,filename):
     if not Protocol.isSecure(req):
         return 'False'
     try:
-        os.utime('%s/%s' % (panda_config.cache_dir,filename),None)
+        os.utime('%s/%s' % (panda_config.cache_dir,filename.split('/')[-1]),None)
         return 'True'
     except:
         errtype,errvalue = sys.exc_info()[:2]
@@ -91,12 +91,12 @@ def getServer(req):
 # update stdout
 def updateLog(req,file):
     _logger.debug("updateLog : %s start" % file.filename)
-    # stdout name
-    logName  = '%s/%s' % (panda_config.cache_dir,file.filename)
     # write to file
     try:
         # expand
         extStr = zlib.decompress(file.file.read())
+        # stdout name
+        logName  = '%s/%s' % (panda_config.cache_dir,file.filename.split('/')[-1])
         # append
         ft = open(logName,'wa')
         ft.write(extStr)
