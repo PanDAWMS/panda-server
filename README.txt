@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed fetchLog to disallow chdir
   * fixed panda.py to disallow unexpected methods
   * added getVomsAttr
   * updated getJob to decompose CERN-XYZ to CERN-PROD+processingType

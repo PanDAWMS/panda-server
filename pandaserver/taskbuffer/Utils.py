@@ -111,11 +111,11 @@ def updateLog(req,file):
 # fetch stdout
 def fetchLog(req,logName,offset=0):
     _logger.debug("fetchLog : %s start offset=%s" % (logName,offset))
-    # stdout name
-    fullLogName  = '%s/%s' % (panda_config.cache_dir,logName)
     # put dummy char to avoid Internal Server Error
     retStr = ' '
     try:
+        # stdout name
+        fullLogName  = '%s/%s' % (panda_config.cache_dir,logName.split('/')[-1])
         # read
         ft = open(fullLogName,'r')
         ft.seek(long(offset))
