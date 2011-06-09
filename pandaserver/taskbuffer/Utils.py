@@ -126,3 +126,17 @@ def fetchLog(req,logName,offset=0):
         _logger.error("fetchLog : %s %s" % (type,value))
     _logger.debug("fetchLog : %s end read=%s" % (logName,len(retStr)))
     return retStr
+
+
+# get VOMS attributes
+def getVomsAttr(req):
+    vomsAttrs = []
+    for tmpKey,tmpVal in req.subprocess_env.iteritems():
+        # compact credentials
+        if tmpKey.startswith('GRST_CRED_'):
+            vomsAttrs.append('%s : %s\n' % (tmpKey,tmpVal))
+    vomsAttrs.sort()
+    retStr = ''
+    for tmpStr in vomsAttrs:
+        retStr += tmpStr
+    return retStr

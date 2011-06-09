@@ -1,6 +1,9 @@
 Release Note
 
 * current
+  * fixed panda.py to disallow unexpected methods
+  * added getVomsAttr
+  * updated getJob to decompose CERN-XYZ to CERN-PROD+processingType
   * updated the brokerage to use installedsw.cmtConfig
   * use MoU share for T1 PD2P
   * added getNumPilots

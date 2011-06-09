@@ -1423,12 +1423,29 @@ class DBProxy:
         except:
             errType,errValue = sys.exc_info()[:2]
             _logger.error("failed to initialize memcached with %s %s" % (errType,errValue))
+        # aggregated sites which use different appdirs
+        # FIXME : DUMMY to CERN-PROD
+        aggSiteMap = {'DUMMY':{'CERN-RELEASE':'release',
+                               'CERN-UNVALID':'unvalid',
+                               'CERN-BUILDS' :'builds',
+                               },
+                      }
         # construct where clause   
         dynamicBrokering = False
         getValMap = {}
-        sql1 = "WHERE jobStatus=:oldJobStatus AND computingSite=:computingSite AND commandToPilot IS NULL "
         getValMap[':oldJobStatus'] = 'activated'
         getValMap[':computingSite'] = siteName
+        if not aggSiteMap.has_key(siteName):
+            sql1 = "WHERE jobStatus=:oldJobStatus AND computingSite=:computingSite AND commandToPilot IS NULL "
+        else:
+            # aggregated sites 
+            sql1 = "WHERE jobStatus=:oldJobStatus AND computingSite IN (:computingSite,"
+            for tmpAggIdx,tmpAggSite in enumerate(aggSiteMap[siteName].keys()):
+                tmpKeyName = ':computingSite%s' % tmpAggIdx
+                sql1 += '%s,' % tmpKeyName
+                getValMap[tmpKeyName] = tmpAggSite
+            sql1 = sql1[:-1]
+            sql1 += ") AND commandToPilot IS NULL "
         if not mem in [0,'0']:
             sql1+= "AND (minRamCount<=:minRamCount OR minRamCount=0) "
             getValMap[':minRamCount'] = mem
@@ -1804,6 +1821,11 @@ class DBProxy:
                     file = FileSpec()
                     file.pack(resF)
                     job.addFile(file)
+                # overwrite processingType for appdir at aggrigates sites
+                if aggSiteMap.has_key(siteName):
+                    if aggSiteMap[siteName].has_key(job.computingSite):
+                        job.processingType = aggSiteMap[siteName][job.computingSite]
+                        job.computingSite  = job.computingSite
                 # append
                 retJobs.append(job)
             return retJobs,nSent

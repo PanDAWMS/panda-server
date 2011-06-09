@@ -32,10 +32,18 @@ if panda_config.nDBConnection != 0:
     userIF.init(taskBuffer)
 
 # import web I/F
+allowedMethods = []
+
 from taskbuffer.Utils            import isAlive,putFile,deleteFile,getServer,updateLog,fetchLog,\
-     touchFile
+     touchFile,getVomsAttr
+allowedMethods += ['isAlive','putFile','deleteFile','getServer','updateLog','fetchLog','touchFile','getVomsAttr']
+
 from dataservice.DataService     import datasetCompleted,updateFileStatusInDisp
+allowedMethods += ['datasetCompleted','updateFileStatusInDisp']
+
 from jobdispatcher.JobDispatcher import getJob,updateJob,getStatus,genPilotToken
+allowedMethods += ['getJob','updateJob','getStatus','genPilotToken']
+
 from userinterface.UserIF        import submitJobs,getJobStatus,queryPandaIDs,killJobs,reassignJobs,\
      getJobStatistics,getJobStatisticsPerSite,resubmitJobs,queryLastFilesInDataset,getPandaIDsSite,\
      getJobsToBeUpdated,updateProdDBUpdateTimes,runTaskAssignment,getAssigningTask,getSiteSpecs,\
@@ -46,7 +54,16 @@ from userinterface.UserIF        import submitJobs,getJobStatus,queryPandaIDs,ki
      addFilesToCacheDB,flushCacheDB,checkFilesWithCacheDB,getQueuedAnalJobs,getHighestPrioJobStat,\
      getActiveDatasets,setCloudTaskByUser,getSerialNumberForGroupJob,getCachePrefixes,\
      checkMergeGenerationStatus,sendLogInfo,getNumPilots
-
+allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reassignJobs',
+                   'getJobStatistics','getJobStatisticsPerSite','resubmitJobs','queryLastFilesInDataset','getPandaIDsSite',
+                   'getJobsToBeUpdated','updateProdDBUpdateTimes','runTaskAssignment','getAssigningTask','getSiteSpecs',
+                   'getCloudSpecs','runBrokerage','seeCloudTask','queryJobInfoPerCloud','registerProxyKey','getProxyKey',
+                   'getJobIDsInTimeRange','getPandIDsWithJobID','getFullJobStatus','getJobStatisticsForBamboo',
+                   'getNUserJobs','addSiteAccess','listSiteAccess','getFilesInUseForAnal','updateSiteAccess',
+                   'getPandaClientVer','getSlimmedFileInfoPandaIDs','runReBrokerage','deleteFilesFromCacheDB',
+                   'addFilesToCacheDB','flushCacheDB','checkFilesWithCacheDB','getQueuedAnalJobs','getHighestPrioJobStat',
+                   'getActiveDatasets','setCloudTaskByUser','getSerialNumberForGroupJob','getCachePrefixes',
+                   'checkMergeGenerationStatus','sendLogInfo','getNumPilots']
 
 # FastCGI/WSGI entry
 if panda_config.useFastCGI or panda_config.useWSGI:
@@ -84,50 +101,55 @@ if panda_config.useFastCGI or panda_config.useWSGI:
         if environ.has_key('SCRIPT_URL'):
             methodName = environ['SCRIPT_URL'].split('/')[-1]
         if panda_config.entryVerbose:
-            _logger.debug("PID=%s %s in" % (os.getpid(),methodName))     
-        # get method object
-        tmpMethod = None
-        try:
-            exec "tmpMethod = %s" % methodName
-        except:
-            pass
-        # object not found
-        if tmpMethod == None:
-            _logger.error("PID=%s %s is undefined" % (os.getpid(),methodName))
-            exeRes = "False"
+            _logger.debug("PID=%s %s in" % (os.getpid(),methodName))
+        # check method name    
+        if not methodName in allowedMethods:
+            _logger.error("PID=%s %s is forbidden" % (os.getpid(),methodName))
+            exeRes = "False : %s is forbidden" % methodName
         else:
-            # get params 
-            tmpPars = cgi.FieldStorage(environ['wsgi.input'], environ=environ,
-                                       keep_blank_values=1)
-            # convert to map
-            params = {}
-            for tmpKey in tmpPars.keys():
-                if tmpPars[tmpKey].file != None and tmpPars[tmpKey].filename != None:
-                    # file
-                    params[tmpKey] = tmpPars[tmpKey]
-                else:
-                    # string
-                    params[tmpKey] = tmpPars.getfirst(tmpKey)
-            if panda_config.entryVerbose:
-                _logger.debug("PID=%s %s with %s" % (os.getpid(),methodName,str(params.keys())))
-            # dummy request object
-            dummyReq = DummyReq(environ)
+            # get method object
+            tmpMethod = None
             try:
-                # exec
-                exeRes = apply(tmpMethod,[dummyReq],params)
-                # convert bool to string
-                if exeRes in [True,False]:
-                    exeRes = str(exeRes)
+                exec "tmpMethod = %s" % methodName
             except:
-                errType,errValue = sys.exc_info()[:2]
-                errStr = ""
-                for tmpKey,tmpVal in environ.iteritems():
-                    errStr += "%s : %s\n" % (tmpKey,str(tmpVal))
-                _logger.error("execution failure : %s %s" % (errType,errValue))
-                _logger.error(errStr)
-                # return internal server error
-                start_response('500 INTERNAL SERVER ERROR', [('Content-Type', 'text/plain')]) 
-                return ["%s %s" % (errType,errValue)]
+                pass
+            # object not found
+            if tmpMethod == None:
+                _logger.error("PID=%s %s is undefined" % (os.getpid(),methodName))
+                exeRes = "False"
+            else:
+                # get params 
+                tmpPars = cgi.FieldStorage(environ['wsgi.input'], environ=environ,
+                                           keep_blank_values=1)
+                # convert to map
+                params = {}
+                for tmpKey in tmpPars.keys():
+                    if tmpPars[tmpKey].file != None and tmpPars[tmpKey].filename != None:
+                        # file
+                        params[tmpKey] = tmpPars[tmpKey]
+                    else:
+                        # string
+                        params[tmpKey] = tmpPars.getfirst(tmpKey)
+                if panda_config.entryVerbose:
+                    _logger.debug("PID=%s %s with %s" % (os.getpid(),methodName,str(params.keys())))
+                # dummy request object
+                dummyReq = DummyReq(environ)
+                try:
+                    # exec
+                    exeRes = apply(tmpMethod,[dummyReq],params)
+                    # convert bool to string
+                    if exeRes in [True,False]:
+                        exeRes = str(exeRes)
+                except:
+                    errType,errValue = sys.exc_info()[:2]
+                    errStr = ""
+                    for tmpKey,tmpVal in environ.iteritems():
+                        errStr += "%s : %s\n" % (tmpKey,str(tmpVal))
+                    _logger.error("execution failure : %s %s" % (errType,errValue))
+                    _logger.error(errStr)
+                    # return internal server error
+                    start_response('500 INTERNAL SERVER ERROR', [('Content-Type', 'text/plain')]) 
+                    return ["%s %s" % (errType,errValue)]
         if panda_config.entryVerbose:
             _logger.debug("PID=%s %s out" % (os.getpid(),methodName))
         # return
