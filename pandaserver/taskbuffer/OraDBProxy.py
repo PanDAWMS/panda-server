@@ -1424,7 +1424,7 @@ class DBProxy:
             errType,errValue = sys.exc_info()[:2]
             _logger.error("failed to initialize memcached with %s %s" % (errType,errValue))
         # aggregated sites which use different appdirs
-        aggSiteMap = {'CERN-PROD':{'CERN-RELEASE':'releases',
+        aggSiteMap = {'CERN-PROD':{'CERN-RELEASE':'release',
                                    'CERN-UNVALID':'unvalid',
                                    'CERN-BUILDS' :'builds',
                                    },

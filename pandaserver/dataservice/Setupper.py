@@ -1420,18 +1420,11 @@ class Setupper (threading.Thread):
                 # set only for production/analysis/test
                 if not tmpJob.prodSourceLabel in ['managed','test','rc_test','ptest','user']:
                     continue
-                # set input type and project
-                if not tmpJob.prodDBlock in ['',None,'NULL']:
-                    tmpInputItems = tmpJob.prodDBlock.split('.')
-                    # input project
-                    tmpJob.inputFileProject = tmpInputItems[0]
-                    # input type. ignore user/group/groupXY 
-                    if len(tmpInputItems) > 4 and (not tmpInputItems[0] in ['','NULL','user','group']) \
-                           and (not tmpInputItems[0].startswith('group')):
-                        tmpJob.inputFileType = tmpInputItems[4]
                 # loop over all files
                 tmpJob.nInputDataFiles = 0
                 tmpJob.inputFileBytes = 0
+                tmpInputFileProject = None
+                tmpInputFileType = None
                 for tmpFile in tmpJob.Files:
                     # use input files and ignore DBR/lib.tgz
                     if tmpFile.type == 'input' and (not tmpFile.dataset.startswith('ddo')) \
@@ -1439,6 +1432,23 @@ class Setupper (threading.Thread):
                         tmpJob.nInputDataFiles += 1
                         if not tmpFile.fsize in ['NULL',None,0,'0']:
                             tmpJob.inputFileBytes += tmpFile.fsize
+                        # get input type and project
+                        if tmpInputFileProject == None:
+                            tmpInputItems = tmpFile.dataset.split('.')
+                            # input project
+                            tmpInputFileProject = tmpInputItems[0]
+                            # input type. ignore user/group/groupXY 
+                            if len(tmpInputItems) > 4 and (not tmpInputItems[0] in ['','NULL','user','group']) \
+                                   and (not tmpInputItems[0].startswith('group')):
+                                tmpInputFileType = tmpInputItems[4]
+                # set input type and project
+                if not tmpJob.prodDBlock in ['',None,'NULL']:
+                    # input project
+                    if tmpInputFileProject != None:
+                        tmpJob.inputFileProject = tmpInputFileProject
+                    # input type
+                    if tmpInputFileType != None:
+                        tmpJob.inputFileType = tmpInputFileType
             except:
                 errType,errValue = sys.exc_info()[:2]
                 _logger.error("failed to set data summary fields for PandaID=%s: %s %s" % (tmpJob.PandaID,errType,errValue))

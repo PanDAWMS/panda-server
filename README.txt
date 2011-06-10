@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed inputFileProject extraction for wildcard-uses
   * using basename in Utils methods
   * fixed fetchLog to disallow chdir
   * fixed panda.py to disallow unexpected methods
