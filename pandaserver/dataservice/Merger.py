@@ -182,6 +182,21 @@ class Merger:
         _logger.debug("%s automatic merge type mapping -> %s" % (self.job.PandaID,str(self.mergeTypeMap)))
         return True
             
+
+    # detect merge type with LFN prefix and suffix
+    def detectMergeTypeWithLFN(self,filePrefix,fileSuffix):
+        tmpKey = (filePrefix,fileSuffix)
+        if self.mergeTypeMap.has_key(tmpKey):
+            return self.mergeTypeMap[tmpKey]
+        # look for matching fileSuffix mainly for --useContElement which has differed prefix
+        for tmpKey in self.mergeTypeMap.keys():
+            tmpFilePrefix,tmpFileSuffix = tmpKey
+            if tmpFileSuffix == fileSuffix:
+                _logger.debug("%s updated merge type mapping for %s:%s -> %s" % (self.job.PandaID,filePrefix,fileSuffix,str(self.mergeTypeMap)))
+                self.mergeTypeMap[(filePrefix,fileSuffix)] = self.mergeTypeMap[tmpKey]
+                return self.mergeTypeMap[tmpKey]
+        raise RuntimeError,'cannot find merge type for %s %s' % (filePrefix,fileSuffix)
+    
                         
     # main returns None for unrecoverable 
     def run(self):
@@ -311,7 +326,7 @@ class Merger:
                         subFileList.append(tmpFileName)
                     # remaining
                     if subFileList != []:
-                        # instantiate job    
+                        # instantiate job
                         tmpMergeJob = self.makeMergeJob(subFileList,tmpFileMap,tmpType)
                         # append
                         if not mergeJobList.has_key(tmpDsName):
@@ -319,6 +334,7 @@ class Merger:
                         mergeJobList[tmpDsName].append(tmpMergeJob)
             # terminate simulation
             if self.simulFlag:
+                _logger.debug("%s end simulation" % self.job.PandaID)
                 return True
             # get list of new datasets
             newDatasetMap = {}
@@ -512,7 +528,7 @@ class Merger:
             params += " -t %s" % self.mergeType
         else:
             # auto detection
-            params += " -t %s" % self.mergeTypeMap[(filePrefix,fileSuffix)]
+            params += " -t %s" % self.detectMergeTypeWithLFN(filePrefix,fileSuffix)
         params += " -i \"%s\"" % repr(fileList)
         # output
         tmpFile = FileSpec()
@@ -538,5 +554,7 @@ class Merger:
         tmpJob.addFile(tmpFile)
         # set job parameter
         tmpJob.jobParameters = params
+        if self.simulFlag:
+            _logger.debug("%s prams %s" % (self.job.PandaID,tmpJob.jobParameters))
         # return
         return tmpJob

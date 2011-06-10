@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed Merger for --useContElement
   * fixed inputFileProject extraction for wildcard-uses
   * using basename in Utils methods
   * fixed fetchLog to disallow chdir
