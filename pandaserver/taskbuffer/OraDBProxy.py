@@ -1424,11 +1424,10 @@ class DBProxy:
             errType,errValue = sys.exc_info()[:2]
             _logger.error("failed to initialize memcached with %s %s" % (errType,errValue))
         # aggregated sites which use different appdirs
-        # FIXME : DUMMY to CERN-PROD
-        aggSiteMap = {'DUMMY':{'CERN-RELEASE':'release',
-                               'CERN-UNVALID':'unvalid',
-                               'CERN-BUILDS' :'builds',
-                               },
+        aggSiteMap = {'CERN-PROD':{'CERN-RELEASE':'releases',
+                                   'CERN-UNVALID':'unvalid',
+                                   'CERN-BUILDS' :'builds',
+                                   },
                       }
         # construct where clause   
         dynamicBrokering = False
