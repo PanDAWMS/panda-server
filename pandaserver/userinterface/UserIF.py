@@ -35,7 +35,7 @@ class UserIF:
 
 
     # submit jobs
-    def submitJobs(self,jobsStr,user,host,userFQANs):
+    def submitJobs(self,jobsStr,user,host,userFQANs,prodRole=False):
         try:
             # deserialize jobspecs
             jobs = WrappedPickle.loads(jobsStr)
@@ -59,7 +59,7 @@ class UserIF:
                     break
                 # check production role
                 if tmpJob.prodSourceLabel in ['managed']:
-                    if not '/atlas/Role=production' in userFQANs:
+                    if not prodRole:
                         _logger.error("submitJobs %s missing prod-role for prodSourceLabel=%s" % (user,tmpJob.prodSourceLabel))
                         goodProdSourceLabel = False
                         break
@@ -728,7 +728,9 @@ def submitJobs(req,jobs):
     fqans = _getFQAN(req)
     # hostname
     host = req.get_remote_host()
-    return userIF.submitJobs(jobs,user,host,fqans)
+    # production Role
+    prodRole = _isProdRoleATLAS(req)
+    return userIF.submitJobs(jobs,user,host,fqans,prodRole)
 
 
 # run task assignment
