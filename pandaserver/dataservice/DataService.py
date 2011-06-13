@@ -7,6 +7,7 @@ import re
 import sys
 import cPickle as pickle
 from config import panda_config
+from taskbuffer.WrappedPickle import WrappedPickle
 from pandalogger.PandaLogger import PandaLogger
 
 # logger
@@ -104,7 +105,7 @@ def updateFileStatusInDisp(req,dataset,fileStatus):
             _logger.error('updateFileStatusInDisp : invalid proxy %s' % fqans)
             return "False"
         # deserialize fileStatus
-        fileStatusMap = pickle.loads(fileStatus)
+        fileStatusMap = WrappedPickle.loads(fileStatus)
         _logger.debug('updateFileStatusInDisp : start %s - %s' % (dataset,fileStatusMap))
         # update status
         dataService.taskBuffer.updateFileStatusInDisp(dataset,fileStatusMap)

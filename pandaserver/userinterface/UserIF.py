@@ -10,8 +10,10 @@ import types
 import cPickle as pickle
 import jobdispatcher.Protocol as Protocol
 import brokerage.broker
+import taskbuffer.ProcessGroups
 from config import panda_config
 from taskbuffer.JobSpec import JobSpec
+from taskbuffer.WrappedPickle import WrappedPickle
 from brokerage.SiteMapper import SiteMapper
 from pandalogger.PandaLogger import PandaLogger
 from ReBroker import ReBroker
@@ -20,6 +22,7 @@ from ReBroker import ReBroker
 _logger = PandaLogger().getLogger('UserIF')
 
 
+# main class     
 class UserIF:
     # constructor
     def __init__(self):
@@ -35,7 +38,7 @@ class UserIF:
     def submitJobs(self,jobsStr,user,host,userFQANs):
         try:
             # deserialize jobspecs
-            jobs = pickle.loads(jobsStr)
+            jobs = WrappedPickle.loads(jobsStr)
             _logger.debug("submitJobs %s len:%s FQAN:%s" % (user,len(jobs),str(userFQANs)))
             maxJobs = 5000
             if len(jobs) > maxJobs:
@@ -45,6 +48,30 @@ class UserIF:
             type, value, traceBack = sys.exc_info()
             _logger.error("submitJobs : %s %s" % (type,value))
             jobs = []
+        # check prodSourceLabel
+        try:
+            goodProdSourceLabel = True
+            for tmpJob in jobs:
+                # prevent internal jobs from being submitted from outside
+                if tmpJob.prodSourceLabel in taskbuffer.ProcessGroups.internalSourceLabels:
+                    _logger.error("submitJobs %s wrong prodSourceLabel=%s" % (user,tmpJob.prodSourceLabel))
+                    goodProdSourceLabel = False
+                    break
+                # check production role
+                if tmpJob.prodSourceLabel in ['managed']:
+                    if not '/atlas/Role=production' in userFQANs:
+                        _logger.error("submitJobs %s missing prod-role for prodSourceLabel=%s" % (user,tmpJob.prodSourceLabel))
+                        goodProdSourceLabel = False
+                        break
+        except:
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("submitJobs : checking goodProdSourceLabel %s %s" % (errType,errValue))
+            goodProdSourceLabel = False
+        # reject injection for bad prodSourceLabel
+        if not goodProdSourceLabel:
+            # FIXME after SSC 5/25/2011
+            #jobs = []
+            pass
         # store jobs
         ret = self.taskBuffer.storeJobs(jobs,user,forkSetupper=True,fqans=userFQANs,
                                         hostname=host)
@@ -74,7 +101,7 @@ class UserIF:
     def sendLogInfo(self,user,msgType,msgListStr):
         try:
             # deserialize message
-            msgList = pickle.loads(msgListStr)
+            msgList = WrappedPickle.loads(msgListStr)
             # short user name
             cUID = self.taskBuffer.cleanUserID(user)
             # logging
@@ -108,7 +135,7 @@ class UserIF:
     def runTaskAssignment(self,jobsStr):
         try:
             # deserialize jobspecs
-            jobs = pickle.loads(jobsStr)
+            jobs = WrappedPickle.loads(jobsStr)
         except:
             type, value, traceBack = sys.exc_info()
             _logger.error("runTaskAssignment : %s %s" % (type,value))
@@ -163,7 +190,7 @@ class UserIF:
     def getJobStatus(self,idsStr):
         try:
             # deserialize jobspecs
-            ids = pickle.loads(idsStr)
+            ids = WrappedPickle.loads(idsStr)
             _logger.debug("getJobStatus len   : %s" % len(ids))
             maxIDs = 5500
             if len(ids) > maxIDs:
@@ -185,7 +212,7 @@ class UserIF:
     def seeCloudTask(self,idsStr):
         try:
             # deserialize jobspecs
-            ids = pickle.loads(idsStr)
+            ids = WrappedPickle.loads(idsStr)
         except:
             type, value, traceBack = sys.exc_info()
             _logger.error("seeCloudTask : %s %s" % (type,value))
@@ -299,7 +326,7 @@ class UserIF:
     # query PandaIDs
     def queryPandaIDs(self,idsStr):
         # deserialize IDs
-        ids = pickle.loads(idsStr)
+        ids = WrappedPickle.loads(idsStr)
         # query PandaIDs 
         ret = self.taskBuffer.queryPandaIDs(ids)
         # serialize 
@@ -341,7 +368,7 @@ class UserIF:
     # update prodDBUpdateTimes
     def updateProdDBUpdateTimes(self,paramsStr):
         # deserialize IDs
-        params = pickle.loads(paramsStr)
+        params = WrappedPickle.loads(paramsStr)
         # get jobs
         ret = self.taskBuffer.updateProdDBUpdateTimes(params)
         # serialize 
@@ -351,7 +378,7 @@ class UserIF:
     # query last files in datasets
     def queryLastFilesInDataset(self,datasetStr):
         # deserialize names
-        datasets = pickle.loads(datasetStr)
+        datasets = WrappedPickle.loads(datasetStr)
         # get files
         ret = self.taskBuffer.queryLastFilesInDataset(datasets)
         # serialize 
@@ -369,7 +396,7 @@ class UserIF:
     # kill jobs
     def killJobs(self,idsStr,user,host,code,prodManager):
         # deserialize IDs
-        ids = pickle.loads(idsStr)
+        ids = WrappedPickle.loads(idsStr)
         if not isinstance(ids,types.ListType):
             ids = [ids]
         _logger.debug("killJob : %s %s %s %s" % (user,code,prodManager,ids))
@@ -399,7 +426,7 @@ class UserIF:
     # reassign jobs
     def reassignJobs(self,idsStr,user,host):
         # deserialize IDs
-        ids = pickle.loads(idsStr)
+        ids = WrappedPickle.loads(idsStr)
         # reassign jobs
         ret = self.taskBuffer.reassignJobs(ids,forkSetupper=True)
         # logging
@@ -426,7 +453,7 @@ class UserIF:
     # resubmit jobs
     def resubmitJobs(self,idsStr):
         # deserialize IDs
-        ids = pickle.loads(idsStr)
+        ids = WrappedPickle.loads(idsStr)
         # kill jobs
         ret = self.taskBuffer.resubmitJobs(ids)
         # serialize 
@@ -492,7 +519,7 @@ class UserIF:
             ret = {'site':'NULL','logInfo':[]}
         try:
             # deserialize sites
-            sites = pickle.loads(sitesStr)
+            sites = WrappedPickle.loads(sitesStr)
             # instantiate siteMapper
             siteMapper = SiteMapper(self.taskBuffer)
             # instantiate job
@@ -543,7 +570,7 @@ class UserIF:
     def getSlimmedFileInfoPandaIDs(self,pandaIDsStr,dn):
         try:
             # deserialize IDs
-            pandaIDs = pickle.loads(pandaIDsStr)
+            pandaIDs = WrappedPickle.loads(pandaIDsStr)
             # truncate
             maxIDs = 5500
             if len(pandaIDs) > maxIDs:
@@ -587,7 +614,7 @@ class UserIF:
     def getFullJobStatus(self,idsStr,dn):
         try:
             # deserialize jobspecs
-            ids = pickle.loads(idsStr)
+            ids = WrappedPickle.loads(idsStr)
             # truncate
             maxIDs = 5500
             if len(ids) > maxIDs:

@@ -1,5 +1,10 @@
 Release Note
 
+* current
+  * added WrappedPickle to avoid deserializing insecure objects
+  * added banUser to storeJob
+  * added prodSourceLabel check to UserIF
+
 * 0.0.12 (6/13/2011)
   * fixed Merger for --useContElement
   * fixed inputFileProject extraction for wildcard-uses

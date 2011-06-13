@@ -4,6 +4,9 @@ processGroups = [('others',       []),
                  ('test',         ['prod_test','rc_test','validation']),
                  ]
 
+# source labels used for panda internal purpose
+internalSourceLabels = ['ddm']
+
 
 # get corresponding group
 def getProcessGroup(valGroup):

@@ -6639,6 +6639,41 @@ class DBProxy:
             self._rollback()
             return retJobID,retJobsetID,retStatus
 
+
+    # check ban user
+    def checkBanUser(self,dn,sourceLabel):
+        comment = ' /* DBProxy.checkBanUser */'                            
+        _logger.debug("checkBanUser %s %s" % (dn,sourceLabel))
+        try:
+            # set initial values
+            retStatus = True
+            # set autocommit on
+            self.conn.begin()
+            # select
+            name = self.cleanUserID(dn)
+            sql = "SELECT status FROM ATLAS_PANDAMETA.users WHERE name=:name"
+            varMap = {}
+            varMap[':name'] = name
+            self.cur.execute(sql+comment,varMap)
+            self.cur.arraysize = 10
+            res = self.cur.fetchone()            
+            if res != None:
+                # check status
+                tmpStatus, = res
+                if tmpStatus in ['disabled']:
+                    retStatus = False
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            _logger.debug("checkBanUser %s %s Status=%s" % (dn,sourceLabel,retStatus))
+            return retStatus
+        except:
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("checkBanUser %s %s : %s %s" % (dn,sourceLabel,errType,errValue))
+            # roll back
+            self._rollback()
+            return retStatus
+
         
     # get email address for a user
     def getEmailAddr(self,name):

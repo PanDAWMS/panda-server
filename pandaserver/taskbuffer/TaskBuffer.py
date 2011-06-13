@@ -59,6 +59,20 @@ class TaskBuffer:
         userVO         = 'atlas'
         userCountry    = None
         nExpressJobs   = 0
+        # check ban user except internally generated jobs
+        if len(jobs) > 0 and not jobs[0].prodSourceLabel in ProcessGroups.internalSourceLabels:
+            # get DB proxy
+            proxy = self.proxyPool.getProxy()
+            # check user status
+            tmpStatus = proxy.checkBanUser(user,jobs[0].prodSourceLabel)
+            # release proxy
+            self.proxyPool.putProxy(proxy)
+            # return if DN is blocked
+            if not tmpStatus:
+                # FIXME after SSC 5/25/2011
+                #return []
+                pass
+        # set parameters for user jobs
         if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda','ptest','rc_test','ssc']) \
                and (not jobs[0].processingType in ['merge','unmerge']):
             # get DB proxy
