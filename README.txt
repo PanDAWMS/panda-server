@@ -1,6 +1,6 @@
 Release Note
 
-* current
+* 0.0.12 (6/13/2011)
   * fixed Merger for --useContElement
   * fixed inputFileProject extraction for wildcard-uses
   * using basename in Utils methods
