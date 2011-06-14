@@ -69,9 +69,7 @@ class TaskBuffer:
             self.proxyPool.putProxy(proxy)
             # return if DN is blocked
             if not tmpStatus:
-                # FIXME after SSC 5/25/2011
-                #return []
-                pass
+                return []
         # set parameters for user jobs
         if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda','ptest','rc_test','ssc']) \
                and (not jobs[0].processingType in ['merge','unmerge']):

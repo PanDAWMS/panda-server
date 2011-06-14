@@ -69,9 +69,7 @@ class UserIF:
             goodProdSourceLabel = False
         # reject injection for bad prodSourceLabel
         if not goodProdSourceLabel:
-            # FIXME after SSC 5/25/2011
-            #jobs = []
-            pass
+            return "ERROR: production role is required for production jobs"
         # store jobs
         ret = self.taskBuffer.storeJobs(jobs,user,forkSetupper=True,fqans=userFQANs,
                                         hostname=host)

@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * enabled banUser in storeJobs
+  * enabled role-check in submitJobs
   * added WrappedPickle to avoid deserializing insecure objects
   * added banUser to storeJob
   * added prodSourceLabel check to UserIF
