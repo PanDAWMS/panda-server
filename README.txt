@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * added cmtconfig to broker logging
+  * enabled cross-cloud for US in PD2P 
   * enabled banUser in storeJobs
   * enabled role-check in submitJobs
   * added WrappedPickle to avoid deserializing insecure objects

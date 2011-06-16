@@ -156,13 +156,16 @@ def _isTooManyInput(nFilesPerJob,inputSizePerJob):
 
 
 # send analysis brokerage info
-def sendAnalyBrokeageInfo(results,prevRelease,diskThreshold,chosenSite):
+def sendAnalyBrokeageInfo(results,prevRelease,diskThreshold,chosenSite,prevCmtConfig):
     # send log messages
     messageList = []
     for resultType,resultList in results.iteritems():
         for resultItem in resultList:
             if resultType == 'rel':
-                msgBody = 'skip %s - %s is missing' % (resultItem,prevRelease)
+                if prevCmtConfig in ['','NULL',None]:
+                    msgBody = 'skip %s - %s is missing' % (resultItem,prevRelease)
+                else:
+                    msgBody = 'skip %s - %s/%s is missing' % (resultItem,prevRelease,prevCmtConfig)
             elif resultType == 'pilot':
                 msgBody = 'skip %s - no pilots for last 3 hours' % resultItem
             elif resultType == 'disk':
@@ -766,7 +769,10 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         if (not candidateForAnal) and forAnalysis and trustIS:
                             resultsForAnalStr = 'ERROR : No candidate. '
                             if resultsForAnal['rel'] != []:
-                                resultsForAnalStr += 'Release:%s was not found in %s. ' % (prevRelease,str(resultsForAnal['rel']))
+                                if prevCmtConfig in ['','NULL',None]:
+                                    resultsForAnalStr += 'Release:%s was not found in %s. ' % (prevRelease,str(resultsForAnal['rel']))
+                                else:
+                                    resultsForAnalStr += 'Release:%s/%s was not found in %s. ' % (prevRelease,prevCmtConfig,str(resultsForAnal['rel']))
                             if resultsForAnal['pilot'] != []:
                                 resultsForAnalStr += '%s are inactive (no pilots for last 3 hours). ' % str(resultsForAnal['pilot'])
                             if resultsForAnal['disk'] != []:
@@ -780,7 +786,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         # send log
                         if forAnalysis and trustIS and reportLog:
                             # put logging info to ErrorDiag just to give it back to the caller
-                            tmpJob.brokerageErrorDiag = sendAnalyBrokeageInfo(resultsForAnal,prevRelease,diskThreshold,tmpJob.computingSite)
+                            tmpJob.brokerageErrorDiag = sendAnalyBrokeageInfo(resultsForAnal,prevRelease,diskThreshold,tmpJob.computingSite,prevCmtConfig)
                         _log.debug('PandaID:%s -> site:%s' % (tmpJob.PandaID,tmpJob.computingSite))
                         if tmpJob.computingElement == 'NULL':
                             if tmpJob.prodSourceLabel == 'ddm':
