@@ -510,7 +510,7 @@ class UserIF:
 
     # run brokerage
     def runBrokerage(self,sitesStr,cmtConfig,atlasRelease,trustIS=False,processingType=None,
-                     dn=None,loggingFlag=False):
+                     dn=None,loggingFlag=False,memorySize=None):
         if not loggingFlag:
             ret = 'NULL'
         else:
@@ -526,6 +526,8 @@ class UserIF:
             job.cmtConfig    = cmtConfig
             if processingType != None:
                 job.processingType = processingType
+            if memorySize != None:
+                job.minRamCount = memorySize
             # run brokerage
             brokerage.broker.schedule([job],self.taskBuffer,siteMapper,True,sites,trustIS,dn,
                                       reportLog=loggingFlag)
@@ -945,7 +947,7 @@ def getNumPilots(req):
 
 # run brokerage
 def runBrokerage(req,sites,cmtConfig=None,atlasRelease=None,trustIS=False,processingType=None,
-                 loggingFlag=False):
+                 loggingFlag=False,memorySize=None):
     if trustIS=='True':
         trustIS = True
     else:
@@ -954,9 +956,14 @@ def runBrokerage(req,sites,cmtConfig=None,atlasRelease=None,trustIS=False,proces
         loggingFlag = True
     else:
         loggingFlag = False
+    if memorySize != None:   
+        try:
+            memorySize = long(memorySize)
+        except:
+            pass
     dn = _getDN(req)
     return userIF.runBrokerage(sites,cmtConfig,atlasRelease,trustIS,processingType,dn,
-                               loggingFlag)
+                               loggingFlag,memorySize)
 
 # run rebrokerage
 def runReBrokerage(req,jobID,libDS='',cloud=None,excludedSite=None,forceOpt=None):

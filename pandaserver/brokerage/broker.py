@@ -170,6 +170,8 @@ def sendAnalyBrokeageInfo(results,prevRelease,diskThreshold,chosenSite,prevCmtCo
                 msgBody = 'skip %s - no pilots for last 3 hours' % resultItem
             elif resultType == 'disk':
                 msgBody = 'skip %s - disk shortage < %sGB' % (resultItem,diskThreshold)
+            elif resultType == 'memory':
+                msgBody = 'skip %s - RAM shortage' % resultItem
             elif resultType == 'status':
                 msgBody = 'skip %s - not online' % resultItem 
             elif resultType == 'weight':
@@ -248,7 +250,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
         jobs.sort(_compFunc)
         # brokerage for analysis 
         candidateForAnal = True
-        resultsForAnal   = {'rel':[],'pilot':[],'disk':[],'status':[],'weight':[]}
+        resultsForAnal   = {'rel':[],'pilot':[],'disk':[],'status':[],'weight':[],'memory':[]}
         relCloudMap      = {}
         loggerMessages   = []
         # loop over all jobs + terminator(None)
@@ -340,10 +342,11 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     _log.debug('  rel            %s' % prevRelease)
                     _log.debug('  sourceLabel    %s' % prevSourceLabel)
                     _log.debug('  cmtConfig      %s' % prevCmtConfig)
+                    _log.debug('  memory         %s' % prevMemory)
                     _log.debug('  prodDBlock     %s' % prodDBlock)
                     _log.debug('  computingSite  %s' % computingSite)
                     _log.debug('  processingType %s' % prevProType)
-                    _log.debug('  transferType   %s' % prevDirectAcc)                    
+                    _log.debug('  transferType   %s' % prevDirectAcc)
                 # determine site
                 if (iJob == 0 or chosen_ce != 'TOBEDONE') and prevBrokergageSiteList in [None,[]]:
                      # file scan for pre-assigned jobs
@@ -471,7 +474,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 _log.debug('   %s' % str(releases))
                             if forAnalysis and (tmpSiteSpec.cloud in ['ND','CERN'] or prevRelease==''):
                                 # doesn't check releases for analysis
-                                _log.debug(' skip release check')
+                                _log.debug(' no release check')
                                 pass
                             elif forAnalysis and useCacheVersion:
                                 # cache matching 
@@ -515,6 +518,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 try:
                                     if int(tmpSiteSpec.memory) < int(prevMemory):
                                         _log.debug('  skip: memory shortage %s<%s' % (tmpSiteSpec.memory,prevMemory))
+                                        if forAnalysis and trustIS:
+                                            resultsForAnal['memory'].append(site)
                                         continue
                                 except:
                                     type, value, traceBack = sys.exc_info()
@@ -770,13 +775,15 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             resultsForAnalStr = 'ERROR : No candidate. '
                             if resultsForAnal['rel'] != []:
                                 if prevCmtConfig in ['','NULL',None]:
-                                    resultsForAnalStr += 'Release:%s was not found in %s. ' % (prevRelease,str(resultsForAnal['rel']))
+                                    resultsForAnalStr += 'Release:%s was not found at %s. ' % (prevRelease,str(resultsForAnal['rel']))
                                 else:
-                                    resultsForAnalStr += 'Release:%s/%s was not found in %s. ' % (prevRelease,prevCmtConfig,str(resultsForAnal['rel']))
+                                    resultsForAnalStr += 'Release:%s/%s was not found at %s. ' % (prevRelease,prevCmtConfig,str(resultsForAnal['rel']))
                             if resultsForAnal['pilot'] != []:
                                 resultsForAnalStr += '%s are inactive (no pilots for last 3 hours). ' % str(resultsForAnal['pilot'])
                             if resultsForAnal['disk'] != []:
                                 resultsForAnalStr += 'Disk shortage < %sGB at %s. ' % (diskThreshold,str(resultsForAnal['disk']))
+                            if resultsForAnal['memory'] != []:
+                                resultsForAnalStr += 'Insufficient RAM at %s. ' % str(resultsForAnal['memory'])
                             if resultsForAnal['status'] != []:
                                 resultsForAnalStr += '%s are not online. ' % str(resultsForAnal['status'])
                             resultsForAnalStr = resultsForAnalStr[:-1]

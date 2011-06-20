@@ -4357,7 +4357,7 @@ class DBProxy:
         sqlSub += "WHERE dataset=:dataset AND type IN (:type1,:type2) AND status=:fileStatus GROUP BY destinationDBlock,PandaID"
         sqlPan  = "SELECT jobStatus FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID"
         sqlDis  = "SELECT distinct dispatchDBlock FROM ATLAS_PANDA.filesTable4 "
-        sqlDis += "WHERE PandaID=:PandaID AND type=:type"
+        sqlDis += "WHERE PandaID=:PandaID AND type=:type AND dispatchDBlock IS NOT NULL"
         sqlLfn  = "SELECT /*+ index(tab FILESTABLE4_DISPDBLOCK_IDX) */ lfn,PandaID FROM ATLAS_PANDA.filesTable4 tab "
         sqlLfn += "WHERE dispatchDBlock=:dispatchDBlock AND type=:type "
         sqlLfn += "AND (destinationDBlockToken IS NULL OR destinationDBlockToken<>:noshadow)"

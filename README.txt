@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * fixed getFilesInUseForAnal to skip NULL dis datasets
+  * updated analy_brokerage to use memory size
   * added cmtconfig to broker logging
   * enabled cross-cloud for US in PD2P 
   * enabled banUser in storeJobs

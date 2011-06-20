@@ -291,9 +291,12 @@ class ReBroker (threading.Thread):
                     matchCache = re.search('^AnalysisTransforms-([^/]+)',self.job.homepackage)
                     if matchCache != None:
                         tmpJobForBrokerage.AtlasRelease = matchCache.group(1).replace('_','-')
-                    # run brokerage
                     if not self.job.cmtConfig in ['NULL',None]:    
                         tmpJobForBrokerage.cmtConfig = self.job.cmtConfig
+                    # memory size
+                    if not self.job.minRamCount in ['NULL',None,0]:
+                        tmpJobForBrokerage.minRamCount = self.job.minRamCount
+                    # run brokerage
                     brokerage.broker.schedule([tmpJobForBrokerage],self.taskBuffer,siteMapper,forAnalysis=True,
                                               setScanSiteList=maxPandaSites,trustIS=True)
                     newSiteID = tmpJobForBrokerage.computingSite
