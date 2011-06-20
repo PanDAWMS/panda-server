@@ -29,6 +29,7 @@ class Merger:
         self.taskBuffer   = taskBuffer
         self.job          = job
         self.mergeType    = ""
+        self.mergeScript  = ""
         self.mergeTypeMap = {}        
         self.supportedMergeType = ['hist','ntuple','pool','user','log','text']
         self.simulFlag    = simulFlag
@@ -44,6 +45,15 @@ class Merger:
             _logger.debug("%s cannot find --mergeType parameter from parent job" % self.job.PandaID)
         return type
 
+    # parse jobParameters and get mergeScript specified by the client
+    def getUserMergeScript(self):
+        script = ""
+        try:
+            paramList = re.split('\W+',self.job.jobParameters.strip())
+            script = paramList[ paramList.index('mergeScript') + 1 ]
+        except:
+            _logger.debug("%s cannot find --mergeScript parameter from parent job" % self.job.PandaID)
+        return script
 
     # get file type
     def getFileType(self,tmpLFN):
@@ -220,6 +230,12 @@ class Merger:
                     _logger.error("%s skip not supported merging type \"%s\"" % (self.job.PandaID, self.mergeType))
                     _logger.debug("%s end" % self.job.PandaID)
                     return None
+                elif self.mergeType in ['user']:
+                    self.mergeScript = self.getUserMergeScript()
+                    if not self.mergeScript:
+                        _logger.error("%s skip no merging script specified for merging type \"%s\"" % (self.job.PandaID, self.mergeType))
+                        _logger.debug("%s end" % self.job.PandaID)
+                        return None
             else:
                 # automatic merge type detection
                 tmpRet = self.getMergeTypeAuto()
@@ -524,8 +540,11 @@ class Merger:
             # log
             params += " -t log"
         elif self.mergeType != '':
-            # user specified
+            # user specified merging type
             params += " -t %s" % self.mergeType
+            if self.mergeScript != '':
+                # user specified merging script --> imply "user" merging type
+                params += " -j %s" % self.mergeScript
         else:
             # auto detection
             params += " -t %s" % self.detectMergeTypeWithLFN(filePrefix,fileSuffix)

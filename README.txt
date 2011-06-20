@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * updated Merger for mergeScript
   * fixed getFilesInUseForAnal to skip NULL dis datasets
   * updated analy_brokerage to use memory size
   * added cmtconfig to broker logging
