@@ -137,10 +137,16 @@ class ReBroker (threading.Thread):
             # check excludedSite
             if self.excludedSite == None:
                 self.excludedSite = []
-                match = re.search("--excludedSite( +|=)([^ \"\';$]+)",self.job.metadata)
+                match = re.search("--excludedSite( +|=)\s*(\'|\")*([^ \"\';$]+)",self.job.metadata)
                 if match != None:
-                    self.excludedSite = match.group(2).split(',')
+                    self.excludedSite = match.group(3).split(',')
             _logger.debug("%s excludedSite=%s" % (self.token,str(self.excludedSite)))
+            # check cloud
+            if self.cloud == None:
+                match = re.search("--cloud( +|=)\s*(\'|\")*([^ \"\';$]+)",self.job.metadata)
+                if match != None:
+                    self.cloud = match.group(3)
+            _logger.debug("%s cloud=%s" % (self.token,self.cloud))
             # get inDS/LFNs
             status,tmpMapInDS,maxFileSize = self.taskBuffer.getInDatasetsForReBrokerage(self.jobID,self.userName)
             if not status:

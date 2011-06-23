@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * updated rebrokerage to take --cloud into account
+  * added tags into PD2P logging
   * updated Merger for mergeScript
   * fixed getFilesInUseForAnal to skip NULL dis datasets
   * updated analy_brokerage to use memory size

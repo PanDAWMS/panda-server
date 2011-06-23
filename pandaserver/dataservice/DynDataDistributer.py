@@ -228,7 +228,7 @@ class DynDataDistributer:
                         # check number of replicas                        
                         if len(allCompPd2pSites) >= maxSitesHaveDS:
                             self.putLog("skip since many T2 PD2P sites (%s>=%s) have the replica" % (len(allCompPd2pSites),maxSitesHaveDS),
-                                        sendLog=True)
+                                        sendLog=True,actionTag='SKIPPED',tagsMap={'reason':'TOO_MANY_T2_REPLICAS','dataset':tmpDS})
                             continue
                         # check the number of subscriptions
                         maxNumSubInAllCloud = max(0,maxSitesHaveDS-len(allCompPd2pSites))
@@ -237,11 +237,11 @@ class DynDataDistributer:
                         if totalUserSub >= maxNumSubInAllCloud:
                             self.putLog("skip since enough subscriptions (%s>=%s) were already made for T2 PD2P" % \
                                         (totalUserSub,maxNumSubInAllCloud),
-                                        sendLog=True)
+                                        sendLog=True,actionTag='SKIPPED',tagsMap={'reason':'TOO_MANY_T2_SUBSCRIPTIONS','dataset':tmpDS})
                             continue
                     # no candidates
                     if len(allCandidates) == 0:
-                        self.putLog("skip since no candidates",sendLog=True)
+                        self.putLog("skip since no candidates",sendLog=True,actionTag='SKIPPED',tagsMap={'reason':'NO_T2_CANDIDATE','dataset':tmpDS})
                         continue
                     # get inverse weight for brokerage
                     weightForBrokerage = self.getWeightForBrokerage(allCandidates,tmpDS,nReplicasInCloud)
@@ -259,7 +259,12 @@ class DynDataDistributer:
                                                            True,specialWeight=weightForBrokerage,getWeight=True,
                                                            sizeMapForCheck=freeSizeMap,datasetSize=dsSize)
                     for tmpWeightSite,tmpWeightStr in usedWeight.iteritems():
-                        self.putLog("weight %s %s" % (tmpWeightSite,tmpWeightStr),sendLog=True)
+                        if tmpWeightSite == tmpJob.computingSite:
+                            tmpActionTag = 'SELECTEDT2'
+                        else:
+                            tmpActionTag = 'UNSELECTEDT2'
+                        self.putLog("weight %s %s" % (tmpWeightSite,tmpWeightStr),sendLog=True,
+                                    actionTag=tmpActionTag,tagsMap={'site':tmpWeightSite,'weight':tmpWeightStr})
                     self.putLog("site -> %s" % tmpJob.computingSite)
                     # make subscription
                     if not self.simul:
@@ -576,7 +581,7 @@ class DynDataDistributer:
                         sizeMap[sitename] = {}
                     # append
                     sizeMap[sitename][valueItem] = tmpGigaVal
-                    self.putLog(out)
+                    self.putLog('OK')
                 except:
                     self.putLog(out,'error')            
                     self.putLog('could not convert HTTP-res to free size map for %s%s' % (dq2ID,valueItem), 'error')
@@ -1193,7 +1198,7 @@ class DynDataDistributer:
         
 
     # put log
-    def putLog(self,msg,type='debug',sendLog=False):
+    def putLog(self,msg,type='debug',sendLog=False,actionTag='',tagsMap={}):
         tmpMsg = self.token+' '+msg
         if type == 'error':
             _logger.error(tmpMsg)
@@ -1201,6 +1206,12 @@ class DynDataDistributer:
             _logger.debug(tmpMsg)
         # send to logger
         if sendLog:
+            tmpMsg = self.token + ' - '
+            if actionTag != '':
+                tmpMsg += '%s ' % actionTag
+                for tmpTag,tmpTagVal in tagsMap.iteritems():
+                    tmpMsg += '%s=%s ' % (tmpTag,tmpTagVal)
+            tmpMsg += '- ' + msg    
             tmpPandaLogger = PandaLogger()
             tmpPandaLogger.lock()
             tmpPandaLogger.setParams({'Type':'pd2p'})
@@ -1254,7 +1265,8 @@ class DynDataDistributer:
         # make subscription
         tmpJob.computingSite = selectedSite
         subRet,dq2ID = self.makeSubscription(tmpDS,tmpJob.computingSite)
-        self.putLog("made subscription for T1-T1 to %s:%s" % (tmpJob.computingSite,dq2ID),sendLog=True)
+        self.putLog("made subscription for T1-T1 to %s:%s" % (tmpJob.computingSite,dq2ID),sendLog=True,
+                    actionTag='SELECTEDT1',tagsMap={'site':tmpJob.computingSite,'dataset':tmpDS})
         # check if small cloud is used
         if siteToCloud[tmpJob.computingSite] in cloudsWithSmallT1:
             useSmallT1 = siteToCloud[tmpJob.computingSite]
