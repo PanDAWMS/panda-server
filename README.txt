@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * updated Merger for runDir
   * updated rebrokerage to take --cloud into account
   * added tags into PD2P logging
   * updated Merger for mergeScript

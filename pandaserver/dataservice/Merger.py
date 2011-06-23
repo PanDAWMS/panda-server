@@ -30,6 +30,7 @@ class Merger:
         self.job          = job
         self.mergeType    = ""
         self.mergeScript  = ""
+        self.runDir       = "."
         self.mergeTypeMap = {}        
         self.supportedMergeType = ['hist','ntuple','pool','user','log','text']
         self.simulFlag    = simulFlag
@@ -54,6 +55,19 @@ class Merger:
         except:
             _logger.debug("%s cannot find --mergeScript parameter from parent job" % self.job.PandaID)
         return script
+
+    # parse jobParameters and get rundir specified by the client
+    def getRunDir(self):
+        rundir = "."
+        try:
+            m = re.match(r'.*\-r\s+[\'|"]+(\S+)[\'|"]+\s+.*', self.job.jobParameters.strip())
+
+            if m:
+                rundir = m.group(1)
+        except:
+            _logger.debug("%s cannot find -r parameter from parent job" % self.job.PandaID)
+
+        return rundir
 
     # get file type
     def getFileType(self,tmpLFN):
@@ -232,6 +246,7 @@ class Merger:
                     return None
                 elif self.mergeType in ['user']:
                     self.mergeScript = self.getUserMergeScript()
+                    self.runDir      = self.getRunDir()
                     if not self.mergeScript:
                         _logger.error("%s skip no merging script specified for merging type \"%s\"" % (self.job.PandaID, self.mergeType))
                         _logger.debug("%s end" % self.job.PandaID)
@@ -544,7 +559,7 @@ class Merger:
             params += " -t %s" % self.mergeType
             if self.mergeScript != '':
                 # user specified merging script --> imply "user" merging type
-                params += " -j %s" % self.mergeScript
+                params += " -j %s -r %s" % (self.mergeScript, self.runDir)
         else:
             # auto detection
             params += " -t %s" % self.detectMergeTypeWithLFN(filePrefix,fileSuffix)
