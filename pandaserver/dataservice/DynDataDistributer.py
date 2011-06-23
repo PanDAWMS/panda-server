@@ -264,7 +264,7 @@ class DynDataDistributer:
                         else:
                             tmpActionTag = 'UNSELECTEDT2'
                         self.putLog("weight %s %s" % (tmpWeightSite,tmpWeightStr),sendLog=True,
-                                    actionTag=tmpActionTag,tagsMap={'site':tmpWeightSite,'weight':tmpWeightStr})
+                                    actionTag=tmpActionTag,tagsMap={'site':tmpWeightSite,'weight':tmpWeightStr,'dataset':tmpDS})
                     self.putLog("site -> %s" % tmpJob.computingSite)
                     # make subscription
                     if not self.simul:
