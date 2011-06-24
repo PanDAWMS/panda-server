@@ -46,6 +46,7 @@ class Merger:
             _logger.debug("%s cannot find --mergeType parameter from parent job" % self.job.PandaID)
         return type
 
+
     # parse jobParameters and get mergeScript specified by the client
     def getUserMergeScript(self):
         script = ""
@@ -56,18 +57,18 @@ class Merger:
             _logger.debug("%s cannot find --mergeScript parameter from parent job" % self.job.PandaID)
         return script
 
+
     # parse jobParameters and get rundir specified by the client
     def getRunDir(self):
         rundir = "."
         try:
-            m = re.match(r'.*\-r\s+[\'|"]+(\S+)[\'|"]+\s+.*', self.job.jobParameters.strip())
-
+            m = re.match(r'.*\-r\s+(\S+)\s+.*', self.job.jobParameters.strip())
             if m:
-                rundir = m.group(1)
+                rundir = re.sub(r'[\'"]','',m.group(1))
         except:
             _logger.debug("%s cannot find -r parameter from parent job" % self.job.PandaID)
-
         return rundir
+
 
     # get file type
     def getFileType(self,tmpLFN):
