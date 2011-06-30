@@ -551,23 +551,28 @@ class Merger:
             tmpFile.status     = 'ready'
             tmpFile.prodDBlockToken = 'local'
             tmpJob.addFile(tmpFile)
-        # file type    
+        # file type
         if fileSuffix.endswith('log.tgz'):
             # log
-            params += " -t log"
+            usedMergeType = 'log'
         elif self.mergeType != '':
             # user specified merging type
-            params += " -t %s" % self.mergeType
+            usedMergeType = self.mergeType
             if self.mergeScript != '':
                 # user specified merging script --> imply "user" merging type
                 params += " -j %s -r %s" % (self.mergeScript, self.runDir)
         else:
             # auto detection
-            params += " -t %s" % self.detectMergeTypeWithLFN(filePrefix,fileSuffix)
+            usedMergeType = self.detectMergeTypeWithLFN(filePrefix,fileSuffix)
+        params += " -t %s" % usedMergeType
         params += " -i \"%s\"" % repr(fileList)
         # output
         tmpFile = FileSpec()
         tmpFile.lfn = "%s.%s.merge.%s" % (filePrefix,serNum,fileSuffix)
+        if usedMergeType == 'text' and \
+           not tmpFile.lfn.endswith('.tgz') and \
+           not tmpFile.lfn.endswith('.tar.gz'):
+            tmpFile.lfn += '.tgz'
         tmpFile.destinationDBlock = outDsName
         tmpFile.destinationSE     = self.job.destinationSE
         tmpFile.dataset           = containerName

@@ -6,6 +6,8 @@ import os
 import re
 import sys
 import zlib
+import uuid
+import datetime
 import jobdispatcher.Protocol as Protocol
 from config import panda_config
 
@@ -55,6 +57,61 @@ def putFile(req,file):
     fo.write(file.file.read())
     fo.close()
     _logger.debug("putFile : %s end" % file.filename)
+    return True
+
+
+# get event picking request
+def putEventPickingRequest(req,runEventList='',eventPickDataType='',eventPickStreamName='',
+                           eventPickDS='',eventPickAmiTag='',userDatasetName='',lockedBy='',
+                           params=''):
+    if not Protocol.isSecure(req):
+        return "ERROR : no HTTPS"
+    userName = req.subprocess_env['SSL_CLIENT_S_DN']
+    creationTime = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+    _logger.debug("putEventPickingRequest : %s start" % userName)
+    # size check
+    sizeLimit = 10*1024*1024
+    # get total size
+    try:
+        contentLength = long(req.headers_in["content-length"])
+    except:
+        errStr = "cannot get content-length from HTTP request."
+        _logger.error("putEventPickingRequest : " + errStr + " " + userName)
+        _logger.debug("putEventPickingRequest : %s end" % userName)
+        return "ERROR : " + errStr
+    _logger.debug("size %s" % contentLength)
+    if contentLength > sizeLimit:
+        errStr = "Too large run/event list. Exceeded size limit %s>%s." % (contentLength,sizeLimit)
+        _logger.error("putEventPickingRequest : " + errStr + " " + userName)
+        _logger.debug("putEventPickingRequest : %s end" % userName)
+        return "ERROR : " + errStr
+    try:
+        # make filename
+        evpFileName = '%s/evp.%s' % (panda_config.cache_dir,str(uuid.uuid4()))
+        _logger.debug("putEventPickingRequest : %s -> %s" % (userName,evpFileName))
+        # write
+        fo = open(evpFileName,'wb')
+        fo.write("userName=%s\n" % userName)
+        fo.write("creationTime=%s\n" % creationTime)
+        fo.write("eventPickDataType=%s\n" % eventPickDataType)
+        fo.write("eventPickStreamName=%s\n" % eventPickStreamName)
+        fo.write("eventPickDS=%s\n" % eventPickDS)
+        fo.write("eventPickAmiTag=%s\n" % eventPickAmiTag)
+        fo.write("userDatasetName=%s\n" % userDatasetName)
+        fo.write("lockedBy=%s\n" % lockedBy)
+        fo.write("params=%s\n" % params)
+        for tmpLine in runEventList.split('\n'):
+            tmpItems = tmpLine.split()
+            if len(tmpItems) != 2:
+                continue
+            fo.write("runEvent=%s,%s\n" % tuple(tmpItems))
+        fo.close()
+    except:
+        errType,errValue = sys.exc_info()[:2]
+        errStr = "cannot put request due to %s %s" % (errType,errValue) 
+        _logger.error("putEventPickingRequest : " + errStr + " " + userName)
+        return "ERROR : " + errStr
+    _logger.debug("putEventPickingRequest : %s end" % userName)
     return True
 
 

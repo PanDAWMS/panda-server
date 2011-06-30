@@ -183,7 +183,8 @@ setup(
                              'templates/panda_server-backupJobArch.sh.exe.template',
                              'templates/panda_server-deleteJobs.sh.exe.template',
                              'templates/panda_server-merge.sh.exe.template',
-                             'templates/panda_server-datasetManager.sh.exe.template',                             
+                             'templates/panda_server-datasetManager.sh.exe.template',
+                             'templates/panda_server-evpPD2P.sh.exe.template',
                              ]
                  ),
                 # var dirs

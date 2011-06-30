@@ -1,6 +1,9 @@
 Release Note
 
 * current
+  * fixed Merger to use .tgz for text merging
+  * added EventPicker
+  * added statusmodtime to SiteSpec
   * updated Merger for runDir
   * updated rebrokerage to take --cloud into account
   * added tags into PD2P logging

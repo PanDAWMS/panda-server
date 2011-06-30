@@ -21,6 +21,12 @@ from pandalogger.PandaLogger import PandaLogger
 # logger
 _logger = PandaLogger().getLogger('DynDataDistributer')
 
+def initLogger(pLogger):
+    # redirect logging to parent
+    global _logger
+    _logger = pLogger
+                
+
 # NG datasets
 ngDataTypes = ['RAW','HITS','RDO','ESD']
 
@@ -46,21 +52,24 @@ g_filesInDsMap = {}
 class DynDataDistributer:
 
     # constructor
-    def __init__(self,jobs,taskBuffer,siteMapper,simul=False):
+    def __init__(self,jobs,taskBuffer,siteMapper,simul=False,token=None):
         self.jobs = jobs
         self.taskBuffer = taskBuffer
         self.siteMapper = siteMapper
-        self.token = datetime.datetime.utcnow().isoformat(' ')
-        self.pd2pClouds = []
+        if token == None:
+            self.token = datetime.datetime.utcnow().isoformat(' ')
+        else:
+            self.token = token
+        # use a fixed list since some clouds don't have active T2s
+        self.pd2pClouds = ['CA','DE','ES','FR','IT','ND','NL','TW','UK','US']
         self.simul = simul
+        self.lastMessage = ''
 
 
     # main
     def run(self):
         try:
             self.putLog("start for %s" % self.jobs[0].PandaID)
-            # use a fixed list since some clouds don't have active T2s
-            self.pd2pClouds = ['CA','DE','ES','FR','IT','ND','NL','TW','UK','US']
             # check cloud
             if not self.jobs[0].cloud in self.pd2pClouds+['CERN',]:
                 self.putLog("skip cloud=%s not one of PD2P clouds %s" % (self.jobs[0].cloud,str(self.pd2pClouds)))
@@ -281,7 +290,7 @@ class DynDataDistributer:
 
 
     # get candidate sites for subscription
-    def getCandidates(self,inputDS):
+    def getCandidates(self,inputDS,checkUsedFile=True,useHidden=False):
         # return for failure
         failedRet = False,{'':{'':([],[],[],0,False,False,0,0)}}
         # get replica locations
@@ -289,7 +298,7 @@ class DynDataDistributer:
             # container
             status,tmpRepMaps = self.getListDatasetReplicasInContainer(inputDS)
             # get used datasets
-            if status:
+            if status and checkUsedFile:
                 status,tmpUsedDsList = self.getUsedDatasets(tmpRepMaps)
                 # remove unused datasets
                 newRepMaps = {}
@@ -351,7 +360,7 @@ class DynDataDistributer:
                 if tmpMetadata['provenance'] in ngProvenance:
                     self.putLog("provenance=%s of %s is excluded" % (tmpMetadata['provenance'],tmpDS))
                     continue
-                if tmpMetadata['hidden'] in [True,'True']:
+                if tmpMetadata['hidden'] in [True,'True'] and not useHidden:
                     self.putLog("%s is hidden" % tmpDS)
                     continue
                 # check T1 has a replica
@@ -943,11 +952,13 @@ class DynDataDistributer:
         for iDDMTry in range(nTry):
             self.putLog('%s/%s registerContainer %s' % (iDDMTry,nTry,containerName))
             status,out = ddm.DQ2.main('registerContainer',containerName,datasetNames)
-            if status != 0 and out.find('DQDatasetExistsException') != -1:
+            if status != 0 and out.find('DQDatasetExistsException') == -1:
                 time.sleep(60)
             else:
                 break
-        if status != 0 or out.startswith('Error'):
+        if out.find('DQDatasetExistsException') != -1:
+            pass
+        elif status != 0 or out.startswith('Error'):
             self.putLog(out,'error')
             self.putLog('bad DQ2 response to register %s' % containerName, 'error')
             return False
@@ -975,11 +986,13 @@ class DynDataDistributer:
             self.putLog('%s/%s registerNewDataset %s' % (iDDMTry,nTry,datasetName))
             status,out = ddm.DQ2.main('registerNewDataset',datasetName,lfns,guids,fsizes,chksums,
                                       None,None,None,True)
-            if status != 0 and out.find('DQDatasetExistsException') != -1:
+            if status != 0 and out.find('DQDatasetExistsException') == -1:
                 time.sleep(60)
             else:
                 break
-        if status != 0 or out.startswith('Error'):
+        if out.find('DQDatasetExistsException') != -1:
+            pass
+        elif status != 0 or out.startswith('Error'):
             self.putLog(out,'error')
             self.putLog('bad DQ2 response to register %s' % datasetName, 'error')
             return resForFailure
@@ -988,11 +1001,13 @@ class DynDataDistributer:
         for iDDMTry in range(nTry):
             self.putLog('%s/%s freezeDataset %s' % (iDDMTry,nTry,datasetName))
             status,out = ddm.DQ2.main('freezeDataset',datasetName)
-            if status != 0:
+            if status != 0 and out.find('DQFrozenDatasetException') == -1:
                 time.sleep(60)
             else:
                 break
-        if status != 0 or out.startswith('Error'):
+        if out.find('DQFrozenDatasetException') != -1:
+            pass
+        elif status != 0 or out.startswith('Error'):
             self.putLog(out,'error')
             self.putLog('bad DQ2 response to freeze %s' % datasetName, 'error')
             return resForFailure
@@ -1001,14 +1016,14 @@ class DynDataDistributer:
             nTry = 3
             for iDDMTry in range(nTry):
                 self.putLog('%s/%s registerDatasetLocation %s %s' % (iDDMTry,nTry,datasetName,tmpLocation))
-                status,out = ddm.DQ2.main('registerDatasetLocation',datasetName,tmpLocation,0,1,None,None,None,"7 days")
-                if status != 0 and out.find('DQLocationExistsException') != -1:
+                status,out = ddm.DQ2.main('registerDatasetLocation',datasetName,tmpLocation,0,1,None,None,None,"14 days")
+                if status != 0 and out.find('DQLocationExistsException') == -1:
                     time.sleep(60)
                 else:
                     break
             if out.find('DQLocationExistsException') != -1:
                 pass
-            if status != 0 or out.startswith('Error'):
+            elif status != 0 or out.startswith('Error'):
                 self.putLog(out,'error')
                 self.putLog('bad DQ2 response to freeze %s' % datasetName, 'error')
                 return resForFailure
@@ -1080,10 +1095,11 @@ class DynDataDistributer:
 
 
     # conver event/run list to datasets
-    def convertEvtRunToDatasets(self,runEvtList,dsType,streamName,dsFilters):
-        self.putLog('convertEvtRunToDatasets %s %s %s' % (dsType,streamName,str(dsFilters)))
+    def convertEvtRunToDatasets(self,runEvtList,dsType,streamName,dsFilters,amiTag):
+        self.putLog('convertEvtRunToDatasets type=%s stream=%s dsPatt=%s amitag=%s' % \
+                    (dsType,streamName,str(dsFilters),amiTag))
         # check data type
-        failedRet = False,[]
+        failedRet = False,{},[]
         if dsType == 'AOD':
             streamRef = 'StreamAOD_ref'
         elif dsType == 'ESD':
@@ -1104,9 +1120,11 @@ class DynDataDistributer:
             tmpRunEvtList = runEvtList[iEventsTotal:iEventsTotal+nEventsPerLoop]
             iEventsTotal += nEventsPerLoop
             if streamName == '':
-                guidListELSSI = elssiIF.doLookup(tmpRunEvtList,tokens=streamRef,extract=True)
+                guidListELSSI = elssiIF.doLookup(tmpRunEvtList,tokens=streamRef,
+                                                 amitag=amiTag,extract=True)
             else:
-                guidListELSSI = elssiIF.doLookup(tmpRunEvtList,stream=streamName,tokens=streamRef,extract=True)
+                guidListELSSI = elssiIF.doLookup(tmpRunEvtList,stream=streamName,tokens=streamRef,
+                                                 amitag=amiTag,extract=True)
             # failed
             if guidListELSSI == None or len(guidListELSSI) == 0:
                 errStr = ''
@@ -1153,7 +1171,7 @@ class DynDataDistributer:
         # convert to datasets
         allDatasets  = []
         allFiles     = []
-        allLocations = []
+        allLocations = {}
         for tmpIdx,tmpguids in runEvtGuidMap.iteritems():
             runNr,evtNr = tmpIdx
             tmpDsRet,tmpDsMap = self.listDatasetsByGUIDs(tmpguids,dsFilters)
@@ -1181,9 +1199,11 @@ class DynDataDistributer:
                         self.putLog("failed to get locations for DS:%s" % tmpDsName,type='error')
                         return failedRet
                     # collect locations
+                    tmpLocationList = []
                     for tmpLocation in replicaMap.keys():
-                        if not tmpLocation in allLocations:
-                            allLocations.append(tmpLocation)
+                        if not tmpLocation in tmpLocationList:
+                            tmpLocationList.append(tmpLocation)
+                    allLocations[tmpDsName] = tmpLocationList
                 # get file info
                 tmpFileRet,tmpFileInfo = self.getFileFromDataset(tmpDsName,tmpGUID)
                 # failed
@@ -1194,7 +1214,7 @@ class DynDataDistributer:
                 allFiles.append(tmpFileInfo)
         # return
         self.putLog('converted to %s, %s, %s' % (str(allDatasets),str(allLocations),str(allFiles)))
-        return True,allDatasets,allLocations,allFiles
+        return True,allLocations,allFiles
         
 
     # put log
@@ -1202,6 +1222,8 @@ class DynDataDistributer:
         tmpMsg = self.token+' '+msg
         if type == 'error':
             _logger.error(tmpMsg)
+            # keep last error message
+            self.lastMessage = tmpMsg   
         else:
             _logger.debug(tmpMsg)
         # send to logger
@@ -1226,6 +1248,11 @@ class DynDataDistributer:
             time.sleep(1)
                                                                                                                             
 
+    # peek log
+    def peekLog(self):
+        return self.lastMessage
+    
+                
     # make T1 subscription
     def makeT1Subscription(self,allCloudCandidates,tmpDS,dsSize):
         useSmallT1 = None

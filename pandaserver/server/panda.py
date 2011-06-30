@@ -35,8 +35,9 @@ if panda_config.nDBConnection != 0:
 allowedMethods = []
 
 from taskbuffer.Utils            import isAlive,putFile,deleteFile,getServer,updateLog,fetchLog,\
-     touchFile,getVomsAttr
-allowedMethods += ['isAlive','putFile','deleteFile','getServer','updateLog','fetchLog','touchFile','getVomsAttr']
+     touchFile,getVomsAttr,putEventPickingRequest
+allowedMethods += ['isAlive','putFile','deleteFile','getServer','updateLog','fetchLog',
+                   'touchFile','getVomsAttr','putEventPickingRequest']
 
 from dataservice.DataService     import datasetCompleted,updateFileStatusInDisp
 allowedMethods += ['datasetCompleted','updateFileStatusInDisp']

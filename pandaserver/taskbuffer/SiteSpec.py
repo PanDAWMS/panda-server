@@ -9,7 +9,7 @@ class SiteSpec(object):
                    'releases','memory','maxtime','status','space','retry','cmtconfig','setokens',
                    'seprodpath','glexec','priorityoffset','allowedgroups','defaulttoken','queue',
                    'localqueue','validatedreleases','accesscontrol','copysetup','maxinputsize',
-                   'cachedse','allowdirectaccess','comment','cloudlist')
+                   'cachedse','allowdirectaccess','comment','cloudlist','statusmodtime')
 
     # constructor
     def __init__(self):
