@@ -61,6 +61,7 @@ class EventPicker:
             eventPickStreamName = ''
             eventPickDS         = []
             eventPickAmiTag     = ''
+            inputFileList       = []
             # read evp file
             for tmpLine in self.evpFile:
                 tmpMatch = re.search('^([^=]+)=(.+)$',tmpLine)
@@ -101,6 +102,13 @@ class EventPicker:
                 elif tmpItems[0] == 'params':
                     # parameters
                     self.params = tmpItems[1]
+                elif tmpItems[0] == 'inputFileList':
+                    # input file list
+                    inputFileList = tmpItems[1].split(',')
+                    try:
+                        inputFileList.remove('')
+                    except:
+                        pass
             # convert run/event list to dataset/file list
             tmpRet,locationMap,allFiles = self.pd2p.convertEvtRunToDatasets(runEvtList,
                                                                             eventPickDataType,
@@ -110,6 +118,13 @@ class EventPicker:
             if not tmpRet:
                 self.endWithError('Failed to convert the run/event list to a dataset/file list')
                 return False
+            # use only files in the list
+            if inputFileList != []:
+                tmpAllFiles = []
+                for tmpFile in allFiles:
+                    if tmpFile['lfn'] in inputFileList:
+                        tmpAllFiles.append(tmpFile)
+                allFiles = tmpAllFiles        
             # make dataset container
             tmpRet = self.pd2p.registerDatasetContainerWithDatasets(self.userDatasetName,allFiles,locationMap)
             if not tmpRet:
@@ -175,7 +190,7 @@ class EventPicker:
                     return False
             # send email notification for success
             tmpMsg =  'A transfer request was successfully sent to DaTRI.\n'
-            tmpMsg += 'You will receive a notification from DaTRI when the transfer completed'
+            tmpMsg += 'You will receive a notification from DaTRI when it completed.'
             self.sendEmail(True,tmpMsg)
             try:
                 # unlock and delete evp file
@@ -231,9 +246,9 @@ class EventPicker:
         # message
         mailBody = "Hello,\n\nHere is your request status for event picking\n\n"
         if isSucceeded:
-            mailBody += "Status  : SUCCEEDED\n"
+            mailBody += "Status  : Passed to DaTRI\n"
         else:
-            mailBody += "Status  : FAILED\n"
+            mailBody += "Status  : Failed\n"
         mailBody +=     "Created : %s\n" % self.creationTime
         mailBody +=     "Ended   : %s\n" % datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         mailBody +=     "Dataset : %s\n" % self.userDatasetName

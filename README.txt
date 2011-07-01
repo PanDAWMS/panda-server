@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed EventPicker to take input files into account
   * fixed Merger to use .tgz for text merging
   * added EventPicker
   * added statusmodtime to SiteSpec
