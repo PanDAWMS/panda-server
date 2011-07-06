@@ -684,6 +684,7 @@ class DBProxy:
                                 sqlGetCurFiles += "currentfiles,vuid FROM ATLAS_PANDA.Datasets tab WHERE name=:name"
                                 self.cur.execute(sqlGetCurFiles+comment,varMap)
                                 resCurFiles = self.cur.fetchone()
+                                _logger.debug("archiveJob : %s %s" % (job.PandaID,str(resCurFiles)))
                                 if resCurFiles != None:
                                     # increment currentfiles only for the first failed job since that is enough
                                     tmpCurrentFiles,tmpVUID = resCurFiles
