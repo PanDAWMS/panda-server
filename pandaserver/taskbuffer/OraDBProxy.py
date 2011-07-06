@@ -674,9 +674,27 @@ class DBProxy:
                                    and not tmpFile.dispatchDBlock in myDisList:
                                 varMap = {}
                                 varMap[':name'] = tmpFile.dispatchDBlock
-                                sqlFailedInDis  = 'UPDATE /*+ INDEX_RS_ASC(TAB("DATASETS"."NAME")) */ ATLAS_PANDA.Datasets tab '
-                                sqlFailedInDis += 'SET currentfiles=currentfiles+1 WHERE name=:name'
-                                self.cur.execute(sqlFailedInDis+comment,varMap)
+                                # check currentfiles
+                                sqlGetCurFiles  = """SELECT /*+ BEGIN_OUTLINE_DATA """
+                                sqlGetCurFiles += """INDEX_RS_ASC(@"SEL$1" "TAB"@"SEL$1" ("DATASETS"."NAME")) """
+                                sqlGetCurFiles += """OUTLINE_LEAF(@"SEL$1") ALL_ROWS """
+                                sqlGetCurFiles += """OPTIMIZER_FEATURES_ENABLE('10.2.0.4') """
+                                sqlGetCurFiles += """IGNORE_OPTIM_EMBEDDED_HINTS """
+                                sqlGetCurFiles += """END_OUTLINE_DATA */ """
+                                sqlGetCurFiles += "currentfiles,vuid FROM ATLAS_PANDA.Datasets tab WHERE name=:name"
+                                self.cur.execute(sqlGetCurFiles+comment,varMap)
+                                resCurFiles = self.cur.fetchone()
+                                if resCurFiles != None:
+                                    # increment currentfiles only for the first failed job since that is enough
+                                    tmpCurrentFiles,tmpVUID = resCurFiles
+                                    _logger.debug("archiveJob : %s %s currentfiles=%s" % (job.PandaID,tmpFile.dispatchDBlock,tmpCurrentFiles))
+                                    if tmpCurrentFiles == 0:
+                                        _logger.debug("archiveJob : %s %s update currentfiles" % (job.PandaID,tmpFile.dispatchDBlock))
+                                        varMap = {}
+                                        varMap[':vuid'] = tmpVUID
+                                        sqlFailedInDis  = 'UPDATE ATLAS_PANDA.Datasets '
+                                        sqlFailedInDis += 'SET currentfiles=currentfiles+1 WHERE vuid=:vuid'
+                                        self.cur.execute(sqlFailedInDis+comment,varMap)
                                 myDisList.append(tmpFile.dispatchDBlock) 
                 # delete downstream jobs
                 ddmIDs     = []
@@ -7754,4 +7772,3 @@ class DBProxy:
             pass
         # return
         return retVal
-                
