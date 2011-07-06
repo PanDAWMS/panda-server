@@ -1,6 +1,9 @@
 Release Note
 
 * current
+  * fixed Watcher to append attemptNr when sent->activated
+  * fixed resetDefJob
+  * limited the number of jobs with the same GEN dis
   * fixed EventPicker to take input files into account
   * fixed Merger to use .tgz for text merging
   * added EventPicker

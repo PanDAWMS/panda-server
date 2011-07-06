@@ -50,18 +50,11 @@ class Watcher (threading.Thread):
                                                                    str(job.modificationTime),
                                                                    str(job.endTime)))
                     destDBList = []
-                    # reset sent job for analysis
-                    if job.jobStatus == 'sent' and job.commandToPilot != 'tobekilled' and \
-                           (not job.prodSourceLabel in ['managed']) and (not job.processingType in ['ITB_INTEGRATION']):
-                        _logger.debug(' -> reset Sent job : PandaID:%s' % job.PandaID)
-                        job.jobStatus = 'activated'
-                        job.startTime = None
-                        job.endTime   = None                        
                     # retry analysis jobs 
-                    elif (job.prodSourceLabel in ['user','panda']) and job.attemptNr<2 \
+                    if (job.prodSourceLabel in ['user','panda']) and (job.attemptNr<2 or job.jobStatus == 'sent') \
                              and job.commandToPilot != 'tobekilled' and (not job.processingType in ['ITB_INTEGRATION']):
                         # reset
-                        _logger.debug(' -> reset %s job : PandaID:%s #%s' % (job.prodSourceLabel,job.PandaID,job.attemptNr))
+                        _logger.debug(' -> reset %s job with %s : PandaID:%s #%s' % (job.prodSourceLabel,job.jobStatus,job.PandaID,job.attemptNr))
                         job.jobStatus = 'activated'
                         job.startTime = None
                         job.endTime   = None                                                
@@ -75,7 +68,7 @@ class Watcher (threading.Thread):
                                 job.specialHandling = newSpecialHandling
                         # TEMPORARY : send it to long queue
                         oldComputingSite = job.computingSite
-                        if job.computingSite.startswith('ANALY') and (not job.computingSite.startswith('ANALY_LONG_')):
+                        if job.jobStatus != 'sent' and job.computingSite.startswith('ANALY') and (not job.computingSite.startswith('ANALY_LONG_')):
                             longSite = re.sub('^ANALY_','ANALY_LONG_',job.computingSite)
                             longSite = re.sub('_\d+$','',longSite)
                             if longSite in PandaSiteIDs.keys():

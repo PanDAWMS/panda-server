@@ -1986,6 +1986,7 @@ class DBProxy:
         sql2 = "SELECT %s FROM ATLAS_PANDA.jobsDefined4 " % JobSpec.columnNames()
         sql2+= "WHERE PandaID=:PandaID"
         try:
+            oldSubList = []
             # begin transaction
             self.conn.begin()
             # update
@@ -2031,7 +2032,6 @@ class DBProxy:
                     job.jobParameters = clobJobP.read()
                     break
                 # Files
-                oldSubList = []
                 sqlFile = "SELECT %s FROM ATLAS_PANDA.filesTable4 " % FileSpec.columnNames()
                 sqlFile+= "WHERE PandaID=:PandaID"
                 self.cur.arraysize = 10000

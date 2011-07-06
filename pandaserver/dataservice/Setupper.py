@@ -1679,6 +1679,8 @@ class Setupper (threading.Thread):
         _logger.debug('%s make dis datasets for existing files' % self.timestamp)        
         # collect existing files
         dsFileMap = {}
+        nMaxJobs  = 20
+        nJobsMap  = {}
         for tmpJob in self.jobs:
             # use production or test jobs only
             if not tmpJob.prodSourceLabel in ['managed','test']:
@@ -1703,7 +1705,12 @@ class Setupper (threading.Thread):
                     break
             # append site
             destDQ2ID = self.siteMapper.getSite(tmpJob.computingSite).ddm
-            mapKey = (destDQ2ID,logSubDsName)
+            mapKeyJob = (destDQ2ID,logSubDsName)
+            # increment the number of jobs per key
+            if not nJobsMap.has_key(mapKeyJob):
+                nJobsMap[mapKeyJob] = 0
+            mapKey = (destDQ2ID,logSubDsName,nJobsMap[mapKeyJob]/nMaxJobs)
+            nJobsMap[mapKeyJob] += 1
             if not dsFileMap.has_key(mapKey):
                 dsFileMap[mapKey] = {'taskID':tmpJob.taskID,
                                      'PandaID':tmpJob.PandaID,
@@ -1727,7 +1734,7 @@ class Setupper (threading.Thread):
         # loop over all locations
         dispList = []
         for tmpMapKey,tmpVal in dsFileMap.iteritems():
-            tmpLocation,tmpLogSubDsName = tmpMapKey
+            tmpLocation,tmpLogSubDsName,tmpBunchIdx = tmpMapKey
             tmpFileList = tmpVal['files']
             if tmpFileList == {}:
                 continue
