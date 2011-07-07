@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * increased the number of concurrent Mergers
   * incrementing Datasets.currentfile only for the first failed job
   * fixed Watcher to append attemptNr when sent->activated
   * fixed resetDefJob

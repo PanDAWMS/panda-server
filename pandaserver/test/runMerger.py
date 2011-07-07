@@ -153,7 +153,7 @@ class MergerThr (threading.Thread):
 
 
 # start merger
-mergeLock = threading.Semaphore(1)
+mergeLock = threading.Semaphore(3)
 mergeProxyLock = threading.Lock()
 mergeThreadPool = ThreadPool()
 sqlQuery = "type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= 100" 
@@ -168,7 +168,7 @@ while True:
     varMap[':type']   = 'output'
     varMap[':status'] = 'tobemerged'
     proxyS = taskBuffer.proxyPool.getProxy()
-    res = proxyS.getLockDatasets(sqlQuery,varMap)
+    res = proxyS.getLockDatasets(sqlQuery,varMap,modTimeOffset='30/24/60')
     taskBuffer.proxyPool.putProxy(proxyS)
     if res == None:
         _logger.debug("# of datasets to be merged: %s" % res)

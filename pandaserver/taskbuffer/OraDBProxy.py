@@ -3751,11 +3751,14 @@ class DBProxy:
 
 
     # get and lock dataset with a query
-    def getLockDatasets(self,sqlQuery,varMapGet):
+    def getLockDatasets(self,sqlQuery,varMapGet,modTimeOffset=''):
         comment = ' /* DBProxy.getLockDatasets */'        
-        _logger.debug("getLockDatasets(%s,%s)" % (sqlQuery,str(varMapGet)))
+        _logger.debug("getLockDatasets(%s,%s,%s)" % (sqlQuery,str(varMapGet),modTimeOffset))
         sqlGet  = "SELECT vuid,name,modificationdate FROM ATLAS_PANDA.Datasets WHERE " + sqlQuery
-        sqlLock = "UPDATE ATLAS_PANDA.Datasets SET modificationdate=CURRENT_DATE WHERE vuid=:vuid"
+        if modTimeOffset == '':
+            sqlLock = "UPDATE ATLAS_PANDA.Datasets SET modificationdate=CURRENT_DATE WHERE vuid=:vuid"
+        else:
+            sqlLock = "UPDATE ATLAS_PANDA.Datasets SET modificationdate=CURRENT_DATE+%s WHERE vuid=:vuid" % modTimeOffset            
         retList = []
         try:
             # begin transaction
