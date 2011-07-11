@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * implemented new PD2P scheme using MoU and close sites
   * increased the number of concurrent Mergers
   * incrementing Datasets.currentfile only for the first failed job
   * fixed Watcher to append attemptNr when sent->activated

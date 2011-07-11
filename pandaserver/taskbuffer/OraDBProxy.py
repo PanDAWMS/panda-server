@@ -7719,6 +7719,69 @@ class DBProxy:
             return False,{}
 
         
+    # get MoU share for T2 PD2P
+    def getMouShareForT2PD2P(self):
+        comment = ' /* DBProxy.getMouShareForT2PD2P */'                        
+        _logger.debug("getMouShareForT2PD2P start")
+        sqlG  = "SELECT gid,ntup_share FROM ATLAS_GRISLI.t_tier2_groups "
+        sqlT  = "SELECT tier2,t2group,status FROM ATLAS_GRISLI.t_m4regions_replication"
+        try:
+            # start transaction
+            self.conn.begin()
+            self.cur.arraysize = 100000
+            # get weight for each group
+            self.cur.execute(sqlG+comment)
+            resG = self.cur.fetchall()
+            gidShareMap = {}
+            for gid,ntup_share in resG:
+                gidShareMap[gid] = {'ntup_share':ntup_share,'nSites':0}
+            # get group for each site
+            self.cur.execute(sqlT+comment)
+            resT = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            siteGroupMap = {}
+            # loop over all sites
+            for tier2,t2group,t2status in resT:
+                # unknown group
+                if not gidShareMap.has_key(t2group):
+                    _logger.error("getMouShareForT2PD2P unknown group %s for %s" % (t2group,tier2))
+                    continue
+                # use only DATADISK
+                if not tier2.endswith('_DATADISK'):
+                    continue
+                # count the number of ready sites per group
+                if t2status in ['ready']:
+                    gidShareMap[t2group]['nSites'] += 1
+                # append
+                siteGroupMap[tier2] = {'group':t2group,'status':t2status}
+            # normalize
+            _logger.debug("getMouShareForT2PD2P normalize factor = %s" % str(gidShareMap))
+            weightsMap = {}
+            for tier2,t2Val in siteGroupMap.iteritems():
+                t2group  = t2Val['group']
+                t2status = t2Val['status']
+                if gidShareMap[t2group]['ntup_share'] == 0:
+                    # set 0 to be skipped in the brokerage 
+                  tmpWeight = 0
+                elif gidShareMap[t2group]['nSites'] > 0:
+                    # normalize
+                    tmpWeight = float(gidShareMap[t2group]['ntup_share']) / float(gidShareMap[t2group]['nSites'])
+                else:
+                    # no site is ready in this group 
+                    tmpWeight = 0
+                weightsMap[tier2] = {'weight':tmpWeight,'status':t2status}
+            _logger.debug("getMouShareForT2PD2P -> %s" % str(weightsMap))                
+            return weightsMap
+        except:
+            # roll back
+            self._rollback()
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("getMouShareForT2PD2P : %s %s" % (errType,errValue))
+            return {}
+
+        
     # wake up connection
     def wakeUp(self):
         for iTry in range(5):

@@ -1863,6 +1863,18 @@ class TaskBuffer:
         return ret
 
 
+    # get MoU share for T2 PD2P
+    def getMouShareForT2PD2P(self):
+        # query an SQL return Status  
+        proxy = self.proxyPool.getProxy()
+        # get
+        ret = proxy.getMouShareForT2PD2P()
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 del TaskBuffer

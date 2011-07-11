@@ -12,6 +12,7 @@ import random
 import datetime
 
 from dataservice.DDM import ddm
+from dataservice.DDM import toa
 from taskbuffer.JobSpec import JobSpec
 import brokerage.broker
 
@@ -34,7 +35,7 @@ ngDataTypes = ['RAW','HITS','RDO','ESD']
 ngProvenance = []
 
 # protection for max number of replicas
-protectionMaxNumReplicas  = 4
+protectionMaxNumReplicas  = 10
 
 # max number of waiting jobs
 maxWaitingJobs = 200
@@ -64,6 +65,8 @@ class DynDataDistributer:
         self.pd2pClouds = ['CA','DE','ES','FR','IT','ND','NL','TW','UK','US']
         self.simul = simul
         self.lastMessage = ''
+        self.cachedSizeMap = {}
+        self.shareMoUForT2 = None
 
 
     # main
@@ -116,7 +119,7 @@ class DynDataDistributer:
                     continue
                 # get candidate sites
                 self.putLog("get candidates for %s" % inputDS)
-                status,sitesMaps = self.getCandidates(inputDS)
+                status,sitesMaps = self.getCandidates(inputDS,useCloseSites=True)
                 if not status:
                     self.putLog("failed to get candidates")
                     continue
@@ -135,10 +138,16 @@ class DynDataDistributer:
                 for tmpDS,tmpVal in sitesMaps.iteritems():
                     self.putLog("triggered for %s" % tmpDS,sendLog=True)
                     # increment used counter
-                    nUsed = self.taskBuffer.incrementUsedCounterSubscription(tmpDS)
+                    if not self.simul:
+                        nUsed = self.taskBuffer.incrementUsedCounterSubscription(tmpDS)
+                    else:
+                        nUsed = 5
                     # insert dummy for new dataset which is used to keep track of usage even if subscription is not made
                     if nUsed == 0:
-                        self.taskBuffer.addUserSubscription(tmpDS,['DUMMY'])
+                        retAddUserSub = self.taskBuffer.addUserSubscription(tmpDS,['DUMMY'])
+                        if not retAddUserSub:
+                            self.putLog("failed to add dummy subscription to database for %s " % tmpDS,type='error',sendLog=True)
+                            continue
                     # collect candidates
                     allCandidates = []
                     totalUserSub = 0
@@ -149,10 +158,12 @@ class DynDataDistributer:
                     totalT1Sub = 0
                     cloudCandMap = {}
                     nReplicasInCloud = {}
-                    for tmpCloud,(candSites,sitesComDS,sitesPd2pDS,nUserSub,t1HasReplica,t1HasPrimary,nSecReplicas,nT1Sub) in tmpVal.iteritems():
-                        self.putLog("%s sites with comp DS:%s compPD2P:%s candidates:%s nSub:%s T1:%s Pri:%s nSec:%s nT1Sub:%s" % \
+                    allCandidatesMoU = []
+                    nTier1Copies = 0
+                    for tmpCloud,(candSites,sitesComDS,sitesPd2pDS,nUserSub,t1HasReplica,t1HasPrimary,nSecReplicas,nT1Sub,candForMoU) in tmpVal.iteritems():
+                        self.putLog("%s sites with comp DS:%s compPD2P:%s candidates:%s nSub:%s T1:%s Pri:%s nSec:%s nT1Sub:%s candMoU:%s" % \
                                     (tmpCloud,str(sitesComDS),str(sitesPd2pDS),str(candSites),nUserSub,t1HasReplica,t1HasPrimary,
-                                     nSecReplicas,nT1Sub))
+                                     nSecReplicas,nT1Sub,str(candForMoU)))
                         # add
                         totalUserSub += nUserSub
                         totalT1Sub += nT1Sub
@@ -163,27 +174,29 @@ class DynDataDistributer:
                         # cloud is candidate for T1-T1 when T1 doesn't have primary or secondary replicas or old subscriptions
                         if not t1HasPrimary and nSecReplicas == 0 and nT1Sub == 0:
                             allT1Candidates.append(tmpCloud)
+                        # the number of T1s with replica
+                        if t1HasPrimary or nSecReplicas > 0:
+                            nTier1Copies += 1
                         # add candidates
                         for tmpCandSite in candSites:
                             if not tmpCandSite in usedSites:
                                 allCandidates.append(tmpCandSite)
+                        # add candidates for MoU
+                        for tmpCandSite in candForMoU:
+                            if not tmpCandSite in usedSites:
+                                allCandidatesMoU.append(tmpCandSite)
                         # add clouds
                         if not tmpCloud in allOKClouds:
                             allOKClouds.append(tmpCloud)
                     self.putLog("PD2P sites with comp replicas : %s" % str(allCompPd2pSites))
                     self.putLog("PD2P T2 candidates : %s" % str(allCandidates))
+                    self.putLog("PD2P T2 MoU candidates : %s" % str(allCandidatesMoU))                    
                     self.putLog("PD2P # of T2 subscriptions : %s" % totalUserSub)
                     self.putLog("PD2P # of T1 secondaries   : %s" % totalSecReplicas)
                     self.putLog("PD2P # of T1 subscriptions : %s" % nT1Sub)
+                    self.putLog("PD2P # of T1 replicas : %s" % nTier1Copies)                    
                     self.putLog("PD2P T1 candidates : %s" % str(allT1Candidates))
                     self.putLog("PD2P nUsed : %s" % nUsed)
-                    # make any data subscriptions to EOS (disabled on 5/2/2011
-                    """
-                    tmpItems = inputDS.split('.')
-                    if allOKClouds != [] and inputDS.startswith('data') and nUsed >= 5 and \
-                       not (len(tmpItems) >= 5 and tmpItems[4] in ['ESD']):
-                        self.makeSubscriptionToEOS(inputDS)
-                    """    
                     # get dataset size
                     retDsSize,dsSize = self.getDatasetSize(tmpDS)
                     if not retDsSize:
@@ -197,8 +210,8 @@ class DynDataDistributer:
                     else:
                         self.putLog("PD2P nWaitingJobs    : %s = %s(all)" % \
                                     (nWaitingJobsAll,nWaitingJobsAll))
-                    useSmallT1 = None
                     # make T1-T1
+                    triggeredT1PD2P = False
                     if nUsed > 0:
                         # extract integer part. log10(nUsed) and log10(nUsed)+1 are used to avoid round-off error
                         intLog10nUsed = int(math.log10(nUsed))
@@ -208,45 +221,51 @@ class DynDataDistributer:
                             self.putLog("making T1-T1",sendLog=True)
                             # make subscription
                             retT1Sub,useSmallT1 = self.makeT1Subscription(allT1Candidates,tmpDS,dsSize)
-                            self.putLog("done for T1-T1")                        
-                    # make a copy if small cloud is used
-                    if useSmallT1 != None:
-                        # change candidates
-                        if cloudCandMap.has_key(useSmallT1):
-                            allCandidates = cloudCandMap[useSmallT1]
+                            self.putLog("done for T1-T1")
+                            triggeredT1PD2P = True
+                    # make a T2 copy when T1 PD2P was triggered
+                    if triggeredT1PD2P:
+                        # TODO
+                        retT2MoU,selectedSite = self.makeT2SubscriptionMoU(allCandidatesMoU,tmpDS,dsSize,'T1MOU')
+                        if retT2MoU and selectedSite != None:
+                            # remove from candidate list
+                            if selectedSite in allCandidates:
+                                allCandidates.remove(selectedSite)
+                            if selectedSite in allCandidatesMoU:
+                                allCandidatesMoU.remove(selectedSite)
+                            # increment the number of T2 subscriptions
+                            totalUserSub += 1
+                    # set the number of T2 PD2P replicas
+                    maxSitesHaveDS = 1
+                    # additional replicas
+                    if nWaitingJobsets > maxWaitingJobsets:
+                        # the number of waiting jobs for this dataset
+                        if totalInputSize != 0:
+                            # dataset in container
+                            tmpN = float(nWaitingJobsAll * dsSize) / float(totalInputSize)
                         else:
-                            allCandidates = []
-                        self.putLog("Changed candidates due to small cloud: %s" % str(allCandidates))
-                    else:
-                        # set the number of PD2P replicas
-                        maxSitesHaveDS = 1
-                        # additional replicas
-                        if nWaitingJobsets > maxWaitingJobsets:
-                            # the number of waiting jobs for this dataset
-                            if totalInputSize != 0:
-                                # dataset in container
-                                tmpN = float(nWaitingJobsAll * dsSize) / float(totalInputSize)
-                            else:
-                                # dataset
-                                tmpN = float(nWaitingJobsAll)
-                            tmpN = int(math.log10(tmpN/float(maxWaitingJobs)))
-                            maxSitesHaveDS = max(maxSitesHaveDS,tmpN)
-                        # protection against too many replications
-                        maxSitesHaveDS = min(maxSitesHaveDS,protectionMaxNumReplicas)
-                        self.putLog("PD2P maxSitesHaveDS : %s" % maxSitesHaveDS)
-                        # check number of replicas                        
-                        if len(allCompPd2pSites) >= maxSitesHaveDS:
-                            self.putLog("skip since many T2 PD2P sites (%s>=%s) have the replica" % (len(allCompPd2pSites),maxSitesHaveDS),
-                                        sendLog=True,actionTag='SKIPPED',tagsMap={'reason':'TOO_MANY_T2_REPLICAS','dataset':tmpDS})
+                            # dataset
+                            tmpN = float(nWaitingJobsAll)
+                        tmpN = int(math.log10(tmpN/float(maxWaitingJobs))) + nTier1Copies
+                        maxSitesHaveDS = max(maxSitesHaveDS,tmpN)
+                    # protection against too many replications
+                    maxSitesHaveDS = min(maxSitesHaveDS,protectionMaxNumReplicas)
+                    self.putLog("PD2P maxSitesHaveDS : %s" % maxSitesHaveDS)
+                    # check number of replicas                        
+                    if len(allCompPd2pSites) >= maxSitesHaveDS and nUsed != 0:
+                        self.putLog("skip since many T2 PD2P sites (%s>=%s) have the replica" % (len(allCompPd2pSites),maxSitesHaveDS),
+                                    sendLog=True,actionTag='SKIPPED',tagsMap={'reason':'TOO_MANY_T2_REPLICAS','dataset':tmpDS})
+                        if not self.simul:
                             continue
-                        # check the number of subscriptions
-                        maxNumSubInAllCloud = max(0,maxSitesHaveDS-len(allCompPd2pSites))
-                        maxNumSubInAllCloud = min(2,maxNumSubInAllCloud)
-                        self.putLog("PD2P maxNumSubInAllCloud : %s" % maxNumSubInAllCloud)
-                        if totalUserSub >= maxNumSubInAllCloud:
-                            self.putLog("skip since enough subscriptions (%s>=%s) were already made for T2 PD2P" % \
-                                        (totalUserSub,maxNumSubInAllCloud),
-                                        sendLog=True,actionTag='SKIPPED',tagsMap={'reason':'TOO_MANY_T2_SUBSCRIPTIONS','dataset':tmpDS})
+                    # check the number of subscriptions
+                    maxNumSubInAllCloud = max(0,maxSitesHaveDS-len(allCompPd2pSites))
+                    maxNumSubInAllCloud = min(2,maxNumSubInAllCloud)
+                    self.putLog("PD2P maxNumSubInAllCloud : %s" % maxNumSubInAllCloud)
+                    if totalUserSub >= maxNumSubInAllCloud and nUsed != 0:
+                        self.putLog("skip since enough subscriptions (%s>=%s) were already made for T2 PD2P" % \
+                                    (totalUserSub,maxNumSubInAllCloud),
+                                    sendLog=True,actionTag='SKIPPED',tagsMap={'reason':'TOO_MANY_T2_SUBSCRIPTIONS','dataset':tmpDS})
+                        if not self.simul:                        
                             continue
                     # no candidates
                     if len(allCandidates) == 0:
@@ -256,6 +275,7 @@ class DynDataDistributer:
                     weightForBrokerage = self.getWeightForBrokerage(allCandidates,tmpDS,nReplicasInCloud)
                     self.putLog("inverse weight %s" % str(weightForBrokerage))
                     # get free disk size
+                    self.putLog("getting free disk size for T2 PD2P")
                     retFreeSizeMap,freeSizeMap = self.getFreeDiskSize(tmpDS,allCandidates)
                     if not retFreeSizeMap:
                         self.putLog("failed to get free disk size",type='error',sendLog=True)
@@ -267,22 +287,31 @@ class DynDataDistributer:
                     usedWeight = brokerage.broker.schedule([tmpJob],self.taskBuffer,self.siteMapper,True,allCandidates,
                                                            True,specialWeight=weightForBrokerage,getWeight=True,
                                                            sizeMapForCheck=freeSizeMap,datasetSize=dsSize)
+                    selectedSite = tmpJob.computingSite
                     for tmpWeightSite,tmpWeightStr in usedWeight.iteritems():
-                        if tmpWeightSite == tmpJob.computingSite:
+                        if tmpWeightSite == selectedSite:
                             tmpActionTag = 'SELECTEDT2'
                         else:
                             tmpActionTag = 'UNSELECTEDT2'
                         self.putLog("weight %s %s" % (tmpWeightSite,tmpWeightStr),sendLog=True,
                                     actionTag=tmpActionTag,tagsMap={'site':tmpWeightSite,'weight':tmpWeightStr,'dataset':tmpDS})
-                    self.putLog("site -> %s" % tmpJob.computingSite)
+                    self.putLog("site for T2 PD2P -> %s" % selectedSite)
+                    # remove from candidate list
+                    if selectedSite in allCandidates:
+                        allCandidates.remove(selectedSite)
+                    if selectedSite in allCandidatesMoU:
+                        allCandidatesMoU.remove(selectedSite)
                     # make subscription
                     if not self.simul:
-                        subRet,dq2ID = self.makeSubscription(tmpDS,tmpJob.computingSite)
-                        self.putLog("made subscription to %s:%s" % (tmpJob.computingSite,dq2ID),sendLog=True)
-                        usedSites.append(tmpJob.computingSite)
+                        subRet,dq2ID = self.makeSubscription(tmpDS,selectedSite)
+                        self.putLog("made subscription to %s:%s" % (selectedSite,dq2ID),sendLog=True)
+                        usedSites.append(selectedSite)
                         # update database
                         if subRet:
                             self.taskBuffer.addUserSubscription(tmpDS,[dq2ID])
+                    # additional T2 copy with MoU share when it is the first submission
+                    if nUsed == 0 or self.simul:
+                        retT2MoU,selectedSite = self.makeT2SubscriptionMoU(allCandidatesMoU,tmpDS,dsSize,'T2MOU')
             self.putLog("end for %s" % self.jobs[0].PandaID)
         except:
             errType,errValue = sys.exc_info()[:2]
@@ -290,9 +319,9 @@ class DynDataDistributer:
 
 
     # get candidate sites for subscription
-    def getCandidates(self,inputDS,checkUsedFile=True,useHidden=False):
+    def getCandidates(self,inputDS,checkUsedFile=True,useHidden=False,useCloseSites=False):
         # return for failure
-        failedRet = False,{'':{'':([],[],[],0,False,False,0,0)}}
+        failedRet = False,{'':{'':([],[],[],0,False,False,0,0,[])}}
         # get replica locations
         if inputDS.endswith('/'):
             # container
@@ -314,6 +343,19 @@ class DynDataDistributer:
             # failed
             self.putLog("failed to get replica locations for %s" % inputDS,'error')
             return failedRet
+        # get close sites
+        closeSitesMap = {}
+        for tmpDS,tmpRepMap in tmpRepMaps.iteritems():
+            # loop over all DQ2 IDs
+            for tmpDQ2ID in tmpRepMap.keys():
+                if not closeSitesMap.has_key(tmpDQ2ID):
+                    status,tmpCloseSiteList = toa.getCloseSites(tmpDQ2ID)
+                    exec "tmpCloseSiteList = %s" % tmpCloseSiteList
+                    closeSitesMap[tmpDQ2ID] = []
+                    # select only DATADISK
+                    for tmpCloseSite in tmpCloseSiteList:
+                        if tmpCloseSite.endswith('_DATADISK'):
+                            closeSitesMap[tmpDQ2ID].append(tmpCloseSite)
         # get all sites
         allSiteMap = {}
         for tmpSiteName,tmpSiteSpec in self.siteMapper.siteSpecList.iteritems():
@@ -340,7 +382,6 @@ class DynDataDistributer:
         checkedMetaMap = {}
         userSubscriptionsMap = {}
         for cloud in self.pd2pClouds:
-            self.putLog("cloud=%s" % tmpSiteSpec.cloud)
             # DQ2 prefix of T1
             tmpT1SiteID = self.siteMapper.getCloud(cloud)['source']
             tmpT1DQ2ID  = self.siteMapper.getSite(tmpT1SiteID).ddm
@@ -363,10 +404,12 @@ class DynDataDistributer:
                 if tmpMetadata['hidden'] in [True,'True'] and not useHidden:
                     self.putLog("%s is hidden" % tmpDS)
                     continue
-                # check T1 has a replica
+                # check T1 has a replica and get close sites
                 t1HasReplica = False
                 t1HasPrimary = False
                 nSecReplicas = 0
+                closeSiteList = []
+                candForMoU = []
                 for tmpDQ2ID,tmpStatMap in tmpRepMap.iteritems():
                     # check NG suffix
                     ngSuffixFlag = False
@@ -376,6 +419,12 @@ class DynDataDistributer:
                             break
                     if ngSuffixFlag:
                         continue
+                    # get close sites
+                    if closeSitesMap.has_key(tmpDQ2ID):
+                        for tmpCloseSiteID in closeSitesMap[tmpDQ2ID]:
+                            if not tmpCloseSiteID in closeSiteList:
+                                closeSiteList.append(tmpCloseSiteID)
+                    # checks for T1            
                     if tmpDQ2ID.startswith(prefixDQ2T1):
                         if tmpStatMap[0]['total'] == tmpStatMap[0]['found']:
                             t1HasReplica = True
@@ -396,6 +445,7 @@ class DynDataDistributer:
                             # secondary
                             nSecReplicas += 1
                             break
+                self.putLog("close sites : %s" % str(closeSiteList))
                 # get on-going subscriptions
                 timeRangeSub = 7
                 if not userSubscriptionsMap.has_key(tmpDS):
@@ -415,7 +465,6 @@ class DynDataDistributer:
                     # check cloud
                     if tmpSiteSpec.cloud != cloud:
                         continue
-                    self.putLog("%s" % tmpSiteSpec.sitename)
                     # prefix of DQ2 ID
                     prefixDQ2 = re.sub('[^_]+DISK$','',tmpSiteSpec.ddm)
                     # skip T1
@@ -442,7 +491,13 @@ class DynDataDistributer:
                             break
                     # site doesn't have a replica
                     if (not hasReplica) and tmpSiteSpec.cachedse == 1:
-                        candSites.append(tmpSiteSpec.sitename)
+                        candForMoU.append(tmpSiteSpec.sitename)
+                        if not useCloseSites:
+                            candSites.append(tmpSiteSpec.sitename)
+                        else:
+                            # use close sites only
+                            if self.getDQ2ID(tmpSiteSpec.sitename,tmpDS) in closeSiteList:
+                                candSites.append(tmpSiteSpec.sitename)
                     # the number of subscriptions
                     for tmpUserSub in userSubscriptions:
                         if tmpUserSub.startswith(prefixDQ2):
@@ -451,7 +506,8 @@ class DynDataDistributer:
                 # append
                 if not returnMap.has_key(tmpDS):
                     returnMap[tmpDS] = {}
-                returnMap[tmpDS][cloud] = (candSites,sitesComDS,sitesCompPD2P,nUserSub,t1HasReplica,t1HasPrimary,nSecReplicas,nT1Sub)
+                returnMap[tmpDS][cloud] = (candSites,sitesComDS,sitesCompPD2P,nUserSub,t1HasReplica,t1HasPrimary,
+                                           nSecReplicas,nT1Sub,candForMoU)
         # return
         return True,returnMap
 
@@ -564,6 +620,10 @@ class DynDataDistributer:
         # loop over all sites
         sizeMap = {}
         for sitename in siteList:
+            # reuse cached value
+            if self.cachedSizeMap.has_key(sitename):
+                sizeMap[sitename] = self.cachedSizeMap[sitename]
+                continue
             # get DQ2 IDs
             dq2ID = self.getDQ2ID(sitename,dataset)
             if dq2ID == '':
@@ -572,7 +632,6 @@ class DynDataDistributer:
             for valueItem in ['used','total']:
                 nTry = 3
                 for iDDMTry in range(nTry):
-                    self.putLog("%s/%s queryStorageUsage key=%s value=%s site=%s" % (iDDMTry,nTry,'srm',valueItem,dq2ID))
                     status,out = ddm.DQ2.main('queryStorageUsage','srm',valueItem,dq2ID)
                     if status != 0 or (not self.isDQ2ok(out)):
                         time.sleep(60)
@@ -580,6 +639,7 @@ class DynDataDistributer:
                         break
                 # result    
                 if status != 0 or out.startswith('Error'):
+                    self.putLog("%s/%s queryStorageUsage key=%s value=%s site=%s" % (iDDMTry,nTry,'srm',valueItem,dq2ID))
                     self.putLog(out,'error')
                     self.putLog('bad DQ2 response for %s:%s' % (dq2ID,valueItem), 'error')            
                     return retFailed
@@ -590,8 +650,10 @@ class DynDataDistributer:
                         sizeMap[sitename] = {}
                     # append
                     sizeMap[sitename][valueItem] = tmpGigaVal
-                    self.putLog('OK')
+                    # cache
+                    self.cachedSizeMap[sitename] = sizeMap[sitename]
                 except:
+                    self.putLog("%s/%s queryStorageUsage key=%s value=%s site=%s" % (iDDMTry,nTry,'srm',valueItem,dq2ID))                    
                     self.putLog(out,'error')            
                     self.putLog('could not convert HTTP-res to free size map for %s%s' % (dq2ID,valueItem), 'error')
                     return retFailed
@@ -1272,6 +1334,7 @@ class DynDataDistributer:
             # reverse lookup
             siteToCloud[tmpT1SiteID] = tmpCloud
         # get free disk size
+        self.putLog("getting free disk size for T1 PD2P")        
         retFreeSizeMap,freeSizeMap = self.getFreeDiskSize(tmpDS,t1Candidates)
         if not retFreeSizeMap:
             self.putLog("failed to get free disk size",type='error',sendLog=True)
@@ -1281,7 +1344,7 @@ class DynDataDistributer:
         tmpJob.AtlasRelease = ''
         self.putLog("run brokerage for T1-T1 for %s" % tmpDS)
         selectedSite = self.chooseSite(t1Weights,freeSizeMap,dsSize)
-        self.putLog("site for T1-T1 -> %s" % selectedSite)
+        self.putLog("site for T1 PD2P -> %s" % selectedSite)
         # simulation
         if self.simul:
             return True,useSmallT1
@@ -1305,6 +1368,73 @@ class DynDataDistributer:
             return False,useSmallT1
 
 
+    # make T2 subscription with MoU share
+    def makeT2SubscriptionMoU(self,allCandidates,tmpDS,dsSize,pd2pType):
+        # no candidate
+        if allCandidates == []:
+            return True,None
+        # get MoU share
+        if self.shareMoUForT2 == None:
+            self.shareMoUForT2 = self.taskBuffer.getMouShareForT2PD2P()
+        # convert to DQ2 ID
+        t2Candidates = []
+        t2Weights    = {}
+        dq2List = []
+        for tmpCandidate in allCandidates:
+            tmpDQ2ID = self.getDQ2ID(tmpCandidate,tmpDS)
+            if not tmpDQ2ID in dq2List:
+                # append
+                dq2List.append(tmpDQ2ID)
+                # get MoU share
+                if not self.shareMoUForT2.has_key(tmpDQ2ID):
+                    # site is undefined in t_regions_replication 
+                    self.putLog("%s is not in MoU table" % tmpDQ2ID,type='error')
+                    continue
+                if not self.shareMoUForT2[tmpDQ2ID]['status'] in ['ready']:
+                    # site is not ready
+                    self.putLog("%s is not ready in MoU table" % tmpDQ2ID)
+                    continue
+                tmpWeight = self.shareMoUForT2[tmpDQ2ID]['weight']
+                # skip if the weight is 0
+                if tmpWeight == 0:
+                    self.putLog("%s has 0 weight in MoU table" % tmpDQ2ID)
+                    continue
+                # collect siteIDs and weights for brokerage
+                t2Candidates.append(tmpCandidate)
+                t2Weights[tmpCandidate] = tmpWeight
+        # sort for reproducibility
+        t2Candidates.sort()
+        # get free disk size
+        self.putLog("getting free disk size for T2 %s PD2P" % pd2pType)        
+        retFreeSizeMap,freeSizeMap = self.getFreeDiskSize(tmpDS,t2Candidates)
+        if not retFreeSizeMap:
+            self.putLog("failed to get free disk size",type='error',sendLog=True)
+            return False,None
+        # run brokerage
+        tmpJob = JobSpec()
+        tmpJob.AtlasRelease = ''
+        self.putLog("run brokerage for T2 with %s for %s" % (pd2pType,tmpDS))
+        selectedSite = self.chooseSite(t2Weights,freeSizeMap,dsSize)
+        self.putLog("site for T2 %s PD2P -> %s" % (pd2pType,selectedSite))
+        # simulation
+        if self.simul:
+            return True,selectedSite
+        # no candidate
+        if selectedSite == None:
+            self.putLog("no candidate for T2 with %s" % pd2pType)
+            return False,None
+        # make subscription
+        subRet,dq2ID = self.makeSubscription(tmpDS,selectedSite)
+        self.putLog("made subscription for T2 with %s to %s:%s" % (pd2pType,selectedSite,dq2ID),sendLog=True,
+                    actionTag='SELECTEDT2_%s' % pd2pType,tagsMap={'site':selectedSite,'dataset':tmpDS})
+        # update database
+        if subRet:
+            self.taskBuffer.addUserSubscription(tmpDS,[dq2ID])
+            return True,selectedSite
+        else:
+            return False,None
+
+
     # choose site
     def chooseSite(self,canWeights,freeSizeMap,datasetSize):
         # loop over all candidates
@@ -1313,7 +1443,7 @@ class DynDataDistributer:
         for tmpCan,tmpW in canWeights.iteritems():
             # size check
             if freeSizeMap.has_key(tmpCan):
-                # threshold for T1 PD2P max(5%,3TB)
+                # disk threshold for PD2P max(5%,3TB)
                 diskThresholdPD2P = 1024 * 3
                 thrForThisSite = long(freeSizeMap[tmpCan]['total'] * 5 / 100)
                 if thrForThisSite < diskThresholdPD2P:
@@ -1322,6 +1452,7 @@ class DynDataDistributer:
                 if remSpace-datasetSize < thrForThisSite:
                     self.putLog('  skip: disk shortage %s-%s< %s' % (remSpace,datasetSize,thrForThisSite))
                     continue
+            self.putLog('weight %s %s' % (tmpCan,tmpW))
             # get total weight    
             totalW += tmpW
             # append candidate
@@ -1329,6 +1460,8 @@ class DynDataDistributer:
         # no candidate
         if allCandidates == []:
             return None
+        # sort for reproducibility
+        allCandidates.sort()
         # choose site    
         rNumber = random.random() * totalW
         for tmpCan in allCandidates:
