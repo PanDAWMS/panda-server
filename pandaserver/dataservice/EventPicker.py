@@ -186,7 +186,7 @@ class EventPicker:
                     time.sleep(60)
                 else:
                     # final attempt failed
-                    self.endWithError('Failed to send request to DaTRI')
+                    self.endWithError('Failed to send request to DaTRI : %s %s' % (dhStatus,dhOut))
                     return False
             # send email notification for success
             tmpMsg =  'A transfer request was successfully sent to DaTRI.\n'

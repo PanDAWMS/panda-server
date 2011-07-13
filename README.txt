@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * added more message in EventPicker for DaTRI request
+  * changed Notifier to non-thread
   * fixed Notifier to take into account old jobs in Arch
   * implemented new PD2P scheme using MoU and close sites
   * increased the number of concurrent Mergers

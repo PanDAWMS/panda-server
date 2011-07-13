@@ -40,10 +40,9 @@ _ngWordsInMailAddr = ['support','system','stuff','service','secretariat','club',
 smtpPortList = [25,587]
 
 
-class Notifier (threading.Thread):
+class Notifier:
     # constructor
     def __init__(self,taskBuffer,job,datasets,summary={},mailFile=None,mailFileName=''):
-        threading.Thread.__init__(self)
         self.job = job
         self.datasets = datasets
         self.taskBuffer = taskBuffer

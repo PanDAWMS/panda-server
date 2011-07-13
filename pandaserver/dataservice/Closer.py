@@ -267,8 +267,7 @@ class Closer (threading.Thread):
                     if useNotifier:
                         _logger.debug('%s start Notifier' % self.pandaID)
                         nThr = Notifier(self.taskBuffer,self.job,self.destinationDBlocks,summaryInfo)
-                        nThr.start()
-                        nThr.join()
+                        nThr.run()
                         _logger.debug('%s end Notifier' % self.pandaID)                    
             _logger.debug('%s End' % self.pandaID)
         except:
