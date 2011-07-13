@@ -166,14 +166,18 @@ class EventPicker:
                 tmpHandler = datriHandler(type='ganga')
             else:
                 tmpHandler = datriHandler(type='pathena')
+            # remove redundant CN from DN
+            tmpDN = self.userDN
+            tmpDN = re.sub('/CN=limited proxy','',tmpDN)
+            tmpDN = re.sub('(/CN=proxy)+$','',tmpDN)
             tmpMsg = "%s ds=%s site=%s id=%s" % ('datriHandler.sendRequest',
                                                  self.userDatasetName,
                                                  self.siteMapper.getSite(tmpJob.computingSite).ddm,
-                                                 self.userDN)
+                                                 tmpDN)
             self.putLog(tmpMsg)
             tmpHandler.setParameters(data_pattern=self.userDatasetName,
                                      site=self.siteMapper.getSite(tmpJob.computingSite).ddm,
-                                     userid=self.userDN)
+                                     userid=tmpDN)
             nTry = 3
             for iTry in range(nTry):
                 dhStatus,dhOut = tmpHandler.sendRequest()

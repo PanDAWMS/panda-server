@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * removed redundant suffix from DN for DaTRI request in EventPicker
   * added more message in EventPicker for DaTRI request
   * changed Notifier to non-thread
   * fixed Notifier to take into account old jobs in Arch
