@@ -10,7 +10,7 @@ import urllib
 import commands
 import threading
 from DDM import ddm
-from Notifier import Notifier
+import Notifier
 from Activator import Activator
 from pandalogger.PandaLogger import PandaLogger
 from taskbuffer.JobSpec import JobSpec
@@ -27,6 +27,7 @@ def initLogger(pLogger):
     # redirect logging to parent as it doesn't work in nested threads
     global _logger
     _logger = pLogger
+    Notifier.initLogger(_logger)
     
 
 class Closer (threading.Thread):
@@ -266,7 +267,7 @@ class Closer (threading.Thread):
                         _logger.debug('%s useNotifier:%s' % (self.pandaID,useNotifier))
                     if useNotifier:
                         _logger.debug('%s start Notifier' % self.pandaID)
-                        nThr = Notifier(self.taskBuffer,self.job,self.destinationDBlocks,summaryInfo)
+                        nThr = Notifier.Notifier(self.taskBuffer,self.job,self.destinationDBlocks,summaryInfo)
                         nThr.run()
                         _logger.debug('%s end Notifier' % self.pandaID)                    
             _logger.debug('%s End' % self.pandaID)

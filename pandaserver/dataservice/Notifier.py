@@ -39,6 +39,11 @@ _ngWordsInMailAddr = ['support','system','stuff','service','secretariat','club',
 # port for SMTP server
 smtpPortList = [25,587]
 
+def initLogger(pLogger):
+    # redirect logging to parent as it doesn't work in nested threads
+    global _logger
+    _logger = pLogger
+
 
 class Notifier:
     # constructor
