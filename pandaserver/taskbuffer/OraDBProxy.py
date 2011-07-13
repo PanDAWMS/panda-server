@@ -7344,6 +7344,54 @@ class DBProxy:
             # return empty list
             return {}
 
+
+    # get PandaIDs for a JobsetID or JobdefID in jobsArchived
+    def getPandIDsWithIdInArch(self,prodUserName,id,isJobset):
+        comment = ' /* Proxy.getPandIDsWithIdInArch */'                        
+        _logger.debug("getPandIDsWithIdInArch : %s %s %s" % (prodUserName,id,isJobset))
+        try:
+            # make sql
+            if isJobset:
+                sql  = "SELECT /*+ NO_INDEX(tab JOBS_MODTIME_IDX) INDEX_COMBINE(tab JOBS_PRODUSERNAME_IDX JOBS_JOBSETID_IDX) */ "
+            else:
+                sql  = "SELECT /*+ NO_INDEX(tab JOBS_MODTIME_IDX) INDEX_COMBINE(tab JOBS_PRODUSERNAME_IDX JOBS_JOBDEFID_IDX) */ "
+            sql += "PandaID FROM ATLAS_PANDAARCH.jobsArchived tab "
+            sql += "WHERE prodUserName=:prodUserName "
+            sql += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND modificationTime>(CURRENT_DATE-30) "
+            if isJobset:
+                sql += "AND jobsetID=:jobID "
+            else:
+                sql += "AND jobDefinitionID=:jobID "                
+            varMap = {}
+            varMap[':prodUserName'] = prodUserName
+            varMap[':jobID'] = id
+            varMap[':prodSourceLabel1'] = 'user'
+            varMap[':prodSourceLabel2'] = 'panda'
+            # start transaction
+            self.conn.begin()
+            # select
+            self.cur.arraysize = 1000000
+            # select
+            _logger.debug(sql+comment+str(varMap))            
+            self.cur.execute(sql+comment, varMap)
+            resList = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # append
+            pandaIDs = []
+            for tmpID, in resList:
+                pandaIDs.append(tmpID)
+            _logger.debug("getPandIDsWithIdInArch : %s %s -> %s" % (prodUserName,id,str(pandaIDs)))
+            return pandaIDs
+        except:
+            # roll back
+            self._rollback()
+            errType,errValue = sys.exc_info()[:2]            
+            _logger.error("getPandIDsWithIdInArch : %s %s" % (errType,errValue))
+            # return empty list
+            return []
+
         
     # peek at job 
     def peekJobLog(self,pandaID):

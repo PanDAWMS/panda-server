@@ -685,6 +685,18 @@ class TaskBuffer:
         return idStatus
 
 
+    # get PandaIDs for a JobsetID or JobdefID in jobsArchived
+    def getPandIDsWithIdInArch(self,prodUserName,id,isJobset):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get
+        ret = proxy.getPandIDsWithIdInArch(prodUserName,id,isJobset)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
     # get the number of waiting jobs with a dataset
     def getNumWaitingJobsForPD2P(self,datasetName):
         # get DBproxy

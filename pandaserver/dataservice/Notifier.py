@@ -94,7 +94,16 @@ class Notifier (threading.Thread):
                     return
                 # get IDs
                 ids = []
+                # from active tables
                 tmpIDs = self.taskBuffer.queryPandaIDwithDataset(self.datasets)
+                for tmpID in tmpIDs:
+                    if not tmpID in ids:
+                        ids.append(tmpID)
+                # from archived table
+                if self.job.jobsetID in [0,'NULL',None]:
+                    tmpIDs = self.taskBuffer.getPandIDsWithIdInArch(self.job.prodUserName,self.job.jobDefinitionID,False)
+                else:
+                    tmpIDs = self.taskBuffer.getPandIDsWithIdInArch(self.job.prodUserName,self.job.jobsetID,True)
                 for tmpID in tmpIDs:
                     if not tmpID in ids:
                         ids.append(tmpID)
