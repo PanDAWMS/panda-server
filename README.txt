@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * job-chaining for ptest+prun
   * added initLogger to Notifier
   * removed redundant suffix from DN for DaTRI request in EventPicker
   * added more message in EventPicker for DaTRI request

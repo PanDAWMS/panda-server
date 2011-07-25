@@ -250,7 +250,7 @@ class Adder (threading.Thread):
                         destDBList.append(file.destinationDBlock)
                     # collect GUIDs
                     if (self.job.prodSourceLabel=='panda' or (self.job.prodSourceLabel in ['ptest','rc_test'] and \
-                                                              self.job.processingType in ['pathena','gangarobot-rctest'])) \
+                                                              self.job.processingType in ['pathena','prun','gangarobot-rctest'])) \
                            and file.type == 'output':
                         guidList.append({'lfn':file.lfn, 'guid':file.GUID, 'type':file.type})
                 if guidList != []:
