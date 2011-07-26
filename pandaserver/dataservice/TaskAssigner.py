@@ -100,8 +100,8 @@ class TaskAssigner:
                 diskCount = int(self.job.maxDiskCount)
             except:
                 pass
-            message = '%s taskType=%s prio=%s RW=%s DiskCount=%s' % (self.taskID,taskType,prioMap[self.taskID],
-                                                                     expRWs[self.taskID],diskCount)
+            message = '%s taskType==%s prio==%s RW==%s DiskCount==%s' % (self.taskID,taskType,prioMap[self.taskID],
+                                                                         expRWs[self.taskID],diskCount)
             _logger.debug(message)
             self.sendMesg(message)
             _logger.debug('%s RWs     = %s' % (self.taskID,str(RWs)))
@@ -153,20 +153,20 @@ class TaskAssigner:
                 tmpCloud = self.siteMapper.getCloud(tmpCloudName)
                 # skip offline clouds
                 if not tmpCloud['status'] in ['online']:
-                    message = '%s    %s skip : status=%s' % (self.taskID,tmpCloudName,tmpCloud['status'])
+                    message = '%s    %s skip : status==%s' % (self.taskID,tmpCloudName,tmpCloud['status'])
                     _logger.debug(message)
                     self.sendMesg(message)
                     continue
                 # skip non-validation cloud if validation
                 if self.prodSourceLabel in ['validation'] and tmpCloud['validation'] != 'true':
-                    message = "%s    %s skip : validation='%s'" % (self.taskID,tmpCloudName,tmpCloud['validation'])
+                    message = "%s    %s skip : validation=='%s'" % (self.taskID,tmpCloudName,tmpCloud['validation'])
                     _logger.debug(message)
                     self.sendMesg(message)
                     continue
                 # check fast track
                 if ((taskType in ['evgen'] and prioMap[self.taskID] >= 700) or
                     (taskType in ['simul'] and prioMap[self.taskID] >= 800)) and tmpCloud['fasttrack'] != 'true':
-                    message = "%s    %s skip : fasttrack='%s'" % (self.taskID,tmpCloudName,tmpCloud['fasttrack'])
+                    message = "%s    %s skip : fasttrack=='%s'" % (self.taskID,tmpCloudName,tmpCloud['fasttrack'])
                     _logger.debug(message)
                     self.sendMesg(message)
                     continue
@@ -174,7 +174,7 @@ class TaskAssigner:
                 if diskCount != 0: 
                     enoughSpace = self.checkDiskCount(diskCount,tmpCloudName)
                     if not enoughSpace:
-                        message = "%s    %s skip : no online sites have enough space for DiskCount=%s" % (self.taskID,tmpCloudName,diskCount)
+                        message = "%s    %s skip : no online sites have enough space for DiskCount==%s" % (self.taskID,tmpCloudName,diskCount)
                         _logger.debug(message)
                         self.sendMesg(message,msgType='warning')
                         continue
@@ -325,7 +325,7 @@ class TaskAssigner:
                                    sizeCloud,sizeThis))
                 # not assign tasks when RW is too high
                 if RWs.has_key(tmpCloudName) and RWs[tmpCloudName] > thr_RW_high*weightParams[tmpCloudName]['mcshare']:
-                    message = '%s    %s skip : too high RW=%s > %s' % \
+                    message = '%s    %s skip : too high RW==%s > %s' % \
                               (self.taskID,tmpCloudName,RWs[tmpCloudName],thr_RW_high*weightParams[tmpCloudName]['mcshare'])
                     _logger.debug(message)
                     self.sendMesg(message,msgType='warning')
@@ -405,7 +405,7 @@ class TaskAssigner:
             _logger.debug('%s check nFiles' % self.taskID)            
             for cloudName,params in weightParams.iteritems():
                 if not cloudName in maxClouds:
-                    message = '%s    %s skip : nFiles=%s<%s' % \
+                    message = '%s    %s skip : nFiles==%s<%s' % \
                               (self.taskID,cloudName,params['nFiles'],maxNFiles)
                     _logger.debug(message)
                     self.sendMesg(message)
@@ -417,7 +417,7 @@ class TaskAssigner:
                 # set weight to infinite when RW is too low
                 if not taskType in taskTypesMcShare:
                     if RWs[cloudName] < thr_RW_low*weightParams[cloudName]['mcshare']:
-                        message = '%s    %s infinite weight : RW=%s < %s' % \
+                        message = '%s    %s infinite weight : RW==%s < %s' % \
                                   (self.taskID,cloudName,RWs[cloudName],thr_RW_low*weightParams[cloudName]['mcshare'])
                         _logger.debug(message)
                         self.sendMesg(message)
@@ -456,11 +456,11 @@ class TaskAssigner:
                     if (taskType in taskTypesMcShare):
                         # use MC share for evgen
                         tmpWeight = float(weightParams[cloudName]['mcshare'])
-                        message = "%s %s weight=%s" % (self.taskID,cloudName,weightParams[cloudName]['mcshare'])
+                        message = "%s %s weight==%s" % (self.taskID,cloudName,weightParams[cloudName]['mcshare'])
                     else:
                         # use nPilot/RW*MCshare
                         tmpWeight = float(weightParams[cloudName]['nPilot']) / float(1+RWs[cloudName])
-                        message = "%s %s weight=%s/%s" % (self.taskID,cloudName,
+                        message = "%s %s weight==%s/%s" % (self.taskID,cloudName,
                                                           weightParams[cloudName]['nPilot'],
                                                           1+RWs[cloudName])
                     self.sendMesg(message)
@@ -710,21 +710,21 @@ class TaskAssigner:
                     aveSpace -= dsSizeMap[tmpDS]
             # check space
             if aveSpace < thr_space_low:
-                message = '%s    %s skip : space=%s total=%s' % (self.taskID,tmpCloudName,aveSpace,
-                                                                 tmpT1Site.space)
+                message = '%s    %s skip : space==%s total==%s' % (self.taskID,tmpCloudName,aveSpace,
+                                                                   tmpT1Site.space)
                 _logger.debug(message)
                 self.sendMesg(message,msgType='warning')                
                 continue
-            _logger.debug('%s    %s pass : space=%s total=%s' % (self.taskID,tmpCloudName,aveSpace,
-                                                                 tmpT1Site.space))
+            _logger.debug('%s    %s pass : space==%s total==%s' % (self.taskID,tmpCloudName,aveSpace,
+                                                                   tmpT1Site.space))
             # get cloud spec
             tmpCloudSpec = self.siteMapper.getCloud(tmpCloudName)
             # get minimum RW
             if not RWs.has_key(tmpCloudName):
                 RWs[tmpCloudName] = 0
             tmpRwThr = tmpCloudSpec['mcshare']*thr_RW_sub    
-            _logger.debug('%s    %s RW=%s Thr=%s' % (self.taskID,tmpCloudName,RWs[tmpCloudName],
-                                                     tmpRwThr))
+            _logger.debug('%s    %s RW==%s Thr==%s' % (self.taskID,tmpCloudName,RWs[tmpCloudName],
+                                                       tmpRwThr))
             tmpRwRatio = float(RWs[tmpCloudName])/float(tmpRwThr)
             if minRW == None or minRW > tmpRwRatio:
                 minRW    = tmpRwRatio
@@ -739,12 +739,12 @@ class TaskAssigner:
         tmpCloudSpec = self.siteMapper.getCloud(minCloud)
         # check threshold
         if minRW > 1.0:
-            message = '%s no empty cloud : %s minRW=%s>%s' % \
+            message = '%s no empty cloud : %s minRW==%s>%s' % \
                       (self.taskID,minCloud,RWs[minCloud],thr_RW_sub*tmpCloudSpec['mcshare'])
             _logger.debug(message)
             self.sendMesg(message)
             return False
-        message = '%s %s for subscription : minRW=%s' % (self.taskID,minCloud,minRW)
+        message = '%s %s for subscription : minRW==%s' % (self.taskID,minCloud,minRW)
         _logger.debug(message)
         self.sendMesg(message)
         # get cloud spec for subscription

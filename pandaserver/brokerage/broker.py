@@ -163,23 +163,23 @@ def sendAnalyBrokeageInfo(results,prevRelease,diskThreshold,chosenSite,prevCmtCo
         for resultItem in resultList:
             if resultType == 'rel':
                 if prevCmtConfig in ['','NULL',None]:
-                    msgBody = 'skip %s - %s is missing' % (resultItem,prevRelease)
+                    msgBody = 'action=skip site=%s reason=missingapp - app=%s is missing' % (resultItem,prevRelease)
                 else:
-                    msgBody = 'skip %s - %s/%s is missing' % (resultItem,prevRelease,prevCmtConfig)
+                    msgBody = 'action=skip site=%s reason=missingapp - app=%s/%s is missing' % (resultItem,prevRelease,prevCmtConfig)
             elif resultType == 'pilot':
-                msgBody = 'skip %s - no pilots for last 3 hours' % resultItem
+                msgBody = 'action=skip site=%s reason=nopilot - no pilots for last 3 hours' % resultItem
             elif resultType == 'disk':
-                msgBody = 'skip %s - disk shortage < %sGB' % (resultItem,diskThreshold)
+                msgBody = 'action=skip site=%s reason=diskshortage - disk shortage < %sGB' % (resultItem,diskThreshold)
             elif resultType == 'memory':
-                msgBody = 'skip %s - RAM shortage' % resultItem
+                msgBody = 'action=skip site=%s reason=ramshortage - RAM shortage' % resultItem
             elif resultType == 'status':
-                msgBody = 'skip %s - not online' % resultItem 
+                msgBody = 'action=skip site=%s reason=sitestatus - not online' % resultItem 
             elif resultType == 'weight':
                 tmpSite,tmpWeight = resultItem
                 if tmpSite == chosenSite:
-                    msgBody = 'choose %s - max weight %s' % (tmpSite,tmpWeight)
+                    msgBody = 'action=choose site=%s reason=maxweight - max weight=%s' % (tmpSite,tmpWeight)
                 else:
-                    msgBody = 'skip %s - weight %s' % (tmpSite,tmpWeight)
+                    msgBody = 'action=skip site=%s reason=notmaxweight - weight=%s' % (tmpSite,tmpWeight)
             else:
                 continue
             messageList.append(msgBody)

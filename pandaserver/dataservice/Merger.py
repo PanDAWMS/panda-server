@@ -530,6 +530,7 @@ class Merger:
                 break
         # input
         serNum = None
+        attNum = None
         for tmpFileName in fileList:
             # extract serial number
             if serNum == None:
@@ -537,6 +538,10 @@ class Merger:
                 if tmpMatch == None:
                     raise RuntimeError,'cannot extract SN from %s' % tmpFileName
                 serNum = tmpMatch.group(1)
+                # extract attempt number
+                tmpMatch = re.search('\.(\d+)$',tmpFileName)
+                if tmpMatch != None:
+                    attNum = tmpMatch.group(1)
             # make file spec
             tmpFile = FileSpec()
             vals = fileMap[tmpFileName]
@@ -568,7 +573,11 @@ class Merger:
         params += " -i \"%s\"" % repr(fileList)
         # output
         tmpFile = FileSpec()
-        tmpFile.lfn = "%s.%s.merge.%s" % (filePrefix,serNum,fileSuffix)
+        if attNum == None:
+            tmpFile.lfn = "%s.%s.merge.%s" % (filePrefix,serNum,fileSuffix)
+        else:
+            tmpFile.lfn = "%s.%s.%s.merge.%s" % (filePrefix,serNum,attNum,fileSuffix)
+            
         if usedMergeType == 'text' and \
            not tmpFile.lfn.endswith('.tgz') and \
            not tmpFile.lfn.endswith('.tar.gz'):

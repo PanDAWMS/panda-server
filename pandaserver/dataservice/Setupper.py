@@ -649,19 +649,6 @@ class Setupper (threading.Thread):
                             ds.status       = 'defined'
                             # append
                             datasetList[(name,file.destinationSE,computingSite)] = ds
-                            # logging
-                            if not self.pandaDDM:
-                                dq2ID = self.siteMapper.getSite(file.destinationSE).ddm
-                                message = '%s - siteID:%s type:output vuid:%s' % (commands.getoutput('hostname'),dq2ID,vuid)
-                                # get logger
-                                _pandaLogger = PandaLogger()
-                                _pandaLogger.lock()
-                                _pandaLogger.setParams({'Type':'registerSubscription'})
-                                logger = _pandaLogger.getHttpLogger(panda_config.loggername)
-                                # add message
-                                logger.info(message)
-                                # release HTTP handler
-                                _pandaLogger.release()
                         except:
                             # set status
                             type, value, traceBack = sys.exc_info()

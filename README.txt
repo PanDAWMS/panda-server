@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * put attempt number to output file name in Merger
+  * changed = to == in redundant messages
   * job-chaining for ptest+prun
   * added initLogger to Notifier
   * removed redundant suffix from DN for DaTRI request in EventPicker

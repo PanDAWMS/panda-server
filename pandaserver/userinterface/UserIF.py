@@ -74,23 +74,6 @@ class UserIF:
         ret = self.taskBuffer.storeJobs(jobs,user,forkSetupper=True,fqans=userFQANs,
                                         hostname=host)
         _logger.debug("submitJobs %s ->:%s" % (user,len(ret)))
-        # logging
-        try:
-            # make message
-            message = '%s - PandaID =' % host
-            for iret in ret:
-                message += ' %s' % iret[0]
-            # get logger
-            _pandaLogger = PandaLogger()            
-            _pandaLogger.lock()
-            _pandaLogger.setParams({'Type':'submitJobs','User':user})
-            logger = _pandaLogger.getHttpLogger(panda_config.loggername)
-            # add message
-            logger.info(message)
-            # release HTTP handler
-            _pandaLogger.release()
-        except:
-            pass
         # serialize 
         return pickle.dumps(ret)
 
@@ -106,7 +89,7 @@ class UserIF:
             iMsg = 0
             for msgBody in msgList:
                 # make message
-                message = '%s %s' % (cUID,msgBody)
+                message = "dn='%s' %s" % (cUID,msgBody)
                 # send message to logger
                 if msgType in ['analy_brokerage']:
                     brokerage.broker.sendMsgToLogger(message)

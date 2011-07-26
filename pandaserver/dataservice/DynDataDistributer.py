@@ -1292,7 +1292,7 @@ class DynDataDistributer:
         if sendLog:
             tmpMsg = self.token + ' - '
             if actionTag != '':
-                tmpMsg += '%s ' % actionTag
+                tmpMsg += 'action=%s ' % actionTag
                 for tmpTag,tmpTagVal in tagsMap.iteritems():
                     tmpMsg += '%s=%s ' % (tmpTag,tmpTagVal)
             tmpMsg += '- ' + msg    
