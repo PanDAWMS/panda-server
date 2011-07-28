@@ -97,7 +97,8 @@ class SiteMapper:
                     else:
                         # overwrite status
                         if not ret.status in ['offline','']:
-                            self.siteSpecList[tmpID].status = ret.status
+                            if self.siteSpecList[tmpID].status != 'online':
+                                self.siteSpecList[tmpID].status = ret.status
                             # use larger maxinputsize and memory
                             try:
                                 if ret.status in ['online']:
