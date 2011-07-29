@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * disabled short -> long for HC
   * fixed SiteMapper to respect online even if another queue is not online
   * put attempt number to output file name in Merger
   * changed = to == in redundant messages

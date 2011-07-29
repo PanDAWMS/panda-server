@@ -1319,6 +1319,8 @@ class DBProxy:
                 job.pack(res[0])
                 # check if it's analysis job
                 if (((job.prodSourceLabel == 'user' or job.prodSourceLabel == 'panda') \
+                     and not job.processingType.startswith('gangarobot') \
+                     and not job.processingType.startswith('hammercloud') \
                      and job.computingSite.startswith('ANALY_') and param.has_key('pilotErrorCode') \
                      and param['pilotErrorCode'] in ['1200','1201'] and (not job.computingSite.startswith('ANALY_LONG_')) \
                      and job.attemptNr < 2) or (job.prodSourceLabel == 'ddm' and job.cloud == 'CA' and job.attemptNr <= 10)) \

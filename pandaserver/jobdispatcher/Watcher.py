@@ -52,7 +52,9 @@ class Watcher (threading.Thread):
                     destDBList = []
                     # retry analysis jobs 
                     if (job.prodSourceLabel in ['user','panda']) and (job.attemptNr<2 or job.jobStatus == 'sent') \
-                             and job.commandToPilot != 'tobekilled' and (not job.processingType in ['ITB_INTEGRATION']):
+                             and job.commandToPilot != 'tobekilled' and (not job.processingType in ['ITB_INTEGRATION']) \
+                             and not job.processingType.startswith('gangarobot') \
+                             and not job.processingType.startswith('hammercloud'):
                         # reset
                         _logger.debug(' -> reset %s job with %s : PandaID:%s #%s' % (job.prodSourceLabel,job.jobStatus,job.PandaID,job.attemptNr))
                         job.jobStatus = 'activated'
