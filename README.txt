@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added jobdefID to libDS in ReBrokerage 
   * disabled short -> long for HC
   * fixed SiteMapper to respect online even if another queue is not online
   * put attempt number to output file name in Merger

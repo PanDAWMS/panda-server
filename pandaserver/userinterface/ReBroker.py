@@ -934,7 +934,7 @@ class ReBroker (threading.Thread):
         oldLibDS = buildJob.destinationDBlock
         match = re.search('_rev(\d+)$',oldLibDS)
         if match == None:
-            newLibDS = oldLibDS + '_rev%s' % 1
+            newLibDS = oldLibDS + '__id%s_rev%s' % (self.job.jobDefinitionID,1)
         else:
             newLibDS = re.sub('_rev(\d+)$','_rev%s' % (int(match.group(1))+1),oldLibDS)
         # reset parameters
