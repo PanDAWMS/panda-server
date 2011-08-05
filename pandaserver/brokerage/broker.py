@@ -234,6 +234,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
     diskThreshold     = 200
     diskThresholdPD2P = 1024 * 3
     manyInputsThr     = 20
+    maxTransferring   = 2000
 
     weightUsedByBrokerage = {}
 
@@ -553,7 +554,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 continue
                             # if no jobs in jobsActive/jobsDefined
                             if not jobStatistics.has_key(site):
-                                jobStatistics[site] = {'assigned':0,'activated':0,'running':0}
+                                jobStatistics[site] = {'assigned':0,'activated':0,'running':0,'transferring':0}
                             # set nRunning 
                             if forAnalysis:
                                 if not nRunningMap.has_key(site):
@@ -619,9 +620,22 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             if not jobStatBroker.has_key(site):
                                 jobStatBroker[site] = {}
                             if not jobStatBroker[site].has_key(tmpProGroup):
-                                jobStatBroker[site][tmpProGroup] = {'assigned':0,'activated':0,'running':0}
+                                jobStatBroker[site][tmpProGroup] = {'assigned':0,'activated':0,'running':0,'transferring':0}
                             nAssJobs = jobStatBroker[site][tmpProGroup]['assigned']
                             nActJobs = jobStatBroker[site][tmpProGroup]['activated']
+                            # get ration of transferring to running
+                            if not forAnalysis and not tmpSiteSpec.cloud in ['ND']:
+                                nTraJobs = 0
+                                nRunJobs = 0
+                                for tmpGroupForTra,tmpCountsForTra in jobStatBroker[site].iteritems():
+                                    if tmpCountsForTra.has_key('running'):
+                                        nRunJobs += tmpCountsForTra['running']
+                                    if tmpCountsForTra.has_key('transferring'):
+                                        nTraJobs += tmpCountsForTra['transferring']
+                                _log.debug('   running=%s transferring=%s' % (nRunJobs,nTraJobs))
+                                if max(maxTransferring,2*nRunJobs) < nTraJobs:
+                                    _log.debug(" skip: %s many transferring=%s > max(%s,2*running=%s)" % (site,nTraJobs,maxTransferring,nRunJobs))
+                                    continue
                             # get ratio of running jobs = run(cloud)/run(all) for multi cloud
                             multiCloudFactor = 1
                             if not forAnalysis:                                

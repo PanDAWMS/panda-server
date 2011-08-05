@@ -4995,7 +4995,7 @@ class DBProxy:
                 for cloud,cloudVal in ret.iteritems():
                     for site,siteVal in cloudVal.iteritems():
                         for pType,typeVal in siteVal.iteritems():
-                            for stateItem in ['assigned','activated','running']:
+                            for stateItem in ['assigned','activated','running','transferring']:
                                 if not typeVal.has_key(stateItem):
                                     typeVal[stateItem] = 0
                 # return

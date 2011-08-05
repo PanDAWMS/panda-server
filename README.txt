@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * updated the brokerage to stop assigning prod jobs to sites which have many transferring
   * added jobdefID to libDS in ReBrokerage 
   * disabled short -> long for HC
   * fixed SiteMapper to respect online even if another queue is not online
