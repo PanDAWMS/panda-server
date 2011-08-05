@@ -226,6 +226,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
     prevHomePkg    = None
     prevDirectAcc  = None
     prevBrokergageSiteList = None
+    prevManualPreset = None
     
     nWNmap = {}
     indexJob = 0
@@ -329,9 +330,11 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source'],'IN2P3-CC_VL']
                     _log.debug('PandaID:%s -> set SiteList=%s for too many inputs' % (job.PandaID,specialBrokergageSiteList))
             # manually set site
+            manualPreset = False
             if job != None and job.computingSite != 'NULL' and job.prodSourceLabel in ('test','managed') \
                    and specialBrokergageSiteList == []:
                 specialBrokergageSiteList = [job.computingSite]
+                manualPreset = True
             overwriteSite = False
             # new bunch or terminator
             if job == None or len(fileList) >= nFile \
@@ -434,7 +437,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             if site == 'NULL':
                                 continue
                             # ignore test sites
-                            if site.endswith('test') or site.endswith('Test') or site.startswith('Test'):
+                            if (prevManualPreset == False) and (site.endswith('test') or \
+                                                                site.endswith('Test') or site.startswith('Test')):
                                 continue
                             # ignore analysis queues
                             if (not forAnalysis) and site.startswith('ANALY'):
@@ -925,6 +929,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             prevHomePkg     = job.homepackage
             prevDirectAcc   = job.transferType
             prevBrokergageSiteList = specialBrokergageSiteList
+            prevManualPreset = manualPreset
             # assign site
             if chosen_ce != 'TOBEDONE':
                 job.computingSite = chosen_ce.sitename
