@@ -240,13 +240,20 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
 
     try:
         # get statistics
-        jobStatistics = taskBuffer.getJobStatistics()
-        if not forAnalysis:
+        if len(jobs) > 0 and (jobs[0].processingType.startswith('gangarobot') or jobs[0].processingType.startswith('hammercloud')):
+            # disable redundant counting for HC
+            jobStatistics = {}
             jobStatBroker = {}
-            jobStatBrokerClouds = taskBuffer.getJobStatisticsBrokerage()
+            jobStatBrokerClouds = {}
+            nRunningMap = {}
         else:
-            jobStatBroker = taskBuffer.getJobStatisticsAnalBrokerage()
-            nRunningMap   = taskBuffer.getnRunningInSiteData()
+            jobStatistics = taskBuffer.getJobStatistics()
+            if not forAnalysis:
+                jobStatBroker = {}
+                jobStatBrokerClouds = taskBuffer.getJobStatisticsBrokerage()
+            else:
+                jobStatBroker = taskBuffer.getJobStatisticsAnalBrokerage()
+                nRunningMap   = taskBuffer.getnRunningInSiteData()
         # sort jobs by siteID. Some jobs may already define computingSite
         jobs.sort(_compFunc)
         # brokerage for analysis 

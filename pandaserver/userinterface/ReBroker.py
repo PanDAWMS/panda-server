@@ -193,6 +193,9 @@ class ReBroker (threading.Thread):
                         # change EOS
                         if tmpSite.startswith('CERN-PROD_EOS'):
                             tmpSite = 'CERN-PROD_EOS'
+                        # change EOS TMP
+                        if tmpSite.startswith('CERN-PROD_TMP'):
+                            tmpSite = 'CERN-PROD_TMP'
                         # change DISK to SCRATCHDISK
                         tmpSite = re.sub('_[^_-]+DISK$','',tmpSite)
                         # change PERF-XYZ to SCRATCHDISK
@@ -342,6 +345,8 @@ class ReBroker (threading.Thread):
     def getAggName(self,origName):
         if origName.startswith('CERN-PROD_EOS'):
             return 'CERN-PROD_EOS'
+        if origName.startswith('CERN-PROD_TMP'):
+            return 'CERN-PROD_TMP'
         return re.sub('_[^_-]+DISK$','',origName)
     
         

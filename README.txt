@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * fixed brokerage not to count jobs for HC
+  * fixed rebrokerage for CERN TMP
   * updated the brokerage to stop assigning prod jobs to sites which have many transferring
   * added jobdefID to libDS in ReBrokerage 
   * disabled short -> long for HC
