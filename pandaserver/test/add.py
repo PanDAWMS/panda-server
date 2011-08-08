@@ -56,6 +56,7 @@ try:
 except:
     type, value, traceBack = sys.exc_info()
     _logger.error("kill process : %s %s" % (type,value))
+
     
 # instantiate TB
 taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
@@ -215,6 +216,57 @@ class MailSender (threading.Thread):
 # start sender
 mailSender =  MailSender()
 mailSender.start()
+
+
+_logger.debug("Fork session")
+# thread for fork
+class ForkThr (threading.Thread):
+    def __init__(self,fileName):
+        threading.Thread.__init__(self)
+        self.fileName = fileName
+
+    def run(self):
+        setupStr = 'source /data/atlpan/srv/etc/sysconfig/panda_server-sysconfig; '
+        runStr  = '%s/python -Wignore ' % panda_config.native_python
+        runStr += panda_config.pandaPython_dir + '/dataservice/forkSetupper.py -i '
+        runStr += self.fileName
+        if self.fileName.split('/')[-1].startswith('set.NULL.'):
+            runStr += ' -t'
+        comStr = setupStr + runStr    
+        _logger.debug(comStr)    
+        commands.getstatusoutput(comStr)
+
+# get set.* files
+filePatt = panda_config.logdir + '/' + 'set.*'
+fileList = glob.glob(filePatt)
+
+# the max number of threads
+maxThr = 10
+nThr = 0
+
+# loop over all files
+forkThrList = []
+timeNow = datetime.datetime.utcnow()
+for tmpName in fileList:
+    if not os.path.exists(tmpName):
+        continue
+    try:
+        # takes care of only recent files
+        modTime = datetime.datetime(*(time.gmtime(os.path.getmtime(tmpName))[:7]))
+        if (timeNow - modTime) > datetime.timedelta(minutes=1) and \
+               (timeNow - modTime) < datetime.timedelta(hours=1):
+            cSt,cOut = commands.getstatusoutput('ps aux | grep fork | grep -v PYTH')
+            # if no process is running for the file
+            if cSt == 0 and not tmpName in cOut:
+                nThr += 1
+                thr = ForkThr(tmpName)
+                thr.start()
+                forkThrList.append(thr)
+                if nThr > maxThr:
+                    break
+    except:
+        errType,errValue = sys.exc_info()[:2]
+        _logger.error("%s %s" % (errType,errValue))
             
     
 # thread pool
@@ -371,5 +423,9 @@ adderThreadPool.join()
 
 # join sender
 mailSender.join()
+
+# join fork threads
+for thr in forkThrList:
+    thr.join()
 
 _logger.debug("===================== end =====================")
