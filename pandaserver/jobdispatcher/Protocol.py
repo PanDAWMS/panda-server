@@ -153,6 +153,8 @@ class Response:
         self.data['transferType'] = job.transferType
         # current priority
         self.data['currentPriority'] = job.currentPriority
+        # taskID
+        self.data['taskID'] = job.taskID
             
 
     # set proxy key

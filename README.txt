@@ -1,6 +1,9 @@
 Release Note
 
 * current
+  * updated dispatcher to send taskID
+  * using schedconfig.multicloud
+  * fixed brokerage for test sites
   * fixed brokerage not to count jobs for HC
   * fixed rebrokerage for CERN TMP
   * updated the brokerage to stop assigning prod jobs to sites which have many transferring
