@@ -1,6 +1,9 @@
 Release Note
 
 * current
+  * fixed brokerage not to count jobs for usermerge or pandamover
+  * changed brokerage to use ANALY_CERN_XROOTD and not to use ANALY_CERN
+  * added Forker to add.py
   * updated dispatcher to send taskID
   * using schedconfig.multicloud
   * fixed brokerage for test sites

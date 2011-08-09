@@ -204,6 +204,11 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
     if len(jobs) == 0:
         _log.debug('finished : no jobs')        
         return
+    # use ANALY_CERN_XROOTD and not ANALY_CERN for EOS migration
+    if forAnalysis:
+        if 'ANALY_CERN_XROOTD' in setScanSiteList and 'ANALY_CERN' in setScanSiteList:
+            setScanSiteList.remove('ANALY_CERN')
+            _log.debug('remove ANALY_CERN since ANALY_CERN_XROOTD is also a candidate')
     nJob  = 20
     iJob  = 0
     nFile = 20
@@ -241,7 +246,9 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
 
     try:
         # get statistics
-        if len(jobs) > 0 and (jobs[0].processingType.startswith('gangarobot') or jobs[0].processingType.startswith('hammercloud')):
+        if len(jobs) > 0 and (jobs[0].processingType.startswith('gangarobot') or \
+                              jobs[0].processingType.startswith('hammercloud') or \
+                              jobs[0].processingType in ['pandamover','usermerge']):
             # disable redundant counting for HC
             jobStatistics = {}
             jobStatBroker = {}
