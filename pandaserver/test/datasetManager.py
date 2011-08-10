@@ -317,6 +317,7 @@ timeLimitL = datetime.datetime.utcnow() - datetime.timedelta(days=3)
 closeLock = threading.Semaphore(5)
 closeProxyLock = threading.Lock()
 closeThreadPool = ThreadPool()
+maxRows = 100000
 while True:
     # lock
     closeLock.acquire()
@@ -327,9 +328,9 @@ while True:
     varMap[':modificationdateL'] = timeLimitL    
     varMap[':type']   = 'output'
     varMap[':status'] = 'tobeclosed'
-    sqlQuery = "type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= 500"    
+    sqlQuery = "type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= %s" % maxRows   
     proxyS = taskBuffer.proxyPool.getProxy()
-    res = proxyS.getLockDatasets(sqlQuery,varMap)
+    res = proxyS.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60')
     taskBuffer.proxyPool.putProxy(proxyS)
     if res == None:
         _logger.debug("# of datasets to be closed: %s" % res)
@@ -343,10 +344,15 @@ while True:
     closeProxyLock.release()
     closeLock.release()
     # run thread
-    closerThr = CloserThr(closeLock,closeProxyLock,res,closeThreadPool)
-    closerThr.start()
-
-closeThreadPool.join()
+    iRows = 0
+    nRows = 500
+    while iRows < len(res):    
+        closerThr = CloserThr(closeLock,closeProxyLock,res[iRows:iRows+nRows],closeThreadPool)
+        closerThr.start()
+        iRows += nRows
+    closeThreadPool.join()
+    if len(res) < maxRows:
+        break
 
 
 # thread to freeze dataset
@@ -427,12 +433,13 @@ timeLimitL = datetime.datetime.utcnow() - datetime.timedelta(days=14)
 freezeLock = threading.Semaphore(5)
 freezeProxyLock = threading.Lock()
 freezeThreadPool = ThreadPool()
+maxRows = 100000
 while True:
     # lock
     freezeLock.acquire()
     # get datasets
     sqlQuery = "type=:type AND status IN (:status1,:status2,:status3) " + \
-               "AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND REGEXP_LIKE(name,:pattern) AND rownum <= 500"
+               "AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND REGEXP_LIKE(name,:pattern) AND rownum <= %s" % maxRows
     varMap = {}
     varMap[':modificationdateU'] = timeLimitU
     varMap[':modificationdateL'] = timeLimitL    
@@ -443,7 +450,7 @@ while True:
     varMap[':pattern'] = '_sub[[:digit:]]+$'
     freezeProxyLock.acquire()
     proxyS = taskBuffer.proxyPool.getProxy()
-    res = proxyS.getLockDatasets(sqlQuery,varMap)
+    res = proxyS.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60')
     taskBuffer.proxyPool.putProxy(proxyS)
     if res == None:
         _logger.debug("# of datasets to be frozen: %s" % res)
@@ -457,10 +464,15 @@ while True:
     # release
     freezeLock.release()
     # run freezer
-    freezer = Freezer(freezeLock,freezeProxyLock,res,freezeThreadPool)
-    freezer.start()
-
-freezeThreadPool.join()
+    iRows = 0
+    nRows = 500
+    while iRows < len(res):    
+        freezer = Freezer(freezeLock,freezeProxyLock,res[iRows:iRows+nRows],freezeThreadPool)
+        freezer.start()
+        iRows += nRows
+    freezeThreadPool.join()
+    if len(res) < maxRows:
+        break
 
 
 # thread to delete dataset replica from T2
@@ -547,6 +559,7 @@ timeLimitL = datetime.datetime.utcnow() - datetime.timedelta(days=3)
 t2cleanLock = threading.Semaphore(5)
 t2cleanProxyLock = threading.Lock()
 t2cleanThreadPool = ThreadPool()
+maxRows = 100000
 while True:
     # lock
     t2cleanLock.acquire()
@@ -556,10 +569,10 @@ while True:
     varMap[':modificationdateL'] = timeLimitL    
     varMap[':type']   = 'output'
     varMap[':status'] = 'cleanup'
-    sqlQuery = "type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= 500"    
+    sqlQuery = "type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= %s" % maxRows   
     t2cleanProxyLock.acquire()
     proxyS = taskBuffer.proxyPool.getProxy()
-    res = proxyS.getLockDatasets(sqlQuery,varMap)
+    res = proxyS.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60')
     taskBuffer.proxyPool.putProxy(proxyS)
     if res == None:
         _logger.debug("# of datasets to be deleted from T2: %s" % res)
@@ -573,10 +586,15 @@ while True:
     # release
     t2cleanLock.release()
     # run t2cleanr
-    t2cleanr = T2Cleaner(t2cleanLock,t2cleanProxyLock,res,t2cleanThreadPool)
-    t2cleanr.start()
-
-t2cleanThreadPool.join()
+    iRows = 0
+    nRows = 500
+    while iRows < len(res):
+        t2cleanr = T2Cleaner(t2cleanLock,t2cleanProxyLock,res[iRows:iRows+nRows],t2cleanThreadPool)
+        t2cleanr.start()
+        iRows += nRows
+    t2cleanThreadPool.join()
+    if len(res) < maxRows:
+        break
 
 
 # delete dis datasets
@@ -626,6 +644,7 @@ timeLimitL = datetime.datetime.utcnow() - datetime.timedelta(days=3)
 disEraseLock = threading.Semaphore(5)
 disEraseProxyLock = threading.Lock()
 disEraseThreadPool = ThreadPool()
+maxRows = 100000
 while True:
     # lock
     disEraseLock.acquire()
@@ -635,10 +654,10 @@ while True:
     varMap[':modificationdateL'] = timeLimitL    
     varMap[':type']   = 'dispatch'
     varMap[':status'] = 'deleting'
-    sqlQuery = "type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= 500"    
+    sqlQuery = "type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= %s" % maxRows     
     disEraseProxyLock.acquire()
     proxyS = taskBuffer.proxyPool.getProxy()
-    res = proxyS.getLockDatasets(sqlQuery,varMap)
+    res = proxyS.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60')
     taskBuffer.proxyPool.putProxy(proxyS)
     if res == None:
         _logger.debug("# of dis datasets to be deleted: %s" % res)
@@ -652,11 +671,15 @@ while True:
     # release
     disEraseLock.release()
     # run disEraser
-    disEraser = EraserThr(disEraseLock,disEraseProxyLock,res,disEraseThreadPool)
-    disEraser.start()
-
-disEraseThreadPool.join()
-
+    iRows = 0
+    nRows = 500
+    while iRows < len(res):        
+        disEraser = EraserThr(disEraseLock,disEraseProxyLock,res[iRows:iRows+nRows],disEraseThreadPool)
+        disEraser.start()
+        iRows += nRows
+    disEraseThreadPool.join()
+    if len(res) < maxRows:
+        break
 
 _memoryCheck("finisher")
 
