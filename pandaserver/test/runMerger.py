@@ -156,7 +156,8 @@ class MergerThr (threading.Thread):
 mergeLock = threading.Semaphore(3)
 mergeProxyLock = threading.Lock()
 mergeThreadPool = ThreadPool()
-sqlQuery = "type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= 100" 
+maxRows = 10000
+sqlQuery = "type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= %s" % maxRows
 while True:
     # lock
     mergeLock.acquire()
@@ -168,7 +169,7 @@ while True:
     varMap[':type']   = 'output'
     varMap[':status'] = 'tobemerged'
     proxyS = taskBuffer.proxyPool.getProxy()
-    res = proxyS.getLockDatasets(sqlQuery,varMap,modTimeOffset='30/24/60')
+    res = proxyS.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60')
     taskBuffer.proxyPool.putProxy(proxyS)
     if res == None:
         _logger.debug("# of datasets to be merged: %s" % res)
@@ -182,9 +183,15 @@ while True:
     mergeProxyLock.release()
     mergeLock.release()
     # run thread
-    mergerThr = MergerThr(mergeLock,mergeProxyLock,res,mergeThreadPool)
-    mergerThr.start()
+    iRows = 0
+    nRows = 100
+    while iRows < len(res):
+        mergerThr = MergerThr(mergeLock,mergeProxyLock,res[iRows:iRows+nRows],mergeThreadPool)
+        mergerThr.start()
+        iRows += nRows
+    mergeThreadPool.join()
+    if len(res) < maxRows:
+        break
 
-mergeThreadPool.join()
 
 _logger.debug("================= end ==================")

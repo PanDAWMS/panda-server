@@ -1,7 +1,7 @@
 Release Note
 
 * current
-  * reduced the number of table scan in datasetMgr
+  * reduced the number of table scan in datasetMgr and runMerge
   * fixed brokerage not to count jobs for usermerge or pandamover
   * changed brokerage to use ANALY_CERN_XROOTD and not to use ANALY_CERN
   * added Forker to add.py
