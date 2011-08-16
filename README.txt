@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * removed CN=Robot: from DN
   * added hint to DBProxy.getLockDatasets
   * reduced the number of table scan in datasetMgr and runMerge
   * fixed brokerage not to count jobs for usermerge or pandamover

@@ -6532,6 +6532,7 @@ class DBProxy:
             username = username.replace('/CN=proxy','')
             username = username.replace('/CN=limited proxy','')
             username = username.replace('limited proxy','')
+            username = re.sub('/CN=Robot:[^/]+','',username)
             pat = re.compile('.*/CN=([^\/]+)/CN=([^\/]+)')
             mat = pat.match(username)
             if mat:
