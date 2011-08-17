@@ -3726,22 +3726,16 @@ class DBProxy:
         # time information
         dataset.creationdate = datetime.datetime.utcnow()
         dataset.modificationdate = dataset.creationdate
-        """
-        # subtype
-        if dataset.subtype in ['','NULL',None]:
-            # define using name
-            if re.search('_dis\d+$',dataset.name) != None:
-                dataset.subtype = 'dis'
-            elif re.search('_sub\d+$',dataset.name) != None:
-                dataset.subtype= 'sub'
-            elif re.search('^user',dataset.name) != None:
-                dataset.subtype= 'utop'                
-            elif re.search('^group',dataset.name) != None:
-                dataset.subtype= 'gtop'                
-            else:
-                dataset.subtype= 'top'
-        """        
         try:
+            # subtype
+            if dataset.subType in ['','NULL',None]:
+                # define using name
+                if re.search('_dis\d+$',dataset.name) != None:
+                    dataset.subType = 'dis'
+                elif re.search('_sub\d+$',dataset.name) != None:
+                    dataset.subType= 'sub'
+                else:
+                    dataset.subType= 'top'
             # begin transaction
             self.conn.begin()
             # check if it already exists

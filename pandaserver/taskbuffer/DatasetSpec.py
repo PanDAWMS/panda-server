@@ -6,7 +6,7 @@ dataset specification
 class DatasetSpec(object):
     # attributes
     _attributes = ('vuid','name','version','type','status','numberfiles','currentfiles','creationdate',
-                   'modificationdate','MoverID','transferStatus')
+                   'modificationdate','MoverID','transferStatus','subType')
 
     # attributes which have 0 by default
     _zeroAttrs = ('MoverID','transferStatus')

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * filling datasets.subtype
   * added protection against too large inputFileBytes
   * removed CN=Robot: from DN
   * added hint to DBProxy.getLockDatasets
