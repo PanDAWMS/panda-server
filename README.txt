@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added protection against too large inputFileBytes
   * removed CN=Robot: from DN
   * added hint to DBProxy.getLockDatasets
   * reduced the number of table scan in datasetMgr and runMerge

@@ -1436,6 +1436,10 @@ class Setupper (threading.Thread):
                     # input type
                     if tmpInputFileType != None:
                         tmpJob.inputFileType = tmpInputFileType
+                # protection
+                maxInputFileBytes = 99999999999
+                if tmpJob.inputFileBytes > maxInputFileBytes:
+                    tmpJob.inputFileBytes = maxInputFileBytes
             except:
                 errType,errValue = sys.exc_info()[:2]
                 _logger.error("failed to set data summary fields for PandaID=%s: %s %s" % (tmpJob.PandaID,errType,errValue))
