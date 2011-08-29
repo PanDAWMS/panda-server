@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * using subType in datasetManager
   * filling datasets.subtype
   * added protection against too large inputFileBytes
   * removed CN=Robot: from DN
