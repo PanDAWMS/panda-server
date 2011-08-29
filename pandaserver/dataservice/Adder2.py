@@ -850,7 +850,7 @@ class Adder (threading.Thread):
                 # unknown errors
                 errType,errValue = sys.exc_info()[:2]
                 out = '%s : %s' % (errType,errValue)
-                isFailed = False
+                isFailed = True
             # failed
             if isFailed or isFatal:
                 _logger.error('%s %s' % (self.jobID,out))
