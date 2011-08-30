@@ -1,6 +1,6 @@
 Release Note
 
-* current
+* 0.0.13 (8/30/2011)
   * fixed Adder2.removeUnmerged to catch DQ2 errors correctly
   * using subType in datasetManager
   * filling datasets.subtype
