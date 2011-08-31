@@ -108,66 +108,66 @@ class Closer (threading.Thread):
                     _logger.debug('%s set %s to dataset : %s' % (self.pandaID,finalStatus,destinationDBlock))
                     # set status
                     dataset.status = finalStatus
-                    # close user datasets
-                    if self.job.prodSourceLabel in ['user'] and self.job.destinationDBlock.endswith('/') \
-                           and (dataset.name.startswith('user') or dataset.name.startswith('group')):
-                        # get top-level user dataset 
-                        topUserDsName = re.sub('_sub\d+$','',dataset.name)
-                        # update if it is the first attempt
-                        if topUserDsName != dataset.name and not topUserDsName in topUserDsList:
-                            topUserDs = self.taskBuffer.queryDatasetWithMap({'name':topUserDsName})
-                            if topUserDs != None:
-                                # check status
-                                if topUserDs.status in ['completed','cleanup','tobeclosed',
-                                                        'tobemerged','merging']:
-                                    _logger.debug('%s skip %s due to status=%s' % (self.pandaID,topUserDsName,topUserDs.status))
-                                else:
-                                    # set status
-                                    if not usingMerger:
-                                        topUserDs.status = finalStatus
-                                    else:
-                                        topUserDs.status = 'merging'
-                                    # append to avoid repetition
-                                    topUserDsList.append(topUserDsName)
-                                    # update DB
-                                    retTopT = self.taskBuffer.updateDatasets([topUserDs],withLock=True,withCriteria="status<>:crStatus",
-                                                                             criteriaMap={':crStatus':topUserDs.status})
-                                    if len(retTopT) > 0 and retTopT[0]==1:
-                                        _logger.debug('%s set %s to top dataset : %s' % (self.pandaID,topUserDs.status,topUserDsName))
-                                    else:
-                                        _logger.debug('%s failed to update top dataset : %s' % (self.pandaID,topUserDsName))
-                        # get parent dataset for merge job
-                        if self.job.processingType == 'usermerge':
-                            tmpMatch = re.search('--parentDS ([^ \'\"]+)',self.job.jobParameters)
-                            if tmpMatch == None:
-                                _logger.error('%s failed to extract parentDS' % self.pandaID)
-                            else:
-                                unmergedDsName = tmpMatch.group(1)
-                                # update if it is the first attempt
-                                if not unmergedDsName in topUserDsList:
-                                    unmergedDs = self.taskBuffer.queryDatasetWithMap({'name':unmergedDsName})
-                                    if unmergedDs == None:
-                                        _logger.error('%s failed to get parentDS=%s from DB' % (self.pandaID,unmergedDsName))
-                                    else:
-                                        # check status
-                                        if unmergedDs.status in ['completed','cleanup','tobeclosed']:
-                                            _logger.debug('%s skip %s due to status=%s' % (self.pandaID,unmergedDsName,unmergedDs.status))
-                                        else:
-                                            # set status
-                                            unmergedDs.status = finalStatus
-                                            # append to avoid repetition
-                                            topUserDsList.append(unmergedDsName)
-                                            # update DB
-                                            retTopT = self.taskBuffer.updateDatasets([unmergedDs],withLock=True,withCriteria="status<>:crStatus",
-                                                                                     criteriaMap={':crStatus':unmergedDs.status})
-                                            if len(retTopT) > 0 and retTopT[0]==1:
-                                                _logger.debug('%s set %s to parent dataset : %s' % (self.pandaID,unmergedDs.status,unmergedDsName))
-                                            else:
-                                                _logger.debug('%s failed to update parent dataset : %s' % (self.pandaID,unmergedDsName))
                     # update dataset in DB
-                    retT = self.taskBuffer.updateDatasets(dsList,withLock=True,withCriteria="status<>:crStatus",
-                                                          criteriaMap={':crStatus':finalStatus})
+                    retT = self.taskBuffer.updateDatasets(dsList,withLock=True,withCriteria="status<>:crStatus AND status<>:lockStatus ",
+                                                          criteriaMap={':crStatus':finalStatus,':lockStatus':'locked'})
                     if len(retT) > 0 and retT[0]==1:
+                        # close user datasets
+                        if self.job.prodSourceLabel in ['user'] and self.job.destinationDBlock.endswith('/') \
+                               and (dataset.name.startswith('user') or dataset.name.startswith('group')):
+                            # get top-level user dataset 
+                            topUserDsName = re.sub('_sub\d+$','',dataset.name)
+                            # update if it is the first attempt
+                            if topUserDsName != dataset.name and not topUserDsName in topUserDsList:
+                                topUserDs = self.taskBuffer.queryDatasetWithMap({'name':topUserDsName})
+                                if topUserDs != None:
+                                    # check status
+                                    if topUserDs.status in ['completed','cleanup','tobeclosed',
+                                                            'tobemerged','merging']:
+                                        _logger.debug('%s skip %s due to status=%s' % (self.pandaID,topUserDsName,topUserDs.status))
+                                    else:
+                                        # set status
+                                        if not usingMerger:
+                                            topUserDs.status = finalStatus
+                                        else:
+                                            topUserDs.status = 'merging'
+                                        # append to avoid repetition
+                                        topUserDsList.append(topUserDsName)
+                                        # update DB
+                                        retTopT = self.taskBuffer.updateDatasets([topUserDs],withLock=True,withCriteria="status<>:crStatus",
+                                                                                 criteriaMap={':crStatus':topUserDs.status})
+                                        if len(retTopT) > 0 and retTopT[0]==1:
+                                            _logger.debug('%s set %s to top dataset : %s' % (self.pandaID,topUserDs.status,topUserDsName))
+                                        else:
+                                            _logger.debug('%s failed to update top dataset : %s' % (self.pandaID,topUserDsName))
+                            # get parent dataset for merge job
+                            if self.job.processingType == 'usermerge':
+                                tmpMatch = re.search('--parentDS ([^ \'\"]+)',self.job.jobParameters)
+                                if tmpMatch == None:
+                                    _logger.error('%s failed to extract parentDS' % self.pandaID)
+                                else:
+                                    unmergedDsName = tmpMatch.group(1)
+                                    # update if it is the first attempt
+                                    if not unmergedDsName in topUserDsList:
+                                        unmergedDs = self.taskBuffer.queryDatasetWithMap({'name':unmergedDsName})
+                                        if unmergedDs == None:
+                                            _logger.error('%s failed to get parentDS=%s from DB' % (self.pandaID,unmergedDsName))
+                                        else:
+                                            # check status
+                                            if unmergedDs.status in ['completed','cleanup','tobeclosed']:
+                                                _logger.debug('%s skip %s due to status=%s' % (self.pandaID,unmergedDsName,unmergedDs.status))
+                                            else:
+                                                # set status
+                                                unmergedDs.status = finalStatus
+                                                # append to avoid repetition
+                                                topUserDsList.append(unmergedDsName)
+                                                # update DB
+                                                retTopT = self.taskBuffer.updateDatasets([unmergedDs],withLock=True,withCriteria="status<>:crStatus",
+                                                                                         criteriaMap={':crStatus':unmergedDs.status})
+                                                if len(retTopT) > 0 and retTopT[0]==1:
+                                                    _logger.debug('%s set %s to parent dataset : %s' % (self.pandaID,unmergedDs.status,unmergedDsName))
+                                                else:
+                                                    _logger.debug('%s failed to update parent dataset : %s' % (self.pandaID,unmergedDsName))
                         if self.pandaDDM and self.job.prodSourceLabel=='managed':
                             # instantiate SiteMapper
                             if self.siteMapper == None:
@@ -243,8 +243,8 @@ class Closer (threading.Thread):
                         flagComplete = False
                 else:
                     # update dataset in DB
-                    self.taskBuffer.updateDatasets(dsList,withLock=True,withCriteria="status<>:crStatus",
-                                                   criteriaMap={':crStatus':finalStatus})
+                    self.taskBuffer.updateDatasets(dsList,withLock=True,withCriteria="status<>:crStatus AND status<>:lockStatus ",
+                                                   criteriaMap={':crStatus':finalStatus,':lockStatus':'locked'})
                     # unset flag
                     flagComplete = False
                 # end
@@ -252,6 +252,10 @@ class Closer (threading.Thread):
             # start DDM jobs
             if ddmJobs != []:
                 self.taskBuffer.storeJobs(ddmJobs,self.job.prodUserID,joinThr=True)
+            # change pending jobs to failed
+            if flagComplete and self.job.prodSourceLabel=='user':
+                _logger.debug('%s finalize %s %s' % (self.pandaID,self.job.prodUserName,self.job.jobDefinitionID))
+                self.taskBuffer.finalizePendingJobs(self.job.prodUserName,self.job.jobDefinitionID)
             # start notifier
             _logger.debug('%s source:%s complete:%s' % (self.pandaID,self.job.prodSourceLabel,flagComplete))
             if (self.job.jobStatus != 'transferring') and ((flagComplete and self.job.prodSourceLabel=='user') or \

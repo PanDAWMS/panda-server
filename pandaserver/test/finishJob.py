@@ -35,9 +35,10 @@ for file in job.Files:
     <logical>
       <lfn name="%s"/>
     </logical>
+    <metadata att_name="surl" att_value="srm://dcsrm.usatlas.bnl.gov:8443/srm/managerv2?SFN=/pnfs/usatlas.bnl.gov/atlasuserdisk/user.elmsheus/user.elmsheus.hc10006029.ANALY_LONG_BNL_ATLAS.1312433204.e0b.8181.ANALY_LONG_BNL_ATLAS/%s"/>    
     <metadata att_name="fsize" att_value="127340"/>
     <metadata att_name="md5sum" att_value="03cea4013bdb9f2e44050449b6ebf079"/>
-   </File>""" % (commands.getoutput('uuidgen'),file.lfn)
+   </File>""" % (commands.getoutput('uuidgen'),file.lfn,file.lfn)
 
 xml += """
 </POOLFILECATALOG>

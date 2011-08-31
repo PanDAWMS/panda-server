@@ -350,7 +350,10 @@ class TaskBuffer:
         for job in jobs:
             # update DB
             tmpddmIDs = []
-            if job.jobStatus in ['finished','failed','cancelled']:
+            if job.jobStatus == 'failed' and job.prodSourceLabel == 'user' and not inJobsDefined:
+                # keep failed analy jobs in Active4
+                ret = proxy.updateJob(job,inJobsDefined)
+            elif job.jobStatus in ['finished','failed','cancelled']:
                 ret,tmpddmIDs,ddmAttempt,newMover = proxy.archiveJob(job,inJobsDefined)
             else:
                 ret = proxy.updateJob(job,inJobsDefined)
@@ -379,6 +382,17 @@ class TaskBuffer:
             ret = proxy.archiveJobLite(jobID,jobStatus,param)
         else:
             ret = proxy.updateJobStatus(jobID,jobStatus,param,updateStateChange)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+
+    # finalize pending analysis jobs
+    def finalizePendingJobs(self,prodUserName,jobDefinitionID):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # update DB
+        ret = proxy.finalizePendingJobs(prodUserName,jobDefinitionID)
         # release proxy
         self.proxyPool.putProxy(proxy)
         return ret

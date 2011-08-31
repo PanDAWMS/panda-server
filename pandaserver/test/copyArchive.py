@@ -137,137 +137,6 @@ taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
 siteMapper = SiteMapper(taskBuffer)
 
 
-# table names
-jobATableName   = "ATLAS_PANDAARCH.jobsArchived"
-filesATableName = "ATLAS_PANDAARCH.filesTable_ARCH"
-paramATableName = "ATLAS_PANDAARCH.jobParamsTable_ARCH"
-metaATableName  = "ATLAS_PANDAARCH.metaTable_ARCH"
-
-# time limit
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=3)
-
-# copy
-"""
-_logger.debug("get PandaIDs for Archive")
-varMap = {}
-varMap[':archivedFlag'] = 0
-status,res = taskBuffer.querySQLS("SELECT PandaID,modificationTime FROM ATLAS_PANDA.jobsArchived4 WHERE archivedFlag=:archivedFlag ORDER BY PandaID",
-                              varMap,arraySize=1000000)
-if res == None:
-    _logger.debug("total %s " % res)
-else:
-    _logger.debug("total %s " % len(res))
-    # copy
-    tmpIndex = 0
-    tmpTotal = len(res)
-    random.shuffle(res)
-    for (id,srcEndTime) in res:
-        tmpIndex += 1
-        try:
-            # check if already recorded
-            _logger.debug("check  %s " % id)
-            sql = "SELECT PandaID from %s WHERE PandaID=:PandaID" % jobATableName
-            varMap = {}
-            varMap[':PandaID'] = id
-            status,check = taskBuffer.querySQLS(sql,varMap)
-            # copy
-            if len(check) == 0:
-                # get jobs
-                job = taskBuffer.peekJobs([id],False,False,True,False)[0]
-                # insert to archived
-                if job != None and job.jobStatus != 'unknown':
-                    proxyS = taskBuffer.proxyPool.getProxy()
-                    proxyS.insertJobSimple(job,jobATableName,filesATableName,paramATableName,metaATableName)
-                    taskBuffer.proxyPool.putProxy(proxyS)
-                    _logger.debug("INSERT %s" % id)
-                else:
-                    _logger.error("Failed to peek at %s" % id)
-            else:
-                # set archivedFlag            
-                varMap = {}
-                varMap[':PandaID'] = id
-                varMap[':archivedFlag'] = 1
-                sqlUpdate = "UPDATE ATLAS_PANDA.jobsArchived4 SET archivedFlag=:archivedFlag WHERE PandaID=:PandaID"
-                taskBuffer.querySQLS(sqlUpdate,varMap)
-            if tmpIndex % 100 == 1:
-                _logger.debug(" copied %s/%s" % (tmpIndex,tmpTotal))
-        except:
-            pass
-"""
-        
-# delete
-"""
-_logger.debug("get PandaIDs for Delete")
-sql = "SELECT COUNT(*) FROM ATLAS_PANDA.jobsArchived4 WHERE modificationTime<:modificationTime"
-varMap = {}
-varMap[':modificationTime'] = timeLimit
-status,res = taskBuffer.querySQLS(sql,varMap)
-if res != None:
-    tmpTotal = res[0][0]
-else:
-    tmpTotal = None
-maxBunch = 1000
-nBunch = 100
-tmpIndex = 0
-while True:
-    sql  = "SELECT PandaID,modificationTime FROM ATLAS_PANDA.jobsArchived4 "
-    sql += "WHERE modificationTime<:modificationTime AND archivedFlag=:archivedFlag AND rownum<=:rowRange"
-    varMap = {}
-    varMap[':modificationTime'] = timeLimit
-    varMap[':archivedFlag'] = 1    
-    varMap[':rowRange'] = maxBunch
-    status,res = taskBuffer.querySQLS(sql,varMap)
-    if res == None:
-        _logger.error("failed to get PandaIDs to be deleted")
-        break
-    else:
-        _logger.debug("got %s for deletion" % len(res))            
-        if len(res) == 0:
-            _logger.debug("no jobs left for for deletion")
-            break
-        else:
-            maxBunch = len(res)
-            random.shuffle(res)
-            res = res[:nBunch]
-            # loop over all jobs
-            for (id,srcEndTime) in res:
-                tmpIndex += 1        
-                try:
-                    # check
-                    sql = "SELECT PandaID from %s WHERE PandaID=:PandaID" % jobATableName
-                    varMap = {}
-                    varMap[':PandaID'] = id
-                    status,check = taskBuffer.querySQLS(sql,varMap)
-                    if check == None or len(check) == 0:
-                        # no record in ArchivedDB
-                        _logger.error("No backup for %s" % id)
-                    else:
-                        # delete
-                        _logger.debug("DEL %s : endTime %s" % (id,srcEndTime))
-                        proxyS = taskBuffer.proxyPool.getProxy()
-                        proxyS.deleteJobSimple(id)
-                        taskBuffer.proxyPool.putProxy(proxyS)
-                    if tmpIndex % 1000 == 1:
-                        _logger.debug(" deleted %s/%s" % (tmpIndex,tmpTotal))
-                except:
-                    pass
-del res
-"""
-
-# increase priorities for long-waiting analysis jobs
-"""
-_logger.debug("Analysis Priorities")
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
-sql = "UPDATE ATLAS_PANDA.jobsActive4 SET currentPriority=currentPriority+100,modificationTime=CURRENT_DATE WHERE jobStatus=:jobStatus "
-sql+= "AND modificationTime<:modificationTime AND prodSourceLabel=:prodSourceLabel "
-varMap = {}
-varMap[':jobStatus'] = 'activated'
-varMap[':prodSourceLabel'] = 'user'
-varMap[':modificationTime'] = timeLimit
-status,res = taskBuffer.querySQLS(sql,varMap)
-_logger.debug("increased priority for %s" % status)
-time.sleep(1)
-"""
 
 # send email for access requests
 _logger.debug("Site Access")
@@ -369,6 +238,61 @@ except:
     type, value, traceBack = sys.exc_info()
     _logger.error("Failed with %s %s" % (type,value))
 _logger.debug("Site Access : done")    
+
+
+# finalize failed jobs
+_logger.debug("AnalFinalizer session")
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
+try:
+    # get min PandaID for failed jobs in Active table
+    sql  = "SELECT MIN(PandaID),prodUserName,jobDefinitionID FROM ATLAS_PANDA.jobsActive4 "
+    sql += "WHERE prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus "
+    sql += "GROUP BY prodUserName,jobDefinitionID "
+    varMap = {}
+    varMap[':jobStatus']       = 'failed'
+    varMap[':prodSourceLabel'] = 'user'
+    status,res = taskBuffer.querySQLS(sql,varMap)
+    if res != None:
+        # loop over all user/jobdefID
+        for pandaID,prodUserName,jobDefinitionID in res:
+            _logger.debug("check finalization for %s %s" % (prodUserName,jobDefinitionID))
+            # get modTime
+            sqlM  = "SELECT modificationTime FROM ATLAS_PANDA.jobsActive4 "
+            sqlM += "WHERE PandaID=:PandaID "
+            varMap = {}
+            varMap[':PandaID'] = pandaID
+            statM,resM = taskBuffer.querySQLS(sqlM,varMap)
+            if resM != None and resM[0] < timeLimit:
+                # check every 12h
+                sqlC  = "SELECT COUNT(*) FROM ATLAS_PANDA.jobsActive4 "
+                sqlC += "WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName "
+                sqlC += "AND jobDefinitionID=:jobDefinitionID AND jobStatus<>:jobStatus "
+                varMap = {}
+                varMap[':jobStatus']       = 'failed'
+                varMap[':prodSourceLabel'] = 'user'
+                varMap[':jobDefinitionID'] = jobDefinitionID
+                varMap[':prodUserName']    = prodUserName
+                statC,resC = taskBuffer.querySQLS(sqlC,varMap)
+                # finalize if there is no non-failed jobs
+                if resC != None:
+                    _logger.debug("n of non-failed jobs : %s" % resC[0])
+                    if resC[0] == 0:
+                        _logger.debug("finalize %s %s" % (prodUserName,jobDefinitionID)) 
+                        taskBuffer.finalizePendingJobs(prodUserName,jobDefinitionID)
+                    else:
+                        # update modTime
+                        _logger.debug("wait %s %s" % (prodUserName,jobDefinitionID))                         
+                        sqlU  = "UPDATE ATLAS_PANDA.jobsActive4 SET modificationTime=CURRENT_DATE "
+                        sqlU += "WHERE PandaID=:PandaID "
+                        varMap = {}
+                        varMap[':PandaID'] = pandaID
+                        taskBuffer.querySQLS(sqlU,varMap)
+                else:
+                    _logger.debug("n of non-failed jobs : None")
+except:
+    errType,errValue = sys.exc_info()[:2]
+    _logger.error("AnalFinalizer failed with %s %s" % (errType,errValue))
+
             
 _memoryCheck("watcher")
 

@@ -198,3 +198,15 @@ def getVomsAttr(req):
     for tmpStr in vomsAttrs:
         retStr += tmpStr
     return retStr
+
+
+# get all attributes
+def getAttr(req):
+    allAttrs = []
+    for tmpKey,tmpVal in req.subprocess_env.iteritems():
+            allAttrs.append('%s : %s\n' % (tmpKey,tmpVal))
+    allAttrs.sort()
+    retStr = ''
+    for tmpStr in allAttrs:
+        retStr += tmpStr
+    return retStr

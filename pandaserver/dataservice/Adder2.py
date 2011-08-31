@@ -13,6 +13,10 @@ import threading
 import xml.dom.minidom
 import ErrorCode
 from dq2.clientapi import DQ2
+try:
+    from dq2.clientapi.cli import Register2
+except:
+    pass
 
 import brokerage.broker_util
 import Closer
@@ -24,7 +28,7 @@ from pandalogger.PandaLogger import PandaLogger
 _logger = PandaLogger().getLogger('Adder')
 Closer.initLogger(_logger)
 
-
+   
 class Adder (threading.Thread):
     # constructor
     def __init__(self,taskBuffer,jobID,fileCatalog,jobStatus,xmlFile='',ignoreDDMError=True,joinCloser=False,
@@ -308,6 +312,7 @@ class Adder (threading.Thread):
         fsizes  = []
         md5sums = []
         chksums = []
+        surls   = []
         try:
             root  = xml.dom.minidom.parse(self.xmlFile)
             files = root.getElementsByTagName('File')
@@ -324,6 +329,7 @@ class Adder (threading.Thread):
                 fsize   = None
                 md5sum  = None
                 adler32 = None
+                surl    = None
                 for meta in file.getElementsByTagName('metadata'):
                     # get fsize
                     name = str(meta.getAttribute('att_name'))
@@ -336,14 +342,18 @@ class Adder (threading.Thread):
                             md5sum = None
                     elif name == 'adler32':
                         adler32 = str(meta.getAttribute('att_value'))
+                    elif name == 'surl':
+                        surl = str(meta.getAttribute('att_value'))
                 # error check
-                if (not lfn in inputLFNs) and (fsize == None or (md5sum == None and adler32 == None)):
-                    raise RuntimeError, 'fsize/md5sum/adler32=None'
+                if (not lfn in inputLFNs) and (fsize == None or (md5sum == None and adler32 == None) \
+                                               or (self.useCentralLFC() and surl == None)):
+                    raise RuntimeError, 'fsize/md5sum/adler32/surl=None'
                 # append
                 lfns.append(lfn)
                 guids.append(guid)
                 fsizes.append(fsize)
                 md5sums.append(md5sum)
+                surls.append(surl)
                 if adler32 != None:
                     # use adler32 if available
                     chksums.append("ad:%s" % adler32)
@@ -360,7 +370,7 @@ class Adder (threading.Thread):
                 if (self.job.pilotErrorCode in [0,'0','NULL']) and \
                    (self.job.transExitCode  in [0,'0','NULL']):
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
-                    self.job.ddmErrorDiag = "Adder._updateOutputs() could not get GUID/LFN/MD5/FSIZE"
+                    self.job.ddmErrorDiag = "Adder._updateOutputs() could not get GUID/LFN/MD5/FSIZE/SURL"
                 return
             else:
                 # XML was deleted
@@ -397,6 +407,7 @@ class Adder (threading.Thread):
                     file.fsize  = fsizes[i]
                     file.md5sum = md5sums[i]
                     file.checksum = chksums[i]
+                    surl = surls[i]
                     # status
                     file.status = 'ready'
                     # fsize
@@ -410,10 +421,14 @@ class Adder (threading.Thread):
                     # append to map
                     if not idMap.has_key(file.destinationDBlock):
                         idMap[file.destinationDBlock] = []
-                    idMap[file.destinationDBlock].append({'guid'     : file.GUID,
-                                                          'lfn'      : lfns[i],
-                                                          'size'     : fsize,
-                                                          'checksum' : file.checksum})
+                    fileAttrs = {'guid'     : file.GUID,
+                                 'lfn'      : lfns[i],
+                                 'size'     : fsize,
+                                 'checksum' : file.checksum}
+                    # add SURLs if LFC registration is required
+                    if self.useCentralLFC():
+                        fileAttrs['surl'] = surl
+                    idMap[file.destinationDBlock].append(fileAttrs)
                     # for subscription
                     if self.job.prodSourceLabel in ['managed','test','software','rc_test','ptest','user'] and \
                            re.search('_sub\d+$',file.destinationDBlock) != None and (not self.addToTopOnly) and \
@@ -554,7 +569,11 @@ class Adder (threading.Thread):
             isFatal  = False
             out = 'OK'
             try:
-                self.dq2api.registerFilesInDatasets(idMap)
+                if not self.useCentralLFC():
+                    self.dq2api.registerFilesInDatasets(idMap)
+                else:
+                    registerAPI = Register2.Register(self.siteMapper.getSite(self.job.computingSite).ddm)
+                    out = registerAPI.registerFilesInDatasets(idMap)
             except DQ2.DQFileExistsInDatasetException:
                 # hamless error 
                 errType,errValue = sys.exc_info()[:2]
@@ -800,6 +819,13 @@ class Adder (threading.Thread):
                 break
         _logger.debug("%s addFilesToShadow end" % self.jobID)
 
+
+    # use cerntral LFC
+    def useCentralLFC(self):
+        tmpSiteSpec = self.siteMapper.getSite(self.job.computingSite)
+        if not self.addToTopOnly and tmpSiteSpec.lfcregister in ['server']:
+            return True
+        return False
 
     # remove unmerged files
     def _removeUnmerged(self):

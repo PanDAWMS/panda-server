@@ -5,6 +5,8 @@ import signal
 import commands
 
 from config import panda_config
+from dq2.common import log as logging
+import stomp
 
 # keep PID
 pidFile = '%s/file_callback_listener.pid' % panda_config.logdir
@@ -98,16 +100,21 @@ def main():
             # instantiate TB
             taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
             # ActiveMQ params
-            clientid = 'PandaFileCallbackClient'
-            topic = '/topic/atlas.ddm.siteservices'
-            queue = '/queue/Consumer.pandafilecallback.atlas.ddm.siteservices'
+            clientid = 'PANDA'
+            queue = '/queue/Consumer.PANDA.atlas.ddm.siteservices'
+            ssl_opts = {'use_ssl' : True,
+                        'ssl_cert_file' : '/data/atlpan/x509up_u25606',
+                        'ssl_key_file' :  '/data/atlpan/x509up_u25606'}
+            # resolve multiple brokers
+            import socket
+            brokerList = socket.gethostbyname_ex('atlas-ddm.msg.cern.ch')[-1]
             # set listener
-            from dq2.common import stomp
-            conn = stomp.Connection(host_and_ports = [('atlddmmsgprod.cern.ch', 6163)])
-            conn.set_listener('FileCallbackListener', FileCallbackListener(conn,taskBuffer))
-            conn.start()
-            conn.connect(headers = {'client-id': clientid})
-            conn.subscribe(destination=queue, ack='client-individual')
+            for tmpBroker in brokerList:
+                conn = stomp.Connection(host_and_ports = [(tmpBroker, 6162)])
+                conn.set_listener('FileCallbackListener', FileCallbackListener(conn,taskBuffer))
+                conn.start()
+                conn.connect(headers = {'client-id': clientid})
+                conn.subscribe(destination=queue, ack='client-individual')
             # exit
             os._exit(0)
 

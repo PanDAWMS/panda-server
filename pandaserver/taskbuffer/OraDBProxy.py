@@ -1098,6 +1098,105 @@ class DBProxy:
                 return False
 
 
+    # finalize pending jobs
+    def finalizePendingJobs(self,prodUserName,jobDefinitionID):
+        comment = ' /* DBProxy.finalizePendingJobs */'                        
+        _logger.debug("finalizePendingJobs : %s %s" % (prodUserName,jobDefinitionID))
+        sql0 = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
+        sql0+= "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
+        sql0+= "AND prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus "
+        sqlU = "UPDATE ATLAS_PANDA.jobsActive4 SET jobStatus=:newJobStatus "
+        sqlU+= "WHERE PandaID=:PandaID AND jobStatus=:jobStatus "
+        sql1 = "SELECT %s FROM ATLAS_PANDA.jobsActive4 " % JobSpec.columnNames()
+        sql1+= "WHERE PandaID=:PandaID AND jobStatus=:jobStatus "
+        sql2 = "DELETE FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID AND jobStatus=:jobStatus "
+        sql3 = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
+        sql3+= JobSpec.bindValuesExpression()
+        sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
+        sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
+        sqlPMod = "UPDATE ATLAS_PANDA.jobParamsTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
+        try:
+            # begin transaction
+            self.conn.begin()
+            self.cur.arraysize = 100000
+            # select
+            varMap = {}
+            varMap[':jobStatus']       = 'failed'
+            varMap[':prodUserName']    = prodUserName
+            varMap[':jobDefinitionID'] = jobDefinitionID
+            varMap[':prodSourceLabel'] = 'user'
+            self.cur.execute(sql0+comment,varMap)
+            resPending = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # lock
+            pPandaIDs = []
+            for pandaID, in resPending:
+                # begin transaction                
+                self.conn.begin()
+                # update
+                varMap = {}
+                varMap[':jobStatus']    = 'failed'
+                varMap[':newJobStatus'] = 'holding'
+                varMap[':PandaID']      = pandaID
+                self.cur.execute(sqlU+comment,varMap)
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                retU = self.cur.rowcount
+                if retU != 0:
+                    pPandaIDs.append(pandaID)
+            # loop over all PandaIDs
+            for pandaID in pPandaIDs:
+                # begin transaction
+                self.conn.begin()
+                # get job
+                varMap = {}
+                varMap[':PandaID']   = pandaID
+                varMap[':jobStatus'] = 'holding'                
+                self.cur.arraysize = 10
+                self.cur.execute(sql1+comment,varMap)
+                res = self.cur.fetchall()
+                if len(res) == 0:
+                    _logger.debug("finalizePendingJobs : PandaID %d not found" % pandaID)
+                    # commit
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+                    continue
+                job = JobSpec()
+                job.pack(res[0])
+                job.jobStatus = 'failed'
+                job.modificationTime = datetime.datetime.utcnow()
+                # delete
+                self.cur.execute(sql2+comment,varMap)
+                n = self.cur.rowcount
+                if n==0:
+                    # already killed
+                    _logger.debug("finalizePendingJobs : Not found %s" % pandaID)        
+                else:        
+                    # insert
+                    self.cur.execute(sql3+comment,job.valuesMap())
+                    # update files,metadata,parametes
+                    varMap = {}
+                    varMap[':PandaID'] = pandaID
+                    varMap[':modificationTime'] = job.modificationTime
+                    self.cur.execute(sqlFMod+comment,varMap)
+                    self.cur.execute(sqlMMod+comment,varMap)
+                    self.cur.execute(sqlPMod+comment,varMap)
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+            _logger.debug("finalizePendingJobs : %s %s done for %s" % (prodUserName,jobDefinitionID,len(pPandaIDs)))
+            return True
+        except:
+            # roll back
+            self._rollback()
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("finalizePendingJobs : %s %s" % (errType,errValue))
+            return False
+
+
     # delete stalled jobs
     def deleteStalledJobs(self,libFileName):
         comment = ' /* DBProxy.deleteStalledJobs */'                
@@ -1292,11 +1391,13 @@ class DBProxy:
 
 
     # retry analysis job
-    def retryJob(self,pandaID,param):
+    def retryJob(self,pandaID,param,failedInActive=False):
         comment = ' /* DBProxy.retryJob */'                
-        _logger.debug("retryJob : %s" % pandaID)        
+        _logger.debug("retryJob : %s inActive=%s" % (pandaID,failedInActive))
         sql1 = "SELECT %s FROM ATLAS_PANDA.jobsActive4 " % JobSpec.columnNames()
         sql1+= "WHERE PandaID=:PandaID"
+        if failedInActive:
+            sql1+= "AND jobStatus=:jobStatus "
         sql2 = "UPDATE ATLAS_PANDA.jobsActive4 SET %s " % JobSpec.bindUpdateExpression()            
         sql2+= "WHERE PandaID=:PandaID"
         nTry=3
@@ -1308,6 +1409,8 @@ class DBProxy:
                 # select
                 varMap = {}
                 varMap[':PandaID'] = pandaID
+                if failedInActive:
+                    varMap[':jobStatus'] = 'failed'
                 self.cur.arraysize = 10                
                 self.cur.execute(sql1+comment, varMap)
                 res = self.cur.fetchall()
@@ -1424,6 +1527,149 @@ class DBProxy:
                 type, value, traceBack = sys.exc_info()
                 _logger.error("retryJob : %s %s" % (type,value))
                 return False
+
+
+    # retry failed analysis jobs in Active4
+    def retryJobsInActive(self,prodUserName,jobDefinitionID):
+        comment = ' /* DBProxy.retryJobsInActive */'                
+        _logger.debug("retryJobsInActive : start - %s %s" % (prodUserName,jobDefinitionID))
+        try:
+            # begin transaction
+            self.conn.begin()
+            # count the number of jobs in Defined
+            sqlC  = "SELECT COUNT(*) FROM ATLAS_PANDA.jobsDefined4 "
+            sqlC += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
+            sqlC += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
+            varMap = {}
+            varMap[':prodUserName']    = prodUserName
+            varMap[':jobDefinitionID'] = jobDefinitionID
+            varMap[':prodSourceLabel1'] = 'user'
+            varMap[':prodSourceLabel2'] = 'panda'            
+            self.cur.arraysize = 10
+            self.cur.execute(sqlC+comment,varMap)
+            res = self.cur.fetchone()
+            # failed to get the number of jobs in Defined
+            if res == None:
+                _logger.error("retryJobsInActive : %s %s - failed to get num of jobs in Def" % (prodUserName,jobDefinitionID))                
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                # return None for DB error 
+                return None
+            nJobsInDef = res[0]
+            # lock failed PandaIDs in Active
+            sql0  = "UPDATE ATLAS_PANDA.jobsActive4 "
+            sql0 += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
+            sql0 += "AND prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus "
+            sql0 += "RETURNING PandaID BULK COLLECT INTO :upPandaID "
+            varMap = {}
+            varMap[':prodUserName']    = prodUserName
+            varMap[':jobDefinitionID'] = jobDefinitionID
+            varMap[':prodSourceLabel'] = 'user'
+            varMap[':upPandaID']       = self.cur.arrayvar(cx_Oracle.NUMBER)
+            self.cur.arraysize = 100000
+            self.cur.execute(sql0+comment,varMap)
+            res = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # the number of jobs in Active
+            nJobsInAct = len(res)
+            # loop over all PandaID
+            failedPandaIDs = []
+            for pandaID,tmpJobStatus in res:
+                if tmpJobStatus == 'failed':
+                    failedPandaIDs.append(pandaID)
+            _logger.debug("retryJobsInActive : %s %s - %s failed jobs" % (prodUserName,jobDefinitionID,len(failedPandaIDs)))
+            # there are some failed jobs in Active
+            if failedPandaIDs != []:
+                # get list of sub datasets to lock Closer
+                sqlF  = "SELECT DISTINCT destinationDBlock FROM ATLAS_PANDA.filesTable4 "
+                sqlF += "WHERE PandaID=:PandaID AND type IN (:type1,type2) "
+                varMap = {}
+                varMap[':PandaID'] = failedPandaIDs[0]
+                varMap[':type1']   = 'log'
+                varMap[':type2']   = 'output'                
+                # begin transaction
+                self.conn.begin()
+                self.cur.arraysize = 100000
+                self.cur.execute(sqlF+comment,varMap)
+                res = self.cur.fetchall()
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                subDsList = []
+                for tmpDSname, in res:
+                    tmpDS = self.queryDatasetWithMap({'name':tmpDSname})
+                    if tmpDS == None:
+                        _logger.error("retryJobsInActive : %s %s - failed to get DS=%s" % (prodUserName,jobDefinitionID,tmpDSname))                
+                        # return None for DB error 
+                        return None
+                    # append    
+                    subDsList.append(tmpDS)
+                # lock datasets
+                lockedDS = True
+                ngStatus = ['closed','tobeclosed','completed','tobemerged','merging','cleanup']
+                sqlD = "UPDATE ATLAS_PANDA.Datasets SET status=:status,modificationdate=CURRENT_DATE "
+                sqlD+= "WHERE vuid=:vuid AND NOT status IN ("
+                for tmpIdx,tmpNgStat in enumerate(ngStatus):
+                    sqlD += ':ngSt%s,' % tmpIdx
+                sqlD = sqlD[:-1]
+                sqlD += ") "
+                self.conn.begin()
+                self.cur.arraysize = 10
+                for tmpDS in subDsList:
+                    varMap = {}
+                    varMap[':status'] = 'locked'
+                    varMap[':vuid'] = tmpDS.vuid
+                    for tmpIdx,tmpNgStat in enumerate(ngStatus):
+                        tmpKey = ':ngSt%s' % tmpIdx
+                        varMap[tmpKey] = tmpNgStat
+                    # update
+                    self.cur.execute(sqlD+comment,varMap)
+                    retD = self.cur.rowcount
+                    # datasets already closed  
+                    if retD == 0:
+                        # roll back
+                        self._rollback()
+                        # failed to lock datasets
+                        _logger.debug("retryJobsInActive : %s %s - %s is closed" % (prodUserName,jobDefinitionID,tmpDS.name))
+                        lockedDS = False
+                        break
+                # retry jobs                    
+                if lockedDS:
+                    # commit for dataset lock
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+                    # loop over all PandaIDs
+                    for pandaID in failedPandaIDs:
+                        self.retryJob(pandaID,{},failedInActive=True)
+                    # unlock datasets
+                    sqlDU = "UPDATE ATLAS_PANDA.Datasets SET status=:nStatus,modificationdate=CURRENT_DATE "
+                    sqlDU+= "WHERE vuid=:vuid AND status=:oStatus"
+                    self.conn.begin()
+                    self.cur.arraysize = 10
+                    for tmpDS in subDsList:
+                        varMap = {}
+                        varMap[':oStatus'] = 'locked'
+                        varMap[':nStatus'] = tmpDS.status
+                        varMap[':vuid'] = tmpDS.vuid
+                        # update
+                        self.cur.execute(sqlD+comment,varMap)
+                    # commit
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+            # return True when job is active
+            if nJobsInAct > 0 or nJobsInDef > 0:
+                return True
+            return False
+        except:
+            # roll back
+            self._rollback()
+            # error report
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("retryJobsInActive : %s %s" % (errType,errValue))
+            return None
 
         
     # get jobs
@@ -2216,32 +2462,37 @@ class DBProxy:
                 if retD == 0:
                     continue
                 # error code
-                job.jobStatus = 'cancelled'
-                job.endTime   = datetime.datetime.utcnow()
-                job.modificationTime = job.endTime
-                job.stateChangeTime  = job.modificationTime
-                if code in ['2','4']:
-                    # expire
-                    if code == '2':
-                        job.taskBufferErrorCode = ErrorCode.EC_Expire
-                        job.taskBufferErrorDiag = 'expired after 7 days since submission'
+                if job.jobStatus != 'failed' and job.prodSourceLabel in ['user']:
+                    # set status etc for non-failed jobs                    
+                    job.jobStatus = 'cancelled'
+                    job.endTime   = datetime.datetime.utcnow()
+                    job.modificationTime = job.endTime
+                    if code in ['2','4']:
+                        # expire
+                        if code == '2':
+                            job.taskBufferErrorCode = ErrorCode.EC_Expire
+                            job.taskBufferErrorDiag = 'expired after 7 days since submission'
+                        else:
+                            # waiting timeout 
+                            job.taskBufferErrorCode = ErrorCode.EC_Expire
+                            #job.taskBufferErrorCode = ErrorCode.EC_WaitTimeout
+                            job.taskBufferErrorDiag = 'expired after waiting for input data for 2 days'
+                    elif code=='3':
+                        # aborted
+                        job.taskBufferErrorCode = ErrorCode.EC_Aborted
+                        job.taskBufferErrorDiag = 'aborted by ExtIF'
+                    elif code=='8':
+                        # reassigned by rebrokeage
+                        job.taskBufferErrorCode = ErrorCode.EC_Reassigned
+                        job.taskBufferErrorDiag = 'reassigned to another site by rebrokerage. new %s' % user
                     else:
-                        # waiting timeout 
-                        job.taskBufferErrorCode = ErrorCode.EC_Expire
-                        #job.taskBufferErrorCode = ErrorCode.EC_WaitTimeout
-                        job.taskBufferErrorDiag = 'expired after waiting for input data for 2 days'
-                elif code=='3':
-                    # aborted
-                    job.taskBufferErrorCode = ErrorCode.EC_Aborted
-                    job.taskBufferErrorDiag = 'aborted by ExtIF'
-                elif code=='8':
-                    # reassigned by rebrokeage
-                    job.taskBufferErrorCode = ErrorCode.EC_Reassigned
-                    job.taskBufferErrorDiag = 'reassigned to another site by rebrokerage. new %s' % user
+                        # killed
+                        job.taskBufferErrorCode = ErrorCode.EC_Kill
+                        job.taskBufferErrorDiag = 'killed by %s' % user
                 else:
-                    # killed
-                    job.taskBufferErrorCode = ErrorCode.EC_Kill
-                    job.taskBufferErrorDiag = 'killed by %s' % user
+                    # keep status for failed jobs
+                    job.modificationTime = datetime.datetime.utcnow()
+                job.stateChangeTime = job.modificationTime
                 # insert
                 self.cur.execute(sql4+comment, job.valuesMap())
                 # update file
@@ -5953,7 +6204,7 @@ class DBProxy:
             sql+= "maxtime,status,space,retry,cmtconfig,setokens,seprodpath,glexec,"
             sql+= "priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue,"
             sql+= "validatedreleases,accesscontrol,copysetup,maxinputsize,cachedse,"
-            sql+= "allowdirectaccess,comment_,lastmod,multicloud "
+            sql+= "allowdirectaccess,comment_,lastmod,multicloud,lfcregister "
             sql+= "FROM ATLAS_PANDAMETA.schedconfig WHERE siteid IS NOT NULL"
             self.cur.arraysize = 10000            
             self.cur.execute(sql+comment)
@@ -5975,7 +6226,7 @@ class DBProxy:
                        maxtime,status,space,retry,cmtconfig,setokens,seprodpath,glexec,\
                        priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue,\
                        validatedreleases,accesscontrol,copysetup,maxinputsize,cachedse,\
-                       allowdirectaccess,comment,lastmod,multicloud \
+                       allowdirectaccess,comment,lastmod,multicloud,lfcregister \
                        = resTmp
                     # skip invalid siteid
                     if siteid in [None,'']:
@@ -6003,6 +6254,7 @@ class DBProxy:
                     ret.maxinputsize  = maxinputsize
                     ret.comment       = comment
                     ret.statusmodtime = lastmod
+                    ret.lfcregister   = lfcregister
                     # cloud list
                     if cloud != '':
                         ret.cloudlist = [cloud.split(',')[0]]
