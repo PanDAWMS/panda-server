@@ -267,8 +267,8 @@ try:
             statC,resC = taskBuffer.querySQLS(sqlC,varMap)
             # finalize if there is no non-failed jobs
             if resC != None:
-                _logger.debug("n of non-failed jobs : %s" % resC[0])
-                if resC[0] == 0:
+                _logger.debug("n of non-failed jobs : %s" % resC[0][0])
+                if resC[0][0] == 0:
                     _logger.debug("finalize %s %s" % (prodUserName,jobDefinitionID)) 
                     taskBuffer.finalizePendingJobs(prodUserName,jobDefinitionID)
             else:
