@@ -242,7 +242,6 @@ _logger.debug("Site Access : done")
 
 # finalize failed jobs
 _logger.debug("AnalFinalizer session")
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
 try:
     # get min PandaID for failed jobs in Active table
     sql  = "SELECT MIN(PandaID),prodUserName,jobDefinitionID FROM ATLAS_PANDA.jobsActive4 "
@@ -255,40 +254,25 @@ try:
     if res != None:
         # loop over all user/jobdefID
         for pandaID,prodUserName,jobDefinitionID in res:
+            # check
             _logger.debug("check finalization for %s %s" % (prodUserName,jobDefinitionID))
-            # get modTime
-            sqlM  = "SELECT modificationTime FROM ATLAS_PANDA.jobsActive4 "
-            sqlM += "WHERE PandaID=:PandaID "
+            sqlC  = "SELECT COUNT(*) FROM ATLAS_PANDA.jobsActive4 "
+            sqlC += "WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName "
+            sqlC += "AND jobDefinitionID=:jobDefinitionID AND jobStatus<>:jobStatus "
             varMap = {}
-            varMap[':PandaID'] = pandaID
-            statM,resM = taskBuffer.querySQLS(sqlM,varMap)
-            if resM != None and resM[0] < timeLimit:
-                # check every 12h
-                sqlC  = "SELECT COUNT(*) FROM ATLAS_PANDA.jobsActive4 "
-                sqlC += "WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName "
-                sqlC += "AND jobDefinitionID=:jobDefinitionID AND jobStatus<>:jobStatus "
-                varMap = {}
-                varMap[':jobStatus']       = 'failed'
-                varMap[':prodSourceLabel'] = 'user'
-                varMap[':jobDefinitionID'] = jobDefinitionID
-                varMap[':prodUserName']    = prodUserName
-                statC,resC = taskBuffer.querySQLS(sqlC,varMap)
-                # finalize if there is no non-failed jobs
-                if resC != None:
-                    _logger.debug("n of non-failed jobs : %s" % resC[0])
-                    if resC[0] == 0:
-                        _logger.debug("finalize %s %s" % (prodUserName,jobDefinitionID)) 
-                        taskBuffer.finalizePendingJobs(prodUserName,jobDefinitionID)
-                    else:
-                        # update modTime
-                        _logger.debug("wait %s %s" % (prodUserName,jobDefinitionID))                         
-                        sqlU  = "UPDATE ATLAS_PANDA.jobsActive4 SET modificationTime=CURRENT_DATE "
-                        sqlU += "WHERE PandaID=:PandaID "
-                        varMap = {}
-                        varMap[':PandaID'] = pandaID
-                        taskBuffer.querySQLS(sqlU,varMap)
-                else:
-                    _logger.debug("n of non-failed jobs : None")
+            varMap[':jobStatus']       = 'failed'
+            varMap[':prodSourceLabel'] = 'user'
+            varMap[':jobDefinitionID'] = jobDefinitionID
+            varMap[':prodUserName']    = prodUserName
+            statC,resC = taskBuffer.querySQLS(sqlC,varMap)
+            # finalize if there is no non-failed jobs
+            if resC != None:
+                _logger.debug("n of non-failed jobs : %s" % resC[0])
+                if resC[0] == 0:
+                    _logger.debug("finalize %s %s" % (prodUserName,jobDefinitionID)) 
+                    taskBuffer.finalizePendingJobs(prodUserName,jobDefinitionID)
+            else:
+                _logger.debug("n of non-failed jobs : None")
 except:
     errType,errValue = sys.exc_info()[:2]
     _logger.error("AnalFinalizer failed with %s %s" % (errType,errValue))

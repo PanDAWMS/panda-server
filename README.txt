@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * simplified anal_finalizer
   * added SiteSpec.lfcregister
   * added getAttr
   * keep failed analysis jobs in Active until all jobs finished
