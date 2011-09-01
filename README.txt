@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added killJobLowPrio.py
   * fixed killJob
   * simplified anal_finalizer
   * added SiteSpec.lfcregister
