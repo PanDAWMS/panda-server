@@ -2462,7 +2462,7 @@ class DBProxy:
                 if retD == 0:
                     continue
                 # error code
-                if job.jobStatus != 'failed' and job.prodSourceLabel in ['user']:
+                if job.jobStatus != 'failed':
                     # set status etc for non-failed jobs                    
                     job.jobStatus = 'cancelled'
                     job.endTime   = datetime.datetime.utcnow()

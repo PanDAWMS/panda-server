@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed killJob
   * simplified anal_finalizer
   * added SiteSpec.lfcregister
   * added getAttr
