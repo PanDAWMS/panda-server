@@ -10,7 +10,10 @@ from taskbuffer.OraDBProxy import DBProxy
 # password
 from config import panda_config
 
-optP = optparse.OptionParser(conflict_handler="resolve",usage="%s [options] <priority>" % sys.argv[0])
+usageStr = """%prog [options] <priority>
+
+Description: kill jobs with low priorities below a given value"""
+optP = optparse.OptionParser(conflict_handler="resolve",usage=usageStr)
 optP.add_option('-9',action='store_const',const=True,dest='forceKill',
                 default=False,help='kill jobs even if they are still running')
 optP.add_option('--site',action='store',dest='site',default=None,help='computingSite')
