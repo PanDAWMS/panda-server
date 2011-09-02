@@ -15,9 +15,12 @@ usageStr = """%prog [options] <priority>
 Description: kill jobs with low priorities below a given value"""
 optP = optparse.OptionParser(conflict_handler="resolve",usage=usageStr)
 optP.add_option('-9',action='store_const',const=True,dest='forceKill',
-                default=False,help='kill jobs even if they are still running')
+                default=False,help='kill jobs before next heartbeat is coming')
+optP.add_option('--running',action='store_const',const=True,dest='killRunning',
+                default=False,help='kill running jobs to free up CPU slots. jobs will be killed regardless of job status if omitted')
 optP.add_option('--site',action='store',dest='site',default=None,help='computingSite')
 optP.add_option('--cloud',action='store',dest='cloud',default=None,help='cloud')
+optP.add_option('--maxJobs',action='store',dest='maxJobs',default=None,help='max number of jobs to be killed')
 options,args = optP.parse_args()
 
 if options.cloud == None and options.site == None:
@@ -26,7 +29,7 @@ if options.cloud == None and options.site == None:
 proxyS = DBProxy()
 proxyS.connect(panda_config.dbhost,panda_config.dbpasswd,panda_config.dbuser,panda_config.dbname)
 
-jobs = []
+jobsMap = {}
 
 if len(args) == 0:
     optP.error('priority is required')
@@ -34,21 +37,39 @@ if len(args) == 0:
 varMap = {}
 varMap[':prodSourceLabel']  = 'managed'
 varMap[':currentPriority']  = args[0]
-sql = "SELECT PandaID FROM %s WHERE prodSourceLabel=:prodSourceLabel AND currentPriority<:currentPriority "
+sql = "SELECT PandaID,currentPriority FROM %s WHERE prodSourceLabel=:prodSourceLabel AND currentPriority<:currentPriority "
+if options.killRunning:
+    sql += "AND jobStatus=:jobStatus "
+    varMap[':jobStatus'] = 'running'
 if options.cloud != None:
     sql += "AND cloud=:cloud "
     varMap[':cloud'] = options.cloud
 if options.site != None:
     sql += "AND computingSite=:site "
     varMap[':site'] = options.site
-sql += "ORDER BY PandaID "
 for table in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4','ATLAS_PANDA.jobsDefined4']:
     status,res = proxyS.querySQLS(sql % table,varMap)
     if res != None:
-        for id, in res:
-            if not id in jobs:
-                jobs.append(id)
+        for id,prio in res:
+            if not jobsMap.has_key(prio):
+                jobsMap[prio] = []
+            if not id in jobsMap[prio]:
+                jobsMap[prio].append(id)
 
+# order by PandaID and currentPriority
+jobs = []
+prioList = jobsMap.keys()
+prioList.sort()
+for prio in prioList:
+    # reverse order by PandaID to kill newer jobs
+    ids = jobsMap[prio]
+    ids.sort()
+    ids.reverse()
+    jobs += ids
+
+if options.maxJobs != None:
+    jobs = jobs[:int(options.maxJobs)]
+                
 print 'The number of jobs with priorities below %s : %s' % (args[0],len(jobs))
 if len(jobs):
     nJob = 100
