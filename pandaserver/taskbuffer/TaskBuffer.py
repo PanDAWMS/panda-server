@@ -409,6 +409,17 @@ class TaskBuffer:
         return ret
     
 
+    # retry failed analysis jobs in Active4
+    def retryJobsInActive(self,prodUserName,jobDefinitionID):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # update DB
+        ret = proxy.retryJobsInActive(prodUserName,jobDefinitionID)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    
     # activate jobs
     def activateJobs(self,jobs):
         # get DB proxy

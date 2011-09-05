@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added retryJobsInActive
   * added --maxJobs and --running to killJobLowPrio.py
   * added killJobLowPrio.py
   * fixed killJob

@@ -1395,11 +1395,11 @@ class DBProxy:
         comment = ' /* DBProxy.retryJob */'                
         _logger.debug("retryJob : %s inActive=%s" % (pandaID,failedInActive))
         sql1 = "SELECT %s FROM ATLAS_PANDA.jobsActive4 " % JobSpec.columnNames()
-        sql1+= "WHERE PandaID=:PandaID"
+        sql1+= "WHERE PandaID=:PandaID "
         if failedInActive:
             sql1+= "AND jobStatus=:jobStatus "
         sql2 = "UPDATE ATLAS_PANDA.jobsActive4 SET %s " % JobSpec.bindUpdateExpression()            
-        sql2+= "WHERE PandaID=:PandaID"
+        sql2+= "WHERE PandaID=:PandaID "
         nTry=3
         for iTry in range(nTry):
             try:
@@ -1426,7 +1426,8 @@ class DBProxy:
                      and not job.processingType.startswith('hammercloud') \
                      and job.computingSite.startswith('ANALY_') and param.has_key('pilotErrorCode') \
                      and param['pilotErrorCode'] in ['1200','1201'] and (not job.computingSite.startswith('ANALY_LONG_')) \
-                     and job.attemptNr < 2) or (job.prodSourceLabel == 'ddm' and job.cloud == 'CA' and job.attemptNr <= 10)) \
+                     and job.attemptNr < 2) or (job.prodSourceLabel == 'ddm' and job.cloud == 'CA' and job.attemptNr <= 10) \
+                     or failedInActive) \
                      and job.commandToPilot != 'tobekilled':
                     _logger.debug(' -> reset PandaID:%s #%s' % (job.PandaID,job.attemptNr))
                     # job parameters
@@ -1442,6 +1443,12 @@ class DBProxy:
                     job.startTime = None
                     job.modificationTime = datetime.datetime.utcnow()
                     job.attemptNr = job.attemptNr + 1
+                    if failedInActive:
+                        job.endTime             = None
+                        job.transExitCode       = None
+                        for attr in job._attributes:
+                            if attr.endswith('ErrorCode') or attr.endswith('ErrorDiag'):
+                                setattr(job,attr,None)
                     # remove flag regarding to pledge-resource handling
                     if not job.specialHandling in [None,'NULL','']:
                         newSpecialHandling = re.sub(',*localpool','',job.specialHandling)
@@ -1557,17 +1564,14 @@ class DBProxy:
                 # return None for DB error 
                 return None
             nJobsInDef = res[0]
-            # lock failed PandaIDs in Active
-            sql0  = "UPDATE ATLAS_PANDA.jobsActive4 "
-            sql0 += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
-            sql0 += "AND prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus "
-            sql0 += "RETURNING PandaID BULK COLLECT INTO :upPandaID "
+            # get failed PandaIDs in Active
+            sql0 = "SELECT PandaID,jobStatus FROM ATLAS_PANDA.jobsActive4 "
+            sql0+= "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
+            sql0+= "AND prodSourceLabel=:prodSourceLabel "
             varMap = {}
             varMap[':prodUserName']    = prodUserName
             varMap[':jobDefinitionID'] = jobDefinitionID
             varMap[':prodSourceLabel'] = 'user'
-            varMap[':upPandaID']       = self.cur.arrayvar(cx_Oracle.NUMBER)
-            self.cur.arraysize = 100000
             self.cur.execute(sql0+comment,varMap)
             res = self.cur.fetchall()
             # commit
@@ -1585,7 +1589,7 @@ class DBProxy:
             if failedPandaIDs != []:
                 # get list of sub datasets to lock Closer
                 sqlF  = "SELECT DISTINCT destinationDBlock FROM ATLAS_PANDA.filesTable4 "
-                sqlF += "WHERE PandaID=:PandaID AND type IN (:type1,type2) "
+                sqlF += "WHERE PandaID=:PandaID AND type IN (:type1,:type2) "
                 varMap = {}
                 varMap[':PandaID'] = failedPandaIDs[0]
                 varMap[':type1']   = 'log'
@@ -1602,7 +1606,7 @@ class DBProxy:
                 for tmpDSname, in res:
                     tmpDS = self.queryDatasetWithMap({'name':tmpDSname})
                     if tmpDS == None:
-                        _logger.error("retryJobsInActive : %s %s - failed to get DS=%s" % (prodUserName,jobDefinitionID,tmpDSname))                
+                        _logger.error("retryJobsInActive : %s %s - failed to get DS=%s" % (prodUserName,jobDefinitionID,tmpDSname))
                         # return None for DB error 
                         return None
                     # append    
@@ -1655,14 +1659,16 @@ class DBProxy:
                         varMap[':nStatus'] = tmpDS.status
                         varMap[':vuid'] = tmpDS.vuid
                         # update
-                        self.cur.execute(sqlD+comment,varMap)
+                        self.cur.execute(sqlDU+comment,varMap)
                     # commit
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
             # return True when job is active
+            retVal = False
             if nJobsInAct > 0 or nJobsInDef > 0:
-                return True
-            return False
+                retVal = True
+            _logger.debug("retryJobsInActive : end %s - %s %s" % (retVal,prodUserName,jobDefinitionID))                
+            return retVal
         except:
             # roll back
             self._rollback()

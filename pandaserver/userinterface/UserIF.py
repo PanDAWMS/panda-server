@@ -167,6 +167,23 @@ class UserIF:
         return returnVal
 
 
+    # retry failed subjobs in running job
+    def retryFailedJobsInActive(self,dn,jobID):
+        returnVal = False
+        try:
+            _logger.debug("retryFailedJobsInActive %s JobID:%s" % (dn,jobID))
+            cUID = self.taskBuffer.cleanUserID(dn)            
+            # instantiate ReBroker
+            tmpRet = self.taskBuffer.retryJobsInActive(cUID,jobID)
+            returnVal = True
+        except:
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("retryFailedJobsInActive: %s %s" % (errType,errValue))
+            returnVal = "ERROR: server side crash"
+        # return
+        return returnVal
+
+
     # get job status
     def getJobStatus(self,idsStr):
         try:
@@ -968,6 +985,23 @@ def runReBrokerage(req,jobID,libDS='',cloud=None,excludedSite=None,forceOpt=None
     else:
         forceOpt = False
     return userIF.runReBrokerage(dn,jobID,cloud,excludedSite,forceOpt)
+
+
+# retry failed subjobs in running job
+def retryFailedJobsInActive(req,jobID):
+    # check SSL
+    if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        return "ERROR: SSL connection is required"
+    # get DN
+    dn = _getDN(req)
+    if dn == '':
+        return "ERROR: could not get DN"
+    # convert jobID to long
+    try:
+        jobID = long(jobID)
+    except:
+        return "ERROR: jobID is not an integer"
+    return userIF.retryFailedJobsInActive(dn,jobID)
 
 
 # logger interface
