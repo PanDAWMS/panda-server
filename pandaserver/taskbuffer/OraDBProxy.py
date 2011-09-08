@@ -2491,6 +2491,7 @@ class DBProxy:
                         # reassigned by rebrokeage
                         job.taskBufferErrorCode = ErrorCode.EC_Reassigned
                         job.taskBufferErrorDiag = 'reassigned to another site by rebrokerage. new %s' % user
+                        job.commandToPilot      = None
                     else:
                         # killed
                         job.taskBufferErrorCode = ErrorCode.EC_Kill

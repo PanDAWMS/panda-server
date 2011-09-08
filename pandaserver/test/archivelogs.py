@@ -25,7 +25,7 @@ for logFile in logFiles:
             print "  -> skip : already exists"
             continue
     # increment
-    maxIndex = 100
+    maxIndex = 60
     if os.path.exists(targetFile):
         templateName = re.sub('1\.gz$','%s.gz',baseName)
         for tmpIdx in range(1,maxIndex):

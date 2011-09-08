@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * unset commandToPilot for jobs reassigned by rebrokerage
   * added retryJobsInActive
   * added --maxJobs and --running to killJobLowPrio.py
   * added killJobLowPrio.py
