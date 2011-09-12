@@ -319,7 +319,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source']]
                 else:
                     # set site list to use T1 and T1_VL
-                    specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source'],'IN2P3-CC_VL']
+                    specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source'],'IN2P3-CC_VL','IN2P3-CC','IN2P3-CC_SGE_VL']
                 _log.debug('PandaID:%s -> set SiteList=%s for high prio' % (job.PandaID,specialBrokergageSiteList))
             # set computingSite to T1 when too many inputs are required
             if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
@@ -334,7 +334,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source']]
                     else:
                         # set site list to use T1 and T1_VL
-                        specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source'],'IN2P3-CC_VL']
+                        specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source'],'IN2P3-CC_VL','IN2P3-CC','IN2P3-CC_SGE_VL']
                     _log.debug('PandaID:%s -> set SiteList=%s for too many inputs' % (job.PandaID,specialBrokergageSiteList))
             # manually set site
             manualPreset = False
@@ -411,7 +411,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         if previousCloud != 'FR':
                             scanSiteList = [siteMapper.getCloud(previousCloud)['source']]
                         else:
-                            scanSiteList = [siteMapper.getCloud(previousCloud)['source'],'IN2P3-CC_VL']
+                            scanSiteList = [siteMapper.getCloud(previousCloud)['source'],'IN2P3-CC_VL','IN2P3-CC','IN2P3-CC_SGE_VL']
                     # get availabe sites with cache
                     useCacheVersion = False
                     siteListWithCache = []
@@ -710,7 +710,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 if _isTooManyInput(nFilesPerJob,inputSizePerJob):
                                     if site == siteMapper.getCloud(previousCloud)['source'] or \
                                        (site=='NIKHEF-ELPROD' and previousCloud=='NL' and prevProType=='reprocessing') or \
-                                       (site=='IN2P3-CC_VL' and previousCloud=='FR'):
+                                       (site in ['IN2P3-CC_VL','IN2P3-CC','IN2P3-CC_SGE_VL'] and previousCloud=='FR'):
                                         cloudT1Weight = 2.0
                                         # use weight in cloudconfig
                                         try:
