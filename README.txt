@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * use DQ2 for foreign T2 in US cloud
   * use IN2P3-CC and IN2P3-CC_SGE_VL as FR T1 in brokerage
   * unset commandToPilot for jobs reassigned by rebrokerage
   * added retryJobsInActive

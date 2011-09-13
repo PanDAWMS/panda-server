@@ -299,7 +299,8 @@ class Setupper (threading.Thread):
             if len(fileList[dispatchDBlock]['lfns']) == 0:
                 continue
             # use DQ2
-            if (not self.pandaDDM) and (not dispSiteMap[dispatchDBlock]['src'] in PandaDDMSource) \
+            if (not self.pandaDDM) and (not dispSiteMap[dispatchDBlock]['src'] in PandaDDMSource or \
+                                        self.siteMapper.getSite(dispSiteMap[dispatchDBlock]['site']).cloud != 'US') \
                    and (job.prodSourceLabel != 'ddm') and (not dispSiteMap[dispatchDBlock]['site'].endswith("_REPRO")):
                 # register dispatch dataset
                 disFiles = fileList[dispatchDBlock]
@@ -402,7 +403,7 @@ class Setupper (threading.Thread):
                 if job.prodSourceLabel == 'panda' and job.processingType == 'unmerge' and file.type != 'log':
                     continue
                 # extract destinationDBlock, destinationSE and computingSite
-                dest = (file.destinationDBlock,file.destinationSE,job.computingSite,file.destinationDBlockToken)
+                dest = (file.destinationDBlock,file.destinationSE,job.computingSite,file.destinationDBlockToken,job.dispatchDBlock)
                 if not destError.has_key(dest):
                     destError[dest] = ''
                     originalName = ''
@@ -701,7 +702,7 @@ class Setupper (threading.Thread):
                 else:
                     dstDQ2ID = self.siteMapper.getSite(job.computingSite).ddm
                 # use DQ2
-                if (not self.pandaDDM) and (not srcDQ2ID in PandaDDMSource) \
+                if (not self.pandaDDM) and (not srcDQ2ID in PandaDDMSource or self.siteMapper.getSite(job.computingSite).cloud != 'US') \
                        and (job.prodSourceLabel != 'ddm') and (not job.computingSite.endswith("_REPRO")):
                     # look for replica
                     dq2ID = srcDQ2ID
