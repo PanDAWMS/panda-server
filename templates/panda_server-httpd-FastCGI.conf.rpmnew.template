@@ -24,8 +24,9 @@ Group zp
 <IfModule prefork.c>
 StartServers         25
 MinSpareServers      25
-MaxSpareServers      100
-MaxClients           100
+ServerLimit          512
+MaxSpareServers      512
+MaxClients           512
 MaxRequestsPerChild  2000
 </IfModule>
 
