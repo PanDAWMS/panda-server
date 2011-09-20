@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * reverted the brokerage change
   * changed brokerage to skip sites with memory=0 for analysis with memory
   * increaded MaxClients
   * use DQ2 for foreign T2 in US cloud
