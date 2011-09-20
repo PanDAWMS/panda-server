@@ -533,7 +533,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 _log.debug(' skip: no direct access support')
                                 continue
                             # check memory
-                            if tmpSiteSpec.memory != 0 and (not prevMemory in [None,0,'NULL']):
+                            if (tmpSiteSpec.memory != 0 or forAnalysis) and (not prevMemory in [None,0,'NULL']):
                                 try:
                                     if int(tmpSiteSpec.memory) < int(prevMemory):
                                         _log.debug('  skip: memory shortage %s<%s' % (tmpSiteSpec.memory,prevMemory))
