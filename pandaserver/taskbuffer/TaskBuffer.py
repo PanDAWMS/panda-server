@@ -399,11 +399,11 @@ class TaskBuffer:
 
 
     # retry job
-    def retryJob(self,jobID,param):
+    def retryJob(self,jobID,param,failedInActive=False,changeJobInMem=False,inMemJob=None):
         # get DB proxy
         proxy = self.proxyPool.getProxy()
         # update DB
-        ret = proxy.retryJob(jobID,param)
+        ret = proxy.retryJob(jobID,param,failedInActive,changeJobInMem,inMemJob)
         # release proxy
         self.proxyPool.putProxy(proxy)
         return ret
@@ -747,11 +747,11 @@ class TaskBuffer:
 
 
     # lock job for re-brokerage
-    def lockJobForReBrokerage(self,dn,jobID,simulation,forceOpt):
+    def lockJobForReBrokerage(self,dn,jobID,simulation,forceOpt,forFailed=False):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get IDs
-        ret = proxy.lockJobForReBrokerage(dn,jobID,simulation,forceOpt)
+        ret = proxy.lockJobForReBrokerage(dn,jobID,simulation,forceOpt,forFailed)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -771,11 +771,11 @@ class TaskBuffer:
 
 
     # get PandaIDs using libDS for re-brokerage
-    def getPandaIDsForReBrokerage(self,userName,jobID,fromActive):
+    def getPandaIDsForReBrokerage(self,userName,jobID,fromActive,forFailed=False):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get IDs
-        ret = proxy.getPandaIDsForReBrokerage(userName,jobID,fromActive)
+        ret = proxy.getPandaIDsForReBrokerage(userName,jobID,fromActive,forFailed)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -1822,6 +1822,18 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # get
         ret = proxy.checkQuota(dn)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # get JobID for user
+    def getJobIdUser(self,dn):
+        # query an SQL return Status  
+        proxy = self.proxyPool.getProxy()
+        # get
+        ret = proxy.getJobIdUser(dn)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

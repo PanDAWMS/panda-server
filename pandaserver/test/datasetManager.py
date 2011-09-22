@@ -438,7 +438,7 @@ while True:
     # lock
     freezeLock.acquire()
     # get datasets
-    sqlQuery = "type=:type AND status IN (:status1,:status2,:status3) " + \
+    sqlQuery = "type=:type AND status IN (:status1,:status2,:status3,:status4) " + \
                "AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND subType=:subType AND rownum <= %s" % maxRows
     varMap = {}
     varMap[':modificationdateU'] = timeLimitU
@@ -447,6 +447,7 @@ while True:
     varMap[':status1'] = 'running'
     varMap[':status2'] = 'created'
     varMap[':status3'] = 'defined'
+    varMap[':status4'] = 'locked'    
     varMap[':subType'] = 'sub'
     freezeProxyLock.acquire()
     proxyS = taskBuffer.proxyPool.getProxy()

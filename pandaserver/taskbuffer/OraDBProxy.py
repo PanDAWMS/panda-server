@@ -1391,7 +1391,7 @@ class DBProxy:
 
 
     # retry analysis job
-    def retryJob(self,pandaID,param,failedInActive=False):
+    def retryJob(self,pandaID,param,failedInActive=False,changeJobInMem=False,inMemJob=None):
         comment = ' /* DBProxy.retryJob */'                
         _logger.debug("retryJob : %s inActive=%s" % (pandaID,failedInActive))
         sql1 = "SELECT %s FROM ATLAS_PANDA.jobsActive4 " % JobSpec.columnNames()
@@ -1404,22 +1404,25 @@ class DBProxy:
         for iTry in range(nTry):
             try:
                 retValue = False
-                # begin transaction
-                self.conn.begin()
-                # select
-                varMap = {}
-                varMap[':PandaID'] = pandaID
-                if failedInActive:
-                    varMap[':jobStatus'] = 'failed'
-                self.cur.arraysize = 10                
-                self.cur.execute(sql1+comment, varMap)
-                res = self.cur.fetchall()
-                if len(res) == 0:
-                    _logger.debug("retryJob() : PandaID %d not found" % pandaID)
-                    self._rollback()
-                    return retValue
-                job = JobSpec()
-                job.pack(res[0])
+                if not changeJobInMem:
+                    # begin transaction
+                    self.conn.begin()
+                    # select
+                    varMap = {}
+                    varMap[':PandaID'] = pandaID
+                    if failedInActive:
+                        varMap[':jobStatus'] = 'failed'
+                    self.cur.arraysize = 10                
+                    self.cur.execute(sql1+comment, varMap)
+                    res = self.cur.fetchall()
+                    if len(res) == 0:
+                        _logger.debug("retryJob() : PandaID %d not found" % pandaID)
+                        self._rollback()
+                        return retValue
+                    job = JobSpec()
+                    job.pack(res[0])
+                else:
+                    job = inMemJob
                 # check if it's analysis job
                 if (((job.prodSourceLabel == 'user' or job.prodSourceLabel == 'panda') \
                      and not job.processingType.startswith('gangarobot') \
@@ -1430,14 +1433,15 @@ class DBProxy:
                      or failedInActive) \
                      and job.commandToPilot != 'tobekilled':
                     _logger.debug(' -> reset PandaID:%s #%s' % (job.PandaID,job.attemptNr))
-                    # job parameters
-                    sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
-                    varMap = {}
-                    varMap[':PandaID'] = job.PandaID
-                    self.cur.execute(sqlJobP+comment, varMap)
-                    for clobJobP, in self.cur:
-                        job.jobParameters = clobJobP.read()
-                        break
+                    if not changeJobInMem:
+                        # job parameters
+                        sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
+                        varMap = {}
+                        varMap[':PandaID'] = job.PandaID
+                        self.cur.execute(sqlJobP+comment, varMap)
+                        for clobJobP, in self.cur:
+                            job.jobParameters = clobJobP.read()
+                            break
                     # reset job
                     job.jobStatus = 'activated'
                     job.startTime = None
@@ -1466,21 +1470,32 @@ class DBProxy:
                             # set destinationSE if queue is changed
                             if oldComputingSite == job.destinationSE:
                                 job.destinationSE = job.computingSite
-                    # select files
-                    varMap = {}
-                    varMap[':PandaID'] = job.PandaID
-                    varMap[':type1'] = 'log'
-                    varMap[':type2'] = 'output'
-                    sqlFile = "SELECT %s FROM ATLAS_PANDA.filesTable4 " % FileSpec.columnNames()
-                    sqlFile+= "WHERE PandaID=:PandaID AND (type=:type1 OR type=:type2)"
-                    self.cur.arraysize = 100
-                    self.cur.execute(sqlFile+comment, varMap)
-                    resFs = self.cur.fetchall()
+                    if not changeJobInMem:                                
+                        # select files
+                        varMap = {}
+                        varMap[':PandaID'] = job.PandaID
+                        varMap[':type1'] = 'log'
+                        varMap[':type2'] = 'output'
+                        sqlFile = "SELECT %s FROM ATLAS_PANDA.filesTable4 " % FileSpec.columnNames()
+                        sqlFile+= "WHERE PandaID=:PandaID AND (type=:type1 OR type=:type2)"
+                        self.cur.arraysize = 100
+                        self.cur.execute(sqlFile+comment, varMap)
+                        resFs = self.cur.fetchall()
+                    else:
+                        # get log or output files only
+                        resFs = []
+                        for tmpFile in job.Files:
+                            if tmpFile.type in ['log','output']:
+                                resFs.append(tmpFile)
+                    # loop over all files            
                     for resF in resFs:
-                        # set PandaID
-                        file = FileSpec()
-                        file.pack(resF)
-                        job.addFile(file)
+                        if not changeJobInMem:
+                            # set PandaID
+                            file = FileSpec()
+                            file.pack(resF)
+                            job.addFile(file)
+                        else:
+                            file = resF
                         # set new GUID
                         if file.type == 'log':
                             file.GUID = commands.getoutput('uuidgen')
@@ -1502,26 +1517,29 @@ class DBProxy:
                             oldPatt = match[0]+oldName+match[-1]
                             newPatt = match[0]+newName+match[-1]
                             job.jobParameters = re.sub(oldPatt,newPatt,job.jobParameters)
-                        # update
-                        varMap = file.valuesMap()
-                        varMap[':row_ID'] = file.row_ID
-                        sqlFup = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % FileSpec.bindUpdateExpression()) + "WHERE row_ID=:row_ID"
-                        self.cur.execute(sqlFup+comment, varMap)
-                    # update job
-                    varMap = job.valuesMap()
-                    varMap[':PandaID'] = job.PandaID
-                    self.cur.execute(sql2+comment, varMap)
-                    # update job parameters
-                    sqlJobP = "UPDATE ATLAS_PANDA.jobParamsTable SET jobParameters=:param WHERE PandaID=:PandaID"
-                    varMap = {}
-                    varMap[':PandaID'] = job.PandaID
-                    varMap[':param']   = job.jobParameters
-                    self.cur.execute(sqlJobP+comment, varMap)
+                        if not changeJobInMem:    
+                            # update files
+                            varMap = file.valuesMap()
+                            varMap[':row_ID'] = file.row_ID
+                            sqlFup = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % FileSpec.bindUpdateExpression()) + "WHERE row_ID=:row_ID"
+                            self.cur.execute(sqlFup+comment, varMap)
+                    if not changeJobInMem:
+                        # update job
+                        varMap = job.valuesMap()
+                        varMap[':PandaID'] = job.PandaID
+                        self.cur.execute(sql2+comment, varMap)
+                        # update job parameters
+                        sqlJobP = "UPDATE ATLAS_PANDA.jobParamsTable SET jobParameters=:param WHERE PandaID=:PandaID"
+                        varMap = {}
+                        varMap[':PandaID'] = job.PandaID
+                        varMap[':param']   = job.jobParameters
+                        self.cur.execute(sqlJobP+comment, varMap)
                     # set return
                     retValue = True
-                # commit
-                if not self._commit():
-                    raise RuntimeError, 'Commit error'
+                if not changeJobInMem:    
+                    # commit
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
                 return retValue
             except:
                 # roll back
@@ -2350,6 +2368,7 @@ class DBProxy:
         # 2 : expire
         # 3 : aborted
         # 4 : expire in waiting
+        # 7 : retry
         # 8 : rebrokerage
         # 9 : force kill
         comment = ' /* DBProxy.killJob */'        
@@ -2412,7 +2431,7 @@ class DBProxy:
                 # prevent prod proxy from killing analysis jobs
                 userProdUserID,userProdSourceLabel,userJobDefinitionID,userJobsetID = res
                 if prodManager:
-                    if res[1] in ['user','panda'] and (not code in ['2','4','8','9']):
+                    if res[1] in ['user','panda'] and (not code in ['2','4','7','8','9']):
                         _logger.debug("ignore killJob -> prod proxy tried to kill analysis job type=%s" % res[1])
                         break
                 else:   
@@ -2470,7 +2489,6 @@ class DBProxy:
                 # error code
                 if job.jobStatus != 'failed':
                     # set status etc for non-failed jobs                    
-                    job.jobStatus = 'cancelled'
                     job.endTime   = datetime.datetime.utcnow()
                     job.modificationTime = job.endTime
                     if code in ['2','4']:
@@ -2496,9 +2514,16 @@ class DBProxy:
                         # killed
                         job.taskBufferErrorCode = ErrorCode.EC_Kill
                         job.taskBufferErrorDiag = 'killed by %s' % user
+                    # set job status    
+                    job.jobStatus = 'cancelled'
                 else:
                     # keep status for failed jobs
                     job.modificationTime = datetime.datetime.utcnow()
+                    if code=='7':
+                        # reassigned by retry
+                        job.taskBufferErrorCode = ErrorCode.EC_Retried
+                        job.taskBufferErrorDiag = 'retrying at another site. new %s' % user                            
+                        job.commandToPilot      = None
                 job.stateChangeTime = job.modificationTime
                 # insert
                 self.cur.execute(sql4+comment, job.valuesMap())
@@ -3169,9 +3194,9 @@ class DBProxy:
 
 
     # lock job for re-brokerage
-    def lockJobForReBrokerage(self,dn,jobID,simulation,forceOpt):
+    def lockJobForReBrokerage(self,dn,jobID,simulation,forceOpt,forFailed=False):
         comment = ' /* lockJobForReBrokerage */'                        
-        _logger.debug("lockJobForReBrokerage : %s %s %s %s" % (dn,jobID,simulation,forceOpt))
+        _logger.debug("lockJobForReBrokerage : %s %s %s %s %s" % (dn,jobID,simulation,forceOpt,forFailed))
         try:
             errMsg = ''
             # get compact DN
@@ -3198,8 +3223,14 @@ class DBProxy:
                     varMap[':prodUserName'] = compactDN
                     varMap[':jobDefinitionID']  = jobID
                     varMap[':prodSourceLabel1'] = 'user'
-                    varMap[':jobStatus1'] = 'defined'
-                    varMap[':jobStatus2'] = 'activated'                
+                    if not forFailed:
+                        # lock active jobs for normal rebrokerage
+                        varMap[':jobStatus1'] = 'defined'
+                        varMap[':jobStatus2'] = 'activated'
+                    else:
+                        # lock failed jobs for retry
+                        varMap[':jobStatus1'] = 'failed'
+                        varMap[':jobStatus2'] = 'dummy'
                     # select
                     self.cur.execute(sql+comment, varMap)
                     res = self.cur.fetchone()
@@ -3207,8 +3238,11 @@ class DBProxy:
                     if res != None:
                         runPandaID, = res
                         break
-                if runPandaID == None:                            
-                    errMsg = "could not get runXYZ job in defined/activated state"
+                if runPandaID == None:
+                    if not forFailed:
+                        errMsg = "could not get runXYZ jobs in defined/activated state"
+                    else:
+                        errMsg = "could not get failed runXYZ jobs"                        
             # get libDS
             libDS = ''
             if errMsg == '':
@@ -3338,16 +3372,25 @@ class DBProxy:
                 varMap[':jobDefinitionID']  = jobID
                 varMap[':prodSourceLabel1'] = 'user'
                 varMap[':prodSourceLabel2'] = 'panda'
-                varMap[':jobStatus1'] = 'defined'
-                varMap[':jobStatus2'] = 'activated'
+                if not forFailed:
+                    # normal rebrokerage
+                    varMap[':jobStatus1'] = 'defined'
+                    varMap[':jobStatus2'] = 'activated'
+                else:
+                    # retry
+                    varMap[':jobStatus1'] = 'failed'
+                    varMap[':jobStatus2'] = 'dummy'
                 for tableName in tables:
                     # select
                     self.cur.execute((sql % tableName)+comment, varMap)
                     res = self.cur.fetchone()
                     if res != None:
                         break
-                if res == None:                                 
-                    errMsg = "no defined/activated jobs to be reassigned"
+                if res == None:
+                    if not forFailed:
+                        errMsg = "no defined/activated jobs to be reassigned"
+                    else:
+                        errMsg = "no failed jobs to be retried"                        
                 else:
                     tmpModificationTime, = res
                     # prevent users from rebrokering more than once in one hour
@@ -3537,16 +3580,19 @@ class DBProxy:
             return False
 
         
-    # get PandaIDs using userName/jobID for re-brokerage
-    def getPandaIDsForReBrokerage(self,userName,jobID,fromActive):
+    # get PandaIDs using userName/jobID for re-brokerage or retry
+    def getPandaIDsForReBrokerage(self,userName,jobID,fromActive,forFailed=False):
         comment = ' /* DBProxy.getPandaIDsForReBrokerage */'                        
-        _logger.debug("getPandaIDsForReBrokerage : %s %s %s" % (userName,jobID,fromActive))
+        _logger.debug("getPandaIDsForReBrokerage : %s %s %s %s" % (userName,jobID,fromActive,forFailed))
         try:
             returnList = []
             varMap = {}
             varMap[':prodUserName'] = userName
             varMap[':jobDefinitionID'] = jobID
-            varMap[':jobStatus1'] = 'activated'
+            if not forFailed:
+                varMap[':jobStatus1'] = 'activated'
+            else:
+                varMap[':jobStatus1'] = 'failed'
             sql  = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
             sql += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
             sql += "AND jobStatus=:jobStatus1"
@@ -3566,17 +3612,18 @@ class DBProxy:
                     if not tmpID in returnList:
                         returnList.append(tmpID)
                 # set holding to prevent activated jobs from being picked up
-                sql  = 'UPDATE ATLAS_PANDA.jobsActive4 SET jobStatus=:newStatus '
-                sql += 'WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID '
-                sql += "AND jobStatus=:jobStatus1"
-                varMap[':newStatus'] = 'holding'
-                # start transaction
-                self.conn.begin()
-                # update
-                self.cur.execute(sql+comment,varMap)                
-                # commit
-                if not self._commit():
-                    raise RuntimeError, 'Commit error'
+                if not forFailed:
+                    sql  = 'UPDATE ATLAS_PANDA.jobsActive4 SET jobStatus=:newStatus '
+                    sql += 'WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID '
+                    sql += "AND jobStatus=:jobStatus1"
+                    varMap[':newStatus'] = 'holding'
+                    # start transaction
+                    self.conn.begin()
+                    # update
+                    self.cur.execute(sql+comment,varMap)                
+                    # commit
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
             # get IDs from Defined table just in case
             varMap = {}
             varMap[':prodUserName'] = userName
@@ -4645,7 +4692,7 @@ class DBProxy:
     def getFilesInUseForAnal(self,outDataset):
         comment = ' /* DBProxy.getFilesInUseForAnal */'        
         sqlSub  = "SELECT /*+ index(tab FILESTABLE4_DATASET_IDX) */ destinationDBlock,PandaID FROM ATLAS_PANDA.filesTable4 tab "
-        sqlSub += "WHERE dataset=:dataset AND type IN (:type1,:type2) AND status=:fileStatus GROUP BY destinationDBlock,PandaID"
+        sqlSub += "WHERE dataset=:dataset AND type IN (:type1,:type2) AND status IN (:fileStatus1,:fileStatus2) GROUP BY destinationDBlock,PandaID"
         sqlPan  = "SELECT jobStatus FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID"
         sqlDis  = "SELECT distinct dispatchDBlock FROM ATLAS_PANDA.filesTable4 "
         sqlDis += "WHERE PandaID=:PandaID AND type=:type AND dispatchDBlock IS NOT NULL"
@@ -4663,9 +4710,10 @@ class DBProxy:
                 varMap[':dataset'] = outDataset
                 varMap[':type1'] = 'output'
                 varMap[':type2'] = 'log'                
-                varMap[':fileStatus'] = 'unknown'                
+                varMap[':fileStatus1'] = 'unknown'
+                varMap[':fileStatus2'] = 'failed'
                 _logger.debug("getFilesInUseForAnal : %s %s" % (sqlSub,str(varMap)))
-                self.cur.arraysize = 10000
+                self.cur.arraysize = 100000
                 retS = self.cur.execute(sqlSub+comment, varMap)
                 res = self.cur.fetchall()
                 subDSpandaIDmap = {}
@@ -4682,7 +4730,7 @@ class DBProxy:
                             checkedPandaIDs[pandaID] = resP[0][0]
                         else:
                             checkedPandaIDs[pandaID] = 'running'
-                    # reuse failed files
+                    # reuse failed files if jobs are in Archived
                     if checkedPandaIDs[pandaID] in ['failed','cancelled']:
                         continue
                     # collect PandaIDs
@@ -6936,6 +6984,36 @@ class DBProxy:
             return retJobID,retJobsetID,retStatus
 
 
+    # get JobID for user
+    def getJobIdUser(self,dn):
+        comment = ' /* DBProxy.getJobIdUser */'
+        _logger.debug("getJobIdUser %s" % dn)
+        jobID = 0
+        try:
+            # set autocommit on
+            self.conn.begin()
+            # select
+            name = self.cleanUserID(dn)
+            sql = "SELECT jobid FROM ATLAS_PANDAMETA.users WHERE name=:name"
+            varMap = {}
+            varMap[':name'] = name
+            self.cur.arraysize = 10            
+            self.cur.execute(sql+comment,varMap)
+            res = self.cur.fetchone()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            if res != None:
+                jobID, = res
+            _logger.debug("getJobIdUser %s -> %s" % (name,jobID))
+        except:
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("getJobIdUser : %s %s" % (errType,errValue))
+            # roll back
+            self._rollback()
+        return jobID
+
+        
     # check ban user
     def checkBanUser(self,dn,sourceLabel):
         comment = ' /* DBProxy.checkBanUser */'                            

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * modified ReBroker for server-side retry
   * reverted the brokerage change
   * changed brokerage to skip sites with memory=0 for analysis with memory
   * increaded MaxClients

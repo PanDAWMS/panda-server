@@ -18,6 +18,9 @@ EC_WaitTimeout = 104
 # reassigned by rebrokeage 
 EC_Reassigned = 105
 
+# reassigned by retry
+EC_Retried = 106
+
 # lost file (=dataservice.ErrorCode.EC_LostFile)
 EC_LostFile = 110
 
