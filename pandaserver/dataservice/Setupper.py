@@ -588,7 +588,7 @@ class Setupper (threading.Thread):
                                 # skip registerDatasetLocations
                                 status,out = 0,''
                             if status != 0 or out.find('Error') != -1:
-                                destError[dest] = "Setupper._setupDestination() could not register location : %s" % name
+                                destError[dest] = "Could not register location : %s %s" % (name,out.split('\n')[-1])
                             elif job.prodSourceLabel == 'panda' or (job.prodSourceLabel in ['ptest','rc_test'] and \
                                                                     job.processingType in ['pathena','prun','gangarobot-rctest']):
                                 # do nothing for "panda" job
