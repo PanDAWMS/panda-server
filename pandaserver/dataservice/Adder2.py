@@ -161,8 +161,9 @@ class Adder (threading.Thread):
                         _logger.debug("%s cannot unlock XML" % self.jobID)            
                     return
                 # update shadow dataset
-                if self.job.prodSourceLabel == 'user' and self.jobStatus == 'finished' and self.job.ddmErrorDiag == 'NULL' \
-                       and not self.goToTransferring:
+                if self.job.prodSourceLabel == 'user' and self.jobStatus == 'finished' and \
+                   (self.job.ddmErrorDiag == 'NULL' or re.search('DaTRI failed',self.job.ddmErrorDiag) != None) and \
+                   not self.goToTransferring:
                     self._updateShadow()
                     # ignore DDMError
                     if self.ignoreDDMError and re.search('could not add files',self.job.ddmErrorDiag) != None \

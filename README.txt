@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * call addShadow even if DaTRI failed
   * fixed the error message of location registration in Setupper
   * modified ReBroker for server-side retry
   * reverted the brokerage change
