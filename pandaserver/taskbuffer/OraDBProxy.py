@@ -1751,9 +1751,10 @@ class DBProxy:
             sql1+= "AND prodSourceLabel=:prodSourceLabel "
             getValMap[':prodSourceLabel'] = 'ddm'
         elif prodSourceLabel in [None,'managed']:
-            sql1+= "AND (prodSourceLabel=:prodSourceLabel1 OR prodSourceLabel=:prodSourceLabel2) "
+            sql1+= "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3) "
             getValMap[':prodSourceLabel1'] = 'managed'
             getValMap[':prodSourceLabel2'] = 'test'
+            getValMap[':prodSourceLabel3'] = 'prod_test'            
         elif prodSourceLabel == 'software':
             sql1+= "AND prodSourceLabel=:prodSourceLabel "
             getValMap[':prodSourceLabel'] = 'software'
