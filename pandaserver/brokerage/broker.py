@@ -114,8 +114,10 @@ def _setReadyToFiles(tmpJob,okFiles,siteMapper):
                             # there is a disk copy
                             if tmpJob.cloud == 'US':
                                 # check for BNLPANDA
-                                if re.search(tmpSiteSpec.seprodpath['ATLASMCDISK'],okPFN) != None or \
-                                       re.search(tmpSiteSpec.seprodpath['ATLASDATADISK'],okPFN) != None:
+                                if (tmpSiteSpec.seprodpath.has_key('ATLASMCDISK') and \
+                                    re.search(tmpSiteSpec.seprodpath['ATLASMCDISK'],okPFN) != None) or \
+                                    (tmpSiteSpec.seprodpath.has_key('ATLASDATADISK') and
+                                       re.search(tmpSiteSpec.seprodpath['ATLASDATADISK'],okPFN) != None):
                                     tapeOnly = False
                             else:
                                 tapeOnly = False
