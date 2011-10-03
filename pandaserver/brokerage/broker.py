@@ -197,8 +197,9 @@ def sendMsgToLogger(message):
 # schedule
 def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],trustIS=False,
              distinguishedName=None,specialWeight={},getWeight=False,sizeMapForCheck={},
-             datasetSize=0,replicaMap={},pd2pT1=False,reportLog=False):
-    _log.debug('start %s %s %s %s' % (forAnalysis,str(setScanSiteList),trustIS,distinguishedName))
+             datasetSize=0,replicaMap={},pd2pT1=False,reportLog=False,minPriority=None):
+    _log.debug('start %s %s %s %s minPrio=%s' % (forAnalysis,str(setScanSiteList),trustIS,
+                                                 distinguishedName,minPriority))
     if specialWeight != {}:
         _log.debug('PD2P weight : %s' % str(specialWeight))
     _log.debug('replicaMap : %s' % str(replicaMap))
@@ -262,7 +263,10 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 jobStatBroker = {}
                 jobStatBrokerClouds = taskBuffer.getJobStatisticsBrokerage()
             else:
-                jobStatBroker = taskBuffer.getJobStatisticsAnalBrokerage()
+                if minPriority == None:
+                    jobStatBroker = taskBuffer.getJobStatisticsAnalBrokerage()
+                else:
+                    jobStatBroker = taskBuffer.getJobStatisticsAnalBrokerage(minPriority=minPriority)                    
                 nRunningMap   = taskBuffer.getnRunningInSiteData()
         # sort jobs by siteID. Some jobs may already define computingSite
         jobs.sort(_compFunc)

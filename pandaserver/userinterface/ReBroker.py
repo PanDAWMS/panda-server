@@ -24,6 +24,11 @@ from pandalogger.PandaLogger import PandaLogger
 # logger
 _logger = PandaLogger().getLogger('ReBroker')
 
+def initLogger(pLogger):
+    # redirect logging to parent as it doesn't work in nested threads
+    global _logger
+    _logger = pLogger
+
 
 class ReBroker (threading.Thread):
 

@@ -11,6 +11,7 @@ import commands
 import threading
 from DDM import ddm
 import Notifier
+import RetryMaker
 from Activator import Activator
 from pandalogger.PandaLogger import PandaLogger
 from taskbuffer.JobSpec import JobSpec
@@ -28,6 +29,7 @@ def initLogger(pLogger):
     global _logger
     _logger = pLogger
     Notifier.initLogger(_logger)
+    RetryMaker.initLogger(_logger)
     
 
 class Closer (threading.Thread):
@@ -254,6 +256,9 @@ class Closer (threading.Thread):
                 self.taskBuffer.storeJobs(ddmJobs,self.job.prodUserID,joinThr=True)
             # change pending jobs to failed
             if flagComplete and self.job.prodSourceLabel=='user':
+                #_logger.debug('%s call RetryMaker for %s %s' % (self.pandaID,self.job.prodUserName,self.job.jobDefinitionID))
+                #retryMaker = RetryMaker.RetryMaker(self.taskBuffer,self.job)
+                #retryMaker.run()
                 _logger.debug('%s finalize %s %s' % (self.pandaID,self.job.prodUserName,self.job.jobDefinitionID))
                 self.taskBuffer.finalizePendingJobs(self.job.prodUserName,self.job.jobDefinitionID)
             # start notifier

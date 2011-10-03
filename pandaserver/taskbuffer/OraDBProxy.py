@@ -19,6 +19,7 @@ import cx_Oracle
 import ErrorCode
 import SiteSpec
 import CloudSpec
+import PrioUtil
 from JobSpec  import JobSpec
 from FileSpec import FileSpec
 from DatasetSpec import DatasetSpec
@@ -216,7 +217,7 @@ class DBProxy:
         if job.assignedPriority != 'NULL':
             job.currentPriority = job.assignedPriority
         if job.prodSourceLabel == 'user':
-            job.currentPriority = 1000 + priorityOffset - (serNum / 5) - int(100 * weight)
+            job.currentPriority = PrioUtil.calculatePriority(priorityOffset,serNum,weight)
             if 'express' in job.specialHandling:
                 job.currentPriority = 6000
         elif job.prodSourceLabel == 'panda':
@@ -244,7 +245,8 @@ class DBProxy:
                 jobsetID = job.jobsetID
             jobsetID = '%06d' % jobsetID    
             # insert files
-            _logger.debug("insertNewJob : %s Label : %s ret : %s" % (job.PandaID,job.prodSourceLabel,retI))
+            _logger.debug("insertNewJob : %s Label:%s prio:%s" % (job.PandaID,job.prodSourceLabel,
+                                                                      job.currentPriority))
             sqlFile = "INSERT INTO ATLAS_PANDA.filesTable4 (%s) " % FileSpec.columnNames()
             sqlFile+= FileSpec.bindValuesExpression(useSeq=True)
             sqlFile+= " RETURNING row_ID INTO :newRowID"
@@ -5329,11 +5331,13 @@ class DBProxy:
 
 
     # get job statistics for analysis brokerage
-    def getJobStatisticsAnalBrokerage(self):
+    def getJobStatisticsAnalBrokerage(self,minPriority=None):
         comment = ' /* DBProxy.getJobStatisticsAnalBrokerage */'        
-        _logger.debug("getJobStatisticsAnalBrokerage()")
+        _logger.debug("getJobStatisticsAnalBrokerage(%s)" % minPriority)
         sql0 = "SELECT computingSite,jobStatus,processingType,COUNT(*) FROM %s WHERE "
         sql0 += "prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4,:prodSourceLabel5) "
+        if minPriority != None:
+            sql0 += "AND currentPriority>=:minPriority "
         sql0 += "GROUP BY cloud,computingSite,jobStatus,processingType"
         tables = ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4']
         ret = {}
@@ -5349,7 +5353,9 @@ class DBProxy:
                     varMap[':prodSourceLabel2'] = 'user'
                     varMap[':prodSourceLabel3'] = 'panda'
                     varMap[':prodSourceLabel4'] = 'ddm'
-                    varMap[':prodSourceLabel5'] = 'rc_test'                    
+                    varMap[':prodSourceLabel5'] = 'rc_test'
+                    if minPriority != None:
+                        varMap[':minPriority'] = minPriority
                     self.cur.arraysize = 10000                        
                     self.cur.execute((sql0+comment) % table, varMap)
                     res = self.cur.fetchall()

@@ -17,6 +17,7 @@ from taskbuffer.WrappedPickle import WrappedPickle
 from brokerage.SiteMapper import SiteMapper
 from pandalogger.PandaLogger import PandaLogger
 from ReBroker import ReBroker
+from taskbuffer import PrioUtil
 
 # logger
 _logger = PandaLogger().getLogger('UserIF')
@@ -510,7 +511,8 @@ class UserIF:
 
     # run brokerage
     def runBrokerage(self,sitesStr,cmtConfig,atlasRelease,trustIS=False,processingType=None,
-                     dn=None,loggingFlag=False,memorySize=None):
+                     dn=None,loggingFlag=False,memorySize=None,workingGroup=None,fqans=[],
+                     nJobs=None):
         if not loggingFlag:
             ret = 'NULL'
         else:
@@ -528,9 +530,28 @@ class UserIF:
                 job.processingType = processingType
             if memorySize != None:
                 job.minRamCount = memorySize
+            if workingGroup != None:
+                userDefinedWG = True
+                validWorkingGroup = True
+                job.workingGroup = workingGroup
+            else:
+                userDefinedWG = False
+                validWorkingGroup = False
+            # get parameters related to priority
+            withProdRole,workingGroup,priorityOffset,serNum,weight = self.taskBuffer.getPrioParameters([job],dn,fqans,
+                                                                                                       userDefinedWG,
+                                                                                                       validWorkingGroup)
+            # get min priority using nJobs
+            try:
+                nJobs = long(nJobs)
+            except:
+                # use 200 as a default # of jobs
+                nJobs =200
+            minPrio = PrioUtil.calculatePriority(priorityOffset,serNum+nJobs,weight)
             # run brokerage
+            _logger.debug("runBrokerage for dn=%s FQAN=%s minPrio=%s" % (dn,str(fqans),minPrio)) 
             brokerage.broker.schedule([job],self.taskBuffer,siteMapper,True,sites,trustIS,dn,
-                                      reportLog=loggingFlag)
+                                      reportLog=loggingFlag,minPriority=minPrio)
             # get computingSite
             if not loggingFlag:
                 ret = job.computingSite
@@ -947,7 +968,7 @@ def getNumPilots(req):
 
 # run brokerage
 def runBrokerage(req,sites,cmtConfig=None,atlasRelease=None,trustIS=False,processingType=None,
-                 loggingFlag=False,memorySize=None):
+                 loggingFlag=False,memorySize=None,workingGroup=None,nJobs=None):
     if trustIS=='True':
         trustIS = True
     else:
@@ -962,8 +983,9 @@ def runBrokerage(req,sites,cmtConfig=None,atlasRelease=None,trustIS=False,proces
         except:
             pass
     dn = _getDN(req)
+    fqans = _getFQAN(req)
     return userIF.runBrokerage(sites,cmtConfig,atlasRelease,trustIS,processingType,dn,
-                               loggingFlag,memorySize)
+                               loggingFlag,memorySize,workingGroup,fqans,nJobs)
 
 # run rebrokerage
 def runReBrokerage(req,jobID,libDS='',cloud=None,excludedSite=None,forceOpt=None):

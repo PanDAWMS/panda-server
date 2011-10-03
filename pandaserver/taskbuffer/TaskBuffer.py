@@ -1,4 +1,5 @@
 import re
+import sys
 import types
 import datetime
 import ProcessGroups
@@ -10,8 +11,8 @@ from dataservice.Closer import Closer
 from dataservice.TaLauncher import TaLauncher
 
 # logger
-#from pandalogger.PandaLogger import PandaLogger
-#_logger = PandaLogger().getLogger('TaskBuffer')
+from pandalogger.PandaLogger import PandaLogger
+_logger = PandaLogger().getLogger('TaskBuffer')
 
 
 class TaskBuffer:
@@ -46,108 +47,16 @@ class TaskBuffer:
                 return True,match.group(1)
         return False,None
 
-                                                        
-    # store Jobs into DB
-    def storeJobs(self,jobs,user,joinThr=False,forkSetupper=False,fqans=[],hostname='',resetLocInSetupper=False,
-                  checkSpecialHandling=True):
-        # check quota for priority calculation
-        weight         = 0.0
-        userJobID      = -1
-        userJobsetID   = -1
-        userStatus     = True
+
+    # get priority parameters for user
+    def getPrioParameters(self,jobs,user,fqans,userDefinedWG,validWorkingGroup):
+        withProdRole   = False
+        workingGroup   = None
         priorityOffset = 0
-        userVO         = 'atlas'
-        userCountry    = None
-        nExpressJobs   = 0
-        # check ban user except internally generated jobs
-        if len(jobs) > 0 and not jobs[0].prodSourceLabel in ProcessGroups.internalSourceLabels:
-            # get DB proxy
-            proxy = self.proxyPool.getProxy()
-            # check user status
-            tmpStatus = proxy.checkBanUser(user,jobs[0].prodSourceLabel)
-            # release proxy
-            self.proxyPool.putProxy(proxy)
-            # return if DN is blocked
-            if not tmpStatus:
-                return []
-        # set parameters for user jobs
-        if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda','ptest','rc_test','ssc']) \
-               and (not jobs[0].processingType in ['merge','unmerge']):
-            # get DB proxy
-            proxy = self.proxyPool.getProxy()
-            # check quota
-            weight = proxy.checkQuota(user)
-            # get JobID and status
-            userJobID,userJobsetID,userStatus = proxy.getUserParameter(user,jobs[0].jobDefinitionID,jobs[0].jobsetID)
-            # get site access
-            userSiteAccess = proxy.checkSiteAccess(jobs[0].computingSite,user)
-            # check quota for express jobs
-            if 'express' in jobs[0].specialHandling:
-                expressQuota = proxy.getExpressJobs(user)
-                if expressQuota != None and expressQuota['status'] and expressQuota['quota'] > 0:
-                    nExpressJobs = expressQuota['quota']
-            # release proxy
-            self.proxyPool.putProxy(proxy)
-            # get site spec
-            siteMapper  = SiteMapper(self)
-            tmpSiteSpec = siteMapper.getSite(jobs[0].computingSite)
-            # check allowed groups
-            if userStatus and hasattr(tmpSiteSpec,'allowedgroups') and (not tmpSiteSpec.allowedgroups in ['',None]):
-                # set status to False when allowedgroups is defined
-                userStatus = False
-                # loop over all groups
-                for tmpGroup in tmpSiteSpec.allowedgroups.split(','):
-                    if tmpGroup == '':
-                        continue
-                    # loop over all FQANs
-                    for tmpFQAN in fqans:
-                        if re.search('^%s' % tmpGroup,tmpFQAN) != None:
-                            userStatus = True
-                            break
-                    # escape
-                    if userStatus:
-                        break
-            # get priority offset
-            if hasattr(tmpSiteSpec,'priorityoffset') and (not tmpSiteSpec.priorityoffset in ['',None]):
-                # loop over all groups
-                for tmpGP in tmpSiteSpec.priorityoffset.split(','):
-                    if tmpGP == '':
-                        continue
-                    # get group and offset
-                    tmpGroup = tmpGP.split(':')[0]
-                    try:
-                        tmpOffset = int(tmpGP.split(':')[-1])
-                    except:
-                        tmpOffset = 0
-                    # loop over all FQANs
-                    for tmpFQAN in fqans:
-                        if re.search('^%s/' % tmpGroup,tmpFQAN) != None:
-                            # use the largest offset
-                            if tmpOffset > priorityOffset:
-                                priorityOffset = tmpOffset
-                            break
-            # check site access
-            if hasattr(tmpSiteSpec,'accesscontrol') and tmpSiteSpec.accesscontrol == 'grouplist':
-                if userSiteAccess == {} or userSiteAccess['status'] != 'approved':
-                    # user is not allowed
-                    userStatus = False
-            # set priority offset
-            if userStatus:        
-                if userSiteAccess.has_key('poffset') and userSiteAccess['poffset'] > priorityOffset: 
-                    priorityOffset = userSiteAccess['poffset']
-            # extract country group
-            for tmpFQAN in fqans:
-                match = re.search('^/atlas/([^/]+)/',tmpFQAN)
-                if match != None:
-                    tmpCountry = match.group(1)
-                    # use country code or usatlas
-                    if len(tmpCountry) == 2:
-                        userCountry = tmpCountry
-                        break
-                    # usatlas
-                    if tmpCountry in ['usatlas']:
-                        userCountry = 'us'
-                        break
+        serNum         = 0
+        weight         = None
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
         # check production role
         withProdRole,workingGroup = self.checkProdRole(fqans)
         if withProdRole:
@@ -157,155 +66,276 @@ class TaskBuffer:
                     # reset
                     withProdRole,workingGroup = False,None
                     break
-        # return if DN is blocked
-        if not userStatus:
-            return []
-        # extract VO
-        for tmpFQAN in fqans:
-            match = re.search('^/([^/]+)/',tmpFQAN)
-            if match != None:
-                userVO = match.group(1)
-                break
-        # get DB proxy
-        proxy = self.proxyPool.getProxy()
-        # get number of jobs currently in PandaDB
-        serNum = 0
-        userDefinedWG = False
-        validWorkingGroup = False
-        usingBuild = False
-        if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda']) \
-               and (not jobs[0].processingType in ['merge','unmerge']):
-            # set high prioryty for production role
-            if withProdRole:
-                serNum = 0
-                weight = 0.0                
-                priorityOffset = 2000
-            # check workingGroup
-            if not jobs[0].workingGroup in ['',None,'NULL']:
-                userDefinedWG = True
-                if userSiteAccess != {}:
-                    if userSiteAccess['status'] == 'approved' and jobs[0].workingGroup in userSiteAccess['workingGroups']:
-                        # valid workingGroup
-                        validWorkingGroup = True
+        # set high prioryty for production role
+        if withProdRole:
+            serNum = 0
+            weight = 0.0                
+            priorityOffset = 2000
+        # reset nJob/weight for HC   
+        if jobs[0].processingType in ['hammercloud','gangarobot'] \
+               or jobs[0].processingType.startswith('gangarobot-'):
+            serNum = 0
+            weight = 0.0
+            priorityOffset = 3000
+        # check quota
+        if weight == None:
+            weight = proxy.checkQuota(user)
             # get nJob
             if userDefinedWG and validWorkingGroup:
                 serNum = proxy.getNumberJobsUser(user,workingGroup=jobs[0].workingGroup)
             else:
                 serNum = proxy.getNumberJobsUser(user,workingGroup=None)
-            # using build for analysis
-            if jobs[0].prodSourceLabel == 'panda':
-                usingBuild = True
-            # reset nJob/weight for HC   
-            if jobs[0].processingType in ['hammercloud','gangarobot'] \
-                   or jobs[0].processingType.startswith('gangarobot-'):
-                serNum = 0
-                weight = 0.0
-            if jobs[0].processingType == 'gangarobot':    
-                priorityOffset = 3000                
-        # get group job serial number
-        groupJobSerialNum = 0
-        if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda']) \
-               and (not jobs[0].processingType in ['merge','unmerge']):
-            for tmpFile in jobs[-1].Files:
-                if tmpFile.type in ['output','log'] and '$GROUPJOBSN' in tmpFile.lfn:
-                    tmpSnRet = proxy.getSerialNumberForGroupJob(user)
-                    if tmpSnRet['status']: 
-                        groupJobSerialNum = tmpSnRet['sn']
-                    break
-        # loop over all jobs
-        ret =[]
-        newJobs=[]
-        usePandaDDM = False
-        firstLiveLog = True
-        nRunJob = 0
-        for job in jobs:
-            # set JobID. keep original JobID when retry
-            if userJobID != -1 and job.prodSourceLabel in ['user','panda'] \
-                   and (job.attemptNr in [0,'0','NULL'] or (not job.jobExecutionID in [0,'0','NULL'])) \
-                   and (not jobs[0].processingType in ['merge','unmerge']):
-                job.jobDefinitionID = userJobID
-            # set jobsetID
-            if job.prodSourceLabel in ['user','panda','ptest','rc_test']:
-                job.jobsetID = userJobsetID
-            # set specialHandling
-            if job.prodSourceLabel in ['user','panda']:
-                if nRunJob >= nExpressJobs and checkSpecialHandling:
-                    # reset when quota exceeds
-                    job.specialHandling = ''
-                if job.prodSourceLabel != 'panda':
-                    nRunJob += 1
-            # set relocation flag
-            if job.computingSite != 'NULL':
-                job.relocationFlag = 1
-            # protection agains empty jobParameters
-            if job.jobParameters in ['',None,'NULL']:
-                job.jobParameters = ' '
-            # set country group and nJobs (=taskID)
-            if job.prodSourceLabel in ['user','panda']:
-                job.countryGroup = userCountry
-                # set workingGroup
-                if not validWorkingGroup:
-                    if withProdRole:
-                        # set country group if submitted with production role
-                        job.workingGroup = workingGroup
-                    else:
-                        if userDefinedWG:
-                            # reset invalid working group
-                            job.workingGroup = None
-                # set nJobs (=taskID)
-                if usingBuild:
-                    tmpNumBuild = 1
-                    tmpNunRun = len(jobs) - 1 
-                else:
-                    tmpNumBuild = 0
-                    tmpNunRun = len(jobs)
-                # encode    
-                job.taskID = tmpNumBuild + (tmpNunRun << 1)
-                # change TRF URL just in case
-                if job.transformation.startswith('http://www.usatlas.bnl.gov/svn/panda/pathena/trf'):
-                    job.transformation = re.sub('^http://www.usatlas.bnl.gov/svn/panda/pathena/trf/',
-                                                'http://pandaserver.cern.ch:25080/trf/user/',
-                                                job.transformation)
-            # set hostname
-            if hostname != '':
-                job.creationHost = hostname
-            # insert job to DB
-            if not proxy.insertNewJob(job,user,serNum,weight,priorityOffset,userVO,groupJobSerialNum):
-                # reset if failed
-                job.PandaID = None
-            else:
-                # live log
-                if job.prodSourceLabel in ['user','panda']:
-                    if ' --liveLog ' in job.jobParameters:
-                        # enable liveLog only for the first one
-                        if firstLiveLog:
-                            # set file name
-                            repPatt = ' --liveLog stdout.%s ' % job.PandaID
-                        else:
-                            # remove the option
-                            repPatt = ' '
-                        job.jobParameters = re.sub(' --liveLog ',repPatt,job.jobParameters)
-                        firstLiveLog = False
-                # append
-                newJobs.append(job)
-            if job.prodSourceLabel in ['user','panda','ptest','rc_test']:                
-                ret.append((job.PandaID,job.jobDefinitionID,{'jobsetID':job.jobsetID}))
-            else:
-                ret.append((job.PandaID,job.jobDefinitionID,job.jobName))                
-            serNum += 1
-        # release DB proxy
+        # release proxy
         self.proxyPool.putProxy(proxy)
-        # set up dataset
-        if joinThr:
-            thr = Setupper(self,newJobs,pandaDDM=usePandaDDM,forkRun=forkSetupper,resetLocation=resetLocInSetupper)
-            thr.start()
-            thr.join()
-        else:
-            # cannot use 'thr =' because it may trigger garbage collector
-            Setupper(self,newJobs,pandaDDM=usePandaDDM,forkRun=forkSetupper,resetLocation=resetLocInSetupper).start()
-        # return jobIDs
-        return ret
+        # return
+        return withProdRole,workingGroup,priorityOffset,serNum,weight
 
+    
+    # store Jobs into DB
+    def storeJobs(self,jobs,user,joinThr=False,forkSetupper=False,fqans=[],hostname='',resetLocInSetupper=False,
+                  checkSpecialHandling=True):
+        try:
+            _logger.debug("storeJobs : start for %s nJobs=%s" % (user,len(jobs)))
+            # check quota for priority calculation
+            weight         = 0.0
+            userJobID      = -1
+            userJobsetID   = -1
+            userStatus     = True
+            priorityOffset = 0
+            userVO         = 'atlas'
+            userCountry    = None
+            nExpressJobs   = 0
+            # check ban user except internally generated jobs
+            if len(jobs) > 0 and not jobs[0].prodSourceLabel in ProcessGroups.internalSourceLabels:
+                # get DB proxy
+                proxy = self.proxyPool.getProxy()
+                # check user status
+                tmpStatus = proxy.checkBanUser(user,jobs[0].prodSourceLabel)
+                # release proxy
+                self.proxyPool.putProxy(proxy)
+                # return if DN is blocked
+                if not tmpStatus:
+                    _logger.debug("storeJobs : end for %s DN is blocked 1" % user)
+                    return []
+            # set parameters for user jobs
+            if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda','ptest','rc_test','ssc']) \
+                   and (not jobs[0].processingType in ['merge','unmerge']):
+                # get DB proxy
+                proxy = self.proxyPool.getProxy()
+                # get JobID and status
+                userJobID,userJobsetID,userStatus = proxy.getUserParameter(user,jobs[0].jobDefinitionID,jobs[0].jobsetID)
+                # get site access
+                userSiteAccess = proxy.checkSiteAccess(jobs[0].computingSite,user)
+                # check quota for express jobs
+                if 'express' in jobs[0].specialHandling:
+                    expressQuota = proxy.getExpressJobs(user)
+                    if expressQuota != None and expressQuota['status'] and expressQuota['quota'] > 0:
+                        nExpressJobs = expressQuota['quota']
+                # release proxy
+                self.proxyPool.putProxy(proxy)
+                # get site spec
+                siteMapper  = SiteMapper(self)
+                tmpSiteSpec = siteMapper.getSite(jobs[0].computingSite)
+                # check allowed groups
+                if userStatus and hasattr(tmpSiteSpec,'allowedgroups') and (not tmpSiteSpec.allowedgroups in ['',None]):
+                    # set status to False when allowedgroups is defined
+                    userStatus = False
+                    # loop over all groups
+                    for tmpGroup in tmpSiteSpec.allowedgroups.split(','):
+                        if tmpGroup == '':
+                            continue
+                        # loop over all FQANs
+                        for tmpFQAN in fqans:
+                            if re.search('^%s' % tmpGroup,tmpFQAN) != None:
+                                userStatus = True
+                                break
+                        # escape
+                        if userStatus:
+                            break
+                # get priority offset
+                if hasattr(tmpSiteSpec,'priorityoffset') and (not tmpSiteSpec.priorityoffset in ['',None]):
+                    # loop over all groups
+                    for tmpGP in tmpSiteSpec.priorityoffset.split(','):
+                        if tmpGP == '':
+                            continue
+                        # get group and offset
+                        tmpGroup = tmpGP.split(':')[0]
+                        try:
+                            tmpOffset = int(tmpGP.split(':')[-1])
+                        except:
+                            tmpOffset = 0
+                        # loop over all FQANs
+                        for tmpFQAN in fqans:
+                            if re.search('^%s/' % tmpGroup,tmpFQAN) != None:
+                                # use the largest offset
+                                if tmpOffset > priorityOffset:
+                                    priorityOffset = tmpOffset
+                                break
+                # check site access
+                if hasattr(tmpSiteSpec,'accesscontrol') and tmpSiteSpec.accesscontrol == 'grouplist':
+                    if userSiteAccess == {} or userSiteAccess['status'] != 'approved':
+                        # user is not allowed
+                        userStatus = False
+                # set priority offset
+                if userStatus:        
+                    if userSiteAccess.has_key('poffset') and userSiteAccess['poffset'] > priorityOffset: 
+                        priorityOffset = userSiteAccess['poffset']
+                # extract country group
+                for tmpFQAN in fqans:
+                    match = re.search('^/atlas/([^/]+)/',tmpFQAN)
+                    if match != None:
+                        tmpCountry = match.group(1)
+                        # use country code or usatlas
+                        if len(tmpCountry) == 2:
+                            userCountry = tmpCountry
+                            break
+                        # usatlas
+                        if tmpCountry in ['usatlas']:
+                            userCountry = 'us'
+                            break
+            # return if DN is blocked
+            if not userStatus:
+                _logger.debug("storeJobs : end for %s DN is blocked 2" % user)                
+                return []
+            # extract VO
+            for tmpFQAN in fqans:
+                match = re.search('^/([^/]+)/',tmpFQAN)
+                if match != None:
+                    userVO = match.group(1)
+                    break
+            # get number of jobs currently in PandaDB
+            serNum = 0
+            userDefinedWG = False
+            validWorkingGroup = False
+            usingBuild = False
+            withProdRole = False
+            workingGroup = None
+            if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda']) \
+                   and (not jobs[0].processingType in ['merge','unmerge']):
+                # check workingGroup
+                if not jobs[0].workingGroup in ['',None,'NULL']:
+                    userDefinedWG = True
+                    if userSiteAccess != {}:
+                        if userSiteAccess['status'] == 'approved' and jobs[0].workingGroup in userSiteAccess['workingGroups']:
+                            # valid workingGroup
+                            validWorkingGroup = True
+                # using build for analysis
+                if jobs[0].prodSourceLabel == 'panda':
+                    usingBuild = True
+                # get priority parameters for user
+                withProdRole,workingGroup,priorityOffset,serNum,weight = self.getPrioParameters(jobs,user,fqans,userDefinedWG,
+                                                                                                validWorkingGroup)
+            # get DB proxy
+            proxy = self.proxyPool.getProxy()
+            # get group job serial number
+            groupJobSerialNum = 0
+            if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda']) \
+                   and (not jobs[0].processingType in ['merge','unmerge']):
+                for tmpFile in jobs[-1].Files:
+                    if tmpFile.type in ['output','log'] and '$GROUPJOBSN' in tmpFile.lfn:
+                        tmpSnRet = proxy.getSerialNumberForGroupJob(user)
+                        if tmpSnRet['status']: 
+                            groupJobSerialNum = tmpSnRet['sn']
+                        break
+            # loop over all jobs
+            ret =[]
+            newJobs=[]
+            usePandaDDM = False
+            firstLiveLog = True
+            nRunJob = 0
+            for job in jobs:
+                # set JobID. keep original JobID when retry
+                if userJobID != -1 and job.prodSourceLabel in ['user','panda'] \
+                       and (job.attemptNr in [0,'0','NULL'] or (not job.jobExecutionID in [0,'0','NULL'])) \
+                       and (not jobs[0].processingType in ['merge','unmerge']):
+                    job.jobDefinitionID = userJobID
+                # set jobsetID
+                if job.prodSourceLabel in ['user','panda','ptest','rc_test']:
+                    job.jobsetID = userJobsetID
+                # set specialHandling
+                if job.prodSourceLabel in ['user','panda']:
+                    if nRunJob >= nExpressJobs and checkSpecialHandling:
+                        # reset when quota exceeds
+                        job.specialHandling = ''
+                    if job.prodSourceLabel != 'panda':
+                        nRunJob += 1
+                # set relocation flag
+                if job.computingSite != 'NULL':
+                    job.relocationFlag = 1
+                # protection agains empty jobParameters
+                if job.jobParameters in ['',None,'NULL']:
+                    job.jobParameters = ' '
+                # set country group and nJobs (=taskID)
+                if job.prodSourceLabel in ['user','panda']:
+                    job.countryGroup = userCountry
+                    # set workingGroup
+                    if not validWorkingGroup:
+                        if withProdRole:
+                            # set country group if submitted with production role
+                            job.workingGroup = workingGroup
+                        else:
+                            if userDefinedWG:
+                                # reset invalid working group
+                                job.workingGroup = None
+                    # set nJobs (=taskID)
+                    if usingBuild:
+                        tmpNumBuild = 1
+                        tmpNunRun = len(jobs) - 1 
+                    else:
+                        tmpNumBuild = 0
+                        tmpNunRun = len(jobs)
+                    # encode    
+                    job.taskID = tmpNumBuild + (tmpNunRun << 1)
+                    # change TRF URL just in case
+                    if job.transformation.startswith('http://www.usatlas.bnl.gov/svn/panda/pathena/trf'):
+                        job.transformation = re.sub('^http://www.usatlas.bnl.gov/svn/panda/pathena/trf/',
+                                                    'http://pandaserver.cern.ch:25080/trf/user/',
+                                                    job.transformation)
+                # set hostname
+                if hostname != '':
+                    job.creationHost = hostname
+                # insert job to DB
+                if not proxy.insertNewJob(job,user,serNum,weight,priorityOffset,userVO,groupJobSerialNum):
+                    # reset if failed
+                    job.PandaID = None
+                else:
+                    # live log
+                    if job.prodSourceLabel in ['user','panda']:
+                        if ' --liveLog ' in job.jobParameters:
+                            # enable liveLog only for the first one
+                            if firstLiveLog:
+                                # set file name
+                                repPatt = ' --liveLog stdout.%s ' % job.PandaID
+                            else:
+                                # remove the option
+                                repPatt = ' '
+                            job.jobParameters = re.sub(' --liveLog ',repPatt,job.jobParameters)
+                            firstLiveLog = False
+                    # append
+                    newJobs.append(job)
+                if job.prodSourceLabel in ['user','panda','ptest','rc_test']:                
+                    ret.append((job.PandaID,job.jobDefinitionID,{'jobsetID':job.jobsetID}))
+                else:
+                    ret.append((job.PandaID,job.jobDefinitionID,job.jobName))                
+                serNum += 1
+            # release DB proxy
+            self.proxyPool.putProxy(proxy)
+            # set up dataset
+            if joinThr:
+                thr = Setupper(self,newJobs,pandaDDM=usePandaDDM,forkRun=forkSetupper,resetLocation=resetLocInSetupper)
+                thr.start()
+                thr.join()
+            else:
+                # cannot use 'thr =' because it may trigger garbage collector
+                Setupper(self,newJobs,pandaDDM=usePandaDDM,forkRun=forkSetupper,resetLocation=resetLocInSetupper).start()
+            # return jobIDs
+            _logger.debug("storeJobs : end for %s succeeded" % user)            
+            return ret
+        except:
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("storeJobs : %s %s" % (errType,errValue))
+            return "ERROR: ServerError with storeJobs"
+           
 
     # get number of activated/defined jobs with output datasets
     def getNumWaitingJobsWithOutDS(self,outputDSs):
@@ -1335,11 +1365,11 @@ class TaskBuffer:
 
 
     # get job statistics for analysis brokerage
-    def getJobStatisticsAnalBrokerage(self):
+    def getJobStatisticsAnalBrokerage(self,minPriority=None):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get stat
-        ret = proxy.getJobStatisticsAnalBrokerage()
+        ret = proxy.getJobStatisticsAnalBrokerage(minPriority=minPriority)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # convert

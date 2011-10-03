@@ -1,7 +1,8 @@
 Release Note
 
 * current
-  * fixed brkerage for BNL_CVMFS_1
+  * updated brokerage to consider priorities for analysis jobs
+  * fixed brokerage for BNL_CVMFS_1
   * modified managed pilots to get prod_test as well
   * call addShadow even if DaTRI failed
   * fixed the error message of location registration in Setupper
