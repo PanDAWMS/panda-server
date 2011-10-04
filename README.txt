@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed TaskAssigner for MCshare=0
   * updated brokerage to consider priorities for analysis jobs
   * fixed brokerage for BNL_CVMFS_1
   * modified managed pilots to get prod_test as well

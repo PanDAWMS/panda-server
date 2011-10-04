@@ -719,6 +719,11 @@ class TaskAssigner:
                                                                    tmpT1Site.space))
             # get cloud spec
             tmpCloudSpec = self.siteMapper.getCloud(tmpCloudName)
+            # check MC share
+            if tmpCloudSpec['mcshare'] == 0:
+                message = '%s    %s skip : mcshare==%s' % (self.taskID,tmpCloudName,tmpCloudSpec['mcshare'])
+                _logger.debug(message)
+                continue
             # get minimum RW
             if not RWs.has_key(tmpCloudName):
                 RWs[tmpCloudName] = 0
