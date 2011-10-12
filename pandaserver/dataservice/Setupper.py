@@ -1121,6 +1121,8 @@ class Setupper (threading.Thread):
                         status,out = ddm.DQ2.main('listFilesInDataset',dataset)
                         if out.find("DQUnknownDatasetException") != -1:
                             break
+                        elif status == -1:
+                            break
                         elif status != 0 or out.find("DQ2 internal server exception") != -1 \
                                  or out.find("An error occurred on the central catalogs") != -1 \
                                  or out.find("MySQL server has gone away") != -1:
@@ -1134,6 +1136,8 @@ class Setupper (threading.Thread):
                         # doesn't exist in DQ2
                         if out.find('DQUnknownDatasetException') != -1:
                             missingDS[dataset] = "DS:%s not found in DQ2" % dataset
+                        elif status == -1:
+                            missingDS[dataset] = out
                     else:
                         # make map (key: LFN w/o attemptNr, value: LFN with attemptNr)
                         items = {}

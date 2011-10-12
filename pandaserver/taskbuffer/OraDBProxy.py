@@ -229,6 +229,14 @@ class DBProxy:
             job.computingSite= "BNLPROD"
         # group job SN
         groupJobSN = "%05d" % groupJobSN
+        # set attempt numbers
+        if job.prodSourceLabel in ['user','panda','ptest','rc_test']:
+            if job.attemptNr in [None,'NULL','']:
+                job.attemptNr = 0
+            if job.maxAttempt in [None,'NULL','']:
+                job.maxAttempt = 0
+            if job.maxAttempt <= job.attemptNr:    
+                job.maxAttempt = job.attemptNr + 2    
         try:
             # begin transaction
             self.conn.begin()
@@ -1288,6 +1296,12 @@ class DBProxy:
             if param[key] != None:
                 sql1 += ',%s=:%s' % (key,key)
                 varMap[':%s' % key] = param[key]
+                try:
+                    # store positive error code even for pilot retry
+                    if key == 'pilotErrorCode' and param[key].startswith('-'):
+                        varMap[':%s' % key] = param[key][1:]
+                except:
+                    pass
         sql1 += " WHERE PandaID=:PandaID"
         varMap[':PandaID'] = pandaID
         nTry=3
@@ -1393,7 +1407,8 @@ class DBProxy:
 
 
     # retry analysis job
-    def retryJob(self,pandaID,param,failedInActive=False,changeJobInMem=False,inMemJob=None):
+    def retryJob(self,pandaID,param,failedInActive=False,changeJobInMem=False,inMemJob=None,
+                 getNewPandaID=False):
         comment = ' /* DBProxy.retryJob */'                
         _logger.debug("retryJob : %s inActive=%s" % (pandaID,failedInActive))
         sql1 = "SELECT %s FROM ATLAS_PANDA.jobsActive4 " % JobSpec.columnNames()
@@ -1425,16 +1440,24 @@ class DBProxy:
                     job.pack(res[0])
                 else:
                     job = inMemJob
-                # check if it's analysis job
+                # check pilot retry
+                usePilotRetry = False
+                if job.prodSourceLabel in ['user','panda','ptest','rc_test'] and \
+                   param.has_key('pilotErrorCode') and param['pilotErrorCode'].startswith('-') and \
+                   job.maxAttempt > job.attemptNr and \
+                   not job.processingType.startswith('gangarobot') and \
+                   not job.processingType.startswith('hammercloud'):
+                    usePilotRetry = True
+                # check if it's analysis job # FIXME once pilot retry works correctly the conditions below will be cleaned up
                 if (((job.prodSourceLabel == 'user' or job.prodSourceLabel == 'panda') \
                      and not job.processingType.startswith('gangarobot') \
                      and not job.processingType.startswith('hammercloud') \
                      and job.computingSite.startswith('ANALY_') and param.has_key('pilotErrorCode') \
                      and param['pilotErrorCode'] in ['1200','1201'] and (not job.computingSite.startswith('ANALY_LONG_')) \
                      and job.attemptNr < 2) or (job.prodSourceLabel == 'ddm' and job.cloud == 'CA' and job.attemptNr <= 10) \
-                     or failedInActive) \
+                     or failedInActive or usePilotRetry) \
                      and job.commandToPilot != 'tobekilled':
-                    _logger.debug(' -> reset PandaID:%s #%s' % (job.PandaID,job.attemptNr))
+                    _logger.debug('reset PandaID:%s #%s' % (job.PandaID,job.attemptNr))
                     if not changeJobInMem:
                         # job parameters
                         sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
@@ -1464,22 +1487,44 @@ class DBProxy:
                             job.specialHandling = newSpecialHandling
                     # send it to long queue for analysis jobs
                     oldComputingSite = job.computingSite
-                    if job.computingSite.startswith('ANALY') and (not job.computingSite.startswith('ANALY_LONG_')):
-                        longSite = re.sub('^ANALY_','ANALY_LONG_',job.computingSite)
-                        longSite = re.sub('_\d+$','',longSite)
-                        if longSite in PandaSiteIDs.keys():
-                            job.computingSite = longSite
-                            # set destinationSE if queue is changed
-                            if oldComputingSite == job.destinationSE:
-                                job.destinationSE = job.computingSite
+                    if not changeJobInMem:
+                        if job.computingSite.startswith('ANALY'):
+                            longSite = None
+                            tmpLongSiteList = []
+                            tmpLongSite = re.sub('^ANALY_','ANALY_LONG_',job.computingSite)
+                            tmpLongSite = re.sub('_\d+$','',tmpLongSite)
+                            tmpLongSiteList.append(tmpLongSite)
+                            tmpLongSite = job.computingSite + '_LONG'
+                            tmpLongSiteList.append(tmpLongSite)
+                            # loop over all possible long sitenames
+                            for tmpLongSite in tmpLongSiteList:
+                                varMap = {}
+                                varMap[':siteID'] = tmpLongSite
+                                varMap[':status'] = 'online'
+                                sqlSite = "SELECT COUNT(*) FROM ATLAS_PANDAMETA.schedconfig WHERE siteID=:siteID AND status=:status"
+                                self.cur.execute(sqlSite+comment, varMap)
+                                resSite = self.cur.fetchone()
+                                if resSite != None and resSite[0] > 0:
+                                    longSite = tmpLongSite
+                                    break
+                            # use long site if exists
+                            if longSite != None:
+                                job.computingSite = longSite
+                                # set destinationSE if queue is changed
+                                if oldComputingSite == job.destinationSE:
+                                    job.destinationSE = job.computingSite
                     if not changeJobInMem:                                
                         # select files
                         varMap = {}
                         varMap[':PandaID'] = job.PandaID
-                        varMap[':type1'] = 'log'
-                        varMap[':type2'] = 'output'
+                        if not getNewPandaID:
+                            varMap[':type1'] = 'log'
+                            varMap[':type2'] = 'output'
                         sqlFile = "SELECT %s FROM ATLAS_PANDA.filesTable4 " % FileSpec.columnNames()
-                        sqlFile+= "WHERE PandaID=:PandaID AND (type=:type1 OR type=:type2)"
+                        if not getNewPandaID:
+                            sqlFile+= "WHERE PandaID=:PandaID AND (type=:type1 OR type=:type2)"
+                        else:
+                            sqlFile+= "WHERE PandaID=:PandaID"
                         self.cur.arraysize = 100
                         self.cur.execute(sqlFile+comment, varMap)
                         resFs = self.cur.fetchall()
@@ -1501,8 +1546,8 @@ class DBProxy:
                         # set new GUID
                         if file.type == 'log':
                             file.GUID = commands.getoutput('uuidgen')
-                        # don't change lib.tgz    
-                        if file.type == 'output' and job.prodSourceLabel == 'panda':
+                        # don't change input and lib.tgz    
+                        if file.type == 'input' or (file.type == 'output' and job.prodSourceLabel == 'panda'):
                             continue
                         # append attemptNr to LFN
                         oldName = file.lfn
@@ -1526,18 +1571,81 @@ class DBProxy:
                             sqlFup = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % FileSpec.bindUpdateExpression()) + "WHERE row_ID=:row_ID"
                             self.cur.execute(sqlFup+comment, varMap)
                     if not changeJobInMem:
-                        # update job
-                        varMap = job.valuesMap()
-                        varMap[':PandaID'] = job.PandaID
-                        self.cur.execute(sql2+comment, varMap)
-                        # update job parameters
-                        sqlJobP = "UPDATE ATLAS_PANDA.jobParamsTable SET jobParameters=:param WHERE PandaID=:PandaID"
-                        varMap = {}
-                        varMap[':PandaID'] = job.PandaID
-                        varMap[':param']   = job.jobParameters
-                        self.cur.execute(sqlJobP+comment, varMap)
+                        # reuse original PandaID
+                        if not getNewPandaID:
+                            # update job
+                            varMap = job.valuesMap()
+                            varMap[':PandaID'] = job.PandaID
+                            self.cur.execute(sql2+comment, varMap)
+                            # update job parameters
+                            sqlJobP = "UPDATE ATLAS_PANDA.jobParamsTable SET jobParameters=:param WHERE PandaID=:PandaID"
+                            varMap = {}
+                            varMap[':PandaID'] = job.PandaID
+                            varMap[':param']   = job.jobParameters
+                            self.cur.execute(sqlJobP+comment, varMap)
+                        else:
+                            # read metadata
+                            sqlMeta = "SELECT metaData FROM ATLAS_PANDA.metaTable WHERE PandaID=:PandaID"
+                            varMap = {}
+                            varMap[':PandaID'] = job.PandaID
+                            self.cur.execute(sqlMeta+comment, varMap)
+                            for clobJobP, in self.cur:
+                                job.metadata = clobJobP.read()
+                                break
+                            # insert job with new PandaID
+                            sql1 = "INSERT INTO ATLAS_PANDA.jobsActive4 (%s) " % JobSpec.columnNames()
+                            sql1+= JobSpec.bindValuesExpression(useSeq=True)
+                            sql1+= " RETURNING PandaID INTO :newPandaID"
+                            varMap = job.valuesMap(useSeq=True)
+                            varMap[':newPandaID'] = self.cur.var(cx_Oracle.NUMBER)
+                            # set parentID
+                            job.parentID = job.PandaID
+                            # insert
+                            retI = self.cur.execute(sql1+comment, varMap)
+                            # set PandaID
+                            job.PandaID = long(varMap[':newPandaID'].getvalue())
+                            _logger.debug('Generate new PandaID %s -> %s #%s' % (job.parentID,job.PandaID,job.attemptNr))                            
+                            # insert files
+                            sqlFile = "INSERT INTO ATLAS_PANDA.filesTable4 (%s) " % FileSpec.columnNames()
+                            sqlFile+= FileSpec.bindValuesExpression(useSeq=True)
+                            sqlFile+= " RETURNING row_ID INTO :newRowID"
+                            for file in job.Files:
+                                # reset rowID
+                                file.row_ID = None
+                                # insert
+                                varMap = file.valuesMap(useSeq=True)
+                                varMap[':newRowID'] = self.cur.var(cx_Oracle.NUMBER)
+                                self.cur.execute(sqlFile+comment, varMap)
+                            # update mod time for files
+                            varMap = {}
+                            varMap[':PandaID'] = job.PandaID
+                            varMap[':modificationTime'] = job.modificationTime
+                            sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
+                            self.cur.execute(sqlFMod+comment,varMap)
+                            # metadata
+                            sqlMeta = "INSERT INTO ATLAS_PANDA.metaTable (PandaID,metaData,modificationTime) VALUES (:PandaID,:metaData,:modTime)"
+                            varMap = {}
+                            varMap[':PandaID']  = job.PandaID
+                            varMap[':metaData'] = job.metadata
+                            varMap[':modTime']  = job.modificationTime                            
+                            self.cur.execute(sqlMeta+comment, varMap)
+                            # job parameters
+                            sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters,modificationTime) VALUES (:PandaID,:param,:modTime)"
+                            varMap = {}
+                            varMap[':PandaID'] = job.PandaID
+                            varMap[':param']   = job.jobParameters
+                            varMap[':modTime'] = job.modificationTime
+                            self.cur.execute(sqlJob+comment, varMap)
+                            # set error code to original job to avoid being retried by another process
+                            sqlE = "UPDATE ATLAS_PANDA.jobsActive4 SET taskBufferErrorCode=:errCode,taskBufferErrorDiag=:errDiag WHERE PandaID=:PandaID"
+                            varMap = {}
+                            varMap[':PandaID'] = job.parentID
+                            varMap[':errCode'] = ErrorCode.EC_PilotRetried
+                            varMap[':errDiag'] = 'retrying at the same site. new PandaID=%s' % job.PandaID
+                            self.cur.execute(sqlE+comment, varMap)
                     # set return
-                    retValue = True
+                    if not getNewPandaID:
+                        retValue = True
                 if not changeJobInMem:    
                     # commit
                     if not self._commit():
@@ -1585,7 +1693,7 @@ class DBProxy:
                 return None
             nJobsInDef = res[0]
             # get failed PandaIDs in Active
-            sql0 = "SELECT PandaID,jobStatus FROM ATLAS_PANDA.jobsActive4 "
+            sql0 = "SELECT PandaID,jobStatus,taskBufferErrorCode FROM ATLAS_PANDA.jobsActive4 "
             sql0+= "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
             sql0+= "AND prodSourceLabel=:prodSourceLabel "
             varMap = {}
@@ -1601,8 +1709,9 @@ class DBProxy:
             nJobsInAct = len(res)
             # loop over all PandaID
             failedPandaIDs = []
-            for pandaID,tmpJobStatus in res:
-                if tmpJobStatus == 'failed':
+            for pandaID,tmpJobStatus,tmpTaskBufferErrorCode in res:
+                if tmpJobStatus == 'failed' and not tmpTaskBufferErrorCode in \
+                       [ErrorCode.EC_Reassigned,ErrorCode.EC_Retried,ErrorCode.EC_PilotRetried]:
                     failedPandaIDs.append(pandaID)
             _logger.debug("retryJobsInActive : %s %s - %s failed jobs" % (prodUserName,jobDefinitionID,len(failedPandaIDs)))
             # there are some failed jobs in Active
@@ -2371,7 +2480,7 @@ class DBProxy:
         # 2 : expire
         # 3 : aborted
         # 4 : expire in waiting
-        # 7 : retry
+        # 7 : retry by server
         # 8 : rebrokerage
         # 9 : force kill
         comment = ' /* DBProxy.killJob */'        
@@ -2523,7 +2632,7 @@ class DBProxy:
                     # keep status for failed jobs
                     job.modificationTime = datetime.datetime.utcnow()
                     if code=='7':
-                        # reassigned by retry
+                        # retried by server
                         job.taskBufferErrorCode = ErrorCode.EC_Retried
                         job.taskBufferErrorDiag = 'retrying at another site. new %s' % user                            
                         job.commandToPilot      = None
@@ -3065,7 +3174,7 @@ class DBProxy:
                 if nJobs > 0 and len(idStatus) >= nJobs:
                     continue
                 # make sql
-                sql  = "SELECT PandaID,jobStatus,commandToPilot,prodSourceLabel FROM %s " % table                
+                sql  = "SELECT PandaID,jobStatus,commandToPilot,prodSourceLabel,taskBufferErrorCode FROM %s " % table                
                 sql += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
                 sql += "AND prodSourceLabel in (:prodSourceLabel1,:prodSourceLabel2)"
                 varMap = {}
@@ -3082,7 +3191,10 @@ class DBProxy:
                 self.cur.execute(sql+comment, varMap)
                 resList = self.cur.fetchall()
                 # append
-                for tmpID,tmpStatus,tmpCommand,tmpProdSourceLabel in resList:
+                for tmpID,tmpStatus,tmpCommand,tmpProdSourceLabel,tmpTaskBufferErrorCode in resList:
+                    # ignore jobs retried by pilot since they have new PandaIDs with the same jobsetID/jobdefID
+                    if tmpTaskBufferErrorCode in [ErrorCode.EC_PilotRetried]:
+                        continue
                     # ignore old buildJob which was replaced by rebrokerage 
                     if tmpProdSourceLabel == 'panda':
                         if buildJobID == None:
@@ -7656,7 +7768,7 @@ class DBProxy:
                     continue
                 # make sql
                 sql  = "SELECT /*+ NO_INDEX(tab JOBS_MODTIME_IDX) INDEX_COMBINE(tab JOBS_PRODUSERNAME_IDX JOBS_JOBDEFID_IDX) */ "
-                sql += "PandaID,jobStatus,commandToPilot,prodSourceLabel FROM %s tab " % table                
+                sql += "PandaID,jobStatus,commandToPilot,prodSourceLabel,taskBufferErrorCode FROM %s tab " % table                
                 sql += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
                 sql += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND modificationTime>(CURRENT_DATE-30) "
                 varMap = {}
@@ -7676,7 +7788,10 @@ class DBProxy:
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
                 # append
-                for tmpID,tmpStatus,tmpCommand,tmpProdSourceLabel in resList:
+                for tmpID,tmpStatus,tmpCommand,tmpProdSourceLabel,tmpTaskBufferErrorCode in resList:
+                    # ignore jobs retried by pilot since they have new PandaIDs with the same jobsetID/jobdefID
+                    if tmpTaskBufferErrorCode in [ErrorCode.EC_PilotRetried]:
+                        continue
                     # ignore old buildJob which was replaced by rebrokerage 
                     if tmpProdSourceLabel == 'panda':
                         if buildJobID == None:

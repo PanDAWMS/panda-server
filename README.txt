@@ -1,5 +1,12 @@
 Release Note
 
+* current
+  * fixed short->long mapping in retryJob
+  * generates new PandaID for pilot-retried job 
+  * using negative errorcode for pilot-retry
+  * added invalid character check to DDM
+  * fixed the brokerage for --transferredDS
+
 * 0.0.14 (10/11/2011)
   * fixed TaskAssigner for MCshare=0
   * updated brokerage to consider priorities for analysis jobs

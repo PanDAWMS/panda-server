@@ -53,6 +53,10 @@ class _DQMethod:
             if i != 0:
                 com += ','
             if isinstance(arg,types.StringType):
+                # check invalid characters
+                for invCh in ['"',"'",'(',')',';']:
+                    if invCh in arg:
+                        return -1,"invalid character %s in %s" % (invCh,arg)
                 com = "%s'%s'" % (com,arg)
             else:
                 com = '%s%s' % (com,str(arg))

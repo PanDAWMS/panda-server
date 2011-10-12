@@ -18,6 +18,7 @@ from config import panda_config
 from taskbuffer.OraDBProxy import DBProxy
 from pandalogger.PandaLogger import PandaLogger
 from dataservice.DDM import dq2Info
+import taskbuffer.ErrorCode
 
 # logger
 _logger = PandaLogger().getLogger('Notifier')
@@ -117,7 +118,7 @@ class Notifier:
                     jobs = self.taskBuffer.getFullJobStatus(ids,fromDefined=False,fromActive=False,
                                                             fromWaiting=False,forAnal=False)
                     # statistics
-                    nTotal     = len(jobs)
+                    nTotal     = 0
                     nSucceeded = 0
                     nFailed    = 0
                     nPartial   = 0
@@ -160,6 +161,12 @@ class Notifier:
                     for job in jobs:
                         if job == None:
                             continue
+                        # ignore pilot-retried job
+                        if job.taskBufferErrorCode in [taskbuffer.ErrorCode.EC_PilotRetried]:
+                            continue
+                        # total
+                        nTotal += 1
+                        # count per job status
                         if job.jobStatus == 'finished':
                             # check all files were used
                             allUses = True

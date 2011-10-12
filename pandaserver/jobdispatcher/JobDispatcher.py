@@ -119,12 +119,17 @@ class JobDipatcher:
     # update job status
     def updateJob(self,jobID,jobStatus,timeout,xml,siteName,param,metadata):
         # retry failed analysis job and ddm job
-        #if jobStatus=='failed' and siteName != None and siteName.startswith('ANALY_') \
         if jobStatus=='failed' \
-               and ((param.has_key('pilotErrorCode') and param['pilotErrorCode'] in ['1200','1201']) \
-                    or (siteName != None and siteName.find('DDM') != -1)):
+           and ((param.has_key('pilotErrorCode') and (param['pilotErrorCode'] in ['1200','1201'] \
+                                                      or param['pilotErrorCode'].startswith('-'))) \
+                 or (siteName != None and siteName.find('DDM') != -1)):
             # retry
-            ret = self.taskBuffer.retryJob(jobID,param)
+            if param.has_key('pilotErrorCode') and param['pilotErrorCode'].startswith('-'):
+                # pilot retry with new PandaID
+                ret = self.taskBuffer.retryJob(jobID,param,getNewPandaID=True)
+            else:
+                # old style
+                ret = self.taskBuffer.retryJob(jobID,param)                
             if ret:
                 # return succeed
                 response=Protocol.Response(Protocol.SC_Success)
