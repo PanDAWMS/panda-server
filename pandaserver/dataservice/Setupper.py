@@ -1899,36 +1899,36 @@ class Setupper (threading.Thread):
                         else:
                             # set empty to avoid further lookup
                             allReplicaMap[tmpFile.dataset] = {}
-                    # loop over constituent datasets
-                    _logger.debug('%s pin DQ2 prefix=%s' % (self.timestamp,srcDQ2IDprefix))
-                    for tmpDsName,tmpRepSitesMap in allReplicaMap[tmpFile.dataset].iteritems():
-                        # loop over locations                        
-                        for tmpRepSite in tmpRepSitesMap.keys():
-                            if tmpRepSite.startswith(srcDQ2IDprefix) \
-                                   and not 'TAPE' in tmpRepSite \
-                                   and not 'SCRATCH' in tmpRepSite:
-                                tmpKey = (tmpDsName,tmpRepSite)
-                                # already done
-                                if tmpKey in doneList:
-                                    continue
-                                # append to avoid repetition
-                                doneList.append(tmpKey)
-                                # get metadata
-                                status,tmpMetadata = self.getReplicaMetadata(tmpDsName,tmpRepSite)
-                                if not status:
-                                    continue
-                                # check pin lifetime                            
-                                if tmpMetadata.has_key('pin_expirationdate'):
-                                    if isinstance(tmpMetadata['pin_expirationdate'],types.StringType) and tmpMetadata['pin_expirationdate'] != 'None':
-                                        # keep original pin lifetime if it is longer 
-                                        origPinLifetime = datetime.datetime.strptime(tmpMetadata['pin_expirationdate'],'%Y-%m-%d %H:%M:%S')
-                                        if origPinLifetime > datetime.datetime.utcnow()+datetime.timedelta(days=pinLifeTime):
-                                            _logger.debug('%s skip pinning for %s:%s due to longer lifetime %s' % (self.timestamp,
-                                                                                                                   tmpDsName,tmpRepSite,
-                                                                                                                   tmpMetadata['pin_expirationdate']))
-                                            continue
-                                # set pin lifetime
-                                status = self.setReplicaMetadata(tmpDsName,tmpRepSite,'pin_lifetime','%s days' % pinLifeTime)
+                        # loop over constituent datasets
+                        _logger.debug('%s pin DQ2 prefix=%s' % (self.timestamp,srcDQ2IDprefix))
+                        for tmpDsName,tmpRepSitesMap in allReplicaMap[tmpFile.dataset].iteritems():
+                            # loop over locations                        
+                            for tmpRepSite in tmpRepSitesMap.keys():
+                                if tmpRepSite.startswith(srcDQ2IDprefix) \
+                                       and not 'TAPE' in tmpRepSite \
+                                       and not 'SCRATCH' in tmpRepSite:
+                                    tmpKey = (tmpDsName,tmpRepSite)
+                                    # already done
+                                    if tmpKey in doneList:
+                                        continue
+                                    # append to avoid repetition
+                                    doneList.append(tmpKey)
+                                    # get metadata
+                                    status,tmpMetadata = self.getReplicaMetadata(tmpDsName,tmpRepSite)
+                                    if not status:
+                                        continue
+                                    # check pin lifetime                            
+                                    if tmpMetadata.has_key('pin_expirationdate'):
+                                        if isinstance(tmpMetadata['pin_expirationdate'],types.StringType) and tmpMetadata['pin_expirationdate'] != 'None':
+                                            # keep original pin lifetime if it is longer 
+                                            origPinLifetime = datetime.datetime.strptime(tmpMetadata['pin_expirationdate'],'%Y-%m-%d %H:%M:%S')
+                                            if origPinLifetime > datetime.datetime.utcnow()+datetime.timedelta(days=pinLifeTime):
+                                                _logger.debug('%s skip pinning for %s:%s due to longer lifetime %s' % (self.timestamp,
+                                                                                                                       tmpDsName,tmpRepSite,
+                                                                                                                       tmpMetadata['pin_expirationdate']))
+                                                continue
+                                    # set pin lifetime
+                                    status = self.setReplicaMetadata(tmpDsName,tmpRepSite,'pin_lifetime','%s days' % pinLifeTime)
         # retrun                    
         _logger.debug('%s pin input datasets done' % self.timestamp)
         return
