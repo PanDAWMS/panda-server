@@ -1847,6 +1847,8 @@ class Setupper (threading.Thread):
     def _pinInputDatasets(self):
         _logger.debug('%s pin input datasets' % self.timestamp)        
         # collect input datasets and locations
+        doneList = []
+        allReplicaMap = {}
         for tmpJob in self.jobs:
             # ignore HC jobs
             if tmpJob.processingType.startswith('gangarobot') or \
@@ -1872,8 +1874,6 @@ class Setupper (threading.Thread):
             # prefix of DQ2 ID
             srcDQ2IDprefix = re.sub('_[A-Z,0-9]+DISK$','',srcDQ2ID)
             # loop over all files
-            doneList = []
-            allReplicaMap = {}
             for tmpFile in tmpJob.Files:
                 # use input files and ignore DBR/lib.tgz
                 if tmpFile.type == 'input' and \
