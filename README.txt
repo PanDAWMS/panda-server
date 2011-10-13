@@ -1,6 +1,9 @@
 Release Note
 
 * current
+  * fixed brokerage to require cache=None for release check 
+  * pinning input datasets
+  * added limitation of exe/pilotErrorDiags in JD
   * fixed short->long mapping in retryJob
   * generates new PandaID for pilot-retried job 
   * using negative errorcode for pilot-retry

@@ -6726,7 +6726,7 @@ class DBProxy:
             elif not releases in ['','NULL',None]:
                 loopKey = ':release'
                 loopValues = releases.split('\n')
-                sql += "release=:release "
+                sql += "release=:release AND cache='None' "
             else:
                 # don't check
                 return sites
@@ -6816,7 +6816,7 @@ class DBProxy:
             else:
                 loopKey = ':release'
                 loopValues = releases.split('\n')
-                sql += "release=:release "
+                sql += "release=:release AND cache='None' "
             # validation
             if validation:
                 sql += "validation=:validation "

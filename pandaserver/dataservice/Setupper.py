@@ -6,6 +6,7 @@ setup dataset
 import re
 import sys
 import time
+import types
 import urllib
 import datetime
 import commands
@@ -139,6 +140,8 @@ class Setupper (threading.Thread):
                     self._subscribeDistpatchDB()
                     # dynamic data placement for analysis jobs
                     self._dynamicDataPlacement()
+                    # pin input datasets
+                    self._pinInputDatasets()
             else:
                 # write jobs to file
                 import os
@@ -1524,7 +1527,7 @@ class Setupper (threading.Thread):
         return True
 
     
-    def getListDatasetReplicasInContainer(self,container):
+    def getListDatasetReplicasInContainer(self,container,getMap=False):
         # get datasets in container
         _logger.debug((self.timestamp,'listDatasetsInContainer',container))
         for iDDMTry in range(3):
@@ -1567,6 +1570,11 @@ class Setupper (threading.Thread):
                 exec "tmpRepSites = %s" % out
             except:
                 return status,out
+            # get map
+            if getMap:
+                allRepMap[dataset] = tmpRepSites
+                continue
+            # otherwise get sum    
             for siteId,statList in tmpRepSites.iteritems():
                 if not allRepMap.has_key(siteId):
                     # append
@@ -1586,7 +1594,10 @@ class Setupper (threading.Thread):
                     allRepMap[siteId] = [newStMap,]
         # return
         _logger.debug('%s %s' % (self.timestamp,str(allRepMap)))
-        return 0,str(allRepMap)            
+        if not getMap:
+            return 0,str(allRepMap)
+        else:
+            return 0,allRepMap
 
 
     # get list of replicas for a dataset
@@ -1830,3 +1841,156 @@ class Setupper (threading.Thread):
         self.taskBuffer.insertDatasets(dispList)
         _logger.debug('%s finished to make dis datasets for existing files' % self.timestamp)
         return
+
+
+    # pin input dataset 
+    def _pinInputDatasets(self):
+        _logger.debug('%s pin input datasets' % self.timestamp)        
+        # collect input datasets and locations
+        for tmpJob in self.jobs:
+            # ignore HC jobs
+            if tmpJob.processingType.startswith('gangarobot') or \
+               tmpJob.processingType.startswith('hammercloud'):
+                continue
+            # use production or test or user jobs only
+            if not tmpJob.prodSourceLabel in ['managed','test','user']:
+                continue
+            # ignore inappropriate status
+            if tmpJob.jobStatus in ['failed','cancelled','waiting']:
+                continue
+            # set lifetime
+            if tmpJob.prodSourceLabel in ['managed','test']:
+                pinLifeTime = 7
+            else:
+                pinLifeTime = 7
+            # get source
+            if tmpJob.prodSourceLabel in ['managed','test']:
+                tmpSrcID = self.siteMapper.getCloud(tmpJob.cloud)['source']
+                srcDQ2ID = self.siteMapper.getSite(tmpSrcID).ddm
+            else:
+                srcDQ2ID = self.siteMapper.getSite(tmpJob.computingSite).ddm
+            # prefix of DQ2 ID
+            srcDQ2IDprefix = re.sub('_[A-Z,0-9]+DISK$','',srcDQ2ID)
+            # loop over all files
+            doneList = []
+            allReplicaMap = {}
+            for tmpFile in tmpJob.Files:
+                # use input files and ignore DBR/lib.tgz
+                if tmpFile.type == 'input' and \
+                       not tmpFile.lfn.endswith('.lib.tgz') and \
+                       not tmpFile.dataset.startswith('ddo') and \
+                       not tmpFile.dataset.startswith('user') and \
+                       not tmpFile.dataset.startswith('group'):
+                    # get replica locations
+                    if not allReplicaMap.has_key(tmpFile.dataset):
+                        if tmpFile.dataset.endswith('/'):
+                            status,tmpRepSitesMap = self.getListDatasetReplicasInContainer(tmpFile.dataset,getMap=True)
+                            if status == 0:
+                                status = True
+                            else:
+                                status = False
+                        else:
+                            status,tmpRepSites = self.getListDatasetReplicas(tmpFile.dataset)
+                            tmpRepSitesMap = {}
+                            tmpRepSitesMap[tmpFile.dataset] = tmpRepSites
+                        # append    
+                        if status:
+                            allReplicaMap[tmpFile.dataset] = tmpRepSitesMap
+                        else:
+                            # set empty to avoid further lookup
+                            allReplicaMap[tmpFile.dataset] = {}
+                    # loop over constituent datasets
+                    _logger.debug('%s pin DQ2 prefix=%s' % (self.timestamp,srcDQ2IDprefix))
+                    for tmpDsName,tmpRepSitesMap in allReplicaMap[tmpFile.dataset].iteritems():
+                        # loop over locations                        
+                        for tmpRepSite in tmpRepSitesMap.keys():
+                            if tmpRepSite.startswith(srcDQ2IDprefix) \
+                                   and not 'TAPE' in tmpRepSite \
+                                   and not 'SCRATCH' in tmpRepSite:
+                                tmpKey = (tmpDsName,tmpRepSite)
+                                # already done
+                                if tmpKey in doneList:
+                                    continue
+                                # append to avoid repetition
+                                doneList.append(tmpKey)
+                                # get metadata
+                                status,tmpMetadata = self.getReplicaMetadata(tmpDsName,tmpRepSite)
+                                if not status:
+                                    continue
+                                # check pin lifetime                            
+                                if tmpMetadata.has_key('pin_expirationdate'):
+                                    if isinstance(tmpMetadata['pin_expirationdate'],types.StringType) and tmpMetadata['pin_expirationdate'] != 'None':
+                                        # keep original pin lifetime if it is longer 
+                                        origPinLifetime = datetime.datetime.strptime(tmpMetadata['pin_expirationdate'],'%Y-%m-%d %H:%M:%S')
+                                        if origPinLifetime > datetime.datetime.utcnow()+datetime.timedelta(days=pinLifeTime):
+                                            _logger.debug('%s skip pinning for %s:%s due to longer lifetime %s' % (self.timestamp,
+                                                                                                                   tmpDsName,tmpRepSite,
+                                                                                                                   tmpMetadata['pin_expirationdate']))
+                                            continue
+                                # set pin lifetime
+                                status = self.setReplicaMetadata(tmpDsName,tmpRepSite,'pin_lifetime','%s days' % pinLifeTime)
+        # retrun                    
+        _logger.debug('%s pin input datasets done' % self.timestamp)
+        return
+    
+
+    # check DDM response
+    def isDQ2ok(self,out):
+        if out.find("DQ2 internal server exception") != -1 \
+               or out.find("An error occurred on the central catalogs") != -1 \
+               or out.find("MySQL server has gone away") != -1 \
+               or out == '()':
+            return False
+        return True
+
+    
+    # get replica metadata
+    def getReplicaMetadata(self,datasetName,locationName):
+        # response for failure
+        resForFailure = False,{}
+        # get metadata
+        nTry = 3
+        for iDDMTry in range(nTry):
+            _logger.debug('%s %s/%s listMetaDataReplica %s %s' % (self.timestamp,iDDMTry,nTry,datasetName,locationName))
+            status,out = ddm.DQ2.main('listMetaDataReplica',locationName,datasetName)
+            if status != 0 or (not self.isDQ2ok(out)):
+                time.sleep(60)
+            else:
+                break
+        if status != 0 or out.startswith('Error'):
+            _logger.error("%s %s" % (self.timestamp,out))
+            return resForFailure
+        metadata = {}
+        try:
+            # convert to map
+            exec "metadata = %s" % out
+        except:
+            _logger.error('%s could not convert HTTP-res to replica metadata for %s:%s' % \
+                          (self.timestamp,datasetName,locationName))
+            return resForFailure
+        # return
+        _logger.debug('%s getReplicaMetadata -> %s' % (self.timestamp,str(metadata)))
+        return True,metadata
+
+
+    # set replica metadata
+    def setReplicaMetadata(self,datasetName,locationName,attrname,attrvalue):
+        # response for failure
+        resForFailure = False
+        # get metadata
+        nTry = 3
+        for iDDMTry in range(nTry):
+            _logger.debug('%s %s/%s setReplicaMetaDataAttribute %s %s %s=%s' % (self.timestamp,iDDMTry,nTry,datasetName,
+                                                                                locationName,attrname,attrvalue))
+            status,out = ddm.DQ2.main('setReplicaMetaDataAttribute',datasetName,locationName,attrname,attrvalue)
+            if status != 0 or (not self.isDQ2ok(out)):
+                time.sleep(60)
+            else:
+                break
+        if status != 0 or out.startswith('Error'):
+            _logger.error("%s %s" % (self.timestamp,out))
+            return resForFailure
+        # return
+        _logger.debug('%s setReplicaMetadata done' % self.timestamp)
+        return True
+                            
