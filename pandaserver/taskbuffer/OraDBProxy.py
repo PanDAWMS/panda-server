@@ -2484,7 +2484,7 @@ class DBProxy:
         # 8 : rebrokerage
         # 9 : force kill
         comment = ' /* DBProxy.killJob */'        
-        _logger.debug("killJob : %s %s %s %s" % (code,pandaID,prodManager,user))
+        _logger.debug("killJob : code=%s PandaID=%s role=%s user=%s" % (code,pandaID,prodManager,user))
         # check PandaID
         try:
             long(pandaID)
@@ -2539,6 +2539,8 @@ class DBProxy:
                             distinguishedName = re.sub('\d+$','',distinguishedName)
                             distinguishedName = distinguishedName.strip()
                             break
+                    if distinguishedName == '':
+                        distinguishedName = dn
                     return distinguishedName
                 # prevent prod proxy from killing analysis jobs
                 userProdUserID,userProdSourceLabel,userJobDefinitionID,userJobsetID = res

@@ -336,7 +336,7 @@ def seeCloudTask(ids):
 
 
 # kill jobs
-def killJobs(ids,code=None,verbose=False,srvID=None):
+def killJobs(ids,code=None,verbose=False,srvID=None,useMailAsID=False):
     # serialize
     strIDs = pickle.dumps(ids)
     # instantiate curl
@@ -346,7 +346,7 @@ def killJobs(ids,code=None,verbose=False,srvID=None):
     curl.verbose = verbose
     # execute
     url = _getURL('URLSSL',srvID) + '/killJobs'
-    data = {'ids':strIDs,'code':code}
+    data = {'ids':strIDs,'code':code,'useMailAsID':useMailAsID}
     status,output = curl.post(url,data)
     try:
         return status,pickle.loads(output)

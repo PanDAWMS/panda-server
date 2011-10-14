@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added --killOwnProdJobs to killJob.py and killJobsInTask.py
   * fixed brokerage to require cache=None for release check 
   * pinning input datasets
   * added limitation of exe/pilotErrorDiags in JD

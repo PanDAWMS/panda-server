@@ -12,9 +12,13 @@ from config import panda_config
 
 optP = optparse.OptionParser(conflict_handler="resolve")
 optP.add_option('-9',action='store_const',const=True,dest='forceKill',
-                default=False,help='kill jobs even if they are still running')
+                default=False,help='kill jobs before next heartbeat is coming')
 options,args = optP.parse_args()
 
+useMailAsIDV = False
+if options.killOwnProdJobs:
+    useMailAsIDV = True
+        
 proxyS = DBProxy()
 proxyS.connect(panda_config.dbhost,panda_config.dbpasswd,panda_config.dbuser,panda_config.dbname)
 
@@ -40,9 +44,9 @@ if len(jobs):
     while iJob < len(jobs):
         print 'kill %s' % str(jobs[iJob:iJob+nJob])
         if options.forceKill:
-            Client.killJobs(jobs[iJob:iJob+nJob],9)
+            Client.killJobs(jobs[iJob:iJob+nJob],9,useMailAsID=useMailAsIDV)
         else:
-            Client.killJobs(jobs[iJob:iJob+nJob])
+            Client.killJobs(jobs[iJob:iJob+nJob],useMailAsID=useMailAsIDV)
         iJob += nJob
         time.sleep(1)
                         

@@ -18,6 +18,7 @@ from brokerage.SiteMapper import SiteMapper
 from pandalogger.PandaLogger import PandaLogger
 from ReBroker import ReBroker
 from taskbuffer import PrioUtil
+from dataservice.DDM import dq2Info
 
 # logger
 _logger = PandaLogger().getLogger('UserIF')
@@ -393,12 +394,29 @@ class UserIF:
 
 
     # kill jobs
-    def killJobs(self,idsStr,user,host,code,prodManager):
+    def killJobs(self,idsStr,user,host,code,prodManager,useMailAsID):
         # deserialize IDs
         ids = WrappedPickle.loads(idsStr)
         if not isinstance(ids,types.ListType):
             ids = [ids]
         _logger.debug("killJob : %s %s %s %s" % (user,code,prodManager,ids))
+        try:
+            if useMailAsID:
+                _logger.debug("killJob : getting mail address for %s" % user)
+                realDN = re.sub('/CN=limited proxy','',user)
+                realDN = re.sub('(/CN=proxy)+','',realDN)
+                nTry = 3
+                for iDDMTry in range(nTry):
+                    status,out = dq2Info.finger(realDN)
+                    if status == 0:
+                        exec "userInfo=%s" % out
+                        _logger.debug("killJob : %s is converted to %s" % (user,userInfo['email']))
+                        user = userInfo['email']
+                        break
+                    time.sleep(1)
+        except:
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("killJob : failed to convert email address %s : %s %s" % (user,errType,errValue))
         # kill jobs
         ret = self.taskBuffer.killJobs(ids,user,code,prodManager)
         # logging
@@ -894,7 +912,7 @@ def getFilesInUseForAnal(req,outDataset):
 
 
 # kill jobs
-def killJobs(req,ids,code=None):
+def killJobs(req,ids,code=None,useMailAsID=None):
     # check security
     if not Protocol.isSecure(req):
         return False
@@ -916,9 +934,14 @@ def killJobs(req,ids,code=None):
         # escape
         if prodManager:
             break
+    # use email address as ID
+    if useMailAsID == 'True':
+        useMailAsID = True
+    else:
+        useMailAsID = False
     # hostname
     host = req.get_remote_host()
-    return userIF.killJobs(ids,user,host,code,prodManager)
+    return userIF.killJobs(ids,user,host,code,prodManager,useMailAsID)
 
 
 # reassign jobs
