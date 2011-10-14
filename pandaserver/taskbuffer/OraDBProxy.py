@@ -1564,7 +1564,7 @@ class DBProxy:
                             oldPatt = match[0]+oldName+match[-1]
                             newPatt = match[0]+newName+match[-1]
                             job.jobParameters = re.sub(oldPatt,newPatt,job.jobParameters)
-                        if not changeJobInMem:    
+                        if not changeJobInMem and not getNewPandaID:    
                             # update files
                             varMap = file.valuesMap()
                             varMap[':row_ID'] = file.row_ID
