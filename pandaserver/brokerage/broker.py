@@ -2,6 +2,7 @@ import re
 import sys
 import time
 import fcntl
+import random
 import commands
 import ErrorCode
 import broker_util
@@ -441,6 +442,9 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         _log.debug('  cache/relSites     %s' % str(siteListWithCache))
                     # release/cmtconfig check
                     foundRelease   = False
+                    # randomize the order
+                    if forAnalysis:
+                        random.shuffle(scanSiteList)
                     # get cnadidates    
                     if True:
                         # loop over all sites    

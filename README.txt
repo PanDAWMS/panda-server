@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * randomized the order of site check in analysis brokerage 
   * added --killOwnProdJobs to killJob.py and killJobsInTask.py
   * fixed brokerage to require cache=None for release check 
   * pinning input datasets
