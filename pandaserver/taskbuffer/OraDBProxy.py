@@ -1445,7 +1445,7 @@ class DBProxy:
                 if job.prodSourceLabel in ['user','panda','ptest','rc_test'] and \
                    param.has_key('pilotErrorCode') and param['pilotErrorCode'].startswith('-') and \
                    job.maxAttempt > job.attemptNr and \
-                   not job.processingType.startswith('gangarobot') and \
+                   (not job.processingType.startswith('gangarobot') or job.processingType=='gangarobot-rctest') and \
                    not job.processingType.startswith('hammercloud'):
                     usePilotRetry = True
                 # check if it's analysis job # FIXME once pilot retry works correctly the conditions below will be cleaned up
