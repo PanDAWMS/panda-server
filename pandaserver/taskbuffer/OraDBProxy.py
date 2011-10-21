@@ -1547,7 +1547,8 @@ class DBProxy:
                         if file.type == 'log':
                             file.GUID = commands.getoutput('uuidgen')
                         # don't change input and lib.tgz    
-                        if file.type == 'input' or (file.type == 'output' and job.prodSourceLabel == 'panda'):
+                        if file.type == 'input' or (file.type == 'output' and job.prodSourceLabel == 'panda') or \
+                               (file.type == 'output' and file.lfn.endswith('.lib.tgz') and job.prodSourceLabel == 'rc_test'):
                             continue
                         # append attemptNr to LFN
                         oldName = file.lfn
@@ -1596,15 +1597,15 @@ class DBProxy:
                             sql1 = "INSERT INTO ATLAS_PANDA.jobsActive4 (%s) " % JobSpec.columnNames()
                             sql1+= JobSpec.bindValuesExpression(useSeq=True)
                             sql1+= " RETURNING PandaID INTO :newPandaID"
-                            varMap = job.valuesMap(useSeq=True)
-                            varMap[':newPandaID'] = self.cur.var(cx_Oracle.NUMBER)
                             # set parentID
                             job.parentID = job.PandaID
+                            varMap = job.valuesMap(useSeq=True)
+                            varMap[':newPandaID'] = self.cur.var(cx_Oracle.NUMBER)
                             # insert
                             retI = self.cur.execute(sql1+comment, varMap)
                             # set PandaID
                             job.PandaID = long(varMap[':newPandaID'].getvalue())
-                            _logger.debug('Generate new PandaID %s -> %s #%s' % (job.parentID,job.PandaID,job.attemptNr))                            
+                            _logger.debug('Generate new PandaID %s -> %s #%s' % (job.parentID,job.PandaID,job.attemptNr))
                             # insert files
                             sqlFile = "INSERT INTO ATLAS_PANDA.filesTable4 (%s) " % FileSpec.columnNames()
                             sqlFile+= FileSpec.bindValuesExpression(useSeq=True)

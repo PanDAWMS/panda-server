@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * not attach attemptNr to lib.tgz for rc_test+buildJob
+  * fixed parentID for retryJob with new PandaID
   * randomized the order of site check in analysis brokerage 
   * added --killOwnProdJobs to killJob.py and killJobsInTask.py
   * fixed brokerage to require cache=None for release check 
