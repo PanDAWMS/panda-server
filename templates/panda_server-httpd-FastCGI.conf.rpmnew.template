@@ -39,6 +39,8 @@ DocumentRoot "@@install_purelib@@/pandaserver"
     Deny from all
 </Files>
 
+RedirectMatch 403 "/panda.py$"
+
 <Directory />
     Options FollowSymLinks
     AllowOverride None

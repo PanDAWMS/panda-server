@@ -54,7 +54,8 @@ from userinterface.UserIF        import submitJobs,getJobStatus,queryPandaIDs,ki
      getPandaClientVer,getSlimmedFileInfoPandaIDs,runReBrokerage,deleteFilesFromCacheDB,\
      addFilesToCacheDB,flushCacheDB,checkFilesWithCacheDB,getQueuedAnalJobs,getHighestPrioJobStat,\
      getActiveDatasets,setCloudTaskByUser,getSerialNumberForGroupJob,getCachePrefixes,\
-     checkMergeGenerationStatus,sendLogInfo,getNumPilots,retryFailedJobsInActive
+     checkMergeGenerationStatus,sendLogInfo,getNumPilots,retryFailedJobsInActive,\
+     getJobStatisticsWithLabel
 allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reassignJobs',
                    'getJobStatistics','getJobStatisticsPerSite','resubmitJobs','queryLastFilesInDataset','getPandaIDsSite',
                    'getJobsToBeUpdated','updateProdDBUpdateTimes','runTaskAssignment','getAssigningTask','getSiteSpecs',
@@ -64,7 +65,8 @@ allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reass
                    'getPandaClientVer','getSlimmedFileInfoPandaIDs','runReBrokerage','deleteFilesFromCacheDB',
                    'addFilesToCacheDB','flushCacheDB','checkFilesWithCacheDB','getQueuedAnalJobs','getHighestPrioJobStat',
                    'getActiveDatasets','setCloudTaskByUser','getSerialNumberForGroupJob','getCachePrefixes',
-                   'checkMergeGenerationStatus','sendLogInfo','getNumPilots','retryFailedJobsInActive']
+                   'checkMergeGenerationStatus','sendLogInfo','getNumPilots','retryFailedJobsInActive',
+                   'getJobStatisticsWithLabel']
 
 # FastCGI/WSGI entry
 if panda_config.useFastCGI or panda_config.useWSGI:

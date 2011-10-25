@@ -193,6 +193,41 @@ def sendAnalyBrokeageInfo(results,prevRelease,diskThreshold,chosenSite,prevCmtCo
 # send analysis brokerage info to logger
 def sendMsgToLogger(message):
     _log.debug(message)
+
+
+# send analysis brokerage info to logger with HTTP
+def sendMsgToLoggerHTTP(msgList,job):
+    try:
+        # logging
+        iMsg = 0
+        # message type
+        msgType = 'analy_brokerage'
+        # make header
+        if not job.jobsetID in [None,'NULL']:
+            msgHead = "dn='%s' : jobset=%s jobdef=%s" % (job.prodUserName,job.jobsetID,job.jobDefinitionID)
+        else:
+            msgHead = "dn='%s' : jobdef=%s" % (job.prodUserName,job.jobDefinitionID)
+        for msgBody in msgList:
+            # make message
+            message = msgHead + ' : ' + msgBody
+            # dump locally
+            _log.debug(message)
+            # get logger
+            _pandaLogger = PandaLogger()            
+            _pandaLogger.lock()
+            _pandaLogger.setParams({'Type':msgType})
+            logger = _pandaLogger.getHttpLogger(panda_config.loggername)
+            # add message
+            logger.info(message)
+            # release HTTP handler
+            _pandaLogger.release()
+            # sleep
+            iMsg += 1
+            if iMsg % 5 == 0:
+                time.sleep(1)
+    except:
+        errType,errValue = sys.exc_info()[:2]
+        _log.error("sendMsgToLoggerHTTP : %s %s" % (errType,errValue))
     
 
 # schedule
@@ -1031,6 +1066,24 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 time.sleep(1)
         except:
             pass
+        # send analysis brokerage info when jobs are submitted
+        if len(jobs) > 0 and jobs[0] != None and not forAnalysis and not pd2pT1 and specialWeight=={}:
+            # for analysis job. FIXME once ganga is updated to send analy brokerage info
+            if jobs[0].prodSourceLabel in ['user','panda'] and jobs[0].processingType in ['pathena','prun']:
+                # send countryGroup
+                tmpMsgList = []
+                tmpNumJobs = len(jobs)
+                if jobs[0].prodSourceLabel == 'panda':
+                    tmpNumJobs -= 1
+                tmpMsg = 'nJobs=%s ' % tmpNumJobs
+                if jobs[0].countryGroup in ['NULL','',None]:
+                    tmpMsg += 'countryGroup=None'
+                else:
+                    tmpMsg += 'countryGroup=%s' % jobs[0].countryGroup
+                tmpMsgList.append(tmpMsg)
+                # send log
+                sendMsgToLoggerHTTP(tmpMsgList,jobs[0])
+        # finished            
         _log.debug('finished')
         if getWeight:
             return weightUsedByBrokerage

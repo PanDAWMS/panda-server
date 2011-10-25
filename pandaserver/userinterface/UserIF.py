@@ -323,6 +323,14 @@ class UserIF:
         return pickle.dumps(ret)
 
 
+    # get job statistics per site with label
+    def getJobStatisticsWithLabel(self,site):
+        # get job statistics
+        ret = self.taskBuffer.getJobStatisticsWithLabel(site)
+        # serialize 
+        return pickle.dumps(ret)
+
+
     # query PandaIDs
     def queryPandaIDs(self,idsStr):
         # deserialize IDs
@@ -899,6 +907,11 @@ def getJobStatisticsPerSite(req,predefined='False',workingGroup='',countryGroup=
     else:
         predefined=False
     return userIF.getJobStatisticsPerSite(predefined,workingGroup,countryGroup,jobType)
+
+
+# get job statistics per site with label
+def getJobStatisticsWithLabel(req,site=''):
+    return userIF.getJobStatisticsWithLabel(site)
 
 
 # query last files in datasets

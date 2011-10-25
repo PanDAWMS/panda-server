@@ -1,6 +1,9 @@
 Release Note
 
 * current
+  * modified rebroekrage to send brokerage log
+  * modified brokerage to send user's countryGroup and nJobs to logger 
+  * added a protection to httpd.conf for interesting panda.py
   * not attach attemptNr to lib.tgz for rc_test+buildJob
   * fixed parentID for retryJob with new PandaID
   * randomized the order of site check in analysis brokerage 

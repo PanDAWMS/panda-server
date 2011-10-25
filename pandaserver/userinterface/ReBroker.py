@@ -55,7 +55,8 @@ class ReBroker (threading.Thread):
         self.forFailed     = forFailed
         self.revNum        = 0
         self.avoidSameSite = avoidSameSite
-        
+        self.brokerageInfo = []
+
 
     # main
     def run(self):
@@ -319,8 +320,9 @@ class ReBroker (threading.Thread):
                         tmpJobForBrokerage.minRamCount = self.job.minRamCount
                     # run brokerage
                     brokerage.broker.schedule([tmpJobForBrokerage],self.taskBuffer,siteMapper,forAnalysis=True,
-                                              setScanSiteList=maxPandaSites,trustIS=True)
+                                              setScanSiteList=maxPandaSites,trustIS=True,reportLog=True)
                     newSiteID = tmpJobForBrokerage.computingSite
+                    self.brokerageInfo += tmpJobForBrokerage.brokerageErrorDiag
                     _logger.debug("%s runBrokerage - > %s" % (self.token,newSiteID))
                     # unknown site
                     if not siteMapper.checkSite(newSiteID):
@@ -582,7 +584,9 @@ class ReBroker (threading.Thread):
     # run SetUpper
     def runSetUpper(self):
         # reuse buildJob + all runJobs
+        reuseFlag = False
         if self.jobID == self.buildJobID and self.buildStatus in ['defined','activated']:
+            reuseFlag = True
             _logger.debug("%s start Setupper for JobID=%s" % (self.token,self.jobID))
             thr = Setupper(self.taskBuffer,self.pandaJobList,resetLocation=True)
             thr.start()
@@ -626,7 +630,15 @@ class ReBroker (threading.Thread):
                     if not self.forFailed:
                         self.taskBuffer.killJobs([tmpPandaID],strNewIDsList[tmpIdx],'8',True)
                     else:
-                        self.taskBuffer.killJobs([tmpPandaID],strNewIDsList[tmpIdx],'7',True)                        
+                        self.taskBuffer.killJobs([tmpPandaID],strNewIDsList[tmpIdx],'7',True)
+        # send brokerage info
+        if not self.forFailed: 
+            tmpMsg = 'action=rebrokerage ntry=%s ' % self.pandaJobList[0].specialHandling.split(',').count('rebro')
+        else:
+            tmpMsg = 'action=serverretry ntry=%s ' % self.pandaJobList[0].specialHandling.split(',').count('sretry')
+        tmpMsg += 'old_jobset=%s old_jobdef=%s old_site=%s' % (self.job.jobsetID,self.jobID,self.job.computingSite)    
+        self.brokerageInfo.append(tmpMsg)
+        brokerage.broker.sendMsgToLoggerHTTP(self.brokerageInfo,self.pandaJobList[0])
         # succeeded
         _logger.debug("%s completed for JobID=%s" % (self.token,self.jobID))
         return True

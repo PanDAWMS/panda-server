@@ -1351,6 +1351,18 @@ class TaskBuffer:
         return ret
 
 
+    # get job statistics with label
+    def getJobStatisticsWithLabel(self,siteStr=''):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get serial number
+        ret = proxy.getJobStatisticsWithLabel(siteStr)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
     # get job statistics for brokerage
     def getJobStatisticsBrokerage(self):
         # get DBproxy

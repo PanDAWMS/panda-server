@@ -617,6 +617,26 @@ def getJobStatisticsPerSite(predefined=False,workingGroup='',countryGroup='',job
     return 0,ret
 
 
+# get job statistics per site with label
+def getJobStatisticsWithLabel(site=''):
+    # instantiate curl
+    curl = _Curl()
+    # execute
+    url = baseURL + '/getJobStatisticsWithLabel'
+    data = {}
+    if not site in ['',None]:
+        data['site'] = site
+    status,output = curl.get(url,data)
+    try:
+        return status,pickle.loads(output)
+    except:
+        print output
+        type, value, traceBack = sys.exc_info()
+        errStr = "ERROR getJobStatisticsWithLabel : %s %s" % (type,value)
+        print errStr
+        return EC_Failed,output+'\n'+errStr
+
+
 # query last files in datasets
 def queryLastFilesInDataset(datasets):
     # serialize

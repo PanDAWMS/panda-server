@@ -5382,6 +5382,62 @@ class DBProxy:
                 return {}
 
 
+    # get job statistics with label
+    def getJobStatisticsWithLabel(self,siteStr=''):
+        comment = ' /* DBProxy.getJobStatisticsWithLabel */'        
+        _logger.debug("getJobStatisticsWithLabel(%s)" % siteStr)
+        sql0 = "SELECT computingSite,prodSourceLabel,jobStatus,COUNT(*) FROM %s "
+        # site
+        tmpSiteMap = {}
+        if siteStr != '':
+            sql0 += "WHERE computingSite IN ("            
+            # loop over all sites
+            idxSite = 1
+            for tmpSite in siteStr.split(','):
+                tmpSiteKey = ':site%s' % idxSite
+                sql0 += "%s," % tmpSiteKey
+                tmpSiteMap[tmpSiteKey] = tmpSite
+                idxSite += 1                
+            sql0 = sql0[:-1] + ") "
+        sql0 += "GROUP BY computingSite,prodSourceLabel,jobStatus "     
+        tables = ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4']
+        returnMap = {}
+        try:
+            for table in tables:
+                # start transaction
+                self.conn.begin()
+                # select
+                varMap = {}
+                self.cur.arraysize = 10000                        
+                self.cur.execute((sql0+comment) % table,tmpSiteMap)
+                res = self.cur.fetchall()
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                # create map
+                for computingSite,prodSourceLabel,jobStatus,nCount in res:
+                    # add site
+                    if not returnMap.has_key(computingSite):
+                        returnMap[computingSite] = {}
+                    # add SourceLabel
+                    if not returnMap[computingSite].has_key(prodSourceLabel):
+                        returnMap[computingSite][prodSourceLabel] = {}
+                    # add jobstatus
+                    if not returnMap[computingSite][prodSourceLabel].has_key(jobStatus):
+                        returnMap[computingSite][prodSourceLabel][jobStatus] = 0
+                    # add    
+                    returnMap[computingSite][prodSourceLabel][jobStatus] += nCount
+            # return
+            _logger.debug("getJobStatisticsWithLabel() : %s" % str(returnMap))
+            return returnMap
+        except:
+            # roll back
+            self._rollback()
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("getJobStatisticsWithLabel : %s %s" % (errType,errValue))
+            return {}
+
+
     # get job statistics for brokerage
     def getJobStatisticsBrokerage(self):
         comment = ' /* DBProxy.getJobStatisticsBrokerage */'        
