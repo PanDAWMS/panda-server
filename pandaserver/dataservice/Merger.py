@@ -51,12 +51,12 @@ class Merger:
     def getUserMergeScript(self):
         script = ""
         try:
-            paramList = re.split('\W+',self.job.jobParameters.strip())
-            script = paramList[ paramList.index('mergeScript') + 1 ]
+            match = re.search("--mergeScript\s(([^\'\"\s]+)|(\"[^\"]+\")|(\'[^\']+\'))",self.job.jobParameters)
+            if match != None:
+                script = match.group(1)
         except:
             _logger.debug("%s cannot find --mergeScript parameter from parent job" % self.job.PandaID)
         return script
-
 
     # parse jobParameters and get rundir specified by the client
     def getRunDir(self):
@@ -237,8 +237,15 @@ class Merger:
                 _logger.debug("%s skip no-merge" % self.job.PandaID)
                 _logger.debug("%s end" % self.job.PandaID)
                 return None
+
             # get mergeType from jobParams
-            self.mergeType = self.getMergeType()
+            self.mergeType   = self.getMergeType()
+            self.mergeScript = self.getUserMergeScript()
+
+            # if mergeScript is given by user, it's equivalent to user mode mergeType
+            if self.mergeScript:
+                self.mergeType = 'user'
+
             if self.mergeType != '':
                 # check if the merging type is given and is supported
                 if self.mergeType not in self.supportedMergeType:
@@ -246,10 +253,9 @@ class Merger:
                     _logger.debug("%s end" % self.job.PandaID)
                     return None
                 elif self.mergeType in ['user']:
-                    self.mergeScript = self.getUserMergeScript()
                     self.runDir      = self.getRunDir()
                     if not self.mergeScript:
-                        _logger.error("%s skip no merging script specified for merging type \"%s\"" % (self.job.PandaID, self.mergeType))
+                        _logger.error("%s skip: no merging command specified for merging type \"%s\"" % (self.job.PandaID, self.mergeType))
                         _logger.debug("%s end" % self.job.PandaID)
                         return None
             else:
@@ -556,21 +562,25 @@ class Merger:
             tmpFile.status     = 'ready'
             tmpFile.prodDBlockToken = 'local'
             tmpJob.addFile(tmpFile)
-        # file type
+            
+        # merge type determination
         if fileSuffix.endswith('log.tgz'):
             # log
             usedMergeType = 'log'
         elif self.mergeType != '':
             # user specified merging type
             usedMergeType = self.mergeType
-            if self.mergeScript != '':
-                # user specified merging script --> imply "user" merging type
-                params += " -j %s -r %s" % (self.mergeScript, self.runDir)
         else:
             # auto detection
             usedMergeType = self.detectMergeTypeWithLFN(filePrefix,fileSuffix)
+            
+        if usedMergeType in ['user']:
+            ## run user mode merging given the merging script
+            params += ' -j %s -r %s' % (self.mergeScript, self.runDir)
+
         params += " -t %s" % usedMergeType
         params += " -i \"%s\"" % repr(fileList)
+        
         # output
         tmpFile = FileSpec()
         if attNum == None:

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * updated Merger for --mexec
   * modified rebroekrage to send brokerage log
   * modified brokerage to send user's countryGroup and nJobs to logger 
   * added a protection to httpd.conf for interesting panda.py
