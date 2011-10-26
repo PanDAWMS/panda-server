@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * increased the factor of the RW limit to 8000
   * updated Merger for --mexec
   * modified rebroekrage to send brokerage log
   * modified brokerage to send user's countryGroup and nJobs to logger 
