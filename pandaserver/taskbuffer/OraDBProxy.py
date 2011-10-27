@@ -1472,6 +1472,8 @@ class DBProxy:
                     job.startTime = None
                     job.modificationTime = datetime.datetime.utcnow()
                     job.attemptNr = job.attemptNr + 1
+                    if usePilotRetry:
+                        job.currentPriority -= 10
                     if failedInActive:
                         job.endTime             = None
                         job.transExitCode       = None

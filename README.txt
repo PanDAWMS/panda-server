@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * reduced prio by 10 for pilot-retry jobs
   * increased the factor of the RW limit to 8000
   * updated Merger for --mexec
   * modified rebroekrage to send brokerage log
