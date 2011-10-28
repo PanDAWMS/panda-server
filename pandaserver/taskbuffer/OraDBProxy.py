@@ -5261,16 +5261,29 @@ class DBProxy:
 
 
     # get job statistics
-    def getJobStatistics(self,archived=False,predefined=False,workingGroup='',countryGroup='',jobType=''):
+    def getJobStatistics(self,archived=False,predefined=False,workingGroup='',countryGroup='',jobType='',forAnal=None):
         comment = ' /* DBProxy.getJobStatistics */'        
-        _logger.debug("getJobStatistics(%s,%s,'%s','%s','%s')" % (archived,predefined,workingGroup,countryGroup,jobType))
+        _logger.debug("getJobStatistics(%s,%s,'%s','%s','%s',%s)" % (archived,predefined,workingGroup,countryGroup,jobType,forAnal))
         timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
         sql0 = "SELECT computingSite,jobStatus,COUNT(*) FROM %s WHERE prodSourceLabel IN ("
         # processingType
         tmpJobTypeMap = {}
         sqlJobType = ''
         if jobType == "":
-            sql0 += ":prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4,:prodSourceLabel5) "
+            if forAnal == None:
+                tmpJobTypeMap[':prodSourceLabel1'] = 'managed'
+                tmpJobTypeMap[':prodSourceLabel2'] = 'user'
+                tmpJobTypeMap[':prodSourceLabel3'] = 'panda'
+                tmpJobTypeMap[':prodSourceLabel4'] = 'ddm'
+                tmpJobTypeMap[':prodSourceLabel5'] = 'rc_test'
+                sqlJobType = ":prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4,:prodSourceLabel5) "
+            elif forAnal == True:
+                tmpJobTypeMap[':prodSourceLabel1'] = 'user'
+                tmpJobTypeMap[':prodSourceLabel2'] = 'panda'
+                sqlJobType = ":prodSourceLabel1,:prodSourceLabel2) "
+            else:
+                tmpJobTypeMap[':prodSourceLabel1'] = 'managed'
+                sqlJobType = ":prodSourceLabel1) "
         else:
             # loop over all types
             idxJT = 1
@@ -5280,7 +5293,7 @@ class DBProxy:
                 tmpJobTypeMap[tmpJTkey] = tmpJT
                 idxJT += 1                
             sqlJobType = sqlJobType[:-1] + ") "
-            sql0 += sqlJobType
+        sql0 += sqlJobType
         # predefined    
         if predefined:
             sql0 += "AND relocationFlag=1 "
@@ -5312,10 +5325,7 @@ class DBProxy:
         sql0 += "GROUP BY computingSite,jobStatus"
         sqlA =  "SELECT /*+ index(tab JOBSARCHIVED4_MODTIME_IDX) */ computingSite,jobStatus,COUNT(*) FROM ATLAS_PANDA.jobsArchived4 tab WHERE modificationTime>:modificationTime "
         sqlA += "AND prodSourceLabel IN ("
-        if jobType == "":
-            sqlA += ":prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4,:prodSourceLabel5) "
-        else:
-            sqlA += sqlJobType            
+        sqlA += sqlJobType            
         if predefined:
             sqlA += "AND relocationFlag=1 "
         sqlA += sqlGroups                
@@ -5332,15 +5342,8 @@ class DBProxy:
                     self.conn.begin()
                     # select
                     varMap = {}
-                    if jobType == "":
-                        varMap[':prodSourceLabel1'] = 'managed'
-                        varMap[':prodSourceLabel2'] = 'user'
-                        varMap[':prodSourceLabel3'] = 'panda'
-                        varMap[':prodSourceLabel4'] = 'ddm'
-                        varMap[':prodSourceLabel5'] = 'rc_test'
-                    else:
-                        for tmpJobType in tmpJobTypeMap.keys():
-                            varMap[tmpJobType] = tmpJobTypeMap[tmpJobType]
+                    for tmpJobType in tmpJobTypeMap.keys():
+                        varMap[tmpJobType] = tmpJobTypeMap[tmpJobType]
                     for tmpGroup in tmpGroupMap.keys():
                         varMap[tmpGroup] = tmpGroupMap[tmpGroup]
                     if table != 'ATLAS_PANDA.jobsArchived4':
@@ -5445,7 +5448,7 @@ class DBProxy:
         comment = ' /* DBProxy.getJobStatisticsBrokerage */'        
         _logger.debug("getJobStatisticsBrokerage()")
         sql0 = "SELECT cloud,computingSite,jobStatus,processingType,COUNT(*) FROM %s WHERE "
-        sql0 += "prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4,:prodSourceLabel5) "
+        sql0 += "prodSourceLabel IN (:prodSourceLabel1) "
         sql0 += "GROUP BY cloud,computingSite,jobStatus,processingType"
         tables = ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4']
         ret = {}
@@ -5458,10 +5461,6 @@ class DBProxy:
                     # select
                     varMap = {}
                     varMap[':prodSourceLabel1'] = 'managed'
-                    varMap[':prodSourceLabel2'] = 'user'
-                    varMap[':prodSourceLabel3'] = 'panda'
-                    varMap[':prodSourceLabel4'] = 'ddm'
-                    varMap[':prodSourceLabel5'] = 'rc_test'                    
                     self.cur.arraysize = 10000                        
                     self.cur.execute((sql0+comment) % table, varMap)
                     res = self.cur.fetchall()
@@ -5508,7 +5507,7 @@ class DBProxy:
         comment = ' /* DBProxy.getJobStatisticsAnalBrokerage */'        
         _logger.debug("getJobStatisticsAnalBrokerage(%s)" % minPriority)
         sql0 = "SELECT computingSite,jobStatus,processingType,COUNT(*) FROM %s WHERE "
-        sql0 += "prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4,:prodSourceLabel5) "
+        sql0 += "prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
         if minPriority != None:
             sql0 += "AND currentPriority>=:minPriority "
         sql0 += "GROUP BY cloud,computingSite,jobStatus,processingType"
@@ -5522,11 +5521,8 @@ class DBProxy:
                     self.conn.begin()
                     # select
                     varMap = {}
-                    varMap[':prodSourceLabel1'] = 'managed'
-                    varMap[':prodSourceLabel2'] = 'user'
-                    varMap[':prodSourceLabel3'] = 'panda'
-                    varMap[':prodSourceLabel4'] = 'ddm'
-                    varMap[':prodSourceLabel5'] = 'rc_test'
+                    varMap[':prodSourceLabel1'] = 'user'
+                    varMap[':prodSourceLabel2'] = 'panda'
                     if minPriority != None:
                         varMap[':minPriority'] = minPriority
                     self.cur.arraysize = 10000                        

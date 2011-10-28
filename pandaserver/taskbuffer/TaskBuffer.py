@@ -1340,11 +1340,11 @@ class TaskBuffer:
 
     
     # get job statistics
-    def getJobStatistics(self,archived=False,predefined=False,workingGroup='',countryGroup='',jobType=''):
+    def getJobStatistics(self,archived=False,predefined=False,workingGroup='',countryGroup='',jobType='',forAnal=None):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get serial number
-        ret = proxy.getJobStatistics(archived,predefined,workingGroup,countryGroup,jobType)
+        ret = proxy.getJobStatistics(archived,predefined,workingGroup,countryGroup,jobType,forAnal)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

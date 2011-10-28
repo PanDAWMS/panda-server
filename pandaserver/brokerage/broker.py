@@ -294,7 +294,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             jobStatBrokerClouds = {}
             nRunningMap = {}
         else:
-            jobStatistics = taskBuffer.getJobStatistics()
+            jobStatistics = taskBuffer.getJobStatistics(forAnal=forAnalysis)
             if not forAnalysis:
                 jobStatBroker = {}
                 jobStatBrokerClouds = taskBuffer.getJobStatisticsBrokerage()
