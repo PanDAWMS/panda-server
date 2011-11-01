@@ -23,7 +23,7 @@ _logger = PandaLogger().getLogger('add')
 _logger.debug("===================== start =====================")
 
 # overall timeout value
-overallTimeout = 60
+overallTimeout = 40
 
 # current minute
 currentMinute = datetime.datetime.utcnow().minute
@@ -349,7 +349,10 @@ for file in fileList:
                 tmpList.insert(0,file)
             else:
                 tmpList.append(file)
-fileList = tmpList            
+nFixed = 50
+randTmp = tmpList[nFixed:]
+random.shuffle(randTmp)
+fileList = tmpList[:nFixed] + randTmp
 
 # create thread pool and semaphore
 adderLock = threading.Semaphore(3)

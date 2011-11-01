@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * randomized job order in adder
+  * decreased the number of adder processes
   * added more tight constraint to getJobStatistics family
   * reduced prio by 10 for pilot-retry jobs
   * increased the factor of the RW limit to 8000
