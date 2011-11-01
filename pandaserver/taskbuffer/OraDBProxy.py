@@ -4347,7 +4347,7 @@ class DBProxy:
             varMap = {}
             varMap[':name'] = datasetname
             varMap[':type'] = 'output'
-            sql = "SELECT /*+ INDEX(tab DATASETS_NAME_IDX)*/ COUNT(*) FROM ATLAS_PANDA.Datasets tab WHERE type=:type AND name=:name"
+            sql = "SELECT /*+ INDEX_RS_ASC(TAB (DATASETS.NAME)) */ COUNT(*) FROM ATLAS_PANDA.Datasets tab WHERE type=:type AND name=:name"
             self.cur.arraysize = 100            
             self.cur.execute(sql+comment, varMap)
             res = self.cur.fetchone()
