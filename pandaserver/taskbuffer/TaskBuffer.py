@@ -1263,11 +1263,11 @@ class TaskBuffer:
 
 
     # get serial number for dataset
-    def getSerialNumber(self,datasetname):
+    def getSerialNumber(self,datasetname,definedFreshFlag=None):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get serial number
-        ret = proxy.getSerialNumber(datasetname)
+        ret = proxy.getSerialNumber(datasetname,definedFreshFlag)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

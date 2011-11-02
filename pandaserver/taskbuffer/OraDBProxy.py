@@ -4337,27 +4337,33 @@ class DBProxy:
 
 
     # get serial number for dataset, insert dummy datasets to increment SN
-    def getSerialNumber(self,datasetname):
+    def getSerialNumber(self,datasetname,definedFreshFlag=None):
         comment = ' /* DBProxy.getSerialNumber */'        
         try:
-            _logger.debug("getSerialNumber(%s)" % datasetname)
+            _logger.debug("getSerialNumber(%s,%s)" % (datasetname,definedFreshFlag))
             # start transaction
             self.conn.begin()
-            # select
-            varMap = {}
-            varMap[':name'] = datasetname
-            varMap[':type'] = 'output'
-            sql = "SELECT /*+ INDEX_RS_ASC(TAB (DATASETS.NAME)) */ COUNT(*) FROM ATLAS_PANDA.Datasets tab WHERE type=:type AND name=:name"
-            self.cur.arraysize = 100            
-            self.cur.execute(sql+comment, varMap)
-            res = self.cur.fetchone()
-            # fresh dataset or not
-            if res != None and len(res) != 0 and res[0] > 0:
-                freshFlag = False
+            # check freashness
+            if definedFreshFlag == None:
+                # select
+                varMap = {}
+                varMap[':name'] = datasetname
+                varMap[':type'] = 'output'
+                sql = "SELECT /*+ INDEX_RS_ASC(TAB (DATASETS.NAME)) */ COUNT(*) FROM ATLAS_PANDA.Datasets tab WHERE type=:type AND name=:name"
+                self.cur.arraysize = 100            
+                self.cur.execute(sql+comment, varMap)
+                res = self.cur.fetchone()
+                # fresh dataset or not
+                if res != None and len(res) != 0 and res[0] > 0:
+                    freshFlag = False
+                else:
+                    freshFlag = True
             else:
-                freshFlag = True
+                # use predefined flag
+                freshFlag = definedFreshFlag
             # get serial number
             sql = "SELECT ATLAS_PANDA.SUBCOUNTER_SUBID_SEQ.nextval FROM dual";
+            self.cur.arraysize = 100
             self.cur.execute(sql+comment, {})
             sn, = self.cur.fetchone()            
             # commit

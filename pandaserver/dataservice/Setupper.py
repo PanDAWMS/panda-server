@@ -390,6 +390,7 @@ class Setupper (threading.Thread):
         destError   = {}
         datasetList = {}
         newnameList = {}
+        snGottenDS  = []
         if startIdx == -1:
             jobsList = self.jobs
         else:
@@ -414,12 +415,22 @@ class Setupper (threading.Thread):
                                                             job.processingType in ['pathena','prun','gangarobot-rctest']):
                         # keep original name
                         nameList = [file.destinationDBlock]
-                    else:    
+                    else:
+                        # set freshness to avoid redundant DB lookup
+                        definedFreshFlag = None
+                        if file.destinationDBlock in snGottenDS:
+                            # already checked
+                            definedFreshFlag = False
+                        elif job.prodSourceLabel in ['user','test','prod_test']:
+                            # user or test datasets are always fresh in DB
+                            definedFreshFlag = True
                         # get serial number
-                        sn,freshFlag = self.taskBuffer.getSerialNumber(file.destinationDBlock)
+                        sn,freshFlag = self.taskBuffer.getSerialNumber(file.destinationDBlock,definedFreshFlag)
                         if sn == -1:
-                            destError[dest] = "Setupper._setupDestination() could not get serial num for %s" % name
+                            destError[dest] = "Setupper._setupDestination() could not get serial num for %s" % file.destinationDBlock
                             continue
+                        if not file.destinationDBlock in snGottenDS:
+                            snGottenDS.append(file.destinationDBlock)
                         # new dataset name
                         newnameList[dest] = "%s_sub0%s" % (file.destinationDBlock,sn)
                         if freshFlag or self.resetLocation:

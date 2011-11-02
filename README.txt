@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * removed redundant freshness checks in getSN
   * changed hint in getSerialNumber
   * randomized job order in adder
   * decreased the number of adder processes
