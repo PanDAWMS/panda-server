@@ -136,8 +136,8 @@ def _setReadyToFiles(tmpJob,okFiles,siteMapper):
                     # set ready anyway even if LFC is down. i.e. okFiles doesn't contain the file
                     tmpFile.status = 'ready'
                     tmpFile.dispatchDBlock = 'NULL'                                
-            elif ((tmpFile.lfn in okFiles) or (tmpJob.computingSite == tmpJob.destinationSE)) \
-                     and (not tmpJob.computingSite in prestageSites):
+            elif (((tmpFile.lfn in okFiles) or (tmpJob.computingSite == tmpJob.destinationSE)) \
+                     and (not tmpJob.computingSite in prestageSites)) or tmpFile.status == 'missing':
                 # set ready if the file exists and the site doesn't use prestage
                 tmpFile.status = 'ready'
                 tmpFile.dispatchDBlock = 'NULL'                                
@@ -230,10 +230,51 @@ def sendMsgToLoggerHTTP(msgList,job):
         _log.error("sendMsgToLoggerHTTP : %s %s" % (errType,errValue))
     
 
+# get T2 candidates when files are missing at T2
+def getT2CandList(tmpJob,siteMapper,t2FilesMap):
+    if tmpJob == None:
+        return []
+    # no cloud info
+    if not t2FilesMap.has_key(tmpJob.cloud):
+        return []
+    # loop over all files
+    tmpCandT2s = None
+    for tmpFile in tmpJob.Files:
+        if tmpFile.type == 'input' and tmpFile.status == 'missing':
+            # no dataset info
+            if not t2FilesMap[tmpJob.cloud].has_key(tmpFile.dataset):
+                return []
+            # initial candidates
+            if tmpCandT2s == None:
+                tmpCandT2s = t2FilesMap[tmpJob.cloud][tmpFile.dataset]['sites']
+            # check all candidates
+            newCandT2s = []
+            for tmpCandT2 in tmpCandT2s:
+                # site doesn't have the dataset
+                if not t2FilesMap[tmpJob.cloud][tmpFile.dataset]['sites'].has_key(tmpCandT2):
+                    continue
+                # site has the file
+                if tmpFile.lfn in t2FilesMap[tmpJob.cloud][tmpFile.dataset]['sites'][tmpCandT2]:
+                    if not tmpCandT2 in newCandT2s:
+                        newCandT2s.append(tmpCandT2)
+            # set new candidates
+            tmpCandT2s = newCandT2s
+            if tmpCandT2s == []:
+                break
+    # return [] if no missing files         
+    if tmpCandT2s == None:
+        return []
+    # return
+    tmpCandT2s.sort() 
+    return tmpCandT2s 
+
+
+
 # schedule
 def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],trustIS=False,
              distinguishedName=None,specialWeight={},getWeight=False,sizeMapForCheck={},
-             datasetSize=0,replicaMap={},pd2pT1=False,reportLog=False,minPriority=None):
+             datasetSize=0,replicaMap={},pd2pT1=False,reportLog=False,minPriority=None,
+             t2FilesMap={}):
     _log.debug('start %s %s %s %s minPrio=%s' % (forAnalysis,str(setScanSiteList),trustIS,
                                                  distinguishedName,minPriority))
     if specialWeight != {}:
@@ -271,6 +312,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
     prevDirectAcc  = None
     prevBrokergageSiteList = None
     prevManualPreset = None
+    prevGoToT2Flag = None
     
     nWNmap = {}
     indexJob = 0
@@ -321,6 +363,15 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 continue
             # list of sites for special brokerage
             specialBrokergageSiteList = []
+            # send jobs to T2 when files are missing at T1
+            goToT2Flag = False
+            if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
+                   and specialBrokergageSiteList == []:
+                currentT2CandList = getT2CandList(job,siteMapper,t2FilesMap)
+                if currentT2CandList != []:
+                    goToT2Flag = True
+                    specialBrokergageSiteList = currentT2CandList
+                    _log.debug('PandaID:%s -> set SiteList=%s to use T2 for missing files at T1' % (job.PandaID,specialBrokergageSiteList))
             # hack for split T1
             if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
                and job.cloud == 'NL' and specialBrokergageSiteList == []:
@@ -407,6 +458,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     _log.debug('  computingSite  %s' % computingSite)
                     _log.debug('  processingType %s' % prevProType)
                     _log.debug('  transferType   %s' % prevDirectAcc)
+                    _log.debug('  goToT2         %s' % prevGoToT2Flag)
                 # determine site
                 if (iJob == 0 or chosen_ce != 'TOBEDONE') and prevBrokergageSiteList in [None,[]]:
                      # file scan for pre-assigned jobs
@@ -887,7 +939,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 tmpJob.computingElement = None
                             # go to waiting
                             tmpJob.jobStatus          = 'waiting'
-                            tmpJob.brokerageErrorCode = ErrorCode.EC_Release                            
+                            tmpJob.brokerageErrorCode = ErrorCode.EC_Release
                             if tmpJob.relocationFlag == 1:
                                 if useCacheVersion:
                                     tmpJob.brokerageErrorDiag = '%s/%s not found at %s' % (tmpJob.homepackage,tmpJob.cmtConfig,tmpJob.computingSite)
@@ -902,6 +954,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     tmpJob.brokerageErrorDiag = '%s/%s not found at %s' % (tmpJob.homepackage,tmpJob.cmtConfig,tmpSiteStr)
                                 else:
                                     tmpJob.brokerageErrorDiag = '%s/%s not found at %s' % (tmpJob.AtlasRelease,tmpJob.cmtConfig,tmpSiteStr)
+                                if prevGoToT2Flag:
+                                    tmpJob.brokerageErrorDiag += ' where missing files are available'
                             elif prevProType in ['reprocessing']:
                                 tmpJob.brokerageErrorDiag = '%s/%s not found at reprocessing sites' % (tmpJob.homepackage,tmpJob.cmtConfig)
                             elif not useCacheVersion:
@@ -910,7 +964,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 tmpJob.brokerageErrorDiag = '%s/%s not found at online sites' % (tmpJob.homepackage,tmpJob.cmtConfig)
                             _log.debug(tmpJob.brokerageErrorDiag)
                             continue
-                        # set 'ready' if files are already there
+                        # set ready if files are already there
                         _setReadyToFiles(tmpJob,okFiles,siteMapper)                        
                         # update statistics
                         tmpProGroup = ProcessGroups.getProcessGroup(tmpJob.processingType)
@@ -983,6 +1037,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             prevDirectAcc   = job.transferType
             prevBrokergageSiteList = specialBrokergageSiteList
             prevManualPreset = manualPreset
+            prevGoToT2Flag  = goToT2Flag
             # assign site
             if chosen_ce != 'TOBEDONE':
                 job.computingSite = chosen_ce.sitename
@@ -1020,7 +1075,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             for file in job.Files:
                 # dispatchDBlock. Set dispDB for prestaging jobs too
                 if file.type == 'input' and file.dispatchDBlock == 'NULL' and \
-                   (file.status != 'ready' or job.computingSite in prestageSites):
+                   ((not file.status in ['ready','missing']) or job.computingSite in prestageSites):
                     if first:
                         first = False
                         job.dispatchDBlock = dispatchDBlock

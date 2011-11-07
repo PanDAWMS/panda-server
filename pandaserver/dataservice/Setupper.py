@@ -23,6 +23,7 @@ from brokerage.SiteMapper import SiteMapper
 from brokerage.PandaSiteIDs import PandaMoverIDs
 import brokerage.broker
 import brokerage.broker_util
+import DataServiceUtils
 
 
 from config import panda_config
@@ -69,6 +70,8 @@ class Setupper (threading.Thread):
         self.resetLocation = resetLocation
         # replica map for special brokerage
         self.replicaMapForBroker = {}
+        # available files at T2
+        self.availableLFNsInT2 = {}
         
     # main
     def run(self):
@@ -88,7 +91,8 @@ class Setupper (threading.Thread):
                     # invoke brokerage
                     _logger.debug('%s brokerSchedule' % self.timestamp)        
                     brokerage.broker.schedule(self.jobs,self.taskBuffer,self.siteMapper,
-                                              replicaMap=self.replicaMapForBroker)
+                                              replicaMap=self.replicaMapForBroker,
+                                              t2FilesMap=self.availableLFNsInT2)
                     # remove waiting jobs
                     self.removeWaitingJobs()
                     # setup dispatch dataset
@@ -858,17 +862,24 @@ class Setupper (threading.Thread):
                                 if seTokens.has_key('ATLASPRODDISK'):
                                     dq2ID = seTokens['ATLASPRODDISK']
                         # register subscription        
-                        _logger.debug((self.timestamp,'registerDatasetSubscription',job.dispatchDBlock,dq2ID,0,0,optSub,optSource,optSrcPolicy,0,None,0,"production",None,"Production",None,"7 days"))
+                        _logger.debug('%s %s %s %s' % (self.timestamp,'registerDatasetSubscription',
+                                                       (job.dispatchDBlock,dq2ID),
+                                                       {'version':0,'archived':0,'callbacks':optSub,'sources':optSource,'sources_policy':optSrcPolicy,
+                                                        'wait_for_sources':0,'destination':None,'query_more_sources':0,'sshare':"production",'group':None,
+                                                        'activity':"Production",'acl_alias':None,'replica_lifetime':"7 days"}))
                         for iDDMTry in range(3):                                                                
-                            status,out = ddm.DQ2.main('registerDatasetSubscription',job.dispatchDBlock,dq2ID,0,0,optSub,optSource,optSrcPolicy,0,None,0,"production",None,"Production",None,"7 days")
+                            status,out = ddm.DQ2.main('registerDatasetSubscription',job.dispatchDBlock,dq2ID,version=0,archived=0,callbacks=optSub,
+                                                      sources=optSource,sources_policy=optSrcPolicy,wait_for_sources=0,destination=None,
+                                                      query_more_sources=0,sshare="production",group=None,activity="Production",
+                                                      acl_alias=None,replica_lifetime="7 days")
                             if status != 0 or out.find("DQ2 internal server exception") != -1 \
                                    or out.find("An error occurred on the central catalogs") != -1 \
                                    or out.find("MySQL server has gone away") != -1:
                                 time.sleep(60)
                             else:
                                 break
-                        _logger.debug("%s %s" % (self.timestamp,out))                    
-                        if status != 0 or out != 'None':
+                        _logger.debug("%s %s" % (self.timestamp,out))
+                        if status != 0 or (out != 'None' and len(out) != 35):
                             _logger.error(out)
                             dispError[disp] = "Setupper._subscribeDistpatchDB() could not register subscription"
                         # logging
@@ -1057,6 +1068,7 @@ class Setupper (threading.Thread):
         allLFNs  = {}
         allGUIDs = {}
         cloudMap = {}
+        lfnDsMap = {}
         replicaMap = {}
         for job in self.jobs:
             if self.onlyTA:            
@@ -1180,15 +1192,14 @@ class Setupper (threading.Thread):
                                         lfnMap[dataset][genLFN] = vals['lfn']
                                 else:
                                     lfnMap[dataset][genLFN] = vals['lfn']
-                            
+                                # mapping from LFN to DS
+                                lfnDsMap[lfnMap[dataset][genLFN]] = dataset
                         except:
                             prodError[dataset] = 'could not convert HTTP-res to map for prodDBlock %s' % dataset
                             _logger.error(prodError[dataset])
                             _logger.error(out)
                     # get replica locations        
-                    #if self.onlyTA and prodError[dataset] == '' and (not replicaMap.has_key(dataset)):
-                    # hack for split T1
-                    if (self.onlyTA or (job.cloud == 'NL' and job.prodSourceLabel in ['managed','test'])) \
+                    if (self.onlyTA or job.prodSourceLabel in ['managed','test']) \
                            and prodError[dataset] == '' and (not replicaMap.has_key(dataset)):
                         if dataset.endswith('/'):
                             status,out = self.getListDatasetReplicasInContainer(dataset)
@@ -1395,7 +1406,42 @@ class Setupper (threading.Thread):
             if not missLFNs.has_key(cloudKey):
                 missLFNs[cloudKey] = []
             missLFNs[cloudKey] += tmpMissLFNs
+        # check availability of missing files at T2
+        for cloudKey,tmpMissLFNs in missLFNs.iteritems():
+            # add cloud
+            if not self.availableLFNsInT2.has_key(cloudKey):
+                self.availableLFNsInT2[cloudKey] = {}
+            # loop over all missing files to find datasets
+            for tmpMissLFN in tmpMissLFNs:
+                # add dataset
+                tmpDsName = lfnDsMap[tmpMissLFN]
+                if not self.availableLFNsInT2[cloudKey].has_key(tmpDsName):
+                    self.availableLFNsInT2[cloudKey][tmpDsName] = {'allfiles':[],'allguids':[],'sites':{}}
+                    # collect sites
+                    for tmpSiteName in DataServiceUtils.getSitesWithDataset(tmpDsName,self.siteMapper,replicaMap,cloudKey):
+                        self.availableLFNsInT2[cloudKey][tmpDsName]['sites'][tmpSiteName] = []
+                # add files    
+                if not tmpMissLFN in self.availableLFNsInT2[cloudKey][tmpDsName]:
+                    self.availableLFNsInT2[cloudKey][tmpDsName]['allfiles'].append(tmpMissLFN)
+                    self.availableLFNsInT2[cloudKey][tmpDsName]['allguids'].append(allGUIDs[cloudKey][allLFNs[cloudKey].index(tmpMissLFN)])
+                # get available files at each T2
+                for tmpSiteName in self.availableLFNsInT2[cloudKey][tmpDsName]['sites'].keys():
+                    tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
+                    # get SEs
+                    tmpSEList = []
+                    if tmpSiteSpec.se != None:
+                        for tmpSrcSiteSE in tmpSiteSpec.se.split(','):
+                            match = re.search('.+://([^:/]+):*\d*/*',tmpSrcSiteSE)
+                            if match != None:
+                                tmpSEList.append(match.group(1))
+                    # get available file list    
+                    self.availableLFNsInT2[cloudKey][tmpDsName]['sites'][tmpSiteName] = \
+                        brokerage.broker_util.getFilesFromLRC(self.availableLFNsInT2[cloudKey][tmpDsName]['allfiles'],
+                                                              'lfc://'+tmpSiteSpec.lfchost+':/grid/atlas/',
+                                                              self.availableLFNsInT2[cloudKey][tmpDsName]['allguids'],
+                                                              storageName=tmpSEList)
         _logger.debug('%s missLFNs %s' % (self.timestamp,missLFNs))
+        _logger.debug('%s available at T2s %s' % (self.timestamp,self.availableLFNsInT2))
         # check if files in source LRC/LFC
         tmpJobList = tuple(jobsProcessed)
         for job in tmpJobList:
@@ -1411,15 +1457,51 @@ class Setupper (threading.Thread):
                     if missLFNs.has_key(job.cloud) and file.lfn in missLFNs[job.cloud]:
                         # set file status
                         file.status = 'missing'
-                        # remove job not to process further
-                        if not missingFlag:
-                            missingFlag = True
-                            jobsProcessed.remove(job)
-                            # revert
-                            for oJob in self.jobs:
-                                if oJob.PandaID == job.PandaID:
-                                    jobsWaiting.append(oJob)
-                                    break
+                        missingFlag = True
+            # check if missing files are available at T2s
+            goToT2 = None
+            if missingFlag:
+                tmpCandT2s = None
+                for tmpFile in job.Files:
+                    if tmpFile.type == 'input' and tmpFile.status == 'missing':
+                        # no cloud info
+                        if not self.availableLFNsInT2.has_key(job.cloud):
+                            goToT2 = False 
+                            break
+                        # no dataset info
+                        if not self.availableLFNsInT2[job.cloud].has_key(tmpFile.dataset):
+                            goToT2 = False                             
+                            break
+                        # initial candidates
+                        if tmpCandT2s == None:
+                            tmpCandT2s = self.availableLFNsInT2[job.cloud][tmpFile.dataset]['sites']
+                        # check all candidates    
+                        newCandT2s = []    
+                        for tmpCandT2 in tmpCandT2s:
+                            # site doesn't have the dataset
+                            if not self.availableLFNsInT2[job.cloud][tmpFile.dataset]['sites'].has_key(tmpCandT2):
+                                continue
+                            # site has the file
+                            if tmpFile.lfn in self.availableLFNsInT2[job.cloud][tmpFile.dataset]['sites'][tmpCandT2]:
+                                if not tmpCandT2 in newCandT2s:
+                                    newCandT2s.append(tmpCandT2)
+                        # set new candidates
+                        tmpCandT2s = newCandT2s
+                        # no candidates left
+                        if tmpCandT2s == []:
+                            goToT2 = False
+                            break
+                # go to T2
+                if goToT2 == None:
+                    goToT2 = True
+            # remove job not to process further
+            if missingFlag and goToT2 != True:
+                jobsProcessed.remove(job)
+                # revert
+                for oJob in self.jobs:
+                    if oJob.PandaID == job.PandaID:
+                        jobsWaiting.append(oJob)
+                        break
         # set data summary fields
         for tmpJob in self.jobs:
             try:

@@ -1,5 +1,9 @@
 Release Note
 
+* current
+  * updated TA and brokerage to use T2 datasets in prod
+  * updated for DQ2 client 0.1.37
+
 * 0.0.15 (11/07/2011)
   * removed redundant freshness checks in getSN
   * changed hint in getSerialNumber

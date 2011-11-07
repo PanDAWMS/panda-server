@@ -29,7 +29,7 @@ class _DQMethod:
         self.methodName = methodName
 
     # method emulation
-    def __call__(self,*args):
+    def __call__(self,*args,**kwargs):
         # main method has disappeared since 0.3
         args = list(args)
         if self.methodName == 'main':
@@ -50,16 +50,20 @@ class _DQMethod:
         # expand args
         for i in range(len(args)):
             arg = args[i]
-            if i != 0:
-                com += ','
             if isinstance(arg,types.StringType):
                 # check invalid characters
                 for invCh in ['"',"'",'(',')',';']:
                     if invCh in arg:
                         return -1,"invalid character %s in %s" % (invCh,arg)
-                com = "%s'%s'" % (com,arg)
+                com = "%s'%s'," % (com,arg)
             else:
-                com = '%s%s' % (com,str(arg))
+                com = '%s%s,' % (com,str(arg))
+        for tmpK,tmpV in kwargs.iteritems():
+            if isinstance(tmpV,types.StringType):
+                com += "%s='%s'," % (tmpK,tmpV)
+            else:
+                com += "%s=%s," % (tmpK,tmpV)
+        com = com[:-1]        
         com += ")"
         # loop over iterator
         if self.moduleName == 'DQ2_iter':

@@ -281,7 +281,7 @@ def _getPFNFromLFC(lfns,dq2url,guids,storageName):
 
 # get files from LRC
 def getFilesFromLRC(files,url,guids=[],storageName=[],terminateWhenFailed=False,getPFN=False):
-    _log.debug('getFilesFromLRC "%s"' % url)    
+    _log.debug('getFilesFromLRC "%s" %s' % (url,str(storageName)))    
     # get PFC
     outSTR = ''
     if url.startswith('mysql://'):

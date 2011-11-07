@@ -613,14 +613,22 @@ class Adder (threading.Thread):
             # make DQ2 subscription for prod jobs
             for tmpName,tmpVal in subMap.iteritems():
                 for dq2ID,optSub,optSource in tmpVal:
-                    _logger.debug((self.jobID,'registerDatasetSubscription',tmpName,dq2ID,0,0,optSub,
-                                   optSource,001000 | 010000,0,None,0,"production",None,subActivity,None,"14 days"))
+                    _logger.debug("%s %s %s %s" % (self.jobID,'registerDatasetSubscription',
+                                                   (tmpName,dq2ID),
+                                                   {'version':0,'archived':0,'callbacks':optSub,
+                                                    'sources':optSource,'sources_policy':(001000 | 010000),
+                                                    'wait_for_sources':0,'destination':None,'query_more_sources':0,
+                                                    'sshare':"production",'group':None,'activity':subActivity,
+                                                    'acl_alias':None,'replica_lifetime':"14 days"}))
                     for iDDMTry in range(3):
                         out = 'OK'
                         isFailed = False                        
                         try:                        
-                            self.dq2api.registerDatasetSubscription(tmpName,dq2ID,0,0,optSub,optSource,001000 | 010000,0,None,0,
-                                                                    "production",None,subActivity,None,"14 days")
+                            self.dq2api.registerDatasetSubscription(tmpName,dq2ID,version=0,archived=0,callbacks=optSub,
+                                                                    sources=optSource,sources_policy=(001000 | 010000),
+                                                                    wait_for_sources=0,destination=None,query_more_sources=0,
+                                                                    sshare="production",group=None,activity=subActivity,
+                                                                    acl_alias=None,replica_lifetime="14 days")
                         except DQ2.DQSubscriptionExistsException:
                             # harmless error
                             errType,errValue = sys.exc_info()[:2]

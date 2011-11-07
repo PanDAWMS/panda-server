@@ -565,8 +565,10 @@ class DynDataDistributer:
         for iDDMTry in range(nTry):
             # register subscription
             self.putLog('%s/%s registerDatasetSubscription %s %s' % (iDDMTry,nTry,dataset,dq2ID))
-            status,out = ddm.DQ2.main('registerDatasetSubscription',dataset,dq2ID,0,0,{},{},optSrcPolicy,
-                                      0,None,0,"production",None,'Data Brokering','secondary')
+            status,out = ddm.DQ2.main('registerDatasetSubscription',dataset,dq2ID,version=0,archived=0,
+                                      callbacks={},sources={},sources_policy=optSrcPolicy,
+                                      wait_for_sources=0,destination=None,query_more_sources=0,
+                                      sshare="production",group=None,activity='Data Brokering',acl_alias='secondary')
             if out.find('DQSubscriptionExistsException') != -1:
                 break
             elif out.find('DQLocationExistsException') != -1:
