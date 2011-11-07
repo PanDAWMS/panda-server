@@ -601,7 +601,7 @@ class TaskAssigner:
             if not tmpSiteSpec.status in ['online']:
                 continue
             # no size limit
-            if tmpSiteSpec.maxinputsize == 0:
+            if tmpSiteSpec.maxinputsize in [0,None,'']:
                 return True
             # enough space for input
             if int(tmpSiteSpec.maxinputsize) >= int(diskCount):
