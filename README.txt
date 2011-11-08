@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * disabled prio boost for gangarobot derivatives
   * added protection to TA against undefined maxinputsize
   * updated TA and brokerage to use T2 datasets in prod
   * updated for DQ2 client 0.1.37
