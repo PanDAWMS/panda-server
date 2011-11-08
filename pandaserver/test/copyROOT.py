@@ -60,8 +60,22 @@ try:
     # quit        
     output = ftp.quit()
     _logger.debug(output)
+    # make list
+    listFileName = 'applist'
+    listFilePath = '%s/%s' % (destDir,listFileName)
+    listFile = open(listFilePath,'w')
+    for tmpFile in os.listdir(destDir):
+        # skip hidden files
+        if tmpFile.startswith('.'):
+            continue
+        # skip applist
+        if tmpFile == listFileName:
+            continue
+        listFile.write('%s\n' % tmpFile)
+    listFile.close()    
 except:
     errType,errValue = sys.exc_info()[:2]
     _logger.error("Failed with %s %s" % (errType,errValue))
+
 
 _logger.debug("===================== end =====================")
