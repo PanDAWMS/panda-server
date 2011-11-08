@@ -51,6 +51,7 @@ RedirectMatch 403 "/panda.py$"
 
 Alias /trf/ "@@install_dir@@/var/trf/"
 Alias /cache/ "@@install_dir@@/var/cache/pandaserver/"
+Alias /appdir/ "@@install_dir@@/var/appdir/"
 
 <Directory "@@install_dir@@/var/cache/pandaserver">
     Options FollowSymLinks
@@ -58,6 +59,10 @@ Alias /cache/ "@@install_dir@@/var/cache/pandaserver/"
     Order allow,deny
     Allow from all
     Deny from 192.203.218.14
+</Directory>
+
+<Directory "@@install_dir@@/var/appdir">
+    Options +Indexes
 </Directory>
 
 <Directory "@@install_dir@@/var/cache/pandaserver/schedconfig">

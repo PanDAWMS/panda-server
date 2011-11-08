@@ -148,7 +148,8 @@ class Adder (threading.Thread):
                         re.search('DQUnknownDatasetException',self.job.ddmErrorDiag) == None and \
                         re.search('DQFileMetaDataMismatchException',self.job.ddmErrorDiag) == None and \
                         re.search('Exceeded the maximum number of files',self.job.ddmErrorDiag) == None and \
-                        re.search('KeyError',self.job.ddmErrorDiag) == None:                       
+                        re.search('KeyError',self.job.ddmErrorDiag) == None and \
+                        not self.job.ddmErrorCode in [ErrorCode.EC_Subscription]:                       
                     _logger.debug('%s : ignore %s ' % (self.jobID,self.job.ddmErrorDiag))
                     _logger.debug('%s escape' % self.jobID)
                     # unlock XML
@@ -638,13 +639,25 @@ class Adder (threading.Thread):
                             errType,errValue = sys.exc_info()[:2]
                             out = '%s : %s' % (errType,errValue)
                             isFailed = True
-                            time.sleep(60)
+                            if 'is not a Tiers of Atlas Destination' in str(errValue) or \
+                                   'is not in Tiers of Atlas' in str(errValue):
+                                # fatal error
+                                self.job.ddmErrorCode = ErrorCode.EC_Subscription
+                            else:
+                                # retry for temporary errors
+                                time.sleep(60)
                         else:
                             break
                     if isFailed:
                         _logger.error('%s %s' % (self.jobID,out))
-                        self.job.ddmErrorCode = ErrorCode.EC_Adder                
-                        self.job.ddmErrorDiag = "Adder._updateOutputs() could not register subscription : %s" % tmpName
+                        if self.job.ddmErrorCode == ErrorCode.EC_Subscription:
+                            # fatal error
+                            self.job.ddmErrorDiag = "subscription failure with %s" % out
+                            self.job.jobStatus = 'failed'                            
+                        else:
+                            # temoprary errors
+                            self.job.ddmErrorCode = ErrorCode.EC_Adder                
+                            self.job.ddmErrorDiag = "Adder._updateOutputs() could not register subscription : %s" % tmpName
                         return
                     _logger.debug('%s %s' % (self.jobID,out))                                                        
                     # set dataset status
