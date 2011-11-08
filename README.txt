@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added copyROOT
   * updated Adder to immediately go to failed when subscription failures 
   * disabled prio boost for gangarobot derivatives
   * added protection to TA against undefined maxinputsize

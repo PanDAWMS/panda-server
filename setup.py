@@ -179,6 +179,7 @@ setup(
                 ('usr/bin', ['templates/panda_server-add.sh.exe.template',
                              'templates/panda_server-priority.sh.exe.template',
                              'templates/panda_server-copyArchive.sh.exe.template',
+                             'templates/panda_server-copyROOT.sh.exe.template',                             
                              'templates/panda_server-archivelog.sh.exe.template',
                              'templates/panda_server-backupJobArch.sh.exe.template',
                              'templates/panda_server-deleteJobs.sh.exe.template',
