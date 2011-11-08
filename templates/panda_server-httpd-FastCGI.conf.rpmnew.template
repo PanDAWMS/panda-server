@@ -61,10 +61,6 @@ Alias /appdir/ "@@install_dir@@/var/appdir/"
     Deny from 192.203.218.14
 </Directory>
 
-<Directory "@@install_dir@@/var/appdir">
-    Options +Indexes
-</Directory>
-
 <Directory "@@install_dir@@/var/cache/pandaserver/schedconfig">
     Header Set Cache-Control "max-age=0, no-store"
 </Directory>
