@@ -79,7 +79,7 @@ class ReBroker (threading.Thread):
                 _logger.debug("%s end" % self.token)
                 return
             # check processingType
-            typesForRebro = ['pathena','prun','ganga-rbtest']
+            typesForRebro = ['pathena','prun','ganga','ganga-rbtest']
             if not self.job.processingType in typesForRebro:
                 _logger.debug("%s skip processingType=%s not in %s" % \
                               (self.token,self.job.processingType,str(typesForRebro)))

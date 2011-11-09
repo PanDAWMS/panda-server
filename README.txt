@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * enabled rebrokerage for processingType=ganga
   * updated Adder for unique constraint error
   * added copyROOT
   * updated Adder to immediately go to failed when subscription failures 
