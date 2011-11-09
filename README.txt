@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * updated Adder for unique constraint error
   * added copyROOT
   * updated Adder to immediately go to failed when subscription failures 
   * disabled prio boost for gangarobot derivatives

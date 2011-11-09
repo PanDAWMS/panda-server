@@ -569,7 +569,9 @@ class Adder (threading.Thread):
             _logger.debug((self.jobID, 'registerFilesInDatasets',idMap))
             isFailed = False
             isFatal  = False
+            setErrorDiag = False
             out = 'OK'
+            fatalErrStrs = ['[ORA-00001] unique constraint (ATLAS_DQ2.UQ_01_FILES_GUID) violated']
             try:
                 if not self.useCentralLFC():
                     self.dq2api.registerFilesInDatasets(idMap)
@@ -592,6 +594,11 @@ class Adder (threading.Thread):
                 # unknown errors
                 errType,errValue = sys.exc_info()[:2]
                 out = '%s : %s' % (errType,errValue)
+                for tmpFatalErrStr in fatalErrStrs:
+                    if tmpFatalErrStr in str(errValue):
+                        self.job.ddmErrorDiag = 'failed to add files : ' + tmpFatalErrStr
+                        setErrorDiag = True
+                        break
                 isFatal = True
             # failed
             if isFailed or isFatal:
@@ -599,8 +606,9 @@ class Adder (threading.Thread):
                 if (iTry+1) == nTry or isFatal:
                     self.job.jobStatus = 'failed'
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
-                    errMsg = "Adder._updateOutputs() could not add files : "
-                    self.job.ddmErrorDiag = errMsg + out.split('\n')[-1]
+                    if not setErrorDiag:
+                        errMsg = "Adder._updateOutputs() could not add files : "
+                        self.job.ddmErrorDiag = errMsg + out.split('\n')[-1]
                     return
                 _logger.error("%s Try:%s" % (self.jobID,iTry))
                 # sleep
