@@ -566,7 +566,6 @@ class Adder (threading.Thread):
                 break
             # add data to datasets
             time.sleep(1)
-            _logger.debug((self.jobID, 'registerFilesInDatasets',idMap))
             isFailed = False
             isFatal  = False
             setErrorDiag = False
@@ -574,8 +573,10 @@ class Adder (threading.Thread):
             fatalErrStrs = ['[ORA-00001] unique constraint (ATLAS_DQ2.UQ_01_FILES_GUID) violated']
             try:
                 if not self.useCentralLFC():
+                    _logger.debug('%s %s %s' % (self.jobID,'registerFilesInDatasets',str(idMap)))
                     self.dq2api.registerFilesInDatasets(idMap)
                 else:
+                    _logger.debug('%s %s %s' % (self.jobID,'Register.registerFilesInDatasets',str(idMap)))                    
                     registerAPI = Register2.Register(self.siteMapper.getSite(self.job.computingSite).ddm)
                     out = registerAPI.registerFilesInDatasets(idMap)
             except DQ2.DQFileExistsInDatasetException:

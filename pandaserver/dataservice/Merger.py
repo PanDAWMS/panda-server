@@ -25,7 +25,7 @@ _logger = PandaLogger().getLogger('Merger')
 class Merger:
 
     # constructor
-    def __init__(self,taskBuffer,job,simulFlag=False):
+    def __init__(self,taskBuffer,job,simulFlag=False,noSubmit=False):
         self.taskBuffer   = taskBuffer
         self.job          = job
         self.mergeType    = ""
@@ -34,6 +34,9 @@ class Merger:
         self.mergeTypeMap = {}        
         self.supportedMergeType = ['hist','ntuple','pool','user','log','text']
         self.simulFlag    = simulFlag
+        self.noSubmit     = noSubmit
+        self.dsContMergeLog = ""
+        self.fileDestSeMap = {}
 
 
     # parse jobParameters and get mergeType specified by the client
@@ -275,6 +278,9 @@ class Merger:
                 if not tmpFile.type in ['log','output']:
                     continue
                 tmpContName = tmpFile.dataset
+                # extend logfile container name with ".merge.log" for storing logs of the merging operation
+                if tmpFile.type == 'log' and not self.dsContMergeLog:
+                    self.dsContMergeLog = re.sub('/$','.merge.log/',tmpFile.dataset)
                 tmpSubDsName = tmpFile.destinationDBlock
                 # remove _sub
                 tmpDsName = re.sub('_sub\d+$','',tmpSubDsName)
@@ -282,6 +288,10 @@ class Merger:
                 if not tmpKey in dsList:
                     dsList.append(tmpKey)
                     dsSubDsMap[tmpDsName] = tmpSubDsName
+                # get type
+                tmpMatch = self.getFileType(tmpFile.lfn)
+                if tmpMatch != None:
+                    self.fileDestSeMap[tmpMatch] = tmpFile.destinationSE
             # loop over all datasets
             mergeJobList = {}
             for tmpContName,tmpDsName in dsList:
@@ -371,7 +381,7 @@ class Merger:
                             mergeJobList[tmpDsName] = []
                         mergeJobList[tmpDsName].append(tmpMergeJob)
             # terminate simulation
-            if self.simulFlag:
+            if self.simulFlag and not self.noSubmit:
                 _logger.debug("%s end simulation" % self.job.PandaID)
                 return True
             # get list of new datasets
@@ -392,6 +402,39 @@ class Merger:
             tmpRealDN = re.sub('/CN=limited proxy','',tmpRealDN)
             tmpRealDN = re.sub('/CN=proxy','',tmpRealDN)
             tmpRealDN = dq2.common.parse_dn(tmpRealDN)
+            # register container for merge log files
+            if self.dsContMergeLog:
+                # register new container for the logs of merging operation
+                _logger.debug("%s registerContainer %s" % (self.job.PandaID, self.dsContMergeLog))
+                nTry = 3
+                for iTry in range(nTry):
+                    try:
+                        self.dq2api.registerContainer(self.dsContMergeLog)
+                        break
+                    except DQ2.DQDatasetExistsException:
+                        break
+                    except:
+                        if (iTry+1) == nTry:
+                            errType,errValue = sys.exc_info()[:2]
+                            _logger.error("%s DQ2 failed with %s:%s to register new container %s" % (self.job.PandaID,errType,errValue,self.dsContMergeLog))
+                            _logger.debug("%s end" % self.job.PandaID)
+                            return False
+                        # sleep
+                        time.sleep(60)
+                # set container owner
+                _logger.debug("%s setMetaDataAttribute %s %s" % (self.job.PandaID, self.dsContMergeLog, tmpRealDN))
+                nTry = 3
+                for iTry in range(nTry):
+                    try:
+                        self.dq2api.setMetaDataAttribute(self.dsContMergeLog, 'owner', tmpRealDN)
+                    except:
+                        if (iTry+1) == nTry:
+                            errType,errValue = sys.exc_info()[:2]
+                            _logger.error("%s DQ2 failed with %s:%s to set owner for %s" % (self.job.PandaID,errType,errValue,self.dsContMergeLog))
+                            _logger.debug("%s end" % self.job.PandaID)
+                            return False
+                        # sleep
+                        time.sleep(60)
             # register datasets
             for tmpDsContainer,tmpNewDatasets in newDatasetMap.iteritems():
                 # loop over all datasets
@@ -445,6 +488,10 @@ class Merger:
                                 return False
                             # sleep
                             time.sleep(60)
+            # no submission
+            if self.noSubmit:
+                _logger.debug("%s end with no submission" % self.job.PandaID)
+                return True
             # submit new jobs                 
             _logger.debug("%s submit jobs" % self.job.PandaID)                            
             # fake FQANs
@@ -513,6 +560,7 @@ class Merger:
         tmpJob.transformation    = "http://pandaserver.cern.ch:25080/trf/user/runMerge-00-00-01"
         # decompose fileType
         filePrefix,fileSuffix,containerName,datasetName = fileType
+        fileTypeKey = (filePrefix,fileSuffix)
         # output dataset name
         outDsName = datasetName+'.merge'
         # job parameter
@@ -593,7 +641,10 @@ class Merger:
            not tmpFile.lfn.endswith('.tar.gz'):
             tmpFile.lfn += '.tgz'
         tmpFile.destinationDBlock = outDsName
-        tmpFile.destinationSE     = self.job.destinationSE
+        if self.fileDestSeMap.has_key(fileTypeKey):
+            tmpFile.destinationSE     = self.fileDestSeMap[fileTypeKey]
+        else:
+            tmpFile.destinationSE     = self.job.destinationSE
         tmpFile.dataset           = containerName
         tmpFile.type = 'output'
         tmpJob.addFile(tmpFile)
@@ -606,9 +657,9 @@ class Merger:
             logPrefix = filePrefix
         tmpFile = FileSpec()
         tmpFile.lfn = '%s._$PANDAID.log.tgz' % logPrefix
-        tmpFile.destinationDBlock = outDsName
-        tmpFile.destinationSE     = self.job.destinationSE
-        tmpFile.dataset           = containerName
+        tmpFile.destinationDBlock = outDsName + ".log"
+        tmpFile.destinationSE     = tmpJob.computingSite
+        tmpFile.dataset           = self.dsContMergeLog
         tmpFile.type = 'log'
         tmpJob.addFile(tmpFile)
         # set job parameter

@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * updated Merger to put log files of merge jobs to a separate container
+  * fixed Merger for --transferredDS 
   * enabled rebrokerage for processingType=ganga
   * updated Adder for unique constraint error
   * added copyROOT
