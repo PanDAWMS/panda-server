@@ -5271,7 +5271,7 @@ class DBProxy:
         comment = ' /* DBProxy.getJobStatistics */'        
         _logger.debug("getJobStatistics(%s,%s,'%s','%s','%s',%s)" % (archived,predefined,workingGroup,countryGroup,jobType,forAnal))
         timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
-        sql0 = "SELECT computingSite,jobStatus,COUNT(*) FROM %s WHERE prodSourceLabel IN ("
+        sql0  = "SELECT computingSite,jobStatus,COUNT(*) FROM %s WHERE prodSourceLabel IN ("
         # processingType
         tmpJobTypeMap = {}
         sqlJobType = ''
@@ -5339,6 +5339,8 @@ class DBProxy:
         tables = ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4']
         if archived:
             tables.append('ATLAS_PANDA.jobsArchived4')
+        # sql for materialized view
+        sqlMV = re.sub('COUNT\(\*\)','SUM(num_of_jobs)',sql0)
         ret = {}
         nTry=3
         for iTry in range(nTry):
@@ -5353,8 +5355,13 @@ class DBProxy:
                     for tmpGroup in tmpGroupMap.keys():
                         varMap[tmpGroup] = tmpGroupMap[tmpGroup]
                     if table != 'ATLAS_PANDA.jobsArchived4':
-                        self.cur.arraysize = 10000                        
-                        self.cur.execute((sql0+comment) % table, varMap)
+                        self.cur.arraysize = 10000
+                        if table == 'ATLAS_PANDA.jobsActive4':
+                            sqlExeTmp = (sqlMV+comment) % 'ATLAS_PANDA.MV_JOBSACTIVE4_STATS'
+                        else:
+                            sqlExeTmp = (sql0+comment) % table
+                        _logger.debug("getJobStatistics : %s %s" % (sqlExeTmp,str(varMap)))
+                        self.cur.execute(sqlExeTmp, varMap)
                     else:
                         varMap[':modificationTime'] = timeLimit
                         self.cur.arraysize = 10000                        
@@ -5379,7 +5386,7 @@ class DBProxy:
                         if not ret[site].has_key(state):
                             ret[site][state] = 0
                 # return
-                _logger.debug("getJobStatistics() : %s" % str(ret))
+                _logger.debug("getJobStatistics -> %s" % str(ret))
                 return ret
             except:
                 # roll back
@@ -5456,6 +5463,8 @@ class DBProxy:
         sql0 = "SELECT cloud,computingSite,jobStatus,processingType,COUNT(*) FROM %s WHERE "
         sql0 += "prodSourceLabel IN (:prodSourceLabel1) "
         sql0 += "GROUP BY cloud,computingSite,jobStatus,processingType"
+        # sql for materialized view
+        sqlMV = re.sub('COUNT\(\*\)','SUM(num_of_jobs)',sql0)
         tables = ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4']
         ret = {}
         nTry=3
@@ -5467,8 +5476,11 @@ class DBProxy:
                     # select
                     varMap = {}
                     varMap[':prodSourceLabel1'] = 'managed'
-                    self.cur.arraysize = 10000                        
-                    self.cur.execute((sql0+comment) % table, varMap)
+                    self.cur.arraysize = 10000
+                    if table == 'ATLAS_PANDA.jobsActive4':
+                        self.cur.execute((sqlMV+comment) % 'ATLAS_PANDA.MV_JOBSACTIVE4_STATS', varMap)
+                    else:
+                        self.cur.execute((sql0+comment) % table, varMap)
                     res = self.cur.fetchall()
                     # commit
                     if not self._commit():
@@ -5495,6 +5507,7 @@ class DBProxy:
                                 if not typeVal.has_key(stateItem):
                                     typeVal[stateItem] = 0
                 # return
+                _logger.debug("getJobStatisticsBrokerage -> %s" % str(ret))
                 return ret
             except:
                 # roll back
@@ -5517,6 +5530,9 @@ class DBProxy:
         if minPriority != None:
             sql0 += "AND currentPriority>=:minPriority "
         sql0 += "GROUP BY cloud,computingSite,jobStatus,processingType"
+        # sql for materialized view
+        sqlMV = re.sub('COUNT\(\*\)','SUM(num_of_jobs)',sql0)
+        sqlMV = re.sub(':minPriority','TRUNC(:minPriority,-1)',sqlMV)
         tables = ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4']
         ret = {}
         nTry=3
@@ -5531,8 +5547,11 @@ class DBProxy:
                     varMap[':prodSourceLabel2'] = 'panda'
                     if minPriority != None:
                         varMap[':minPriority'] = minPriority
-                    self.cur.arraysize = 10000                        
-                    self.cur.execute((sql0+comment) % table, varMap)
+                    self.cur.arraysize = 10000
+                    if table == 'ATLAS_PANDA.jobsActive4':
+                        self.cur.execute((sqlMV+comment) % 'ATLAS_PANDA.MV_JOBSACTIVE4_STATS', varMap)
+                    else:
+                        self.cur.execute((sql0+comment) % table, varMap)
                     res = self.cur.fetchall()
                     # commit
                     if not self._commit():
@@ -5555,6 +5574,7 @@ class DBProxy:
                             if not typeVal.has_key(stateItem):
                                 typeVal[stateItem] = 0
                 # return
+                _logger.debug("getJobStatisticsAnalBrokerage -> %s" % str(ret))                
                 return ret
             except:
                 # roll back
@@ -5834,6 +5854,8 @@ class DBProxy:
             sql0 = "SELECT jobStatus,COUNT(*),cloud FROM %s WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) GROUP BY jobStatus,cloud"
             sqlA = "SELECT /*+ index(tab JOBSARCHIVED4_MODTIME_IDX) */ jobStatus,COUNT(*),cloud FROM %s tab WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
         sqlA+= "AND modificationTime>:modificationTime GROUP BY jobStatus,cloud"
+        # sql for materialized view
+        sqlMV = re.sub('COUNT\(\*\)','SUM(num_of_jobs)',sql0)
         ret = {}
         try:
             for table in ('ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4','ATLAS_PANDA.jobsArchived4','ATLAS_PANDA.jobsDefined4'):
@@ -5848,8 +5870,11 @@ class DBProxy:
                     varMap[':prodSourceLabel1'] = 'managed'
                     varMap[':prodSourceLabel2'] = 'rc_test'                    
                 if table != 'ATLAS_PANDA.jobsArchived4':
-                    self.cur.arraysize = 10000                    
-                    self.cur.execute((sql0+comment) % table, varMap)
+                    self.cur.arraysize = 10000
+                    if table == 'ATLAS_PANDA.jobsActive4':
+                        self.cur.execute((sqlMV+comment) % 'ATLAS_PANDA.MV_JOBSACTIVE4_STATS', varMap)
+                    else:
+                        self.cur.execute((sql0+comment) % table, varMap)                        
                 else:
                     varMap[':modificationTime'] = timeLimit
                     self.cur.arraysize = 10000                    
@@ -5882,7 +5907,7 @@ class DBProxy:
                     if not ret[item[2]].has_key(item[0]):
                         ret[item[2]][item[0]] = item[1]
             # return
-            _logger.debug("getJobStatisticsForExtIF() : %s" % str(ret))
+            _logger.debug("getJobStatisticsForExtIF -> %s" % str(ret))
             return ret
         except:
             # roll back
@@ -5902,6 +5927,8 @@ class DBProxy:
         sqlN += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) GROUP BY jobStatus,cloud,processingType"
         sqlA  = "SELECT /*+ index(tab JOBSARCHIVED4_MODTIME_IDX) */ jobStatus,COUNT(*),cloud,processingType FROM %s tab "
         sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND modificationTime>:modificationTime GROUP BY jobStatus,cloud,processingType"
+        # sql for materialized view
+        sqlMV = re.sub('COUNT\(\*\)','SUM(num_of_jobs)',sqlN)
         ret = {}
         try:
             for table in ('ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4','ATLAS_PANDA.jobsArchived4','ATLAS_PANDA.jobsDefined4'):
@@ -5917,7 +5944,10 @@ class DBProxy:
                     varMap[':modificationTime'] = timeLimit
                     self.cur.execute((sqlA+comment) % table, varMap)
                 else:
-                    self.cur.execute((sqlN+comment) % table, varMap)
+                    if table == 'ATLAS_PANDA.jobsActive4': 
+                        self.cur.execute((sqlMV+comment) % 'ATLAS_PANDA.MV_JOBSACTIVE4_STATS', varMap)
+                    else:
+                        self.cur.execute((sqlN+comment) % table, varMap)                        
                 res = self.cur.fetchall()
                 # commit
                 if not self._commit():
@@ -5934,7 +5964,7 @@ class DBProxy:
                     if not ret[cloud][processingType].has_key(jobStatus):
                         ret[cloud][processingType][jobStatus] = count
             # return
-            _logger.debug("getJobStatisticsPerProcessingType() : %s" % str(ret))
+            _logger.debug("getJobStatisticsPerProcessingType -> %s" % str(ret))
             return ret
         except:
             # roll back

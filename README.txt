@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * using T2 in TA
+  * using materialized view get getJobStatistics family
   * updated Merger to put log files of merge jobs to a separate container
   * fixed Merger for --transferredDS 
   * enabled rebrokerage for processingType=ganga

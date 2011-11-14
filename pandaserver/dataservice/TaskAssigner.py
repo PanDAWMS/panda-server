@@ -229,8 +229,6 @@ class TaskAssigner:
                                     foundSE  = tmpSE
                         # get list of T2s where dataset is available
                         tmpT2List = DataServiceUtils.getSitesWithDataset(dataset,self.siteMapper,locations,tmpCloudName,True)
-                        # FIXME
-                        tmpT2List = []
                         # remove cloud if T1SE or T2 is not a location
                         if foundSE == '':
                             # keep if T2 has the dataset
