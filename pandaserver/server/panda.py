@@ -55,7 +55,7 @@ from userinterface.UserIF        import submitJobs,getJobStatus,queryPandaIDs,ki
      addFilesToCacheDB,flushCacheDB,checkFilesWithCacheDB,getQueuedAnalJobs,getHighestPrioJobStat,\
      getActiveDatasets,setCloudTaskByUser,getSerialNumberForGroupJob,getCachePrefixes,\
      checkMergeGenerationStatus,sendLogInfo,getNumPilots,retryFailedJobsInActive,\
-     getJobStatisticsWithLabel
+     getJobStatisticsWithLabel,getPandaIDwithJobExeID
 allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reassignJobs',
                    'getJobStatistics','getJobStatisticsPerSite','resubmitJobs','queryLastFilesInDataset','getPandaIDsSite',
                    'getJobsToBeUpdated','updateProdDBUpdateTimes','runTaskAssignment','getAssigningTask','getSiteSpecs',
@@ -66,7 +66,7 @@ allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reass
                    'addFilesToCacheDB','flushCacheDB','checkFilesWithCacheDB','getQueuedAnalJobs','getHighestPrioJobStat',
                    'getActiveDatasets','setCloudTaskByUser','getSerialNumberForGroupJob','getCachePrefixes',
                    'checkMergeGenerationStatus','sendLogInfo','getNumPilots','retryFailedJobsInActive',
-                   'getJobStatisticsWithLabel']
+                   'getJobStatisticsWithLabel','getPandaIDwithJobExeID']
 
 # FastCGI/WSGI entry
 if panda_config.useFastCGI or panda_config.useWSGI:

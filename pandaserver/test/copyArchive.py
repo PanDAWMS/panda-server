@@ -912,6 +912,23 @@ if len(jobs):
     Client.killJobs(jobs,2)
     _logger.debug("killJobs for Anal Active (%s)" % str(jobs))
 
+
+# kill too long pending jobs
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+varMap = {}
+varMap[':jobStatus']        = 'pending'
+varMap[':modificationTime'] = timeLimit
+status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsWaiting4 WHERE jobStatus=:jobStatus AND creationTime<:creationTime",
+                                  varMap)
+jobs = []
+if res != None:
+    for (id,) in res:
+        jobs.append(id)
+# kill
+if len(jobs):
+    Client.killJobs(jobs,4)
+    _logger.debug("killJobs for Pending (%s)" % str(jobs))
+
 # kill too long waiting jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=1)
 status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsWaiting4 WHERE creationTime<:creationTime",
@@ -929,9 +946,10 @@ if len(jobs):
 # reassign long waiting jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
 varMap = {}
-varMap[':prodSourceLabel'] = 'managed'
+varMap[':jobStatus']        = 'waiting'
+varMap[':prodSourceLabel']  = 'managed'
 varMap[':modificationTime'] = timeLimit
-status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsWaiting4 WHERE prodSourceLabel=:prodSourceLabel AND modificationTime<:modificationTime ORDER BY PandaID",
+status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsWaiting4 WHERE prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus AND modificationTime<:modificationTime ORDER BY PandaID",
                               varMap)
 jobs = []
 if res != None:

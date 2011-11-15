@@ -476,7 +476,7 @@ class TaskAssigner:
                 useMcShare = True
             elif maxClouds == []:
                 messageEnd = '%s no candidates left' % self.taskID
-                self.sendMesg(messageEnd,msgType='warning')
+                self.sendMesg(messageEnd)
                 # make subscription to empty cloud
                 if taskType in taskTypesSub:
                     _logger.debug('%s makeSubscription start' % self.taskID)                    
@@ -487,8 +487,11 @@ class TaskAssigner:
                         self.sendMesg(message,msgType='info')                        
                     else:
                         message = "%s didn't make subscription" % self.taskID
-                        self.sendMesg(message,msgType='warning')                                                
-                raise RuntimeError, messageEnd
+                        self.sendMesg(message,msgType='warning')
+                # return
+                _logger.debug(messageEnd)
+                _logger.debug("%s end" % self.taskID) 
+                return None
             # choose one
             message = '%s candidates %s' % (self.taskID,str(maxClouds))
             _logger.debug(message)

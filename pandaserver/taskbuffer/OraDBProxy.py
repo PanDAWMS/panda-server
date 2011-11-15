@@ -188,15 +188,21 @@ class DBProxy:
 
 
     # insert job to jobsDefined
-    def insertNewJob(self,job,user,serNum,weight=0.0,priorityOffset=0,userVO=None,groupJobSN=0):
-        comment = ' /* DBProxy.insertNewJob */'                    
-        sql1 = "INSERT INTO ATLAS_PANDA.jobsDefined4 (%s) " % JobSpec.columnNames()
+    def insertNewJob(self,job,user,serNum,weight=0.0,priorityOffset=0,userVO=None,groupJobSN=0,toPending=False):
+        comment = ' /* DBProxy.insertNewJob */'
+        if not toPending:
+            sql1 = "INSERT INTO ATLAS_PANDA.jobsDefined4 (%s) " % JobSpec.columnNames()
+        else:
+            sql1 = "INSERT INTO ATLAS_PANDA.jobsWaiting4 (%s) " % JobSpec.columnNames()            
         sql1+= JobSpec.bindValuesExpression(useSeq=True)
         sql1+= " RETURNING PandaID INTO :newPandaID"
         # make sure PandaID is NULL
         job.PandaID = None
         # job status
-        job.jobStatus='defined'
+        if not toPending:
+            job.jobStatus='defined'
+        else:
+            job.jobStatus='pending'            
         # host and time information
         job.modificationHost = self.hostname
         job.creationTime     = datetime.datetime.utcnow()
@@ -2244,7 +2250,7 @@ class DBProxy:
         
 
     # reset job in jobsActive or jobsWaiting
-    def resetJob(self,pandaID,activeTable=True,keepSite=False,getOldSubs=False):
+    def resetJob(self,pandaID,activeTable=True,keepSite=False,getOldSubs=False,forPending=True):
         comment = ' /* DBProxy.resetJob */'        
         _logger.debug("resetJobs : %s" % pandaID)
         # select table
@@ -2277,7 +2283,8 @@ class DBProxy:
             job = JobSpec()
             job.pack(res)
             # if already running
-            if job.jobStatus != 'waiting' and job.jobStatus != 'activated':
+            if job.jobStatus != 'waiting' and job.jobStatus != 'activated' \
+                   and (forPending and job.jobStatus != 'pending'):
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
@@ -2293,7 +2300,10 @@ class DBProxy:
             # delete
             varMap = {}
             varMap[':PandaID'] = pandaID
-            varMap[':oldJobStatus1'] = 'waiting'
+            if not forPending:
+                varMap[':oldJobStatus1'] = 'waiting'
+            else:
+                varMap[':oldJobStatus1'] = 'pending'
             varMap[':oldJobStatus2'] = 'activated'
             self.cur.execute(sql2+comment,varMap)
             retD = self.cur.rowcount            
@@ -2781,6 +2791,46 @@ class DBProxy:
                 job.PandaID = pandaID
                 job.jobStatus = 'unknown'
                 return job
+
+
+    # get PandaID with jobexeID
+    def getPandaIDwithJobExeID(self,jobexeID):
+        comment = ' /* DBProxy.getPandaIDwithJobExeID */'                        
+        _logger.debug("getPandaIDwithJobExeID : %s" % jobexeID)
+        failedRetVal = (None,None,'')
+        # return for wrong jobexeID
+        if jobexeID in ['NULL','','None',None]:
+            return failedRetVal
+        # SQL
+        sql  = "SELECT PandaID,jobDefinitionID,jobName FROM ATLAS_PANDA.jobsWaiting4 "
+        sql += "WHERE jobExecutionID=:jobexeID AND prodSourceLabel=:prodSourceLabel "
+        sql += "AND jobStatus=:jobStatus "        
+        varMap = {}
+        varMap[':jobexeID'] = jobexeID
+        varMap[':jobStatus'] = 'pending'
+        varMap[':prodSourceLabel'] = 'managed'
+        try:
+            # start transaction
+            self.conn.begin()
+            # select
+            self.cur.arraysize = 10                                        
+            self.cur.execute(sql+comment,varMap)
+            res = self.cur.fetchone()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # not found
+            if res == None:
+                _logger.debug("getPandaIDwithJobExeID : jobexeID %s not found" % jobexeID)
+                return failedRetVal
+            _logger.debug("getPandaIDwithJobExeID : %s -> %s" % (jobexeID,str(res)))
+            return res
+        except:
+            # roll back
+            self._rollback()
+            errtype,errvalue = sys.exc_info()[:2]
+            _logger.error("getPandaIDwithJobExeID : %s %s %s" % (jobexeID,errtype,errvalue))
+            return failedRetVal
 
 
     # get express jobs

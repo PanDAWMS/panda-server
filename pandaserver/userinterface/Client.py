@@ -225,7 +225,7 @@ public methods
 '''
 
 # submit jobs
-def submitJobs(jobs,srvID=None):
+def submitJobs(jobs,srvID=None,toPending=False):
     # set hostname
     hostname = commands.getoutput('hostname')
     for job in jobs:
@@ -239,6 +239,8 @@ def submitJobs(jobs,srvID=None):
     # execute
     url = _getURL('URLSSL',srvID) + '/submitJobs'
     data = {'jobs':strJobs}
+    if toPending:
+        data['toPending'] = True
     status,output = curl.post(url,data)
     if status!=0:
         print output
@@ -295,6 +297,25 @@ def getJobStatus(ids,srvID=None):
     except:
         type, value, traceBack = sys.exc_info()
         errStr = "ERROR getJobStatus : %s %s" % (type,value)
+        print errStr
+        return EC_Failed,output+'\n'+errStr
+
+
+# get PandaID with jobexeID
+def getPandaIDwithJobExeID(ids):
+    # serialize
+    strIDs = pickle.dumps(ids)
+    # instantiate curl
+    curl = _Curl()
+    # execute
+    url = _getURL('URL') + '/getPandaIDwithJobExeID'
+    data = {'ids':strIDs}
+    status,output = curl.post(url,data)
+    try:
+        return status,pickle.loads(output)
+    except:
+        type, value, traceBack = sys.exc_info()
+        errStr = "ERROR getPandaIDwithJobExeID : %s %s" % (type,value)
         print errStr
         return EC_Failed,output+'\n'+errStr
 
@@ -358,7 +379,7 @@ def killJobs(ids,code=None,verbose=False,srvID=None,useMailAsID=False):
 
 
 # reassign jobs
-def reassignJobs(ids):
+def reassignJobs(ids,forPending=False):
     # serialize
     strIDs = pickle.dumps(ids)
     # instantiate curl
@@ -368,6 +389,8 @@ def reassignJobs(ids):
     # execute
     url = baseURLSSL + '/reassignJobs'
     data = {'ids':strIDs}
+    if forPending:
+        data['forPending'] = True
     status,output = curl.post(url,data)
     try:
         return status,pickle.loads(output)

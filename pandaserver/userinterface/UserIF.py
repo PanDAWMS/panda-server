@@ -37,7 +37,7 @@ class UserIF:
 
 
     # submit jobs
-    def submitJobs(self,jobsStr,user,host,userFQANs,prodRole=False):
+    def submitJobs(self,jobsStr,user,host,userFQANs,prodRole=False,toPending=False):
         try:
             # deserialize jobspecs
             jobs = WrappedPickle.loads(jobsStr)
@@ -74,7 +74,7 @@ class UserIF:
             return "ERROR: production role is required for production jobs"
         # store jobs
         ret = self.taskBuffer.storeJobs(jobs,user,forkSetupper=True,fqans=userFQANs,
-                                        hostname=host)
+                                        hostname=host,toPending=toPending)
         _logger.debug("submitJobs %s ->:%s" % (user,len(ret)))
         # serialize 
         return pickle.dumps(ret)
@@ -204,6 +204,28 @@ class UserIF:
         # peek jobs
         ret = self.taskBuffer.peekJobs(ids)
         _logger.debug("getJobStatus end")
+        # serialize 
+        return pickle.dumps(ret)
+
+
+    # get PandaID with jobexeID
+    def getPandaIDwithJobExeID(self,idsStr):
+        try:
+            # deserialize jobspecs
+            ids = WrappedPickle.loads(idsStr)
+            _logger.debug("getPandaIDwithJobExeID len   : %s" % len(ids))
+            maxIDs = 5500
+            if len(ids) > maxIDs:
+                _logger.error("too long ID list more than %s" % maxIDs)
+                ids = ids[:maxIDs]
+        except:
+            errtype,errvalue = sys.exc_info()[:2]
+            _logger.error("getPandaIDwithJobExeID : %s %s" % (errtype,errvalue))
+            ids = []
+        _logger.debug("getPandaIDwithJobExeID start : %s" % ids)       
+        # peek jobs
+        ret = self.taskBuffer.getPandaIDwithJobExeID(ids)
+        _logger.debug("getPandaIDwithJobExeID end")
         # serialize 
         return pickle.dumps(ret)
 
@@ -449,11 +471,11 @@ class UserIF:
 
 
     # reassign jobs
-    def reassignJobs(self,idsStr,user,host):
+    def reassignJobs(self,idsStr,user,host,forPending):
         # deserialize IDs
         ids = WrappedPickle.loads(idsStr)
         # reassign jobs
-        ret = self.taskBuffer.reassignJobs(ids,forkSetupper=True)
+        ret = self.taskBuffer.reassignJobs(ids,forkSetupper=True,forPending=forPending)
         # logging
         try:
             # make message
@@ -763,7 +785,7 @@ web service interface
 """
 
 # submit jobs
-def submitJobs(req,jobs):
+def submitJobs(req,jobs,toPending=None):
     # check security
     if not Protocol.isSecure(req):
         return False
@@ -777,7 +799,12 @@ def submitJobs(req,jobs):
     host = req.get_remote_host()
     # production Role
     prodRole = _isProdRoleATLAS(req)
-    return userIF.submitJobs(jobs,user,host,fqans,prodRole)
+    # to pending
+    if toPending == 'True':
+        toPending = True
+    else:
+        toPending = False
+    return userIF.submitJobs(jobs,user,host,fqans,prodRole,toPending)
 
 
 # run task assignment
@@ -791,6 +818,11 @@ def runTaskAssignment(req,jobs):
 # get job status
 def getJobStatus(req,ids):
     return userIF.getJobStatus(ids)
+
+
+# get PandaID with jobexeID
+def getPandaIDwithJobExeID(req,ids):
+    return userIF.getPandaIDwithJobExeID(ids)
 
 
 # get queued analysis jobs at a site
@@ -958,7 +990,7 @@ def killJobs(req,ids,code=None,useMailAsID=None):
 
 
 # reassign jobs
-def reassignJobs(req,ids):
+def reassignJobs(req,ids,forPending=None):
     # check security
     if not Protocol.isSecure(req):
         return False
@@ -968,7 +1000,12 @@ def reassignJobs(req,ids):
         user = _getDN(req)
     # hostname
     host = req.get_remote_host()
-    return userIF.reassignJobs(ids,user,host)
+    # for pending
+    if forPending == 'True':
+        forPending = True
+    else:
+        forPending = False        
+    return userIF.reassignJobs(ids,user,host,forPending)
 
 
 # resubmit jobs

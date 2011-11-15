@@ -94,7 +94,7 @@ class TaskBuffer:
     
     # store Jobs into DB
     def storeJobs(self,jobs,user,joinThr=False,forkSetupper=False,fqans=[],hostname='',resetLocInSetupper=False,
-                  checkSpecialHandling=True):
+                  checkSpecialHandling=True,toPending=False):
         try:
             _logger.debug("storeJobs : start for %s nJobs=%s" % (user,len(jobs)))
             # check quota for priority calculation
@@ -296,7 +296,8 @@ class TaskBuffer:
                 if hostname != '':
                     job.creationHost = hostname
                 # insert job to DB
-                if not proxy.insertNewJob(job,user,serNum,weight,priorityOffset,userVO,groupJobSerialNum):
+                if not proxy.insertNewJob(job,user,serNum,weight,priorityOffset,userVO,groupJobSerialNum,
+                                          toPending):
                     # reset if failed
                     job.PandaID = None
                 else:
@@ -322,13 +323,14 @@ class TaskBuffer:
             # release DB proxy
             self.proxyPool.putProxy(proxy)
             # set up dataset
-            if joinThr:
-                thr = Setupper(self,newJobs,pandaDDM=usePandaDDM,forkRun=forkSetupper,resetLocation=resetLocInSetupper)
-                thr.start()
-                thr.join()
-            else:
-                # cannot use 'thr =' because it may trigger garbage collector
-                Setupper(self,newJobs,pandaDDM=usePandaDDM,forkRun=forkSetupper,resetLocation=resetLocInSetupper).start()
+            if not toPending:
+                if joinThr:
+                    thr = Setupper(self,newJobs,pandaDDM=usePandaDDM,forkRun=forkSetupper,resetLocation=resetLocInSetupper)
+                    thr.start()
+                    thr.join()
+                else:
+                    # cannot use 'thr =' because it may trigger garbage collector
+                    Setupper(self,newJobs,pandaDDM=usePandaDDM,forkRun=forkSetupper,resetLocation=resetLocInSetupper).start()
             # return jobIDs
             _logger.debug("storeJobs : end for %s succeeded" % user)            
             return ret
@@ -649,6 +651,21 @@ class TaskBuffer:
         return retJobs
 
 
+    # get PandaID with jobexeID
+    def getPandaIDwithJobExeID(self,jobexeIDs):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        retJobs = []
+        # peek at job
+        for jobexeID in jobexeIDs:
+            res = proxy.getPandaIDwithJobExeID(jobexeID)
+            retJobs.append(res)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return retJobs
+
+
     # get slimmed file info with PandaIDs
     def getSlimmedFileInfoPandaIDs(self,pandaIDs):
         iPandaID = 0
@@ -908,7 +925,7 @@ class TaskBuffer:
 
 
     # reassign jobs
-    def reassignJobs(self,ids,attempt=0,joinThr=False,forkSetupper=False):
+    def reassignJobs(self,ids,attempt=0,joinThr=False,forkSetupper=False,forPending=False):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         jobs = []
@@ -921,19 +938,20 @@ class TaskBuffer:
         for id in ids:
             try:
                 # try to reset active job
-                tmpRet = proxy.resetJob(id,keepSite=keepSiteFlag,getOldSubs=True)
-                if isinstance(tmpRet,types.TupleType):
-                    ret,tmpOldSubList = tmpRet
-                else:
-                    ret,tmpOldSubList = tmpRet,[]
-                if ret != None:
-                    jobs.append(ret)
-                    for tmpOldSub in tmpOldSubList:
-                        if not oldSubMap.has_key(tmpOldSub):
-                            oldSubMap[tmpOldSub] = ret
-                    continue
+                if not forPending:
+                    tmpRet = proxy.resetJob(id,keepSite=keepSiteFlag,getOldSubs=True)
+                    if isinstance(tmpRet,types.TupleType):
+                        ret,tmpOldSubList = tmpRet
+                    else:
+                        ret,tmpOldSubList = tmpRet,[]
+                    if ret != None:
+                        jobs.append(ret)
+                        for tmpOldSub in tmpOldSubList:
+                            if not oldSubMap.has_key(tmpOldSub):
+                                oldSubMap[tmpOldSub] = ret
+                        continue
                 # try to reset waiting job
-                tmpRet = proxy.resetJob(id,False,keepSite=keepSiteFlag,getOldSubs=False)
+                tmpRet = proxy.resetJob(id,False,keepSite=keepSiteFlag,getOldSubs=False,forPending=forPending)
                 if isinstance(tmpRet,types.TupleType):
                     ret,tmpOldSubList = tmpRet
                 else:
@@ -943,26 +961,28 @@ class TaskBuffer:
                     # waiting jobs don't create sub or dis
                     continue
                 # try to reset defined job
-                tmpRet = proxy.resetDefinedJob(id,keepSite=keepSiteFlag,getOldSubs=True)
-                if isinstance(tmpRet,types.TupleType):
-                    ret,tmpOldSubList = tmpRet
-                else:
-                    ret,tmpOldSubList = tmpRet,[]
-                if ret != None:
-                    jobs.append(ret)
-                    for tmpOldSub in tmpOldSubList:
-                        if not oldSubMap.has_key(tmpOldSub):
-                            oldSubMap[tmpOldSub] = ret
-                    continue
+                if not forPending:
+                    tmpRet = proxy.resetDefinedJob(id,keepSite=keepSiteFlag,getOldSubs=True)
+                    if isinstance(tmpRet,types.TupleType):
+                        ret,tmpOldSubList = tmpRet
+                    else:
+                        ret,tmpOldSubList = tmpRet,[]
+                    if ret != None:
+                        jobs.append(ret)
+                        for tmpOldSub in tmpOldSubList:
+                            if not oldSubMap.has_key(tmpOldSub):
+                                oldSubMap[tmpOldSub] = ret
+                        continue
             except:
                 pass
         # release DB proxy
         self.proxyPool.putProxy(proxy)
         # run Closer for old sub datasets
-        for tmpOldSub,tmpJob in oldSubMap.iteritems():
-            cThr = Closer(self,[tmpOldSub],tmpJob)
-            cThr.start()
-            cThr.join()
+        if not forPending:
+            for tmpOldSub,tmpJob in oldSubMap.iteritems():
+                cThr = Closer(self,[tmpOldSub],tmpJob)
+                cThr.start()
+                cThr.join()
         # setup dataset
         if jobs != []:
             if joinThr:
