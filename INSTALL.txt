@@ -102,6 +102,17 @@ chown atlpan:zp INSTALLDIR/var/log/panda
 chown atlpan:zp INSTALLDIR/var/log/panda/wsgisocks
 chown atlpan:zp INSTALLDIR/var/cache/pandaserver
 
+6. For voatlas
+
+cp ~/devsrv/share/httpd-pandasrv /etc/rc.d/init.d/
+/sbin/chkconfig --add httpd-pandasrv
+cp ~/devsrv/share/panda_server-httpd.conf.VM /data/atlpan/srv/etc/panda/panda_server-httpd.conf
+cp ~/devsrv/share/panda_server.cfg.VM /data/atlpan/srv/etc/panda/panda_server.cfg
+cp ~/devsrv/share/x509up_u25606_novoms /data/atlpan/
+chown atlpan:zp /data/atlpan/x509up_u25606_novoms
+cp ~/devsrv/share/pandasrv /etc/logrotate.d/
+cp ~/devsrv/share/pandasrv.cron /etc/cron.d/
+
 
 Start the server
 --------------------

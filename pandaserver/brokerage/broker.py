@@ -1095,7 +1095,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 # destinationSE
                 if file.type in ['output','log'] and destSE != '':
                     if job.prodSourceLabel == 'user' and job.computingSite == file.destinationSE:
-                        continue
+                        pass
                     else:
                         file.destinationSE = destSE
                 # pre-assign GUID to log

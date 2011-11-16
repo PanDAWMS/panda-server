@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed guid generation for user's log
   * introduced 2 staged submission for prod jobs 
   * using T2 in TA
   * using materialized view get getJobStatistics family
