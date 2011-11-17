@@ -7156,14 +7156,24 @@ class DBProxy:
                 cpu1    = item[0]
                 cpu7    = item[1]
                 cpu30   = item[2]
-                quota1  = item[3] * 3600
-                quota7  = item[4] * 3600
-                quota30 = item[5] * 3600
+                if item[3] in [0,None]:
+                    quota1 = 0
+                else:
+                    quota1 = item[3] * 3600
+                if item[4] in [0,None]:
+                    quota7 = 0
+                else:
+                    quota7 = item[4] * 3600
+                if item[5] in [0,None]:    
+                    quota30 = 0
+                else:
+                    quota30 = item[5] * 3600                    
                 # CPU usage
                 if cpu1 == None:
                     cpu1 = 0.0
                 # weight
-                weight = float(cpu1) / float(quota1)
+                if quota1 > 0:
+                    weight = float(cpu1) / float(quota1)
                 # not exceeded the limit
                 if weight < 1.0:
                     weight = 0.0
