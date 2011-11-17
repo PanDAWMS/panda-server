@@ -40,7 +40,7 @@ PandaDDMSource = ['BNLPANDA','BNL-OSG2_MCDISK','BNL-OSG2_DATADISK','BNL-OSG2_MCT
 class Setupper (threading.Thread):
     # constructor
     def __init__(self,taskBuffer,jobs,resubmit=False,pandaDDM=False,ddmAttempt=0,forkRun=False,onlyTA=False,
-                 resetLocation=False):
+                 resetLocation=False,useNativeDQ2=False):
         threading.Thread.__init__(self)
         self.jobs       = jobs
         self.taskBuffer = taskBuffer
@@ -72,6 +72,8 @@ class Setupper (threading.Thread):
         self.replicaMapForBroker = {}
         # available files at T2
         self.availableLFNsInT2 = {}
+        # use DQ2 in the same process
+        self.useNativeDQ2 = useNativeDQ2
         
     # main
     def run(self):
@@ -84,6 +86,9 @@ class Setupper (threading.Thread):
                     _logger.debug('%s PandaID:%s type:%s' % (self.timestamp,self.jobs[0].PandaID,self.jobs[0].prodSourceLabel))
                 # instantiate site mapper
                 self.siteMapper = SiteMapper(self.taskBuffer)
+                # use native DQ2
+                if self.useNativeDQ2:
+                    ddm.useDirectDQ2()
                 # correctLFN
                 self._correctLFN()
                 # run full Setupper
@@ -156,6 +161,7 @@ class Setupper (threading.Thread):
                 outFile.close()
                 # run main procedure in another process because python doesn't release memory
                 com =  'cd %s > /dev/null 2>&1; export HOME=%s; ' % (panda_config.home_dir_cwd,panda_config.home_dir_cwd)
+                com += 'source /opt/glite/etc/profile.d/grid-env.sh; '
                 com += 'env PYTHONPATH=%s:%s %s/python -Wignore %s/dataservice/forkSetupper.py -i %s' % \
                        (panda_config.pandaCommon_dir,panda_config.pandaPython_dir,panda_config.native_python,
                         panda_config.pandaPython_dir,outFileName)

@@ -3,6 +3,7 @@ provide primitive methods for DDM
 
 """
 
+import sys
 import types
 import commands
 from config import panda_config
@@ -83,11 +84,82 @@ class _DQModule:
         return _DQMethod(self.moduleName,methodName)
 
 
+# native DQ2 method class
+class NativeDQ2Method:
+    # constructor
+    def __init__(self):
+        self.moduleName = None
+        self.methodName = None
+        import dq2.clientapi.cli.cliutil
+        self.dq2api = dq2.clientapi.cli.cliutil.getDQ2(None)
+    # set module and method name
+    def setNames(self,moduleName,methodName):
+        self.moduleName = moduleName
+        self.methodName = methodName
+    # method emulation
+    def __call__(self,*args,**kwargs):
+        try:
+            # main method has disappeared since 0.3
+            args = list(args)
+            if self.methodName == 'main':
+                self.methodName = args[0]
+                args.pop(0)
+            # get method object
+            if self.moduleName in ['DQ2','DQ2_iter']:
+                methodObj = getattr(self.dq2api,self.methodName)
+            else:
+                methodObj = getattr(getattr(self.dq2api,self.moduleName),self.methodName)
+            # execute
+            retVal = apply(methodObj,args,kwargs)
+            # loop over for iterator
+            if self.moduleName == 'DQ2_iter':
+                strRet = ''
+                for item in retVal:
+                    strRet += str(item)
+            else:
+                strRet = str(retVal)
+            # return
+            return 0,strRet
+        except:
+            errType,errVale = sys.exc_info()[:2]
+            return 1,'%s %s' % (errType,errVale)
+        
+    
+        
+# native DQ2 module class
+class NativeDQ2Module:
+    # constructor
+    def __init__(self):
+        self.moduleName = None
+        self.api = NativeDQ2Method()
+    # set module name
+    def setModName(self,moduleName):
+        self.moduleName = moduleName
+    # getter
+    def __getattr__(self,methodName):
+        # set method name
+        self.api.setNames(self.moduleName,methodName)
+        return self.api
+        
+
 # factory class
 class DDM:
+    # constructor
+    def __init__(self):
+        self.usingNativeDQ2 = False
+    # switch to use DQ2 in the same session
+    def useDirectDQ2(self):
+        self.usingNativeDQ2 = True
+        self.nativeDQ2 = NativeDQ2Module()
+    # getter    
     def __getattr__(self,moduleName):
-        return _DQModule(moduleName)
-
+        if not self.usingNativeDQ2:
+            # run dq2 comamnd in another session
+            return _DQModule(moduleName)
+        else:
+            # run dq2 command in the same session
+            self.nativeDQ2.setModName(moduleName)
+            return self.nativeDQ2
 
 # instantiate
 ddm = DDM()

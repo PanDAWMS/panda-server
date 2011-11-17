@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * use native DQ2 in Setupper 
   * fixed guid generation for user's log
   * introduced 2 staged submission for prod jobs 
   * using T2 in TA

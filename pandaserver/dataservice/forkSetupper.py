@@ -25,7 +25,7 @@ def run(inFile,v_onlyTA):
     taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
     # run Setupper
     from dataservice.Setupper import Setupper
-    thr = Setupper(taskBuffer,jobs,onlyTA=v_onlyTA)
+    thr = Setupper(taskBuffer,jobs,onlyTA=v_onlyTA,useNativeDQ2=True)
     thr.start()
     thr.join()
     return
