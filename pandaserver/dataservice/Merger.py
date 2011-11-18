@@ -416,7 +416,7 @@ class Merger:
                     except:
                         errType,errValue = sys.exc_info()[:2]
                         if 'exceeds the maximum length' in str(errValue):
-                            unRecoverable = True:
+                            unRecoverable = True
                         if unRecoverable or (iTry+1) == nTry:
                             _logger.error("%s DQ2 failed with %s:%s to register new container %s" % (self.job.PandaID,errType,errValue,self.dsContMergeLog))
                             _logger.debug("%s end" % self.job.PandaID)
