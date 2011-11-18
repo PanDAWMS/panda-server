@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added version check in Merger to avoid duplicating merge jobs
   * changed Merger to fail when container name is too long
   * use lockJobsForReassign for reassign in copyArchive
   * use native DQ2 in copyArchive and datasetMgr

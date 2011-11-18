@@ -94,18 +94,35 @@ class MergerThr (threading.Thread):
         self.lock       = lock
         self.proxyLock  = proxyLock
         self.pool       = pool
+        self.maxTry     = 3
         self.pool.add(self)
                                         
     def run(self):
         self.lock.acquire()
         try:
             # loop over all datasets
-            for vuid,name,modDate in self.datasets:
-                _logger.debug("Merge %s %s" % (modDate,name))
+            for vuid,name,modDate,verNum in self.datasets:
+                try:
+                    verNum = int(verNum)
+                except:
+                    verNum = 0
+                _logger.debug("Merge %s %s %s" % (modDate,name,verNum))
                 toBeClosed = False
                 # close old datasets anyway
-                if modDate < timeLimitX:
+                if modDate < timeLimitX or verNum >= self.maxTry:
                     toBeClosed = True
+                # check version
+                dsSpec = taskBuffer.queryDatasetWithMap({'vuid':vuid})
+                if dsSpec == None:
+                    _logger.error("failed to get dataset spec for %s:%s" % (name,vuid))
+                    continue
+                try:
+                    if int(dsSpec.version) != verNum+1:
+                        _logger.debug("skip %s due to version mismatch %s != %s+1" % (name,dsSpec.version,verNum))
+                        continue
+                except:
+                    _logger.error("failed to convert version='%s' to int for %s" % (dsSpec.version,name))
+                    continue
                 # get PandaID
                 self.proxyLock.acquire()                
                 proxyS = taskBuffer.proxyPool.getProxy()
@@ -138,6 +155,7 @@ class MergerThr (threading.Thread):
                             _logger.debug("failed for %s" % name)                            
                 # close dataset
                 if toBeClosed:
+                    _logger.debug("close %s" % name)                    
                     self.proxyLock.acquire()
                     varMap = {}
                     varMap[':vuid'] = vuid
@@ -169,7 +187,7 @@ while True:
     varMap[':type']   = 'output'
     varMap[':status'] = 'tobemerged'
     proxyS = taskBuffer.proxyPool.getProxy()
-    res = proxyS.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60')
+    res = proxyS.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60',getVersion=True)
     taskBuffer.proxyPool.putProxy(proxyS)
     if res == None:
         _logger.debug("# of datasets to be merged: %s" % res)
