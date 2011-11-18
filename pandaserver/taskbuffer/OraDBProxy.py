@@ -3278,6 +3278,92 @@ class DBProxy:
             return {},None
 
 
+    # lock jobs for reassign
+    def lockJobsForReassign(self,tableName,timeLimit,statList,labels,processTypes,sites,clouds):
+        comment = ' /* DBProxy.lockJobsForReassign */'                        
+        _logger.debug("lockJobsForReassign : %s %s %s %s %s %s %s" % \
+                      (tableName,timeLimit,statList,labels,processTypes,sites,clouds))
+        try:
+            # make sql
+            sql  = "SELECT PandaID FROM %s " % tableName
+            sql += "WHERE modificationTime<:modificationTime "
+            varMap = {}
+            varMap[':modificationTime'] = timeLimit
+            if statList != []:
+                sql += 'AND jobStatus IN ('
+                tmpIdx = 0
+                for tmpStat in statList:
+                    tmpKey = ':stat%s' % tmpIdx
+                    varMap[tmpKey] = tmpStat
+                    sql += '%s,' % tmpKey
+                sql = sql[:-1]
+                sql += ') '
+            if labels != []:
+                sql += 'AND prodSourceLabel IN ('
+                tmpIdx = 0
+                for tmpStat in labels:
+                    tmpKey = ':label%s' % tmpIdx
+                    varMap[tmpKey] = tmpStat
+                    sql += '%s,' % tmpKey
+                sql = sql[:-1]
+                sql += ') '
+            if processTypes != []:
+                sql += 'AND processingType IN ('
+                tmpIdx = 0
+                for tmpStat in processTypes:
+                    tmpKey = ':processType%s' % tmpIdx
+                    varMap[tmpKey] = tmpStat
+                    sql += '%s,' % tmpKey
+                sql = sql[:-1]
+                sql += ') '
+            if sites != []:
+                sql += 'AND computingSite IN ('
+                tmpIdx = 0
+                for tmpStat in sites:
+                    tmpKey = ':site%s' % tmpIdx
+                    varMap[tmpKey] = tmpStat
+                    sql += '%s,' % tmpKey
+                sql = sql[:-1]
+                sql += ') '
+            if clouds != []:
+                sql += 'AND cloud IN ('
+                tmpIdx = 0
+                for tmpStat in clouds:
+                    tmpKey = ':cloud%s' % tmpIdx
+                    varMap[tmpKey] = tmpStat
+                    sql += '%s,' % tmpKey
+                sql = sql[:-1]
+                sql += ') '
+            # sql for lock
+            sqlLock = 'UPDATE %s SET modificationTime=CURRENT_DATE WHERE PandaID=:PandaID' % tableName
+            # start transaction
+            self.conn.begin()
+            # select
+            self.cur.arraysize = 1000000
+            self.cur.execute(sql+comment,varMap)
+            resList = self.cur.fetchall()
+            retList = []
+            # lock
+            for tmpID, in resList:
+                varLock = {':PandaID':tmpID}
+                self.cur.execute(sqlLock+comment,varLock)
+                retList.append((tmpID,))
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # sort
+            retList.sort()
+            _logger.debug("lockJobsForReassign : %s" % (len(retList)))
+            return True,retList
+        except:
+            # roll back
+            self._rollback()
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("lockJobsForReassign : %s %s" % (errType,errValue))
+            # return empty
+            return False,[]
+
+
     # get the number of waiting jobs with a dataset
     def getNumWaitingJobsForPD2P(self,datasetName):
         comment = ' /* DBProxy.getNumWaitingJobsForPD2P */'                        

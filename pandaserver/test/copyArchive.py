@@ -583,33 +583,26 @@ if len(jobs):
 
 # reassign defined jobs in defined table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=4)
-while True:
-    # get PandaIDs
-    varMap = {}
-    varMap[':jobStatus'] = 'defined'
-    varMap[':prodSourceLabel'] = 'managed'
-    varMap[':modificationTime'] = timeLimit
-    status,res = taskBuffer.querySQLS("SELECT PandaID from ATLAS_PANDA.jobsDefined4 where jobStatus=:jobStatus AND modificationTime<:modificationTime AND prodSourceLabel=:prodSourceLabel ORDER BY PandaID",
-                                  varMap)
-    # escape
-    if res == None or len(res) == 0:
-        break
-    _logger.debug('reassignJobs for Defined -> #%s' % len(res))
-    # convert to list
-    jobs = []
-    for id, in res:
+# get PandaIDs
+status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsDefined4",timeLimit,['defined'],['managed'],[],[],[])
+jobs=[]
+if res != None:
+    for (id,) in res:
         jobs.append(id)
-    # reassign
+# reassign
+_logger.debug('reassignJobs for defined jobs -> #%s' % len(jobs))
+if len(jobs) > 0:
     nJob = 100
     iJob = 0
     while iJob < len(jobs):
-        _logger.debug('reassignJobs for Defined (%s)' % jobs[iJob:iJob+nJob])
+        _logger.debug('reassignJobs for defined jobs (%s)' % jobs[iJob:iJob+nJob])
         taskBuffer.reassignJobs(jobs[iJob:iJob+nJob],joinThr=True)
-        _logger.debug('reassignJobs for Defined done %s' % jobs[iJob])
+        _logger.debug('reassignJobs for defined jobs done %s' % jobs[iJob])
         iJob += nJob
         
                         
 # reassign when ratio of running/notrunning is too unbalanced
+"""
 _logger.debug("reassign Unbalanced")
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=4)
 jobStat = {}
@@ -761,26 +754,23 @@ for cloud,siteVal in jobStat.iteritems():
                         #Client.reassignJobs(jobs[iJob:iJob+nJob])
                         iJob += nJob
                         #time.sleep(60)
-
+"""
 
 
 # reassign long-waiting jobs in defined table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
-varMap = {}
-varMap[':prodSourceLabel'] = 'managed'
-varMap[':modificationTime'] = timeLimit
-status,res = taskBuffer.querySQLS("SELECT PandaID from ATLAS_PANDA.jobsDefined4 WHERE prodSourceLabel=:prodSourceLabel AND modificationTime<:modificationTime ORDER BY PandaID",
-                              varMap)
+status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsDefined4",timeLimit,[],['managed'],[],[],[])
 jobs=[]
 if res != None:
     for (id,) in res:
         jobs.append(id)
 # reassign
-if len(jobs):
+_logger.debug('reassignJobs for long in defined table -> #%s' % len(jobs))
+if len(jobs) > 0:
     nJob = 100
     iJob = 0
     while iJob < len(jobs):
-        _logger.debug('reassignJobs in Defined (%s)' % jobs[iJob:iJob+nJob])
+        _logger.debug('reassignJobs for long in defined table (%s)' % jobs[iJob:iJob+nJob])
         taskBuffer.reassignJobs(jobs[iJob:iJob+nJob],joinThr=True)
         iJob += nJob
 
@@ -791,27 +781,20 @@ for tmpCloud in siteMapper.getCloudList():
     # ignore special clouds
     if tmpCloud in ['CERN','OSG']:
         continue
-    varMap = {}
-    varMap[':jobStatus']        = 'activated'
-    varMap[':prodSourceLabel']  = 'managed'
-    varMap[':processingType1']  = 'evgen'
-    varMap[':processingType2']  = 'simul'
-    varMap[':modificationTime'] = timeLimit
-    varMap[':computingSite']    = siteMapper.getCloud(tmpCloud)['tier1']
-    while True:
-        status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND prodSourceLabel=:prodSourceLabel AND modificationTime<:modificationTime AND processingType IN (:processingType1,:processingType2) AND computingSite=:computingSite ORDER BY PandaID",
-                                          varMap)
-        jobs = []
-        if res == None:
-            break
+    status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsActive4",timeLimit,['activated'],['managed'],
+                                                ['evgen','simul'],[siteMapper.getCloud(tmpCloud)['tier1']],[])
+    jobs = []
+    if res != None:
         for (id,) in res:
             jobs.append(id)
-        if len(jobs) == 0:
-            break
+    _logger.debug('reassignJobs for Active T1 evgensimul in %s -> #%s' % (tmpCloud,len(jobs)))
+    if len(jobs) != 0:
         nJob = 100
-        _logger.debug('reassignJobs for Active evgensimul (%s)' % jobs[:nJob])
-        taskBuffer.reassignJobs(jobs[:nJob],joinThr=True)
-
+        iJob = 0
+        while iJob < len(jobs):
+            _logger.debug('reassignJobs for Active T1 evgensimul (%s)' % jobs[iJob:iJob+nJob])
+            taskBuffer.reassignJobs(jobs[iJob:iJob+nJob],joinThr=True)
+            iJob += nJob
 
 # reassign too long-standing evgen/simul jobs with active state at T2
 try:
@@ -848,51 +831,40 @@ try:
                 tmpCloud,tmpComputingSite = tmpKey
                 _logger.debug(' %s:%s %s/%s > %s' % (tmpCloud,tmpComputingSite,tmpStatData['activated'],tmpStatData['running'],stuckThr))
                 # get stuck jobs
-                varMap = {}
-                varMap[':jobStatus']        = 'activated'
-                varMap[':prodSourceLabel']  = 'managed'
-                varMap[':processingType1']  = 'evgen'
-                varMap[':processingType2']  = 'simul'
-                varMap[':modificationTime'] = timeLimit
-                varMap[':cloud']            = tmpCloud
-                varMap[':computingSite']    = tmpComputingSite
-                while True:
-                    status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND prodSourceLabel=:prodSourceLabel AND modificationTime<:modificationTime AND processingType IN (:processingType1,:processingType2) AND computingSite=:computingSite AND cloud=:cloud ORDER BY PandaID",
-                                                      varMap)
-                    jobs = []
-                    if res == None:
-                        break
+                status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsActive4",timeLimit,['activated'],['managed'],
+                                                            ['evgen','simul'],[tmpComputingSite],[tmpCloud])
+                jobs = []
+                if res != None:
                     for (id,) in res:
                         jobs.append(id)
-                    if len(jobs) == 0:
-                        break
+                _logger.debug('reassignJobs for Active T2 evgensimul %s:%s -> #%s' % (tmpCloud,tmpComputingSite,len(jobs)))
+                if len(jobs) > 0:
                     nJob = 100
-                    _logger.debug('reassignJobs for Active T2 evgensimul (%s)' % jobs[:nJob])
-                    taskBuffer.reassignJobs(jobs[:nJob],joinThr=True)
+                    iJob = 0
+                    while iJob < len(jobs):
+                        _logger.debug('reassignJobs for Active T2 evgensimul (%s)' % jobs[iJob:iJob+nJob])
+                        taskBuffer.reassignJobs(jobs[iJob:iJob+nJob],joinThr=True)
+                        iJob += nJob
 except:
     errType,errValue = sys.exc_info()[:2]
     _logger.error("failed to reassign T2 evgensimul with %s:%s" % (errType,errValue))
 
 # reassign too long-standing jobs in active table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=2)
-varMap = {}
-varMap[':jobStatus'] = 'activated'
-varMap[':prodSourceLabel'] = 'managed'
-varMap[':modificationTime'] = timeLimit
-while True:
-    status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND prodSourceLabel=:prodSourceLabel AND modificationTime<:modificationTime ORDER BY PandaID",
-                                      varMap)
-    jobs = []
-    if res == None:
-        break
+status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsActive4",timeLimit,['activated'],['managed'],[],[],[])
+jobs = []
+if res != None:
     for (id,) in res:
         jobs.append(id)
-    if len(jobs) == 0:
-        break
+_logger.debug('reassignJobs for long in active table -> #%s' % len(jobs))
+if len(jobs) != 0:
     nJob = 100
-    _logger.debug('reassignJobs for Active (%s)' % jobs[:nJob])
-    taskBuffer.reassignJobs(jobs[:nJob],joinThr=True)
-
+    iJob = 0
+    while iJob < len(jobs):
+        _logger.debug('reassignJobs for long in active table (%s)' % jobs[iJob:iJob+nJob])
+        taskBuffer.reassignJobs(jobs[iJob:iJob+nJob],joinThr=True)
+        iJob += nJob
+        
 
 # kill too long-standing analysis jobs in active table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=7)
@@ -945,16 +917,12 @@ if len(jobs):
 
 # reassign long waiting jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
-varMap = {}
-varMap[':jobStatus']        = 'waiting'
-varMap[':prodSourceLabel']  = 'managed'
-varMap[':modificationTime'] = timeLimit
-status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsWaiting4 WHERE prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus AND modificationTime<:modificationTime ORDER BY PandaID",
-                              varMap)
+status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsWaiting4",timeLimit,['waiting'],['managed'],[],[],[])
 jobs = []
 if res != None:
     for (id,) in res:
         jobs.append(id)
+_logger.debug('reassignJobs for Waiting -> #%s' % len(jobs))
 if len(jobs):
     nJob = 100
     iJob = 0

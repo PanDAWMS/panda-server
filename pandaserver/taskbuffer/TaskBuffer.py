@@ -340,6 +340,18 @@ class TaskBuffer:
             return "ERROR: ServerError with storeJobs"
            
 
+    # lock jobs for reassign
+    def lockJobsForReassign(self,tableName,timeLimit,statList,labels,processTypes,sites,clouds):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.lockJobsForReassign(tableName,timeLimit,statList,labels,processTypes,sites,clouds)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
     # get number of activated/defined jobs with output datasets
     def getNumWaitingJobsWithOutDS(self,outputDSs):
         # get DB proxy
