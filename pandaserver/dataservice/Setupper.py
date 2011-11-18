@@ -40,7 +40,7 @@ PandaDDMSource = ['BNLPANDA','BNL-OSG2_MCDISK','BNL-OSG2_DATADISK','BNL-OSG2_MCT
 class Setupper (threading.Thread):
     # constructor
     def __init__(self,taskBuffer,jobs,resubmit=False,pandaDDM=False,ddmAttempt=0,forkRun=False,onlyTA=False,
-                 resetLocation=False,useNativeDQ2=False):
+                 resetLocation=False,useNativeDQ2=True):
         threading.Thread.__init__(self)
         self.jobs       = jobs
         self.taskBuffer = taskBuffer

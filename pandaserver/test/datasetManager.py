@@ -35,6 +35,9 @@ _logger = PandaLogger().getLogger('datasetManager')
 
 _logger.debug("===================== start =====================")
 
+# use native DQ2
+ddm.useDirectDQ2()
+
 # memory checker
 def _memoryCheck(str):
     try:

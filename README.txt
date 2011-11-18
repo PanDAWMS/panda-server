@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * use native DQ2 in copyArchive and datasetMgr
   * use python2.5 for copyArchive and prio-mgr
   * use native DQ2 in Setupper 
   * fixed guid generation for user's log
