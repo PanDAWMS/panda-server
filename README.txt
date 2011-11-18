@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed Merger to fail when container name is too long
   * use lockJobsForReassign for reassign in copyArchive
   * use native DQ2 in copyArchive and datasetMgr
   * use python2.5 for copyArchive and prio-mgr

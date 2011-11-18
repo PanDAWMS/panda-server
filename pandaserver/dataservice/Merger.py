@@ -240,7 +240,6 @@ class Merger:
                 _logger.debug("%s skip no-merge" % self.job.PandaID)
                 _logger.debug("%s end" % self.job.PandaID)
                 return None
-
             # get mergeType from jobParams
             self.mergeType   = self.getMergeType()
             self.mergeScript = self.getUserMergeScript()
@@ -407,6 +406,7 @@ class Merger:
                 # register new container for the logs of merging operation
                 _logger.debug("%s registerContainer %s" % (self.job.PandaID, self.dsContMergeLog))
                 nTry = 3
+                unRecoverable = False
                 for iTry in range(nTry):
                     try:
                         self.dq2api.registerContainer(self.dsContMergeLog)
@@ -414,10 +414,14 @@ class Merger:
                     except DQ2.DQDatasetExistsException:
                         break
                     except:
-                        if (iTry+1) == nTry:
-                            errType,errValue = sys.exc_info()[:2]
+                        errType,errValue = sys.exc_info()[:2]
+                        if 'exceeds the maximum length' in str(errValue):
+                            unRecoverable = True:
+                        if unRecoverable or (iTry+1) == nTry:
                             _logger.error("%s DQ2 failed with %s:%s to register new container %s" % (self.job.PandaID,errType,errValue,self.dsContMergeLog))
                             _logger.debug("%s end" % self.job.PandaID)
+                            if unRecoverable:
+                                return None
                             return False
                         # sleep
                         time.sleep(60)
