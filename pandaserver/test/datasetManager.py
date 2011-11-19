@@ -140,6 +140,7 @@ taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
 siteMapper = SiteMapper(taskBuffer)
 
 # delete old datasets
+_logger.debug("==== delete old datasets ====")
 timeLimitDnS = datetime.datetime.utcnow() - datetime.timedelta(days=60)
 timeLimitTop = datetime.datetime.utcnow() - datetime.timedelta(days=90)
 nDelDS = 1000
@@ -315,6 +316,7 @@ class CloserThr (threading.Thread):
         self.lock.release()
 
 # close datasets
+_logger.debug("==== close datasets ====")
 timeLimitU = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
 timeLimitL = datetime.datetime.utcnow() - datetime.timedelta(days=3)
 closeLock = threading.Semaphore(5)
@@ -431,6 +433,7 @@ class Freezer (threading.Thread):
         self.lock.release()
                             
 # freeze dataset
+_logger.debug("==== freeze datasets ====")
 timeLimitU = datetime.datetime.utcnow() - datetime.timedelta(days=4)
 timeLimitL = datetime.datetime.utcnow() - datetime.timedelta(days=14)
 freezeLock = threading.Semaphore(5)
@@ -558,6 +561,7 @@ class T2Cleaner (threading.Thread):
         self.lock.release()
                             
 # delete dataset replica from T2
+_logger.debug("==== delete datasets from T2 ====")
 timeLimitU = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
 timeLimitL = datetime.datetime.utcnow() - datetime.timedelta(days=3)
 t2cleanLock = threading.Semaphore(5)
@@ -643,6 +647,7 @@ class EraserThr (threading.Thread):
         self.lock.release()
 
 # delete dis datasets
+_logger.debug("==== delete dis datasets ====")
 timeLimitU = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
 timeLimitL = datetime.datetime.utcnow() - datetime.timedelta(days=3)
 disEraseLock = threading.Semaphore(5)
@@ -688,6 +693,7 @@ while True:
 _memoryCheck("finisher")
 
 # finish transferring jobs
+_logger.debug("==== finish transferring jobs ====")
 timeNow   = datetime.datetime.utcnow()
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
 sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND modificationTime<:modificationTime AND rownum<=20"
