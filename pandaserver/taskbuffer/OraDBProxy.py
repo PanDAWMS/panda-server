@@ -4326,38 +4326,51 @@ class DBProxy:
     def getLockDatasets(self,sqlQuery,varMapGet,modTimeOffset='',getVersion=False):
         comment = ' /* DBProxy.getLockDatasets */'        
         _logger.debug("getLockDatasets(%s,%s,%s)" % (sqlQuery,str(varMapGet),modTimeOffset))
-        sqlGet  = "SELECT /*+ INDEX_RS_ASC(tab(STATUS,TYPE,MODIFICATIONDATE)) */ vuid,name,modificationdate,version FROM ATLAS_PANDA.Datasets tab WHERE " + sqlQuery
+        sqlGet  = "SELECT /*+ INDEX_RS_ASC(tab(STATUS,TYPE,MODIFICATIONDATE)) */ vuid,name,modificationdate,version,transferStatus FROM ATLAS_PANDA.Datasets tab WHERE " + sqlQuery
         sqlLock = "UPDATE ATLAS_PANDA.Datasets SET modificationdate=CURRENT_DATE"
         if modTimeOffset != '':
             sqlLock += "+%s" % modTimeOffset
+        sqlLock += ",transferStatus=MOD(transferStatus+1,10)"
         if getVersion:
             sqlLock += ",version=:version"
-        sqlLock += " WHERE vuid=:vuid"    
+        sqlLock += " WHERE vuid=:vuid AND transferStatus=:transferStatus"    
         retList = []
         try:
             # begin transaction
             self.conn.begin()
             # get datasets
-            self.cur.arraysize = 10000
+            self.cur.arraysize = 1000000
             self.cur.execute(sqlGet+comment,varMapGet)            
             res = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
             # loop over all datasets
             if res != None and len(res) != 0:
-                for vuid,name,modificationdate,version in res:
-                    # append
-                    if not getVersion:
-                        retList.append((vuid,name,modificationdate))
-                    else:
-                        retList.append((vuid,name,modificationdate,version))                        
+                for vuid,name,modificationdate,version,transferStatus in res:
                     # lock
                     varMapLock = {}
                     varMapLock[':vuid'] = vuid
+                    varMapLock[':transferStatus'] = transferStatus
                     if getVersion:
                         try:
                             varMapLock[':version'] = str(int(version) + 1)
                         except:
                             varMapLock[':version'] = str(1)
+                    # begin transaction
+                    self.conn.begin()
+                    # update for lock
                     self.cur.execute(sqlLock+comment,varMapLock)
+                    retU = self.cur.rowcount
+                    # commit
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+                    if retU > 0:
+                        # append
+                        if not getVersion:
+                            retList.append((vuid,name,modificationdate))
+                        else:
+                            retList.append((vuid,name,modificationdate,version))
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
