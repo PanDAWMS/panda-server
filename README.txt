@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * setup glite in TaLuncher
   * added lock in lockDatasets
   * added version check in Merger to avoid duplicating merge jobs
   * changed Merger to fail when container name is too long
