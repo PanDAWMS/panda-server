@@ -567,7 +567,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                         resultsForAnal['status'].append(site)
                                     continue
                             if tmpSiteSpec.status == 'test' and (not prevProType in ['prod_test','hammercloud','gangarobot','gangarobot-squid']) \
-                                   and not prevSourceLabel in ['test']:
+                                   and not prevSourceLabel in ['test','prod_test']:
                                 _log.debug(' skip: status %s for %s' % (tmpSiteSpec.status,prevProType))
                                 if forAnalysis and trustIS:
                                     resultsForAnal['status'].append(site)
