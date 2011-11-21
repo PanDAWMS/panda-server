@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed getJobs for test pilots to get gangarobot jobs
   * setup glite in TaLuncher
   * added lock in lockDatasets
   * added version check in Merger to avoid duplicating merge jobs
