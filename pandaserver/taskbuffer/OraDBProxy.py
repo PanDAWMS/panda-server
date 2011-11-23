@@ -4204,7 +4204,7 @@ class DBProxy:
             # set table
             if param['jobStatus'] in ['defined','assigned']:
                 table = 'ATLAS_PANDA.jobsDefined4'
-            elif param['jobStatus'] in ['waiting']:
+            elif param['jobStatus'] in ['waiting','pending']:
                 table = 'ATLAS_PANDA.jobsWaiting4'
             elif param['jobStatus'] in ['activated','sent','starting','running','holding','transferring']:
                 table = 'ATLAS_PANDA.jobsActive4'
