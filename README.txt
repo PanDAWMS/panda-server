@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed hint in getJobs
   * fixed updateProdDBUpdateTime for pending jobs
   * fixed brokerage to accept test sites for prod_test jobs
   * changed getJobs for test pilots to get gangarobot jobs

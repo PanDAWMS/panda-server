@@ -2026,7 +2026,7 @@ class DBProxy:
                         specialHandlingMap = {}
                         # get max priority for analysis jobs
                         if prodSourceLabel in ['panda','user']:
-                            sqlMX = "SELECT /*+ INDEX_COMBINE(tab JOBSACTIVE4_JOBSTATUS_IDX JOBSACTIVE4_COMPSITE_IDX) */ MAX(currentPriority) FROM ATLAS_PANDA.jobsActive4 tab "
+                            sqlMX = "SELECT /*+ INDEX_RS_ASC(tab (PRODSOURCELABEL COMPUTINGSITE JOBSTATUS) ) */ MAX(currentPriority) FROM ATLAS_PANDA.jobsActive4 tab "
                             sqlMX+= sql1
                             _logger.debug(sqlMX+comment+str(getValMap))
                             # start transaction
@@ -2048,7 +2048,7 @@ class DBProxy:
                         maxAttemptIDx = 10
                         if toGetPandaIDs:
                             # get PandaIDs
-                            sqlP = "SELECT /*+ INDEX_COMBINE(tab JOBSACTIVE4_JOBSTATUS_IDX JOBSACTIVE4_COMPSITE_IDX) */ PandaID,currentPriority,specialHandling FROM ATLAS_PANDA.jobsActive4 tab "
+                            sqlP = "SELECT /*+ INDEX_RS_ASC(tab (PRODSOURCELABEL COMPUTINGSITE JOBSTATUS) ) */ PandaID,currentPriority,specialHandling FROM ATLAS_PANDA.jobsActive4 tab "
                             sqlP+= sql1
                             _logger.debug(sqlP+comment+str(getValMap))
                             # start transaction
