@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added tmpwatch.py	
   * changed hint in getJobs
   * fixed updateProdDBUpdateTime for pending jobs
   * fixed brokerage to accept test sites for prod_test jobs
