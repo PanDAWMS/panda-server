@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed brokerageErrorDiag for non missing release errors
   * added tmpwatch.py	
   * changed hint in getJobs
   * fixed updateProdDBUpdateTime for pending jobs

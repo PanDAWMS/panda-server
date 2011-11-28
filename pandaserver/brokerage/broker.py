@@ -563,14 +563,12 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     pass
                                 else:
                                     _log.debug(' skip: status %s' % tmpSiteSpec.status)
-                                    if forAnalysis and trustIS:
-                                        resultsForAnal['status'].append(site)
+                                    resultsForAnal['status'].append(site)
                                     continue
                             if tmpSiteSpec.status == 'test' and (not prevProType in ['prod_test','hammercloud','gangarobot','gangarobot-squid']) \
                                    and not prevSourceLabel in ['test','prod_test']:
                                 _log.debug(' skip: status %s for %s' % (tmpSiteSpec.status,prevProType))
-                                if forAnalysis and trustIS:
-                                    resultsForAnal['status'].append(site)
+                                resultsForAnal['status'].append(site)
                                 continue
                             _log.debug('   status=%s' % tmpSiteSpec.status)
                             # change NULL cmtconfig to slc3/4
@@ -635,8 +633,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 try:
                                     if int(tmpSiteSpec.memory) < int(prevMemory):
                                         _log.debug('  skip: memory shortage %s<%s' % (tmpSiteSpec.memory,prevMemory))
-                                        if forAnalysis and trustIS:
-                                            resultsForAnal['memory'].append(site)
+                                        resultsForAnal['memory'].append(site)
                                         continue
                                 except:
                                     type, value, traceBack = sys.exc_info()
@@ -665,8 +662,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             # if no pilots
                             if nPilots == 0 and nWNmap != {}:
                                 _log.debug(" skip: %s no pilot" % site)
-                                if forAnalysis and trustIS:
-                                    resultsForAnal['pilot'].append(site)
+                                resultsForAnal['pilot'].append(site)
                                 continue
                             # if no jobs in jobsActive/jobsDefined
                             if not jobStatistics.has_key(site):
@@ -703,8 +699,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     _log.debug('   space available=%s remain=%s' % (tmpSiteSpec.space,remSpace))
                                     if remSpace < diskThreshold:
                                         _log.debug('  skip: disk shortage < %s' % diskThreshold)
-                                        if forAnalysis and trustIS:
-                                            resultsForAnal['disk'].append(site)
+                                        resultsForAnal['disk'].append(site)
                                         # keep message to logger
                                         try:
                                             if prevSourceLabel in ['managed','test']:
@@ -941,21 +936,78 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             tmpJob.jobStatus          = 'waiting'
                             tmpJob.brokerageErrorCode = ErrorCode.EC_Release
                             if tmpJob.relocationFlag == 1:
-                                if useCacheVersion:
-                                    tmpJob.brokerageErrorDiag = '%s/%s not found at %s' % (tmpJob.homepackage,tmpJob.cmtConfig,tmpJob.computingSite)
-                                else:
-                                    tmpJob.brokerageErrorDiag = '%s/%s not found at %s' % (tmpJob.AtlasRelease,tmpJob.cmtConfig,tmpJob.computingSite)
+                                try:
+                                    if resultsForAnal['pilot'] != []:
+                                        tmpJob.brokerageErrorDiag = '%s no pilots' % tmpJob.computingSite
+                                    elif resultsForAnal['disk'] != []:
+                                        tmpJob.brokerageErrorDiag = 'disk shortage at %s' % tmpJob.computingSite
+                                    elif resultsForAnal['memory'] != []:
+                                        tmpJob.brokerageErrorDiag = 'memory shortage at %s' % tmpJob.computingSite
+                                    elif resultsForAnal['status'] != []:
+                                        tmpJob.brokerageErrorDiag = '%s not online' % tmpJob.computingSite                                    
+                                    elif useCacheVersion:
+                                        tmpJob.brokerageErrorDiag = '%s/%s not found at %s' % (tmpJob.homepackage,tmpJob.cmtConfig,tmpJob.computingSite)
+                                    else:
+                                        tmpJob.brokerageErrorDiag = '%s/%s not found at %s' % (tmpJob.AtlasRelease,tmpJob.cmtConfig,tmpJob.computingSite)
+                                except:
+                                    errtype,errvalue = sys.exc_info()[:2]
+                                    _log.error("failed to set diag for %s: %s %s" % (tmpJob.PandaID,errtype,errvalue))
+                                    tmpJob.brokerageErrorDiag = 'failed to set diag. see brokerage log in the panda server'
                             elif not prevBrokergageSiteList in [[],None]:
-                                tmpSiteStr = ''
-                                for tmpSiteItem in prevBrokergageSiteList:
-                                    tmpSiteStr += '%s,' % tmpSiteItem
-                                tmpSiteStr = tmpSiteStr[:-1]
-                                if useCacheVersion:
-                                    tmpJob.brokerageErrorDiag = '%s/%s not found at %s' % (tmpJob.homepackage,tmpJob.cmtConfig,tmpSiteStr)
-                                else:
-                                    tmpJob.brokerageErrorDiag = '%s/%s not found at %s' % (tmpJob.AtlasRelease,tmpJob.cmtConfig,tmpSiteStr)
-                                if prevGoToT2Flag:
-                                    tmpJob.brokerageErrorDiag += ' where missing files are available'
+                                try:
+                                    usedInDiagSites = []
+                                    tmpJob.brokerageErrorDiag = ''
+                                    # no pilots
+                                    if resultsForAnal['pilot'] != []:
+                                        tmpSiteStr = ''
+                                        for tmpSiteItem in resultsForAnal['pilot']:
+                                            usedInDiagSites.append(tmpSiteItem)
+                                            tmpSiteStr += '%s,' % tmpSiteItem
+                                        tmpSiteStr = tmpSiteStr[:-1]
+                                        tmpJob.brokerageErrorDiag += '%s no pilots, ' % tmpSiteStr
+                                    # disk shortage    
+                                    if resultsForAnal['disk'] != []:
+                                        tmpSiteStr = ''
+                                        for tmpSiteItem in resultsForAnal['disk']:
+                                            usedInDiagSites.append(tmpSiteItem)                                        
+                                            tmpSiteStr += '%s,' % tmpSiteItem
+                                        tmpSiteStr = tmpSiteStr[:-1]
+                                        tmpJob.brokerageErrorDiag += 'disk shortage at %s, ' % tmpSiteStr
+                                    # memory shortage    
+                                    if resultsForAnal['memory'] != []:
+                                        tmpSiteStr = ''
+                                        for tmpSiteItem in resultsForAnal['memory']:
+                                            usedInDiagSites.append(tmpSiteItem)                                        
+                                            tmpSiteStr += '%s,' % tmpSiteItem
+                                        tmpSiteStr = tmpSiteStr[:-1]
+                                        tmpJob.brokerageErrorDiag += 'memory shortage at %s, ' % tmpSiteStr
+                                    # non-online status     
+                                    if resultsForAnal['status'] != []:
+                                        tmpSiteStr = ''
+                                        for tmpSiteItem in resultsForAnal['status']:
+                                            usedInDiagSites.append(tmpSiteItem)
+                                            tmpSiteStr += '%s,' % tmpSiteItem
+                                        tmpSiteStr = tmpSiteStr[:-1]
+                                        tmpJob.brokerageErrorDiag += '%s not online, ' % tmpSiteStr
+                                    # missing release    
+                                    tmpSiteStr = ''
+                                    for tmpSiteItem in prevBrokergageSiteList:
+                                        if not tmpSiteItem in usedInDiagSites:
+                                            tmpSiteStr += '%s,' % tmpSiteItem
+                                    tmpSiteStr = tmpSiteStr[:-1]
+                                    if tmpSiteStr != '':
+                                        if useCacheVersion:
+                                            tmpJob.brokerageErrorDiag += '%s/%s not found at %s' % (tmpJob.homepackage,tmpJob.cmtConfig,tmpSiteStr)
+                                        else:
+                                            tmpJob.brokerageErrorDiag += '%s/%s not found at %s' % (tmpJob.AtlasRelease,tmpJob.cmtConfig,tmpSiteStr)
+                                        if prevGoToT2Flag:
+                                            tmpJob.brokerageErrorDiag += ' where missing files are available'
+                                    else:
+                                        tmpJob.brokerageErrorDiag = tmpJob.brokerageErrorDiag[:-2]
+                                except:
+                                    errtype,errvalue = sys.exc_info()[:2]
+                                    _log.error("failed to set diag for %s: %s %s" % (tmpJob.PandaID,errtype,errvalue))
+                                    tmpJob.brokerageErrorDiag = 'failed to set diag. see brokerage log in the panda server'
                             elif prevProType in ['reprocessing']:
                                 tmpJob.brokerageErrorDiag = '%s/%s not found at reprocessing sites' % (tmpJob.homepackage,tmpJob.cmtConfig)
                             elif not useCacheVersion:
