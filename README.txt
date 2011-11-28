@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * fixed Merger to use the largest SN for merged files
+  * fixed queryLastFilesInDataset to ignore merged files 
   * fixed brokerageErrorDiag for non missing release errors
   * added tmpwatch.py	
   * changed hint in getJobs

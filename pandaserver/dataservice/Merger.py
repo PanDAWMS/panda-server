@@ -586,6 +586,8 @@ class Merger:
                 tmpJob.addFile(tmpFile)
                 params += " --libTgz %s" % tmpFile.lfn
                 break
+        # reverse sort to use the largest SN in merged LFN, which is required to find SN offset when outDS is reused
+        fileList.reverse()
         # input
         serNum = None
         attNum = None

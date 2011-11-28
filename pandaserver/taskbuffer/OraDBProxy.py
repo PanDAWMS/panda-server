@@ -5331,8 +5331,8 @@ class DBProxy:
         if len(datasets) == 0:
             return []
         # make SQL query
-        sql1 = "SELECT /*+ index(tab FILESTABLE4_DATASET_IDX) */ MAX(lfn) FROM ATLAS_PANDA.filesTable4 tab WHERE dataset=:dataset AND type=:type"
-        sqlL = "SELECT /*+ index(tab FILESTABLE4_DATASET_IDX) */ MAX(PandaID) FROM ATLAS_PANDA.filesTable4 tab WHERE dataset=:dataset AND type=:type AND lfn=:lfn"
+        sql1 = "SELECT /*+ index(tab FILESTABLE4_DATASET_IDX) */ lfn,PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE dataset=:dataset AND type=:type ORDER BY lfn DESC"
+        sqlL = "SELECT processingType FROM %s WHERE PandaID=:PandaID"
         sql2 = "SELECT lfn FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type=:type"
         # execute
         try:
@@ -5344,34 +5344,56 @@ class DBProxy:
                 varMap = {}
                 varMap[':type'] = 'output'
                 varMap[':dataset'] = dataset
-                self.cur.arraysize = 10                
+                self.cur.arraysize = 100000                
                 self.cur.execute(sql1+comment, varMap)
-                res = self.cur.fetchone()
-                # found
-                retList = []
-                if res != None:
-                    varMap = {}
-                    varMap[':lfn'] = res[0]
-                    varMap[':type'] = 'output'
-                    varMap[':dataset'] = dataset
-                    # get corresponding PandaID
-                    self.cur.arraysize = 10
-                    self.cur.execute(sqlL+comment, varMap)
-                    res = self.cur.fetchone()
-                    if res != None:
-                        pandaID = res[0]
-                        # select LFNs
-                        varMap = {}
-                        varMap[':PandaID'] = pandaID
-                        varMap[':type'] = 'output'
-                        self.cur.arraysize = 100
-                        self.cur.execute(sql2+comment, varMap)
-                        res = self.cur.fetchall()
-                        for r in res:
-                            retList.append(r[0])
+                res = self.cur.fetchall()
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
+                # found
+                retList = []
+                for tmpLFN,pandaID in res:
+                    # skip log.tgz
+                    if re.search('\.log\.tgz(\.\d+)*$',tmpLFN) != None:
+                        continue
+                    # start transaction
+                    self.conn.begin()
+                    self.cur.arraysize = 10
+                    # check processingType
+                    processingType = None
+                    for tmpTable in ['ATLAS_PANDA.jobsDefined4','ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsArchived4']:
+                        varMap = {}
+                        varMap[':PandaID'] = pandaID
+                        self.cur.execute((sqlL % tmpTable)+comment, varMap)
+                        resP = self.cur.fetchone()
+                        if resP != None:
+                            processingType = resP[0]
+                            break
+                    # commit
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+                    # job not found
+                    if processingType == None:
+                        raise RuntimeError, 'job not found'
+                    # ignore merge jobs
+                    if processingType in ['usermerge']:
+                        continue
+                    # start transaction
+                    self.conn.begin()
+                    # select LFNs
+                    varMap = {}
+                    varMap[':PandaID'] = pandaID
+                    varMap[':type'] = 'output'
+                    self.cur.arraysize = 1000
+                    self.cur.execute(sql2+comment, varMap)
+                    res = self.cur.fetchall()
+                    for r in res:
+                        retList.append(r[0])
+                    # commit
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+                    # get only the largest one
+                    break
                 # append
                 retMap[dataset] = retList
             # return
