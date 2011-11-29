@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed TB to give higher prio to buildJob with prodRole  
   * fixed Merger to use the largest SN for merged files
   * fixed queryLastFilesInDataset to ignore merged files 
   * fixed brokerageErrorDiag for non missing release errors

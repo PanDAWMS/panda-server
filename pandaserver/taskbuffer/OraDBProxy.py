@@ -227,7 +227,7 @@ class DBProxy:
             if 'express' in job.specialHandling:
                 job.currentPriority = 6000
         elif job.prodSourceLabel == 'panda':
-            job.currentPriority = 2000
+            job.currentPriority = 2000 + priorityOffset
             if 'express' in job.specialHandling:
                 job.currentPriority = 6500
         # usergroup
