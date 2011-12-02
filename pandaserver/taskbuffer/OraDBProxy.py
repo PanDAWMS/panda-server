@@ -1446,6 +1446,14 @@ class DBProxy:
                     job.pack(res[0])
                 else:
                     job = inMemJob
+                # don't use getNewPandaID for buildJob since the order of PandaIDs is broken
+                if getNewPandaID and job.prodSourceLabel in ['panda']:
+                    if not changeJobInMem:    
+                        # commit
+                        if not self._commit():
+                            raise RuntimeError, 'Commit error'
+                    # return
+                    return retValue
                 # check pilot retry
                 usePilotRetry = False
                 if job.prodSourceLabel in ['user','panda','ptest','rc_test'] and \

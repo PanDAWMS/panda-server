@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed retryJob not to retry buildJob to keep the PandaID order
   * fixed TB to give higher prio to buildJob with prodRole  
   * fixed Merger to use the largest SN for merged files
   * fixed queryLastFilesInDataset to ignore merged files 
