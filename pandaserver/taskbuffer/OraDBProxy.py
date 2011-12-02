@@ -1564,7 +1564,7 @@ class DBProxy:
                             file.GUID = commands.getoutput('uuidgen')
                         # don't change input and lib.tgz    
                         if file.type == 'input' or (file.type == 'output' and job.prodSourceLabel == 'panda') or \
-                               (file.type == 'output' and file.lfn.endswith('.lib.tgz') and job.prodSourceLabel == 'rc_test'):
+                               (file.type == 'output' and file.lfn.endswith('.lib.tgz') and job.prodSourceLabel in ['rc_test','ptest']):
                             continue
                         # append attemptNr to LFN
                         oldName = file.lfn
