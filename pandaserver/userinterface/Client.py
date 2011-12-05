@@ -600,7 +600,7 @@ def getPandaIDsSite(site,status,limit=500):
 
     
 # get job statistics per site
-def getJobStatisticsPerSite(predefined=False,workingGroup='',countryGroup='',jobType=''):
+def getJobStatisticsPerSite(predefined=False,workingGroup='',countryGroup='',jobType='',minPriority=None):
     # instantiate curl
     curl = _Curl()
     # execute
@@ -614,6 +614,8 @@ def getJobStatisticsPerSite(predefined=False,workingGroup='',countryGroup='',job
             data['countryGroup'] = countryGroup
         if not jobType in ['',None]:
             data['jobType'] = jobType
+        if not minPriority in ['',None]:
+            data['minPriority'] = minPriority
         status,output = curl.get(url,data)
         try:
             tmpRet = status,pickle.loads(output)

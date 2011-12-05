@@ -338,9 +338,9 @@ class UserIF:
         
 
     # get job statistics per site
-    def getJobStatisticsPerSite(self,predefined=False,workingGroup='',countryGroup='',jobType=''):
+    def getJobStatisticsPerSite(self,predefined=False,workingGroup='',countryGroup='',jobType='',minPriority=None):
         # get job statistics
-        ret = self.taskBuffer.getJobStatistics(True,predefined,workingGroup,countryGroup,jobType)
+        ret = self.taskBuffer.getJobStatistics(True,predefined,workingGroup,countryGroup,jobType,minPriority=minPriority)
         # serialize 
         return pickle.dumps(ret)
 
@@ -933,12 +933,17 @@ def getJobStatisticsForBamboo(req):
 
 
 # get job statistics per site
-def getJobStatisticsPerSite(req,predefined='False',workingGroup='',countryGroup='',jobType=''):
+def getJobStatisticsPerSite(req,predefined='False',workingGroup='',countryGroup='',jobType='',minPriority=None):
     if predefined=='True':
         predefined=True
     else:
         predefined=False
-    return userIF.getJobStatisticsPerSite(predefined,workingGroup,countryGroup,jobType)
+    if minPriority != None:
+        try:
+            minPriority = int(minPriority)
+        except:
+            minPriority = None
+    return userIF.getJobStatisticsPerSite(predefined,workingGroup,countryGroup,jobType,minPriority)
 
 
 # get job statistics per site with label

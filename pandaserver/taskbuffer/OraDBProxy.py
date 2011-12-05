@@ -20,6 +20,7 @@ import ErrorCode
 import SiteSpec
 import CloudSpec
 import PrioUtil
+import ProcessGroups
 from JobSpec  import JobSpec
 from FileSpec import FileSpec
 from DatasetSpec import DatasetSpec
@@ -60,6 +61,10 @@ class DBProxy:
         self.beyondPledgeRatio = {}
         # update time for pledge resource ratio
         self.updateTimeForPledgeRatio = None
+        # fareshare policy
+        self.faresharePolicy = {}
+        # update time for fareshare policy
+        self.updateTimeForFaresharePolicy = None
         
         
     # connect to DB
@@ -1940,6 +1945,13 @@ class DBProxy:
                     idxWorking += 1
                 sql1 = sql1[:-1]
                 sql1+= ") "
+        # production share
+        if prodSourceLabel == 'managed':
+            shareSQL,shareVarMap = self.getCriteriaForProdShare(siteName)
+            if shareVarMap != {}:
+                sql1 += shareSQL
+                for tmpShareKey in shareVarMap.keys():
+                    getValMap[tmpShareKey] = shareVarMap[tmpShareKey] 
         sql2 = "SELECT %s FROM ATLAS_PANDA.jobsActive4 " % JobSpec.columnNames()
         sql2+= "WHERE PandaID=:PandaID"
         retJobs = []
@@ -5458,9 +5470,9 @@ class DBProxy:
 
 
     # get job statistics
-    def getJobStatistics(self,archived=False,predefined=False,workingGroup='',countryGroup='',jobType='',forAnal=None):
+    def getJobStatistics(self,archived=False,predefined=False,workingGroup='',countryGroup='',jobType='',forAnal=None,minPriority=None):
         comment = ' /* DBProxy.getJobStatistics */'        
-        _logger.debug("getJobStatistics(%s,%s,'%s','%s','%s',%s)" % (archived,predefined,workingGroup,countryGroup,jobType,forAnal))
+        _logger.debug("getJobStatistics(%s,%s,'%s','%s','%s',%s,%s)" % (archived,predefined,workingGroup,countryGroup,jobType,forAnal,minPriority))
         timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
         sql0  = "SELECT computingSite,jobStatus,COUNT(*) FROM %s WHERE prodSourceLabel IN ("
         # processingType
@@ -5518,20 +5530,29 @@ class DBProxy:
                 tmpGroupMap[tmpCGkey] = tmpCG
                 idxCG += 1
             sqlGroups = sqlGroups[:-1] + ") "
-        sql0 += sqlGroups    
+        sql0 += sqlGroups
+        # minimum priority
+        sqlPrio = ''
+        tmpPrioMap = {}
+        if minPriority != None:
+            sqlPrio = "AND currentPriority>=:minPriority "
+            tmpPrioMap[':minPriority'] = minPriority
+        sql0 += sqlPrio    
         sql0 += "GROUP BY computingSite,jobStatus"
         sqlA =  "SELECT /*+ index(tab JOBSARCHIVED4_MODTIME_IDX) */ computingSite,jobStatus,COUNT(*) FROM ATLAS_PANDA.jobsArchived4 tab WHERE modificationTime>:modificationTime "
         sqlA += "AND prodSourceLabel IN ("
         sqlA += sqlJobType            
         if predefined:
             sqlA += "AND relocationFlag=1 "
-        sqlA += sqlGroups                
+        sqlA += sqlGroups
+        sqlA += sqlPrio
         sqlA += "GROUP BY computingSite,jobStatus"
         tables = ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4']
         if archived:
             tables.append('ATLAS_PANDA.jobsArchived4')
         # sql for materialized view
         sqlMV = re.sub('COUNT\(\*\)','SUM(num_of_jobs)',sql0)
+        sqlMV = re.sub(':minPriority','TRUNC(:minPriority,-1)',sqlMV)
         ret = {}
         nTry=3
         for iTry in range(nTry):
@@ -5545,6 +5566,8 @@ class DBProxy:
                         varMap[tmpJobType] = tmpJobTypeMap[tmpJobType]
                     for tmpGroup in tmpGroupMap.keys():
                         varMap[tmpGroup] = tmpGroupMap[tmpGroup]
+                    for tmpPrio in tmpPrioMap.keys():
+                        varMap[tmpPrio] = tmpPrioMap[tmpPrio]
                     if table != 'ATLAS_PANDA.jobsArchived4':
                         self.cur.arraysize = 10000
                         if table == 'ATLAS_PANDA.jobsActive4':
@@ -5608,7 +5631,8 @@ class DBProxy:
                 tmpSiteMap[tmpSiteKey] = tmpSite
                 idxSite += 1                
             sql0 = sql0[:-1] + ") "
-        sql0 += "GROUP BY computingSite,prodSourceLabel,jobStatus "     
+        sql0 += "GROUP BY computingSite,prodSourceLabel,jobStatus "
+        sqlMV = re.sub('COUNT\(\*\)','SUM(num_of_jobs)',sql0)
         tables = ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4']
         returnMap = {}
         try:
@@ -5617,8 +5641,12 @@ class DBProxy:
                 self.conn.begin()
                 # select
                 varMap = {}
-                self.cur.arraysize = 10000                        
-                self.cur.execute((sql0+comment) % table,tmpSiteMap)
+                self.cur.arraysize = 10000
+                if table == 'ATLAS_PANDA.jobsActive4':
+                    sqlExeTmp = (sqlMV+comment) % 'ATLAS_PANDA.MV_JOBSACTIVE4_STATS'
+                else:
+                    sqlExeTmp = (sql0+comment) % table
+                self.cur.execute(sqlExeTmp,tmpSiteMap)
                 res = self.cur.fetchall()
                 # commit
                 if not self._commit():
@@ -6874,6 +6902,391 @@ class DBProxy:
             return
 
 
+    # get selection criteria for share of production activities
+    def getCriteriaForProdShare(self,siteName):
+        comment = ' /* DBProxy.getCriteriaForProdShare */'        
+        # return for no criteria
+        retForNone = '',{}
+        # update fareshare policy
+        self.getFaresharePolicy()
+        # not defined
+        if not self.faresharePolicy.has_key(siteName):
+            return retForNone
+        _logger.debug("getCriteriaForProdShare %s" % siteName)
+        try:
+            # definition for fareshare
+            usingGroup = self.faresharePolicy[siteName]['usingGroup'] 
+            usingType  = self.faresharePolicy[siteName]['usingType'] 
+            usingPrio  = self.faresharePolicy[siteName]['usingPrio'] 
+            shareDefList   = []
+            for tmpDefItem in self.faresharePolicy[siteName]['policyList']:
+                shareDefList.append({'policy':tmpDefItem,'count':{}})
+            # set autocommit on
+            self.conn.begin()
+            # check if countryGroup has activated jobs
+            varMap = {}
+            varMap[':computingSite'] = siteName
+            varMap[':prodSourceLabel'] = 'managed'
+            sql  = "SELECT jobStatus,"
+            if usingGroup:
+                sql += 'workingGroup,'
+            if usingType:
+                sql += 'processingType,'
+            if usingPrio:
+                sql += 'currentPriority,'
+            sql += "SUM(num_of_jobs) FROM ATLAS_PANDA.MV_JOBSACTIVE4_STATS "
+            sql += "WHERE computingSite=:computingSite AND prodSourceLabel=:prodSourceLabel "
+            sql += "GROUP BY jobStatus"
+            if usingGroup:
+                sql += ',workingGroup'
+            if usingType:
+                sql += ',processingType'
+            if usingPrio:
+                sql += ',currentPriority'
+            self.cur.arraysize = 100000                        
+            self.cur.execute(sql+comment,varMap)
+            res = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # no info about the site
+            if res == None or len(res) == 0:
+                _logger.debug("getCriteriaForProdShare %s : ret=None - no jobs" % siteName)
+                return retForNone
+            # loop over all rows
+            workingGroupInQueueMap = {}
+            processGroupInQueueMap = {} 
+            for tmpItem in res:
+                tmpIdx = 0
+                jobStatus = tmpItem[tmpIdx]
+                tmpIdx += 1
+                if usingGroup:
+                    workingGroup = tmpItem[tmpIdx]
+                    tmpIdx += 1
+                else:
+                    workingGroup = None
+                if usingType:
+                    processingType = tmpItem[tmpIdx]
+                    tmpIdx += 1
+                    # get process group
+                    processGroup = ProcessGroups.getProcessGroup(processingType)
+                else:
+                    processingType = None
+                    processGroup = None
+                if usingPrio:
+                    currentPriority = tmpItem[tmpIdx]
+                    tmpIdx += 1
+                else:
+                    currentPriority = None
+                cnt = tmpItem[tmpIdx]
+                # append processingType list    
+                if not processGroupInQueueMap.has_key(processGroup):
+                    processGroupInQueueMap[processGroup] = []
+                if not processingType in processGroupInQueueMap[processGroup]:
+                    processGroupInQueueMap[processGroup].append(processingType)
+                # count the number of jobs for each policy
+                for tmpShareDef in shareDefList:
+                    policyName = tmpShareDef['policy']['name']                    
+                    # use different list based on usage of priority
+                    if tmpShareDef['policy']['priority'] == None:
+                        groupInDefList = self.faresharePolicy[siteName]['groupList']
+                        typeInDefList  = self.faresharePolicy[siteName]['typeList'][tmpShareDef['policy']['group']] 
+                    else:
+                        groupInDefList = self.faresharePolicy[siteName]['groupListWithPrio']
+                        typeInDefList  = self.faresharePolicy[siteName]['typeListWithPrio'][tmpShareDef['policy']['group']]
+                    # check working group
+                    if usingGroup:
+                        if tmpShareDef['policy']['group'] == None:
+                            # catchall doesn't contain WGs used by other policies
+                            if workingGroup != None and workingGroup in groupInDefList:
+                                continue
+                            # check for wildcard
+                            toBeSkippedFlag = False
+                            for tmpPattern in groupInDefList:
+                                if '*' in tmpPattern:
+                                    tmpPattern = '^' + tmpPattern.replace('*','.*') + '$'
+                                    # don't use WG if it is included in other policies
+                                    if re.search(tmpPattern,workingGroup) != None:
+                                        toBeSkippedFlag = True
+                                        break
+                            if toBeSkippedFlag:
+                                continue
+                        else:
+                            # needs to be matched if it is specified in the policy
+                            if '*' in tmpShareDef['policy']['group']:
+                                # using wild card
+                                tmpPattern = '^' + tmpShareDef['policy']['group'].replace('*','.*') + '$'
+                                if re.search(tmpPattern,workingGroup) == None:
+                                    continue
+                            else:
+                                if tmpShareDef['policy']['group'] != workingGroup:
+                                    continue
+                            # collect real WGs per defined WG mainly for wildcard
+                            if not workingGroupInQueueMap.has_key(tmpShareDef['policy']['group']):
+                                workingGroupInQueueMap[tmpShareDef['policy']['group']] = []
+                            if not workingGroup in workingGroupInQueueMap[tmpShareDef['policy']['group']]:
+                                workingGroupInQueueMap[tmpShareDef['policy']['group']].append(workingGroup)
+                    # check processingType
+                    if usingType:
+                        if tmpShareDef['policy']['type'] == None:
+                            # catchall doesn't contain processGroups used by other policies
+                            if processGroup != None and processGroup in typeInDefList:
+                                continue
+                        else:
+                            # needs to be matched if it is specified in the policy
+                            if tmpShareDef['policy']['type'] != processGroup:
+                                continue
+                    # check priority    
+                    if usingPrio:
+                        if currentPriority != None and tmpShareDef['policy']['priority'] != None:
+                            if tmpShareDef['policy']['prioCondition'] == '>':
+                                if currentPriority <= tmpShareDef['policy']['prioCondition']:
+                                    continue
+                            elif tmpShareDef['policy']['prioCondition'] == '>=':
+                                if currentPriority < tmpShareDef['policy']['prioCondition']:
+                                    continue
+                            elif tmpShareDef['policy']['prioCondition'] == '<=':
+                                if currentPriority > tmpShareDef['policy']['prioCondition']:
+                                    continue
+                            elif tmpShareDef['policy']['prioCondition'] == '<':    
+                                if currentPriority >= tmpShareDef['policy']['prioCondition']:
+                                    continue
+                    # map some job status to running
+                    if jobStatus in ['sent','starting']:
+                        jobStatus = 'running'
+                    # append job status
+                    if not tmpShareDef['count'].has_key(jobStatus):
+                        tmpShareDef['count'][jobStatus] = 0
+                    # sum
+                    tmpShareDef['count'][jobStatus] += cnt
+            # loop over all policies to calcurate total number of running jobs and total share
+            totalShare   = 0
+            totalRunning = 0
+            shareMap     = {}
+            msgShare     = 'share->'
+            for tmpShareDef in shareDefList:
+                tmpNumMap = tmpShareDef['count']
+                policyName = tmpShareDef['policy']['name']
+                # policies with priorities are used only to limit the numer of jobs
+                if tmpShareDef['policy']['priority'] != None:
+                    continue
+                # the number of activated jobs
+                if not tmpNumMap.has_key('activated') or tmpNumMap['activated'] == 0:
+                    tmpNumActivated = 0
+                else:
+                    tmpNumActivated = tmpNumMap['activated']
+                # get share, removing % 
+                tmpShareValue = tmpShareDef['policy']['share'][:-1]
+                tmpShareValue = int(tmpShareValue)
+                # get the number of runnig                
+                if not tmpNumMap.has_key('running'):
+                    tmpNumRunning = 0
+                else:
+                    tmpNumRunning = tmpNumMap['running']
+                # debug message for share
+                msgShare += '%s:activated=%s:running=%s,' % (policyName,tmpNumActivated,tmpNumRunning)
+                # not use the policy if no activated jobs
+                if tmpNumActivated == 0:
+                    continue
+                # append
+                shareMap[policyName] = {
+                    'share':tmpShareValue,
+                    'running':tmpNumRunning,
+                    'policy':tmpShareDef['policy'],
+                    }
+                # sum
+                totalShare += tmpShareValue
+                totalRunning += tmpNumRunning
+            msgShare = msgShare[:-1]
+            # loop over all policies to check if the priority constraint should be activated
+            prioToBeImposed = []
+            msgPrio = ''
+            if usingPrio:            
+                msgPrio += 'prio->'
+                for tmpShareDef in shareDefList:
+                    tmpNumMap = tmpShareDef['count']
+                    policyName = tmpShareDef['policy']['name']
+                    # only policies with priorities are used to limit the numer of jobs
+                    if tmpShareDef['policy']['priority'] == None:
+                        continue
+                    # get the number of runnig                
+                    if not tmpNumMap.has_key('running'):
+                        tmpNumRunning = 0
+                    else:
+                        tmpNumRunning = tmpNumMap['running']
+                    # the number of activated jobs
+                    if not tmpNumMap.has_key('activated') or tmpNumMap['activated'] == 0:
+                        tmpNumActivated = 0
+                    else:
+                        tmpNumActivated = tmpNumMap['activated']
+                    # get limit
+                    tmpLimitValue = tmpShareDef['policy']['share']
+                    # check if more jobs are running than the limit
+                    toBeImposed = False
+                    if tmpLimitValue.endswith('%'):
+                        # percentage based
+                        tmpLimitValue = tmpLimitValue[:-1]
+                        if float(tmpNumRunning) > float(totalRunning) * float(tmpLimitValue) / 100.0:
+                            toBeImposed = True
+                        # debug message for prio
+                        msgPrio += '%s:total=%s:running=%s:impose=%s,' % (policyName,totalRunning,tmpNumRunning,toBeImposed)
+                    else:
+                        # number based
+                        if tmpNumRunning > int(tmpLimitValue):
+                            toBeImposed = True
+                        # debug message for prio
+                        msgPrio += '%s:running=%s:impose=%s,' % (policyName,tmpNumRunning,toBeImposed)
+                    # append
+                    if toBeImposed:
+                        prioToBeImposed.append(tmpShareDef['policy'])
+                msgPrio = msgPrio[:-1]
+            # no running
+            if totalRunning == 0:
+                _logger.debug("getCriteriaForProdShare %s : ret=None - no running" % siteName)
+                return retForNone
+            # no activated
+            if shareMap == {}:
+                _logger.debug("getCriteriaForProdShare %s : ret=None - no activated" % siteName)
+                return retForNone
+            # zero share
+            if totalShare == 0:
+                _logger.debug("getCriteriaForProdShare %s : ret=None - zero share" % siteName)
+                return retForNone
+            # select the group where share most diverges from the definition
+            lowestShareRatio  = None
+            lowestSharePolicy = None
+            for policyName,tmpVarMap in shareMap.iteritems():
+                tmpShareDef = float(tmpVarMap['share']) / float(totalShare)
+                tmpShareNow = float(tmpVarMap['running']) / float(totalRunning) 
+                tmpShareRatio = tmpShareNow / tmpShareDef
+                if lowestShareRatio == None or lowestShareRatio > tmpShareRatio:
+                    lowestShareRatio  = tmpShareRatio
+                    lowestSharePolicy = policyName
+            # make criteria
+            retVarMap = {}
+            retStr = ''
+            if lowestSharePolicy != None:
+                tmpShareDef = shareMap[lowestSharePolicy]['policy']
+                # working group
+                if tmpShareDef['group'] == None:
+                    groupInDefList = self.faresharePolicy[siteName]['groupList']
+                    # catch all except WGs used by other policies
+                    if groupInDefList != []:
+                        groupUsedInClause = []
+                        tmpIdx = 0
+                        # use real name of workingGroup
+                        for tmpGroupIdx in groupInDefList:
+                            if not workingGroupInQueueMap.has_key(tmpGroupIdx):
+                                continue
+                            for tmpGroup in workingGroupInQueueMap[tmpGroupIdx]:
+                                if tmpGroup in groupUsedInClause:
+                                    continue
+                                # add AND at the first WG
+                                if groupUsedInClause == []:
+                                    retStr += 'AND workingGroup NOT IN ('
+                                # add WG
+                                tmpKey = ':shareWG%s' % tmpIdx
+                                retVarMap[tmpKey] = tmpGroup
+                                retStr += '%s,' % tmpKey
+                                tmpIdx += 1
+                                # append
+                                groupUsedInClause.append(tmpGroup)
+                        if groupUsedInClause != []:        
+                            retStr = retStr[:-1]
+                            retStr += ') '
+                else:
+                    # match with one WG
+                    if workingGroupInQueueMap.has_key(tmpShareDef['group']):
+                        groupUsedInClause = []
+                        tmpIdx = 0
+                        # use real name of workingGroup
+                        for tmpGroup in workingGroupInQueueMap[tmpShareDef['group']]:
+                            if tmpGroup in groupUsedInClause:
+                                continue
+                            # add AND at the first WG
+                            if groupUsedInClause == []:
+                                retStr += 'AND workingGroup IN ('
+                            # add WG
+                            tmpKey = ':shareWG%s' % tmpIdx
+                            retVarMap[tmpKey] = tmpGroup
+                            retStr += '%s,' % tmpKey
+                            tmpIdx += 1
+                            # append
+                            groupUsedInClause.append(tmpGroup)
+                        if groupUsedInClause != []:        
+                            retStr = retStr[:-1]
+                            retStr += ') '
+                # processing type
+                if tmpShareDef['type'] == None:
+                    typeInDefList  = self.faresharePolicy[siteName]['typeList'][tmpShareDef['group']]
+                    # catch all except WGs used by other policies
+                    if typeInDefList != []:
+                        # get the list of processingTypes from the list of processGroups
+                        retVarMapP = {}
+                        retStrP = 'AND processingType NOT IN ('
+                        tmpIdx  = 0
+                        for tmpTypeGroup in typeInDefList:
+                            if processGroupInQueueMap.has_key(tmpTypeGroup):
+                                for tmpType in processGroupInQueueMap[tmpTypeGroup]:
+                                    tmpKey = ':sharePT%s' % tmpIdx
+                                    retVarMapP[tmpKey] = tmpType
+                                    retStrP += '%s,' % tmpKey
+                                    tmpIdx += 1
+                        retStrP = retStrP[:-1]
+                        retStrP += ') '
+                        # copy
+                        if retVarMapP != {}:
+                            retStr += retStrP
+                            for tmpKey,tmpType in retVarMapP.iteritems():
+                                retVarMap[tmpKey] = tmpType
+                else:
+                    # match with one processingGroup
+                    if processGroupInQueueMap.has_key(tmpShareDef['type']) and processGroupInQueueMap[tmpShareDef['type']] != []:
+                        retStr += 'AND processingType IN ('
+                        tmpIdx = 0
+                        for tmpType in processGroupInQueueMap[tmpShareDef['type']]:
+                            tmpKey = ':sharePT%s' % tmpIdx
+                            retVarMap[tmpKey] = tmpType
+                            retStr += '%s,' % tmpKey
+                            tmpIdx += 1
+                        retStr = retStr[:-1]
+                        retStr += ') '
+            # priority
+            tmpIdx = 0
+            for tmpDefItem in prioToBeImposed:
+                if tmpDefItem['group'] in [None,tmpShareDef['group']] and \
+                   tmpDefItem['type'] in [None,tmpShareDef['type']]:
+                    if tmpDefItem['prioCondition'] == '>':
+                        retStrP = '<='
+                    elif tmpDefItem['prioCondition'] == '>=':
+                        retStrP = '<'
+                    elif tmpDefItem['prioCondition'] == '<=':
+                        retStrP = '>'                        
+                    elif tmpDefItem['prioCondition'] == '<':
+                        retStrP = '>='
+                    else:
+                        continue
+                    tmpKey = ':sharePrio%s' % tmpIdx
+                    retVarMap[tmpKey] = tmpDefItem['priority']
+                    retStr += ('AND currentPriority%s%s' % (retStrP,tmpKey)) 
+                    tmpIdx += 1
+            _logger.debug("getCriteriaForProdShare %s : sql='%s' var=%s %s %s" % \
+                          (siteName,retStr,str(retVarMap),msgShare,msgPrio))
+            # append criteria for test jobs
+            if retStr != '':
+                retVarMap[':shareLabel1'] = 'managed'
+                retVarMap[':shareLabel2'] = 'test'
+                retVarMap[':shareLabel3'] = 'prod_test'
+                retStr = 'AND (prodSourceLabel IN (:shareLabel2,:shareLabel3) OR (prodSourceLabel=:shareLabel1 ' + retStr + '))'
+            return retStr,retVarMap
+        except:
+            errtype,errvalue = sys.exc_info()[:2]
+            _logger.error("getCriteriaForProdShare %s : %s %s" % (siteName,errtype,errvalue))
+            # roll back
+            self._rollback()
+            return retForNone
+
+
     # get beyond pledge resource ratio
     def getPledgeResourceRatio(self):
         comment = ' /* DBProxy.getPledgeResourceRatio */'
@@ -6926,6 +7339,120 @@ class DBProxy:
         except:
             errtype,errvalue = sys.exc_info()[:2]
             _logger.error("getPledgeResourceRatio : %s %s" % (errtype,errvalue))
+            # roll back
+            self._rollback()
+            return
+
+
+    # get fareshare policy
+    def getFaresharePolicy(self):
+        comment = ' /* DBProxy.getFaresharePolicy */'
+        # check utime
+        if self.updateTimeForFaresharePolicy != None and (datetime.datetime.utcnow()-self.updateTimeForFaresharePolicy) < datetime.timedelta(hours=3):
+            return
+        # update utime
+        self.updateTimeForFaresharePolicy = datetime.datetime.utcnow()
+        _logger.debug("getFaresharePolicy")
+        try:
+            # set autocommit on
+            self.conn.begin()
+            # select
+            sql  = "SELECT siteid,faresharePolicy "
+            sql += "FROM ATLAS_PANDAMETA.schedconfig WHERE faresharePolicy IS NOT NULL AND NOT siteid LIKE 'ANALY_%' GROUP BY siteid,faresharePolicy"
+            self.cur.arraysize = 100000            
+            self.cur.execute(sql+comment)
+            res = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # update policy
+            self.faresharePolicy = {}
+            for siteid,faresharePolicy in res:
+                try:
+                    # decompose
+                    for tmpItem in faresharePolicy.split(','):
+                        # skip empty
+                        tmpItem = tmpItem.strip()
+                        if tmpItem == '':
+                            continue
+                        # keep name
+                        tmpPolicy = {'name':tmpItem}
+                        # group
+                        tmpPolicy['group'] = None
+                        tmpMatch = re.search('group=([^:]+)',tmpItem)
+                        if tmpMatch != None:
+                            if tmpMatch.group(1) in ['','central','*','any']:
+                                # use None for catchall
+                                pass
+                            else:
+                                tmpPolicy['group'] = tmpMatch.group(1)
+                        # type
+                        tmpPolicy['type'] = None
+                        tmpMatch = re.search('type=([^:]+)',tmpItem)
+                        if tmpMatch != None:
+                            if tmpMatch.group(1) in ['*','any']:
+                                # use None for catchall
+                                pass
+                            else:
+                                tmpPolicy['type'] = tmpMatch.group(1)
+                        # priority
+                        tmpPolicy['priority'] = None
+                        tmpPolicy['prioCondition'] = None                        
+                        tmpMatch = re.search('priority([=<>]+)(\d+)',tmpItem)
+                        if tmpMatch != None:
+                            tmpPolicy['priority'] = int(tmpMatch.group(2))
+                            tmpPolicy['prioCondition'] = tmpMatch.group(1)
+                        # share
+                        tmpPolicy['share'] = tmpItem.split(':')[-1]
+                        # append
+                        if not self.faresharePolicy.has_key(siteid):
+                            self.faresharePolicy[siteid] = {'policyList':[]}
+                        self.faresharePolicy[siteid]['policyList'].append(tmpPolicy)
+                    # some translation
+                    self.faresharePolicy[siteid]['usingGroup'] = False
+                    self.faresharePolicy[siteid]['usingType']  = False
+                    self.faresharePolicy[siteid]['usingPrio']  = False
+                    self.faresharePolicy[siteid]['groupList']  = []
+                    self.faresharePolicy[siteid]['typeList']   = {}
+                    self.faresharePolicy[siteid]['groupListWithPrio']  = []
+                    self.faresharePolicy[siteid]['typeListWithPrio']   = {}
+                    for tmpDefItem in self.faresharePolicy[siteid]['policyList']:
+                        # using WG
+                        if tmpDefItem['group'] != None:
+                            self.faresharePolicy[siteid]['usingGroup'] = True
+                        # using PG    
+                        if tmpDefItem['type'] != None:
+                            self.faresharePolicy[siteid]['usingType'] = True
+                        # using prio    
+                        if tmpDefItem['priority'] != None:
+                            self.faresharePolicy[siteid]['usingPrio'] = True
+                        # get list of WG and PG with/without priority     
+                        if tmpDefItem['priority'] == None:    
+                            # get list of woringGroups
+                            if tmpDefItem['group'] != None and not tmpDefItem['group'] in self.faresharePolicy[siteid]['groupList']:
+                                self.faresharePolicy[siteid]['groupList'].append(tmpDefItem['group'])
+                            # get list of processingGroups 
+                            if not self.faresharePolicy[siteid]['typeList'].has_key(tmpDefItem['group']):
+                                self.faresharePolicy[siteid]['typeList'][tmpDefItem['group']] = []
+                            if tmpDefItem['type'] != None and not tmpDefItem['type'] in self.faresharePolicy[siteid]['typeList'][tmpDefItem['group']]:
+                                self.faresharePolicy[siteid]['typeList'][tmpDefItem['group']].append(tmpDefItem['type'])
+                        else:
+                            # get list of woringGroups
+                            if tmpDefItem['group'] != None and not tmpDefItem['group'] in self.faresharePolicy[siteid]['groupListWithPrio']:
+                                self.faresharePolicy[siteid]['groupListWithPrio'].append(tmpDefItem['group'])
+                            # get list of processingGroups 
+                            if not self.faresharePolicy[siteid]['typeListWithPrio'].has_key(tmpDefItem['group']):
+                                self.faresharePolicy[siteid]['typeListWithPrio'][tmpDefItem['group']] = []
+                            if tmpDefItem['type'] != None and not tmpDefItem['type'] in self.faresharePolicy[siteid]['typeListWithPrio'][tmpDefItem['group']]:
+                                self.faresharePolicy[siteid]['typeListWithPrio'][tmpDefItem['group']].append(tmpDefItem['type'])
+                except:
+                    errtype,errvalue = sys.exc_info()[:2]                    
+                    _logger.warning("getFaresharePolicy : wrond definition '%s' for %s : %s %s" % (faresharePolicy,siteid,errtype,errvalue))                    
+            _logger.debug("getFaresharePolicy -> %s" % str(self.faresharePolicy))
+            return
+        except:
+            errtype,errvalue = sys.exc_info()[:2]
+            _logger.error("getFaresharePolicy : %s %s" % (errtype,errvalue))
             # roll back
             self._rollback()
             return
