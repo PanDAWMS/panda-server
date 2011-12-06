@@ -759,10 +759,14 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                         else:
                                             # catch all except WGs used by other policies
                                             typeInDefList  = faresharePolicy[site]['typeList'][tmpPolicy['group']]
+                                            usedByAnother = False
                                             for typeInDefItem in typeInDefList:
                                                 if typeInDefItem == tmpProGroup:
-                                                    skipDueToShare = True
+                                                    usedByAnother = True
                                                     break
+                                            if not usedByAnother:    
+                                                skipDueToShare = True
+                                                break
                                     # skip        
                                     if skipDueToShare:    
                                         _log.debug(" skip: %s zero share" % site)

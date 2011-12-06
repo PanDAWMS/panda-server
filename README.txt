@@ -1,7 +1,7 @@
 Release Note
 
 * current
-  * fixed brokerage for any:0%
+  * fixed brokerage more for type=any:0%
   * fixed brokerage to take zero shares into account
   * fixed getCriteriaForProdShare for zero shares
   * added minPriority to Client.getJobStatisticsPerSite

@@ -6943,7 +6943,7 @@ class DBProxy:
                 sql += ',processingType'
             if usingPrio:
                 sql += ',currentPriority'
-            self.cur.arraysize = 100000                        
+            self.cur.arraysize = 100000
             self.cur.execute(sql+comment,varMap)
             res = self.cur.fetchall()
             # commit
@@ -7140,13 +7140,13 @@ class DBProxy:
                     if toBeImposed:
                         prioToBeImposed.append(tmpShareDef['policy'])
                 msgPrio = msgPrio[:-1]
-            # no running
-            if totalRunning == 0:
-                _logger.debug("getCriteriaForProdShare %s : ret=None - no running" % siteName)
-                return retForNone
             # no activated
             if shareMap == {}:
                 _logger.debug("getCriteriaForProdShare %s : ret=None - no activated" % siteName)
+                return retForNone
+            # no running
+            if totalRunning == 0:
+                _logger.debug("getCriteriaForProdShare %s : ret=None - no running" % siteName)
                 return retForNone
             # zero share
             if totalShare == 0:
