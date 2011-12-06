@@ -1946,7 +1946,7 @@ class DBProxy:
                 sql1 = sql1[:-1]
                 sql1+= ") "
         # production share
-        if prodSourceLabel == 'managed':
+        if prodSourceLabel in ['managed',None]:
             shareSQL,shareVarMap = self.getCriteriaForProdShare(siteName)
             if shareVarMap != {}:
                 sql1 += shareSQL
