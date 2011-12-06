@@ -312,7 +312,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
     prevDirectAcc  = None
     prevBrokergageSiteList = None
     prevManualPreset = None
-    prevGoToT2Flag = None
+    prevGoToT2Flag   = None
+    prevWorkingGroup = None
     
     nWNmap = {}
     indexJob = 0
@@ -327,6 +328,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
 
     try:
         # get statistics
+        faresharePolicy = {}
         if len(jobs) > 0 and (jobs[0].processingType.startswith('gangarobot') or \
                               jobs[0].processingType.startswith('hammercloud') or \
                               jobs[0].processingType in ['pandamover','usermerge']):
@@ -340,6 +342,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             if not forAnalysis:
                 jobStatBroker = {}
                 jobStatBrokerClouds = taskBuffer.getJobStatisticsBrokerage()
+                faresharePolicy = taskBuffer.getFaresharePolicy()
             else:
                 if minPriority == None:
                     jobStatBroker = taskBuffer.getJobStatisticsAnalBrokerage()
@@ -350,7 +353,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
         jobs.sort(_compFunc)
         # brokerage for analysis 
         candidateForAnal = True
-        resultsForAnal   = {'rel':[],'pilot':[],'disk':[],'status':[],'weight':[],'memory':[]}
+        resultsForAnal   = {'rel':[],'pilot':[],'disk':[],'status':[],'weight':[],'memory':[],
+                            'share':[],'transferring':[]}
         relCloudMap      = {}
         loggerMessages   = []
         # loop over all jobs + terminator(None)
@@ -457,6 +461,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     _log.debug('  prodDBlock     %s' % prodDBlock)
                     _log.debug('  computingSite  %s' % computingSite)
                     _log.debug('  processingType %s' % prevProType)
+                    _log.debug('  workingGroup   %s' % prevWorkingGroup)
                     _log.debug('  transferType   %s' % prevDirectAcc)
                     _log.debug('  goToT2         %s' % prevGoToT2Flag)
                 # determine site
@@ -529,6 +534,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         _log.debug('  cache/relSites     %s' % str(siteListWithCache))
                     # release/cmtconfig check
                     foundRelease   = False
+                    # found candidate
+                    foundOneCandidate = False
                     # randomize the order
                     if forAnalysis:
                         random.shuffle(scanSiteList)
@@ -563,7 +570,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     pass
                                 else:
                                     _log.debug(' skip: status %s' % tmpSiteSpec.status)
-                                    resultsForAnal['status'].append(site)
+                                    resultsForAnal['status'].append(site)                                    
                                     continue
                             if tmpSiteSpec.status == 'test' and (not prevProType in ['prod_test','hammercloud','gangarobot','gangarobot-squid']) \
                                    and not prevSourceLabel in ['test','prod_test']:
@@ -717,11 +724,41 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 nJobsPerNode = 1
                             else:
                                 nJobsPerNode = float(jobStatistics[site]['running'])/float(nWNmap[site]['updateJob'])
-                            # get the number of activated and assigned for the process group
+                            # get the process group
                             tmpProGroup = ProcessGroups.getProcessGroup(prevProType)
                             if prevProType in skipBrokerageProTypes:
                                 # use original processingType since prod_test is in the test category and thus is interfered by validations 
                                 tmpProGroup = prevProType
+                            # production share
+                            skipDueToShare = False
+                            if not forAnalysis and prevSourceLabel in ['managed'] and faresharePolicy.has_key(site):
+                                for tmpPolicy in faresharePolicy[site]['policyList']:
+                                    # ignore priority policy
+                                    if tmpPolicy['priority'] != None:
+                                        continue
+                                    # only zero share
+                                    if tmpPolicy['share'] != '0%':
+                                        continue
+                                    # check group
+                                    if tmpPolicy['group'] != None:
+                                        if '*' in tmpPolicy['group']:
+                                            # wildcard
+                                            matchWithWildCard = False
+                                            tmpPatt = '^' + tmpPolicy['group'].replace('*','.*') + '$'
+                                            if re.search(tmpPatt,prevWorkingGroup) != None:
+                                                continue
+                                        else:
+                                            if prevWorkingGroup != tmpPolicy['group']:
+                                                continue
+                                    # check type        
+                                    if tmpPolicy['type'] in [None,tmpProGroup]:
+                                        skipDueToShare = True
+                                        break
+                                # skip        
+                                if skipDueToShare:    
+                                    _log.debug(" skip: %s zero share" % site)
+                                    resultsForAnal['share'].append(site)
+                                    continue
                             # the number of assigned and activated
                             if not forAnalysis:                                
                                 if not jobStatBrokerClouds.has_key(previousCloud):
@@ -746,6 +783,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 _log.debug('   running=%s transferring=%s' % (nRunJobs,nTraJobs))
                                 if max(maxTransferring,2*nRunJobs) < nTraJobs:
                                     _log.debug(" skip: %s many transferring=%s > max(%s,2*running=%s)" % (site,nTraJobs,maxTransferring,nRunJobs))
+                                    resultsForAnal['transferring'].append(site)
                                     continue
                             # get ratio of running jobs = run(cloud)/run(all) for multi cloud
                             multiCloudFactor = 1
@@ -815,6 +853,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                         winv /= cloudT1Weight
                                         _log.debug('   special weight for %s : nInputs/Job=%s inputSize/Job=%s weight=%s' % 
                                                    (site,nFilesPerJob,inputSizePerJob,cloudT1Weight))
+                            # found at least one candidate
+                            foundOneCandidate = True
                             _log.debug('Site:%s 1/Weight:%s' % (site,winv))
                             if forAnalysis and trustIS and reportLog:
                                 resultsForAnal['weight'].append((site,'(1+%s/%s)*%s/%s' % (nPilotsGet,1+nPilotsUpdate,1+nRunningMap[site],nAssJobs+nActJobs)))
@@ -927,7 +967,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             else:
                                 tmpJob.computingElement = chosenCE.gatekeeper
                         # fail jobs if no sites have the release
-                        if (not foundRelease) and (tmpJob.prodSourceLabel in ['managed','test']):
+                        if (not foundRelease or (tmpJob.relocationFlag != 1 and not foundOneCandidate)) and (tmpJob.prodSourceLabel in ['managed','test']):
                             # reset
                             if tmpJob.relocationFlag != 1:
                                 tmpJob.computingSite = None
@@ -944,7 +984,11 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     elif resultsForAnal['memory'] != []:
                                         tmpJob.brokerageErrorDiag = 'memory shortage at %s' % tmpJob.computingSite
                                     elif resultsForAnal['status'] != []:
-                                        tmpJob.brokerageErrorDiag = '%s not online' % tmpJob.computingSite                                    
+                                        tmpJob.brokerageErrorDiag = '%s not online' % tmpJob.computingSite
+                                    elif resultsForAnal['share'] != []:
+                                        tmpJob.brokerageErrorDiag = '%s zero share' % tmpJob.computingSite                                        
+                                    elif resultsForAnal['transferring'] != []:
+                                        tmpJob.brokerageErrorDiag = '%s too many transferring' % tmpJob.computingSite                                        
                                     elif useCacheVersion:
                                         tmpJob.brokerageErrorDiag = '%s/%s not found at %s' % (tmpJob.homepackage,tmpJob.cmtConfig,tmpJob.computingSite)
                                     else:
@@ -989,6 +1033,22 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                             tmpSiteStr += '%s,' % tmpSiteItem
                                         tmpSiteStr = tmpSiteStr[:-1]
                                         tmpJob.brokerageErrorDiag += '%s not online, ' % tmpSiteStr
+                                    # zero share
+                                    if resultsForAnal['share'] != []:
+                                        tmpSiteStr = ''
+                                        for tmpSiteItem in resultsForAnal['share']:
+                                            usedInDiagSites.append(tmpSiteItem)
+                                            tmpSiteStr += '%s,' % tmpSiteItem
+                                            tmpSiteStr = tmpSiteStr[:-1]
+                                            tmpJob.brokerageErrorDiag += '%s zero share, ' % tmpSiteStr
+                                    # too many transferring        
+                                    if resultsForAnal['transferring'] != []:
+                                        tmpSiteStr = ''
+                                        for tmpSiteItem in resultsForAnal['transferring']:
+                                            usedInDiagSites.append(tmpSiteItem)
+                                            tmpSiteStr += '%s,' % tmpSiteItem
+                                            tmpSiteStr = tmpSiteStr[:-1]
+                                            tmpJob.brokerageErrorDiag += '%s too many transferring, ' % tmpSiteStr
                                     # missing release    
                                     tmpSiteStr = ''
                                     for tmpSiteItem in prevBrokergageSiteList:
@@ -1089,7 +1149,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             prevDirectAcc   = job.transferType
             prevBrokergageSiteList = specialBrokergageSiteList
             prevManualPreset = manualPreset
-            prevGoToT2Flag  = goToT2Flag
+            prevGoToT2Flag   = goToT2Flag
+            prevWorkingGroup = job.workingGroup
             # assign site
             if chosen_ce != 'TOBEDONE':
                 job.computingSite = chosen_ce.sitename

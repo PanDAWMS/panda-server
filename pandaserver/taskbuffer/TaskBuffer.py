@@ -567,6 +567,18 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         # return
         return res
+
+
+    # get fareshare policy
+    def getFaresharePolicy(self):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # run
+        res = proxy.getFaresharePolicy(True)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
         
 
     # check merge job generation status

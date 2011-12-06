@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * fixed brokerage to take zero shares into account
+  * fixed getCriteriaForProdShare for zero shares
   * added minPriority.Client.getJobStatisticsPerSite
   * using MV in getJobStatisticsWithLabel
   * added fareshare to getJob

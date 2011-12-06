@@ -7156,6 +7156,9 @@ class DBProxy:
             lowestShareRatio  = None
             lowestSharePolicy = None
             for policyName,tmpVarMap in shareMap.iteritems():
+                # ignore zero share
+                if tmpVarMap['share'] == 0:
+                    continue
                 tmpShareDef = float(tmpVarMap['share']) / float(totalShare)
                 tmpShareNow = float(tmpVarMap['running']) / float(totalRunning) 
                 tmpShareRatio = tmpShareNow / tmpShareDef
@@ -7345,13 +7348,15 @@ class DBProxy:
 
 
     # get fareshare policy
-    def getFaresharePolicy(self):
+    def getFaresharePolicy(self,getNewMap=False):
         comment = ' /* DBProxy.getFaresharePolicy */'
         # check utime
-        if self.updateTimeForFaresharePolicy != None and (datetime.datetime.utcnow()-self.updateTimeForFaresharePolicy) < datetime.timedelta(hours=3):
+        if not getNewMap and self.updateTimeForFaresharePolicy != None and \
+               (datetime.datetime.utcnow()-self.updateTimeForFaresharePolicy) < datetime.timedelta(hours=3):
             return
-        # update utime
-        self.updateTimeForFaresharePolicy = datetime.datetime.utcnow()
+        if not getNewMap:
+            # update utime
+            self.updateTimeForFaresharePolicy = datetime.datetime.utcnow()
         _logger.debug("getFaresharePolicy")
         try:
             # set autocommit on
@@ -7366,11 +7371,11 @@ class DBProxy:
             if not self._commit():
                 raise RuntimeError, 'Commit error'
             # update policy
-            self.faresharePolicy = {}
-            for siteid,faresharePolicy in res:
+            faresharePolicy = {}
+            for siteid,faresharePolicyStr in res:
                 try:
                     # decompose
-                    for tmpItem in faresharePolicy.split(','):
+                    for tmpItem in faresharePolicyStr.split(','):
                         # skip empty
                         tmpItem = tmpItem.strip()
                         if tmpItem == '':
@@ -7405,57 +7410,64 @@ class DBProxy:
                         # share
                         tmpPolicy['share'] = tmpItem.split(':')[-1]
                         # append
-                        if not self.faresharePolicy.has_key(siteid):
-                            self.faresharePolicy[siteid] = {'policyList':[]}
-                        self.faresharePolicy[siteid]['policyList'].append(tmpPolicy)
+                        if not faresharePolicy.has_key(siteid):
+                            faresharePolicy[siteid] = {'policyList':[]}
+                        faresharePolicy[siteid]['policyList'].append(tmpPolicy)
                     # some translation
-                    self.faresharePolicy[siteid]['usingGroup'] = False
-                    self.faresharePolicy[siteid]['usingType']  = False
-                    self.faresharePolicy[siteid]['usingPrio']  = False
-                    self.faresharePolicy[siteid]['groupList']  = []
-                    self.faresharePolicy[siteid]['typeList']   = {}
-                    self.faresharePolicy[siteid]['groupListWithPrio']  = []
-                    self.faresharePolicy[siteid]['typeListWithPrio']   = {}
-                    for tmpDefItem in self.faresharePolicy[siteid]['policyList']:
+                    faresharePolicy[siteid]['usingGroup'] = False
+                    faresharePolicy[siteid]['usingType']  = False
+                    faresharePolicy[siteid]['usingPrio']  = False
+                    faresharePolicy[siteid]['groupList']  = []
+                    faresharePolicy[siteid]['typeList']   = {}
+                    faresharePolicy[siteid]['groupListWithPrio']  = []
+                    faresharePolicy[siteid]['typeListWithPrio']   = {}
+                    for tmpDefItem in faresharePolicy[siteid]['policyList']:
                         # using WG
                         if tmpDefItem['group'] != None:
-                            self.faresharePolicy[siteid]['usingGroup'] = True
+                            faresharePolicy[siteid]['usingGroup'] = True
                         # using PG    
                         if tmpDefItem['type'] != None:
-                            self.faresharePolicy[siteid]['usingType'] = True
+                            faresharePolicy[siteid]['usingType'] = True
                         # using prio    
                         if tmpDefItem['priority'] != None:
-                            self.faresharePolicy[siteid]['usingPrio'] = True
+                            faresharePolicy[siteid]['usingPrio'] = True
                         # get list of WG and PG with/without priority     
                         if tmpDefItem['priority'] == None:    
                             # get list of woringGroups
-                            if tmpDefItem['group'] != None and not tmpDefItem['group'] in self.faresharePolicy[siteid]['groupList']:
-                                self.faresharePolicy[siteid]['groupList'].append(tmpDefItem['group'])
+                            if tmpDefItem['group'] != None and not tmpDefItem['group'] in faresharePolicy[siteid]['groupList']:
+                                faresharePolicy[siteid]['groupList'].append(tmpDefItem['group'])
                             # get list of processingGroups 
-                            if not self.faresharePolicy[siteid]['typeList'].has_key(tmpDefItem['group']):
-                                self.faresharePolicy[siteid]['typeList'][tmpDefItem['group']] = []
-                            if tmpDefItem['type'] != None and not tmpDefItem['type'] in self.faresharePolicy[siteid]['typeList'][tmpDefItem['group']]:
-                                self.faresharePolicy[siteid]['typeList'][tmpDefItem['group']].append(tmpDefItem['type'])
+                            if not faresharePolicy[siteid]['typeList'].has_key(tmpDefItem['group']):
+                                faresharePolicy[siteid]['typeList'][tmpDefItem['group']] = []
+                            if tmpDefItem['type'] != None and not tmpDefItem['type'] in faresharePolicy[siteid]['typeList'][tmpDefItem['group']]:
+                                faresharePolicy[siteid]['typeList'][tmpDefItem['group']].append(tmpDefItem['type'])
                         else:
                             # get list of woringGroups
-                            if tmpDefItem['group'] != None and not tmpDefItem['group'] in self.faresharePolicy[siteid]['groupListWithPrio']:
-                                self.faresharePolicy[siteid]['groupListWithPrio'].append(tmpDefItem['group'])
+                            if tmpDefItem['group'] != None and not tmpDefItem['group'] in faresharePolicy[siteid]['groupListWithPrio']:
+                                faresharePolicy[siteid]['groupListWithPrio'].append(tmpDefItem['group'])
                             # get list of processingGroups 
-                            if not self.faresharePolicy[siteid]['typeListWithPrio'].has_key(tmpDefItem['group']):
-                                self.faresharePolicy[siteid]['typeListWithPrio'][tmpDefItem['group']] = []
-                            if tmpDefItem['type'] != None and not tmpDefItem['type'] in self.faresharePolicy[siteid]['typeListWithPrio'][tmpDefItem['group']]:
-                                self.faresharePolicy[siteid]['typeListWithPrio'][tmpDefItem['group']].append(tmpDefItem['type'])
+                            if not faresharePolicy[siteid]['typeListWithPrio'].has_key(tmpDefItem['group']):
+                                faresharePolicy[siteid]['typeListWithPrio'][tmpDefItem['group']] = []
+                            if tmpDefItem['type'] != None and not tmpDefItem['type'] in faresharePolicy[siteid]['typeListWithPrio'][tmpDefItem['group']]:
+                                faresharePolicy[siteid]['typeListWithPrio'][tmpDefItem['group']].append(tmpDefItem['type'])
                 except:
                     errtype,errvalue = sys.exc_info()[:2]                    
                     _logger.warning("getFaresharePolicy : wrond definition '%s' for %s : %s %s" % (faresharePolicy,siteid,errtype,errvalue))                    
-            _logger.debug("getFaresharePolicy -> %s" % str(self.faresharePolicy))
-            return
+            _logger.debug("getFaresharePolicy -> %s" % str(faresharePolicy))
+            if not getNewMap:
+                self.faresharePolicy = faresharePolicy
+                return
+            else:
+                return faresharePolicy
         except:
             errtype,errvalue = sys.exc_info()[:2]
             _logger.error("getFaresharePolicy : %s %s" % (errtype,errvalue))
             # roll back
             self._rollback()
-            return
+            if not getNewMap:
+                return
+            else:
+                return {}
 
 
     # get cloud list
