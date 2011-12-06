@@ -4,7 +4,7 @@ Release Note
   * fixed brokerage for any:0%
   * fixed brokerage to take zero shares into account
   * fixed getCriteriaForProdShare for zero shares
-  * added minPriority.Client.getJobStatisticsPerSite
+  * added minPriority to Client.getJobStatisticsPerSite
   * using MV in getJobStatisticsWithLabel
   * added fareshare to getJob
   * fixed retryJob not to change the name of lib.tgz for ptest
