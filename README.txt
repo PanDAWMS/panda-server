@@ -7,7 +7,7 @@ Release Note
   * fixed getCriteriaForProdShare for zero shares
   * added minPriority to Client.getJobStatisticsPerSite
   * using MV in getJobStatisticsWithLabel
-  * added fareshare to getJob
+  * added fairshare to getJob
   * fixed retryJob not to change the name of lib.tgz for ptest
   * fixed retryJob not to retry buildJob to keep the PandaID order
   * fixed TB to give higher prio to buildJob with prodRole  

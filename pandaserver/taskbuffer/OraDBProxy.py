@@ -7362,8 +7362,8 @@ class DBProxy:
             # set autocommit on
             self.conn.begin()
             # select
-            sql  = "SELECT siteid,faresharePolicy "
-            sql += "FROM ATLAS_PANDAMETA.schedconfig WHERE faresharePolicy IS NOT NULL AND NOT siteid LIKE 'ANALY_%' GROUP BY siteid,faresharePolicy"
+            sql  = "SELECT siteid,fairsharePolicy "
+            sql += "FROM ATLAS_PANDAMETA.schedconfig WHERE fairsharePolicy IS NOT NULL AND NOT siteid LIKE 'ANALY_%' GROUP BY siteid,fairsharePolicy"
             self.cur.arraysize = 100000            
             self.cur.execute(sql+comment)
             res = self.cur.fetchall()
