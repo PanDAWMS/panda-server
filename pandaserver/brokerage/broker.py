@@ -643,8 +643,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                         resultsForAnal['memory'].append(site)
                                         continue
                                 except:
-                                    type, value, traceBack = sys.exc_info()
-                                    _log.error("memory check : %s %s" % (type,value))
+                                    errtype,errvalue = sys.exc_info()[:2]
+                                    _log.error("memory check : %s %s" % (errtype,errvalue))
                             # check max input size
                             if tmpSiteSpec.maxinputsize != 0 and (not prevDiskCount in [None,0,'NULL']):
                                 try:
@@ -652,8 +652,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                         _log.debug('  skip: not enough disk %s<%s' % (tmpSiteSpec.maxinputsize,prevDiskCount))
                                         continue
                                 except:
-                                    type, value, traceBack = sys.exc_info()
-                                    _log.error("disk check : %s %s" % (type,value))
+                                    errtype,errvalue = sys.exc_info()[:2]
+                                    _log.error("disk check : %s %s" % (errtype,errvalue))
                             _log.debug('   maxinput=%s' % tmpSiteSpec.maxinputsize)
                             # get pilot statistics
                             nPilotsGet = 0
@@ -731,34 +731,46 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 tmpProGroup = prevProType
                             # production share
                             skipDueToShare = False
-                            if not forAnalysis and prevSourceLabel in ['managed'] and faresharePolicy.has_key(site):
-                                for tmpPolicy in faresharePolicy[site]['policyList']:
-                                    # ignore priority policy
-                                    if tmpPolicy['priority'] != None:
-                                        continue
-                                    # only zero share
-                                    if tmpPolicy['share'] != '0%':
-                                        continue
-                                    # check group
-                                    if tmpPolicy['group'] != None:
-                                        if '*' in tmpPolicy['group']:
-                                            # wildcard
-                                            matchWithWildCard = False
-                                            tmpPatt = '^' + tmpPolicy['group'].replace('*','.*') + '$'
-                                            if re.search(tmpPatt,prevWorkingGroup) != None:
-                                                continue
+                            try:
+                                if not forAnalysis and prevSourceLabel in ['managed'] and faresharePolicy.has_key(site):
+                                    for tmpPolicy in faresharePolicy[site]['policyList']:
+                                        # ignore priority policy
+                                        if tmpPolicy['priority'] != None:
+                                            continue
+                                        # only zero share
+                                        if tmpPolicy['share'] != '0%':
+                                            continue
+                                        # check group
+                                        if tmpPolicy['group'] != None:
+                                            if '*' in tmpPolicy['group']:
+                                                # wildcard
+                                                matchWithWildCard = False
+                                                tmpPatt = '^' + tmpPolicy['group'].replace('*','.*') + '$'
+                                                if re.search(tmpPatt,prevWorkingGroup) != None:
+                                                    continue
+                                            else:
+                                                if prevWorkingGroup != tmpPolicy['group']:
+                                                    continue
+                                        # check type
+                                        if tmpPolicy['type'] != None:
+                                            if tmpPolicy['type'] == tmpProGroup:
+                                                skipDueToShare = True
+                                                break
                                         else:
-                                            if prevWorkingGroup != tmpPolicy['group']:
-                                                continue
-                                    # check type        
-                                    if tmpPolicy['type'] in [None,tmpProGroup]:
-                                        skipDueToShare = True
-                                        break
-                                # skip        
-                                if skipDueToShare:    
-                                    _log.debug(" skip: %s zero share" % site)
-                                    resultsForAnal['share'].append(site)
-                                    continue
+                                            # catch all except WGs used by other policies
+                                            typeInDefList  = faresharePolicy[site]['typeList'][tmpPolicy['group']]
+                                            for typeInDefItem in typeInDefList:
+                                                if typeInDefItem == tmpProGroup:
+                                                    skipDueToShare = True
+                                                    break
+                                    # skip        
+                                    if skipDueToShare:    
+                                        _log.debug(" skip: %s zero share" % site)
+                                        resultsForAnal['share'].append(site)
+                                        continue
+                            except:
+                                errtype,errvalue = sys.exc_info()[:2]
+                                _log.error("share check : %s %s" % (errtype,errvalue))
                             # the number of assigned and activated
                             if not forAnalysis:                                
                                 if not jobStatBrokerClouds.has_key(previousCloud):
