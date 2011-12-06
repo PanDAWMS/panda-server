@@ -744,20 +744,39 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                         if tmpPolicy['group'] != None:
                                             if '*' in tmpPolicy['group']:
                                                 # wildcard
-                                                matchWithWildCard = False
                                                 tmpPatt = '^' + tmpPolicy['group'].replace('*','.*') + '$'
                                                 if re.search(tmpPatt,prevWorkingGroup) != None:
                                                     continue
                                             else:
+                                                # normal definition
                                                 if prevWorkingGroup != tmpPolicy['group']:
                                                     continue
+                                        else:
+                                            # catch all except WGs used by other policies
+                                            groupInDefList = faresharePolicy[site]['groupList']
+                                            usedByAnother = False
+                                            # loop over all groups
+                                            for groupInDefItem in groupInDefList:
+                                                if '*' in groupInDefItem:
+                                                    # wildcard
+                                                    tmpPatt = '^' + groupInDefItem.replace('*','.*') + '$'
+                                                    if re.search(tmpPatt,prevWorkingGroup) != None:
+                                                        usedByAnother = True
+                                                        break
+                                                else:
+                                                    # normal definition
+                                                    if prevWorkingGroup == groupInDefItem:
+                                                        usedByAnother = True
+                                                        break
+                                            if usedByAnother:
+                                                continue
                                         # check type
                                         if tmpPolicy['type'] != None:
                                             if tmpPolicy['type'] == tmpProGroup:
                                                 skipDueToShare = True
                                                 break
                                         else:
-                                            # catch all except WGs used by other policies
+                                            # catch all except PGs used by other policies
                                             typeInDefList  = faresharePolicy[site]['typeList'][tmpPolicy['group']]
                                             usedByAnother = False
                                             for typeInDefItem in typeInDefList:
