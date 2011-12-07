@@ -784,10 +784,22 @@ web service interface
 
 """
 
+# security check
+def isSecure(req):
+    # check security
+    if not Protocol.isSecure(req):
+        return False
+    # disable limited proxy
+    if '/CN=limited proxy' in req.subprocess_env['SSL_CLIENT_S_DN']:
+        _logger.warning("access via limited proxy : %s" % req.subprocess_env['SSL_CLIENT_S_DN'])
+        return False
+    return True
+
+
 # submit jobs
 def submitJobs(req,jobs,toPending=None):
     # check security
-    if not Protocol.isSecure(req):
+    if not isSecure(req):
         return False
     # get DN
     user = None
@@ -810,7 +822,7 @@ def submitJobs(req,jobs,toPending=None):
 # run task assignment
 def runTaskAssignment(req,jobs):
     # check security
-    if not Protocol.isSecure(req):
+    if not isSecure(req):
         return "False"
     return userIF.runTaskAssignment(jobs)
 
@@ -828,7 +840,7 @@ def getPandaIDwithJobExeID(req,ids):
 # get queued analysis jobs at a site
 def getQueuedAnalJobs(req,site):
     # check security
-    if not Protocol.isSecure(req):
+    if not isSecure(req):
         return "ERROR: SSL is required"
     # get DN
     user = None
@@ -912,7 +924,7 @@ def getJobsToBeUpdated(req,limit=5000,lockedby=''):
 # update prodDBUpdateTimes
 def updateProdDBUpdateTimes(req,params):
     # check security
-    if not Protocol.isSecure(req):
+    if not isSecure(req):
         return False
     return userIF.updateProdDBUpdateTimes(params)
 
@@ -964,7 +976,7 @@ def getFilesInUseForAnal(req,outDataset):
 # kill jobs
 def killJobs(req,ids,code=None,useMailAsID=None):
     # check security
-    if not Protocol.isSecure(req):
+    if not isSecure(req):
         return False
     # get DN
     user = None
@@ -997,7 +1009,7 @@ def killJobs(req,ids,code=None,useMailAsID=None):
 # reassign jobs
 def reassignJobs(req,ids,forPending=None):
     # check security
-    if not Protocol.isSecure(req):
+    if not isSecure(req):
         return False
     # get DN
     user = None
@@ -1016,7 +1028,7 @@ def reassignJobs(req,ids,forPending=None):
 # resubmit jobs
 def resubmitJobs(req,ids):
     # check security
-    if not Protocol.isSecure(req):
+    if not isSecure(req):
         return False
     return userIF.resubmitJobs(ids)
 
@@ -1131,7 +1143,7 @@ def getSerialNumberForGroupJob(req):
 # register proxy key
 def registerProxyKey(req,credname,origin,myproxy):
     # check security
-    if not Protocol.isSecure(req):
+    if not isSecure(req):
         return False
     # get DN
     if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
@@ -1163,7 +1175,7 @@ def registerProxyKey(req,credname,origin,myproxy):
 # register proxy key
 def getProxyKey(req):
     # check security
-    if not Protocol.isSecure(req):
+    if not isSecure(req):
         return False
     # get DN
     if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
@@ -1176,7 +1188,7 @@ def getProxyKey(req):
 # get JobIDs in a time range
 def getJobIDsInTimeRange(req,timeRange,dn=None):
     # check security
-    if not Protocol.isSecure(req):
+    if not isSecure(req):
         return False
     # get DN
     if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
@@ -1191,7 +1203,7 @@ def getJobIDsInTimeRange(req,timeRange,dn=None):
 # get PandaIDs for a JobID
 def getPandIDsWithJobID(req,jobID,nJobs,dn=None):
     # check security
-    if not Protocol.isSecure(req):
+    if not isSecure(req):
         return False
     # get DN
     if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
@@ -1206,7 +1218,7 @@ def getPandIDsWithJobID(req,jobID,nJobs,dn=None):
 # check merge job generation status
 def checkMergeGenerationStatus(req,jobID,dn=None):
     # check security
-    if not Protocol.isSecure(req):
+    if not isSecure(req):
         return False
     # get DN
     if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
@@ -1221,7 +1233,7 @@ def checkMergeGenerationStatus(req,jobID,dn=None):
 # get slimmed file info with PandaIDs
 def getSlimmedFileInfoPandaIDs(req,ids):
     # check security
-    if not Protocol.isSecure(req):
+    if not isSecure(req):
         return False
     # get DN
     if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
@@ -1233,7 +1245,7 @@ def getSlimmedFileInfoPandaIDs(req,ids):
 # get full job status
 def getFullJobStatus(req,ids):
     # check security
-    if not Protocol.isSecure(req):
+    if not isSecure(req):
         return False
     # get DN
     if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
@@ -1246,7 +1258,7 @@ def getFullJobStatus(req,ids):
 def getNUserJobs(req,siteName,nJobs=100):
     # check security
     prodManager = False
-    if not Protocol.isSecure(req):
+    if not isSecure(req):
         return "Failed : HTTPS connection is required"
     # get FQANs
     fqans = _getFQAN(req)
@@ -1279,7 +1291,7 @@ def getNUserJobs(req,siteName,nJobs=100):
 # add account to siteaccess
 def addSiteAccess(req,siteID):
     # check security
-    if not Protocol.isSecure(req):
+    if not isSecure(req):
         return "False"        
     # get DN
     if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
@@ -1291,7 +1303,7 @@ def addSiteAccess(req,siteID):
 # list site access
 def listSiteAccess(req,siteID=None,longFormat=False):
     # check security
-    if not Protocol.isSecure(req):
+    if not isSecure(req):
         return "False"
     # get DN
     if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
@@ -1311,7 +1323,7 @@ def listSiteAccess(req,siteID=None,longFormat=False):
 # update site access
 def updateSiteAccess(req,method,siteid,userName,attrValue=''):
     # check security
-    if not Protocol.isSecure(req):
+    if not isSecure(req):
         return "non HTTPS"
     # get DN
     if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):

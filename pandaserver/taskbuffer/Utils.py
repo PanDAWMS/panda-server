@@ -25,6 +25,8 @@ def isAlive(req):
 def putFile(req,file):
     if not Protocol.isSecure(req):
         return False
+    if '/CN=limited proxy' in req.subprocess_env['SSL_CLIENT_S_DN']:
+        return False
     _logger.debug("putFile : start %s %s" % (req.subprocess_env['SSL_CLIENT_S_DN'],file.filename))
     # size check
     fullSizeLimit = 768*1024*1024

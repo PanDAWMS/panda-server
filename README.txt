@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * reject limited proxy
   * added priority boost for gangarobot-pft
   * fixed getCriteria for aggregated sites
   * fixed brokerage for group=any:0%
