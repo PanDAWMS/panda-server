@@ -76,7 +76,7 @@ class TaskBuffer:
                or jobs[0].processingType.startswith('gangarobot-'):
             serNum = 0
             weight = 0.0
-        if jobs[0].processingType == 'gangarobot':
+        if jobs[0].processingType in ['gangarobot','gangarobot-pft']:
             priorityOffset = 3000
         # check quota
         if weight == None:

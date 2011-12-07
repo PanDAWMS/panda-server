@@ -1946,8 +1946,11 @@ class DBProxy:
                 sql1 = sql1[:-1]
                 sql1+= ") "
         # production share
-        if prodSourceLabel in ['managed',None]:
-            shareSQL,shareVarMap = self.getCriteriaForProdShare(siteName)
+        if prodSourceLabel in ['managed',None,'sharetest']:
+            aggSitesForFairshare = []
+            if aggSiteMap.has_key(siteName):
+                aggSitesForFairshare = aggSiteMap[siteName].keys()
+            shareSQL,shareVarMap = self.getCriteriaForProdShare(siteName,aggSitesForFairshare)
             if shareVarMap != {}:
                 sql1 += shareSQL
                 for tmpShareKey in shareVarMap.keys():
@@ -6903,7 +6906,7 @@ class DBProxy:
 
 
     # get selection criteria for share of production activities
-    def getCriteriaForProdShare(self,siteName):
+    def getCriteriaForProdShare(self,siteName,aggSites=[]):
         comment = ' /* DBProxy.getCriteriaForProdShare */'        
         # return for no criteria
         retForNone = '',{}
@@ -6912,7 +6915,7 @@ class DBProxy:
         # not defined
         if not self.faresharePolicy.has_key(siteName):
             return retForNone
-        _logger.debug("getCriteriaForProdShare %s" % siteName)
+        _logger.debug("getCriteriaForProdShare %s %s" % (siteName,str(aggSites)))
         try:
             # definition for fareshare
             usingGroup = self.faresharePolicy[siteName]['usingGroup'] 
@@ -6925,7 +6928,7 @@ class DBProxy:
             self.conn.begin()
             # check if countryGroup has activated jobs
             varMap = {}
-            varMap[':computingSite'] = siteName
+
             varMap[':prodSourceLabel'] = 'managed'
             sql  = "SELECT jobStatus,"
             if usingGroup:
@@ -6935,7 +6938,15 @@ class DBProxy:
             if usingPrio:
                 sql += 'currentPriority,'
             sql += "SUM(num_of_jobs) FROM ATLAS_PANDA.MV_JOBSACTIVE4_STATS "
-            sql += "WHERE computingSite=:computingSite AND prodSourceLabel=:prodSourceLabel "
+            sql += "WHERE computingSite IN ("
+            tmpIdx = 0
+            for tmpSiteName in [siteName]+aggSites:
+                tmpKey = ':computingSite%s' % tmpIdx
+                varMap[tmpKey] = tmpSiteName
+                sql += '%s,' % tmpKey
+                tmpIdx += 1
+            sql = sql[:-1]
+            sql += ") AND prodSourceLabel=:prodSourceLabel "
             sql += "GROUP BY jobStatus"
             if usingGroup:
                 sql += ',workingGroup'
@@ -7040,16 +7051,16 @@ class DBProxy:
                     if usingPrio:
                         if currentPriority != None and tmpShareDef['policy']['priority'] != None:
                             if tmpShareDef['policy']['prioCondition'] == '>':
-                                if currentPriority <= tmpShareDef['policy']['prioCondition']:
+                                if currentPriority <= tmpShareDef['policy']['priority']:
                                     continue
                             elif tmpShareDef['policy']['prioCondition'] == '>=':
-                                if currentPriority < tmpShareDef['policy']['prioCondition']:
+                                if currentPriority < tmpShareDef['policy']['priority']:
                                     continue
                             elif tmpShareDef['policy']['prioCondition'] == '<=':
-                                if currentPriority > tmpShareDef['policy']['prioCondition']:
+                                if currentPriority > tmpShareDef['policy']['priority']:
                                     continue
                             elif tmpShareDef['policy']['prioCondition'] == '<':    
-                                if currentPriority >= tmpShareDef['policy']['prioCondition']:
+                                if currentPriority >= tmpShareDef['policy']['priority']:
                                     continue
                     # map some job status to running
                     if jobStatus in ['sent','starting']:
@@ -7375,6 +7386,7 @@ class DBProxy:
             for siteid,faresharePolicyStr in res:
                 try:
                     # decompose
+                    hasNonPrioPolicy = False
                     for tmpItem in faresharePolicyStr.split(','):
                         # skip empty
                         tmpItem = tmpItem.strip()
@@ -7407,12 +7419,24 @@ class DBProxy:
                         if tmpMatch != None:
                             tmpPolicy['priority'] = int(tmpMatch.group(2))
                             tmpPolicy['prioCondition'] = tmpMatch.group(1)
+                        else:
+                            hasNonPrioPolicy = True
                         # share
                         tmpPolicy['share'] = tmpItem.split(':')[-1]
                         # append
                         if not faresharePolicy.has_key(siteid):
                             faresharePolicy[siteid] = {'policyList':[]}
                         faresharePolicy[siteid]['policyList'].append(tmpPolicy)
+                    # add any:any if only priority policies
+                    if not hasNonPrioPolicy:
+                        tmpPolicy = {'name'          : 'type=any',
+                                     'group'         : None,
+                                     'type'          : None,
+                                     'priority'      : None,
+                                     'prioCondition' : None,
+                                     'share'         : '100%'}
+                        # FIXME once pilotfactory is ready to use fairshare
+                        #faresharePolicy[siteid]['policyList'].append(tmpPolicy)
                     # some translation
                     faresharePolicy[siteid]['usingGroup'] = False
                     faresharePolicy[siteid]['usingType']  = False

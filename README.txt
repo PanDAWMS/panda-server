@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * added priority boost for gangarobot-pft
+  * fixed getCriteria for aggregated sites
   * fixed brokerage for group=any:0%
   * fixed brokerage more for type=any:0%
   * fixed brokerage to take zero shares into account
