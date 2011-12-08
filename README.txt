@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * permit overwriting of input sandbox
   * reject limited proxy
   * added priority boost for gangarobot-pft
   * fixed getCriteria for aggregated sites

@@ -55,9 +55,23 @@ def putFile(req,file):
         _logger.error(errStr)
         _logger.debug("putFile : end")            
         return errStr
-    fo = open('%s/%s' % (panda_config.cache_dir,file.filename.split('/')[-1]),'wb')
-    fo.write(file.file.read())
-    fo.close()
+    try:
+        fileFullPath = '%s/%s' % (panda_config.cache_dir,file.filename.split('/')[-1])
+        # avoid overwriting
+        if os.path.exists(fileFullPath):
+            errStr = "ERROR : Cannot overwrite file"
+            _logger.error(errStr)
+            _logger.debug("putFile : end")
+            return errStr
+        # write
+        fo = open(fileFullPath,'wb')
+        fo.write(file.file.read())
+        fo.close()
+    except:
+        errStr = "ERROR : Cannot open file"
+        _logger.error(errStr)
+        _logger.debug("putFile : end")
+        return errStr
     _logger.debug("putFile : %s end" % file.filename)
     return True
 
