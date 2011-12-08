@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * touch input sandbox when tried to be overwritten
   * permit overwriting of input sandbox
   * reject limited proxy
   * added priority boost for gangarobot-pft
