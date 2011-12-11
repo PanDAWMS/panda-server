@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed the brokerage to use RAL-LCG2_H​IME as UK T1
   * touch input sandbox when tried to be overwritten
   * permit overwriting of input sandbox
   * reject limited proxy

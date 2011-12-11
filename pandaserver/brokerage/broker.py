@@ -412,11 +412,14 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             # set computingSite to T1 for high priority jobs
             if job != None and job.currentPriority >= 950 and job.computingSite == 'NULL' \
                    and job.prodSourceLabel in ('test','managed') and specialBrokergageSiteList == []:
-                if job.cloud != 'FR':                    
-                    specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source']]
-                else:
+                if job.cloud == 'FR':                    
                     # set site list to use T1 and T1_VL
                     specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source'],'IN2P3-CC_VL','IN2P3-CC','IN2P3-CC_SGE_VL']
+                elif job.cloud == 'UK':
+                    # set site list to use T1 and T1_VL
+                    specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source'],'RAL-LCG2_HIMEM']
+                else:
+                    specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source']]
                 _log.debug('PandaID:%s -> set SiteList=%s for high prio' % (job.PandaID,specialBrokergageSiteList))
             # set computingSite to T1 when too many inputs are required
             if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
@@ -427,11 +430,14 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     if tmpFile.type == 'input':
                         tmpTotalInput += 1
                 if tmpTotalInput >= manyInputsThr:
-                    if job.cloud != 'FR':
-                        specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source']]
-                    else:
+                    if job.cloud == 'FR':
                         # set site list to use T1 and T1_VL
                         specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source'],'IN2P3-CC_VL','IN2P3-CC','IN2P3-CC_SGE_VL']
+                    elif job.cloud == 'UK':
+                        # set site list to use T1 and T1_VL
+                        specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source'],'RAL-LCG2_HIMEM']
+                    else:
+                        specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source']]
                     _log.debug('PandaID:%s -> set SiteList=%s for too many inputs' % (job.PandaID,specialBrokergageSiteList))
             # manually set site
             manualPreset = False
@@ -507,10 +513,12 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     # use T1 for jobs with many inputs when weight is negative
                     if (not forAnalysis) and _isTooManyInput(nFilesPerJob,inputSizePerJob) and \
                            siteMapper.getCloud(previousCloud)['weight'] < 0:
-                        if previousCloud != 'FR':
-                            scanSiteList = [siteMapper.getCloud(previousCloud)['source']]
-                        else:
+                        if previousCloud == 'FR':
                             scanSiteList = [siteMapper.getCloud(previousCloud)['source'],'IN2P3-CC_VL','IN2P3-CC','IN2P3-CC_SGE_VL']
+                        elif previousCloud == 'UK':
+                            scanSiteList = [siteMapper.getCloud(previousCloud)['source'],'RAL-LCG2_HIMEM']
+                        else:
+                            scanSiteList = [siteMapper.getCloud(previousCloud)['source']]
                     # get availabe sites with cache
                     useCacheVersion = False
                     siteListWithCache = []
@@ -876,7 +884,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 if _isTooManyInput(nFilesPerJob,inputSizePerJob):
                                     if site == siteMapper.getCloud(previousCloud)['source'] or \
                                        (site=='NIKHEF-ELPROD' and previousCloud=='NL' and prevProType=='reprocessing') or \
-                                       (site in ['IN2P3-CC_VL','IN2P3-CC','IN2P3-CC_SGE_VL'] and previousCloud=='FR'):
+                                       (site in ['IN2P3-CC_VL','IN2P3-CC','IN2P3-CC_SGE_VL'] and previousCloud=='FR') or \
+                                       (site in ['RAL-LCG2_HIMEM'] and previousCloud=='UK'):
                                         cloudT1Weight = 2.0
                                         # use weight in cloudconfig
                                         try:
@@ -1106,7 +1115,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             elif prevProType in ['reprocessing']:
                                 tmpJob.brokerageErrorDiag = '%s/%s not found at reprocessing sites' % (tmpJob.homepackage,tmpJob.cmtConfig)
                             elif not useCacheVersion:
-                                tmpJob.brokerageErrorDiag = '%s/%s not found at online sites' % (tmpJob.AtlasRelease,tmpJob.cmtConfig)
+                                tmpJob.brokerageErrorDiag = '%s/%s not found at online sites with enough memory and disk' % \
+                                                            (tmpJob.AtlasRelease,tmpJob.cmtConfig)
                             else:
                                 tmpJob.brokerageErrorDiag = '%s/%s not found at online sites' % (tmpJob.homepackage,tmpJob.cmtConfig)
                             _log.debug(tmpJob.brokerageErrorDiag)
