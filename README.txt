@@ -1,6 +1,9 @@
 Release Note
 
 * current
+  * improved brokerage error diag
+  * cleaned the brokerage for hospital queues
+  * use 0 when memory=0 in one of online sites with the same siteID
   * fixed the brokerage to use RAL-LCG2_H​IME as UK T1
   * touch input sandbox when tried to be overwritten
   * permit overwriting of input sandbox

@@ -31,6 +31,11 @@ shortLongMap = {'ANALY_BNL_ATLAS_1':'ANALY_LONG_BNL_ATLAS',
                 'ANALY_LYON_DCACHE':'ANALY_LONG_LYON_DCACHE',
                 }
 
+# hospital queues associated to T1
+hospitalQueueMap = {'FR':['IN2P3-CC_VL','IN2P3-CC','IN2P3-CC_SGE_VL'],
+                    'UK':['RAL-LCG2_HIMEM'],
+                    }
+
 # processingType to skip brokerage
 skipBrokerageProTypes = ['prod_test']
 
@@ -314,6 +319,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
     prevManualPreset = None
     prevGoToT2Flag   = None
     prevWorkingGroup = None
+    prevBrokerageNote = None
     
     nWNmap = {}
     indexJob = 0
@@ -353,8 +359,6 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
         jobs.sort(_compFunc)
         # brokerage for analysis 
         candidateForAnal = True
-        resultsForAnal   = {'rel':[],'pilot':[],'disk':[],'status':[],'weight':[],'memory':[],
-                            'share':[],'transferring':[]}
         relCloudMap      = {}
         loggerMessages   = []
         # loop over all jobs + terminator(None)
@@ -367,6 +371,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 continue
             # list of sites for special brokerage
             specialBrokergageSiteList = []
+            # note for brokerage
+            brokerageNote = ''
             # send jobs to T2 when files are missing at T1
             goToT2Flag = False
             if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
@@ -376,6 +382,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     goToT2Flag = True
                     specialBrokergageSiteList = currentT2CandList
                     _log.debug('PandaID:%s -> set SiteList=%s to use T2 for missing files at T1' % (job.PandaID,specialBrokergageSiteList))
+                    brokerageNote = 'useT2'
             # hack for split T1
             if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
                and job.cloud == 'NL' and specialBrokergageSiteList == []:
@@ -409,18 +416,16 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 if useSplitT1 == True:
                     specialBrokergageSiteList = ['NIKHEF-ELPROD']
                     _log.debug('PandaID:%s -> set SiteList=%s for split T1' % (job.PandaID,specialBrokergageSiteList))
+                    brokerageNote = 'useSplitNLT1'                    
             # set computingSite to T1 for high priority jobs
             if job != None and job.currentPriority >= 950 and job.computingSite == 'NULL' \
                    and job.prodSourceLabel in ('test','managed') and specialBrokergageSiteList == []:
-                if job.cloud == 'FR':                    
-                    # set site list to use T1 and T1_VL
-                    specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source'],'IN2P3-CC_VL','IN2P3-CC','IN2P3-CC_SGE_VL']
-                elif job.cloud == 'UK':
-                    # set site list to use T1 and T1_VL
-                    specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source'],'RAL-LCG2_HIMEM']
-                else:
-                    specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source']]
+                specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source']]
+                # set site list to use T1 and T1_VL
+                if hospitalQueueMap.has_key(job.cloud):
+                    specialBrokergageSiteList += hospitalQueueMap[job.cloud]
                 _log.debug('PandaID:%s -> set SiteList=%s for high prio' % (job.PandaID,specialBrokergageSiteList))
+                brokerageNote = 'highPrio'
             # set computingSite to T1 when too many inputs are required
             if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
                    and specialBrokergageSiteList == []:
@@ -430,21 +435,29 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     if tmpFile.type == 'input':
                         tmpTotalInput += 1
                 if tmpTotalInput >= manyInputsThr:
-                    if job.cloud == 'FR':
-                        # set site list to use T1 and T1_VL
-                        specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source'],'IN2P3-CC_VL','IN2P3-CC','IN2P3-CC_SGE_VL']
-                    elif job.cloud == 'UK':
-                        # set site list to use T1 and T1_VL
-                        specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source'],'RAL-LCG2_HIMEM']
-                    else:
-                        specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source']]
+                    specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source']]
+                    # set site list to use T1 and T1_VL
+                    if hospitalQueueMap.has_key(job.cloud):
+                        specialBrokergageSiteList += hospitalQueueMap[job.cloud]
                     _log.debug('PandaID:%s -> set SiteList=%s for too many inputs' % (job.PandaID,specialBrokergageSiteList))
+                    brokerageNote = 'manyInput'
+            # use limited sites for reprocessing
+            if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
+                   and job.processingType in ['reprocessing'] and specialBrokergageSiteList == []:
+                for tmpSiteName in siteMapper.getCloud(job.cloud)['sites']:
+                    if siteMapper.checkSite(tmpSiteName):
+                        tmpSiteSpec = siteMapper.getSite(tmpSiteName)
+                        if _checkRelease(job.AtlasRelease,tmpSiteSpec.validatedreleases):
+                            specialBrokergageSiteList.append(tmpSiteName)
+                _log.debug('PandaID:%s -> set SiteList=%s for processingType=%s' % (job.PandaID,specialBrokergageSiteList,job.processingType))
+                brokerageNote = '%s' % job.processingType                
             # manually set site
             manualPreset = False
             if job != None and job.computingSite != 'NULL' and job.prodSourceLabel in ('test','managed') \
                    and specialBrokergageSiteList == []:
                 specialBrokergageSiteList = [job.computingSite]
                 manualPreset = True
+                brokerageNote = 'presetSite'
             overwriteSite = False
             # new bunch or terminator
             if job == None or len(fileList) >= nFile \
@@ -470,6 +483,9 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     _log.debug('  workingGroup   %s' % prevWorkingGroup)
                     _log.debug('  transferType   %s' % prevDirectAcc)
                     _log.debug('  goToT2         %s' % prevGoToT2Flag)
+                # brokerage decisions    
+                resultsForAnal   = {'rel':[],'pilot':[],'disk':[],'status':[],'weight':[],'memory':[],
+                                    'share':[],'transferring':[]}
                 # determine site
                 if (iJob == 0 or chosen_ce != 'TOBEDONE') and prevBrokergageSiteList in [None,[]]:
                      # file scan for pre-assigned jobs
@@ -513,12 +529,10 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     # use T1 for jobs with many inputs when weight is negative
                     if (not forAnalysis) and _isTooManyInput(nFilesPerJob,inputSizePerJob) and \
                            siteMapper.getCloud(previousCloud)['weight'] < 0:
-                        if previousCloud == 'FR':
-                            scanSiteList = [siteMapper.getCloud(previousCloud)['source'],'IN2P3-CC_VL','IN2P3-CC','IN2P3-CC_SGE_VL']
-                        elif previousCloud == 'UK':
-                            scanSiteList = [siteMapper.getCloud(previousCloud)['source'],'RAL-LCG2_HIMEM']
-                        else:
-                            scanSiteList = [siteMapper.getCloud(previousCloud)['source']]
+                        scanSiteList = [siteMapper.getCloud(previousCloud)['source']]
+                        # set site list to use T1 and T1_VL
+                        if hospitalQueueMap.has_key(previousCloud):
+                            scanSiteList += hospitalQueueMap[previousCloud]
                     # get availabe sites with cache
                     useCacheVersion = False
                     siteListWithCache = []
@@ -884,8 +898,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 if _isTooManyInput(nFilesPerJob,inputSizePerJob):
                                     if site == siteMapper.getCloud(previousCloud)['source'] or \
                                        (site=='NIKHEF-ELPROD' and previousCloud=='NL' and prevProType=='reprocessing') or \
-                                       (site in ['IN2P3-CC_VL','IN2P3-CC','IN2P3-CC_SGE_VL'] and previousCloud=='FR') or \
-                                       (site in ['RAL-LCG2_HIMEM'] and previousCloud=='UK'):
+                                       (hospitalQueueMap.has_key(previousCloud) and site in hospitalQueueMap[previousCloud]):
                                         cloudT1Weight = 2.0
                                         # use weight in cloudconfig
                                         try:
@@ -1045,6 +1058,9 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 try:
                                     usedInDiagSites = []
                                     tmpJob.brokerageErrorDiag = ''
+                                    # note
+                                    if not prevBrokerageNote in ['',None]:
+                                        tmpJob.brokerageErrorDiag += 'special brokerage for %s: ' % prevBrokerageNote
                                     # no pilots
                                     if resultsForAnal['pilot'] != []:
                                         tmpSiteStr = ''
@@ -1052,7 +1068,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                             usedInDiagSites.append(tmpSiteItem)
                                             tmpSiteStr += '%s,' % tmpSiteItem
                                         tmpSiteStr = tmpSiteStr[:-1]
-                                        tmpJob.brokerageErrorDiag += '%s no pilots, ' % tmpSiteStr
+                                        tmpJob.brokerageErrorDiag += 'no pilots at %s: ' % tmpSiteStr
                                     # disk shortage    
                                     if resultsForAnal['disk'] != []:
                                         tmpSiteStr = ''
@@ -1060,7 +1076,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                             usedInDiagSites.append(tmpSiteItem)                                        
                                             tmpSiteStr += '%s,' % tmpSiteItem
                                         tmpSiteStr = tmpSiteStr[:-1]
-                                        tmpJob.brokerageErrorDiag += 'disk shortage at %s, ' % tmpSiteStr
+                                        tmpJob.brokerageErrorDiag += 'disk shortage at %s: ' % tmpSiteStr
                                     # memory shortage    
                                     if resultsForAnal['memory'] != []:
                                         tmpSiteStr = ''
@@ -1068,7 +1084,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                             usedInDiagSites.append(tmpSiteItem)                                        
                                             tmpSiteStr += '%s,' % tmpSiteItem
                                         tmpSiteStr = tmpSiteStr[:-1]
-                                        tmpJob.brokerageErrorDiag += 'memory shortage at %s, ' % tmpSiteStr
+                                        tmpJob.brokerageErrorDiag += 'memory shortage at %s: ' % tmpSiteStr
                                     # non-online status     
                                     if resultsForAnal['status'] != []:
                                         tmpSiteStr = ''
@@ -1076,7 +1092,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                             usedInDiagSites.append(tmpSiteItem)
                                             tmpSiteStr += '%s,' % tmpSiteItem
                                         tmpSiteStr = tmpSiteStr[:-1]
-                                        tmpJob.brokerageErrorDiag += '%s not online, ' % tmpSiteStr
+                                        tmpJob.brokerageErrorDiag += 'not online at %s: ' % tmpSiteStr
                                     # zero share
                                     if resultsForAnal['share'] != []:
                                         tmpSiteStr = ''
@@ -1084,7 +1100,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                             usedInDiagSites.append(tmpSiteItem)
                                             tmpSiteStr += '%s,' % tmpSiteItem
                                             tmpSiteStr = tmpSiteStr[:-1]
-                                            tmpJob.brokerageErrorDiag += '%s zero share, ' % tmpSiteStr
+                                            tmpJob.brokerageErrorDiag += 'zero share at %s: ' % tmpSiteStr
                                     # too many transferring        
                                     if resultsForAnal['transferring'] != []:
                                         tmpSiteStr = ''
@@ -1092,7 +1108,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                             usedInDiagSites.append(tmpSiteItem)
                                             tmpSiteStr += '%s,' % tmpSiteItem
                                             tmpSiteStr = tmpSiteStr[:-1]
-                                            tmpJob.brokerageErrorDiag += '%s too many transferring, ' % tmpSiteStr
+                                            tmpJob.brokerageErrorDiag += 'too many transferring at %s: ' % tmpSiteStr
                                     # missing release    
                                     tmpSiteStr = ''
                                     for tmpSiteItem in prevBrokergageSiteList:
@@ -1196,6 +1212,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             prevManualPreset = manualPreset
             prevGoToT2Flag   = goToT2Flag
             prevWorkingGroup = job.workingGroup
+            prevBrokerageNote = brokerageNote
             # assign site
             if chosen_ce != 'TOBEDONE':
                 job.computingSite = chosen_ce.sitename

@@ -105,7 +105,7 @@ class SiteMapper:
                                     if self.siteSpecList[tmpID].maxinputsize < ret.maxinputsize or \
                                            ret.maxinputsize == 0:
                                         self.siteSpecList[tmpID].maxinputsize = ret.maxinputsize
-                                    if self.siteSpecList[tmpID].memory < ret.memory or \
+                                    if (self.siteSpecList[tmpID].memory != 0 and self.siteSpecList[tmpID].memory < ret.memory) or \
                                            ret.memory == 0:
                                         self.siteSpecList[tmpID].memory = ret.memory
                             except:
