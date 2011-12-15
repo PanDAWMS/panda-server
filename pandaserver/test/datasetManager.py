@@ -537,6 +537,19 @@ class T2Cleaner (threading.Thread):
                                     t2DDMs.append(tmpDDM)
                             # delete replica for sub
                             if re.search('_sub\d+$',name) != None and t2DDMs != []:
+                                setMetaFlag = True
+                                for tmpT2DDM in t2DDMs:
+                                    _logger.debug('setReplicaMetaDataAttribute %s %s' % (name,tmpT2DDM))
+                                    status,out = ddm.DQ2.main('setReplicaMetaDataAttribute',name,tmpT2DDM,'pin_lifetime','')
+                                    if status != 0:
+                                        _logger.error(out)
+                                        if out.find('DQFrozenDatasetException')  == -1 and \
+                                               out.find("DQUnknownDatasetException") == -1 and out.find("DQSecurityException") == -1 and \
+                                               out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1 and \
+                                               out.find("No replica found") == -1:
+                                            setMetaFlag = False
+                                if not setMetaFlag:            
+                                    continue
                                 _logger.debug(('deleteDatasetReplicas',name,t2DDMs))
                                 status,out = ddm.DQ2.main('deleteDatasetReplicas',name,t2DDMs,0,False,False,False,False,False,'00:00:00')
                                 if status != 0:

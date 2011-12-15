@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * set replica pin lifetime before deleting from T2
   * improved brokerage error diag
   * cleaned the brokerage for hospital queues
   * use 0 when memory=0 in one of online sites with the same siteID
