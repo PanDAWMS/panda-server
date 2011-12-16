@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed brokerageErrorDiag for useT2 + repro
   * set replica pin lifetime before deleting from T2
   * improved brokerage error diag
   * cleaned the brokerage for hospital queues

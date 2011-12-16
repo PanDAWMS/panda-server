@@ -1117,7 +1117,10 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     tmpSiteStr = tmpSiteStr[:-1]
                                     if tmpSiteStr != '':
                                         if useCacheVersion:
-                                            tmpJob.brokerageErrorDiag += '%s/%s not found at %s' % (tmpJob.homepackage,tmpJob.cmtConfig,tmpSiteStr)
+                                            if prevProType in ['reprocessing']:
+                                                tmpJob.brokerageErrorDiag += '%s are not reprocessing sites' % tmpSiteStr
+                                            else:
+                                                tmpJob.brokerageErrorDiag += '%s/%s not found at %s' % (tmpJob.homepackage,tmpJob.cmtConfig,tmpSiteStr)
                                         else:
                                             tmpJob.brokerageErrorDiag += '%s/%s not found at %s' % (tmpJob.AtlasRelease,tmpJob.cmtConfig,tmpSiteStr)
                                         if prevGoToT2Flag:
