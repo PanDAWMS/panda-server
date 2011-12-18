@@ -245,11 +245,11 @@ Parameters : %s""" % self.job.metadata
                                 message += \
 """
 
-PandaMonURL : http://panda.cern.ch:25980/server/pandamon/query?%s""" % urllib.urlencode(urlData)
+PandaMonURL : http://panda.cern.ch/server/pandamon/query?%s""" % urllib.urlencode(urlData)
                             else:
                                 message += \
 """
-              http://panda.cern.ch:25980/server/pandamon/query?%s""" % urllib.urlencode(urlData)
+              http://panda.cern.ch/server/pandamon/query?%s""" % urllib.urlencode(urlData)
                     else:
                         urlData = {}
                         urlData['job'] = '*'
@@ -258,7 +258,7 @@ PandaMonURL : http://panda.cern.ch:25980/server/pandamon/query?%s""" % urllib.ur
                         message += \
 """
 
-PandaMonURL : http://panda.cern.ch:25980/server/pandamon/query?%s""" % urllib.urlencode(urlData)
+PandaMonURL : http://panda.cern.ch/server/pandamon/query?%s""" % urllib.urlencode(urlData)
                     
                     # tailer            
                     message += \

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed port of pandamon in email notification
   * fixed brokerageErrorDiag for useT2 + repro
   * set replica pin lifetime before deleting from T2
   * improved brokerage error diag
