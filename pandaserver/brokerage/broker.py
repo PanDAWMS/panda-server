@@ -645,7 +645,10 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                  ((not useCacheVersion and releases != [] and not tmpSiteSpec.cloud in ['ND','CERN']) or prevProType in ['reprocessing']) and \
                                  ((not _checkRelease(prevRelease,releases) or not site in siteListWithCache) and not tmpSiteSpec.cloud in ['ND','CERN']):
                                 # release matching
-                                _log.debug(' skip: release %s/%s not found' % (prevRelease.replace('\n',' '),prevCmtConfig))
+                                if not useCacheVersion:
+                                    _log.debug(' skip: release %s/%s not found' % (prevRelease.replace('\n',' '),prevCmtConfig))
+                                else:
+                                    _log.debug(' skip: repro cache %s/%s not found' % (prevHomePkg.replace('\n',' '),prevCmtConfig))
                                 if forAnalysis and trustIS:
                                     resultsForAnal['rel'].append(site)
                                 continue
@@ -1117,7 +1120,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     tmpSiteStr = tmpSiteStr[:-1]
                                     if tmpSiteStr != '':
                                         if useCacheVersion:
-                                            if prevProType in ['reprocessing']:
+                                            if prevProType in ['reprocessing'] and prevBrokerageNote != 'reprocessing':
                                                 tmpJob.brokerageErrorDiag += '%s are not reprocessing sites' % tmpSiteStr
                                             else:
                                                 tmpJob.brokerageErrorDiag += '%s/%s not found at %s' % (tmpJob.homepackage,tmpJob.cmtConfig,tmpSiteStr)
