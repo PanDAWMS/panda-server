@@ -274,7 +274,7 @@ def _getPFNFromLFC(lfns,dq2url,guids,storageName):
                     pass
                 return status
             # reset
-            strFile  = ''
+            strFiles = ''
     # return
     return outStr
                             
