@@ -24,7 +24,7 @@ def _getFilesLFC(files,lfcHost,storages,verbose=False):
     os.environ['LFC_CONRETRYINT'] = '6'
     # get PFN
     iGUID = 0
-    nGUID = 100
+    nGUID = 1000
     pfnMap   = {}
     listGUID = []
     for guid in files.keys():

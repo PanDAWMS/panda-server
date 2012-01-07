@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed brokerage_util to do LFC lookup per 1000 files instead of 100 files
   * fixed brokerageErrorDiag for repro + missingRel 
   * fixed port of pandamon in email notification
   * fixed brokerageErrorDiag for useT2 + repro
