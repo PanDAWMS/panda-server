@@ -74,7 +74,8 @@ def _checkRelease(jobRels,siteRels):
 
 
 # get list of files which already exist at the site
-def _getOkFiles(v_ce,v_files,v_guids):
+allOkFilesMap = {}
+def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs):
     # DQ2 URL
     dq2URL = v_ce.dq2url
     dq2ID  = v_ce.ddm
@@ -83,9 +84,25 @@ def _getOkFiles(v_ce,v_files,v_guids):
     if not v_ce.lfchost in [None,'']:
         dq2URL = 'lfc://'+v_ce.lfchost+':/grid/atlas/'
         tmpSE  = broker_util.getSEfromSched(v_ce.se)
-    # get files from LRC 
-    return broker_util.getFilesFromLRC(v_files,dq2URL,guids=v_guids,
-                                       storageName=tmpSE,getPFN=True)
+    # use bulk lookup
+    if allLFNs != []:
+        # get bulk lookup data
+        global allOkFilesMap
+        if not allOkFilesMap.has_key(dq2ID):
+            # get files from LRC
+            allOkFilesMap[dq2ID] = broker_util.getFilesFromLRC(allLFNs,dq2URL,guids=allGUIDs,
+                                                               storageName=tmpSE,getPFN=True)
+        # make return map
+        retMap = {}
+        for tmpLFN in v_files:
+            if allOkFilesMap[dq2ID].has_key(tmpLFN):
+                retMap[tmpLFN] = allOkFilesMap[dq2ID][tmpLFN]
+        # return
+        return retMap
+    else:
+        # old style
+        return broker_util.getFilesFromLRC(v_files,dq2URL,guids=v_guids,
+                                           storageName=tmpSE,getPFN=True)
 
 
 # check reprocessing or not
@@ -361,6 +378,15 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
         candidateForAnal = True
         relCloudMap      = {}
         loggerMessages   = []
+        # get all input files for bulk LFC lookup  
+        allLFNs  = []
+        allGUIDs = []
+        for tmpJob in jobs:
+            if tmpJob.prodSourceLabel in ('test','managed'):
+                for tmpFile in tmpJob.Files:
+                    if tmpFile.type == 'input' and not tmpFile.lfn in allLFNs:
+                        allLFNs.append(tmpFile.lfn)
+                        allGUIDs.append(tmpFile.GUID)
         # loop over all jobs + terminator(None)
         for job in jobs+[None]:
             indexJob += 1
@@ -496,7 +522,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                          # get site spec
                          tmp_chosen_ce = siteMapper.getSite(computingSite)
                          # get files from LRC 
-                         okFiles = _getOkFiles(tmp_chosen_ce,fileList,guidList)
+                         okFiles = _getOkFiles(tmp_chosen_ce,fileList,guidList,allLFNs,allGUIDs)
                          # loop over all jobs
                          for tmpJob in jobsInBunch:
                              # set 'ready' if files are already there
@@ -982,7 +1008,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 tmpOKFiles = {}
                             else:
                                 # get files from LRC 
-                                tmpOKFiles = _getOkFiles(tmp_chosen_ce,fileList,guidList)
+                                tmpOKFiles = _getOkFiles(tmp_chosen_ce,fileList,guidList,allLFNs,allGUIDs)
                             nFiles = len(tmpOKFiles)
                             _log.debug('site:%s - nFiles:%s' % (site,nFiles))
                             # choose site holding max # of files

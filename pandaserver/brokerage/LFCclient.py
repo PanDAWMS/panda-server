@@ -84,9 +84,11 @@ def main():
     options.guids     = []    
     options.lfchost   = ''
     options.storages  = []
+    options.infile    = None
+    options.outfile   = None
     # get command-line parameters
     try:
-        opts, args = getopt.getopt(sys.argv[1:],"s:i:g:vl:")
+        opts, args = getopt.getopt(sys.argv[1:],"s:i:g:vl:o:f:")
     except:
         _usage()
         print "ERROR : Invalid options"
@@ -103,13 +105,36 @@ def main():
             options.guids = a.split(',')
         if o in ("-l",):
             options.lfchost = a
+        if o in ("-f",):
+            options.infile = a
+        if o in ("-o",):
+            options.outfile = a
     # read GUID/LFN
     files = {}
-    for idx in range(len(options.guids)):
-        guid = options.guids[idx]
-        lfn  = options.lfns[idx]        
-        if guid != 'NULL':
-            files[guid] = lfn
+    if options.infile == None:
+        for idx in range(len(options.guids)):
+            guid = options.guids[idx]
+            lfn  = options.lfns[idx]        
+            if guid != 'NULL':
+                files[guid] = lfn
+    else:
+        try:
+            # read from file
+            ifile = open(options.infile)
+            for line in ifile:
+                items = line.split()
+                if len(items) == 2:
+                    guid = items[1]
+                    lfn  = items[0]
+                    if guid != 'NULL':
+                        files[guid] = lfn
+            # close and delete
+            ifile.close()
+            os.remove(options.infile)
+        except:
+            errType,errValue = sys.exc_info()[:2]
+            print "ERROR: %s:%s" % errType,errValue
+            sys.exit(1)
     # get files
     retFiles = _getFilesLFC(files,options.lfchost,options.storages,options.verbose)
     print "LFCRet : %s " % retFiles

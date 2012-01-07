@@ -227,17 +227,18 @@ def _getPFNFromLFC(lfns,dq2url,guids,storageName):
     lfcHost = re.sub('[/:]',' ',dq2url).split()[1]
     # loop over all LFNs
     iLFN = 0
-    nLFN = 50
-    strLFNs = ''    
-    strGUIDs = ''
+    nLFN = 1000
+    strFiles = ''    
     outStr = ''
     for iLFN in range(len(lfns)):
-        strLFNs  += '%s,' % lfns[iLFN] 
-        strGUIDs += '%s,' % guids[iLFN]
+        strFiles  += '%s %s\n' % (lfns[iLFN],guids[iLFN]) 
         # bulk operation
         if (iLFN+1) % nLFN == 0 or (iLFN+1) >= len(lfns):
-            strLFNs  = strLFNs[:-1]
-            strGUIDs = strGUIDs[:-1]
+            # write to file
+            inFileName = '%s/lfcin.%s'  % (panda_config.logdir,commands.getoutput('uuidgen'))
+            ifile = open(inFileName,'w')
+            ifile.write(strFiles)
+            ifile.close()
             # construct commands
             strStorage = ''
             for storage in storageName:
@@ -245,9 +246,9 @@ def _getPFNFromLFC(lfns,dq2url,guids,storageName):
             strStorage = strStorage[:-1]
             com = 'cd %s > /dev/null 2>&1; export HOME=%s; ' % (panda_config.home_dir_cwd,panda_config.home_dir_cwd)            
             com+= 'unset LD_LIBRARY_PATH; unset PYTHONPATH; export PATH=/usr/local/bin:/bin:/usr/bin; '
-            com+= 'source %s; %s/python -Wignore %s/LFCclient.py -i %s -g %s -l %s -s %s' % \
+            com+= 'source %s; %s/python -Wignore %s/LFCclient.py -f %s -l %s -s %s' % \
                   (panda_config.glite_source,panda_config.native_python32,panda_config.lfcClient_dir,
-                   strLFNs,strGUIDs,lfcHost,strStorage)
+                   inFileName,lfcHost,strStorage)
             _log.debug(com)
             # exeute
             status,output = commands.getstatusoutput(com)
@@ -273,8 +274,7 @@ def _getPFNFromLFC(lfns,dq2url,guids,storageName):
                     pass
                 return status
             # reset
-            strLFNs  = ''
-            strGUIDs = ''
+            strFile  = ''
     # return
     return outStr
                             
