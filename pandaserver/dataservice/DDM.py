@@ -191,10 +191,49 @@ class _TOAMethod:
         return commands.getstatusoutput('%s env %s python -c "%s"' % (_cwd,_env,com))
 
 
+# native ToA method class
+class NativeTOAMethod:
+    # constructor
+    def __init__(self):
+        self.methodName = None
+        from dq2.info import TiersOfATLAS
+        self.api = TiersOfATLAS
+    # set method name
+    def setName(self,methodName):
+        self.methodName = methodName
+    # method emulation
+    def __call__(self,*args,**kwargs):
+        try:
+            methodObj = getattr(self.api,self.methodName)
+            # execute
+            retVal = apply(methodObj,args,kwargs)
+            strRet = str(retVal)
+            # return
+            return 0,strRet
+        except:
+            errType,errVale = sys.exc_info()[:2]
+            return 1,'%s %s' % (errType,errVale)
+
+
 # TOA module class
 class TOA:
+    # constructor
+    def __init__(self):
+        self.usingNativeDQ2 = False
+        self.nativeTOA = None
+    # getter
     def __getattr__(self,methodName):
-        return _TOAMethod(methodName)
+        if not ddm.usingNativeDQ2:
+            # run dq2 comamnd in another session
+            return _TOAMethod(methodName)
+        else:
+            # make method object
+            if self.nativeTOA == None:
+                self.nativeTOA = NativeTOAMethod()
+            # run dq2 command in the same session
+            self.nativeTOA.setName(methodName)
+            return self.nativeTOA
+                                
 
     
 # instantiate

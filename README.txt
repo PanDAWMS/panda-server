@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * using native DQ2 call in ToA
   * modified brokerage to do bulk LFC lookup per site  
   * fixed brokerage_util to do LFC lookup per 1000 files instead of 100 files
   * fixed brokerageErrorDiag for repro + missingRel 
