@@ -1286,7 +1286,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             prevBrokerageNote = brokerageNote
             # truncate prio to avoid too many lookups
             if not job.currentPriority in [None,'NULL']:
-                prevPriority = (job.currentPriority / 10) * 10
+                prevPriority = (job.currentPriority / 50) * 50
             # assign site
             if chosen_ce != 'TOBEDONE':
                 job.computingSite = chosen_ce.sitename
