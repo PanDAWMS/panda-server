@@ -506,6 +506,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     _log.debug('  sourceLabel    %s' % prevSourceLabel)
                     _log.debug('  cmtConfig      %s' % prevCmtConfig)
                     _log.debug('  memory         %s' % prevMemory)
+                    _log.debug('  priority       %s' % prevPriority)
                     _log.debug('  prodDBlock     %s' % prodDBlock)
                     _log.debug('  computingSite  %s' % computingSite)
                     _log.debug('  processingType %s' % prevProType)
