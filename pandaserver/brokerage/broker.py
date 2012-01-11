@@ -337,6 +337,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
     prevGoToT2Flag   = None
     prevWorkingGroup = None
     prevBrokerageNote = None
+    prevPriority      = None
     
     nWNmap = {}
     indexJob = 0
@@ -352,6 +353,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
     try:
         # get statistics
         faresharePolicy = {}
+        newJobStatWithPrio = {}
+        jobStatBrokerCloudsWithPrio = {}
         if len(jobs) > 0 and (jobs[0].processingType.startswith('gangarobot') or \
                               jobs[0].processingType.startswith('hammercloud') or \
                               jobs[0].processingType in ['pandamover','usermerge']):
@@ -855,8 +858,32 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 jobStatBroker[site] = {}
                             if not jobStatBroker[site].has_key(tmpProGroup):
                                 jobStatBroker[site][tmpProGroup] = {'assigned':0,'activated':0,'running':0,'transferring':0}
-                            nAssJobs = jobStatBroker[site][tmpProGroup]['assigned']
-                            nActJobs = jobStatBroker[site][tmpProGroup]['activated']
+                            # count # of assigned and activated jobs for prod by taking priorities in to account
+                            if not forAnalysis and prevSourceLabel in ['managed','test']:
+                                if not jobStatBrokerCloudsWithPrio.has_key(prevPriority):
+                                    jobStatBrokerCloudsWithPrio[prevPriority] = taskBuffer.getJobStatisticsBrokerage(prevPriority)
+                                if not jobStatBrokerCloudsWithPrio[prevPriority].has_key(previousCloud):
+                                    jobStatBrokerCloudsWithPrio[prevPriority][previousCloud] = {}
+                                if not jobStatBrokerCloudsWithPrio[prevPriority][previousCloud].has_key(site):
+                                    jobStatBrokerCloudsWithPrio[prevPriority][previousCloud][site] = {}
+                                if not jobStatBrokerCloudsWithPrio[prevPriority][previousCloud][site].has_key(tmpProGroup):
+                                    jobStatBrokerCloudsWithPrio[prevPriority][previousCloud][site][tmpProGroup] = {'assigned':0,'activated':0,'running':0,'transferring':0}
+                                nAssJobs = jobStatBrokerCloudsWithPrio[prevPriority][previousCloud][site][tmpProGroup]['assigned']
+                                nActJobs = jobStatBrokerCloudsWithPrio[prevPriority][previousCloud][site][tmpProGroup]['activated']
+                                # add newly assigned jobs
+                                for tmpNewPriority in newJobStatWithPrio.keys():
+                                    if tmpNewPriority < prevPriority:
+                                        continue
+                                    if not newJobStatWithPrio[tmpNewPriority].has_key(previousCloud):
+                                        continue
+                                    if not newJobStatWithPrio[tmpNewPriority][previousCloud].has_key(site):
+                                        continue
+                                    if not newJobStatWithPrio[tmpNewPriority][previousCloud][site].has_key(tmpProGroup):
+                                        continue
+                                    nAssJobs += newJobStatWithPrio[tmpNewPriority][previousCloud][site][tmpProGroup]
+                            else:
+                                nAssJobs = jobStatBroker[site][tmpProGroup]['assigned']
+                                nActJobs = jobStatBroker[site][tmpProGroup]['activated']
                             # get ration of transferring to running
                             if not forAnalysis and not tmpSiteSpec.cloud in ['ND']:
                                 nTraJobs = 0
@@ -1184,6 +1211,17 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             jobStatBroker[tmpJob.computingSite][tmpProGroup] = {'assigned':0,'activated':0,'running':0}
                         jobStatistics[tmpJob.computingSite]['assigned'] += 1
                         jobStatBroker[tmpJob.computingSite][tmpProGroup]['assigned'] += 1
+                        # update statistics by taking priorities into account
+                        if not forAnalysis and prevSourceLabel in ['managed','test']:
+                            if not newJobStatWithPrio.has_key(prevPriority):
+                                newJobStatWithPrio[prevPriority] = {}
+                            if not newJobStatWithPrio[prevPriority].has_key(tmpJob.cloud):
+                                newJobStatWithPrio[prevPriority][tmpJob.cloud] = {}
+                            if not newJobStatWithPrio[prevPriority][tmpJob.cloud].has_key(tmpJob.computingSite):
+                                newJobStatWithPrio[prevPriority][tmpJob.cloud][tmpJob.computingSite] = {}
+                            if not newJobStatWithPrio[prevPriority][tmpJob.cloud][tmpJob.computingSite].has_key(tmpProGroup):
+                                newJobStatWithPrio[prevPriority][tmpJob.cloud][tmpJob.computingSite][tmpProGroup] = 0
+                            newJobStatWithPrio[prevPriority][tmpJob.cloud][tmpJob.computingSite][tmpProGroup] += 1
                 # terminate
                 if job == None:
                     break
@@ -1245,6 +1283,9 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             prevGoToT2Flag   = goToT2Flag
             prevWorkingGroup = job.workingGroup
             prevBrokerageNote = brokerageNote
+            # truncate prio to avoid too many lookups
+            if not job.currentPriority in [None,'NULL']:
+                prevPriority = (job.currentPriority / 10) * 10
             # assign site
             if chosen_ce != 'TOBEDONE':
                 job.computingSite = chosen_ce.sitename

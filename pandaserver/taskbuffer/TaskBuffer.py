@@ -1409,11 +1409,11 @@ class TaskBuffer:
 
 
     # get job statistics for brokerage
-    def getJobStatisticsBrokerage(self):
+    def getJobStatisticsBrokerage(self,minPrio=None):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get stat
-        ret = proxy.getJobStatisticsBrokerage()
+        ret = proxy.getJobStatisticsBrokerage(minPrio)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # convert

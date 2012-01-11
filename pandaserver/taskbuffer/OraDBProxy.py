@@ -5679,14 +5679,19 @@ class DBProxy:
 
 
     # get job statistics for brokerage
-    def getJobStatisticsBrokerage(self):
+    def getJobStatisticsBrokerage(self,minPriority=None):
         comment = ' /* DBProxy.getJobStatisticsBrokerage */'        
-        _logger.debug("getJobStatisticsBrokerage()")
+        _logger.debug("getJobStatisticsBrokerage(%s)" % minPriority)
         sql0 = "SELECT cloud,computingSite,jobStatus,processingType,COUNT(*) FROM %s WHERE "
         sql0 += "prodSourceLabel IN (:prodSourceLabel1) "
+        tmpPrioMap = {}
+        if minPriority != None:
+            sql0 += "AND currentPriority>=:minPriority "
+            tmpPrioMap[':minPriority'] = minPriority
         sql0 += "GROUP BY cloud,computingSite,jobStatus,processingType"
         # sql for materialized view
         sqlMV = re.sub('COUNT\(\*\)','SUM(num_of_jobs)',sql0)
+        sqlMV = re.sub(':minPriority','TRUNC(:minPriority,-1)',sqlMV)
         tables = ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4']
         ret = {}
         nTry=3
@@ -5698,6 +5703,8 @@ class DBProxy:
                     # select
                     varMap = {}
                     varMap[':prodSourceLabel1'] = 'managed'
+                    for tmpPrio in tmpPrioMap.keys():
+                        varMap[tmpPrio] = tmpPrioMap[tmpPrio]
                     self.cur.arraysize = 10000
                     if table == 'ATLAS_PANDA.jobsActive4':
                         self.cur.execute((sqlMV+comment) % 'ATLAS_PANDA.MV_JOBSACTIVE4_STATS', varMap)
