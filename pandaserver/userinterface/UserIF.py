@@ -424,12 +424,12 @@ class UserIF:
 
 
     # kill jobs
-    def killJobs(self,idsStr,user,host,code,prodManager,useMailAsID):
+    def killJobs(self,idsStr,user,host,code,prodManager,useMailAsID,fqans):
         # deserialize IDs
         ids = WrappedPickle.loads(idsStr)
         if not isinstance(ids,types.ListType):
             ids = [ids]
-        _logger.debug("killJob : %s %s %s %s" % (user,code,prodManager,ids))
+        _logger.debug("killJob : %s %s %s %s %s" % (user,code,prodManager,fqans,ids))
         try:
             if useMailAsID:
                 _logger.debug("killJob : getting mail address for %s" % user)
@@ -447,8 +447,19 @@ class UserIF:
         except:
             errType,errValue = sys.exc_info()[:2]
             _logger.error("killJob : failed to convert email address %s : %s %s" % (user,errType,errValue))
+        # get working groups with prod role
+        wgProdRole = []
+        for fqan in fqans:
+            tmpMatch = re.search('/atlas/([^/]+)/Role=production',fqan)
+            if tmpMatch != None:
+                # ignore usatlas since it is used as atlas prod role
+                tmpWG = tmpMatch.group(1) 
+                if not tmpWG in ['','usatlas']+wgProdRole:
+                    wgProdRole.append(tmpWG)
+                    # group production
+                    wgProdRole.append('gr_%s' % tmpWG)
         # kill jobs
-        ret = self.taskBuffer.killJobs(ids,user,code,prodManager)
+        ret = self.taskBuffer.killJobs(ids,user,code,prodManager,wgProdRole)
         # logging
         try:
             # make message
@@ -1003,7 +1014,7 @@ def killJobs(req,ids,code=None,useMailAsID=None):
         useMailAsID = False
     # hostname
     host = req.get_remote_host()
-    return userIF.killJobs(ids,user,host,code,prodManager,useMailAsID)
+    return userIF.killJobs(ids,user,host,code,prodManager,useMailAsID,fqans)
 
 
 # reassign jobs

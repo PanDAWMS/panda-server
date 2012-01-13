@@ -494,7 +494,7 @@ class Adder (threading.Thread):
                                                 usingPRODDISK = True
                                                 optSource[dq2ID] = {'policy' : 0}
                                             # use another location when token is set
-                                            if (not usingPRODDISK) and (not file.destinationDBlockToken in ['NULL','']):
+                                            if not file.destinationDBlockToken in ['NULL','']:
                                                 tmpDQ2IDList = []
                                                 tmpDstTokens = file.destinationDBlockToken.split(',')
                                                 # remove the first one because it is already used as a location

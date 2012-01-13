@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * fixed Adder2 to use proper destination for token=TAPE when running at T1 as T2
+  * updated killJob to take group prod role into account
   * updated brokerage to take priorities into account for prod jobs
   * using native DQ2 call in ToA
   * modified brokerage to do bulk LFC lookup per site  

@@ -2513,7 +2513,7 @@ class DBProxy:
 
 
     # kill job
-    def killJob(self,pandaID,user,code,prodManager,getUserInfo=False):
+    def killJob(self,pandaID,user,code,prodManager,getUserInfo=False,wgProdRole=[]):
         # code
         # 2 : expire
         # 3 : aborted
@@ -2522,7 +2522,7 @@ class DBProxy:
         # 8 : rebrokerage
         # 9 : force kill
         comment = ' /* DBProxy.killJob */'        
-        _logger.debug("killJob : code=%s PandaID=%s role=%s user=%s" % (code,pandaID,prodManager,user))
+        _logger.debug("killJob : code=%s PandaID=%s role=%s user=%s wg=%s" % (code,pandaID,prodManager,user,wgProdRole))
         # check PandaID
         try:
             long(pandaID)
@@ -2531,7 +2531,7 @@ class DBProxy:
             if getUserInfo:
                 return False,{}                
             return False
-        sql0  = "SELECT prodUserID,prodSourceLabel,jobDefinitionID,jobsetID FROM %s WHERE PandaID=:PandaID"        
+        sql0  = "SELECT prodUserID,prodSourceLabel,jobDefinitionID,jobsetID,workingGroup FROM %s WHERE PandaID=:PandaID"        
         sql1  = "UPDATE %s SET commandToPilot=:commandToPilot,taskBufferErrorDiag=:taskBufferErrorDiag WHERE PandaID=:PandaID AND commandToPilot IS NULL"
         sql1F = "UPDATE %s SET commandToPilot=:commandToPilot,taskBufferErrorDiag=:taskBufferErrorDiag WHERE PandaID=:PandaID"
         sql2  = "SELECT %s " % JobSpec.columnNames()
@@ -2581,11 +2581,16 @@ class DBProxy:
                         distinguishedName = dn
                     return distinguishedName
                 # prevent prod proxy from killing analysis jobs
-                userProdUserID,userProdSourceLabel,userJobDefinitionID,userJobsetID = res
+                userProdUserID,userProdSourceLabel,userJobDefinitionID,userJobsetID,workingGroup = res
                 if prodManager:
                     if res[1] in ['user','panda'] and (not code in ['2','4','7','8','9']):
                         _logger.debug("ignore killJob -> prod proxy tried to kill analysis job type=%s" % res[1])
                         break
+                    _logger.debug("killJob : %s using prod role" % pandaID)
+                elif res[1] in ['managed','test'] and workingGroup in wgProdRole:
+                    # WGs with prod role
+                    _logger.debug("killJob : %s using group prod role for workingGroup=%s" % (pandaID,workingGroup))
+                    pass
                 else:   
                     cn1 = getCN(res[0])
                     cn2 = getCN(user)
