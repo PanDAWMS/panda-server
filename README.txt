@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed global file map to local in brokerage
   * fixed Adder2 to use proper destination for token=TAPE when running at T1 as T2
   * updated killJob to take group prod role into account
   * updated brokerage to take priorities into account for prod jobs

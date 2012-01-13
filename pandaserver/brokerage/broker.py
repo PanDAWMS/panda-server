@@ -74,8 +74,7 @@ def _checkRelease(jobRels,siteRels):
 
 
 # get list of files which already exist at the site
-allOkFilesMap = {}
-def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs):
+def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs,allOkFilesMap):
     # DQ2 URL
     dq2URL = v_ce.dq2url
     dq2ID  = v_ce.ddm
@@ -87,7 +86,6 @@ def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs):
     # use bulk lookup
     if allLFNs != []:
         # get bulk lookup data
-        global allOkFilesMap
         if not allOkFilesMap.has_key(dq2ID):
             # get files from LRC
             allOkFilesMap[dq2ID] = broker_util.getFilesFromLRC(allLFNs,dq2URL,guids=allGUIDs,
@@ -306,6 +304,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
     if len(jobs) == 0:
         _log.debug('finished : no jobs')        
         return
+    allOkFilesMap = {}
     # use ANALY_CERN_XROOTD and not ANALY_CERN for EOS migration
     if forAnalysis:
         if 'ANALY_CERN_XROOTD' in setScanSiteList and 'ANALY_CERN' in setScanSiteList:
@@ -526,7 +525,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                          # get site spec
                          tmp_chosen_ce = siteMapper.getSite(computingSite)
                          # get files from LRC 
-                         okFiles = _getOkFiles(tmp_chosen_ce,fileList,guidList,allLFNs,allGUIDs)
+                         okFiles = _getOkFiles(tmp_chosen_ce,fileList,guidList,allLFNs,allGUIDs,allOkFilesMap)
                          # loop over all jobs
                          for tmpJob in jobsInBunch:
                              # set 'ready' if files are already there
@@ -1036,7 +1035,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 tmpOKFiles = {}
                             else:
                                 # get files from LRC 
-                                tmpOKFiles = _getOkFiles(tmp_chosen_ce,fileList,guidList,allLFNs,allGUIDs)
+                                tmpOKFiles = _getOkFiles(tmp_chosen_ce,fileList,guidList,allLFNs,allGUIDs,allOkFilesMap)
                             nFiles = len(tmpOKFiles)
                             _log.debug('site:%s - nFiles:%s' % (site,nFiles))
                             # choose site holding max # of files

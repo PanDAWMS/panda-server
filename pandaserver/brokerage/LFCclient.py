@@ -133,7 +133,7 @@ def main():
             os.remove(options.infile)
         except:
             errType,errValue = sys.exc_info()[:2]
-            print "ERROR: %s:%s" % errType,errValue
+            print "ERROR: %s:%s" % (errType,errValue)
             sys.exit(1)
     # get files
     retFiles = _getFilesLFC(files,options.lfchost,options.storages,options.verbose)
