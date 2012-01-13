@@ -246,8 +246,13 @@ class DBProxy:
                 job.attemptNr = 0
             if job.maxAttempt in [None,'NULL','']:
                 job.maxAttempt = 0
-            if job.maxAttempt <= job.attemptNr:    
-                job.maxAttempt = job.attemptNr + 2    
+            # set maxAttempt to attemptNr to disable server/pilot retry
+            if job.maxAttempt == -1:
+                job.maxAttempt = job.attemptNr
+            else:
+                # set maxAttempt to have server/pilot retries for retried jobs
+                if job.maxAttempt <= job.attemptNr:    
+                    job.maxAttempt = job.attemptNr + 2    
         try:
             # begin transaction
             self.conn.begin()
