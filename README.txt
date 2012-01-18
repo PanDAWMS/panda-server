@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * updated rebrokerage to be triggered 3 hours after the site is blacklisted
   * set maxAttempt to allow users to disable auto retry
   * changed global file map to local in brokerage
   * fixed Adder2 to use proper destination for token=TAPE when running at T1 as T2

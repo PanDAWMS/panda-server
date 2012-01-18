@@ -1392,45 +1392,60 @@ _memoryCheck("rebroker")
 # rebrokerage
 _logger.debug("Rebrokerage start")
 try:
-    sql  = "SELECT jobDefinitionID,prodUserName,prodUserID FROM ATLAS_PANDA.jobsActive4 "
+    normalTimeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
+    sortTimeLimit   = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
+    sql  = "SELECT jobDefinitionID,prodUserName,prodUserID,computingSite,MAX(modificationTime) FROM ATLAS_PANDA.jobsActive4 "
     sql += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND jobStatus=:jobStatus "
     sql += "AND modificationTime<:modificationTime "
     sql += "AND jobsetID IS NOT NULL "    
     sql += "AND processingType IN (:processingType1,:processingType2) "
-    sql += "GROUP BY jobDefinitionID,prodUserName,prodUserID " 
+    sql += "GROUP BY jobDefinitionID,prodUserName,prodUserID,computingSite " 
     varMap = {}
     varMap[':prodSourceLabel1'] = 'user'
     varMap[':prodSourceLabel2'] = 'panda'
-    varMap[':modificationTime'] = datetime.datetime.utcnow() - datetime.timedelta(days=1)
+    varMap[':modificationTime'] = sortTimeLimit
     varMap[':processingType1']  = 'pathena'
     varMap[':processingType2']  = 'prun'
     varMap[':jobStatus']        = 'activated'
-    # get jobs older than 1 days
+    # get jobs older than threshold
     ret,res = taskBuffer.querySQLS(sql, varMap)
     sql  = "SELECT PandaID,modificationTime FROM %s WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
     sql += "AND modificationTime>:modificationTime AND rownum <= 1"
     if res != None:
         from userinterface.ReBroker import ReBroker
-        timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
+        recentRuntimeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
         # loop over all user/jobID combinations
-        for jobDefinitionID,prodUserName,prodUserID in res:
-            # check if jobs with the jobID have run recently
+        for jobDefinitionID,prodUserName,prodUserID,computingSite,maxModificationTime in res:
+            # check if jobs with the jobID have run recently 
             varMap = {}
             varMap[':prodUserName']     = prodUserName
             varMap[':jobDefinitionID']  = jobDefinitionID
-            varMap[':modificationTime'] = timeLimit
+            varMap[':modificationTime'] = recentRuntimeLimit
             _logger.debug(" rebro:%s:%s" % (jobDefinitionID,prodUserName))
             hasRecentJobs = False
-            for tableName in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsArchived4']: 
-                retU,resU = taskBuffer.querySQLS(sql % tableName, varMap)
-                if resU == None:
-                    # database error
-                    raise RuntimeError,"failed to check modTime"
-                if resU != []:
-                    # found recent jobs
-                    hasRecentJobs = True
-                    _logger.debug("    -> skip %s ran recently at %s" % (resU[0][0],resU[0][1]))
-                    break
+            # check site
+            if not siteMapper.checkSite(computingSite):
+                _logger.debug("    -> skip unknown site=%s" % computingSite)
+                continue
+            # check site status            
+            tmpSiteStatus = siteMapper.getSite(computingSite).status
+            if not tmpSiteStatus in ['offline','test']:
+                # use normal time limit for nornal site status
+                if maxModificationTime > normalTimeLimit:
+                    _logger.debug("    -> skip wait for normal timelimit=%s<maxModTime=%s" % (normalTimeLimit,maxModificationTime))
+                    continue
+                for tableName in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsArchived4']: 
+                    retU,resU = taskBuffer.querySQLS(sql % tableName, varMap)
+                    if resU == None:
+                        # database error
+                        raise RuntimeError,"failed to check modTime"
+                    if resU != []:
+                        # found recent jobs
+                        hasRecentJobs = True
+                        _logger.debug("    -> skip %s ran recently at %s" % (resU[0][0],resU[0][1]))
+                        break
+            else:
+                _logger.debug("    -> immidiate rebro due to site status=%s" % tmpSiteStatus)
             if hasRecentJobs:    
                 # skip since some jobs have run recently
                 continue
