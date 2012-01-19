@@ -529,9 +529,8 @@ class ReBroker (threading.Thread):
                 else:    
                     tmpJob.specialHandling += ',sretry'                    
             # check if --destSE is used
-            newDestSE = False
-            if tmpJob.destinationSE == tmpJob.computingSite:
-                newDestSE = True
+            oldComputingSite = tmpJob.computingSite
+            if tmpJob.destinationSE == oldComputingSite:
                 tmpJob.destinationSE = site
             # set site and cloud    
             tmpJob.computingSite = site
@@ -540,9 +539,7 @@ class ReBroker (threading.Thread):
             for tmpFile in tmpJob.Files:
                 if tmpFile.type in ['output','log']:
                     # set destSE
-                    if newDestSE:
-                        tmpFile.destinationSE = tmpJob.destinationSE
-                    else:
+                    if tmpFile.destinationSE == oldComputingSite:
                         tmpFile.destinationSE = site
         # return
         return True

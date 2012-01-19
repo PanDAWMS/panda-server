@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed rebrokerage for --destSE
   * updated rebrokerage to be triggered 3 hours after the site is blacklisted
   * set maxAttempt to allow users to disable auto retry
   * changed global file map to local in brokerage
