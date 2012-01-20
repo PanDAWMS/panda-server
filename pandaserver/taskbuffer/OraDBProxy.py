@@ -1878,7 +1878,7 @@ class DBProxy:
             sql1+= "AND (minRamCount<=:minRamCount OR minRamCount=0) "
             getValMap[':minRamCount'] = mem
         if not diskSpace in [0,'0']:
-            sql1+= "AND (maxDiskCount<:maxDiskCount OR maxDiskCount=0) "
+            sql1+= "AND (maxDiskCount<=:maxDiskCount OR maxDiskCount=0) "
             getValMap[':maxDiskCount'] = diskSpace
         if prodSourceLabel == 'user':
             sql1+= "AND (prodSourceLabel=:prodSourceLabel1 OR prodSourceLabel=:prodSourceLabel2) "
