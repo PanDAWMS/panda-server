@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * avoid priority reduction for merge jobs
   * use <= for maxDiskCount in getJob
   * fixed rebrokerage for --destSE
   * updated rebrokerage to be triggered 3 hours after the site is blacklisted

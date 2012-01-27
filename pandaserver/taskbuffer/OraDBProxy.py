@@ -228,9 +228,13 @@ class DBProxy:
         if job.assignedPriority != 'NULL':
             job.currentPriority = job.assignedPriority
         if job.prodSourceLabel == 'user':
-            job.currentPriority = PrioUtil.calculatePriority(priorityOffset,serNum,weight)
-            if 'express' in job.specialHandling:
-                job.currentPriority = 6000
+            if job.processingType in ['usermerge'] and not job.currentPriority in ['NULL',None]:
+                # avoid prio reduction for merge jobs 
+                pass
+            else:
+                job.currentPriority = PrioUtil.calculatePriority(priorityOffset,serNum,weight)
+                if 'express' in job.specialHandling:
+                    job.currentPriority = 6000
         elif job.prodSourceLabel == 'panda':
             job.currentPriority = 2000 + priorityOffset
             if 'express' in job.specialHandling:
