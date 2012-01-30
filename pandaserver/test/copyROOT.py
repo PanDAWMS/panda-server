@@ -5,7 +5,7 @@ from ftplib import FTP
 from pandalogger.PandaLogger import PandaLogger
 
 # supported architectures
-targetArchs = ['Linux-slc5-gcc4.3.tar.gz']
+targetArchs = ['Linux-slc5-gcc4.3.tar.gz','Linux-slc5_amd64-gcc4.3.tar.gz']
 
 # destination dir
 destDir = '/data/atlpan/srv/var/appdir'

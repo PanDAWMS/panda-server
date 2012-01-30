@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added 64bit in copyROOT
   * avoid priority reduction for merge jobs
   * use <= for maxDiskCount in getJob
   * fixed rebrokerage for --destSE
