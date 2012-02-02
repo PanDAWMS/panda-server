@@ -662,6 +662,24 @@ def getJobStatisticsWithLabel(site=''):
         return EC_Failed,output+'\n'+errStr
 
 
+# get the number of waiting jobs per site and user
+def getJobStatisticsPerUserSite():
+    # instantiate curl
+    curl = _Curl()
+    # execute
+    url = baseURL + '/getJobStatisticsPerUserSite'
+    data = {}
+    status,output = curl.get(url,data)
+    try:
+        return status,pickle.loads(output)
+    except:
+        print output
+        type, value, traceBack = sys.exc_info()
+        errStr = "ERROR getJobStatisticsPerUserSite : %s %s" % (type,value)
+        print errStr
+        return EC_Failed,output+'\n'+errStr
+                
+
 # query last files in datasets
 def queryLastFilesInDataset(datasets):
     # serialize

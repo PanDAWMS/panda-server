@@ -1,6 +1,9 @@
 Release Note
 
 * current
+  * fixed cloudlist to skip None
+  * not use fork for HC
+  * added getJobStatisticsPerUserSite
   * added 64bit in copyROOT
   * avoid priority reduction for merge jobs
   * use <= for maxDiskCount in getJob

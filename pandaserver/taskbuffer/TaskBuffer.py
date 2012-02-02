@@ -322,6 +322,9 @@ class TaskBuffer:
                 serNum += 1
             # release DB proxy
             self.proxyPool.putProxy(proxy)
+            # don't use fork for HC
+            if len(jobs) > 0 and jobs[0].processingType.startswith('gangarobot'):
+                forkSetupper = False
             # set up dataset
             if not toPending:
                 if joinThr:
@@ -1436,6 +1439,18 @@ class TaskBuffer:
         return conRet
 
 
+    # get the number of waiting jobs per site and user
+    def getJobStatisticsPerUserSite(self):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get stat
+        ret = proxy.getJobStatisticsPerUserSite()
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+    
     # get highest prio jobs
     def getHighestPrioJobStat(self):
         # get DBproxy

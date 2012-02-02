@@ -345,6 +345,14 @@ class UserIF:
         return pickle.dumps(ret)
 
 
+    # get the number of waiting jobs per site and use
+    def getJobStatisticsPerUserSite(self):
+        # get job statistics
+        ret = self.taskBuffer.getJobStatisticsPerUserSite()
+        # serialize 
+        return pickle.dumps(ret)
+
+
     # get job statistics per site with label
     def getJobStatisticsWithLabel(self,site):
         # get job statistics
@@ -953,6 +961,11 @@ def getHighestPrioJobStat(req):
 # get job statistics for Babmoo
 def getJobStatisticsForBamboo(req):
     return userIF.getJobStatisticsForBamboo()
+
+
+# get the number of waiting jobs per site and user
+def getJobStatisticsPerUserSite(req):
+    return userIF.getJobStatisticsPerUserSite()
 
 
 # get job statistics per site

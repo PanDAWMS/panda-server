@@ -6217,6 +6217,55 @@ class DBProxy:
             _logger.error("getJobStatisticsPerProcessingType : %s %s" % (type, value))
             return {}
 
+
+    # get the number of waiting jobs per site and user
+    def getJobStatisticsPerUserSite(self):
+        comment = ' /* DBProxy.getJobStatisticsPerUserSite */'                
+        _logger.debug("getJobStatisticsPerUserSite()")
+        sqlN  = "SELECT COUNT(*),prodUserName,computingSite FROM %s "
+        sqlN += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND jobStatus=:jobStatus GROUP BY prodUserName,computingSite"
+        ret = {}
+        try:
+            for table in ('ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4'):
+                # start transaction
+                self.conn.begin()
+                # select
+                self.cur.arraysize = 100000
+                # select
+                if table == 'ATLAS_PANDA.jobsActive4':
+                    jobStatus = 'activated'
+                else:
+                    jobStatus = 'assigned'
+                varMap = {}
+                varMap[':prodSourceLabel1'] = 'user'
+                varMap[':prodSourceLabel2'] = 'panda'
+                varMap[':jobStatus'] = jobStatus
+                self.cur.execute((sqlN+comment) % table, varMap)                        
+                res = self.cur.fetchall()
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                # create map
+                for cnt,prodUserName,computingSite in res:
+                    # add site
+                    if not ret.has_key(computingSite):
+                        ret[computingSite] = {}
+                    # add user
+                    if not ret[computingSite].has_key(prodUserName):
+                        ret[computingSite][prodUserName] = {'assigned':0,'activated':0}
+                    # add info
+                    ret[computingSite][prodUserName][jobStatus] = cnt
+            # return
+            _logger.debug("getJobStatisticsPerUserSite -> %s" % str(ret))
+            return ret
+        except:
+            # roll back
+            self._rollback()
+            # error
+            errtype,errvalue = sys.exc_info()[:2]
+            _logger.error("getJobStatisticsPerUserSite : %s %s" % (errtype,errvalue))
+            return {}
+
         
     # get number of analysis jobs per user
     def getNUserJobs(self,siteName,nJobs):
@@ -6768,7 +6817,7 @@ class DBProxy:
                     # cloud list
                     if cloud != '':
                         ret.cloudlist = [cloud.split(',')[0]]
-                        if multicloud != '':
+                        if not multicloud in ['',None,'None']:
                             ret.cloudlist += multicloud.split(',')
                     else:
                         ret.cloudlist = []
