@@ -6222,8 +6222,8 @@ class DBProxy:
     def getJobStatisticsPerUserSite(self):
         comment = ' /* DBProxy.getJobStatisticsPerUserSite */'                
         _logger.debug("getJobStatisticsPerUserSite()")
-        sqlN  = "SELECT COUNT(*),prodUserName,computingSite FROM %s "
-        sqlN += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND jobStatus=:jobStatus GROUP BY prodUserName,computingSite"
+        sqlN  = "SELECT COUNT(*),prodUserID,computingSite FROM %s "
+        sqlN += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND jobStatus=:jobStatus GROUP BY prodUserID,computingSite"
         ret = {}
         try:
             for table in ('ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4'):
