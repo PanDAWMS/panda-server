@@ -323,8 +323,11 @@ class TaskBuffer:
             # release DB proxy
             self.proxyPool.putProxy(proxy)
             # don't use fork for HC
-            if len(jobs) > 0 and jobs[0].processingType.startswith('gangarobot'):
-                forkSetupper = False
+            if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda','ptest','rc_test','prod_test'] or \
+                                  jobs[0].processingType.startswith('gangarobot')):
+                #forkSetupper = False
+                # disabled since glite is required in httpd 
+                pass
             # set up dataset
             if not toPending:
                 if joinThr:
