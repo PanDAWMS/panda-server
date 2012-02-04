@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * Mikhail Titov updated datriHandler
   * fixed cloudlist to skip None
   * added getJobStatisticsPerUserSite
   * added 64bit in copyROOT
