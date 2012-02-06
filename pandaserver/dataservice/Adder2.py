@@ -107,6 +107,8 @@ class Adder (threading.Thread):
                     else:
                         tmpDstDDM = self.siteMapper.getSite(self.job.destinationSE).ddm
                         tmpDstSEs = brokerage.broker_util.getSEfromSched(self.siteMapper.getSite(self.job.destinationSE).se)
+                    _logger.debug('%s DDM src:%s dst:%s' % (self.jobID,tmpSrcDDM,tmpDstDDM))
+                    _logger.debug('%s SE src:%s dst:%s' % (self.jobID,tmpSrcSEs,tmpDstSEs))
                     if re.search('^ANALY_',self.job.computingSite) != None:
                         # analysis site
                         pass
@@ -133,6 +135,7 @@ class Adder (threading.Thread):
                         pass
                     else:
                         self.goToTransferring = True
+                    _logger.debug('%s goToTransferring=%s' % (self.jobID,self.goToTransferring))
                     self._updateOutputs()
                 else:
                     _logger.debug('%s : not added' % self.jobID)
