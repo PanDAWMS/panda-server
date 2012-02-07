@@ -203,6 +203,12 @@ def sendAnalyBrokeageInfo(results,prevRelease,diskThreshold,chosenSite,prevCmtCo
                     msgBody = 'action=choose site=%s reason=maxweight - max weight=%s' % (tmpSite,tmpWeight)
                 else:
                     msgBody = 'action=skip site=%s reason=notmaxweight - weight=%s' % (tmpSite,tmpWeight)
+            elif resultType == 'prefcountry':
+                tmpSite,tmpCountry = resultItem
+                if tmpSite == chosenSite:
+                    msgBody = 'action=prefer country=%s reason=countrygroup - preferential brokerage for beyond-pledge' % tmpCountry
+                else:
+                    continue
             else:
                 continue
             messageList.append(msgBody)
@@ -294,9 +300,10 @@ def getT2CandList(tmpJob,siteMapper,t2FilesMap):
 def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],trustIS=False,
              distinguishedName=None,specialWeight={},getWeight=False,sizeMapForCheck={},
              datasetSize=0,replicaMap={},pd2pT1=False,reportLog=False,minPriority=None,
-             t2FilesMap={}):
-    _log.debug('start %s %s %s %s minPrio=%s' % (forAnalysis,str(setScanSiteList),trustIS,
-                                                 distinguishedName,minPriority))
+             t2FilesMap={},preferredCountries=[]):
+    _log.debug('start %s %s %s %s minPrio=%s pref=%s' % (forAnalysis,str(setScanSiteList),trustIS,
+                                                         distinguishedName,minPriority,
+                                                         str(preferredCountries)))
     if specialWeight != {}:
         _log.debug('PD2P weight : %s' % str(specialWeight))
     _log.debug('replicaMap : %s' % str(replicaMap))
@@ -514,7 +521,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     _log.debug('  goToT2         %s' % prevGoToT2Flag)
                 # brokerage decisions    
                 resultsForAnal   = {'rel':[],'pilot':[],'disk':[],'status':[],'weight':[],'memory':[],
-                                    'share':[],'transferring':[]}
+                                    'share':[],'transferring':[],'prefcountry':[]}
                 # determine site
                 if (iJob == 0 or chosen_ce != 'TOBEDONE') and prevBrokergageSiteList in [None,[]]:
                      # file scan for pre-assigned jobs
@@ -918,6 +925,19 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 _log.debug('   totalRun:%s cloudRun:%s multiCloud:%s' % (tmpTotalRunningMulti,
                                                                                          jobStatBroker[site][tmpProGroup]['running'],
                                                                                          multiCloudFactor))
+                            # country preference
+                            preferredCountryWeight = 1.0
+                            preferredCountryWeightStr = ''
+                            if forAnalysis:
+                                if preferredCountries != [] and tmpSiteSpec.countryGroup != []:
+                                    for tmpCountry in preferredCountries:
+                                        if tmpCountry in tmpSiteSpec.countryGroup:
+                                            # avoid negative weight or zero-divide
+                                            if tmpSiteSpec.availableCPU >= tmpSiteSpec.pledgedCPU and tmpSiteSpec.pledgedCPU > 0:
+                                                preferredCountryWeight = float(tmpSiteSpec.availableCPU) / float(tmpSiteSpec.pledgedCPU)
+                                                preferredCountryWeightStr = "*(%s/%s)" % (tmpSiteSpec.availableCPU,tmpSiteSpec.pledgedCPU)
+                                                resultsForAnal['prefcountry'].append((site,tmpCountry))
+                                            break    
                             # calculate weight
                             if specialWeight != {}:
                                 if not pd2pT1:
@@ -970,7 +990,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             foundOneCandidate = True
                             _log.debug('Site:%s 1/Weight:%s' % (site,winv))
                             if forAnalysis and trustIS and reportLog:
-                                resultsForAnal['weight'].append((site,'(1+%s/%s)*%s/%s' % (nPilotsGet,1+nPilotsUpdate,1+nRunningMap[site],nAssJobs+nActJobs)))
+                                resultsForAnal['weight'].append((site,'(1+%s/%s)*%s/%s%s' % (nPilotsGet,1+nPilotsUpdate,1+nRunningMap[site],
+                                                                                             nAssJobs+nActJobs,preferredCountryWeightStr)))
                             # choose largest nMinSites weights
                             minSites[site] = winv
                             if len(minSites) > nMinSites:

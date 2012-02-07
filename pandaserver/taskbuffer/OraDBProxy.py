@@ -6763,7 +6763,8 @@ class DBProxy:
             sql+= "maxtime,status,space,retry,cmtconfig,setokens,seprodpath,glexec,"
             sql+= "priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue,"
             sql+= "validatedreleases,accesscontrol,copysetup,maxinputsize,cachedse,"
-            sql+= "allowdirectaccess,comment_,lastmod,multicloud,lfcregister "
+            sql+= "allowdirectaccess,comment_,lastmod,multicloud,lfcregister,"
+            sql+= "countryGroup,availableCPU,pledgedCPU "
             sql+= "FROM ATLAS_PANDAMETA.schedconfig WHERE siteid IS NOT NULL"
             self.cur.arraysize = 10000            
             self.cur.execute(sql+comment)
@@ -6785,7 +6786,8 @@ class DBProxy:
                        maxtime,status,space,retry,cmtconfig,setokens,seprodpath,glexec,\
                        priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue,\
                        validatedreleases,accesscontrol,copysetup,maxinputsize,cachedse,\
-                       allowdirectaccess,comment,lastmod,multicloud,lfcregister \
+                       allowdirectaccess,comment,lastmod,multicloud,lfcregister, \
+                       countryGroup,availableCPU,pledgedCPU \
                        = resTmp
                     # skip invalid siteid
                     if siteid in [None,'']:
@@ -6814,6 +6816,21 @@ class DBProxy:
                     ret.comment       = comment
                     ret.statusmodtime = lastmod
                     ret.lfcregister   = lfcregister
+                    # contry groups
+                    if not countryGroup in ['',None]:
+                        ret.countryGroup = countryGroup.split(',')
+                    else:
+                        ret.countryGroup = []
+                    # available CPUs    
+                    if not availableCPU in ['',None]:
+                        ret.availableCPU = availableCPU
+                    else:
+                        ret.availableCPU = 0
+                    # pledged CPUs
+                    if not pledgedCPU in ['',None]:
+                        ret.pledgedCPU = pledgedCPU
+                    else:
+                        ret.pledgedCPU = 0
                     # cloud list
                     if cloud != '':
                         ret.cloudlist = [cloud.split(',')[0]]

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added preferential analysis brokerage based on countryGroup
   * added more verbose message in Adder
   * Mikhail Titov updated datriHandler
   * fixed cloudlist to skip None

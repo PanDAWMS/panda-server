@@ -579,7 +579,7 @@ class UserIF:
     # run brokerage
     def runBrokerage(self,sitesStr,cmtConfig,atlasRelease,trustIS=False,processingType=None,
                      dn=None,loggingFlag=False,memorySize=None,workingGroup=None,fqans=[],
-                     nJobs=None):
+                     nJobs=None,preferHomeCountry=False):
         if not loggingFlag:
             ret = 'NULL'
         else:
@@ -615,10 +615,27 @@ class UserIF:
                 # use 200 as a default # of jobs
                 nJobs =200
             minPrio = PrioUtil.calculatePriority(priorityOffset,serNum+nJobs,weight)
+            # get countryGroup
+            prefCountries = []
+            if preferHomeCountry:
+                for tmpFQAN in fqans:
+                    match = re.search('^/atlas/([^/]+)/',tmpFQAN)
+                    if match != None:
+                        tmpCountry = match.group(1)
+                        # use country code or usatlas
+                        if len(tmpCountry) == 2:
+                            prefCountries.append(tmpCountry)
+                            break
+                        # usatlas
+                        if tmpCountry in ['usatlas']:
+                            prefCountries.append('us')
+                            break
             # run brokerage
-            _logger.debug("runBrokerage for dn=%s FQAN=%s minPrio=%s" % (dn,str(fqans),minPrio)) 
+            _logger.debug("runBrokerage for dn=%s FQAN=%s minPrio=%s preferred:%s:%s" % (dn,str(fqans),minPrio,
+                                                                                         preferHomeCountry,
+                                                                                         str(prefCountries)))
             brokerage.broker.schedule([job],self.taskBuffer,siteMapper,True,sites,trustIS,dn,
-                                      reportLog=loggingFlag,minPriority=minPrio)
+                                      reportLog=loggingFlag,minPriority=minPrio,preferredCountries=prefCountries)
             # get computingSite
             if not loggingFlag:
                 ret = job.computingSite
@@ -1096,10 +1113,11 @@ def runBrokerage(req,sites,cmtConfig=None,atlasRelease=None,trustIS=False,proces
             memorySize = long(memorySize)
         except:
             pass
+    preferHomeCountry = True
     dn = _getDN(req)
     fqans = _getFQAN(req)
     return userIF.runBrokerage(sites,cmtConfig,atlasRelease,trustIS,processingType,dn,
-                               loggingFlag,memorySize,workingGroup,fqans,nJobs)
+                               loggingFlag,memorySize,workingGroup,fqans,nJobs,preferHomeCountry)
 
 # run rebrokerage
 def runReBrokerage(req,jobID,libDS='',cloud=None,excludedSite=None,forceOpt=None):
