@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added protection to Adder2 against sites disappearance from schedconfig
   * added preferential analysis brokerage based on countryGroup
   * added more verbose message in Adder
   * Mikhail Titov updated datriHandler
