@@ -937,7 +937,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                                 preferredCountryWeight = float(tmpSiteSpec.availableCPU) / float(tmpSiteSpec.pledgedCPU)
                                                 preferredCountryWeightStr = "*(%s/%s)" % (tmpSiteSpec.availableCPU,tmpSiteSpec.pledgedCPU)
                                                 resultsForAnal['prefcountry'].append((site,tmpCountry))
-                                            break    
+                                            break
+                                _log.debug('   country preference=%s' % preferredCountryWeightStr[1:])
                             # calculate weight
                             if specialWeight != {}:
                                 if not pd2pT1:

@@ -6821,16 +6821,20 @@ class DBProxy:
                         ret.countryGroup = countryGroup.split(',')
                     else:
                         ret.countryGroup = []
-                    # available CPUs    
+                    # available CPUs
+                    ret.availableCPU = 0
                     if not availableCPU in ['',None]:
-                        ret.availableCPU = availableCPU
-                    else:
-                        ret.availableCPU = 0
+                        try:
+                            ret.availableCPU = int(availableCPU)
+                        except:
+                            pass
                     # pledged CPUs
+                    ret.pledgedCPU = 0
                     if not pledgedCPU in ['',None]:
-                        ret.pledgedCPU = pledgedCPU
-                    else:
-                        ret.pledgedCPU = 0
+                        try:
+                            ret.pledgedCPU = int(pledgedCPU)
+                        except:
+                            pass
                     # cloud list
                     if cloud != '':
                         ret.cloudlist = [cloud.split(',')[0]]
