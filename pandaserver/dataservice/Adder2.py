@@ -114,14 +114,14 @@ class Adder (threading.Thread):
                             self.job.ddmErrorDiag = "destinaitonSE %s is unknown in schedconfig" % self.job.destinationSE
                             self.job.jobStatus = 'failed'
                             self.jobStatus = 'failed'
-                            _logger.debug("%s %s" % (self.jobID,self.job.ddmErrorDiag))
+                            _logger.error("%s %s" % (self.jobID,self.job.ddmErrorDiag))
                             brokenSched = True
                         elif not self.siteMapper.checkSite(self.job.computingSite):
                             self.job.ddmErrorCode = ErrorCode.EC_Adder
                             self.job.ddmErrorDiag = "computingSite %s is unknown in schedconfig" % self.job.computingSite
                             self.job.jobStatus = 'failed'
                             self.jobStatus = 'failed'
-                            _logger.debug("%s %s" % (self.jobID,self.job.ddmErrorDiag))
+                            _logger.error("%s %s" % (self.jobID,self.job.ddmErrorDiag))
                             brokenSched = True
                     _logger.debug('%s DDM src:%s dst:%s' % (self.jobID,tmpSrcDDM,tmpDstDDM))
                     _logger.debug('%s SE src:%s dst:%s' % (self.jobID,tmpSrcSEs,tmpDstSEs))
