@@ -1424,13 +1424,16 @@ class Setupper (threading.Thread):
                 if not self.availableLFNsInT2[cloudKey].has_key(tmpDsName):
                     self.availableLFNsInT2[cloudKey][tmpDsName] = {'allfiles':[],'allguids':[],'sites':{}}
                     # collect sites
-                    for tmpSiteName in DataServiceUtils.getSitesWithDataset(tmpDsName,self.siteMapper,replicaMap,cloudKey):
+                    tmpSiteNameDQ2Map = DataServiceUtils.getSitesWithDataset(tmpDsName,self.siteMapper,replicaMap,cloudKey,getDQ2ID=True) 
+                    for tmpSiteName in tmpSiteNameDQ2Map.keys():
                         self.availableLFNsInT2[cloudKey][tmpDsName]['sites'][tmpSiteName] = []
+                    self.availableLFNsInT2[cloudKey][tmpDsName]['siteDQ2IDs'] = tmpSiteNameDQ2Map   
                 # add files    
                 if not tmpMissLFN in self.availableLFNsInT2[cloudKey][tmpDsName]:
                     self.availableLFNsInT2[cloudKey][tmpDsName]['allfiles'].append(tmpMissLFN)
                     self.availableLFNsInT2[cloudKey][tmpDsName]['allguids'].append(allGUIDs[cloudKey][allLFNs[cloudKey].index(tmpMissLFN)])
-                # get available files at each T2
+            # get available files at each T2
+            for tmpDsName in self.availableLFNsInT2[cloudKey].keys():
                 for tmpSiteName in self.availableLFNsInT2[cloudKey][tmpDsName]['sites'].keys():
                     tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
                     # get SEs
@@ -1442,10 +1445,10 @@ class Setupper (threading.Thread):
                                 tmpSEList.append(match.group(1))
                     # get available file list    
                     self.availableLFNsInT2[cloudKey][tmpDsName]['sites'][tmpSiteName] = \
-                        brokerage.broker_util.getFilesFromLRC(self.availableLFNsInT2[cloudKey][tmpDsName]['allfiles'],
-                                                              'lfc://'+tmpSiteSpec.lfchost+':/grid/atlas/',
-                                                              self.availableLFNsInT2[cloudKey][tmpDsName]['allguids'],
-                                                              storageName=tmpSEList)
+                                                   brokerage.broker_util.getFilesFromLRC(self.availableLFNsInT2[cloudKey][tmpDsName]['allfiles'],
+                                                   'lfc://'+tmpSiteSpec.lfchost+':/grid/atlas/',
+                                                   self.availableLFNsInT2[cloudKey][tmpDsName]['allguids'],
+                                                   storageName=tmpSEList)
         _logger.debug('%s missLFNs %s' % (self.timestamp,missLFNs))
         _logger.debug('%s available at T2s %s' % (self.timestamp,self.availableLFNsInT2))
         # check if files in source LRC/LFC
@@ -1818,9 +1821,7 @@ class Setupper (threading.Thread):
             mapKey = (destDQ2ID,logSubDsName,nJobsMap[mapKeyJob]/nMaxJobs)
             nJobsMap[mapKeyJob] += 1
             if not dsFileMap.has_key(mapKey):
-                dsFileMap[mapKey] = {'taskID':tmpJob.taskID,
-                                     'PandaID':tmpJob.PandaID,
-                                     'files':{}}
+                dsFileMap[mapKey] = {}
             # add files    
             for tmpFile in tmpJob.Files:
                 if tmpFile.type != 'input':
@@ -1831,111 +1832,125 @@ class Setupper (threading.Thread):
                 # ignore DBR
                 if 'DBRelease' in tmpFile.dataset:
                     continue
-                if not dsFileMap[mapKey]['files'].has_key(tmpFile.lfn):
-                    dsFileMap[mapKey]['files'][tmpFile.lfn] = {'lfn' :tmpFile.lfn,
-                                                               'guid':tmpFile.GUID,
-                                                               'fileSpecs':[]}
+                # if available at T2
+                realDestDQ2ID = (destDQ2ID,)
+                if self.availableLFNsInT2.has_key(tmpJob.cloud) and self.availableLFNsInT2[tmpJob.cloud].has_key(tmpFile.dataset) \
+                   and self.availableLFNsInT2[tmpJob.cloud][tmpFile.dataset]['sites'].has_key(tmpJob.computingSite) \
+                   and tmpFile.lfn in self.availableLFNsInT2[tmpJob.cloud][tmpFile.dataset]['sites'][tmpJob.computingSite]:
+                    realDestDQ2ID = self.availableLFNsInT2[tmpJob.cloud][tmpFile.dataset]['siteDQ2IDs'][tmpJob.computingSite]
+                    realDestDQ2ID = tuple(realDestDQ2ID)
+                # append
+                if not dsFileMap[mapKey].has_key(realDestDQ2ID):
+                    dsFileMap[mapKey][realDestDQ2ID] = {'taskID':tmpJob.taskID,
+                                                        'PandaID':tmpJob.PandaID,
+                                                        'files':{}}
+                if not dsFileMap[mapKey][realDestDQ2ID]['files'].has_key(tmpFile.lfn):
+                    dsFileMap[mapKey][realDestDQ2ID]['files'][tmpFile.lfn] = {'lfn' :tmpFile.lfn,
+                                                                              'guid':tmpFile.GUID,
+                                                                              'fileSpecs':[]}
                 # add file spec
-                dsFileMap[mapKey]['files'][tmpFile.lfn]['fileSpecs'].append(tmpFile)
+                dsFileMap[mapKey][realDestDQ2ID]['files'][tmpFile.lfn]['fileSpecs'].append(tmpFile)
         # loop over all locations
         dispList = []
-        for tmpMapKey,tmpVal in dsFileMap.iteritems():
-            tmpLocation,tmpLogSubDsName,tmpBunchIdx = tmpMapKey
-            tmpFileList = tmpVal['files']
-            if tmpFileList == {}:
-                continue
-            nMaxFiles = 500
-            iFiles = 0
-            iLoop = 0
-            while iFiles < len(tmpFileList):
-                subFileNames = tmpFileList.keys()[iFiles:iFiles+nMaxFiles]
-                if len(subFileNames) == 0:
-                    break
-                # dis name
-                disDBlock = "panda.%s.%s.%s.%s_dis0%s%s" % (tmpVal['taskID'],time.strftime('%m.%d'),'GEN',
-                                                            commands.getoutput('uuidgen'),iLoop,
-                                                            tmpVal['PandaID'])
-                iFiles += nMaxFiles
-                lfns    = []
-                guids   = []
-                fsizes  = []
-                chksums = []
-                for tmpSubFileName in subFileNames:
-                    lfns.append(tmpFileList[tmpSubFileName]['lfn'])
-                    guids.append(tmpFileList[tmpSubFileName]['guid'])
-                    fsizes.append(None)
-                    chksums.append(None)
-                    # set dis name
-                    for tmpFileSpec in tmpFileList[tmpSubFileName]['fileSpecs']:
-                        if tmpFileSpec.status in ['ready'] and tmpFileSpec.dispatchDBlock == 'NULL':
-                            tmpFileSpec.dispatchDBlock = disDBlock
-                # register datasets
-                iLoop += 1
-                _logger.debug((self.timestamp,'ext registerNewDataset',disDBlock,lfns,guids,fsizes,chksums,
-                               None,None,None,True))
-                for iDDMTry in range(3):
-                    status,out = ddm.DQ2.main('registerNewDataset',disDBlock,lfns,guids,fsizes,chksums,
-                                              None,None,None,True)
-                    if status != 0 and out.find('DQDatasetExistsException') != -1:
-                        break
-                    elif status != 0 or out.find("DQ2 internal server exception") != -1 \
-                             or out.find("An error occurred on the central catalogs") != -1 \
-                             or out.find("MySQL server has gone away") != -1:
-                        _logger.debug("%s sleep %s for %s" % (self.timestamp,iDDMTry,disDBlock))
-                        _logger.debug(status)
-                        _logger.debug(out)
-                        time.sleep(60)
-                    else:
-                        break
-                if status != 0 or out.find('Error') != -1:
-                    _logger.error("%s %s" % (self.timestamp,out))                
-                    continue
-                _logger.debug("%s %s" % (self.timestamp,out))
-                # get VUID
-                try:
-                    exec "vuid = %s['vuid']" % out
-                    # dataset spec. currentfiles is used to count the number of failed jobs
-                    ds = DatasetSpec()
-                    ds.vuid = vuid
-                    ds.name = disDBlock
-                    ds.type = 'dispatch'
-                    ds.status = 'defined'
-                    ds.numberfiles  = len(lfns)
-                    ds.currentfiles = 0
-                    dispList.append(ds)
-                except:
-                    errType,errValue = sys.exc_info()[:2]
-                    _logger.error("ext registerNewDataset : failed to decode VUID for %s - %s %s" % (disDBlock,errType,errValue))
-                    continue
-                # freezeDataset dispatch dataset
-                _logger.debug((self.timestamp,'freezeDataset',disDBlock))
-                for iDDMTry in range(3):            
-                    status,out = ddm.DQ2.main('freezeDataset',disDBlock)
-                    if status != 0 or out.find("DQ2 internal server exception") != -1 \
-                           or out.find("An error occurred on the central catalogs") != -1 \
-                           or out.find("MySQL server has gone away") != -1:
-                        time.sleep(60)
-                    else:
-                        break
-                if status != 0 or (out.find('Error') != -1 and out.find("is frozen") == -1):
-                    _logger.error("%s %s" % (self.timestamp,out))                                    
-                    continue
-                _logger.debug("%s %s" % (self.timestamp,out))                
-                # register location
-                _logger.debug((self.timestamp,'registerDatasetLocation',disDBlock,tmpLocation,0,1,None,None,None,"7 days"))
-                for iDDMTry in range(3):
-                    status,out = ddm.DQ2.main('registerDatasetLocation',disDBlock,tmpLocation,0,1,None,None,None,"7 days")
-                    if status != 0 or out.find("DQ2 internal server exception") != -1 \
-                           or out.find("An error occurred on the central catalogs") != -1 \
-                           or out.find("MySQL server has gone away") != -1:
-                        time.sleep(60)
-                    else:
-                        break
-                _logger.debug("%s %s" % (self.timestamp,out))
-                # failure
-                if status != 0 or out.find('Error') != -1:
-                    _logger.error("%s %s" % (self.timestamp,out))                                    
-                    continue
+        for tmpMapKey,tmpDumVal in dsFileMap.iteritems():
+            tmpDumLocation,tmpLogSubDsName,tmpBunchIdx = tmpMapKey
+            for tmpLocationList,tmpVal in tmpDumVal.iteritems():
+                for tmpLocation in tmpLocationList:
+                    tmpFileList = tmpVal['files']
+                    if tmpFileList == {}:
+                        continue
+                    nMaxFiles = 500
+                    iFiles = 0
+                    iLoop = 0
+                    while iFiles < len(tmpFileList):
+                        subFileNames = tmpFileList.keys()[iFiles:iFiles+nMaxFiles]
+                        if len(subFileNames) == 0:
+                            break
+                        # dis name
+                        disDBlock = "panda.%s.%s.%s.%s_dis0%s%s" % (tmpVal['taskID'],time.strftime('%m.%d'),'GEN',
+                                                                    commands.getoutput('uuidgen'),iLoop,
+                                                                    tmpVal['PandaID'])
+                        iFiles += nMaxFiles
+                        lfns    = []
+                        guids   = []
+                        fsizes  = []
+                        chksums = []
+                        for tmpSubFileName in subFileNames:
+                            lfns.append(tmpFileList[tmpSubFileName]['lfn'])
+                            guids.append(tmpFileList[tmpSubFileName]['guid'])
+                            fsizes.append(None)
+                            chksums.append(None)
+                            # set dis name
+                            for tmpFileSpec in tmpFileList[tmpSubFileName]['fileSpecs']:
+                                if tmpFileSpec.status in ['ready'] and tmpFileSpec.dispatchDBlock == 'NULL':
+                                    tmpFileSpec.dispatchDBlock = disDBlock
+                        # register datasets
+                        iLoop += 1
+                        _logger.debug((self.timestamp,'ext registerNewDataset',disDBlock,lfns,guids,fsizes,chksums,
+                                       None,None,None,True))
+                        for iDDMTry in range(3):
+                            status,out = ddm.DQ2.main('registerNewDataset',disDBlock,lfns,guids,fsizes,chksums,
+                                                      None,None,None,True)
+                            if status != 0 and out.find('DQDatasetExistsException') != -1:
+                                break
+                            elif status != 0 or out.find("DQ2 internal server exception") != -1 \
+                                     or out.find("An error occurred on the central catalogs") != -1 \
+                                     or out.find("MySQL server has gone away") != -1:
+                                _logger.debug("%s sleep %s for %s" % (self.timestamp,iDDMTry,disDBlock))
+                                _logger.debug(status)
+                                _logger.debug(out)
+                                time.sleep(60)
+                            else:
+                                break
+                        if status != 0 or out.find('Error') != -1:
+                            _logger.error("%s %s" % (self.timestamp,out))                
+                            continue
+                        _logger.debug("%s %s" % (self.timestamp,out))
+                        # get VUID
+                        try:
+                            exec "vuid = %s['vuid']" % out
+                            # dataset spec. currentfiles is used to count the number of failed jobs
+                            ds = DatasetSpec()
+                            ds.vuid = vuid
+                            ds.name = disDBlock
+                            ds.type = 'dispatch'
+                            ds.status = 'defined'
+                            ds.numberfiles  = len(lfns)
+                            ds.currentfiles = 0
+                            dispList.append(ds)
+                        except:
+                            errType,errValue = sys.exc_info()[:2]
+                            _logger.error("ext registerNewDataset : failed to decode VUID for %s - %s %s" % (disDBlock,errType,errValue))
+                            continue
+                        # freezeDataset dispatch dataset
+                        _logger.debug((self.timestamp,'freezeDataset',disDBlock))
+                        for iDDMTry in range(3):            
+                            status,out = ddm.DQ2.main('freezeDataset',disDBlock)
+                            if status != 0 or out.find("DQ2 internal server exception") != -1 \
+                                   or out.find("An error occurred on the central catalogs") != -1 \
+                                   or out.find("MySQL server has gone away") != -1:
+                                time.sleep(60)
+                            else:
+                                break
+                        if status != 0 or (out.find('Error') != -1 and out.find("is frozen") == -1):
+                            _logger.error("%s %s" % (self.timestamp,out))                                    
+                            continue
+                        _logger.debug("%s %s" % (self.timestamp,out))                
+                        # register location
+                        _logger.debug((self.timestamp,'registerDatasetLocation',disDBlock,tmpLocation,0,1,None,None,None,"7 days"))
+                        for iDDMTry in range(3):
+                            status,out = ddm.DQ2.main('registerDatasetLocation',disDBlock,tmpLocation,0,1,None,None,None,"7 days")
+                            if status != 0 or out.find("DQ2 internal server exception") != -1 \
+                                   or out.find("An error occurred on the central catalogs") != -1 \
+                                   or out.find("MySQL server has gone away") != -1:
+                                time.sleep(60)
+                            else:
+                                break
+                        _logger.debug("%s %s" % (self.timestamp,out))
+                        # failure
+                        if status != 0 or out.find('Error') != -1:
+                            _logger.error("%s %s" % (self.timestamp,out))                                    
+                            continue
         # insert datasets to DB
         self.taskBuffer.insertDatasets(dispList)
         _logger.debug('%s finished to make dis datasets for existing files' % self.timestamp)

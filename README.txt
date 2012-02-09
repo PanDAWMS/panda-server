@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * use correct locations for GEN dis when jobs directly go to T2
   * added protection to Adder2 against sites disappearance from schedconfig
   * added preferential analysis brokerage based on countryGroup
   * added more verbose message in Adder

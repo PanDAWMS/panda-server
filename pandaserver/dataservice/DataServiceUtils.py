@@ -1,8 +1,9 @@
 import re
 
 # get the list of sites where dataset is available
-def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=False):
+def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=False,getDQ2ID=False):
     retList = []
+    retDQ2Map = {}
     # no replica map
     if not replicaMap.has_key(tmpDsName):
         return retList
@@ -39,10 +40,18 @@ def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=Fa
             # check DQ2 prefix
             if tmpDQ2ID.startswith(tmpDQ2IDPrefix):
                 tmpFoundFlag = True
-                break
+                if not getDQ2ID:
+                    break
+                # append map
+                if not retDQ2Map.has_key(tmpSiteName):
+                    retDQ2Map[tmpSiteName] = []
+                retDQ2Map[tmpSiteName].append(tmpDQ2ID)    
         # append
         if tmpFoundFlag:
             retList.append(tmpSiteName)
+    # return map
+    if getDQ2ID:
+        return retDQ2Map
     # retrun
     return retList
 
