@@ -439,7 +439,9 @@ class TaskAssigner:
                     _logger.debug('%s  # of files at T2 %s' % (self.taskID,nFilesT2))
                     if nFilesT2 > weightParams[tmpCloudName]['nFiles']:
                         weightParams[tmpCloudName]['nFiles'] = nFilesT2
-                        candidatesUsingT2.append(tmpCloudName)
+                        # found candidate
+                        if weightParams[tmpCloudName]['nFiles'] >= maxNFiles:
+                            candidatesUsingT2.append(tmpCloudName)
             # compare parameters
             definedCloud = "US"
             maxClouds = []
