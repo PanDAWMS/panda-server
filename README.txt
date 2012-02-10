@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed for non-MC/DATA space at split T1
   * fixed TA to check completeness at T2 
   * use correct locations for GEN dis when jobs directly go to T2
   * added protection to Adder2 against sites disappearance from schedconfig

@@ -782,13 +782,18 @@ class Setupper (threading.Thread):
                                     if not mctapeID in dq2IDList:
                                         dq2IDList.append(mctapeID)
                             # hack for split T1
-                            if job.cloud == 'NL' and tmpRepMap.has_key('NIKHEF-ELPROD_DATADISK') \
+                            splitT1IDsHaveDS = []
+                            for tmpSplitT1Key in tmpRepMap.keys():
+                                if tmpSplitT1Key.startswith('NIKHEF-ELPROD'):
+                                    splitT1IDsHaveDS.append(tmpSplitT1Key)
+                            if job.cloud == 'NL' and splitT1IDsHaveDS != [] \
                                    and not tmpRepMap.has_key('SARA-MATRIX_MCDISK') \
                                    and not tmpRepMap.has_key('SARA-MATRIX_DATADISK') \
                                    and not tmpRepMap.has_key('SARA-MATRIX_MCTAPE') \
                                    and not tmpRepMap.has_key('SARA-MATRIX_DATATAPE'):
-                                if not 'NIKHEF-ELPROD_DATADISK' in dq2IDList:
-                                    dq2IDList.append('NIKHEF-ELPROD_DATADISK')
+                                for tmpSplitT1Key in splitT1IDsHaveDS:
+                                    if not tmpSplitT1Key in dq2IDList:
+                                        dq2IDList.append(tmpSplitT1Key)
                         # use default location if empty
                         if dq2IDList == []:
                             dq2IDList = [dq2ID]

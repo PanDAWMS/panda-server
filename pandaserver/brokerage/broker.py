@@ -437,7 +437,12 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             break
                         # check if input datasets are available only at NIKHEF
                         tmpRepMap = replicaMap[tmpFile.dataset]
-                        if tmpRepMap.has_key('NIKHEF-ELPROD_DATADISK') \
+                        splitT1HasDS = False
+                        for tmpSplitT1Key in tmpRepMap.keys():
+                            if tmpSplitT1Key.startswith('NIKHEF-ELPROD'):
+                                splitT1HasDS = True
+                                break
+                        if splitT1HasDS \
                                and not tmpRepMap.has_key('SARA-MATRIX_MCDISK') \
                                and not tmpRepMap.has_key('SARA-MATRIX_DATADISK') \
                                and not tmpRepMap.has_key('SARA-MATRIX_MCTAPE') \
