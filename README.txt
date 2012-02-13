@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed TA to count the number of files at US T2
   * check attmptNr
   * fixed for non-MC/DATA space at split T1
   * fixed TA to check completeness at T2 

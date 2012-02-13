@@ -403,45 +403,51 @@ class TaskAssigner:
                 # check T2 if files are missing and no candidate so far
                 if foundCandidateWithT1 == [] and weightParams[tmpCloudName]['nFiles'] < maxNFiles and \
                        t2ListForMissing.has_key(tmpCloudName) and t2ListForMissing[tmpCloudName] != []:
-                    # list of SEs
-                    tmpSE = []
+                    # list of SEs and LFC
+                    tmpLfcSe = {}
                     for tmpT2 in t2ListForMissing[tmpCloudName]:
                         tmpT2Spec = self.siteMapper.getSite(tmpT2)
+                        tmpDq2URL = 'lfc://'+tmpT2Spec.lfchost+':/grid/atlas/'
                         if tmpT2Spec.se != None:
                             for tmpSrcSiteSE in tmpT2Spec.se.split(','):
                                 match = re.search('.+://([^:/]+):*\d*/*',tmpSrcSiteSE)
                                 if match != None:
-                                    tmpSE.append(match.group(1))
-                    # loop over all files
-                    iLoop = 0
-                    nFilesT2 = 0
-                    for iFile in iFileList:
-                        nTry = 3
-                        for iTry in range(nTry):
-                            tmpOKFiles = brokerage.broker_util.getFilesFromLRC(lfns[iFile:iFile+nFile],dq2URL,guids=guids[iFile:iFile+nFile],
-                                                                               storageName=tmpSE,terminateWhenFailed=True)
-                            if tmpOKFiles == None:
-                                if iTry+1 == nTry:
-                                    _logger.debug('%s invalid return from LFC' % self.taskID)
-                                    break
+                                    if not tmpLfcSe.has_key(tmpDq2URL):
+                                        tmpLfcSe[tmpDq2URL] = [] 
+                                    tmpLfcSe[tmpDq2URL].append(match.group(1))
+                    # loop over all LFC and SEs
+                    for tmpDq2URL,tmpSE in tmpLfcSe.iteritems():
+                        # loop over all files
+                        iLoop = 0
+                        nFilesT2 = 0
+                        for iFile in iFileList:
+                            nTry = 3
+                            for iTry in range(nTry):
+                                tmpOKFiles = brokerage.broker_util.getFilesFromLRC(lfns[iFile:iFile+nFile],tmpDq2URL,guids=guids[iFile:iFile+nFile],
+                                                                                   storageName=tmpSE,terminateWhenFailed=True)
+                                if tmpOKFiles == None:
+                                    if iTry+1 == nTry:
+                                        _logger.debug('%s invalid return from LFC' % self.taskID)
+                                        break
+                                    else:
+                                        # retry
+                                        time.sleep(60)
                                 else:
-                                    # retry
-                                    time.sleep(60)
-                            else:
+                                    break
+                            # sum    
+                            nFilesT2 += len(tmpOKFiles)
+                            # show progress
+                            iLoop += 1
+                            if iLoop % 10 == 1:
+                                _logger.debug('%s %s %s %s T2:%s' % (self.taskID,len(guids),iFile,tmpCloudName,str(tmpSE)))
+                        # use larger value
+                        _logger.debug('%s  # of files at T2:%s %s' % (self.taskID,str(tmpSE),nFilesT2))
+                        if nFilesT2 > weightParams[tmpCloudName]['nFiles']:
+                            weightParams[tmpCloudName]['nFiles'] = nFilesT2
+                            # found candidate
+                            if weightParams[tmpCloudName]['nFiles'] >= maxNFiles:
+                                candidatesUsingT2.append(tmpCloudName)
                                 break
-                        # sum    
-                        nFilesT2 += len(tmpOKFiles)
-                        # show progress
-                        iLoop += 1
-                        if iLoop % 10 == 1:
-                            _logger.debug('%s %s %s %s T2' % (self.taskID,len(guids),iFile,tmpCloudName))
-                    # use larger value
-                    _logger.debug('%s  # of files at T2 %s' % (self.taskID,nFilesT2))
-                    if nFilesT2 > weightParams[tmpCloudName]['nFiles']:
-                        weightParams[tmpCloudName]['nFiles'] = nFilesT2
-                        # found candidate
-                        if weightParams[tmpCloudName]['nFiles'] >= maxNFiles:
-                            candidatesUsingT2.append(tmpCloudName)
             # compare parameters
             definedCloud = "US"
             maxClouds = []
