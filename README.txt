@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * check attmptNr
   * fixed for non-MC/DATA space at split T1
   * fixed TA to check completeness at T2 
   * use correct locations for GEN dis when jobs directly go to T2

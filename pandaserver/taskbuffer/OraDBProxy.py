@@ -1304,9 +1304,9 @@ class DBProxy:
 
 
     # update Job status in jobsActive
-    def updateJobStatus(self,pandaID,jobStatus,param,updateStateChange=False):
+    def updateJobStatus(self,pandaID,jobStatus,param,updateStateChange=False,attemptNr=None):
         comment = ' /* DBProxy.updateJobStatus */'        
-        _logger.debug("updateJobStatus : %s" % pandaID)
+        _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s" % (pandaID,attemptNr))
         sql1 = "UPDATE ATLAS_PANDA.jobsActive4 SET jobStatus=:jobStatus,modificationTime=CURRENT_DATE"
         if updateStateChange or jobStatus in ['starting']:
             sql1 += ",stateChangeTime=CURRENT_DATE"
@@ -1322,8 +1322,11 @@ class DBProxy:
                         varMap[':%s' % key] = param[key][1:]
                 except:
                     pass
-        sql1 += " WHERE PandaID=:PandaID"
+        sql1 += " WHERE PandaID=:PandaID "
         varMap[':PandaID'] = pandaID
+        if attemptNr != None:
+            sql1 += "AND attemptNr=:attemptNr "
+            varMap[':attemptNr'] = attemptNr
         nTry=3
         for iTry in range(nTry):
             try:
@@ -1331,25 +1334,31 @@ class DBProxy:
                 self.conn.begin()
                 # update
                 self.cur.execute (sql1+comment,varMap)
-                # get command
-                varMap = {}
-                varMap[':PandaID'] = pandaID
-                self.cur.arraysize = 10
-                self.cur.execute ('SELECT commandToPilot,endTime FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID'+comment,varMap)
-                res = self.cur.fetchone()
-                if res != None:
-                    ret     = res[0]
-                    # convert no-command to 'NULL'
-                    if ret == None:
-                        ret = 'NULL'
-                    # update endTime
-                    endTime = res[1]
-                    if jobStatus == 'holding' and endTime==None:
-                        self.cur.execute ("UPDATE ATLAS_PANDA.jobsActive4 SET endTime=CURRENT_DATE WHERE PandaID=:PandaID"+comment,
-                                          varMap)
+                nUp = self.cur.rowcount
+                _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s nUp=%s" % (pandaID,attemptNr,nUp))
+                if nUp != 0:
+                    # get command
+                    varMap = {}
+                    varMap[':PandaID'] = pandaID
+                    self.cur.arraysize = 10
+                    self.cur.execute ('SELECT commandToPilot,endTime FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID'+comment,varMap)
+                    res = self.cur.fetchone()
+                    if res != None:
+                        ret     = res[0]
+                        # convert no-command to 'NULL'
+                        if ret == None:
+                            ret = 'NULL'
+                        # update endTime
+                        endTime = res[1]
+                        if jobStatus == 'holding' and endTime==None:
+                            self.cur.execute ("UPDATE ATLAS_PANDA.jobsActive4 SET endTime=CURRENT_DATE WHERE PandaID=:PandaID"+comment,
+                                              varMap)
+                    else:
+                        # already deleted
+                        ret = 'tobekilled'
                 else:
-                    # already deleted
-                    ret = 'tobekilled'
+                    # attempt number inconsistent
+                    ret = "badattemptnr"
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'

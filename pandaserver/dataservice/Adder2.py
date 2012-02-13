@@ -32,7 +32,7 @@ Closer.initLogger(_logger)
 class Adder (threading.Thread):
     # constructor
     def __init__(self,taskBuffer,jobID,fileCatalog,jobStatus,xmlFile='',ignoreDDMError=True,joinCloser=False,
-                 addOutput=False,pandaDDM=False,siteMapper=None):
+                 addOutput=False,pandaDDM=False,siteMapper=None,attemptNr=None):
         threading.Thread.__init__(self)
         self.job = None
         self.jobID = jobID
@@ -49,20 +49,31 @@ class Adder (threading.Thread):
         self.goToTransferring = False
         self.subscriptionMap = {}
         self.dq2api = None
+        self.attemptNr = attemptNr        
         # dump Catalog into file
         if xmlFile=='':
-            self.xmlFile = '%s/%s_%s_%s' % (panda_config.logdir,jobID,jobStatus,commands.getoutput('uuidgen'))
+            if attemptNr == None:
+                self.xmlFile = '%s/%s_%s_%s' % (panda_config.logdir,jobID,jobStatus,
+                                                commands.getoutput('uuidgen'))
+            else:
+                self.xmlFile = '%s/%s_%s_%s_%s' % (panda_config.logdir,jobID,jobStatus,
+                                                   commands.getoutput('uuidgen'),attemptNr)
             file = open(self.xmlFile,'w')
             file.write(fileCatalog)
             file.close()
         else:
             self.xmlFile = xmlFile
-
-
+            # exstract attemptNr
+            try:
+                tmpAttemptNr = self.xmlFile.split('/')[-1].split('_')[-1]
+                if re.search('^\d+$',tmpAttemptNr) != None:
+                    self.attemptNr = int(tmpAttemptNr)
+            except:
+                pass
     # main
     def run(self):
         try:
-            _logger.debug("%s new start: %s" % (self.jobID,self.jobStatus))
+            _logger.debug("%s new start: %s attemptNr=%s" % (self.jobID,self.jobStatus,self.attemptNr))
             # instantiate DQ2
             self.dq2api = DQ2.DQ2()
             # lock XML except last trial
@@ -83,6 +94,8 @@ class Adder (threading.Thread):
                 _logger.debug('%s : not found' % self.jobID)                
             elif self.job.jobStatus in ['finished','failed','unknown','cancelled']:
                 _logger.error('%s : invalid state -> %s' % (self.jobID,self.job.jobStatus))
+            elif self.attemptNr != None and self.job.attemptNr != self.attemptNr:
+                _logger.error('%s : wrong attemptNr -> job=%s <> %s' % (self.jobID,self.job.attemptNr,self.attemptNr))
             else:
                 # add files only to top-level datasets for transferring jobs
                 if self.job.jobStatus == 'transferring':

@@ -334,7 +334,7 @@ fileList.sort()
 tmpList = []
 uMap = {}
 for file in fileList:
-    match = re.search('^(\d+)_([^_]+)_.{36}$',file)
+    match = re.search('^(\d+)_([^_]+)_.{36}(_\d+)*$',file)
     if match != None:
         fileName = '%s/%s' % (dirName,file)
         id = match.group(1)
@@ -377,7 +377,7 @@ while len(fileList) != 0:
         tmpList = []
         uMap = {}
         for file in fileList:
-            match = re.search('^(\d+)_([^_]+)_.{36}$',file)
+            match = re.search('^(\d+)_([^_]+)_.{36}(_\d+)*$',file)
             if match != None:
                 fileName = '%s/%s' % (dirName,file)
                 id = match.group(1)
@@ -399,7 +399,7 @@ while len(fileList) != 0:
     # release lock
     adderLock.release()
     # check format
-    match = re.search('^(\d+)_([^_]+)_.{36}$',file)
+    match = re.search('^(\d+)_([^_]+)_.{36}(_\d+)*$',file)
     if match != None:
         fileName = '%s/%s' % (dirName,file)
         if not os.path.exists(fileName):

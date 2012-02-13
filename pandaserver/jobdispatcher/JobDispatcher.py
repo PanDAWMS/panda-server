@@ -117,7 +117,7 @@ class JobDipatcher:
 
 
     # update job status
-    def updateJob(self,jobID,jobStatus,timeout,xml,siteName,param,metadata):
+    def updateJob(self,jobID,jobStatus,timeout,xml,siteName,param,metadata,attemptNr=None):
         # retry failed analysis job and ddm job
         if jobStatus=='failed' \
            and ((param.has_key('pilotErrorCode') and (param['pilotErrorCode'] in ['1200','1201'] \
@@ -148,7 +148,7 @@ class JobDipatcher:
             tmpWrapper = _TimedMethod(self.taskBuffer.updateJobStatus,None)
         else:
             tmpWrapper = _TimedMethod(self.taskBuffer.updateJobStatus,timeout)            
-        tmpWrapper.run(jobID,tmpStatus,param,updateStateChange)
+        tmpWrapper.run(jobID,tmpStatus,param,updateStateChange,attemptNr)
         # make response
         if tmpWrapper.result == Protocol.TimeOutToken:
             # timeout
@@ -163,8 +163,8 @@ class JobDipatcher:
                 else:
                     response.appendNode('command','NULL')
                 # add output to dataset
-                if jobStatus == 'failed' or jobStatus == 'finished':
-                    Adder(self.taskBuffer,jobID,xml,jobStatus).start()
+                if tmpWrapper.result != "badattemptnr" and (jobStatus == 'failed' or jobStatus == 'finished'):
+                    Adder(self.taskBuffer,jobID,xml,jobStatus,attemptNr=attemptNr).start()
             else:
                 # failed
                 response=Protocol.Response(Protocol.SC_Failed)
@@ -405,7 +405,7 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
               xml='',node=None,workdir=None,cpuConsumptionTime=None,cpuConsumptionUnit=None,remainingSpace=None,
               schedulerID=None,pilotID=None,siteName=None,messageLevel=None,pilotLog='',metaData='',
               cpuConversionFactor=None,exeErrorCode=None,exeErrorDiag=None,pilotTiming=None,computingElement=None,
-              startTime=None,endTime=None,nEvents=None,nInputFiles=None,batchID=None):
+              startTime=None,endTime=None,nEvents=None,nInputFiles=None,batchID=None,attemptNr=None):
     _logger.debug("updateJob(%s)" % jobId)
     # get DN
     realDN = _getDN(req)
@@ -415,11 +415,11 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
     prodManager = _checkRole(fqans,realDN,jobDispatcher,site=siteName,hostname=req.get_remote_host())
     # check token
     validToken = _checkToken(token,jobDispatcher)
-    _logger.debug("updateJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s\n==XML==\n%s\n==LOG==\n%s\n==Meta==\n%s)" %
+    _logger.debug("updateJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,attemptNr:%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s\n==XML==\n%s\n==LOG==\n%s\n==Meta==\n%s)" %
                   (jobId,state,transExitCode,pilotErrorCode,pilotErrorDiag,node,workdir,cpuConsumptionTime,
                    cpuConsumptionUnit,remainingSpace,schedulerID,pilotID,siteName,messageLevel,nEvents,nInputFiles,
                    cpuConversionFactor,exeErrorCode,exeErrorDiag,pilotTiming,computingElement,startTime,endTime,
-                   batchID,realDN,prodManager,token,validToken,str(fqans),xml,pilotLog,metaData))
+                   batchID,attemptNr,realDN,prodManager,token,validToken,str(fqans),xml,pilotLog,metaData))
     _pilotReqLogger.info('method=updateJob,site=%s,node=%s,type=None' % (siteName,node))
     # invalid role
     if not prodManager:
@@ -496,8 +496,13 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
             param['endTime']=datetime.datetime(*time.strptime(endTime,'%Y-%m-%d %H:%M:%S')[:6])
         except:
             pass
+    if attemptNr != None:
+        try:
+            attemptNr = int(attemptNr)
+        except:
+            attemptNr = None
     # invoke JD
-    return jobDispatcher.updateJob(int(jobId),state,int(timeout),xml,siteName,param,metaData)
+    return jobDispatcher.updateJob(int(jobId),state,int(timeout),xml,siteName,param,metaData,attemptNr)
 
 
 # get job status

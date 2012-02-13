@@ -26,7 +26,7 @@ _logger = PandaLogger().getLogger('Adder')
 class Adder (threading.Thread):
     # constructor
     def __init__(self,taskBuffer,jobID,fileCatalog,jobStatus,xmlFile='',ignoreDDMError=True,joinCloser=False,
-                 addOutput=False,pandaDDM=False,siteMapper=None):
+                 addOutput=False,pandaDDM=False,siteMapper=None,attemptNr=None):
         threading.Thread.__init__(self)
         self.job = None
         self.jobID = jobID
@@ -42,9 +42,15 @@ class Adder (threading.Thread):
         self.addToTopOnly = False
         self.goToTransferring = False
         self.subscriptionMap = {}
+        self.attemptNr = attemptNr
         # dump Catalog into file
         if xmlFile=='':
-            self.xmlFile = '%s/%s_%s_%s' % (panda_config.logdir,jobID,jobStatus,commands.getoutput('uuidgen'))
+            if attemptNr == None:
+                self.xmlFile = '%s/%s_%s_%s' % (panda_config.logdir,jobID,jobStatus,
+                                                commands.getoutput('uuidgen'))
+            else:
+                self.xmlFile = '%s/%s_%s_%s_%s' % (panda_config.logdir,jobID,jobStatus,
+                                                   commands.getoutput('uuidgen'),attemptNr)
             file = open(self.xmlFile,'w')
             file.write(fileCatalog)
             file.close()
