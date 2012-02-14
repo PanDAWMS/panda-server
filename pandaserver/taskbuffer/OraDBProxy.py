@@ -5025,8 +5025,9 @@ class DBProxy:
     def getFilesInUseForAnal(self,outDataset):
         comment = ' /* DBProxy.getFilesInUseForAnal */'        
         sqlSub  = "SELECT /*+ index(tab FILESTABLE4_DATASET_IDX) */ destinationDBlock,PandaID FROM ATLAS_PANDA.filesTable4 tab "
-        sqlSub += "WHERE dataset=:dataset AND type IN (:type1,:type2) AND status IN (:fileStatus1,:fileStatus2) GROUP BY destinationDBlock,PandaID"
+        sqlSub += "WHERE dataset=:dataset AND type IN (:type1,:type2) GROUP BY destinationDBlock,PandaID"
         sqlPan  = "SELECT jobStatus FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID"
+        sqlPanA = "SELECT jobStatus FROM ATLAS_PANDAARCH.jobsArchived WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-30)"        
         sqlDis  = "SELECT distinct dispatchDBlock FROM ATLAS_PANDA.filesTable4 "
         sqlDis += "WHERE PandaID=:PandaID AND type=:type AND dispatchDBlock IS NOT NULL"
         sqlLfn  = "SELECT /*+ index(tab FILESTABLE4_DISPDBLOCK_IDX) */ lfn,PandaID FROM ATLAS_PANDA.filesTable4 tab "
@@ -5043,8 +5044,6 @@ class DBProxy:
                 varMap[':dataset'] = outDataset
                 varMap[':type1'] = 'output'
                 varMap[':type2'] = 'log'                
-                varMap[':fileStatus1'] = 'unknown'
-                varMap[':fileStatus2'] = 'failed'
                 _logger.debug("getFilesInUseForAnal : %s %s" % (sqlSub,str(varMap)))
                 self.cur.arraysize = 100000
                 retS = self.cur.execute(sqlSub+comment, varMap)
@@ -5062,8 +5061,15 @@ class DBProxy:
                         if len(resP) != 0:
                             checkedPandaIDs[pandaID] = resP[0][0]
                         else:
-                            checkedPandaIDs[pandaID] = 'running'
-                    # reuse failed files if jobs are in Archived
+                            # check status in archived
+                            retPA = self.cur.execute(sqlPanA+comment, varMap)
+                            resPA = self.cur.fetchall()
+                            # append
+                            if len(resPA) != 0:
+                                checkedPandaIDs[pandaID] = resPA[0][0]
+                            else:
+                                checkedPandaIDs[pandaID] = 'running'
+                    # reuse failed files if jobs are in Archived since they cannot change back to active
                     if checkedPandaIDs[pandaID] in ['failed','cancelled']:
                         continue
                     # collect PandaIDs
@@ -5096,8 +5102,8 @@ class DBProxy:
                         resL = self.cur.fetchall()
                         # append
                         for lfn,filePandaID in resL:
-                            # skip files used by finished/failed jobs
-                            if filePandaID in activePandaIDs:
+                            # skip files used by archived failed or cancelled jobs
+                            if filePandaID in activePandaIDs and not lfn in inputFilesList:
                                 inputFilesList.append(lfn)
                 # commit
                 if not self._commit():
