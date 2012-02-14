@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed TA to select candidate T2s correctly
   * getting shadow info from filesTable
   * added vomsrenew.sh
   * fixed TA to count the number of files at US T2

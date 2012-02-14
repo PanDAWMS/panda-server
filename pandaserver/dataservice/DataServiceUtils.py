@@ -1,7 +1,7 @@
 import re
 
 # get the list of sites where dataset is available
-def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=False,getDQ2ID=False):
+def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=False,getDQ2ID=False,useOnlineSite=False):
     retList = []
     retDQ2Map = {}
     # no replica map
@@ -19,6 +19,9 @@ def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=Fa
         if useHomeCloud:
             if siteMapper.getSite(tmpSiteName).cloud != cloudKey:
                 continue
+        # online
+        if siteMapper.getSite(tmpSiteName).status != 'online':
+            continue
         # prefix of DQ2 ID
         tmpDQ2IDPrefix = re.sub('_[A-Z,0-9]+DISK$','',siteMapper.getSite(tmpSiteName).ddm)
         # ignore empty

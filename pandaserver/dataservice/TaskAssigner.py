@@ -228,7 +228,8 @@ class TaskAssigner:
                                     minFound = tmpStat['found']
                                     foundSE  = tmpSE
                         # get list of T2s where dataset is available
-                        tmpT2List = DataServiceUtils.getSitesWithDataset(dataset,self.siteMapper,locations,tmpCloudName,True)
+                        tmpT2List = DataServiceUtils.getSitesWithDataset(dataset,self.siteMapper,locations,
+                                                                         tmpCloudName,True,useOnlineSite=True)
                         # remove cloud if T1SE or T2 is not a location
                         if foundSE == '':
                             # keep if T2 has the dataset
@@ -248,10 +249,14 @@ class TaskAssigner:
                                     removedDQ2Map[dataset].append(tmpCloudName)
                         # aggregate T2 list
                         if not t2ListForMissing.has_key(tmpCloudName):
-                            t2ListForMissing[tmpCloudName] = []
-                        for tmpT2 in tmpT2List:
-                            if not tmpT2 in t2ListForMissing[tmpCloudName]:
-                                t2ListForMissing[tmpCloudName].append(tmpT2)
+                            t2ListForMissing[tmpCloudName] = tmpT2List
+                        else:
+                            # use sites where all datasets are available
+                            newTmpT2List = []
+                            for tmpT2 in t2ListForMissing[tmpCloudName]:
+                                if tmpT2 in tmpT2List:
+                                    newTmpT2List.append(tmpT2)
+                            t2ListForMissing[tmpCloudName] = newTmpT2List
                 # remove clouds
                 for tmpCloudName in removedCloud:
                     if tmpCloudName in cloudList:
@@ -403,6 +408,7 @@ class TaskAssigner:
                 # check T2 if files are missing and no candidate so far
                 if foundCandidateWithT1 == [] and weightParams[tmpCloudName]['nFiles'] < maxNFiles and \
                        t2ListForMissing.has_key(tmpCloudName) and t2ListForMissing[tmpCloudName] != []:
+                    _logger.debug('%s  T2 candidates %s' % (self.taskID,str(t2ListForMissing[tmpCloudName])))
                     # list of SEs and LFC
                     tmpLfcSe = {}
                     for tmpT2 in t2ListForMissing[tmpCloudName]:
