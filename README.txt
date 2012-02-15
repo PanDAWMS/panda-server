@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * increased the lifetime of the proxy to 96h
   * fixed TA to select candidate T2s correctly
   * getting shadow info from filesTable
   * added vomsrenew.sh
