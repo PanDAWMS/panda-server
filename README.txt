@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * removed constraint in TA to consider T1 and T2 equally
   * increased the lifetime of the proxy to 96h
   * fixed TA to select candidate T2s correctly
   * getting shadow info from filesTable

@@ -458,10 +458,10 @@ class TaskAssigner:
             definedCloud = "US"
             maxClouds = []
             useMcShare = False
-            if foundCandidateWithT1 != []:
-                maxClouds = foundCandidateWithT1
-            elif candidatesUsingT2 != []:
-                maxClouds = candidatesUsingT2
+            # use clouds where T1 have the data
+            maxClouds += foundCandidateWithT1
+            # use clouds where T2 have the data
+            maxClouds += candidatesUsingT2
             # logging
             _logger.debug('%s check nFiles' % self.taskID)            
             for cloudName,params in weightParams.iteritems():
