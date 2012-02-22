@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * instantiating dq2api in each thread
+  * added hint to use 11g cashing
   * removed constraint in TA to consider T1 and T2 equally
   * increased the lifetime of the proxy to 96h
   * fixed TA to select candidate T2s correctly

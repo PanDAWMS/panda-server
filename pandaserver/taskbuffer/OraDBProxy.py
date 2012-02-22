@@ -5585,6 +5585,7 @@ class DBProxy:
         # sql for materialized view
         sqlMV = re.sub('COUNT\(\*\)','SUM(num_of_jobs)',sql0)
         sqlMV = re.sub(':minPriority','TRUNC(:minPriority,-1)',sqlMV)
+        sqlMV = re.sub('SELECT ','SELECT /*+ RESULT_CACHE */ ',sqlMV)
         ret = {}
         nTry=3
         for iTry in range(nTry):
@@ -7036,7 +7037,7 @@ class DBProxy:
             varMap = {}
 
             varMap[':prodSourceLabel'] = 'managed'
-            sql  = "SELECT jobStatus,"
+            sql  = "SELECT /*+ RESULT_CACHE */ jobStatus,"
             if usingGroup:
                 sql += 'workingGroup,'
             if usingType:

@@ -97,5 +97,7 @@ for i in range(1):
 #status,out = ddm.DQ2.main(['listFilesInDataset','panda.destDB.11aed982-8079-4db9-964c-37a284b8597a'])
 #print out
 
-
-
+ddm.DQ2_iter.listFileReplicasBySites('mc11_7TeV.151900.madgraph_SM_SG_SS_direct_1200_600_395.merge.AOD.e1095_a131_s1353_a145_r2993_tid723983_00'
+                                     
+                                     0,['SARA-MATRIX_DATADISK'],
+                                     0,300)
