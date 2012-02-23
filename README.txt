@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * making larger subs by sorting jobs by site
   * instantiating dq2api in each thread
   * added hint to use 11g cashing
   * removed constraint in TA to consider T1 and T2 equally

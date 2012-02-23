@@ -103,6 +103,21 @@ class Setupper (threading.Thread):
                     # setup dispatch dataset
                     _logger.debug('%s setupSource' % self.timestamp)        
                     self._setupSource()
+                    # sort by site so that larger subs are created in the next step 
+                    if self.jobs != [] and self.jobs[0].prodSourceLabel in ['managed','test']:
+                        tmpJobMap = {}
+                        for tmpJob in self.jobs:
+                            # add site
+                            if not tmpJobMap.has_key(tmpJob.computingSite):
+                                tmpJobMap[tmpJob.computingSite] = []
+                            # add job    
+                            tmpJobMap[tmpJob.computingSite].append(tmpJob)
+                        # make new list    
+                        tmpJobList = []
+                        for tmpSiteKey in tmpJobMap.keys():
+                            tmpJobList += tmpJobMap[tmpSiteKey]
+                        # set new list
+                        self.jobs = tmpJobList
                     # create dataset for outputs and assign destination
                     if self.jobs != [] and self.jobs[0].prodSourceLabel in ['managed','test'] and self.jobs[0].cloud in ['DE']:
                         # count the number of jobs per _dis 
@@ -417,7 +432,7 @@ class Setupper (threading.Thread):
                 if job.prodSourceLabel == 'panda' and job.processingType == 'unmerge' and file.type != 'log':
                     continue
                 # extract destinationDBlock, destinationSE and computingSite
-                dest = (file.destinationDBlock,file.destinationSE,job.computingSite,file.destinationDBlockToken,job.dispatchDBlock)
+                dest = (file.destinationDBlock,file.destinationSE,job.computingSite,file.destinationDBlockToken)
                 if not destError.has_key(dest):
                     destError[dest] = ''
                     originalName = ''
@@ -691,6 +706,10 @@ class Setupper (threading.Thread):
                     newdest = (file.destinationDBlock,file.destinationSE,job.computingSite)
                     # increment number of files
                     datasetList[newdest].numberfiles = datasetList[newdest].numberfiles + 1
+        # dump
+        for tmpDsKey in datasetList.keys():
+            if re.search('_sub\d+$',tmpDsKey[0]) != None:
+                _logger.debug('%s made sub:%s for nFiles=%s' % (self.timestamp,tmpDsKey[0],datasetList[tmpDsKey].numberfiles))
         # insert datasets to DB
         return self.taskBuffer.insertDatasets(datasetList.values())
         
