@@ -5666,6 +5666,7 @@ class DBProxy:
             sql0 = sql0[:-1] + ") "
         sql0 += "GROUP BY computingSite,prodSourceLabel,jobStatus "
         sqlMV = re.sub('COUNT\(\*\)','SUM(num_of_jobs)',sql0)
+        sqlMV = re.sub('SELECT ','SELECT /*+ RESULT_CACHE */ ',sqlMV)        
         tables = ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4']
         returnMap = {}
         try:
@@ -5722,6 +5723,7 @@ class DBProxy:
         # sql for materialized view
         sqlMV = re.sub('COUNT\(\*\)','SUM(num_of_jobs)',sql0)
         sqlMV = re.sub(':minPriority','TRUNC(:minPriority,-1)',sqlMV)
+        sqlMV = re.sub('SELECT ','SELECT /*+ RESULT_CACHE */ ',sqlMV)
         tables = ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4']
         ret = {}
         nTry=3
@@ -5792,6 +5794,7 @@ class DBProxy:
         # sql for materialized view
         sqlMV = re.sub('COUNT\(\*\)','SUM(num_of_jobs)',sql0)
         sqlMV = re.sub(':minPriority','TRUNC(:minPriority,-1)',sqlMV)
+        sqlMV = re.sub('SELECT ','SELECT /*+ RESULT_CACHE */ ',sqlMV)
         tables = ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4']
         ret = {}
         nTry=3
@@ -6115,6 +6118,7 @@ class DBProxy:
         sqlA+= "AND modificationTime>:modificationTime GROUP BY jobStatus,cloud"
         # sql for materialized view
         sqlMV = re.sub('COUNT\(\*\)','SUM(num_of_jobs)',sql0)
+        sqlMV = re.sub('SELECT ','SELECT /*+ RESULT_CACHE */ ',sqlMV)
         ret = {}
         try:
             for table in ('ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4','ATLAS_PANDA.jobsArchived4','ATLAS_PANDA.jobsDefined4'):
@@ -6188,6 +6192,7 @@ class DBProxy:
         sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND modificationTime>:modificationTime GROUP BY jobStatus,cloud,processingType"
         # sql for materialized view
         sqlMV = re.sub('COUNT\(\*\)','SUM(num_of_jobs)',sqlN)
+        sqlMV = re.sub('SELECT ','SELECT /*+ RESULT_CACHE */ ',sqlMV)
         ret = {}
         try:
             for table in ('ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4','ATLAS_PANDA.jobsArchived4','ATLAS_PANDA.jobsDefined4'):
