@@ -145,7 +145,7 @@ timeLimitDnS = datetime.datetime.utcnow() - datetime.timedelta(days=60)
 timeLimitTop = datetime.datetime.utcnow() - datetime.timedelta(days=90)
 nDelDS = 1000
 for dsType,dsPrefix in [('','top'),]:
-    sql = "DELETE FROM ATLAS_PANDA.Datasets "
+    sql = "DELETE  /*+ INDEX(D D(modificationdate)) */ FROM ATLAS_PANDA.Datasets D "
     if dsType != '':
         # dis or sub
         sql += "WHERE type=:type AND modificationdate<:modificationdate "

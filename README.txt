@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added hint when deleting rows from Datasets 
   * making larger subs by sorting jobs by site
   * instantiating dq2api in each thread
   * added hint to use 11g cashing
