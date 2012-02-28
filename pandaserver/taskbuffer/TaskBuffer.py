@@ -2026,5 +2026,4 @@ class TaskBuffer:
 
 # Singleton
 taskBuffer = TaskBuffer()
-del TaskBuffer
 
