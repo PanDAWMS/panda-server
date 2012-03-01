@@ -291,7 +291,9 @@ class Adder (threading.Thread):
                     if (self.job.prodSourceLabel=='panda' or (self.job.prodSourceLabel in ['ptest','rc_test'] and \
                                                               self.job.processingType in ['pathena','prun','gangarobot-rctest'])) \
                            and file.type == 'output':
-                        guidList.append({'lfn':file.lfn, 'guid':file.GUID, 'type':file.type})
+                        guidList.append({'lfn':file.lfn,'guid':file.GUID,'type':file.type,
+                                         'checksum':file.checksum,'md5sum':file.md5sum,
+                                         'fsize':file.fsize})
                 if guidList != []:
                     retG = self.taskBuffer.setGUIDs(guidList)
                 if destDBList != []:

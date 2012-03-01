@@ -1162,7 +1162,7 @@ class Setupper (threading.Thread):
             datasets = []
             for file in job.Files:
                 if file.type == 'input' and file.dispatchDBlock == 'NULL' \
-                        and (file.GUID == 'NULL' or job.prodSourceLabel in ['managed','test']):
+                        and (file.GUID == 'NULL' or job.prodSourceLabel in ['managed','test','ptest']):
                     if not file.dataset in datasets:
                         datasets.append(file.dataset)
             # get LFN list
@@ -1279,8 +1279,9 @@ class Setupper (threading.Thread):
                     # message for TA
                     if self.onlyTA:                            
                         _logger.error("%s %s" % (self.timestamp,missingDS[dataset]))
+                        self.sendTaMesg("%s %s" % (job.taskID,missingDS[dataset]),msgType='error')
                     else:
-                        _logger.debug("%s %s failed with %s" % (self.timestamp,job.PandaID,missingDS[dataset]))                        
+                        _logger.debug("%s %s failed with %s" % (self.timestamp,job.PandaID,missingDS[dataset]))
                     break
             if isFailed:
                 continue
@@ -2131,4 +2132,34 @@ class Setupper (threading.Thread):
         # return
         _logger.debug('%s setReplicaMetadata done' % self.timestamp)
         return True
+
+
+    # send task brokerage message to logger
+    def sendTaMesg(self,message,msgType=None):
+        try:
+            # get logger
+            tmpPandaLogger = PandaLogger()
+            # lock HTTP handler
+            tmpPandaLogger.lock()
+            tmpPandaLogger.setParams({'Type':'taskbrokerage'})
+            # use bamboo for loggername
+            if panda_config.loggername == 'prod':
+                tmpLogger = tmpPandaLogger.getHttpLogger('bamboo')
+            else:
+                # for dev
+                tmpLogger = tmpPandaLogger.getHttpLogger(panda_config.loggername)
+            # add message
+            if msgType=='error':
+                tmpLogger.error(message)
+            elif msgType=='warning':
+                tmpLogger.warning(message)
+            elif msgType=='info':
+                tmpLogger.info(message)
+            else:
+                tmpLogger.debug(message)                
+            # release HTTP handler
+            tmpPandaLogger.release()
+        except:
+            pass
+        time.sleep(1)
                             

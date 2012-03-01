@@ -140,6 +140,7 @@ taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
 siteMapper = SiteMapper(taskBuffer)
 
 # delete old datasets
+"""
 _logger.debug("==== delete old datasets ====")
 timeLimitDnS = datetime.datetime.utcnow() - datetime.timedelta(days=60)
 timeLimitTop = datetime.datetime.utcnow() - datetime.timedelta(days=90)
@@ -166,6 +167,7 @@ for dsType,dsPrefix in [('','top'),]:
         # no more datasets    
         if res != nDelDS:
             break
+"""
 
 
 # list with lock

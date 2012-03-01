@@ -68,6 +68,8 @@ class Response:
         strDestToken = ''
         strProdToken = ''        
         strGUID = ''
+        strFSize = ''
+        strCheckSum = ''
         logFile = ''
         logGUID = ''        
         for file in job.Files:
@@ -87,7 +89,12 @@ class Response:
                 if strGUID != '':
                     strGUID += ','
                 strGUID += file.GUID
-                strRealDatasetIn += '%s,' % file.dataset                
+                strRealDatasetIn += '%s,' % file.dataset
+                strFSize += '%s,' % file.fsize
+                if not file.checksum in ['','NULL',None]:
+                    strCheckSum += '%s,' % file.checksum
+                else:
+                    strCheckSum += '%s,' % file.md5sum
             if file.type == 'output' or file.type == 'log':
                 if strOFiles != '':
                     strOFiles += ','
@@ -135,6 +142,10 @@ class Response:
         self.data['attemptNr'] = job.attemptNr
         # GUIDs
         self.data['GUID'] = strGUID
+        # checksum
+        self.data['checksum'] = strCheckSum[:-1]
+        # fsize
+        self.data['fsize'] = strFSize[:-1]
         # destinationSE
         self.data['destinationSE'] = job.destinationSE
         # user ID

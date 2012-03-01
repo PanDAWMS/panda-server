@@ -5025,14 +5025,15 @@ class DBProxy:
     def getFilesInUseForAnal(self,outDataset):
         comment = ' /* DBProxy.getFilesInUseForAnal */'        
         sqlSub  = "SELECT /*+ index(tab FILESTABLE4_DATASET_IDX) */ destinationDBlock,PandaID FROM ATLAS_PANDA.filesTable4 tab "
-        sqlSub += "WHERE dataset=:dataset AND type IN (:type1,:type2) GROUP BY destinationDBlock,PandaID"
-        sqlPan  = "SELECT jobStatus FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID"
-        sqlPanA = "SELECT jobStatus FROM ATLAS_PANDAARCH.jobsArchived WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-30)"        
+        sqlSub += "WHERE dataset=:dataset AND type IN (:type1,:type2) AND modificationTime<=CURRENT_DATE GROUP BY destinationDBlock,PandaID"
+        sqlPan  = "SELECT jobStatus FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID AND modificationTime<=CURRENT_DATE "
+        sqlPan += "UNION "
+        sqlPan += "SELECT jobStatus FROM ATLAS_PANDAARCH.jobsArchived WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-30)"        
         sqlDis  = "SELECT distinct dispatchDBlock FROM ATLAS_PANDA.filesTable4 "
-        sqlDis += "WHERE PandaID=:PandaID AND type=:type AND dispatchDBlock IS NOT NULL"
+        sqlDis += "WHERE PandaID=:PandaID AND type=:type AND dispatchDBlock IS NOT NULL AND modificationTime <= CURRENT_DATE"
         sqlLfn  = "SELECT /*+ index(tab FILESTABLE4_DISPDBLOCK_IDX) */ lfn,PandaID FROM ATLAS_PANDA.filesTable4 tab "
         sqlLfn += "WHERE dispatchDBlock=:dispatchDBlock AND type=:type "
-        sqlLfn += "AND (destinationDBlockToken IS NULL OR destinationDBlockToken<>:noshadow)"
+        sqlLfn += "AND (destinationDBlockToken IS NULL OR destinationDBlockToken<>:noshadow) AND modificationTime<=CURRENT_DATE"
         nTry=3
         for iTry in range(nTry):
             inputFilesList = []
@@ -5061,14 +5062,7 @@ class DBProxy:
                         if len(resP) != 0:
                             checkedPandaIDs[pandaID] = resP[0][0]
                         else:
-                            # check status in archived
-                            retPA = self.cur.execute(sqlPanA+comment, varMap)
-                            resPA = self.cur.fetchall()
-                            # append
-                            if len(resPA) != 0:
-                                checkedPandaIDs[pandaID] = resPA[0][0]
-                            else:
-                                checkedPandaIDs[pandaID] = 'running'
+                            checkedPandaIDs[pandaID] = 'running'
                     # reuse failed files if jobs are in Archived since they cannot change back to active
                     if checkedPandaIDs[pandaID] in ['failed','cancelled']:
                         continue
@@ -5306,7 +5300,7 @@ class DBProxy:
     def setGUIDs(self,files):
         comment = ' /* DBProxy.setGUIDs */'                        
         _logger.debug("setGUIDs(%s)" % files)
-        sql0 = "UPDATE ATLAS_PANDA.filesTable4 SET GUID=:GUID WHERE lfn=:lfn"
+        sql0 = "UPDATE ATLAS_PANDA.filesTable4 SET GUID=:GUID,fsize=:fsize,checksum=:checksum WHERE lfn=:lfn"
         for iTry in range(self.nTry):
             try:
                 # start transaction
@@ -5314,8 +5308,13 @@ class DBProxy:
                 # update
                 for file in files:
                     varMap = {}
-                    varMap[':GUID'] = file['guid']
-                    varMap[':lfn']  = file['lfn']
+                    varMap[':GUID']     = file['guid']
+                    varMap[':lfn']      = file['lfn']
+                    if file['checksum'] in ['','NULL']:
+                        varMap[':checksum'] = None
+                    else:
+                        varMap[':checksum'] = file['checksum']
+                    varMap[':fsize']    = file['fsize']                    
                     self.cur.execute(sql0+comment, varMap)
                     retU = self.cur.rowcount
                     _logger.debug("setGUIDs : retU %s" % retU)

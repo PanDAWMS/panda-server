@@ -269,7 +269,7 @@ class TaskAssigner:
                     retSub = self.makeSubscription(removedDQ2Map,RWs,fullRWs,expRWs)
                     _logger.debug('%s makeSubscription end with %s' % (self.taskID,retSub))
                 message = '%s no input data locations' % self.taskID
-                self.sendMesg(message,msgType='error')
+                self.sendMesg(message,msgType='warning')
                 raise RuntimeError, '%s cloud list is empty after DQ2 filter' % self.taskID
             message = '%s input data locations %s' % (self.taskID,str(cloudList))
             _logger.debug(message)
@@ -585,8 +585,12 @@ class TaskAssigner:
             # lock HTTP handler
             tmpPandaLogger.lock()
             tmpPandaLogger.setParams({'Type':'taskbrokerage'})
-            # use bamboo for loggername 
-            tmpLogger = tmpPandaLogger.getHttpLogger('bamboo')
+            # use bamboo for loggername
+            if panda_config.loggername == 'prod':
+                tmpLogger = tmpPandaLogger.getHttpLogger('bamboo')
+            else:
+                # for dev
+                tmpLogger = tmpPandaLogger.getHttpLogger(panda_config.loggername)
             # add message
             if msgType=='error':
                 tmpLogger.error(message)
