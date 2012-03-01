@@ -5383,7 +5383,8 @@ class DBProxy:
             return []
         # make SQL query
         sql1 = "SELECT /*+ index(tab FILESTABLE4_DATASET_IDX) */ lfn,PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE dataset=:dataset AND type=:type ORDER BY lfn DESC"
-        sqlL = "SELECT processingType FROM %s WHERE PandaID=:PandaID"
+        sqlL = "SELECT processingType FROM %s WHERE PandaID=:PandaID "
+        sqlA = "UNION SELECT processingType FROM ATLAS_PANDAARCH.jobsArchived WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-30)"
         sql2 = "SELECT lfn FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type=:type"
         # execute
         try:
@@ -5415,7 +5416,10 @@ class DBProxy:
                     for tmpTable in ['ATLAS_PANDA.jobsDefined4','ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsArchived4']:
                         varMap = {}
                         varMap[':PandaID'] = pandaID
-                        self.cur.execute((sqlL % tmpTable)+comment, varMap)
+                        if tmpTable == 'ATLAS_PANDA.jobsArchived4':
+                            self.cur.execute((sqlL % tmpTable)+sqlA+comment, varMap)
+                        else:
+                            self.cur.execute((sqlL % tmpTable)+comment, varMap)                            
                         resP = self.cur.fetchone()
                         if resP != None:
                             processingType = resP[0]

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed queryLastFilesInDataset for the fileTable change
   * remove deleting datasets from the Datasets table
   * sending error log to the logger when TA cannot find dataset in DQ2
   * sending fsize and checksum to the pilot
