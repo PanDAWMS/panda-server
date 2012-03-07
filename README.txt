@@ -1,6 +1,11 @@
 Release Note
 
 * current
+  * added Cassandra file cache
+  * added TAG support in EventPicker 
+  * added countGuidsClient
+  * using SCRIPT_NAME in panda.py
+  * removed _shadow creation in ReBroker
   * fixed queryLastFilesInDataset for the fileTable change
   * remove deleting datasets from the Datasets table
   * sending error log to the logger when TA cannot find dataset in DQ2

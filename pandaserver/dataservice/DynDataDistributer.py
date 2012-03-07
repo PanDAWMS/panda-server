@@ -67,6 +67,9 @@ class DynDataDistributer:
         self.lastMessage = ''
         self.cachedSizeMap = {}
         self.shareMoUForT2 = None
+        self.mapTAGandParentGUIDs = {}
+        self.tagParentInfo = {}
+        self.parentLfnToTagMap = {}
 
 
     # main
@@ -1281,6 +1284,153 @@ class DynDataDistributer:
         return True,allLocations,allFiles
         
 
+    # get mapping between TAG and parent GUIDs
+    def getMapTAGandParentGUIDs(self,dsName,tagQuery,streamRef):
+        # remove _tidXYZ
+        dsNameForLookUp = re.sub('_tid\d+(_\d+)*$','',dsName)
+        # reuse
+        if self.mapTAGandParentGUIDs.has_key(dsNameForLookUp):
+            return self.mapTAGandParentGUIDs[dsNameForLookUp]
+        # set
+        from countGuidsClient import countGuidsClient
+        tagIF = countGuidsClient()
+        tagResults = tagIF.countGuids(dsNameForLookUp,tagQuery,streamRef+',StreamTAG_ref')
+        if tagResults == None:
+            errStr = ''    
+            for tmpLine in tagIF.output:
+                if tmpLine == '\n':
+                    continue
+                errStr += tmpLine
+            self.putLog(errStr,type='error')
+            errStr2  = "invalid return from Event Lookup service. "
+            if "No collection in the catalog matches the dataset name" in errStr:
+                errStr2 += "Note that only merged TAG is uploaded to the TAG DB, "
+                errStr2 += "so you need to use merged TAG datasets (or container) for inDS. "
+                errStr2 += "If this is already the case please contact atlas-event-metadata@cern.ch"            
+            self.putLog(errStr2,type='error')
+            return None
+        # empty
+        if not tagResults[0]:
+            errStr = "No GUIDs found for %s" % dsName
+            self.putLog(errStr,type='error')
+            return None
+        # collect
+        retMap = {}
+        for guidCount,guids in tagResults[1]:
+            self.putLog('%s %s' % (guidCount,guids))
+            parentGUID,tagGUID = guids
+            # append TAG GUID
+            if not retMap.has_key(tagGUID):
+                retMap[tagGUID] = {}
+            # append parent GUID and the number of selected events
+            if retMap[tagGUID].has_key(parentGUID):
+                errStr = "GUIDs=%s is duplicated" % parentGUID
+                self.putLog(errStr,type='error')
+                return None
+            retMap[tagGUID][parentGUID] = long(guidCount)
+        # keep to avoid redundant lookup    
+        self.mapTAGandParentGUIDs[dsNameForLookUp] = retMap
+        # return
+        return retMap
+
+
+    # get TAG files and parent DS/files using TAG query
+    def getTagParentInfoUsingTagQuery(self,tagDsList,tagQuery,streamRef):
+        # return code for failure
+        failedRet = False,{},[]
+        allDatasets  = []
+        allFiles     = []
+        allLocations = {}
+        # set empty if Query is undefined
+        if tagQuery == False:
+            tagQuery = ''
+        # loop over all tags
+        self.putLog('getting parent dataset names and LFNs from TAG DB using EventSelector.Query="%s"' % tagQuery)
+        for tagDS in tagDsList:
+            if tagDS.endswith('/'):
+                # get elements in container
+                tmpStat,elementMap = self.getListDatasetReplicasInContainer(tagDS)
+            else:
+                tmpStat,elementMap = self.getListDatasetReplicas(tagDS)
+            # loop over all elemets
+            for dsName in elementMap.keys():
+                self.putLog("DS=%s Query=%s Ref:%s" % (dsName,tagQuery,streamRef))
+                guidMap = self.getMapTAGandParentGUIDs(dsName,tagQuery,streamRef)
+                # failed
+                if guidMap == None:
+                    self.putLog("failed to get mappping between TAG and parent GUIDs",type='error')
+                    return failedRet
+                # convert TAG GUIDs to LFNs
+                tmpTagRet,tmpTagDsMap = self.listDatasetsByGUIDs(guidMap.keys(),[])
+                # failed
+                if not tmpTagRet:
+                    self.putLog("failed to convert GUIDs to datasets",type='error')
+                    return failedRet
+                # empty
+                if tmpTagDsMap == {}:
+                    self.putLog("there is no dataset for DS=%s Query=%s Ref:%s" % (dsName,tagQuery,streamRef),type='error')
+                    return failedRet
+                # convert parent GUIDs for each TAG file
+                for tagGUID in guidMap.keys():
+                    # not found
+                    if not tmpTagDsMap.has_key(tagGUID):
+                        errStr = 'TAG GUID=%s not found in DQ2' % tagGUID
+                        self.putLog(errStr,type='error')
+                        return failedRet
+                    # get TAG file info
+                    tagElementDS = tmpTagDsMap[tagGUID]
+                    tmpFileRet,tmpTagFileInfo = self.getFileFromDataset(tmpTagDsMap[tagGUID],tagGUID)
+                    # failed
+                    if not tmpFileRet:
+                        self.putLog("failed to get fileinfo for GUID:%s DS:%s" % (tagGUID,tmpTagDsMap[tagGUID]),type='error')
+                        return failedRet
+                    # convert parent GUIDs to DS/LFNs
+                    tmpParentRet,tmpParentDsMap = self.listDatasetsByGUIDs(guidMap[tagGUID].keys(),[])
+                    # failed
+                    if not tmpParentRet:
+                        self.putLog("failed to convert GUIDs:%s to parent datasets" % str(guidMap[tagGUID].keys()),type='error')
+                        return failedRet
+                    # empty
+                    if tmpParentDsMap == {}:
+                        self.putLog("there is no parent dataset for GUIDs:%s" % str(guidMap[tagGUID].keys()),type='error')
+                        return failedRet
+                    # loop over all parent GUIDs
+                    for parentGUID in guidMap[tagGUID].keys():
+                        # not found
+                        if not tmpParentDsMap.has_key(parentGUID):
+                            errStr = '%s GUID=%s not found in DQ2' % (re.sub('_ref$','',streamRef),parentGUID)
+                            self.putLog(errStr,type='error')
+                            return failedRet
+                        # get parent file info
+                        tmpParentDS = tmpParentDsMap[parentGUID]
+                        tmpFileRet,tmpParentFileInfo = self.getFileFromDataset(tmpParentDS,parentGUID)
+                        # failed
+                        if not tmpFileRet:
+                            self.putLog("failed to get parent fileinfo for GUID:%s DS:%s" % (parentGUID,tmpParentDS),
+                                        type='error')
+                            return failedRet
+                        # collect files
+                        allFiles.append(tmpParentFileInfo)
+                        # get location
+                        if not tmpParentDS in allDatasets:
+                            allDatasets.append(tmpParentDS)
+                            # get location
+                            statRep,replicaMap = self.getListDatasetReplicas(tmpParentDS)
+                            # failed
+                            if not statRep:
+                                self.putLog("failed to get locations for DS:%s" % tmpParentDS,type='error')
+                                return failedRet
+                            # collect locations
+                            tmpLocationList = []
+                            for tmpLocation in replicaMap.keys():
+                                if not tmpLocation in tmpLocationList:
+                                    tmpLocationList.append(tmpLocation)
+                            allLocations[tmpParentDS] = tmpLocationList
+        # return
+        self.putLog('converted to %s, %s, %s' % (str(allDatasets),str(allLocations),str(allFiles)))
+        return True,allLocations,allFiles
+
+        
     # put log
     def putLog(self,msg,type='debug',sendLog=False,actionTag='',tagsMap={}):
         tmpMsg = self.token+' '+msg

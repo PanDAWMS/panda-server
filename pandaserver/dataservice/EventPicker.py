@@ -62,6 +62,9 @@ class EventPicker:
             eventPickDS         = []
             eventPickAmiTag     = ''
             inputFileList       = []
+            tagDsList           = []
+            tagQuery            = ''
+            tagStreamRef        = ''
             # read evp file
             for tmpLine in self.evpFile:
                 tmpMatch = re.search('^([^=]+)=(.+)$',tmpLine)
@@ -109,15 +112,34 @@ class EventPicker:
                         inputFileList.remove('')
                     except:
                         pass
-            # convert run/event list to dataset/file list
-            tmpRet,locationMap,allFiles = self.pd2p.convertEvtRunToDatasets(runEvtList,
-                                                                            eventPickDataType,
-                                                                            eventPickStreamName,
-                                                                            eventPickDS,
-                                                                            eventPickAmiTag)
-            if not tmpRet:
-                self.endWithError('Failed to convert the run/event list to a dataset/file list')
-                return False
+                elif tmpItems[0] == 'tagDS':
+                    # TAG dataset
+                    tagDsList = tmpItems[1].split(',')
+                elif tmpItems[0] == 'tagQuery':
+                    # query for TAG
+                    tagQuery = tmpItems[1]
+                elif tmpItems[0] == 'tagStreamRef':
+                    # StreamRef for TAG
+                    tagStreamRef = tmpItems[1]
+                    if not tagStreamRef.endswith('_ref'):
+                        tagStreamRef += '_ref'
+            # convert 
+            if tagDsList == [] or tagQuery == '':
+                # convert run/event list to dataset/file list
+                tmpRet,locationMap,allFiles = self.pd2p.convertEvtRunToDatasets(runEvtList,
+                                                                                eventPickDataType,
+                                                                                eventPickStreamName,
+                                                                                eventPickDS,
+                                                                                eventPickAmiTag)
+                if not tmpRet:
+                    self.endWithError('Failed to convert the run/event list to a dataset/file list')
+                    return False
+            else:
+                # get parent dataset/files with TAG
+                tmpRet,locationMap,allFiles = self.pd2p.getTagParentInfoUsingTagQuery(tagDsList,tagQuery,tagStreamRef) 
+                if not tmpRet:
+                    self.endWithError('Failed to get parent dataset/file list with TAG')
+                    return False
             # use only files in the list
             if inputFileList != []:
                 tmpAllFiles = []

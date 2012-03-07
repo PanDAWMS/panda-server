@@ -91,6 +91,8 @@ Listen 25080
 RewriteEngine on
 RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK)
 RewriteRule .* - [F]
+# use Cassandra for cache
+RewriteRule ^/cscache/(.*)$ /server/panda/getFile?fileName=$1 [PT,L]
 
 <Directory "@@install_purelib@@/pandaserver/server">
 
@@ -125,6 +127,8 @@ Listen 25443
 RewriteEngine on
 RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK)
 RewriteRule .* - [F]
+# use Cassandra for cache
+RewriteRule ^/cscache/(.*)$ /server/panda/getFile?fileName=$1 [PT,L]
 
 # CERN security recommendation to only allow the seven strongest ssl ciphers
 SSLProtocol  -all +TLSv1 +SSLv3

@@ -227,3 +227,22 @@ nrun_hosts = 3
 
 # serial number
 nrun_snum = FIXME
+
+
+
+##########################
+#
+# Cassandra
+#
+
+# use Cassandra for PandaCache
+cacheUseCassandra = False
+
+# ignore Cassandra error
+cacheIgnoreCassandraError = True
+
+# keyspace for PandaCache
+cacheKeySpace = PandaCacheKeySpace
+
+# column family for files
+cacheFileTable = FileTable

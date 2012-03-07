@@ -35,9 +35,9 @@ if panda_config.nDBConnection != 0:
 allowedMethods = []
 
 from taskbuffer.Utils            import isAlive,putFile,deleteFile,getServer,updateLog,fetchLog,\
-     touchFile,getVomsAttr,putEventPickingRequest,getAttr
+     touchFile,getVomsAttr,putEventPickingRequest,getAttr,getFile
 allowedMethods += ['isAlive','putFile','deleteFile','getServer','updateLog','fetchLog',
-                   'touchFile','getVomsAttr','putEventPickingRequest','getAttr']
+                   'touchFile','getVomsAttr','putEventPickingRequest','getAttr','getFile']
 
 from dataservice.DataService     import datasetCompleted,updateFileStatusInDisp
 allowedMethods += ['datasetCompleted','updateFileStatusInDisp']
@@ -67,6 +67,10 @@ allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reass
                    'getActiveDatasets','setCloudTaskByUser','getSerialNumberForGroupJob','getCachePrefixes',
                    'checkMergeGenerationStatus','sendLogInfo','getNumPilots','retryFailedJobsInActive',
                    'getJobStatisticsWithLabel','getPandaIDwithJobExeID','getJobStatisticsPerUserSite']
+
+# import error
+import taskbuffer.ErrorCode
+
 
 # FastCGI/WSGI entry
 if panda_config.useFastCGI or panda_config.useWSGI:
@@ -101,8 +105,8 @@ if panda_config.useFastCGI or panda_config.useWSGI:
     def application(environ, start_response):
         # get method name
         methodName = ''
-        if environ.has_key('SCRIPT_URL'):
-            methodName = environ['SCRIPT_URL'].split('/')[-1]
+        if environ.has_key('SCRIPT_NAME'):
+            methodName = environ['SCRIPT_NAME'].split('/')[-1]
         if panda_config.entryVerbose:
             _logger.debug("PID=%s %s in" % (os.getpid(),methodName))
         # check method name    
@@ -156,8 +160,15 @@ if panda_config.useFastCGI or panda_config.useWSGI:
         if panda_config.entryVerbose:
             _logger.debug("PID=%s %s out" % (os.getpid(),methodName))
         # return
-        start_response('200 OK', [('Content-Type', 'text/plain')])
-        return [exeRes]
+        if exeRes == taskbuffer.ErrorCode.EC_NotFound:
+            start_response('404 Not Found', [('Content-Type', 'text/plain')])
+            return ['not found']
+        elif isinstance(exeRes,taskbuffer.ErrorCode.EC_Redirect):
+            start_response('302 Redirect', [('Location', exeRes.url)])
+            return ['redirect']
+        else:                
+            start_response('200 OK', [('Content-Type', 'text/plain')])
+            return [exeRes]
 
     # start server
     if panda_config.useFastCGI:

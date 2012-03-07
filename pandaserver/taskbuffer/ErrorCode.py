@@ -27,4 +27,11 @@ EC_PilotRetried = 107
 # lost file (=dataservice.ErrorCode.EC_LostFile)
 EC_LostFile = 110
 
+# file not found
+class EC_NotFound:
+    pass
 
+# file relocated
+class EC_Redirect:
+    def __init__(self,url):
+        self.url = url

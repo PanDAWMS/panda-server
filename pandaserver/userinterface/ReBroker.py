@@ -559,13 +559,15 @@ class ReBroker (threading.Thread):
                     newDS = tmpDS + '_rev%s' % self.revNum
                 else:
                     newDS = re.sub('_rev(\d+)$','_rev%s' % self.revNum,tmpDS)
-                # add shadow    
+                # add shadow
+                """
                 if shadowDsName == None and tmpFile.type == 'log':
                     shadowDsName = "%s_shadow" % newDS
                     status = self.registerNewDataset(shadowDsName)
                     if not status:
                         _logger.debug("%s prepareDS failed for shadow" % self.token)
                         return False
+                """        
                 # add datasets                                                    
                 if not tmpDS in self.newDatasetMap:
                     # register
