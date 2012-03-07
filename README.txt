@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added getPledgeResourceRatio to TB
   * added Cassandra file cache
   * added TAG support in EventPicker 
   * added countGuidsClient

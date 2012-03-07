@@ -795,6 +795,19 @@ class TaskBuffer:
         return ret
 
 
+    # get beyond pledge resource ratio
+    # ! this method is not thread-safe
+    def getPledgeResourceRatio(self):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get
+        ret = proxy.getPledgeResourceRatio()
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return proxy.beyondPledgeRatio
+
+        
     # get the number of waiting jobs with a dataset
     def getNumWaitingJobsForPD2P(self,datasetName):
         # get DBproxy
