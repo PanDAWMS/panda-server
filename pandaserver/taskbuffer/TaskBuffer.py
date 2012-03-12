@@ -1131,6 +1131,30 @@ class TaskBuffer:
         return retList
 
 
+    # get list of dis dataset to get input files in shadow
+    def getDisInUseForAnal(self,outDataset):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # query dis
+        retList = proxy.getDisInUseForAnal(outDataset)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return retList
+
+
+    # get input LFNs currently in use for analysis with shadow dis
+    def getLFNsInUseForAnal(self,inputDisList):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # query dis
+        retList = proxy.getLFNsInUseForAnal(inputDisList)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return retList
+
+
     # update input files and return corresponding PandaIDs
     def updateInFilesReturnPandaIDs(self,dataset,status,fileGUID=''):
         # get DBproxy

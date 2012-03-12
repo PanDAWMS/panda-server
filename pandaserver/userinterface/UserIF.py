@@ -431,6 +431,24 @@ class UserIF:
         return pickle.dumps(ret)
 
 
+    # get list of dis dataset to get input files in shadow
+    def getDisInUseForAnal(self,outDataset):
+        # get files
+        ret = self.taskBuffer.getDisInUseForAnal(outDataset)
+        # serialize 
+        return pickle.dumps(ret)
+
+
+    # get input LFNs currently in use for analysis with shadow dis
+    def getLFNsInUseForAnal(self,inputDisListStr):
+        # deserialize IDs
+        inputDisList = WrappedPickle.loads(inputDisListStr)
+        # get files
+        ret = self.taskBuffer.getLFNsInUseForAnal(inputDisList)
+        # serialize 
+        return pickle.dumps(ret)
+
+
     # kill jobs
     def killJobs(self,idsStr,user,host,code,prodManager,useMailAsID,fqans):
         # deserialize IDs
@@ -1012,6 +1030,16 @@ def queryLastFilesInDataset(req,datasets):
 # get input files currently in used for analysis
 def getFilesInUseForAnal(req,outDataset):
     return userIF.getFilesInUseForAnal(outDataset)
+
+
+# get list of dis dataset to get input files in shadow
+def getDisInUseForAnal(req,outDataset):
+    return userIF.getDisInUseForAnal(outDataset)
+
+
+# get input LFNs currently in use for analysis with shadow dis
+def getLFNsInUseForAnal(req,inputDisList):
+    return userIF.getLFNsInUseForAnal(inputDisList)
 
 
 # kill jobs

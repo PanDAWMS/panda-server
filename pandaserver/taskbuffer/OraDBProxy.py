@@ -5116,6 +5116,126 @@ class DBProxy:
                 return []
 
 
+    # get list of dis dataset to get input files in shadow
+    def getDisInUseForAnal(self,outDataset):
+        comment = ' /* DBProxy.getDisInUseForAnal */'        
+        sqlSub  = "SELECT /*+ index(tab FILESTABLE4_DATASET_IDX) */ destinationDBlock,PandaID FROM ATLAS_PANDA.filesTable4 tab "
+        sqlSub += "WHERE dataset=:dataset AND type IN (:type1,:type2) AND modificationTime<=CURRENT_DATE GROUP BY destinationDBlock,PandaID"
+        sqlPan  = "SELECT jobStatus FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID AND modificationTime<=CURRENT_DATE "
+        sqlPan += "UNION "
+        sqlPan += "SELECT jobStatus FROM ATLAS_PANDAARCH.jobsArchived WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-30)"        
+        sqlDis  = "SELECT distinct dispatchDBlock FROM ATLAS_PANDA.filesTable4 "
+        sqlDis += "WHERE PandaID=:PandaID AND type=:type AND dispatchDBlock IS NOT NULL AND modificationTime <= CURRENT_DATE"
+        inputDisList = []
+        try:
+            # start transaction
+            self.conn.begin()
+            # get sub datasets
+            varMap = {}
+            varMap[':dataset'] = outDataset
+            varMap[':type1'] = 'output'
+            varMap[':type2'] = 'log'                
+            _logger.debug("getFilesInUseForAnal : %s %s" % (sqlSub,str(varMap)))
+            self.cur.arraysize = 100000
+            retS = self.cur.execute(sqlSub+comment, varMap)
+            res = self.cur.fetchall()
+            subDSpandaIDmap = {}
+            checkedPandaIDs = {}
+            for subDataset,pandaID in res:
+                if not checkedPandaIDs.has_key(pandaID):
+                    # check status
+                    varMap = {}
+                    varMap[':PandaID'] = pandaID
+                    retP = self.cur.execute(sqlPan+comment, varMap)
+                    resP = self.cur.fetchall()
+                    # append
+                    if len(resP) != 0:
+                        checkedPandaIDs[pandaID] = resP[0][0]
+                    else:
+                        checkedPandaIDs[pandaID] = 'running'
+                # reuse failed files if jobs are in Archived since they cannot change back to active
+                if checkedPandaIDs[pandaID] in ['failed','cancelled']:
+                    continue
+                # collect PandaIDs
+                if not subDSpandaIDmap.has_key(subDataset):
+                    subDSpandaIDmap[subDataset] = []
+                subDSpandaIDmap[subDataset].append(pandaID)
+            # loop over all sub datasets
+            for subDataset,activePandaIDs in subDSpandaIDmap.iteritems():
+                resDisList = []                    
+                # get dispatchDBlocks
+                pandaID = activePandaIDs[0]
+                varMap = {}
+                varMap[':PandaID'] = pandaID
+                varMap[':type'] = 'input'                        
+                _logger.debug("getFilesInUseForAnal : %s %s" % (sqlDis,str(varMap)))
+                self.cur.arraysize = 10000
+                retD = self.cur.execute(sqlDis+comment, varMap)
+                resD = self.cur.fetchall()
+                # get shadow dis
+                for disDataset, in resD:
+                    # use new style only
+                    if not disDataset.startswith('user_disp.'):
+                        continue
+                    if not disDataset in resDisList:
+                        resDisList.append(disDataset)
+                # append
+                inputDisList.append((resDisList,activePandaIDs))
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            _logger.debug("getDisInUseForAnal : %s" % len(inputDisList))
+            return inputDisList
+        except:
+            # roll back
+            self._rollback()
+            errtype,errvalue = sys.exc_info()[:2]
+            _logger.error("getDisInUseForAnal(%s) : %s %s" % (outDataset,errtype,errvalue))
+            return None
+
+
+    # get input LFNs currently in use for analysis with shadow dis
+    def getLFNsInUseForAnal(self,inputDisList):
+        comment = ' /* DBProxy.getLFNsInUseForAnal */'        
+        sqlLfn  = "SELECT /*+ index(tab FILESTABLE4_DISPDBLOCK_IDX) */ lfn,PandaID FROM ATLAS_PANDA.filesTable4 tab "
+        sqlLfn += "WHERE dispatchDBlock=:dispatchDBlock AND type=:type "
+        sqlLfn += "AND (destinationDBlockToken IS NULL OR destinationDBlockToken<>:noshadow) AND modificationTime<=CURRENT_DATE"
+        inputFilesList = []
+        try:
+            # loop over all shadow dis datasets
+            for disDatasetList,activePandaIDs in inputDisList:
+                for disDataset in disDatasetList:
+                    # use new style only
+                    if not disDataset.startswith('user_disp.'):
+                        continue
+                    # start transaction
+                    self.conn.begin()
+                    varMap = {}
+                    varMap[':dispatchDBlock'] = disDataset
+                    varMap[':type'] = 'input'
+                    varMap[':noshadow'] = 'noshadow'
+                    _logger.debug("getLFNsInUseForAnal : %s %s" % (sqlLfn,str(varMap)))
+                    self.cur.arraysize = 100000
+                    retL = self.cur.execute(sqlLfn+comment, varMap)
+                    resL = self.cur.fetchall()
+                    # append
+                    for lfn,filePandaID in resL:
+                        # skip files used by archived failed or cancelled jobs
+                        if filePandaID in activePandaIDs and not lfn in inputFilesList:
+                            inputFilesList.append(lfn)
+                    # commit
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+            _logger.debug("getLFNsInUseForAnal : %s" % len(inputFilesList))
+            return inputFilesList
+        except:
+            # roll back
+            self._rollback()
+            errtype,errvalue = sys.exc_info()[:2]
+            _logger.error("getLFNsInUseForAnal(%s) : %s %s" % (str(inputDisList),errtype,errvalue))
+            return None
+
+
     # update input files and return corresponding PandaIDs
     def updateInFilesReturnPandaIDs(self,dataset,status,fileGUID=''):
         comment = ' /* DBProxy.updateInFilesReturnPandaIDs */'                                
