@@ -2598,6 +2598,15 @@ class DBProxy:
                     if distinguishedName == '':
                         distinguishedName = dn
                     return distinguishedName
+                # check group prod role
+                validGroupProdRole = False
+                if res[1] in ['managed','test'] and workingGroup != '':
+                    for tmpGroupProdRole in wgProdRole:
+                        if tmpGroupProdRole == '':
+                            continue
+                        if re.search('(^|_)'+tmpGroupProdRole+'$',workingGroup,re.I) != None:
+                            validGroupProdRole = True
+                            break
                 # prevent prod proxy from killing analysis jobs
                 userProdUserID,userProdSourceLabel,userJobDefinitionID,userJobsetID,workingGroup = res
                 if prodManager:
@@ -2605,7 +2614,7 @@ class DBProxy:
                         _logger.debug("ignore killJob -> prod proxy tried to kill analysis job type=%s" % res[1])
                         break
                     _logger.debug("killJob : %s using prod role" % pandaID)
-                elif res[1] in ['managed','test'] and workingGroup in wgProdRole:
+                elif validGroupProdRole:
                     # WGs with prod role
                     _logger.debug("killJob : %s using group prod role for workingGroup=%s" % (pandaID,workingGroup))
                     pass

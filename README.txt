@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed killing with group prod role not to be case-sensitive
   * added getDis/LFNsInUseForAnal
   * added getPledgeResourceRatio to TB
   * added Cassandra file cache
