@@ -7,6 +7,7 @@ import re
 import sys
 import zlib
 import uuid
+import time
 import socket
 import struct
 import datetime
@@ -94,7 +95,7 @@ def putFile(req,file):
             os.utime(fileFullPath,None)
             # send error message
             errStr = "ERROR : Cannot overwrite file"
-            _logger.error(errStr)
+            _logger.debug('putFile : cannot overwrite file %s' % file.filename)  
             _logger.debug("putFile : end")
             return errStr
         # write
@@ -207,7 +208,19 @@ def putFile(req,file):
                         tmpFileKeyName += '_%s' % splitIdx
                         tmpAttMap['size']   = 0
                         tmpAttMap['nSplit'] = 0
-                    filefamily.insert(tmpFileKeyName,tmpAttMap)
+                    # insert with retry
+                    nTry = 3
+                    for iTry in range(nTry):
+                        try:    
+                            filefamily.insert(tmpFileKeyName,tmpAttMap)
+                        except pycassa.MaximumRetryException,tmpE:
+                            if iTry+1 < nTry:
+                                _logger.debug("putFile : %s sleep %s/%s" % (file.filename,iTry,nTry))
+                                time.sleep(30)
+                            else:
+                                raise pycassa.MaximumRetryException,tmpE.value
+                        else:
+                            break
                 # set time
                 touchFileCassa(filefamily,fileKeyName,timeNow)
         except:
