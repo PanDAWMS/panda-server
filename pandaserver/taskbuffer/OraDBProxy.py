@@ -2598,6 +2598,8 @@ class DBProxy:
                     if distinguishedName == '':
                         distinguishedName = dn
                     return distinguishedName
+                # prevent prod proxy from killing analysis jobs
+                userProdUserID,userProdSourceLabel,userJobDefinitionID,userJobsetID,workingGroup = res
                 # check group prod role
                 validGroupProdRole = False
                 if res[1] in ['managed','test'] and workingGroup != '':
@@ -2607,8 +2609,6 @@ class DBProxy:
                         if re.search('(^|_)'+tmpGroupProdRole+'$',workingGroup,re.I) != None:
                             validGroupProdRole = True
                             break
-                # prevent prod proxy from killing analysis jobs
-                userProdUserID,userProdSourceLabel,userJobDefinitionID,userJobsetID,workingGroup = res
                 if prodManager:
                     if res[1] in ['user','panda'] and (not code in ['2','4','7','8','9']):
                         _logger.debug("ignore killJob -> prod proxy tried to kill analysis job type=%s" % res[1])
