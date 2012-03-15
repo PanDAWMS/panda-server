@@ -1,7 +1,7 @@
 Release Note
 
 * current
-  * added retry to Cassandra insert
+  * added retry to Cassandra operations
   * changed killing with group prod role not to be case-sensitive
   * added getDis/LFNsInUseForAnal
   * added getPledgeResourceRatio to TB

@@ -25,6 +25,21 @@ def isAlive(req):
     return "alive=yes"
 
 
+# insert with rety
+def insertWithRetryCassa(familyName,keyName,valMap,msgStr,nTry=3):
+    for iTry in range(nTry):
+        try:    
+            familyName.insert(keyName,valMap)
+        except pycassa.MaximumRetryException,tmpE:
+            if iTry+1 < nTry:
+                _logger.debug("%s sleep %s/%s" % (msgStr,iTry,nTry))
+                time.sleep(30)
+            else:
+                raise pycassa.MaximumRetryException,tmpE.value
+        else:
+            break
+    
+
 # touch in Cassandra
 def touchFileCassa(filefamily,fileKeyName,timeNow):
     try:
@@ -39,12 +54,15 @@ def touchFileCassa(filefamily,fileKeyName,timeNow):
             tmpFileKeyName = fileKeyName
             if splitIdx != 0:
                 tmpFileKeyName += '_%s' % splitIdx
-            filefamily.insert(tmpFileKeyName,{'year'   : timeNow.year,
-                                              'month'  : timeNow.month,
-                                              'day'    : timeNow.day,
-                                              'hour'   : timeNow.hour,
-                                              'minute' : timeNow.minute,
-                                              'second' : timeNow.second})
+            insertWithRetryCassa(filefamily,tmpFileKeyName,
+                                 {'year'   : timeNow.year,
+                                  'month'  : timeNow.month,
+                                  'day'    : timeNow.day,
+                                  'hour'   : timeNow.hour,
+                                  'minute' : timeNow.minute,
+                                  'second' : timeNow.second},
+                                 'touchFileCassa : %s' % fileKeyName
+                                 )
         return True
     except:
         errType,errValue = sys.exc_info()[:2]
@@ -166,11 +184,13 @@ def putFile(req,file):
                         if touchFlag:
                             # make alias
                             _logger.debug('Making alias %s->%s' % (fileKeyName,oldFileKeyName))
-                            filefamily.insert(fileKeyName,{'alias':oldFileKeyName,
-                                                           'creationTime':creationTime,
-                                                           'nSplit':0,
-                                                           }
-                                              )
+                            insertWithRetryCassa(filefamily,fileKeyName,
+                                                 {'alias':oldFileKeyName,
+                                                  'creationTime':creationTime,
+                                                  'nSplit':0,
+                                                  },
+                                                 'putFile : make alias for %s' % file.filename 
+                                                 )
                             # set time
                             touchFileCassa(filefamily,fileKeyName,timeNow)
                             _logger.debug("putFile : end")
@@ -209,18 +229,8 @@ def putFile(req,file):
                         tmpAttMap['size']   = 0
                         tmpAttMap['nSplit'] = 0
                     # insert with retry
-                    nTry = 3
-                    for iTry in range(nTry):
-                        try:    
-                            filefamily.insert(tmpFileKeyName,tmpAttMap)
-                        except pycassa.MaximumRetryException,tmpE:
-                            if iTry+1 < nTry:
-                                _logger.debug("putFile : %s sleep %s/%s" % (file.filename,iTry,nTry))
-                                time.sleep(30)
-                            else:
-                                raise pycassa.MaximumRetryException,tmpE.value
-                        else:
-                            break
+                    insertWithRetryCassa(filefamily,tmpFileKeyName,tmpAttMap,
+                                         'putFile : insert %s' % file.filename)
                 # set time
                 touchFileCassa(filefamily,fileKeyName,timeNow)
         except:
@@ -280,7 +290,8 @@ def getFile(req,fileName):
                 fo.write(fileInfo['file'])
         fo.close()
         # set cache name in DB
-        filefamily.insert(realFileName,{hostKey:fileRelPath})
+        insertWithRetryCassa(filefamily,realFileName,{hostKey:fileRelPath},
+                             'getFile : set cache for %s' % fileName)
         _logger.debug("getFile : %s end" % fileName)
         # return
         return ErrorCode.EC_Redirect('/cache%s' % fileRelPath)
