@@ -921,7 +921,41 @@ class TaskBuffer:
         # return
         return retJobs
 
-    
+
+    # get script for offline running 
+    def getScriptOfflineRunning(self,pandaID):
+        try:
+            # get job
+            tmpJobs = self.getFullJobStatus([pandaID])
+            if tmpJobs == [] or tmpJobs[0] == None:
+                return "ERROR: Cannot get PandaID=%s in DB" % pandaID
+            tmpJob = tmpJobs[0]
+            # release and trf
+            tmpRels = tmpJob.homepackage.split("\n")
+            tmpPars = tmpJob.jobParameters.split("\n")
+            tmpTrfs = tmpJob.transformation.split("\n")
+            if not (len(tmpRels) == len(tmpPars) == len(tmpTrfs)):
+                return "ERROR: The number of releases or parameters or trfs is inconsitent with others"
+            # construct script
+            scrStr = "#retrieve inputs\n\n"
+            for tmpFile in tmpJob.Files:
+                # input
+                if tmpFile.type=='input':
+                    scrStr += "dq2-get --files %s %s\n" % (tmpFile.lfn,tmpFile.dataset)
+                    scrStr += "mv %s*/%s ./%s\n" % (tmpFile.dataset.rstrip("/"),tmpFile.lfn,tmpFile.lfn)
+            scrStr += "\n#transform commands\n\n"        
+            for tmpIdx,tmpRel in enumerate(tmpRels):
+                # asetup
+                scrStr += "asetup %s,%s\n" % tuple(tmpRel.split("/"))
+                # run trf
+                scrStr += "%s %s\n\n" % (tmpTrfs[tmpIdx],tmpPars[tmpIdx])
+            return scrStr
+        except:
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("getScriptOfflineRunning : %s %s" % (errType,errValue))
+            return "ERROR: ServerError with getScriptOfflineRunning"
+                                
+            
     # kill jobs
     def killJobs(self,ids,user,code,prodManager,wgProdRole=[]):
         # get DBproxy

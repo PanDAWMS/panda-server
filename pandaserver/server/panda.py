@@ -56,7 +56,7 @@ from userinterface.UserIF        import submitJobs,getJobStatus,queryPandaIDs,ki
      getActiveDatasets,setCloudTaskByUser,getSerialNumberForGroupJob,getCachePrefixes,\
      checkMergeGenerationStatus,sendLogInfo,getNumPilots,retryFailedJobsInActive,\
      getJobStatisticsWithLabel,getPandaIDwithJobExeID,getJobStatisticsPerUserSite,\
-     getDisInUseForAnal,getLFNsInUseForAnal
+     getDisInUseForAnal,getLFNsInUseForAnal,getScriptOfflineRunning
 allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reassignJobs',
                    'getJobStatistics','getJobStatisticsPerSite','resubmitJobs','queryLastFilesInDataset','getPandaIDsSite',
                    'getJobsToBeUpdated','updateProdDBUpdateTimes','runTaskAssignment','getAssigningTask','getSiteSpecs',
@@ -68,7 +68,7 @@ allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reass
                    'getActiveDatasets','setCloudTaskByUser','getSerialNumberForGroupJob','getCachePrefixes',
                    'checkMergeGenerationStatus','sendLogInfo','getNumPilots','retryFailedJobsInActive',
                    'getJobStatisticsWithLabel','getPandaIDwithJobExeID','getJobStatisticsPerUserSite',
-                   'getDisInUseForAnal','getLFNsInUseForAnal']
+                   'getDisInUseForAnal','getLFNsInUseForAnal','getScriptOfflineRunning']
 
 # import error
 import taskbuffer.ErrorCode

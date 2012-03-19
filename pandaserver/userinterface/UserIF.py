@@ -665,6 +665,14 @@ class UserIF:
         return ret
 
 
+    # get script for offline running
+    def getScriptOfflineRunning(self,pandaID):
+        # register
+        ret = self.taskBuffer.getScriptOfflineRunning(pandaID)
+        # return
+        return ret
+
+
     # register proxy key
     def registerProxyKey(self,params):
         # register
@@ -1208,6 +1216,11 @@ def getSerialNumberForGroupJob(req):
     if dn == '':
         return "ERROR: could not get DN"
     return userIF.getSerialNumberForGroupJob(dn)
+
+
+# get script for offline running
+def getScriptOfflineRunning(req,pandaID):
+    return userIF.getScriptOfflineRunning(pandaID)
 
 
 # register proxy key
