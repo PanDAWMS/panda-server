@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * disabled sub for gangarobot-pft-trial and test jobs
   * added retry to Cassandra operations
   * changed killing with group prod role not to be case-sensitive
   * added getDis/LFNsInUseForAnal

@@ -580,15 +580,21 @@ class Adder (threading.Thread):
             return
         # add data to original dataset
         for destinationDBlock in idMap.keys():
-            match = re.findall('(.+)_sub\d+$',destinationDBlock)
-            if len(match):
+            match = re.search('^(.+)_sub\d+$',destinationDBlock)
+            if match != None:
                 # add files to top-level datasets
                 if not self.goToTransferring:
-                    origDBlock = match[0]
+                    origDBlock = match.group(1)
                     idMap[origDBlock] = idMap[destinationDBlock]
             # add files to top-level datasets only 
             if self.addToTopOnly:
                 del idMap[destinationDBlock]
+            # skip sub unless getting transferred
+            if match != None:
+                if not self.goToTransferring and idMap.has_key(destinationDBlock) and \
+                       (self.job.processingType in ['gangarobot-pft-trial'] or \
+                        self.job.prodSourceLabel in ['test']):
+                    del idMap[destinationDBlock]
         # print idMap
         _logger.debug("%s idMap = %s" % (self.jobID,idMap))
         # add data

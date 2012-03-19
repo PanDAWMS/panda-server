@@ -473,49 +473,7 @@ class Setupper (threading.Thread):
                             computingSite = file.destinationSE
                         # use DQ2
                         if (not self.pandaDDM) and (job.prodSourceLabel != 'ddm') and (job.destinationSE != 'local'):
-                            # register dataset
-                            time.sleep(1)
-                            # set hidden flag for _sub
-                            tmpHiddenFlag = False
-                            if name != originalName and re.search('_sub\d+$',name) != None:
-                                tmpHiddenFlag = True
-                            _logger.debug((self.timestamp,'registerNewDataset',name,[],[],[],[],
-                                           None,None,None,tmpHiddenFlag))
-                            atFailed = 0
-                            for iDDMTry in range(3):
-                                status,out = ddm.DQ2.main('registerNewDataset',name,[],[],[],[],
-                                                          None,None,None,tmpHiddenFlag)
-                                if status != 0 and out.find('DQDatasetExistsException') != -1:
-                                    atFailed = iDDMTry
-                                    break
-                                elif status != 0 or out.find("DQ2 internal server exception") != -1 \
-                                         or out.find("An error occurred on the central catalogs") != -1 \
-                                         or out.find("MySQL server has gone away") != -1:
-                                    _logger.debug("%s sleep %s for %s" % (self.timestamp,iDDMTry,name))
-                                    _logger.debug(status)
-                                    _logger.debug(out)
-                                    _logger.debug("-------------")                                                                
-                                    time.sleep(60)
-                                else:
-                                    break
-                            if status != 0 or out.find('Error') != -1:
-                                # unset vuidStr
-                                vuidStr = ""
-                                # ignore 'already exists' ERROR because original dataset may be registered by upstream.
-                                # atFailed > 0 is for the case in which the first attempt succeeded but report failure
-                                if (job.prodSourceLabel == 'panda' or (job.prodSourceLabel in ['ptest','rc_test'] and \
-                                                                       job.processingType in ['pathena','prun','gangarobot-rctest']) \
-                                    or name == originalName or atFailed > 0) and \
-                                       out.find('DQDatasetExistsException') != -1:
-                                    _logger.debug('%s ignored DQDatasetExistsException' % self.timestamp)
-                                else:
-                                    destError[dest] = "Setupper._setupDestination() could not register : %s" % name
-                                    _logger.error("%s %s" % (self.timestamp,out))
-                                    continue
-                            else:
-                                _logger.debug("%s %s" % (self.timestamp,out))                                
-                                vuidStr = "vuid = %s['vuid']" % out
-                            # conversion is needed for unknown sites
+                            # get src and dest DDM conversion is needed for unknown sites
                             if job.prodSourceLabel == 'user' and not self.siteMapper.siteSpecList.has_key(computingSite):
                                 # DQ2 ID was set by using --destSE for analysis job to transfer output
                                 tmpSrcDDM = self.siteMapper.getSite(job.computingSite).ddm
@@ -526,135 +484,186 @@ class Setupper (threading.Thread):
                                 tmpDstDDM = tmpSrcDDM
                             else:
                                 tmpDstDDM = self.siteMapper.getSite(file.destinationSE).ddm
-                            tmpTokenList = file.destinationDBlockToken.split(',')
-                            if name == originalName or tmpSrcDDM != tmpDstDDM or \
-                                   job.prodSourceLabel == 'panda' or (job.prodSourceLabel in ['ptest','rc_test'] and \
-                                                                      job.processingType in ['pathena','prun','gangarobot-rctest']) \
-                                   or len(tmpTokenList) > 1:
-                                time.sleep(1)
-                                # register location
-                                usingPRODDISK = False
-                                if job.prodSourceLabel == 'user' and not self.siteMapper.siteSpecList.has_key(computingSite):
-                                    dq2IDList = [self.siteMapper.getSite(job.computingSite).ddm]
-                                else:
-                                    if self.siteMapper.getSite(computingSite).cloud != job.cloud and \
-                                       re.search('_sub\d+$',name) != None and \
-                                       (not job.prodSourceLabel in ['user','panda']) and \
-                                       (not self.siteMapper.getSite(computingSite).ddm.endswith('PRODDISK')) and \
-                                       self.siteMapper.getSite(computingSite).setokens.has_key('ATLASPRODDISK'):
-                                        # T1 used as T2
-                                        dq2IDList = [self.siteMapper.getSite(computingSite).setokens['ATLASPRODDISK']]
-                                        usingPRODDISK = True
-                                    else:
-                                        dq2IDList = [self.siteMapper.getSite(computingSite).ddm]
-                                # use another location when token is set
-                                if (not usingPRODDISK) and (not file.destinationDBlockToken in ['NULL','']):
-                                    dq2IDList = []
-                                    for tmpToken in tmpTokenList:
-                                        # set default
-                                        dq2ID = self.siteMapper.getSite(computingSite).ddm
-                                        # convert token to DQ2ID
-                                        if self.siteMapper.getSite(computingSite).setokens.has_key(tmpToken):
-                                            dq2ID = self.siteMapper.getSite(computingSite).setokens[tmpToken]
-                                        # replace or append    
-                                        if len(tmpTokenList) <= 1 or name != originalName:
-                                            # use location consistent with token
-                                            dq2IDList = [dq2ID]
-                                            break
-                                        else:
-                                            # use multiple locations for _tid
-                                            if not dq2ID in dq2IDList:
-                                                dq2IDList.append(dq2ID)
-                                # loop over all locations
-                                repLifeTime = None
-                                if name != originalName and re.search('_sub\d+$',name) != None:
-                                    repLifeTime = "14 days"
-                                for dq2ID in dq2IDList:
-                                    _logger.debug((self.timestamp,'registerDatasetLocation',name,dq2ID,0,0,None,None,None,repLifeTime))
-                                    for iDDMTry in range(3):                            
-                                        status,out = ddm.DQ2.main('registerDatasetLocation',name,dq2ID,0,0,None,None,None,repLifeTime)
-                                        if status != 0 and out.find('DQLocationExistsException') != -1:
-                                            break
-                                        elif status != 0 or out.find("DQ2 internal server exception") != -1 \
-                                                 or out.find("An error occurred on the central catalogs") != -1 \
-                                                 or out.find("MySQL server has gone away") != -1:
-                                            time.sleep(60)
-                                        else:
-                                            break
-                                    # ignore "already exists at location XYZ"
-                                    if out.find('DQLocationExistsException') != -1:
-                                        _logger.debug('%s ignored DQLocationExistsException' % self.timestamp)
-                                        status,out = 0,''
-                                    else:
-                                        _logger.debug("%s %s" % (self.timestamp,out))
-                                        if status == 0 and out.find('Error') == -1:
-                                            # change replica ownership for user datasets
-                                            if self.resetLocation and ((name == originalName and job.prodSourceLabel == 'user') or \
-                                                                       job.prodSourceLabel=='panda'):
-                                                # remove /CN=proxy and /CN=limited from DN
-                                                tmpRealDN = job.prodUserID
-                                                tmpRealDN = re.sub('/CN=limited proxy','',tmpRealDN)
-                                                tmpRealDN = re.sub('/CN=proxy','',tmpRealDN)
-                                                status,out = dq2Common.parse_dn(tmpRealDN)
-                                                if status != 0:
-                                                    _logger.error("%s %s" % (self.timestamp,out))
-                                                    status,out = 1,'failed to truncate DN:%s' % job.prodUserID
-                                                else:
-                                                    tmpRealDN = out
-                                                    _logger.debug((self.timestamp,'setReplicaMetaDataAttribute',name,dq2ID,'owner',tmpRealDN))
-                                                    for iDDMTry in range(3):
-                                                        status,out = ddm.DQ2.main('setReplicaMetaDataAttribute',name,dq2ID,'owner',tmpRealDN)
-                                                        if status != 0 or out.find("DQ2 internal server exception") != -1 \
-                                                               or out.find("An error occurred on the central catalogs") != -1 \
-                                                               or out.find("MySQL server has gone away") != -1:
-                                                            time.sleep(60)
-                                                        else:
-                                                            break
-                                                    # failed
-                                                    if status != 0 or out.find('Error') != -1:
-                                                        _logger.error("%s %s" % (self.timestamp,out))
-                                                        break
-                                                    # delete old replicas
-                                                    tmpDelStat = self.deleteDatasetReplicas([name],[dq2ID])
-                                                    if not tmpDelStat:
-                                                        status,out = 1,'failed to delete old replicas for %s' % name
-                                                        break
-                                    # failed
-                                    if status != 0 or out.find('Error') != -1:
-                                        _logger.error("%s %s" % (self.timestamp,out))
-                                        break
+                            # skip registration for _sub when src=dest
+                            if tmpSrcDDM == tmpDstDDM and name != originalName and re.search('_sub\d+$',name) != None and \
+                                   (job.processingType in ['gangarobot-pft-trial'] or \
+                                    job.prodSourceLabel in ['test']):
+                                # create a fake vuidStr
+                                vuidStr = 'vuid="%s"' % commands.getoutput('uuidgen')
                             else:
-                                # skip registerDatasetLocations
-                                status,out = 0,''
-                            if status != 0 or out.find('Error') != -1:
-                                destError[dest] = "Could not register location : %s %s" % (name,out.split('\n')[-1])
-                            elif job.prodSourceLabel == 'panda' or (job.prodSourceLabel in ['ptest','rc_test'] and \
-                                                                    job.processingType in ['pathena','prun','gangarobot-rctest']):
-                                # do nothing for "panda" job
-                                pass
-                            elif name == originalName and job.prodSourceLabel in ['managed','test','rc_test','ptest']:
-                                # set metadata
+                                # register dataset
                                 time.sleep(1)
-                                dq2ID = self.siteMapper.getSite(file.destinationSE).ddm
-                                # use another location when token is set
-                                if not file.destinationDBlockToken in ['NULL','']:
-                                    # register only the first token becasue it is used as the location
-                                    tmpFirstToken = file.destinationDBlockToken.split(',')[0] 
-                                    if self.siteMapper.getSite(file.destinationSE).setokens.has_key(tmpFirstToken):
-                                        dq2ID = self.siteMapper.getSite(file.destinationSE).setokens[tmpFirstToken]
-                                _logger.debug((self.timestamp,'setMetaDataAttribute',name,'origin',dq2ID))
+                                # set hidden flag for _sub
+                                tmpHiddenFlag = False
+                                if name != originalName and re.search('_sub\d+$',name) != None:
+                                    tmpHiddenFlag = True
+                                _logger.debug((self.timestamp,'registerNewDataset',name,[],[],[],[],
+                                               None,None,None,tmpHiddenFlag))
+                                atFailed = 0
                                 for iDDMTry in range(3):
-                                    status,out = ddm.DQ2.main('setMetaDataAttribute',name,'origin',dq2ID)
-                                    if status != 0 or out.find("DQ2 internal server exception") != -1 \
-                                           or out.find("An error occurred on the central catalogs") != -1 \
-                                           or out.find("MySQL server has gone away") != -1:
+                                    status,out = ddm.DQ2.main('registerNewDataset',name,[],[],[],[],
+                                                              None,None,None,tmpHiddenFlag)
+                                    if status != 0 and out.find('DQDatasetExistsException') != -1:
+                                        atFailed = iDDMTry
+                                        break
+                                    elif status != 0 or out.find("DQ2 internal server exception") != -1 \
+                                             or out.find("An error occurred on the central catalogs") != -1 \
+                                             or out.find("MySQL server has gone away") != -1:
+                                        _logger.debug("%s sleep %s for %s" % (self.timestamp,iDDMTry,name))
+                                        _logger.debug(status)
+                                        _logger.debug(out)
+                                        _logger.debug("-------------")                                                                
                                         time.sleep(60)
                                     else:
                                         break
-                                _logger.debug("%s %s" % (self.timestamp,out))
-                                if status != 0 or (out != 'None' and out.find('already exists') == -1):
-                                    _logger.error(out)
-                                    destError[dest] = "Setupper._setupDestination() could not set metadata : %s" % name
+                                if status != 0 or out.find('Error') != -1:
+                                    # unset vuidStr
+                                    vuidStr = ""
+                                    # ignore 'already exists' ERROR because original dataset may be registered by upstream.
+                                    # atFailed > 0 is for the case in which the first attempt succeeded but report failure
+                                    if (job.prodSourceLabel == 'panda' or (job.prodSourceLabel in ['ptest','rc_test'] and \
+                                                                           job.processingType in ['pathena','prun','gangarobot-rctest']) \
+                                        or name == originalName or atFailed > 0) and \
+                                           out.find('DQDatasetExistsException') != -1:
+                                        _logger.debug('%s ignored DQDatasetExistsException' % self.timestamp)
+                                    else:
+                                        destError[dest] = "Setupper._setupDestination() could not register : %s" % name
+                                        _logger.error("%s %s" % (self.timestamp,out))
+                                        continue
+                                else:
+                                    _logger.debug("%s %s" % (self.timestamp,out))                                
+                                    vuidStr = "vuid = %s['vuid']" % out
+                                # get list of tokens    
+                                tmpTokenList = file.destinationDBlockToken.split(',')
+                                # register datasetsets
+                                if name == originalName or tmpSrcDDM != tmpDstDDM or \
+                                       job.prodSourceLabel == 'panda' or (job.prodSourceLabel in ['ptest','rc_test'] and \
+                                                                          job.processingType in ['pathena','prun','gangarobot-rctest']) \
+                                       or len(tmpTokenList) > 1:
+                                    time.sleep(1)
+                                    # register location
+                                    usingPRODDISK = False
+                                    if job.prodSourceLabel == 'user' and not self.siteMapper.siteSpecList.has_key(computingSite):
+                                        dq2IDList = [self.siteMapper.getSite(job.computingSite).ddm]
+                                    else:
+                                        if self.siteMapper.getSite(computingSite).cloud != job.cloud and \
+                                           re.search('_sub\d+$',name) != None and \
+                                           (not job.prodSourceLabel in ['user','panda']) and \
+                                           (not self.siteMapper.getSite(computingSite).ddm.endswith('PRODDISK')) and \
+                                           self.siteMapper.getSite(computingSite).setokens.has_key('ATLASPRODDISK'):
+                                            # T1 used as T2
+                                            dq2IDList = [self.siteMapper.getSite(computingSite).setokens['ATLASPRODDISK']]
+                                            usingPRODDISK = True
+                                        else:
+                                            dq2IDList = [self.siteMapper.getSite(computingSite).ddm]
+                                    # use another location when token is set
+                                    if (not usingPRODDISK) and (not file.destinationDBlockToken in ['NULL','']):
+                                        dq2IDList = []
+                                        for tmpToken in tmpTokenList:
+                                            # set default
+                                            dq2ID = self.siteMapper.getSite(computingSite).ddm
+                                            # convert token to DQ2ID
+                                            if self.siteMapper.getSite(computingSite).setokens.has_key(tmpToken):
+                                                dq2ID = self.siteMapper.getSite(computingSite).setokens[tmpToken]
+                                            # replace or append    
+                                            if len(tmpTokenList) <= 1 or name != originalName:
+                                                # use location consistent with token
+                                                dq2IDList = [dq2ID]
+                                                break
+                                            else:
+                                                # use multiple locations for _tid
+                                                if not dq2ID in dq2IDList:
+                                                    dq2IDList.append(dq2ID)
+                                    # loop over all locations
+                                    repLifeTime = None
+                                    if name != originalName and re.search('_sub\d+$',name) != None:
+                                        repLifeTime = "14 days"
+                                    for dq2ID in dq2IDList:
+                                        _logger.debug((self.timestamp,'registerDatasetLocation',name,dq2ID,0,0,None,None,None,repLifeTime))
+                                        for iDDMTry in range(3):                            
+                                            status,out = ddm.DQ2.main('registerDatasetLocation',name,dq2ID,0,0,None,None,None,repLifeTime)
+                                            if status != 0 and out.find('DQLocationExistsException') != -1:
+                                                break
+                                            elif status != 0 or out.find("DQ2 internal server exception") != -1 \
+                                                     or out.find("An error occurred on the central catalogs") != -1 \
+                                                     or out.find("MySQL server has gone away") != -1:
+                                                time.sleep(60)
+                                            else:
+                                                break
+                                        # ignore "already exists at location XYZ"
+                                        if out.find('DQLocationExistsException') != -1:
+                                            _logger.debug('%s ignored DQLocationExistsException' % self.timestamp)
+                                            status,out = 0,''
+                                        else:
+                                            _logger.debug("%s %s" % (self.timestamp,out))
+                                            if status == 0 and out.find('Error') == -1:
+                                                # change replica ownership for user datasets
+                                                if self.resetLocation and ((name == originalName and job.prodSourceLabel == 'user') or \
+                                                                           job.prodSourceLabel=='panda'):
+                                                    # remove /CN=proxy and /CN=limited from DN
+                                                    tmpRealDN = job.prodUserID
+                                                    tmpRealDN = re.sub('/CN=limited proxy','',tmpRealDN)
+                                                    tmpRealDN = re.sub('/CN=proxy','',tmpRealDN)
+                                                    status,out = dq2Common.parse_dn(tmpRealDN)
+                                                    if status != 0:
+                                                        _logger.error("%s %s" % (self.timestamp,out))
+                                                        status,out = 1,'failed to truncate DN:%s' % job.prodUserID
+                                                    else:
+                                                        tmpRealDN = out
+                                                        _logger.debug((self.timestamp,'setReplicaMetaDataAttribute',name,dq2ID,'owner',tmpRealDN))
+                                                        for iDDMTry in range(3):
+                                                            status,out = ddm.DQ2.main('setReplicaMetaDataAttribute',name,dq2ID,'owner',tmpRealDN)
+                                                            if status != 0 or out.find("DQ2 internal server exception") != -1 \
+                                                                   or out.find("An error occurred on the central catalogs") != -1 \
+                                                                   or out.find("MySQL server has gone away") != -1:
+                                                                time.sleep(60)
+                                                            else:
+                                                                break
+                                                        # failed
+                                                        if status != 0 or out.find('Error') != -1:
+                                                            _logger.error("%s %s" % (self.timestamp,out))
+                                                            break
+                                                        # delete old replicas
+                                                        tmpDelStat = self.deleteDatasetReplicas([name],[dq2ID])
+                                                        if not tmpDelStat:
+                                                            status,out = 1,'failed to delete old replicas for %s' % name
+                                                            break
+                                        # failed
+                                        if status != 0 or out.find('Error') != -1:
+                                            _logger.error("%s %s" % (self.timestamp,out))
+                                            break
+                                else:
+                                    # skip registerDatasetLocations
+                                    status,out = 0,''
+                                if status != 0 or out.find('Error') != -1:
+                                    destError[dest] = "Could not register location : %s %s" % (name,out.split('\n')[-1])
+                                elif job.prodSourceLabel == 'panda' or (job.prodSourceLabel in ['ptest','rc_test'] and \
+                                                                        job.processingType in ['pathena','prun','gangarobot-rctest']):
+                                    # do nothing for "panda" job
+                                    pass
+                                elif name == originalName and job.prodSourceLabel in ['managed','test','rc_test','ptest']:
+                                    # set metadata
+                                    time.sleep(1)
+                                    dq2ID = self.siteMapper.getSite(file.destinationSE).ddm
+                                    # use another location when token is set
+                                    if not file.destinationDBlockToken in ['NULL','']:
+                                        # register only the first token becasue it is used as the location
+                                        tmpFirstToken = file.destinationDBlockToken.split(',')[0] 
+                                        if self.siteMapper.getSite(file.destinationSE).setokens.has_key(tmpFirstToken):
+                                            dq2ID = self.siteMapper.getSite(file.destinationSE).setokens[tmpFirstToken]
+                                    _logger.debug((self.timestamp,'setMetaDataAttribute',name,'origin',dq2ID))
+                                    for iDDMTry in range(3):
+                                        status,out = ddm.DQ2.main('setMetaDataAttribute',name,'origin',dq2ID)
+                                        if status != 0 or out.find("DQ2 internal server exception") != -1 \
+                                               or out.find("An error occurred on the central catalogs") != -1 \
+                                               or out.find("MySQL server has gone away") != -1:
+                                            time.sleep(60)
+                                        else:
+                                            break
+                                    _logger.debug("%s %s" % (self.timestamp,out))
+                                    if status != 0 or (out != 'None' and out.find('already exists') == -1):
+                                        _logger.error(out)
+                                        destError[dest] = "Setupper._setupDestination() could not set metadata : %s" % name
                         # use PandaDDM or non-DQ2
                         else:
                             # create a fake vuidStr
