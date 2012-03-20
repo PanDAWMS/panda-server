@@ -928,8 +928,11 @@ class TaskBuffer:
             # get job
             tmpJobs = self.getFullJobStatus([pandaID])
             if tmpJobs == [] or tmpJobs[0] == None:
-                return "ERROR: Cannot get PandaID=%s in DB" % pandaID
+                return "ERROR: Cannot get PandaID=%s in DB for the last 30 days" % pandaID
             tmpJob = tmpJobs[0]
+            # check prodSourceLabel
+            if not tmpJob.prodSourceLabel in ['managed','test']:
+                return "ERROR: Non production job : prodSourceLabel=%s. This method is only for production jobs" % tmpJob.prodSourceLabel
             # release and trf
             tmpRels = tmpJob.homepackage.split("\n")
             tmpPars = tmpJob.jobParameters.split("\n")
