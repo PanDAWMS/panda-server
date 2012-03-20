@@ -592,7 +592,8 @@ class Adder (threading.Thread):
             # skip sub unless getting transferred
             if match != None:
                 if not self.goToTransferring and idMap.has_key(destinationDBlock) and \
-                       (self.job.processingType in ['gangarobot-pft-trial'] or \
+                       (self.job.processingType.startswith('gangarobot') or \
+                        self.job.processingType.startswith('hammercloud') or \
                         self.job.prodSourceLabel in ['test']):
                     del idMap[destinationDBlock]
         # print idMap
