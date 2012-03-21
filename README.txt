@@ -1,7 +1,8 @@
 Release Note
 
 * current
-  * disabled sub for gangarobot and test jobs
+  * removed shadow lookup in Adder
+  * disabled sub for computingSite=destinationSE
   * added getScriptOfflineRunning
   * added retry to Cassandra operations
   * changed killing with group prod role not to be case-sensitive

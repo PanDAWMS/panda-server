@@ -195,6 +195,7 @@ class Adder (threading.Thread):
                         _logger.debug("%s cannot unlock XML" % self.jobID)            
                     return
                 # update shadow dataset
+                """
                 if self.job.prodSourceLabel == 'user' and self.jobStatus == 'finished' and \
                    (self.job.ddmErrorDiag == 'NULL' or re.search('DaTRI failed',self.job.ddmErrorDiag) != None) and \
                    not self.goToTransferring:
@@ -217,6 +218,7 @@ class Adder (threading.Thread):
                             _logger.debug("%s : %s %s" % (self.jobID,type,value))
                             _logger.debug("%s cannot unlock XML" % self.jobID)            
                         return
+                """        
                 # remove unmerged
                 if self.job.processingType == 'usermerge' and self.job.prodSourceLabel == 'user' and \
                    self.jobStatus == 'finished' and self.job.ddmErrorDiag == 'NULL':
@@ -591,10 +593,7 @@ class Adder (threading.Thread):
                 del idMap[destinationDBlock]
             # skip sub unless getting transferred
             if match != None:
-                if not self.goToTransferring and idMap.has_key(destinationDBlock) and \
-                       (self.job.processingType.startswith('gangarobot') or \
-                        self.job.processingType.startswith('hammercloud') or \
-                        self.job.prodSourceLabel in ['test']):
+                if not self.goToTransferring and idMap.has_key(destinationDBlock):
                     del idMap[destinationDBlock]
         # print idMap
         _logger.debug("%s idMap = %s" % (self.jobID,idMap))

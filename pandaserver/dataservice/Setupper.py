@@ -485,10 +485,7 @@ class Setupper (threading.Thread):
                             else:
                                 tmpDstDDM = self.siteMapper.getSite(file.destinationSE).ddm
                             # skip registration for _sub when src=dest
-                            if tmpSrcDDM == tmpDstDDM and name != originalName and re.search('_sub\d+$',name) != None and \
-                                   (job.processingType.startswith('gangarobot') or \
-                                    job.processingType.startswith('hammercloud') or \
-                                    job.prodSourceLabel in ['test']):
+                            if tmpSrcDDM == tmpDstDDM and name != originalName and re.search('_sub\d+$',name) != None:
                                 # create a fake vuidStr
                                 vuidStr = 'vuid="%s"' % commands.getoutput('uuidgen')
                             else:

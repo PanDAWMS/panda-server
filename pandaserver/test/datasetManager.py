@@ -139,36 +139,6 @@ taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
 # instantiate sitemapper
 siteMapper = SiteMapper(taskBuffer)
 
-# delete old datasets
-"""
-_logger.debug("==== delete old datasets ====")
-timeLimitDnS = datetime.datetime.utcnow() - datetime.timedelta(days=60)
-timeLimitTop = datetime.datetime.utcnow() - datetime.timedelta(days=90)
-nDelDS = 1000
-for dsType,dsPrefix in [('','top'),]:
-    sql = "DELETE  /*+ INDEX(D D(modificationdate)) */ FROM ATLAS_PANDA.Datasets D "
-    if dsType != '':
-        # dis or sub
-        sql += "WHERE type=:type AND modificationdate<:modificationdate "
-        sql += "AND REGEXP_LIKE(name,:pattern) AND rownum <= %s" % nDelDS
-        varMap = {}
-        varMap[':modificationdate'] = timeLimitDnS
-        varMap[':type'] = dsType
-        varMap[':pattern'] = '_%s[[:digit:]]+$' % dsPrefix
-    else:
-        # top level datasets
-        sql+= "WHERE modificationdate<:modificationdate AND rownum <= %s" % nDelDS
-        varMap = {}
-        varMap[':modificationdate'] = timeLimitTop
-    for i in range(100):
-        # del datasets
-        ret,res = taskBuffer.querySQLS(sql, varMap)
-        _logger.debug("# of %s datasets deleted: %s" % (dsPrefix,res))
-        # no more datasets    
-        if res != nDelDS:
-            break
-"""
-
 
 # list with lock
 class ListWithLock:
@@ -378,8 +348,8 @@ class Freezer (threading.Thread):
             for vuid,name,modDate in self.datasets:
                 _logger.debug("start %s %s" % (modDate,name))
                 self.proxyLock.acquire()
-                retF,resF = taskBuffer.querySQLS("SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ lfn FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock",
-                                             {':destinationDBlock':name})
+                retF,resF = taskBuffer.querySQLS("SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ lfn FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock AND NOT status IN (:status1,:status2,:status3)",
+                                             {':destinationDBlock':name,':status1':'ready',':status2':'failed',':status3':'skipped'})
                 self.proxyLock.release()
                 if retF<0:
                     _logger.error("SQL error")
