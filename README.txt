@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * modified getScriptOfflineRunning to use parallel transfers
   * removed shadow lookup in Adder
   * disabled sub for computingSite=destinationSE
   * added getScriptOfflineRunning

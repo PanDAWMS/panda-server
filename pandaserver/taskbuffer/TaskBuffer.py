@@ -941,11 +941,24 @@ class TaskBuffer:
                 return "ERROR: The number of releases or parameters or trfs is inconsitent with others"
             # construct script
             scrStr = "#retrieve inputs\n\n"
+            # collect inputs
+            dsFileMap = {}
             for tmpFile in tmpJob.Files:
-                # input
                 if tmpFile.type=='input':
-                    scrStr += "dq2-get --files %s %s\n" % (tmpFile.lfn,tmpFile.dataset)
-                    scrStr += "mv %s*/%s ./%s\n" % (tmpFile.dataset.rstrip("/"),tmpFile.lfn,tmpFile.lfn)
+                    if not dsFileMap.has_key(tmpFile.dataset):
+                        dsFileMap[tmpFile.dataset] = []
+                    if not tmpFile.lfn in dsFileMap[tmpFile.dataset]:    
+                        dsFileMap[tmpFile.dataset].append(tmpFile.lfn)
+            # dq2            
+            for tmpDS,tmpFileList in dsFileMap.iteritems():
+                scrStr += "dq2-get --files "
+                for tmpLFN in tmpFileList:
+                    scrStr += "%s," % tmpLFN
+                scrStr = scrStr[:-1]    
+                scrStr += " %s\n" % tmpDS
+                # ln
+                for tmpLFN in tmpFileList:
+                    scrStr += "ln -fs %s*/%s ./%s\n" % (tmpDS.rstrip("/"),tmpLFN,tmpLFN)
             scrStr += "\n#transform commands\n\n"        
             for tmpIdx,tmpRel in enumerate(tmpRels):
                 # asetup
