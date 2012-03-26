@@ -20,14 +20,15 @@ class JobSpec(object):
                    'taskID','cmtConfig','stateChangeTime','prodDBUpdateTime','lockedby','relocationFlag',
                    'jobExecutionID','VO','pilotTiming','workingGroup','processingType','prodUserName',
                    'nInputFiles','countryGroup','batchID','parentID','specialHandling','jobsetID',
-                   'coreCount','nInputDataFiles','inputFileType','inputFileProject','inputFileBytes')
+                   'coreCount','nInputDataFiles','inputFileType','inputFileProject','inputFileBytes',
+                   'nOutputDataFiles','outputFileBytes')
     # slots
     __slots__ = _attributes+('Files',)
     # attributes which have 0 by default
     _zeroAttrs = ('assignedPriority','currentPriority','attemptNr','maxAttempt','maxCpuCount','maxDiskCount',
                   'minRamCount','cpuConsumptionTime','pilotErrorCode','exeErrorCode','supErrorCode','ddmErrorCode',
                   'brokerageErrorCode','jobDispatcherErrorCode','taskBufferErrorCode','nEvents','relocationFlag',
-                  'jobExecutionID')
+                  'jobExecutionID','nOutputDataFiles','outputFileBytes')
     # attribute to be suppressed. They are in another table
     _suppAttrs = ('jobParameters','metadata')
     # mapping between sequence and attr

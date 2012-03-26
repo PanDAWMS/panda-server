@@ -261,6 +261,20 @@ class Adder (threading.Thread):
                     # endtime
                     if self.job.endTime=='NULL':
                         self.job.endTime = time.strftime('%Y-%m-%d %H:%M:%S',time.gmtime())
+                # output size and # of outputs
+                self.job.nOutputDataFiles = 0
+                self.job.outputFileBytes = 0
+                for tmpFile in self.job.Files:
+                    if tmpFile.type == 'output':
+                        self.job.nOutputDataFiles += 1
+                        try:
+                            self.job.outputFileBytes += tmpFile.fsize
+                        except:
+                            pass
+                # protection
+                maxOutputFileBytes = 99999999999
+                if self.job.outputFileBytes > maxOutputFileBytes:
+                    self.job.outputFileBytes = maxOutputFileBytes
                 # set cancelled state
                 if self.job.commandToPilot == 'tobekilled' and self.job.jobStatus == 'failed':
                     self.job.jobStatus = 'cancelled'
