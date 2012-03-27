@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed to update only changed attributes in filesTable4
   * added nOutputDataFiles and outputFileBytes to job tables
   * modified getScriptOfflineRunning to use parallel transfers
   * removed shadow lookup in Adder

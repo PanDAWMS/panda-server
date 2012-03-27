@@ -541,11 +541,13 @@ class DBProxy:
                         # insert
                         self.cur.execute(sql2+comment, job.valuesMap())
                         # update files
-                        sqlF = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % FileSpec.bindUpdateExpression()) + "WHERE row_ID=:row_ID"
                         for file in job.Files:
-                            varMap = file.valuesMap()
-                            varMap[':row_ID'] = file.row_ID
-                            self.cur.execute(sqlF+comment, varMap)
+                            sqlF = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % file.bindUpdateChangesExpression()) + "WHERE row_ID=:row_ID"
+                            varMap = file.valuesMap(onlyChanged=True)
+                            if varMap != {}:
+                                varMap[':row_ID'] = file.row_ID
+                                _logger.debug(sqlF+comment+str(varMap))
+                                self.cur.execute(sqlF+comment, varMap)
                         # job parameters
                         sqlJob = "UPDATE ATLAS_PANDA.jobParamsTable SET jobParameters=:param WHERE PandaID=:PandaID"
                         varMap = {}
@@ -567,11 +569,13 @@ class DBProxy:
                         _logger.debug("activateJob : Not found %s" % job.PandaID)
                     else:
                         # update files
-                        sqlF = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % FileSpec.bindUpdateExpression()) + "WHERE row_ID=:row_ID"
                         for file in job.Files:
-                            varMap = file.valuesMap()
-                            varMap[':row_ID'] = file.row_ID
-                            self.cur.execute(sqlF+comment, varMap)
+                            sqlF = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % file.bindUpdateChangesExpression()) + "WHERE row_ID=:row_ID"
+                            varMap = file.valuesMap(onlyChanged=True)
+                            if varMap != {}:
+                                varMap[':row_ID'] = file.row_ID
+                                _logger.debug(sqlF+comment+str(varMap))                                
+                                self.cur.execute(sqlF+comment, varMap)
                         # job parameters
                         sqlJob = "UPDATE ATLAS_PANDA.jobParamsTable SET jobParameters=:param WHERE PandaID=:PandaID"
                         varMap = {}
@@ -626,11 +630,13 @@ class DBProxy:
                     # insert
                     self.cur.execute(sql2+comment, job.valuesMap())
                     # update files
-                    sqlF = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % FileSpec.bindUpdateExpression()) + "WHERE row_ID=:row_ID"
                     for file in job.Files:
-                        varMap = file.valuesMap()
-                        varMap[':row_ID'] = file.row_ID
-                        self.cur.execute(sqlF+comment, varMap)
+                        sqlF = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % file.bindUpdateChangesExpression()) + "WHERE row_ID=:row_ID"
+                        varMap = file.valuesMap(onlyChanged=True)
+                        if varMap != {}:
+                            varMap[':row_ID'] = file.row_ID
+                            _logger.debug(sqlF+comment+str(varMap))                            
+                            self.cur.execute(sqlF+comment, varMap)
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
@@ -681,11 +687,13 @@ class DBProxy:
                         job.endTime = job.modificationTime
                     self.cur.execute(sql2+comment, job.valuesMap())
                     # update files
-                    sqlF = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % FileSpec.bindUpdateExpression()) + "WHERE row_ID=:row_ID"
                     for file in job.Files:
-                        varMap = file.valuesMap()
-                        varMap[':row_ID'] = file.row_ID
-                        self.cur.execute(sqlF+comment, varMap)
+                        sqlF = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % file.bindUpdateChangesExpression()) + "WHERE row_ID=:row_ID"
+                        varMap = file.valuesMap(onlyChanged=True)
+                        if varMap != {}:
+                            varMap[':row_ID'] = file.row_ID
+                            _logger.debug(sqlF+comment+str(varMap))
+                            self.cur.execute(sqlF+comment, varMap)
                     # update metadata and parameters
                     sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"                    
                     sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
@@ -1029,11 +1037,13 @@ class DBProxy:
                     # insert
                     self.cur.execute(sql3+comment, job.valuesMap())
                     # update files
-                    sqlF = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % FileSpec.bindUpdateExpression()) + "WHERE row_ID=:row_ID"
                     for file in job.Files:
-                        varMap = file.valuesMap()
-                        varMap[':row_ID'] = file.row_ID
-                        self.cur.execute(sqlF+comment, varMap)
+                        sqlF = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % file.bindUpdateChangesExpression()) + "WHERE row_ID=:row_ID"
+                        varMap = file.valuesMap(onlyChanged=True)
+                        if varMap != {}:
+                            varMap[':row_ID'] = file.row_ID
+                            _logger.debug(sqlF+comment+str(varMap))                            
+                            self.cur.execute(sqlF+comment, varMap)
                     # update files,metadata,parametes
                     varMap = {}
                     varMap[':PandaID'] = pandaID
@@ -1408,11 +1418,13 @@ class DBProxy:
                     # already killed or activated
                     _logger.debug("updateJob : Not found %s" % job.PandaID)
                 else:
-                    sqlF = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % FileSpec.bindUpdateExpression()) + "WHERE row_ID=:row_ID"
                     for file in job.Files:
-                        varMap = file.valuesMap()
-                        varMap[':row_ID'] = file.row_ID
-                        self.cur.execute(sqlF+comment, varMap)
+                        sqlF = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % file.bindUpdateChangesExpression()) + "WHERE row_ID=:row_ID"
+                        varMap = file.valuesMap(onlyChanged=True)
+                        if varMap != {}:
+                            varMap[':row_ID'] = file.row_ID
+                            _logger.debug(sqlF+comment+str(varMap))
+                            self.cur.execute(sqlF+comment, varMap)
                     # update job parameters
                     sqlJobP = "UPDATE ATLAS_PANDA.jobParamsTable SET jobParameters=:param WHERE PandaID=:PandaID"
                     varMap = {}
@@ -1606,10 +1618,11 @@ class DBProxy:
                             job.jobParameters = re.sub(oldPatt,newPatt,job.jobParameters)
                         if not changeJobInMem and not getNewPandaID:    
                             # update files
-                            varMap = file.valuesMap()
-                            varMap[':row_ID'] = file.row_ID
-                            sqlFup = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % FileSpec.bindUpdateExpression()) + "WHERE row_ID=:row_ID"
-                            self.cur.execute(sqlFup+comment, varMap)
+                            sqlFup = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % file.bindUpdateExpression()) + "WHERE row_ID=:row_ID"
+                            varMap = file.valuesMap(onlyChanged=True)
+                            if varMap != {}:
+                                varMap[':row_ID'] = file.row_ID
+                                self.cur.execute(sqlFup+comment, varMap)
                     if not changeJobInMem:
                         # reuse original PandaID
                         if not getNewPandaID:
@@ -2412,10 +2425,12 @@ class DBProxy:
                 # add file
                 job.addFile(file)                
                 # update files
-                sqlF = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % FileSpec.bindUpdateExpression()) + "WHERE row_ID=:row_ID"
-                varMap = file.valuesMap()
-                varMap[':row_ID'] = file.row_ID
-                self.cur.execute(sqlF+comment, varMap)
+                sqlF = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % file.bindUpdateChangesExpression()) + "WHERE row_ID=:row_ID"
+                varMap = file.valuesMap(onlyChanged=True)
+                if varMap != {}:
+                    varMap[':row_ID'] = file.row_ID
+                    _logger.debug(sqlF+comment+str(varMap))                    
+                    self.cur.execute(sqlF+comment, varMap)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -2511,10 +2526,12 @@ class DBProxy:
                     # add file
                     job.addFile(file)
                     # update files
-                    sqlF = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % FileSpec.bindUpdateExpression()) + "WHERE row_ID=:row_ID"
+                    sqlF = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % file.bindUpdateChangesExpression()) + "WHERE row_ID=:row_ID"
                     varMap = file.valuesMap()
-                    varMap[':row_ID'] = file.row_ID
-                    self.cur.execute(sqlF+comment, varMap)
+                    if varMap != {}:
+                        varMap[':row_ID'] = file.row_ID
+                        _logger.debug(sqlF+comment+str(varMap))                        
+                        self.cur.execute(sqlF+comment, varMap)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'

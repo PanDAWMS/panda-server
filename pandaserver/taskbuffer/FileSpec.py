@@ -10,7 +10,7 @@ class FileSpec(object):
                    'prodDBlockToken','dispatchDBlock','dispatchDBlockToken','destinationDBlock',
                    'destinationDBlockToken','destinationSE','fsize','md5sum','checksum')
     # slots
-    __slots__ = _attributes+('_owner',)
+    __slots__ = _attributes+('_owner','_changedAttrs','_oldPandaID')
     # attributes which have 0 by default
     _zeroAttrs = ('fsize',)
     # mapping between sequence and attr
@@ -21,9 +21,13 @@ class FileSpec(object):
     def __init__(self):
         # install attributes
         for attr in self._attributes:
-            setattr(self,attr,None)
+            object.__setattr__(self,attr,None)
         # set owner to synchronize PandaID
-        self._owner = None
+        object.__setattr__(self,'_owner',None)
+        # map of changed attributes
+        object.__setattr__(self,'_changedAttrs',{})
+        # old PandaID
+        object.__setattr__(self,'_oldPandaID','NULL')
 
 
     # override __getattribute__ for SQL and PandaID
@@ -40,9 +44,20 @@ class FileSpec(object):
         return ret
 
 
+    # override __setattr__ to collecte the changed attributes
+    def __setattr__(self,name,value):
+        oldVal = getattr(self,name)
+        object.__setattr__(self,name,value)
+        newVal = getattr(self,name)
+        # collect changed attributes
+        if oldVal != newVal:
+            self._changedAttrs[name] = value
+        
+
     # set owner
     def setOwner(self,owner):
         self._owner = owner
+        self._oldPandaID = self.PandaID
         
     
     # return a tuple of values
@@ -55,11 +70,17 @@ class FileSpec(object):
 
 
     # return map of values
-    def valuesMap(self,useSeq=False):
+    def valuesMap(self,useSeq=False,onlyChanged=False):
         ret = {}
         for attr in self._attributes:
             if useSeq and self._seqAttrMap.has_key(attr):
                 continue
+            if onlyChanged:
+                if attr == 'PandaID':
+                    if self.PandaID == self._oldPandaID:
+                        continue
+                elif not self._changedAttrs.has_key(attr):
+                    continue
             val = getattr(self,attr)
             if val == 'NULL':
                 if attr in self._zeroAttrs:
@@ -75,7 +96,7 @@ class FileSpec(object):
         for i in range(len(self._attributes)):
             attr= self._attributes[i]
             val = values[i]
-            setattr(self,attr,val)
+            object.__setattr__(self,attr,val)
 
 
     # return state values to be pickled
@@ -91,13 +112,18 @@ class FileSpec(object):
 
     # restore state from the unpickled state values
     def __setstate__(self,state):
+        pandaID = 'NULL'
         for i in range(len(self._attributes)):
             if i+1 < len(state):
-                setattr(self,self._attributes[i],state[i])
+                object.__setattr__(self,self._attributes[i],state[i])
             else:
-                setattr(self,self._attributes[i],'NULL')                
-        self._owner = state[-1]
-        
+                object.__setattr__(self,self._attributes[i],'NULL')
+            if self._attributes[i] == 'PandaID':
+                pandaID = state[i]
+        object.__setattr__(self,'_owner',state[-1])
+        object.__setattr__(self,'_changedAttrs',{})
+        object.__setattr__(self,'_oldPandaID',pandaID)
+
         
     # return column names for INSERT
     def columnNames(cls,withMod=False):
@@ -162,6 +188,18 @@ class FileSpec(object):
         ret += ' '
         return ret
     bindUpdateExpression = classmethod(bindUpdateExpression)
+
+
+    # return an expression of bind variables for UPDATE to update only changed attributes
+    def bindUpdateChangesExpression(self):
+        ret = ""
+        for attr in self._attributes:
+            if self._changedAttrs.has_key(attr) or \
+                   (attr == 'PandaID' and self.PandaID != self._oldPandaID):
+                ret += '%s=:%s,' % (attr,attr)
+        ret  = ret[:-1]
+        ret += ' '
+        return ret
 
 
         
