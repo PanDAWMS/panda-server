@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * disabled beyond-pledge for HC jobs
   * changed to update only changed attributes in filesTable4
   * added nOutputDataFiles and outputFileBytes to job tables
   * modified getScriptOfflineRunning to use parallel transfers

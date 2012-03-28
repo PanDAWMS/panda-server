@@ -1943,7 +1943,7 @@ class DBProxy:
             getValMap[':prodUserName'] = compactDN
         # country group
         specialHandled = False
-        if prodSourceLabel == 'user' or (isinstance(prodSourceLabel,types.StringType) and re.search('test',prodSourceLabel) != None):
+        if prodSourceLabel == 'user':
             # update pledge resource ratio
             self.getPledgeResourceRatio()
             # other country is allowed to use the pilot
