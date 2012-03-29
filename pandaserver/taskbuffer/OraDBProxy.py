@@ -294,6 +294,8 @@ class DBProxy:
                 self.cur.execute(sqlFile+comment, varMap)
                 # get rowID
                 file.row_ID = long(varMap[':newRowID'].getvalue())
+                # reset changed attribute list
+                file.resetChangedList()
             # metadata
             if job.prodSourceLabel in ['user','panda']:
                 sqlMeta = "INSERT INTO ATLAS_PANDA.metaTable (PandaID,metaData) VALUES (:PandaID,:metaData)"

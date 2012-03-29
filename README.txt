@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed storeJob to reset changed attribute list
   * disabled beyond-pledge for HC jobs
   * changed to update only changed attributes in filesTable4
   * added nOutputDataFiles and outputFileBytes to job tables

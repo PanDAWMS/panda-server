@@ -58,6 +58,12 @@ class FileSpec(object):
     def setOwner(self,owner):
         self._owner = owner
         self._oldPandaID = self.PandaID
+
+
+    # reset changed attribute list
+    def resetChangedList(self):
+        self._oldPandaID = self.PandaID
+        object.__setattr__(self,'_changedAttrs',{})
         
     
     # return a tuple of values
