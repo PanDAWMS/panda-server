@@ -8,6 +8,7 @@ import re
 import sys
 import time
 import fcntl
+import datetime
 import commands
 import threading
 import xml.dom.minidom
@@ -613,6 +614,14 @@ class Adder (threading.Thread):
         _logger.debug("%s idMap = %s" % (self.jobID,idMap))
         # add data
         _logger.debug("%s addFiles start" % self.jobID)
+        # count the number of files
+        regNumFiles = 0
+        regFileList = []
+        for tmpRegDS,tmpRegList in idMap.iteritems():
+            for tmpRegItem in tmpRegList:
+                if not tmpRegItem['lfn'] in regFileList:
+                    regNumFiles += 1
+                    regFileList.append(tmpRegItem['lfn'])
         # number of retry
         nTry = 3
         for iTry in range(nTry):
@@ -626,11 +635,14 @@ class Adder (threading.Thread):
             setErrorDiag = False
             out = 'OK'
             fatalErrStrs = ['[ORA-00001] unique constraint (ATLAS_DQ2.UQ_01_FILES_GUID) violated']
+            regStart = datetime.datetime.utcnow()
             try:
                 if not self.useCentralLFC():
+                    regMsgStr = "DQ2 registraion for %s files " % regNumFiles                    
                     _logger.debug('%s %s %s' % (self.jobID,'registerFilesInDatasets',str(idMap)))
                     self.dq2api.registerFilesInDatasets(idMap)
                 else:
+                    regMsgStr = "LFC+DQ2 registraion for %s files " % regNumFiles
                     _logger.debug('%s %s %s' % (self.jobID,'Register.registerFilesInDatasets',str(idMap)))                    
                     registerAPI = Register2.Register(self.siteMapper.getSite(self.job.computingSite).ddm)
                     out = registerAPI.registerFilesInDatasets(idMap)
@@ -656,6 +668,9 @@ class Adder (threading.Thread):
                         setErrorDiag = True
                         break
                 isFatal = True
+            regTime = datetime.datetime.utcnow() - regStart
+            _logger.debug('%s ' % self.jobID + regMsgStr + \
+                          'took %s.%03d sec' % (regTime.seconds,regTime.microseconds/1000))
             # failed
             if isFailed or isFatal:
                 _logger.error('%s %s' % (self.jobID,out))

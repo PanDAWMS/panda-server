@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added debug message for execution time of DQ2(+LFC) registration  
   * fixed storeJob to reset changed attribute list
   * disabled beyond-pledge for HC jobs
   * changed to update only changed attributes in filesTable4
