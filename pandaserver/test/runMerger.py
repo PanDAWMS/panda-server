@@ -139,7 +139,7 @@ class MergerThr (threading.Thread):
                         pandaJob = taskBuffer.peekJobs([pandaID])[0]
                         self.proxyLock.release()
                         if pandaJob == None:
-                            _logger.error("failed to get job for PandaID=%s" % pandaID)
+                            _logger.error("failed to get job for %s PandaID=%s" % (name,pandaID))
                             toBeClosed = True
                         else:
                             # run merger
