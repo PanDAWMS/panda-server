@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed runMerge not to be stopped due to a single dataset error
   * added debug message for execution time of DQ2(+LFC) registration  
   * fixed storeJob to reset changed attribute list
   * disabled beyond-pledge for HC jobs

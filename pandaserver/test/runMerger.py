@@ -103,66 +103,70 @@ class MergerThr (threading.Thread):
             # loop over all datasets
             for vuid,name,modDate,verNum in self.datasets:
                 try:
-                    verNum = int(verNum)
-                except:
-                    verNum = 0
-                _logger.debug("Merge %s %s %s" % (modDate,name,verNum))
-                toBeClosed = False
-                # close old datasets anyway
-                if modDate < timeLimitX or verNum >= self.maxTry:
-                    toBeClosed = True
-                # check version
-                dsSpec = taskBuffer.queryDatasetWithMap({'vuid':vuid})
-                if dsSpec == None:
-                    _logger.error("failed to get dataset spec for %s:%s" % (name,vuid))
-                    continue
-                try:
-                    if int(dsSpec.version) != verNum+1:
-                        _logger.debug("skip %s due to version mismatch %s != %s+1" % (name,dsSpec.version,verNum))
+                    try:
+                        verNum = int(verNum)
+                    except:
+                        verNum = 0
+                    _logger.debug("Merge %s %s %s" % (modDate,name,verNum))
+                    toBeClosed = False
+                    # close old datasets anyway
+                    if modDate < timeLimitX or verNum >= self.maxTry:
+                        toBeClosed = True
+                    # check version
+                    dsSpec = taskBuffer.queryDatasetWithMap({'vuid':vuid})
+                    if dsSpec == None:
+                        _logger.error("failed to get dataset spec for %s:%s" % (name,vuid))
                         continue
-                except:
-                    _logger.error("failed to convert version='%s' to int for %s" % (dsSpec.version,name))
-                    continue
-                # get PandaID
-                self.proxyLock.acquire()                
-                proxyS = taskBuffer.proxyPool.getProxy()
-                pandaID = proxyS.getPandaIDwithDestDBlock(name)
-                taskBuffer.proxyPool.putProxy(proxyS)
-                self.proxyLock.release()                
-                if pandaID == None:
-                    _logger.error("failed to find PandaID for %s" % name)
-                    toBeClosed = True
-                else:
-                    # get job
-                    self.proxyLock.acquire()
-                    pandaJob = taskBuffer.peekJobs([pandaID])[0]
-                    self.proxyLock.release()
-                    if pandaJob == None:
-                        _logger.error("failed to get job for PandaID=" % pandaID)
+                    try:
+                        if int(dsSpec.version) != verNum+1:
+                            _logger.debug("skip %s due to version mismatch %s != %s+1" % (name,dsSpec.version,verNum))
+                            continue
+                    except:
+                        _logger.error("failed to convert version='%s' to int for %s" % (dsSpec.version,name))
+                        continue
+                    # get PandaID
+                    self.proxyLock.acquire()                
+                    proxyS = taskBuffer.proxyPool.getProxy()
+                    pandaID = proxyS.getPandaIDwithDestDBlock(name)
+                    taskBuffer.proxyPool.putProxy(proxyS)
+                    self.proxyLock.release()                
+                    if pandaID == None:
+                        _logger.error("failed to find PandaID for %s" % name)
                         toBeClosed = True
                     else:
-                        # run merger
-                        _logger.debug("run merger for %s" % name)
-                        merger = Merger(taskBuffer,pandaJob)
-                        mRet = merger.run()
-                        if mRet == None:
-                            _logger.debug("got unrecoverable for %s" % name)
-                            toBeClosed = True
-                        elif mRet == True:
-                            _logger.debug("succeeded for %s" % name)
+                        # get job
+                        self.proxyLock.acquire()
+                        pandaJob = taskBuffer.peekJobs([pandaID])[0]
+                        self.proxyLock.release()
+                        if pandaJob == None:
+                            _logger.error("failed to get job for PandaID=%s" % pandaID)
                             toBeClosed = True
                         else:
-                            _logger.debug("failed for %s" % name)                            
-                # close dataset
-                if toBeClosed:
-                    _logger.debug("close %s" % name)                    
-                    self.proxyLock.acquire()
-                    varMap = {}
-                    varMap[':vuid'] = vuid
-                    varMap[':status'] = 'tobeclosed'
-                    taskBuffer.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status=:status,modificationdate=CURRENT_DATE WHERE vuid=:vuid",
-                                     varMap)
-                    self.proxyLock.release()                    
+                            # run merger
+                            _logger.debug("run merger for %s" % name)
+                            merger = Merger(taskBuffer,pandaJob)
+                            mRet = merger.run()
+                            if mRet == None:
+                                _logger.debug("got unrecoverable for %s" % name)
+                                toBeClosed = True
+                            elif mRet == True:
+                                _logger.debug("succeeded for %s" % name)
+                                toBeClosed = True
+                            else:
+                                _logger.debug("failed for %s" % name)                            
+                    # close dataset
+                    if toBeClosed:
+                        _logger.debug("close %s" % name)                    
+                        self.proxyLock.acquire()
+                        varMap = {}
+                        varMap[':vuid'] = vuid
+                        varMap[':status'] = 'tobeclosed'
+                        taskBuffer.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status=:status,modificationdate=CURRENT_DATE WHERE vuid=:vuid",
+                                         varMap)
+                        self.proxyLock.release()
+                except:
+                    errType,errValue = sys.exc_info()[:2]
+                    _logger.error("Failed %s with %s:%s" % (name,errType,errValue))                    
         except:
             errType,errValue = sys.exc_info()[:2]
             _logger.error("MergerThr failed with %s:%s" % (errType,errValue))
