@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed to update only changed attributes in job tables
   * fixed runMerge not to be stopped due to a single dataset error
   * added debug message for execution time of DQ2(+LFC) registration  
   * fixed storeJob to reset changed attribute list

@@ -23,7 +23,7 @@ class JobSpec(object):
                    'coreCount','nInputDataFiles','inputFileType','inputFileProject','inputFileBytes',
                    'nOutputDataFiles','outputFileBytes')
     # slots
-    __slots__ = _attributes+('Files',)
+    __slots__ = _attributes+('Files','_changedAttrs')
     # attributes which have 0 by default
     _zeroAttrs = ('assignedPriority','currentPriority','attemptNr','maxAttempt','maxCpuCount','maxDiskCount',
                   'minRamCount','cpuConsumptionTime','pilotErrorCode','exeErrorCode','supErrorCode','ddmErrorCode',
@@ -47,9 +47,11 @@ class JobSpec(object):
     def __init__(self):
         # install attributes
         for attr in self._attributes:
-            setattr(self,attr,None)
+            object.__setattr__(self,attr,None)
         # files list
-        self.Files = []
+        object.__setattr__(self,'Files',[])
+        # map of changed attributes
+        object.__setattr__(self,'_changedAttrs',{})
         
 
     # override __getattribute__ for SQL
@@ -60,6 +62,21 @@ class JobSpec(object):
         return ret
 
 
+    # override __setattr__ to collecte the changed attributes
+    def __setattr__(self,name,value):
+        oldVal = getattr(self,name)
+        object.__setattr__(self,name,value)
+        newVal = getattr(self,name)
+        # collect changed attributes
+        if oldVal != newVal and not name in self._suppAttrs:
+            self._changedAttrs[name] = value
+
+            
+    # reset changed attribute list
+    def resetChangedList(self):
+        object.__setattr__(self,'_changedAttrs',{})
+
+        
     # add File to files list
     def addFile(self,file):
         # set owner
@@ -73,7 +90,7 @@ class JobSpec(object):
         for i in range(len(self._attributes)):
             attr= self._attributes[i]
             val = values[i]
-            setattr(self,attr,val)
+            object.__setattr__(self,attr,val)
 
 
     # return a tuple of values
@@ -86,11 +103,14 @@ class JobSpec(object):
 
 
     # return map of values
-    def valuesMap(self,useSeq=False):
+    def valuesMap(self,useSeq=False,onlyChanged=False):
         ret = {}
         for attr in self._attributes:
             if useSeq and self._seqAttrMap.has_key(attr):
                 continue
+            if onlyChanged:
+                if not self._changedAttrs.has_key(attr):
+                    continue
             val = getattr(self,attr)
             if val == 'NULL':
                 if attr in self._zeroAttrs:
@@ -124,10 +144,11 @@ class JobSpec(object):
         for i in range(len(self._attributes)):
             # schema evolution is supported only when adding attributes
             if i+1 < len(state):
-                setattr(self,self._attributes[i],state[i])
+                object.__setattr__(self,self._attributes[i],state[i])
             else:
-                setattr(self,self._attributes[i],'NULL')                
-        self.Files = state[-1]
+                object.__setattr__(self,self._attributes[i],'NULL')                
+        object.__setattr__(self,'Files',state[-1])
+        object.__setattr__(self,'_changedAttrs',{})
         
         
     # return column names for INSERT or full SELECT
@@ -205,3 +226,14 @@ class JobSpec(object):
             else:
                 return 0
     compFunc = classmethod(compFunc)
+
+
+    # return an expression of bind variables for UPDATE to update only changed attributes
+    def bindUpdateChangesExpression(self):
+        ret = ""
+        for attr in self._attributes:
+            if self._changedAttrs.has_key(attr):
+                ret += '%s=:%s,' % (attr,attr)
+        ret  = ret[:-1]
+        ret += ' '
+        return ret

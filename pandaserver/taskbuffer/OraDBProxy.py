@@ -271,7 +271,9 @@ class DBProxy:
                 jobsetID = 0
             else:
                 jobsetID = job.jobsetID
-            jobsetID = '%06d' % jobsetID    
+            jobsetID = '%06d' % jobsetID
+            # reset changed attribute list
+            job.resetChangedList()
             # insert files
             _logger.debug("insertNewJob : %s Label:%s prio:%s" % (job.PandaID,job.prodSourceLabel,
                                                                       job.currentPriority))
@@ -558,12 +560,13 @@ class DBProxy:
                         self.cur.execute(sqlJob+comment, varMap)
                 else:
                     # update job
-                    sqlJ = ("UPDATE ATLAS_PANDA.jobsDefined4 SET %s " % JobSpec.bindUpdateExpression()) + \
+                    sqlJ = ("UPDATE ATLAS_PANDA.jobsDefined4 SET %s " % job.bindUpdateChangesExpression()) + \
                            "WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2)"
-                    varMap = job.valuesMap()
+                    varMap = job.valuesMap(onlyChanged=True)
                     varMap[':PandaID']       = job.PandaID
                     varMap[':oldJobStatus1'] = 'assigned'
                     varMap[':oldJobStatus2'] = 'defined'
+                    _logger.debug(sqlJ+comment+str(varMap))
                     self.cur.execute(sqlJ+comment, varMap)
                     n = self.cur.rowcount
                     if n==0:
@@ -1392,13 +1395,6 @@ class DBProxy:
     def updateJob(self,job,inJobsDefined):
         comment = ' /* DBProxy.updateJob */'        
         _logger.debug("updateJob : %s" % job.PandaID)
-        if inJobsDefined:
-            sql1 = "UPDATE ATLAS_PANDA.jobsDefined4 SET %s " % JobSpec.bindUpdateExpression()
-        else:
-            sql1 = "UPDATE ATLAS_PANDA.jobsActive4 SET %s " % JobSpec.bindUpdateExpression()            
-        sql1+= "WHERE PandaID=:PandaID "
-        if inJobsDefined:        
-            sql1+= " AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2) "
         nTry=3
         for iTry in range(nTry):
             try:
@@ -1406,14 +1402,23 @@ class DBProxy:
                 # set stateChangeTime for defined->assigned
                 if inJobsDefined:
                     job.stateChangeTime = job.modificationTime
+                # make SQL    
+                if inJobsDefined:
+                    sql1 = "UPDATE ATLAS_PANDA.jobsDefined4 SET %s " % job.bindUpdateChangesExpression()
+                else:
+                    sql1 = "UPDATE ATLAS_PANDA.jobsActive4 SET %s " % job.bindUpdateChangesExpression()            
+                sql1+= "WHERE PandaID=:PandaID "
+                if inJobsDefined:        
+                    sql1+= " AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2) "
                 # begin transaction
                 self.conn.begin()
                 # update
-                varMap = job.valuesMap()
+                varMap = job.valuesMap(onlyChanged=True)
                 varMap[':PandaID'] = job.PandaID
                 if inJobsDefined:
                     varMap[':oldJobStatus1'] = 'assigned'
                     varMap[':oldJobStatus2'] = 'defined'
+                _logger.debug(sql1+comment+str(varMap))                    
                 self.cur.execute(sql1+comment, varMap)
                 n = self.cur.rowcount                
                 if n==0:
