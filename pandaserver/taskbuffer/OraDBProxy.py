@@ -1463,8 +1463,6 @@ class DBProxy:
         sql1+= "WHERE PandaID=:PandaID "
         if failedInActive:
             sql1+= "AND jobStatus=:jobStatus "
-        sql2 = "UPDATE ATLAS_PANDA.jobsActive4 SET %s " % JobSpec.bindUpdateExpression()            
-        sql2+= "WHERE PandaID=:PandaID "
         nTry=3
         for iTry in range(nTry):
             try:
@@ -1625,7 +1623,7 @@ class DBProxy:
                             job.jobParameters = re.sub(oldPatt,newPatt,job.jobParameters)
                         if not changeJobInMem and not getNewPandaID:    
                             # update files
-                            sqlFup = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % file.bindUpdateExpression()) + "WHERE row_ID=:row_ID"
+                            sqlFup = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % file.bindUpdateChangesExpression()) + "WHERE row_ID=:row_ID"
                             varMap = file.valuesMap(onlyChanged=True)
                             if varMap != {}:
                                 varMap[':row_ID'] = file.row_ID
@@ -1634,7 +1632,9 @@ class DBProxy:
                         # reuse original PandaID
                         if not getNewPandaID:
                             # update job
-                            varMap = job.valuesMap()
+                            sql2 = "UPDATE ATLAS_PANDA.jobsActive4 SET %s " % job.bindUpdateChangesExpression()            
+                            sql2+= "WHERE PandaID=:PandaID "
+                            varMap = job.valuesMap(onlyChanged=True)
                             varMap[':PandaID'] = job.PandaID
                             self.cur.execute(sql2+comment, varMap)
                             # update job parameters
@@ -2534,7 +2534,7 @@ class DBProxy:
                     job.addFile(file)
                     # update files
                     sqlF = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % file.bindUpdateChangesExpression()) + "WHERE row_ID=:row_ID"
-                    varMap = file.valuesMap()
+                    varMap = file.valuesMap(onlyChanged=True)
                     if varMap != {}:
                         varMap[':row_ID'] = file.row_ID
                         _logger.debug(sqlF+comment+str(varMap))                        

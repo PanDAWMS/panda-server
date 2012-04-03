@@ -888,8 +888,8 @@ if len(jobs):
 # kill too long pending jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
 varMap = {}
-varMap[':jobStatus']        = 'pending'
-varMap[':modificationTime'] = timeLimit
+varMap[':jobStatus']    = 'pending'
+varMap[':creationTime'] = timeLimit
 status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsWaiting4 WHERE jobStatus=:jobStatus AND creationTime<:creationTime",
                                   varMap)
 jobs = []
