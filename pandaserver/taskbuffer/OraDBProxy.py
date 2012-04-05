@@ -2778,6 +2778,12 @@ class DBProxy:
         # return None for NULL PandaID
         if pandaID in ['NULL','','None',None]:
             return None
+        # only int
+        try:
+            tmpID = int(pandaID)
+        except:
+            _logger.debug("peekJob : return None for %s:non-integer" % pandaID)
+            return None
         sql1_0 = "SELECT %s FROM %s "
         sql1_1 = "WHERE PandaID=:PandaID"
         nTry=3        
