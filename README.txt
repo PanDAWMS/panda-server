@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added jobMetrics
   * added a protection against non-integer PandaID in peekJob
   * changed to update only changed attributes in job tables
   * fixed runMerge not to be stopped due to a single dataset error
