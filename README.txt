@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added double quotas to all params in getScriptOfflineRunning
   * added jobMetrics
   * added a protection against non-integer PandaID in peekJob
   * changed to update only changed attributes in job tables

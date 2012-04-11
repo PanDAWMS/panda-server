@@ -1,6 +1,7 @@
 import re
 import sys
 import types
+import shlex
 import datetime
 import ProcessGroups
 from threading import Lock
@@ -959,12 +960,28 @@ class TaskBuffer:
                 # ln
                 for tmpLFN in tmpFileList:
                     scrStr += "ln -fs %s*/%s ./%s\n" % (tmpDS.rstrip("/"),tmpLFN,tmpLFN)
-            scrStr += "\n#transform commands\n\n"        
+            scrStr += "\n#transform commands\n\n"
             for tmpIdx,tmpRel in enumerate(tmpRels):
                 # asetup
                 scrStr += "asetup %s,%s\n" % tuple(tmpRel.split("/"))
+                # add double quotes for zsh
+                tmpParamStr = tmpPars[tmpIdx]
+                tmpSplitter = shlex.shlex(tmpParamStr, posix=True)
+                tmpSplitter.whitespace = ' '
+                tmpSplitter.whitespace_split = True
+                # loop for params
+                for tmpItem in tmpSplitter:
+                    tmpMatch = re.search('^([^=]+=)(.+)$',tmpItem)
+                    if tmpMatch != None:
+                        tmpArgName = tmpMatch.group(1)
+                        tmpArgVal  = tmpMatch.group(2)
+                        tmpArgIdx = tmpParamStr.find(tmpArgName) + len(tmpArgName)
+                        # add " 
+                        if tmpParamStr[tmpArgIdx] != '"':
+                            tmpParamStr = tmpParamStr.replace(tmpMatch.group(0),
+                                                              tmpArgName+'"'+tmpArgVal+'"')
                 # run trf
-                scrStr += "%s %s\n\n" % (tmpTrfs[tmpIdx],tmpPars[tmpIdx])
+                scrStr += "%s %s\n\n" % (tmpTrfs[tmpIdx],tmpParamStr)
             return scrStr
         except:
             errType,errValue = sys.exc_info()[:2]
