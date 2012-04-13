@@ -11,6 +11,8 @@ import datetime
 import threading
 import ErrorCode
 
+import taskbuffer.ErrorCode
+
 from brokerage.PandaSiteIDs import PandaSiteIDs
 
 from dataservice.Closer  import Closer
@@ -53,6 +55,9 @@ class Watcher (threading.Thread):
                     # retry analysis jobs 
                     if (job.prodSourceLabel in ['user','panda']) and (job.attemptNr<2 or job.jobStatus == 'sent') \
                              and job.commandToPilot != 'tobekilled' and (not job.processingType in ['ITB_INTEGRATION']) \
+                             and not job.taskBufferErrorCode in [taskbuffer.ErrorCode.EC_Reassigned,
+                                                                 taskbuffer.ErrorCode.EC_Retried,
+                                                                 taskbuffer.ErrorCode.EC_PilotRetried] \
                              and not job.processingType.startswith('gangarobot') \
                              and not job.processingType.startswith('hammercloud'):
                         # reset

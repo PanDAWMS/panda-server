@@ -446,11 +446,12 @@ class TaskBuffer:
 
     # retry job
     def retryJob(self,jobID,param,failedInActive=False,changeJobInMem=False,inMemJob=None,
-                 getNewPandaID=False):
+                 getNewPandaID=False,attemptNr=None):
         # get DB proxy
         proxy = self.proxyPool.getProxy()
         # update DB
-        ret = proxy.retryJob(jobID,param,failedInActive,changeJobInMem,inMemJob,getNewPandaID)
+        ret = proxy.retryJob(jobID,param,failedInActive,changeJobInMem,inMemJob,
+                             getNewPandaID,attemptNr)
         # release proxy
         self.proxyPool.putProxy(proxy)
         return ret

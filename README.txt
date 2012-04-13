@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * not reset retried jobs in Watcher
+  * check attemprNr in retryJob
   * added double quotas to all params in getScriptOfflineRunning
   * added jobMetrics
   * added a protection against non-integer PandaID in peekJob

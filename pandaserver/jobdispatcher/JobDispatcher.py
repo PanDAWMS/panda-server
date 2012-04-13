@@ -126,10 +126,10 @@ class JobDipatcher:
             # retry
             if param.has_key('pilotErrorCode') and param['pilotErrorCode'].startswith('-'):
                 # pilot retry with new PandaID
-                ret = self.taskBuffer.retryJob(jobID,param,getNewPandaID=True)
+                ret = self.taskBuffer.retryJob(jobID,param,getNewPandaID=True,attemptNr=attemptNr)
             else:
                 # old style
-                ret = self.taskBuffer.retryJob(jobID,param)                
+                ret = self.taskBuffer.retryJob(jobID,param,attemptNr=attemptNr)                
             if ret:
                 # return succeed
                 response=Protocol.Response(Protocol.SC_Success)

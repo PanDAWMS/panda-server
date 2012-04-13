@@ -1456,7 +1456,7 @@ class DBProxy:
 
     # retry analysis job
     def retryJob(self,pandaID,param,failedInActive=False,changeJobInMem=False,inMemJob=None,
-                 getNewPandaID=False):
+                 getNewPandaID=False,attemptNr=None):
         comment = ' /* DBProxy.retryJob */'                
         _logger.debug("retryJob : %s inActive=%s" % (pandaID,failedInActive))
         sql1 = "SELECT %s FROM ATLAS_PANDA.jobsActive4 " % JobSpec.columnNames()
@@ -1489,6 +1489,31 @@ class DBProxy:
                 # don't use getNewPandaID for buildJob since the order of PandaIDs is broken
                 if getNewPandaID and job.prodSourceLabel in ['panda']:
                     if not changeJobInMem:    
+                        # commit
+                        if not self._commit():
+                            raise RuntimeError, 'Commit error'
+                    # return
+                    return retValue
+                # convert attemptNr to int
+                try:
+                    attemptNr = int(attemptNr)
+                except:
+                    _logger.debug("retryJob : %s attemptNr=%s non-integer" % (pandaID,attemptNr))
+                    attemptNr = -999
+                # check attemptNr
+                if attemptNr != None:
+                    if job.attemptNr != attemptNr:
+                        _logger.debug("retryJob : %s bad attemptNr job.%s != pilot.%s" % (pandaID,job.attemptNr,attemptNr))
+                        if not changeJobInMem:
+                            # commit
+                            if not self._commit():
+                                raise RuntimeError, 'Commit error'
+                        # return
+                        return retValue
+                # check if already retried
+                if job.taskBufferErrorCode in [ErrorCode.EC_Reassigned,ErrorCode.EC_Retried,ErrorCode.EC_PilotRetried]:
+                    _logger.debug("retryJob : %s already retried %s" % (pandaID,job.taskBufferErrorCode))
+                    if not changeJobInMem:
                         # commit
                         if not self._commit():
                             raise RuntimeError, 'Commit error'
