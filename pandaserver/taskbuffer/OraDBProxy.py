@@ -7734,8 +7734,7 @@ class DBProxy:
                                      'priority'      : None,
                                      'prioCondition' : None,
                                      'share'         : '100%'}
-                        # FIXME once pilotfactory is ready to use fairshare
-                        #faresharePolicy[siteid]['policyList'].append(tmpPolicy)
+                        faresharePolicy[siteid]['policyList'].append(tmpPolicy)
                     # some translation
                     faresharePolicy[siteid]['usingGroup'] = False
                     faresharePolicy[siteid]['usingType']  = False

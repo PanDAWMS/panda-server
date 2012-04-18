@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * enabled cap based on priority for CERN
   * not reset retried jobs in Watcher
   * check attemprNr in retryJob
   * added double quotas to all params in getScriptOfflineRunning
