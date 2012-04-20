@@ -181,6 +181,7 @@ class Adder (threading.Thread):
                         re.search('DQFrozenDatasetException',self.job.ddmErrorDiag) == None and \
                         re.search('DQUnknownDatasetException',self.job.ddmErrorDiag) == None and \
                         re.search('DQFileMetaDataMismatchException',self.job.ddmErrorDiag) == None and \
+                        re.search('DQDatasetExistsException',self.job.ddmErrorDiag) == None and \
                         re.search('Exceeded the maximum number of files',self.job.ddmErrorDiag) == None and \
                         re.search('KeyError',self.job.ddmErrorDiag) == None and \
                         not self.job.ddmErrorCode in [ErrorCode.EC_Subscription]:                       
