@@ -129,7 +129,10 @@ class Closer (threading.Thread):
                                         _logger.debug('%s skip %s due to status=%s' % (self.pandaID,topUserDsName,topUserDs.status))
                                     else:
                                         # set status
-                                        if not usingMerger:
+                                        if self.job.processingType in ['gangarobot-rctest']:
+                                            # not trigger freezing for HC datasets so that files can be appended
+                                            topUserDs.status = 'completed'
+                                        elif not usingMerger:
                                             topUserDs.status = finalStatus
                                         else:
                                             topUserDs.status = 'merging'

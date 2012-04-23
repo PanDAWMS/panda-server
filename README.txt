@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed Closer not to freeze HC datasets
   * fixed Adder since Register2 gives DatasetExist error when it got deleted 
   * enabled cap based on priority for CERN
   * not reset retried jobs in Watcher
