@@ -6972,7 +6972,7 @@ class DBProxy:
             sql+= "priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue,"
             sql+= "validatedreleases,accesscontrol,copysetup,maxinputsize,cachedse,"
             sql+= "allowdirectaccess,comment_,lastmod,multicloud,lfcregister,"
-            sql+= "countryGroup,availableCPU,pledgedCPU "
+            sql+= "countryGroup,availableCPU,pledgedCPU,coreCount "
             sql+= "FROM ATLAS_PANDAMETA.schedconfig WHERE siteid IS NOT NULL"
             self.cur.arraysize = 10000            
             self.cur.execute(sql+comment)
@@ -6995,7 +6995,7 @@ class DBProxy:
                        priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue,\
                        validatedreleases,accesscontrol,copysetup,maxinputsize,cachedse,\
                        allowdirectaccess,comment,lastmod,multicloud,lfcregister, \
-                       countryGroup,availableCPU,pledgedCPU \
+                       countryGroup,availableCPU,pledgedCPU,coreCount \
                        = resTmp
                     # skip invalid siteid
                     if siteid in [None,'']:
@@ -7041,6 +7041,13 @@ class DBProxy:
                     if not pledgedCPU in ['',None]:
                         try:
                             ret.pledgedCPU = int(pledgedCPU)
+                        except:
+                            pass
+                    # core count
+                    ret.coreCount = 0
+                    if not coreCount in ['',None]:
+                        try:
+                            ret.coreCount = int(coreCount)
                         except:
                             pass
                     # cloud list

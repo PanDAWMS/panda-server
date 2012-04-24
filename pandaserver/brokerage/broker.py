@@ -338,6 +338,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
     prevDiskCount  = None
     prevHomePkg    = None
     prevDirectAcc  = None
+    prevCoreCount  = None
     prevBrokergageSiteList = None
     prevManualPreset = None
     prevGoToT2Flag   = None
@@ -491,6 +492,16 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             specialBrokergageSiteList.append(tmpSiteName)
                 _log.debug('PandaID:%s -> set SiteList=%s for processingType=%s' % (job.PandaID,specialBrokergageSiteList,job.processingType))
                 brokerageNote = '%s' % job.processingType                
+            # use limited sites for MP jobs
+            if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
+                   and not job.coreCount in [None,'NULL'] and job.coreCount > 1 and specialBrokergageSiteList == []:
+                for tmpSiteName in siteMapper.getCloud(job.cloud)['sites']:
+                    if siteMapper.checkSite(tmpSiteName):
+                        tmpSiteSpec = siteMapper.getSite(tmpSiteName)
+                        if tmpSiteSpec.coreCount > 1:
+                            specialBrokergageSiteList.append(tmpSiteName)
+                _log.debug('PandaID:%s -> set SiteList=%s for MP=%scores' % (job.PandaID,specialBrokergageSiteList,job.coreCount))
+                brokerageNote = 'MP=%score' % job.coreCount
             # manually set site
             manualPreset = False
             if job != None and job.computingSite != 'NULL' and job.prodSourceLabel in ('test','managed') \
@@ -522,11 +533,12 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     _log.debug('  computingSite  %s' % computingSite)
                     _log.debug('  processingType %s' % prevProType)
                     _log.debug('  workingGroup   %s' % prevWorkingGroup)
+                    _log.debug('  coreCount      %s' % prevCoreCount)
                     _log.debug('  transferType   %s' % prevDirectAcc)
                     _log.debug('  goToT2         %s' % prevGoToT2Flag)
                 # brokerage decisions    
                 resultsForAnal   = {'rel':[],'pilot':[],'disk':[],'status':[],'weight':[],'memory':[],
-                                    'share':[],'transferring':[],'prefcountry':[]}
+                                    'share':[],'transferring':[],'prefcountry':[],'cpucore':[]}
                 # determine site
                 if (iJob == 0 or chosen_ce != 'TOBEDONE') and prevBrokergageSiteList in [None,[]]:
                      # file scan for pre-assigned jobs
@@ -700,8 +712,24 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             if prevDirectAcc == 'direct' and not tmpSiteSpec.allowdirectaccess:
                                 _log.debug(' skip: no direct access support')
                                 continue
+                            # check core count
+                            if tmpSiteSpec.coreCount > 1:
+                                # use multi-core queue for MP jobs
+                                if not prevCoreCount in [None,'NULL'] and prevCoreCount > 1:
+                                    pass
+                                else:
+                                    _log.debug('  skip: MP site (%s core) for job.coreCount=%s' % (tmpSiteSpec.coreCount,
+                                                                                                   prevCoreCount))
+                                    resultsForAnal['cpucore'].append(site)
+                                    continue
+                            else:
+                                # use single core for non-MP jobs
+                                if not prevCoreCount in [None,'NULL'] and prevCoreCount > 1:
+                                    _log.debug('  skip: single core site (%s core) for job.coreCount=%s' % (tmpSiteSpec.coreCount,
+                                                                                                            prevCoreCount))
+                                    resultsForAnal['cpucore'].append(site)
+                                    continue
                             # check memory
-                            #if (tmpSiteSpec.memory != 0 or (forAnalysis and specialWeight=={})) and not prevMemory in [None,0,'NULL']:
                             if tmpSiteSpec.memory != 0 and not prevMemory in [None,0,'NULL']:
                                 try:
                                     if int(tmpSiteSpec.memory) < int(prevMemory):
@@ -1126,7 +1154,9 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     elif resultsForAnal['status'] != []:
                                         tmpJob.brokerageErrorDiag = '%s not online' % tmpJob.computingSite
                                     elif resultsForAnal['share'] != []:
-                                        tmpJob.brokerageErrorDiag = '%s zero share' % tmpJob.computingSite                                        
+                                        tmpJob.brokerageErrorDiag = '%s zero share' % tmpJob.computingSite
+                                    elif resultsForAnal['cpucore'] != []:
+                                        tmpJob.brokerageErrorDiag = "CPU core count mismatch at %s" % tmpJob.computingSite
                                     elif resultsForAnal['transferring'] != []:
                                         tmpJob.brokerageErrorDiag = '%s too many transferring' % tmpJob.computingSite                                        
                                     elif useCacheVersion:
@@ -1182,16 +1212,23 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                         for tmpSiteItem in resultsForAnal['share']:
                                             usedInDiagSites.append(tmpSiteItem)
                                             tmpSiteStr += '%s,' % tmpSiteItem
-                                            tmpSiteStr = tmpSiteStr[:-1]
-                                            tmpJob.brokerageErrorDiag += 'zero share at %s: ' % tmpSiteStr
+                                        tmpSiteStr = tmpSiteStr[:-1]
+                                        tmpJob.brokerageErrorDiag += 'zero share at %s: ' % tmpSiteStr
+                                    if resultsForAnal['cpucore'] != []:
+                                        tmpSiteStr = ''
+                                        for tmpSiteItem in resultsForAnal['share']:
+                                            usedInDiagSites.append(tmpSiteItem)
+                                            tmpSiteStr += '%s,' % tmpSiteItem
+                                        tmpSiteStr = tmpSiteStr[:-1]
+                                        tmpJob.brokerageErrorDiag += 'CPU core count mismatch at %s: ' % tmpSiteStr
                                     # too many transferring        
                                     if resultsForAnal['transferring'] != []:
                                         tmpSiteStr = ''
                                         for tmpSiteItem in resultsForAnal['transferring']:
                                             usedInDiagSites.append(tmpSiteItem)
                                             tmpSiteStr += '%s,' % tmpSiteItem
-                                            tmpSiteStr = tmpSiteStr[:-1]
-                                            tmpJob.brokerageErrorDiag += 'too many transferring at %s: ' % tmpSiteStr
+                                        tmpSiteStr = tmpSiteStr[:-1]
+                                        tmpJob.brokerageErrorDiag += 'too many transferring at %s: ' % tmpSiteStr
                                     # missing release    
                                     tmpSiteStr = ''
                                     for tmpSiteItem in prevBrokergageSiteList:
@@ -1305,6 +1342,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             prevDiskCount   = job.maxDiskCount
             prevHomePkg     = job.homepackage
             prevDirectAcc   = job.transferType
+            prevCoreCount   = job.coreCount
             prevBrokergageSiteList = specialBrokergageSiteList
             prevManualPreset = manualPreset
             prevGoToT2Flag   = goToT2Flag
