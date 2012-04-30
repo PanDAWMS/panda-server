@@ -32,8 +32,10 @@ shortLongMap = {'ANALY_BNL_ATLAS_1':'ANALY_LONG_BNL_ATLAS',
                 }
 
 # hospital queues associated to T1
-hospitalQueueMap = {'FR':['IN2P3-CC_VL','IN2P3-CC','IN2P3-CC_SGE_VL'],
-                    'UK':['RAL-LCG2_HIMEM'],
+hospitalQueueMap = {'FR':['IN2P3-CC_VL','IN2P3-CC','IN2P3-CC_SGE_VL','IN2P3-CC_MCORE'],
+                    'UK':['RAL-LCG2_HIMEM','RAL-LCG2_MCORE'],
+                    'DE':['FZK-LCG2_MCORE'],
+                    'US':['BNL_PROD_MP8'],
                     }
 
 # processingType to skip brokerage
@@ -1216,7 +1218,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                         tmpJob.brokerageErrorDiag += 'zero share at %s: ' % tmpSiteStr
                                     if resultsForAnal['cpucore'] != []:
                                         tmpSiteStr = ''
-                                        for tmpSiteItem in resultsForAnal['share']:
+                                        for tmpSiteItem in resultsForAnal['cpucore']:
                                             usedInDiagSites.append(tmpSiteItem)
                                             tmpSiteStr += '%s,' % tmpSiteItem
                                         tmpSiteStr = tmpSiteStr[:-1]
