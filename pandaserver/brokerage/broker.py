@@ -31,13 +31,6 @@ shortLongMap = {'ANALY_BNL_ATLAS_1':'ANALY_LONG_BNL_ATLAS',
                 'ANALY_LYON_DCACHE':'ANALY_LONG_LYON_DCACHE',
                 }
 
-# hospital queues associated to T1
-hospitalQueueMap = {'FR':['IN2P3-CC_VL','IN2P3-CC','IN2P3-CC_SGE_VL','IN2P3-CC_MCORE'],
-                    'UK':['RAL-LCG2_HIMEM','RAL-LCG2_MCORE'],
-                    'DE':['FZK-LCG2_MCORE'],
-                    'US':['BNL_PROD_MP8'],
-                    }
-
 # processingType to skip brokerage
 skipBrokerageProTypes = ['prod_test']
 
@@ -297,6 +290,49 @@ def getT2CandList(tmpJob,siteMapper,t2FilesMap):
     return tmpCandT2s 
 
 
+# get hospital queues
+def getHospitalQueues(siteMapper):
+    retMap = {}
+    # hospital words
+    goodWordList = ['CORE$','VL$','MEM$','MP\d+$']
+    # loop over all clouds
+    for tmpCloudName in siteMapper.getCloudList():
+        # get cloud
+        tmpCloudSpec = siteMapper.getCloud(tmpCloudName)
+        # get T1
+        tmpT1Name = tmpCloudSpec['source']
+        tmpT1Spec = siteMapper.getSite(tmpT1Name)
+        # skip if DDM is undefined
+        if tmpT1Spec.ddm == []:
+            continue
+        # loop over all sites
+        for tmpSiteName in tmpCloudSpec['sites']:
+            # skip T1 defined in cloudconfig
+            if tmpSiteName == tmpT1Name:
+                continue
+            # check hospital words
+            checkHospWord = False
+            for tmpGoodWord in goodWordList:
+                if re.search(tmpGoodWord,tmpSiteName) != None:
+                    checkHospWord = True
+                    break
+            if not checkHospWord:
+                continue
+            # check site
+            if not siteMapper.checkSite(tmpSiteName):
+                continue
+            tmpSiteSpec = siteMapper.getSite(tmpSiteName)
+            # check DDM
+            if tmpT1Spec.ddm == tmpSiteSpec.ddm:
+                # append
+                if not retMap.has_key(tmpCloudName):
+                    retMap[tmpCloudName] = []
+                if not tmpSiteName in retMap[tmpCloudName]:
+                    retMap[tmpCloudName].append(tmpSiteName)
+    _log.debug('hospital queues : %s' % str(retMap))
+    # return
+    return retMap
+
 
 # schedule
 def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],trustIS=False,
@@ -372,6 +408,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             jobStatBroker = {}
             jobStatBrokerClouds = {}
             nRunningMap = {}
+            hospitalQueueMap = {}
         else:
             jobStatistics = taskBuffer.getJobStatistics(forAnal=forAnalysis)
             if not forAnalysis:
@@ -384,6 +421,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 else:
                     jobStatBroker = taskBuffer.getJobStatisticsAnalBrokerage(minPriority=minPriority)                    
                 nRunningMap   = taskBuffer.getnRunningInSiteData()
+            hospitalQueueMap = getHospitalQueues(siteMapper)    
         # sort jobs by siteID. Some jobs may already define computingSite
         jobs.sort(_compFunc)
         # brokerage for analysis 

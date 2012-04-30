@@ -1,7 +1,7 @@
 Release Note
 
 * current
-  * fixed some T1 hospital queues in the brokerage
+  * fixed the brokerage to get hospital queues automatically
   * updated brokerage to use coreCount
   * fixed Closer not to freeze HC datasets
   * fixed Adder since Register2 gives DatasetExist error when it got deleted 
