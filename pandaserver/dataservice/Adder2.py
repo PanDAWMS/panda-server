@@ -142,9 +142,6 @@ class Adder (threading.Thread):
                     if re.search('^ANALY_',self.job.computingSite) != None:
                         # analysis site
                         pass
-                    elif (re.search('BNL', self.job.computingSite) != None or self.job.computingSite == "TPATHENA"):
-                        # BNL
-                        pass
                     elif self.job.computingSite == self.job.destinationSE:
                         # same site ID for computingSite and destinationSE
                         pass
@@ -153,9 +150,6 @@ class Adder (threading.Thread):
                         pass
                     elif tmpSrcSEs == tmpDstSEs:
                         # same SEs
-                        pass
-                    elif self.job.computingSite.endswith("_REPRO"):
-                        # reprocessing sites
                         pass
                     elif self.addToTopOnly:
                         # already in transferring
