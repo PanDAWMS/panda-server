@@ -4,7 +4,7 @@ Release Note
   * removed special treatment for BNL from Adder
   * fixed the brokerage to get hospital queues automatically
   * updated brokerage to use coreCount
-  * fixed Closer not to freeze HC datasets
+  * fixed Closer not to freeze any HC datasets
   * fixed Adder since Register2 gives DatasetExist error when it got deleted 
   * enabled cap based on priority for CERN
   * not reset retried jobs in Watcher
