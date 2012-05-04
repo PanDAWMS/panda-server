@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * pin dis for foreign T2s in US cloud
   * removed special treatment for BNL from Adder
   * fixed the brokerage to get hospital queues automatically
   * updated brokerage to use coreCount

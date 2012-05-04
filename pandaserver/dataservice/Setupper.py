@@ -1830,7 +1830,8 @@ class Setupper (threading.Thread):
             if tmpJob.jobStatus in ['failed','cancelled','waiting']:
                 continue
             # check cloud
-            if tmpJob.cloud in ['US','ND']:
+            if tmpJob.cloud == 'ND' or \
+                   (tmpJob.cloud == 'US' and self.siteMapper.getSite(tmpJob.computingSite).cloud == 'US'):
                 continue
             # check SE to use T2 only
             tmpSrcID = self.siteMapper.getCloud(tmpJob.cloud)['source']
