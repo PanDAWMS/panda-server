@@ -8,6 +8,8 @@ OPTIONS="-f @@install_dir@@/etc/panda/panda_server-httpd.conf"
 
 # for DQ2
 export X509_CERT_DIR=/etc/grid-security/certificates
+export RUCIO_ACCOUNT=panda
+export RUCIO_APPID=pandasrv
 
 # panda home
 export PANDA_HOME=@@install_dir@@

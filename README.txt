@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * setting RUCIO_ACCOUNT and RUCIO_APPID
   * pin dis for foreign T2s in US cloud
   * removed special treatment for BNL from Adder
   * fixed the brokerage to get hospital queues automatically
