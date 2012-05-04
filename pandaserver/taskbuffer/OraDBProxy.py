@@ -6019,7 +6019,7 @@ class DBProxy:
                 # for zero
                 for site,siteVal in ret.iteritems():
                     for pType,typeVal in siteVal.iteritems():
-                        for stateItem in ['assigned','activated','running']:
+                        for stateItem in ['defined','assigned','activated','running']:
                             if not typeVal.has_key(stateItem):
                                 typeVal[stateItem] = 0
                 # return

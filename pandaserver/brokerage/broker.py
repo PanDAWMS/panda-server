@@ -421,7 +421,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 else:
                     jobStatBroker = taskBuffer.getJobStatisticsAnalBrokerage(minPriority=minPriority)                    
                 nRunningMap   = taskBuffer.getnRunningInSiteData()
-            hospitalQueueMap = getHospitalQueues(siteMapper)    
+            hospitalQueueMap = getHospitalQueues(siteMapper)
         # sort jobs by siteID. Some jobs may already define computingSite
         jobs.sort(_compFunc)
         # brokerage for analysis 
@@ -963,6 +963,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     nAssJobs += newJobStatWithPrio[tmpNewPriority][previousCloud][site][tmpProGroup]
                             else:
                                 nAssJobs = jobStatBroker[site][tmpProGroup]['assigned']
+                                if forAnalysis and jobStatBroker[site][tmpProGroup].has_key('defined'):
+                                    nAssJobs += jobStatBroker[site][tmpProGroup]['defined']
                                 nActJobs = jobStatBroker[site][tmpProGroup]['activated']
                             # get ration of transferring to running
                             if not forAnalysis and not tmpSiteSpec.cloud in ['ND']:

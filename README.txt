@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed anal brokerage to take # of defined jobs into account
   * setting RUCIO_ACCOUNT and RUCIO_APPID
   * pin dis for foreign T2s in US cloud
   * removed special treatment for BNL from Adder
