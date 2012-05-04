@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * set closed to HC sub datasets not to trigger top dataset cleanup   
   * fixed anal brokerage to take # of defined jobs into account
   * setting RUCIO_ACCOUNT and RUCIO_APPID
   * pin dis for foreign T2s in US cloud

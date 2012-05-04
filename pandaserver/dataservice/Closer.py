@@ -98,7 +98,11 @@ class Closer (threading.Thread):
                         finalStatus = 'tobemerged'
                         firstIndvDS = False
                     else:
-                        finalStatus = 'tobeclosed'
+                        if self.job.processingType.startswith('gangarobot') or \
+                               self.job.processingType.startswith('hammercloud'):
+                            finalStatus = 'closed'
+                        else:
+                            finalStatus = 'tobeclosed'
                     # set merging to top dataset
                     usingMerger = True
                     # disable Notifier
