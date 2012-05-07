@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added more debug INFO to Setupper
   * fixed DBProxy not to freeze top datasets for HC when build failed
   * fixed anal brokerage to take # of defined jobs into account
   * setting RUCIO_ACCOUNT and RUCIO_APPID

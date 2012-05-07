@@ -1107,6 +1107,7 @@ class Setupper (threading.Thread):
         cloudMap = {}
         lfnDsMap = {}
         replicaMap = {}
+        _logger.debug('%s correctLFN 0' % self.timestamp)
         for job in self.jobs:
             if self.onlyTA:            
                 _logger.debug("%s start TA session %s" % (self.timestamp,job.taskID))
@@ -1173,6 +1174,7 @@ class Setupper (threading.Thread):
                     if not file.dataset in datasets:
                         datasets.append(file.dataset)
             # get LFN list
+            _logger.debug('%s correctLFN 1' % self.timestamp)
             for dataset in datasets:
                 if not dataset in lfnMap.keys():
                     prodError[dataset] = ''
@@ -1270,6 +1272,7 @@ class Setupper (threading.Thread):
                                 self.replicaMapForBroker[dataset] = tmpRepSites
             # error
             isFailed = False
+            _logger.debug('%s correctLFN 2' % self.timestamp)            
             # check for failed
             for dataset in datasets:
                 if missingDS.has_key(dataset):
@@ -1290,6 +1293,7 @@ class Setupper (threading.Thread):
                     else:
                         _logger.debug("%s %s failed with %s" % (self.timestamp,job.PandaID,missingDS[dataset]))
                     break
+            _logger.debug('%s correctLFN 3' % self.timestamp)                
             if isFailed:
                 continue
             # check for waiting
@@ -1302,6 +1306,7 @@ class Setupper (threading.Thread):
                     if self.onlyTA:                            
                         _logger.error("%s %s" % (self.timestamp,prodError[dataset]))
                     break
+            _logger.debug('%s correctLFN 4' % self.timestamp)                
             if isFailed:
                 continue
             # set cloud
@@ -1353,6 +1358,7 @@ class Setupper (threading.Thread):
                 # message for TA
                 if self.onlyTA:            
                     _logger.debug("%s set %s:%s" % (self.timestamp,job.taskID,job.cloud))
+            _logger.debug('%s correctLFN 5' % self.timestamp)                    
             # replace generic LFN with real LFN
             replaceList = []
             isFailed = False
@@ -1407,6 +1413,7 @@ class Setupper (threading.Thread):
         if self.onlyTA:
             _logger.debug("%s end TA sessions" % self.timestamp)
             return
+        _logger.debug('%s correctLFN 6' % self.timestamp)        
         # get missing LFNs from source LRC/LFC
         missLFNs = {}
         for cloudKey in allLFNs.keys():
@@ -1444,6 +1451,7 @@ class Setupper (threading.Thread):
             if not missLFNs.has_key(cloudKey):
                 missLFNs[cloudKey] = []
             missLFNs[cloudKey] += tmpMissLFNs
+        _logger.debug('%s correctLFN 7' % self.timestamp)
         # check availability of missing files at T2
         for cloudKey,tmpMissLFNs in missLFNs.iteritems():
             # add cloud
