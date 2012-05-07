@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * using FOR UPDATE in lockJobForReBrokerage 
   * added more debug INFO to Setupper
   * fixed DBProxy not to freeze top datasets for HC when build failed
   * fixed anal brokerage to take # of defined jobs into account

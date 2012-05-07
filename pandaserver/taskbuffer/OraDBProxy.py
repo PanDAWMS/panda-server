@@ -3738,7 +3738,7 @@ class DBProxy:
                 sql  = "SELECT modificationTime FROM %s "
                 sql += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
                 sql += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND jobStatus IN (:jobStatus1,:jobStatus2) "
-                sql += "AND rownum <=1"
+                sql += "FOR UPDATE "                
                 varMap = {}
                 varMap[':prodUserName'] = compactDN
                 varMap[':jobDefinitionID']  = jobID
@@ -3774,14 +3774,12 @@ class DBProxy:
                                  % tmpModificationTime.strftime('%Y-%m-%d %H:%M:%S')
                     else:
                         # update modificationTime for locking
-                        if buildJobStatus in ['defined']:
-                            sql = 'UPDATE ATLAS_PANDA.jobsActive4 '
-                        else:
-                            sql = 'UPDATE ATLAS_PANDA.jobsActive4 '
-                        sql += 'SET modificationTime=CURRENT_DATE '
-                        sql += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
-                        sql += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND jobStatus IN (:jobStatus1,:jobStatus2) "
-                        self.cur.execute(sql+comment, varMap)
+                        for tableName in tables:
+                            sql = 'UPDATE %s ' % tableName
+                            sql += 'SET modificationTime=CURRENT_DATE '
+                            sql += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
+                            sql += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND jobStatus IN (:jobStatus1,:jobStatus2) "
+                            self.cur.execute(sql+comment, varMap)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
