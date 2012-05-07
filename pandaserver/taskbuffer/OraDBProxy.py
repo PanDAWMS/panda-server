@@ -849,10 +849,14 @@ class DBProxy:
                                         if topUserDsName != tmpDestinationDBlock and not topUserDsName in topUserDsList:
                                             # set tobeclosed
                                             varMap = {}
-                                            varMap[':status'] = 'tobeclosed'
+                                            if dJob.processingType.startswith('gangarobot') or \
+                                                   dJob.processingType.startswith('hammercloud'):
+                                                varMap[':status'] = 'completed'
+                                            else:
+                                                varMap[':status'] = 'tobeclosed'
                                             varMap[':name'] = topUserDsName
                                             self.cur.execute(sqlCloseSub+comment, varMap)
-                                            _logger.debug("set tobeclosed for %s" % topUserDsName)
+                                            _logger.debug("set %s for %s" % (varMap[':status'],topUserDsName))
                                             # append
                                             topUserDsList.append(topUserDsName)
                 elif job.prodSourceLabel == 'ddm' and job.jobStatus == 'failed' and job.transferType=='dis':
