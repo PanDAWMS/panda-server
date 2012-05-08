@@ -6,9 +6,13 @@ def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=Fa
     retDQ2Map = {}
     # no replica map
     if not replicaMap.has_key(tmpDsName):
+        if getDQ2ID:
+            return retDQ2Map
         return retList
     # use valid cloud
     if not siteMapper.checkCloud(cloudKey):
+        if getDQ2ID:
+            return retDQ2Map
         return retList
     # check sites in the cloud
     for tmpSiteName in siteMapper.getCloud(cloudKey)['sites']:

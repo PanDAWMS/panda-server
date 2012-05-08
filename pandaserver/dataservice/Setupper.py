@@ -1152,7 +1152,7 @@ class Setupper (threading.Thread):
                             retCloud = cloudResolver.setCloud(tmpLFNs,tmpGUIDs,metadata=job.metadata)
                             _logger.debug("%s setCloud() -> %s" % (self.timestamp,retCloud))
                             if retCloud == None:
-                                _logger.error("failed to set cloud for %s" % job.taskID)
+                                _logger.debug("failed to set cloud for %s" % job.taskID)
                                 # append job to waiting list
                                 jobsWaiting.append(job)
                                 continue
@@ -1347,7 +1347,7 @@ class Setupper (threading.Thread):
                         retCloud = cloudResolver.setCloud(tmpLFNs,tmpGUIDs,tmpReLoc,metadata=job.metadata)
                         _logger.debug("%s setCloud() -> %s" % (self.timestamp,retCloud))
                         if retCloud == None:
-                            _logger.error("failed to set cloud for %s" % job.taskID)
+                            _logger.debug("failed to set cloud for %s" % job.taskID)
                             # append job to waiting list
                             jobsWaiting.append(job)
                             continue

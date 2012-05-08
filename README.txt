@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed DataServiceUtils to return an empty map when DQ2Map is set
   * using FOR UPDATE in lockJobForReBrokerage 
   * added more debug INFO to Setupper
   * fixed DBProxy not to freeze top datasets for HC when build failed
