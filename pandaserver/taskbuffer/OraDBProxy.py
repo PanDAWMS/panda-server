@@ -2236,7 +2236,7 @@ class DBProxy:
                                 sqlJ+= " WHERE PandaID=:PandaID AND jobStatus=:oldJobStatus"
                                 # SQL to get nSent
                                 sentLimit = timeStart - datetime.timedelta(seconds=60)
-                                sqlSent  = "SELECT /*+ INDEX_COMBINE(tab JOBSACTIVE4_JOBSTATUS_IDX JOBSACTIVE4_COMPSITE_IDX) */ count(*) FROM ATLAS_PANDA.jobsActive4 tab WHERE jobStatus=:jobStatus "
+                                sqlSent  = "SELECT count(*) FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus "
                                 sqlSent += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
                                 sqlSent += "AND computingSite=:computingSite "
                                 sqlSent += "AND modificationTime>:modificationTime "
@@ -7144,8 +7144,8 @@ class DBProxy:
             varMap[':computingSite'] = siteName
             varMap[':prodSourceLabel1'] = 'user'
             varMap[':prodSourceLabel2'] = 'panda'
-            sql  = "SELECT /*+ INDEX_COMBINE(tab JOBSACTIVE4_JOBSTATUS_IDX JOBSACTIVE4_COMPSITE_IDX) */ PandaID "
-            sql += "FROM ATLAS_PANDA.jobsActive4 tab WHERE jobStatus=:jobStatus "
+            sql  = "SELECT PandaID "
+            sql += "FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus "
             sql += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
             sql += "AND computingSite=:computingSite "
             sql += "AND countryGroup IN ("
@@ -7172,8 +7172,8 @@ class DBProxy:
             varMap[':computingSite'] = siteName
             varMap[':prodSourceLabel1'] = 'user'
             varMap[':prodSourceLabel2'] = 'panda'
-            sql  = "SELECT /*+ INDEX_COMBINE(tab JOBSACTIVE4_JOBSTATUS_IDX JOBSACTIVE4_COMPSITE_IDX) */ COUNT(*),countryGroup "            
-            sql += "FROM ATLAS_PANDA.jobsActive4 tab WHERE jobStatus IN (:jobStatus1,:jobStatus2) "
+            sql  = "SELECT COUNT(*),countryGroup "            
+            sql += "FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus IN (:jobStatus1,:jobStatus2) "
             sql += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
             sql += "AND computingSite=:computingSite "
             sql += "GROUP BY countryGroup "
@@ -9265,7 +9265,7 @@ class DBProxy:
             retList = []
             for table in ['jobsActive4','jobsDefined4','jobsWaiting4']:
                 if table == 'jobsActive4':
-                    sql0  = "SELECT /*+ INDEX_COMBINE(tab JOBSACTIVE4_JOBSTATUS_IDX JOBSACTIVE4_COMPSITE_IDX) */ distinct prodDBlock FROM ATLAS_PANDA.%s tab " % table
+                    sql0  = "SELECT distinct prodDBlock FROM ATLAS_PANDA.%s " % table
                 else:
                     sql0  = "SELECT distinct prodDBlock FROM ATLAS_PANDA.%s " % table
                 sql0 += "WHERE computingSite=:computingSite AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3) "

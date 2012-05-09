@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * removed old hints
   * fixed DataServiceUtils to return an empty map when DQ2Map is set
   * using FOR UPDATE in lockJobForReBrokerage 
   * added more debug INFO to Setupper
