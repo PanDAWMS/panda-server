@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed rebro to set the same specialHandling to build since new build may have different specialHandling
   * removed old hints
   * fixed DataServiceUtils to return an empty map when DQ2Map is set
   * using FOR UPDATE in lockJobForReBrokerage 

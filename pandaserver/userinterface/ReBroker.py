@@ -541,6 +541,8 @@ class ReBroker (threading.Thread):
                     # set destSE
                     if tmpFile.destinationSE == oldComputingSite:
                         tmpFile.destinationSE = site
+        # set the same specialHandling since new build may have different specialHandling
+        self.pandaJobList[0].specialHandling = self.pandaJobList[-1].specialHandling
         # return
         return True
 
