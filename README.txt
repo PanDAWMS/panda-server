@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * fixed dataset update timing check in Notifier 
+  * rixed zero suppression with wildcard in brokerage
   * fixed rebro to set the same specialHandling to build since new build may have different specialHandling
   * removed old hints
   * fixed DataServiceUtils to return an empty map when DQ2Map is set

@@ -879,7 +879,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                             if '*' in tmpPolicy['group']:
                                                 # wildcard
                                                 tmpPatt = '^' + tmpPolicy['group'].replace('*','.*') + '$'
-                                                if re.search(tmpPatt,prevWorkingGroup) != None:
+                                                if re.search(tmpPatt,prevWorkingGroup) == None:
                                                     continue
                                             else:
                                                 # normal definition

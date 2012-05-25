@@ -9344,7 +9344,7 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
-            # check status
+            # check dataset status
             allClosed = True
             retInfo = {}
             latestUpdate   = None
@@ -9353,6 +9353,8 @@ class DBProxy:
             varMap[':type1'] = 'log'
             varMap[':type2'] = 'output'            
             sql = 'SELECT status,modificationDate FROM ATLAS_PANDA.Datasets WHERE name=:name AND type IN (:type1,:type2)'
+            sqlJ =  "SELECT MAX(modificationTime) FROM ATLAS_PANDA.jobsArchived4 "
+            sqlJ += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID" 
             # start transaction
             self.conn.begin()
             self.cur.arraysize = 1000                
@@ -9367,6 +9369,8 @@ class DBProxy:
                     resSs = self.cur.fetchall()
                     # check status and mod time
                     for tmpStatus,tmpModificationDate in resSs:
+                        _logger.debug("checkDatasetStatusForNotifier(%s,%s) %s has %s with %s at %s" % \
+                                      (jobsetID,jobDefinitionID,tmpJobDefID,tmpDataset,tmpStatus,tmpModificationDate))
                         if not tmpStatus in ['closed','tobeclosed','completed']:
                             # some datasets are still active 
                             allClosed = False
@@ -9374,11 +9378,26 @@ class DBProxy:
                                           (jobsetID,jobDefinitionID,tmpJobDefID,tmpDataset,tmpStatus))
                             break
                         elif tmpStatus == 'tobeclosed':
-                            if latestUpdate == None or latestUpdate < tmpModificationDate:
+                            # select latest modificationTime in job table
+                            varMapJ = {}
+                            varMapJ[':prodUserName'] = prodUserName
+                            varMapJ[':jobDefinitionID'] = tmpJobDefID
+                            self.cur.execute(sqlJ+comment, varMapJ)
+                            resJ = self.cur.fetchone()
+                            if resJ == None:
+                                # error
+                                allClosed = False
+                                _logger.error("checkDatasetStatusForNotifier(%s,%s) %s cannot find job" % \
+                                              (jobsetID,jobDefinitionID,tmpJobDefID))
+                                break
+                            tmpModificationTime, = resJ
+                            _logger.debug("checkDatasetStatusForNotifier(%s,%s) %s modtime:%s" % \
+                                          (jobsetID,jobDefinitionID,tmpJobDefID,tmpModificationTime))
+                            if latestUpdate == None or latestUpdate < tmpModificationTime:
                                 # use the latest updated jobDefID
-                                latestUpdate   = tmpModificationDate
+                                latestUpdate   = tmpModificationTime
                                 latestJobDefID = tmpJobDefID
-                            elif latestUpdate == tmpModificationDate and latestJobDefID < tmpJobDefID:
+                            elif latestUpdate == tmpModificationTime and latestJobDefID < tmpJobDefID:
                                 # use larger jobDefID when datasets are closed at the same time
                                 latestJobDefID = tmpJobDefID
                     # escape
@@ -9390,8 +9409,9 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
-            _logger.debug("checkDatasetStatusForNotifier(%s,%s) -> %s %s" % \
-                          (jobsetID,jobDefinitionID,allClosed,latestJobDefID))
+            _logger.debug("checkDatasetStatusForNotifier(%s,%s) -> all:%s %s latest:%s" % \
+                          (jobsetID,jobDefinitionID,allClosed,latestJobDefID,
+                           jobDefinitionID == latestJobDefID))
             # return
             if not allClosed or jobDefinitionID != latestJobDefID:
                 return False,{}
