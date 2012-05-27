@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed brokerage for preassigned repro jobs
   * fixed dataset update timing check in Notifier 
   * rixed zero suppression with wildcard in brokerage
   * fixed rebro to set the same specialHandling to build since new build may have different specialHandling
