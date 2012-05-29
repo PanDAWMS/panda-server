@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed TA to ignore non-DATADISK replicas at T1 
   * fixed brokerage for preassigned repro jobs
   * fixed dataset update timing check in Notifier 
   * rixed zero suppression with wildcard in brokerage

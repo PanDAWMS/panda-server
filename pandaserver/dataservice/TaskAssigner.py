@@ -398,15 +398,23 @@ class TaskAssigner:
                         _logger.debug('%s %s %s' % (self.taskID,len(guids),iFile))
                 # skip 
                 if skipFlag:
-                    _logger.debug('%s    %s skip : invalid retur from LFC' % (self.taskID,cloudName))
+                    _logger.debug('%s    %s skip : invalid return from LFC' % (self.taskID,cloudName))
                     del weightParams[tmpCloudName]
                     continue
                 _logger.debug('%s  # of files at T1 %s' % (self.taskID,weightParams[tmpCloudName]['nFiles']))
                 # found candidate
+                foundCandidateT1 = False
                 if weightParams[tmpCloudName]['nFiles'] >= maxNFiles:
-                    foundCandidateWithT1.append(tmpCloudName)
-                # check T2 if files are missing and no candidate so far
-                if foundCandidateWithT1 == [] and weightParams[tmpCloudName]['nFiles'] < maxNFiles and \
+                    foundCandidateT1 = True
+                    # avoid incomplete at T1 
+                    for tmpDS,tmpT2CloudList in removedDQ2Map.iteritems():
+                        if tmpCloudName in tmpT2CloudList:
+                            foundCandidateT1 = False
+                            break
+                    if foundCandidateT1:        
+                        foundCandidateWithT1.append(tmpCloudName)
+                # check T2 if files are missing
+                if (not foundCandidateT1 or weightParams[tmpCloudName]['nFiles'] < maxNFiles) and \
                        t2ListForMissing.has_key(tmpCloudName) and t2ListForMissing[tmpCloudName] != []:
                     _logger.debug('%s  T2 candidates %s' % (self.taskID,str(t2ListForMissing[tmpCloudName])))
                     # list of SEs and LFC
@@ -554,7 +562,7 @@ class TaskAssigner:
                 if newT2DQ2Map == {}:
                     _logger.error('%s no subscription map to use T2 datasets cloud=%s map=%s' % (self.taskID,definedCloud,removedDQ2Map))
                     return None
-                _logger.debug('%s makeSubscription to use T2 start' % self.taskID)                                    
+                _logger.debug('%s makeSubscription to use T2 start' % self.taskID)
                 retSub = self.makeSubscription(newT2DQ2Map,RWs,fullRWs,expRWs,noEmptyCheck=True,acceptInProcess=True)
                 if not retSub:
                     _logger.error('%s makeSubscription to use T2 failed with %s' % (self.taskID,retSub))
