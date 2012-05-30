@@ -5091,10 +5091,24 @@ class DBProxy:
     def getFilesInUseForAnal(self,outDataset):
         comment = ' /* DBProxy.getFilesInUseForAnal */'        
         sqlSub  = "SELECT /*+ index(tab FILESTABLE4_DATASET_IDX) */ destinationDBlock,PandaID FROM ATLAS_PANDA.filesTable4 tab "
-        sqlSub += "WHERE dataset=:dataset AND type IN (:type1,:type2) AND modificationTime<=CURRENT_DATE GROUP BY destinationDBlock,PandaID"
-        sqlPan  = "SELECT jobStatus FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID AND modificationTime<=CURRENT_DATE "
+        sqlSub += "WHERE dataset=:dataset AND type IN (:type1,:type2) GROUP BY destinationDBlock,PandaID"
+        sqlPaA  = "SELECT jobDefinitionID,prodUserName FROM ATLAS_PANDA.jobsDefined4 "
+        sqlPaA += "WHERE PandaID=:PandaID "
+        sqlPaA += "UNION "
+        sqlPaA += "SELECT jobDefinitionID,prodUserName FROM ATLAS_PANDA.jobsActive4 "
+        sqlPaA += "WHERE PandaID=:PandaID "
+        sqlPan  = "SELECT jobDefinitionID,prodUserName FROM ATLAS_PANDA.jobsArchived4 "
+        sqlPan += "WHERE PandaID=:PandaID AND modificationTime<=CURRENT_DATE "
         sqlPan += "UNION "
-        sqlPan += "SELECT jobStatus FROM ATLAS_PANDAARCH.jobsArchived WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-30)"        
+        sqlPan += "SELECT jobDefinitionID,prodUserName FROM ATLAS_PANDAARCH.jobsArchived "
+        sqlPan += "WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-30)"
+        sqlIdA  = "SELECT PandaID,jobStatus FROM ATLAS_PANDA.jobsArchived4 "
+        sqlIdA += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
+        sqlIdA += "AND prodSourceLabel=:prodSourceLabel1 "
+        sqlIdL  = "SELECT /*+ NO_INDEX(tab JOBS_MODTIME_IDX) INDEX_COMBINE(tab JOBS_PRODUSERNAME_IDX JOBS_JOBDEFID_IDX) */ "
+        sqlIdL += "PandaID,jobStatus FROM ATLAS_PANDAARCH.jobsArchived tab "
+        sqlIdL += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
+        sqlIdL += "AND prodSourceLabel=:prodSourceLabel1 AND modificationTime>(CURRENT_DATE-30) "
         sqlDis  = "SELECT distinct dispatchDBlock FROM ATLAS_PANDA.filesTable4 "
         sqlDis += "WHERE PandaID=:PandaID AND type=:type AND dispatchDBlock IS NOT NULL AND modificationTime <= CURRENT_DATE"
         sqlLfn  = "SELECT /*+ index(tab FILESTABLE4_DISPDBLOCK_IDX) */ lfn,PandaID FROM ATLAS_PANDA.filesTable4 tab "
@@ -5118,26 +5132,64 @@ class DBProxy:
                 subDSpandaIDmap = {}
                 checkedPandaIDs = {}
                 for subDataset,pandaID in res:
-                    if not checkedPandaIDs.has_key(pandaID):
-                        # check status
-                        varMap = {}
-                        varMap[':PandaID'] = pandaID
+                    # avoid redundunt lookup
+                    if checkedPandaIDs.has_key(pandaID):
+                        continue
+                    if subDSpandaIDmap.has_key(subDataset):
+                        # append jobs as running since they are not in archived tables
+                        if not pandaID in subDSpandaIDmap[subDataset]:
+                            checkedPandaIDs[pandaID] = 'running'
+                            subDSpandaIDmap[subDataset].append(pandaID)
+                        continue
+                    # look for jobdefID and userName
+                    varMap = {}
+                    varMap[':PandaID'] = pandaID
+                    _logger.debug("getFilesInUseForAnal : %s %s" % (sqlPaA,str(varMap)))                    
+                    retP = self.cur.execute(sqlPaA+comment, varMap)
+                    resP = self.cur.fetchall()
+                    if len(resP) != 0:
+                        jobDefinitionID,prodUserName = resP[0]
+                    else:
+                        _logger.debug("getFilesInUseForAnal : %s %s" % (sqlPan,str(varMap)))
                         retP = self.cur.execute(sqlPan+comment, varMap)
                         resP = self.cur.fetchall()
-                        # append
                         if len(resP) != 0:
-                            checkedPandaIDs[pandaID] = resP[0][0]
+                            jobDefinitionID,prodUserName = resP[0]
                         else:
-                            checkedPandaIDs[pandaID] = 'running'
-                    # reuse failed files if jobs are in Archived since they cannot change back to active
-                    if checkedPandaIDs[pandaID] in ['failed','cancelled']:
-                        continue
-                    # collect PandaIDs
+                            continue
+                    # get PandaIDs with obdefID and userName
+                    tmpPandaIDs = [] 
+                    varMap = {}
+                    varMap[':prodUserName']     = prodUserName
+                    varMap[':jobDefinitionID']  = jobDefinitionID
+                    varMap[':prodSourceLabel1'] = 'user'
+                    _logger.debug("getFilesInUseForAnal : %s %s" % (sqlIdA,str(varMap)))                    
+                    retID = self.cur.execute(sqlIdA+comment, varMap)
+                    resID = self.cur.fetchall()
+                    for tmpPandaID,tmpJobStatus in resID:
+                        checkedPandaIDs[tmpPandaID] = tmpJobStatus
+                        tmpPandaIDs.append(tmpPandaID)
+                    _logger.debug("getFilesInUseForAnal : %s %s" % (sqlIdL,str(varMap)))
+                    retID = self.cur.execute(sqlIdL+comment, varMap)
+                    resID = self.cur.fetchall()
+                    for tmpPandaID,tmpJobStatus in resID:
+                        if not tmpPandaID in tmpPandaIDs:
+                            checkedPandaIDs[tmpPandaID] = tmpJobStatus
+                            tmpPandaIDs.append(tmpPandaID)
+                    # append
                     if not subDSpandaIDmap.has_key(subDataset):
                         subDSpandaIDmap[subDataset] = []
-                    subDSpandaIDmap[subDataset].append(pandaID)
+                    for tmpPandaID in tmpPandaIDs:
+                        # reuse failed files if jobs are in Archived since they cannot change back to active
+                        if checkedPandaIDs[tmpPandaID] in ['failed','cancelled']:
+                            continue
+                        # collect PandaIDs
+                        subDSpandaIDmap[subDataset].append(tmpPandaID)
                 # loop over all sub datasets
                 for subDataset,activePandaIDs in subDSpandaIDmap.iteritems():
+                    # skip empty
+                    if activePandaIDs == []:
+                        continue
                     # get dispatchDBlocks
                     pandaID = activePandaIDs[0]
                     varMap = {}
@@ -5186,10 +5238,24 @@ class DBProxy:
     def getDisInUseForAnal(self,outDataset):
         comment = ' /* DBProxy.getDisInUseForAnal */'        
         sqlSub  = "SELECT /*+ index(tab FILESTABLE4_DATASET_IDX) */ destinationDBlock,PandaID FROM ATLAS_PANDA.filesTable4 tab "
-        sqlSub += "WHERE dataset=:dataset AND type IN (:type1,:type2) AND modificationTime<=CURRENT_DATE GROUP BY destinationDBlock,PandaID"
-        sqlPan  = "SELECT jobStatus FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID AND modificationTime<=CURRENT_DATE "
+        sqlSub += "WHERE dataset=:dataset AND type IN (:type1,:type2) GROUP BY destinationDBlock,PandaID"
+        sqlPaA  = "SELECT jobDefinitionID,prodUserName FROM ATLAS_PANDA.jobsDefined4 "
+        sqlPaA += "WHERE PandaID=:PandaID "
+        sqlPaA += "UNION "
+        sqlPaA += "SELECT jobDefinitionID,prodUserName FROM ATLAS_PANDA.jobsActive4 "
+        sqlPaA += "WHERE PandaID=:PandaID "
+        sqlPan  = "SELECT jobDefinitionID,prodUserName FROM ATLAS_PANDA.jobsArchived4 "
+        sqlPan += "WHERE PandaID=:PandaID AND modificationTime<=CURRENT_DATE "
         sqlPan += "UNION "
-        sqlPan += "SELECT jobStatus FROM ATLAS_PANDAARCH.jobsArchived WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-30)"        
+        sqlPan += "SELECT jobDefinitionID,prodUserName FROM ATLAS_PANDAARCH.jobsArchived "
+        sqlPan += "WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-30)"
+        sqlIdA  = "SELECT PandaID,jobStatus FROM ATLAS_PANDA.jobsArchived4 "
+        sqlIdA += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
+        sqlIdA += "AND prodSourceLabel=:prodSourceLabel1 "
+        sqlIdL  = "SELECT /*+ NO_INDEX(tab JOBS_MODTIME_IDX) INDEX_COMBINE(tab JOBS_PRODUSERNAME_IDX JOBS_JOBDEFID_IDX) */ "
+        sqlIdL += "PandaID,jobStatus FROM ATLAS_PANDAARCH.jobsArchived tab "
+        sqlIdL += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
+        sqlIdL += "AND prodSourceLabel=:prodSourceLabel1 AND modificationTime>(CURRENT_DATE-30) "
         sqlDis  = "SELECT distinct dispatchDBlock FROM ATLAS_PANDA.filesTable4 "
         sqlDis += "WHERE PandaID=:PandaID AND type=:type AND dispatchDBlock IS NOT NULL AND modificationTime <= CURRENT_DATE"
         inputDisList = []
@@ -5201,40 +5267,82 @@ class DBProxy:
             varMap[':dataset'] = outDataset
             varMap[':type1'] = 'output'
             varMap[':type2'] = 'log'                
-            _logger.debug("getFilesInUseForAnal : %s %s" % (sqlSub,str(varMap)))
+            _logger.debug("getDisInUseForAnal : %s %s" % (sqlSub,str(varMap)))
             self.cur.arraysize = 100000
             retS = self.cur.execute(sqlSub+comment, varMap)
             res = self.cur.fetchall()
             subDSpandaIDmap = {}
             checkedPandaIDs = {}
             for subDataset,pandaID in res:
-                if not checkedPandaIDs.has_key(pandaID):
-                    # check status
-                    varMap = {}
-                    varMap[':PandaID'] = pandaID
+                # avoid redundunt lookup
+                if checkedPandaIDs.has_key(pandaID):
+                    continue
+                if subDSpandaIDmap.has_key(subDataset):
+                    # append jobs as running since they are not in archived tables
+                    if not pandaID in subDSpandaIDmap[subDataset]:
+                        checkedPandaIDs[pandaID] = 'running'
+                        subDSpandaIDmap[subDataset].append(pandaID)
+                    continue
+                # look for jobdefID and userName
+                varMap = {}
+                varMap[':PandaID'] = pandaID
+                _logger.debug("getDisInUseForAnal : %s %s" % (sqlPaA,str(varMap)))                    
+                retP = self.cur.execute(sqlPaA+comment, varMap)
+                resP = self.cur.fetchall()
+                if len(resP) != 0:
+                    jobDefinitionID,prodUserName = resP[0]
+                else:
+                    _logger.debug("getDisInUseForAnal : %s %s" % (sqlPan,str(varMap)))
                     retP = self.cur.execute(sqlPan+comment, varMap)
                     resP = self.cur.fetchall()
-                    # append
                     if len(resP) != 0:
-                        checkedPandaIDs[pandaID] = resP[0][0]
+                        jobDefinitionID,prodUserName = resP[0]
                     else:
-                        checkedPandaIDs[pandaID] = 'running'
-                # reuse failed files if jobs are in Archived since they cannot change back to active
-                if checkedPandaIDs[pandaID] in ['failed','cancelled']:
-                    continue
-                # collect PandaIDs
+                        continue
+                # get PandaIDs with obdefID and userName
+                tmpPandaIDs = [] 
+                varMap = {}
+                varMap[':prodUserName']     = prodUserName
+                varMap[':jobDefinitionID']  = jobDefinitionID
+                varMap[':prodSourceLabel1'] = 'user'
+                _logger.debug("getDisInUseForAnal : %s %s" % (sqlIdA,str(varMap)))                    
+                retID = self.cur.execute(sqlIdA+comment, varMap)
+                resID = self.cur.fetchall()
+                for tmpPandaID,tmpJobStatus in resID:
+                    checkedPandaIDs[tmpPandaID] = tmpJobStatus
+                    tmpPandaIDs.append(tmpPandaID)
+                _logger.debug("getDisInUseForAnal : %s %s" % (sqlIdL,str(varMap)))
+                retID = self.cur.execute(sqlIdL+comment, varMap)
+                resID = self.cur.fetchall()
+                for tmpPandaID,tmpJobStatus in resID:
+                    if not tmpPandaID in tmpPandaIDs:
+                        checkedPandaIDs[tmpPandaID] = tmpJobStatus
+                        tmpPandaIDs.append(tmpPandaID)
+                # for active jobs
+                if not pandaID in tmpPandaIDs:
+                    checkedPandaIDs[pandaID] = 'running'
+                    tmpPandaIDs.append(pandaID)
+                # append
                 if not subDSpandaIDmap.has_key(subDataset):
                     subDSpandaIDmap[subDataset] = []
-                subDSpandaIDmap[subDataset].append(pandaID)
+                for tmpPandaID in tmpPandaIDs:
+                    # reuse failed files if jobs are in Archived since they cannot change back to active
+                    if checkedPandaIDs[tmpPandaID] in ['failed','cancelled']:
+                        continue
+                    # collect PandaIDs
+                    subDSpandaIDmap[subDataset].append(tmpPandaID)
             # loop over all sub datasets
             for subDataset,activePandaIDs in subDSpandaIDmap.iteritems():
+                # skip empty
+                if activePandaIDs == []:
+                    continue
                 resDisList = []                    
                 # get dispatchDBlocks
                 pandaID = activePandaIDs[0]
                 varMap = {}
                 varMap[':PandaID'] = pandaID
                 varMap[':type'] = 'input'                        
-                _logger.debug("getFilesInUseForAnal : %s %s" % (sqlDis,str(varMap)))
+                _logger.debug("getDisInUseForAnal : %s %s" % (sqlDis,str(varMap)))
                 self.cur.arraysize = 10000
                 retD = self.cur.execute(sqlDis+comment, varMap)
                 resD = self.cur.fetchall()
@@ -5246,7 +5354,8 @@ class DBProxy:
                     if not disDataset in resDisList:
                         resDisList.append(disDataset)
                 # append
-                inputDisList.append((resDisList,activePandaIDs))
+                if resDisList != []:
+                    inputDisList.append((resDisList,activePandaIDs))
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
