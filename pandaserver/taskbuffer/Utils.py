@@ -25,6 +25,41 @@ def isAlive(req):
     return "alive=yes"
 
 
+# extract name from DN
+def cleanUserID(id):
+    try:
+        up = re.compile('/(DC|O|OU|C|L)=[^\/]+')
+        username = up.sub('', id)
+        up2 = re.compile('/CN=[0-9]+')
+        username = up2.sub('', username)
+        up3 = re.compile(' [0-9]+')
+        username = up3.sub('', username)
+        up4 = re.compile('_[0-9]+')
+        username = up4.sub('', username)
+        username = username.replace('/CN=proxy','')
+        username = username.replace('/CN=limited proxy','')
+        username = username.replace('limited proxy','')
+        username = re.sub('/CN=Robot:[^/]+','',username)
+        pat = re.compile('.*/CN=([^\/]+)/CN=([^\/]+)')
+        mat = pat.match(username)
+        if mat:
+            username = mat.group(2)
+        else:
+            username = username.replace('/CN=','')
+        if username.lower().find('/email') > 0:
+            username = username[:username.lower().find('/email')]
+        pat = re.compile('.*(limited.*proxy).*')
+        mat = pat.match(username)
+        if mat:
+            username = mat.group(1)
+        username = username.replace('(','')
+        username = username.replace(')','')
+        username = username.replace("'",'')
+        return username
+    except:
+        return id
+
+
 # insert with rety
 def insertWithRetryCassa(familyName,keyName,valMap,msgStr,nTry=3):
     for iTry in range(nTry):
@@ -126,6 +161,9 @@ def putFile(req,file):
         _logger.error(errStr)
         _logger.debug("putFile : end")
         return errStr
+    _logger.debug("putFile : written dn=%s file=%s size=%s" % \
+                  (cleanUserID(req.subprocess_env['SSL_CLIENT_S_DN']),
+                   file.filename,contentLength))
     # store to cassandra
     if hasattr(panda_config,'cacheUseCassandra') and panda_config.cacheUseCassandra == True:
         try:

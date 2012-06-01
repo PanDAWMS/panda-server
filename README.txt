@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added more info to putFile
   * optimized getDisInUseForAnal in TB
   * fixed TA to ignore non-DATADISK replicas at T1 
   * fixed brokerage for preassigned repro jobs

@@ -7,7 +7,8 @@
     sharedscripts
     daily       
     postrotate
-        /bin/kill -USR1 `cat @@install_dir@@/var/log/panda/panda_server_httpd.pid 2>/dev/n
-ull` 2> /dev/null || true
+	killall -u atlpan python || true
+        killall -u atlpan python2.5 || true
+	/sbin/service httpd-pandasrv restart > /dev/null 2>/dev/null || true
     endscript
 }
