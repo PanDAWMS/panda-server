@@ -3108,7 +3108,7 @@ class DBProxy:
         comment = ' /* DBProxy.getNumWaitingJobsWithOutDS */'                        
         _logger.debug("getNumWaitingJobsWithOutDS : %s" % str(outputDSs))
         try:
-            sqlD  = "SELECT /*+ index(tab FILESTABLE4_DATASET_IDX) */ distinct destinationDBlock FROM ATLAS_PANDA.filesTable4 tab "
+            sqlD  = "SELECT distinct destinationDBlock FROM ATLAS_PANDA.filesTable4 "
             sqlD += "WHERE type IN (:type1,:type2) AND dataset=:dataset AND status IN (:status1,:status2)"
             sqlP  = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ PandaID FROM ATLAS_PANDA.filesTable4 tab "
             sqlP += "WHERE type IN (:type1,:type2) AND destinationDBlock=:destinationDBlock AND status IN (:status1,:status2) AND rownum<=1"
@@ -3632,7 +3632,7 @@ class DBProxy:
                         break
             # check status of corresponding buildJob
             if libDS != '':
-                sql  = "SELECT /*+ index(tab FILESTABLE4_DATASET_IDX) */ PandaID FROM ATLAS_PANDA.filesTable4 tab "
+                sql  = "SELECT PandaID FROM ATLAS_PANDA.filesTable4 "
                 sql += "WHERE type=:type AND dataset=:dataset"
                 varMap = {}                
                 varMap[':type']    = 'output'
@@ -3711,7 +3711,7 @@ class DBProxy:
                                      % buildJobStatus
             # get max/min PandaIDs using the libDS
             if errMsg == '':
-                sql = "SELECT /*+ index(tab FILESTABLE4_DATASET_IDX) */ MAX(PandaID),MIN(PandaID) FROM ATLAS_PANDA.filesTable4 tab "
+                sql = "SELECT MAX(PandaID),MIN(PandaID) FROM ATLAS_PANDA.filesTable4 "
                 sql += "WHERE type=:type AND dataset=:dataset"
                 varMap = {}
                 varMap[':type']    = 'input'
@@ -5090,7 +5090,7 @@ class DBProxy:
     # get input files currently in use for analysis
     def getFilesInUseForAnal(self,outDataset):
         comment = ' /* DBProxy.getFilesInUseForAnal */'        
-        sqlSub  = "SELECT /*+ index(tab FILESTABLE4_DATASET_IDX) */ destinationDBlock,PandaID FROM ATLAS_PANDA.filesTable4 tab "
+        sqlSub  = "SELECT destinationDBlock,PandaID FROM ATLAS_PANDA.filesTable4 "
         sqlSub += "WHERE dataset=:dataset AND type IN (:type1,:type2) GROUP BY destinationDBlock,PandaID"
         sqlPaA  = "SELECT jobDefinitionID,prodUserName FROM ATLAS_PANDA.jobsDefined4 "
         sqlPaA += "WHERE PandaID=:PandaID "
@@ -5237,7 +5237,7 @@ class DBProxy:
     # get list of dis dataset to get input files in shadow
     def getDisInUseForAnal(self,outDataset):
         comment = ' /* DBProxy.getDisInUseForAnal */'        
-        sqlSub  = "SELECT /*+ index(tab FILESTABLE4_DATASET_IDX) */ destinationDBlock,PandaID FROM ATLAS_PANDA.filesTable4 tab "
+        sqlSub  = "SELECT destinationDBlock,PandaID FROM ATLAS_PANDA.filesTable4 "
         sqlSub += "WHERE dataset=:dataset AND type IN (:type1,:type2) GROUP BY destinationDBlock,PandaID"
         sqlPaA  = "SELECT jobDefinitionID,prodUserName FROM ATLAS_PANDA.jobsDefined4 "
         sqlPaA += "WHERE PandaID=:PandaID "
@@ -5677,7 +5677,7 @@ class DBProxy:
         if len(datasets) == 0:
             return []
         # make SQL query
-        sql1 = "SELECT /*+ index(tab FILESTABLE4_DATASET_IDX) */ lfn,PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE dataset=:dataset AND type=:type ORDER BY lfn DESC"
+        sql1 = "SELECT lfn,PandaID FROM ATLAS_PANDA.filesTable4 WHERE dataset=:dataset AND type=:type ORDER BY lfn DESC"
         sqlL = "SELECT processingType FROM %s WHERE PandaID=:PandaID "
         sqlA = "UNION SELECT processingType FROM ATLAS_PANDAARCH.jobsArchived WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-30)"
         sql2 = "SELECT lfn FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type=:type"

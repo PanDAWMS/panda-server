@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * removed FILESTABLE4_DATASET_IDX
   * added more info to putFile
   * optimized getDisInUseForAnal in TB
   * fixed TA to ignore non-DATADISK replicas at T1 
