@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * removed BNL_ATLAS_1 from SiteMapper
   * removed FILESTABLE4_DATASET_IDX
   * added more info to putFile
   * optimized getDisInUseForAnal in TB

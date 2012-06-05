@@ -30,7 +30,7 @@ class SiteMapper:
         _logger.debug('__init__ SiteMapper')
         try:
             # site list
-            self.siteSpecList = {defSite.sitename : defSite}
+            self.siteSpecList = {}
 
             # sites not belonging to a cloud
             self.defCloudSites = []
