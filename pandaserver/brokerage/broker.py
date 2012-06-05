@@ -17,7 +17,7 @@ _log = PandaLogger().getLogger('broker')
 _allSites = PandaSiteIDs.PandaSiteIDs.keys()
         
 # sites for prestaging
-prestageSites = ['BNL_ATLAS_test','BNL_ATLAS_1','BNL_ATLAS_2']
+#prestageSites = ['BNL_ATLAS_test','BNL_ATLAS_1','BNL_ATLAS_2']
 
 # non LRC checking
 _disableLRCcheck = []
@@ -107,6 +107,7 @@ def _isReproJob(tmpJob):
             return True
     return False
 
+
     
 # set 'ready' if files are already there
 def _setReadyToFiles(tmpJob,okFiles,siteMapper):
@@ -114,6 +115,7 @@ def _setReadyToFiles(tmpJob,okFiles,siteMapper):
     tmpSiteSpec = siteMapper.getSite(tmpJob.computingSite)
     tmpSrcSpec  = siteMapper.getSite(siteMapper.getCloud(tmpJob.cloud)['source'])
     _log.debug(tmpSiteSpec.seprodpath)
+    prestageSites = getPrestageSites(siteMapper)
     for tmpFile in tmpJob.Files:
         if tmpFile.type == 'input':
             if (tmpJob.computingSite.endswith('_REPRO') or tmpJob.computingSite == siteMapper.getCloud(tmpJob.cloud)['source'] \
@@ -334,6 +336,29 @@ def getHospitalQueues(siteMapper):
     return retMap
 
 
+# get prestage sites
+def getPrestageSites(siteMapper):
+    retList = []
+    # get cloud
+    tmpCloudSpec = siteMapper.getCloud('US')
+    # get T1
+    tmpT1Name = tmpCloudSpec['source']
+    tmpT1Spec = siteMapper.getSite(tmpT1Name)
+    # loop over all sites
+    for tmpSiteName in tmpCloudSpec['sites']:
+        # check site
+        if not siteMapper.checkSite(tmpSiteName):
+            continue
+        # get spec
+        tmpSiteSpec = siteMapper.getSite(tmpSiteName)
+        # add if DDM is the same as T1
+        if tmpT1Spec.ddm == tmpSiteSpec.ddm and not tmpSiteName in retList:
+            retList.append(tmpSiteName)
+    _log.debug('US prestage sites : %s' % str(retList))            
+    # return
+    return retList
+
+
 # schedule
 def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],trustIS=False,
              distinguishedName=None,specialWeight={},getWeight=False,sizeMapForCheck={},
@@ -395,6 +420,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
 
     weightUsedByBrokerage = {}
 
+    prestageSites = getPrestageSites(siteMapper)
     try:
         # get statistics
         faresharePolicy = {}
