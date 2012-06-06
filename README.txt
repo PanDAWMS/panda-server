@@ -1,6 +1,9 @@
 Release Note
 
 * current
+  * fixed brokerage for nightlies
+  * extracting crc from input sandbox in putFile
+  * added changes for debug mode
   * setting prestage sites with PandaMover dynamically
   * removed BNL_ATLAS_1 from SiteMapper
   * removed FILESTABLE4_DATASET_IDX

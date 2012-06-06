@@ -664,12 +664,27 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             useCacheVersion = True
                             siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,releases=prevRelease,cmtConfig=prevCmtConfig)
                             _log.debug('  using installSW for release %s' % prevRelease)
+                        elif re.search(':rel_\d+$$',prevRelease) != None:
+                            useCacheVersion = True
+                            iteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,
+                                                                                releases=prevRelease.split(':')[0],
+                                                                                caches=prevRelease.split(':')[1],
+                                                                                cmtConfig=prevCmtConfig)
+                            _log.debug('  using installSW for release:cache %s' % prevRelease)
                     elif previousCloud in ['DE','NL','FR','CA','ES','IT','TW','UK','US','ND','CERN']:
                             useCacheVersion = True
                             # change / to -
                             convedPrevHomePkg = prevHomePkg.replace('/','-')
-                            siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,caches=convedPrevHomePkg,
-                                                                                 cmtConfig=prevCmtConfig)
+                            if re.search('rel_\d+(\n|$)',prevHomePkg) == None:
+                                # only cache is used for normal jobs
+                                siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,caches=convedPrevHomePkg,
+                                                                                     cmtConfig=prevCmtConfig)
+                            else:
+                                # both AtlasRelease and homepackage are used for nightlies
+                                siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,
+                                                                                     releases=prevRelease,
+                                                                                     caches=convedPrevHomePkg,
+                                                                                     cmtConfig=prevCmtConfig)
                             _log.debug('  cache          %s' % prevHomePkg)
                     if useCacheVersion:        
                         _log.debug('  cache/relSites     %s' % str(siteListWithCache))

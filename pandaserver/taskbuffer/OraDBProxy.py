@@ -1360,12 +1360,23 @@ class DBProxy:
                     varMap = {}
                     varMap[':PandaID'] = pandaID
                     self.cur.arraysize = 10
-                    self.cur.execute ('SELECT commandToPilot,endTime FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID'+comment,varMap)
+                    self.cur.execute ('SELECT commandToPilot,endTime,specialHandling FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID'+comment,varMap)
                     res = self.cur.fetchone()
                     if res != None:
-                        ret     = res[0]
-                        # convert no-command to 'NULL'
-                        if ret == None:
+                        ret = ''
+                        # debug mode
+                        """
+                        if not res[2] in [None,''] and 'debug' in res[2]:
+                            ret += 'debugon,'
+                        else:
+                            ret += 'debugoff,'
+                        """    
+                        # kill command    
+                        if res[0] != None:
+                            ret += '%s,' % res[0]
+                        ret = ret[:-1]
+                        # convert empty to NULL
+                        if ret == '':
                             ret = 'NULL'
                         # update endTime
                         endTime = res[1]
@@ -3068,6 +3079,164 @@ class DBProxy:
             return None
 
 
+    # get active debug jobs
+    def getActiveDebugJobs(self,dn):
+        comment = ' /* DBProxy.getActiveDebugJobs */'                        
+        _logger.debug("getActiveDebugJobs : %s" % dn)
+        sqlX  = "SELECT PandaID,jobStatus,specialHandling FROM %s "
+        sqlX += "WHERE prodUserName=:prodUserName "
+        sqlX += "AND specialHandling IS NOT NULL "
+        try:
+            # get compact DN
+            compactDN = self.cleanUserID(dn)
+            if compactDN in ['','NULL',None]:
+                compactDN = dn
+            debugStr = 'debug'
+            activeDebugJobs = []
+            # loop over tables
+            for table in ['ATLAS_PANDA.jobsDefined4','ATLAS_PANDA.jobsActive4']:
+                varMap = {}
+                varMap[':prodUserName'] = compactDN
+                sql = sqlX % table
+                # start transaction
+                self.conn.begin()
+                # get jobs with specialHandling
+                self.cur.arraysize = 100000
+                self.cur.execute(sql+comment, varMap)
+                res = self.cur.fetchall()
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                # loop over all PandaIDs
+                for pandaID,jobStatus,specialHandling in res:
+                    if specialHandling == None:
+                        continue
+                    # only active jobs
+                    if not jobStatus in ['defined','activated','running','sent','starting']:
+                        continue
+                    # look for debug jobs
+                    if debugStr in specialHandling and not pandaID in activeDebugJobs:
+                        activeDebugJobs.append(pandaID)
+            # return        
+            activeDebugJobs.sort()
+            _logger.debug("getActiveDebugJobs : %s -> %s" % (dn,str(activeDebugJobs)))
+            return activeDebugJobs
+        except:
+            # roll back
+            self._rollback()
+            errtype,errvalue = sys.exc_info()[:2]
+            _logger.error("getActiveDebugJobs : %s %s" % (errtype,errvalue))
+            return None
+
+
+    # set debug mode
+    def setDebugMode(self,dn,pandaID,prodManager,modeOn):
+        comment = ' /* DBProxy.setDebugMode */'                        
+        _logger.debug("turnDebugModeOn : dn=%s id=%s prod=%s mode=%s" % (dn,pandaID,prodManager,modeOn))
+        sqlX  = "SELECT prodUserName,jobStatus,specialHandling FROM %s "
+        sqlX += "WHERE PandaID=:PandaID "
+        sqlU  = "UPDATE %s SET specialHandling=:specialHandling "
+        sqlU += "WHERE PandaID=:PandaID "        
+        try:
+            # get compact DN
+            compactDN = self.cleanUserID(dn)
+            if compactDN in ['','NULL',None]:
+                compactDN = dn
+            debugStr = 'debug'
+            retStr = ''
+            retCode = False
+            # loop over tables
+            for table in ['ATLAS_PANDA.jobsDefined4','ATLAS_PANDA.jobsActive4']:
+                varMap = {}
+                varMap[':PandaID'] = pandaID
+                sql = sqlX % table
+                # start transaction
+                self.conn.begin()
+                # get jobs with specialHandling
+                self.cur.arraysize = 10
+                self.cur.execute(sql+comment, varMap)
+                res = self.cur.fetchone()
+                # not found
+                if res == None:
+                    retStr = 'Not found in active DB'
+                    # commit
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+                    continue
+                prodUserName,jobStatus,specialHandling = res
+                # not active
+                if not jobStatus in ['defined','activated','running','sent','starting']:
+                    retStr = 'Not in one of active job status'
+                    # commit
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+                    break
+                # not owner
+                if not prodManager and prodUserName != compactDN:
+                    retStr = 'Permission denied. Not the owner'
+                    # commit
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+                    break
+                # set specialHandling
+                updateSH = True
+                if specialHandling in [None,'']:
+                    if modeOn:
+                        # set debug mode
+                        specialHandling = debugStr
+                    else:
+                        # already disabled debug mode
+                        updateSH = False
+                elif debugStr in specialHandling:
+                    if modeOn:
+                        # already in debug mode
+                        updateSH = False
+                    else:
+                        # disable debug mode
+                        specialHandling = re.sub(debugStr,'',specialHandling)
+                        specialHandling = re.sub(',,',',',specialHandling)
+                        specialHandling = re.sub('^,','',specialHandling)
+                        specialHandling = re.sub(',$','',specialHandling)
+                else:
+                    if modeOn:
+                        # set debug mode
+                        specialHandling = '%s,%s' % (debugStr,specialHandling)
+                    else:
+                        # already disabled debug mode
+                        updateSH = False
+                                                
+                # no update
+                if not updateSH:
+                    retStr = 'Already set accordingly'
+                    # commit
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+                    break
+                # update
+                varMap = {}
+                varMap[':PandaID'] = pandaID
+                varMap[':specialHandling'] = specialHandling
+                self.cur.execute((sqlU+comment) % table, varMap)
+                retD = self.cur.rowcount
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                if retD == 0:
+                    retStr = 'Failed to update DB'
+                else:
+                    retStr = 'Succeeded'
+                    break
+            # return        
+            _logger.debug("setDebugMode : %s %s -> %s" % (dn,pandaID,retStr))
+            return retStr
+        except:
+            # roll back
+            self._rollback()
+            errtype,errvalue = sys.exc_info()[:2]
+            _logger.error("setDebugMode : %s %s" % (errtype,errvalue))
+            return None
+
+
     # get PandaID with destinationDBlock
     def getPandaIDwithDestDBlock(self,destinationDBlock):
         comment = ' /* DBProxy.getPandaIDwithDestDBlock */'                        
@@ -4388,6 +4557,100 @@ class DBProxy:
                 type, value, traceBack = sys.exc_info()
                 _logger.error("addMetaData : %s %s" % (type,value))
                 return False
+
+
+    # add stdout
+    def addStdOut(self,pandaID,stdOut):
+        comment = ' /* DBProxy.addStdOut */'        
+        _logger.debug("addStdOut : %s start" % pandaID)
+        sqlJ = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID FOR UPDATE "                
+        sqlC = "SELECT PandaID FROM ATLAS_PANDA.jobsDebug WHERE PandaID=:PandaID "        
+        sqlI = "INSERT INTO ATLAS_PANDA.jobsDebug (PandaID,stdOut) VALUES (:PandaID,:stdOut) "
+        sqlU = "UPDATE ATLAS_PANDA.jobsDebug SET stdOut=:stdOut WHERE PandaID=:PandaID "
+        try:
+            # autocommit on
+            self.conn.begin()
+            # select
+            varMap = {}
+            varMap[':PandaID'] = pandaID
+            self.cur.arraysize = 10
+            # check job table
+            self.cur.execute(sqlJ+comment, varMap)
+            res = self.cur.fetchone()
+            if res == None:
+                _logger.debug("addStdOut : %s non active" % pandaID)
+            else:
+                # check debug table
+                self.cur.execute(sqlC+comment, varMap)
+                res = self.cur.fetchone()
+                # already exist
+                if res != None:
+                    # update
+                    sql = sqlU
+                else:
+                    # insert
+                    sql = sqlI
+                # write stdout    
+                varMap = {}
+                varMap[':PandaID'] = pandaID
+                varMap[':stdOut']  = stdOut
+                self.cur.execute(sql+comment, varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            return True
+        except:
+            # roll back
+            self._rollback()
+            errtype,errvalue = sys.exc_info()[:2]
+            _logger.error("addStdOut : %s %s" % (errtype,errvalue))
+            return False
+
+
+    # insert sandbox file info
+    def insertSandboxFileInfo(self,userName,hostName,fileName,fileSize,checkSum):
+        comment = ' /* DBProxy.insertSandboxFileInfo */'        
+        _logger.debug("insertSandboxFileInfo : %s %s %s %s %s" % (userName,hostName,fileName,fileSize,checkSum))
+        sqlC  = "SELECT userName,fileSize,checkSum FROM ATLAS_PANDAMETA.userCacheUsage "
+        sqlC += "WHERE hostName=:hostName AND fileName=:fileName FOR UPDATE"
+        sql  = "INSERT INTO ATLAS_PANDAMETA.userCacheUsage "
+        sql += "(userName,hostName,fileName,fileSize,checkSum,creationTime,modificationTime) "
+        sql += "VALUES (:userName,:hostName,:fileName,:fileSize,:checkSum,CURRENT_DATE,CURRENT_DATE) "
+        try:
+            # begin transaction
+            self.conn.begin()
+            # check if it already exists
+            varMap = {}
+            varMap[':hostName'] = hostName
+            varMap[':fileName'] = fileName
+            self.cur.arraysize = 10
+            self.cur.execute(sqlC+comment, varMap)
+            res = self.cur.fetchall()
+            if len(res) != 0:
+                _logger.debug("insertSandboxFileInfo : skip %s %s since already exists" % (hostName,fileName))
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                return "WARNING: file exist"
+            # insert
+            varMap = {}
+            varMap[':userName'] = userName
+            varMap[':hostName'] = hostName
+            varMap[':fileName'] = fileName
+            varMap[':fileSize'] = fileSize
+            varMap[':checkSum'] = checkSum
+            self.cur.execute(sql+comment, varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            return "OK"
+        except:
+            # roll back
+            self._rollback()
+            # error
+            type, value, traceBack = sys.exc_info()
+            _logger.error("insertSandboxFileInfo : %s %s" % (type,value))
+            return "ERROR: DB failure"
 
 
     # insert dataset
@@ -7982,10 +8245,16 @@ class DBProxy:
             _logger.debug("checkSitesWithRelease(%s,%s,%s,%s)" % (sites,relStr,caStr,cmtConfig))
             # select
             sql  = "SELECT distinct siteid FROM ATLAS_PANDAMETA.InstalledSW WHERE "
+            loopKey2 = None
+            loopValues2 = []
             if not caches in ['','NULL',None]:
                 loopKey = ':cache'
                 loopValues = caches.split('\n')
-                sql += "cache=:cache "
+                sql += "cache=:cache "                
+                if not releases in ['','NULL',None]:
+                    loopKey2 = ':release'
+                    loopValues2 = releases.split('\n')
+                    sql += "AND release=:release "
             elif not releases in ['','NULL',None]:
                 loopKey = ':release'
                 loopValues = releases.split('\n')
@@ -8002,12 +8271,16 @@ class DBProxy:
             self.conn.begin()
             self.cur.arraysize = 1000
             # loop over all releases/caches
-            for loopVal in loopValues:
+            for loopIdx,loopVal in enumerate(loopValues):
                 # remove Atlas-
                 loopVal = re.sub('^Atlas-','',loopVal)
                 sqlSite = sql
                 varMap = {}
                 varMap[loopKey] = loopVal
+                if loopKey2 != None:
+                    loopVal2 = loopValues2[loopIdx]
+                    loopVal2 = re.sub('^Atlas-','',loopVal2)
+                    varMap[loopKey2] = loopVal2
                 if checkCMT:
                     varMap[':cmtConfig'] = cmtConfig
                 tmpRetSites = []
@@ -8037,6 +8310,8 @@ class DBProxy:
                         sqlSite = sql
                         varMap = {}
                         varMap[loopKey] = loopVal
+                        if loopKey2 != None:
+                            varMap[loopKey2] = loopVal2
                         if checkCMT:
                             varMap[':cmtConfig'] = cmtConfig
                 # set

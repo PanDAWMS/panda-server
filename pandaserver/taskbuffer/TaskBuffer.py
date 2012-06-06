@@ -106,7 +106,9 @@ class TaskBuffer:
             priorityOffset = 0
             userVO         = 'atlas'
             userCountry    = None
+            useExpress     = False
             nExpressJobs   = 0
+            useDebugMode   = False
             # check ban user except internally generated jobs
             if len(jobs) > 0 and not jobs[0].prodSourceLabel in ProcessGroups.internalSourceLabels:
                 # get DB proxy
@@ -133,6 +135,13 @@ class TaskBuffer:
                     expressQuota = proxy.getExpressJobs(user)
                     if expressQuota != None and expressQuota['status'] and expressQuota['quota'] > 0:
                         nExpressJobs = expressQuota['quota']
+                        if nExpressJobs > 0:
+                            useExpress = True
+                # debug mode
+                if 'debug' in jobs[0].specialHandling:
+                    debugJobList = proxy.getActiveDebugJobs(user)
+                    if len(debugJobList) < ProcessGroups.maxDebugJobs:
+                        useDebugMode = True
                 # release proxy
                 self.proxyPool.putProxy(proxy)
                 # get site spec
@@ -256,9 +265,17 @@ class TaskBuffer:
                     job.jobsetID = userJobsetID
                 # set specialHandling
                 if job.prodSourceLabel in ['user','panda']:
-                    if nRunJob >= nExpressJobs and checkSpecialHandling:
-                        # reset when quota exceeds
-                        job.specialHandling = ''
+                    if checkSpecialHandling:
+                        specialHandling = ''
+                        # debug mode
+                        if useDebugMode and nRunJob == 0 and job.prodSourceLabel == 'user':
+                            specialHandling += 'debug,'
+                        # express mode    
+                        if useExpress and (nRunJob < nExpressJobs or job.prodSourceLabel == 'panda'):
+                            specialHandling += 'express,'
+                        # reset specialHandling
+                        specialHandling = specialHandling[:-1]
+                        job.specialHandling = specialHandling
                     if job.prodSourceLabel != 'panda':
                         nRunJob += 1
                 # set relocation flag
@@ -509,6 +526,35 @@ class TaskBuffer:
         return ret
 
 
+    # set debug mode
+    def setDebugMode(self,dn,pandaID,prodManager,modeOn):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # check the number of debug jobs
+        if modeOn == True:
+            jobList = proxy.getActiveDebugJobs(dn)
+        else:
+            jobList = []
+        if (not prodManager and len(jobList) >= ProcessGroups.maxDebugJobs) or \
+               (prodManager and len(jobList) >= ProcessGroups.maxDebugProdJobs): 
+            # exceeded
+            retStr  = 'You already hit the limit on the maximum number of debug subjobs per '
+            if not prodManager:
+                retStr += 'user (%s). ' % ProcessGroups.maxDebugJobs
+            else:
+                retStr += 'prod user (%s). ' % ProcessGroups.maxDebugProdJobs
+            retStr += 'Please set the debug mode off for one of the following PandaIDs : '
+            for tmpID in jobList:
+                retStr += '%s,' % tmpID
+            retStr = retStr[:-1]
+        else:
+            # execute
+            retStr = proxy.setDebugMode(dn,pandaID,prodManager,modeOn)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        return retStr
+        
+    
     # get jobs
     def getJobs(self,nJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
                 atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry):
@@ -1274,6 +1320,18 @@ class TaskBuffer:
         return retList
 
 
+    # insert sandbox file info
+    def insertSandboxFileInfo(self,userName,hostName,fileName,fileSize,checkSum):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret= proxy.insertSandboxFileInfo(userName,hostName,fileName,fileSize,checkSum)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+    
     # insert datasets
     def insertDatasets(self,datasets):
         # get DBproxy
@@ -1451,6 +1509,18 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         # return
         return retList
+
+
+    # add stdout
+    def addStdOut(self,id,stdout):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # add 
+        ret = proxy.addStdOut(id,stdout)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
 
 
     # extract name from DN

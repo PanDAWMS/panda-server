@@ -117,7 +117,7 @@ class JobDipatcher:
 
 
     # update job status
-    def updateJob(self,jobID,jobStatus,timeout,xml,siteName,param,metadata,attemptNr=None):
+    def updateJob(self,jobID,jobStatus,timeout,xml,siteName,param,metadata,attemptNr=None,stdout=''):
         # retry failed analysis job and ddm job
         if jobStatus=='failed' \
            and ((param.has_key('pilotErrorCode') and (param['pilotErrorCode'] in ['1200','1201'] \
@@ -137,6 +137,9 @@ class JobDipatcher:
         # add metadata
         if metadata != '':
             self.taskBuffer.addMetadata([jobID],[metadata])
+        # add stdout
+        if stdout != '':
+            self.taskBuffer.addStdOut(jobID,stdout)
         # update
         tmpStatus = jobStatus
         updateStateChange = False
@@ -405,7 +408,8 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
               xml='',node=None,workdir=None,cpuConsumptionTime=None,cpuConsumptionUnit=None,remainingSpace=None,
               schedulerID=None,pilotID=None,siteName=None,messageLevel=None,pilotLog='',metaData='',
               cpuConversionFactor=None,exeErrorCode=None,exeErrorDiag=None,pilotTiming=None,computingElement=None,
-              startTime=None,endTime=None,nEvents=None,nInputFiles=None,batchID=None,attemptNr=None,jobMetrics=None):
+              startTime=None,endTime=None,nEvents=None,nInputFiles=None,batchID=None,attemptNr=None,jobMetrics=None,
+              stdout=''):
     _logger.debug("updateJob(%s)" % jobId)
     # get DN
     realDN = _getDN(req)
@@ -415,11 +419,12 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
     prodManager = _checkRole(fqans,realDN,jobDispatcher,site=siteName,hostname=req.get_remote_host())
     # check token
     validToken = _checkToken(token,jobDispatcher)
-    _logger.debug("updateJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,attemptNr:%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s\n==XML==\n%s\n==LOG==\n%s\n==Meta==\n%s\n==Metrics==\n%s)" %
+    _logger.debug("updateJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,attemptNr:%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s\n==XML==\n%s\n==LOG==\n%s\n==Meta==\n%s\n==Metrics==\n%s\n==stdout==\n%s)" %
                   (jobId,state,transExitCode,pilotErrorCode,pilotErrorDiag,node,workdir,cpuConsumptionTime,
                    cpuConsumptionUnit,remainingSpace,schedulerID,pilotID,siteName,messageLevel,nEvents,nInputFiles,
                    cpuConversionFactor,exeErrorCode,exeErrorDiag,pilotTiming,computingElement,startTime,endTime,
-                   batchID,attemptNr,realDN,prodManager,token,validToken,str(fqans),xml,pilotLog,metaData,jobMetrics))
+                   batchID,attemptNr,realDN,prodManager,token,validToken,str(fqans),xml,pilotLog,metaData,jobMetrics,
+                   stdout))
     _pilotReqLogger.info('method=updateJob,site=%s,node=%s,type=None' % (siteName,node))
     # invalid role
     if not prodManager:
@@ -503,8 +508,11 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
             attemptNr = int(attemptNr)
         except:
             attemptNr = None
+    if stdout != '':
+        stdout = stdout[:2048]
     # invoke JD
-    return jobDispatcher.updateJob(int(jobId),state,int(timeout),xml,siteName,param,metaData,attemptNr)
+    return jobDispatcher.updateJob(int(jobId),state,int(timeout),xml,siteName,
+                                   param,metaData,attemptNr,stdout)
 
 
 # get job status

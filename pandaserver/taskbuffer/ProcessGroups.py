@@ -7,6 +7,12 @@ processGroups = [('others',       []),
 # source labels used for panda internal purpose
 internalSourceLabels = ['ddm']
 
+# maximum number of debug jobs per user
+maxDebugJobs   = 3
+
+# maximum number of debug jobs for prod role
+maxDebugProdJobs  = 30
+
 
 # get corresponding group
 def getProcessGroup(valGroup):

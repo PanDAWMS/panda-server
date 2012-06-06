@@ -309,10 +309,15 @@ class ReBroker (threading.Thread):
                         tmpJobForBrokerage.AtlasRelease = ''
                     else:
                         tmpJobForBrokerage.AtlasRelease = self.job.AtlasRelease
+                    # use nightlies
+                    matchNight = re.search('^AnalysisTransforms-.*_(rel_\d+)$',self.job.homepackage)
+                    if matchNight != None:
+                        tmpJobForBrokerage.AtlasRelease += ':%s' % matchNight.group(1)
                     # use cache
-                    matchCache = re.search('^AnalysisTransforms-([^/]+)',self.job.homepackage)
-                    if matchCache != None:
-                        tmpJobForBrokerage.AtlasRelease = matchCache.group(1).replace('_','-')
+                    else:
+                        matchCache = re.search('^AnalysisTransforms-([^/]+)',self.job.homepackage)
+                        if matchCache != None:
+                            tmpJobForBrokerage.AtlasRelease = matchCache.group(1).replace('_','-')
                     if not self.job.cmtConfig in ['NULL',None]:    
                         tmpJobForBrokerage.cmtConfig = self.job.cmtConfig
                     # memory size

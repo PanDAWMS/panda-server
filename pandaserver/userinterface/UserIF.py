@@ -186,6 +186,20 @@ class UserIF:
         return returnVal
 
 
+    # set debug mode
+    def setDebugMode(self,dn,pandaID,prodManager,modeOn):
+        ret = self.taskBuffer.setDebugMode(dn,pandaID,prodManager,modeOn)
+        # return
+        return ret
+
+
+    # insert sandbox file info
+    def insertSandboxFileInfo(self,userName,hostName,fileName,fileSize,checkSum):
+        ret = self.taskBuffer.insertSandboxFileInfo(userName,hostName,fileName,fileSize,checkSum)
+        # return
+        return ret
+
+
     # get job status
     def getJobStatus(self,idsStr):
         try:
@@ -936,6 +950,39 @@ def setCloudTaskByUser(req,tid,cloud='',status=''):
     if not _isProdRoleATLAS(req):
         return "ERROR: production role is required"
     return userIF.setCloudTaskByUser(user,tid,cloud,status)
+
+
+# set debug mode
+def setDebugMode(req,pandaID,modeOn):
+    # get DN
+    if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        return "ERROR: SSL connection is required"
+    user = _getDN(req)
+    # check role
+    prodManager = _isProdRoleATLAS(req)
+    # mode
+    if modeOn == 'True':
+        modeOn = True
+    else:
+        modeOn = False
+    # exec    
+    return userIF.setDebugMode(user,pandaID,prodManager,modeOn)
+
+
+# insert sandbox file info
+def insertSandboxFileInfo(req,userName,fileName,fileSize,checkSum):
+    # get DN
+    if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        return "ERROR: SSL connection is required"
+    user = _getDN(req)
+    # check role
+    prodManager = _isProdRoleATLAS(req)
+    if not prodManager:
+        return "ERROR: missing role"
+    # hostname
+    hostName = req.get_remote_host()
+    # exec    
+    return userIF.insertSandboxFileInfo(userName,hostName,fileName,fileSize,checkSum)
 
 
 # add files to memcached

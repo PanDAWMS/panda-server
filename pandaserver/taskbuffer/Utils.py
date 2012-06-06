@@ -13,6 +13,7 @@ import struct
 import datetime
 import jobdispatcher.Protocol as Protocol
 import ErrorCode
+from userinterface import Client
 from config import panda_config
 
 from pandalogger.PandaLogger import PandaLogger
@@ -161,26 +162,39 @@ def putFile(req,file):
         _logger.error(errStr)
         _logger.debug("putFile : end")
         return errStr
-    _logger.debug("putFile : written dn=%s file=%s size=%s" % \
-                  (cleanUserID(req.subprocess_env['SSL_CLIENT_S_DN']),
-                   file.filename,contentLength))
+    # checksum
+    try:
+        # decode Footer
+        footer = fileContent[-8:]
+        checkSum,isize = struct.unpack("II",footer)
+        _logger.debug("CRC from gzip Footer %s" % checkSum)
+    except:
+        # calculate on the fly
+        """
+        import zlib
+        checkSum = zlib.adler32(fileContent) & 0xFFFFFFFF
+        """
+        # use None to avoid delay for now
+        checkSum = None
+        _logger.debug("CRC calculated %s" % checkSum)
+    username = cleanUserID(req.subprocess_env['SSL_CLIENT_S_DN'])    
+    _logger.debug("putFile : written dn=%s file=%s size=%s crc=%s" % \
+                  (username,file.filename,contentLength,checkSum))
+    # put file info to DB
+    statClient,outClient = Client.insertSandboxFileInfo(username,file.filename,
+                                                        contentLength,checkSum)
+    if statClient != 0 or outClient.startswith("ERROR"):
+        _logger.error("putFile : failed to put sandbox to DB with %s %s" % (statClient,outClient))
+        #_logger.debug("putFile : end")
+        #return "ERROR : Cannot insert sandbox to DB"
+    else:
+        _logger.debug("putFile : inserted sandbox to DB with %s" % outClient)
     # store to cassandra
     if hasattr(panda_config,'cacheUseCassandra') and panda_config.cacheUseCassandra == True:
         try:
             # time-stamp
             timeNow = datetime.datetime.utcnow()
             creationTime = timeNow.strftime('%Y-%m-%d %H:%M:%S')
-            # checksum
-            try:
-                # decode Footer
-                footer = fileContent[-8:]
-                checkSum,isize = struct.unpack("II",footer)
-                _logger.debug("CRC from gzip Footer %s" % checkSum)
-            except:
-                # calculate on the fly
-                import zlib
-                checkSum = zlib.adler32(fileContent) & 0xFFFFFFFF
-                _logger.debug("CRC calculated %s" % checkSum)                
             # user name
             username = req.subprocess_env['SSL_CLIENT_S_DN']
             username = username.replace('/CN=proxy','')

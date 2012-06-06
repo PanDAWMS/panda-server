@@ -698,6 +698,19 @@ def queryLastFilesInDataset(datasets):
         return EC_Failed,None
                                                                 
 
+# insert sandbox file info
+def insertSandboxFileInfo(userName,fileName,fileSize,checkSum,verbose=False):
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+    curl.verbose = verbose
+    # execute
+    url = baseURLSSL + '/insertSandboxFileInfo'
+    data = {'userName':userName,'fileName':fileName,'fileSize':fileSize,'checkSum':checkSum}
+    return curl.post(url,data)
+
+
 # put file
 def putFile(file):
     # instantiate curl
