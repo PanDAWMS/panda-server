@@ -57,7 +57,7 @@ from userinterface.UserIF        import submitJobs,getJobStatus,queryPandaIDs,ki
      checkMergeGenerationStatus,sendLogInfo,getNumPilots,retryFailedJobsInActive,\
      getJobStatisticsWithLabel,getPandaIDwithJobExeID,getJobStatisticsPerUserSite,\
      getDisInUseForAnal,getLFNsInUseForAnal,getScriptOfflineRunning,setDebugMode,\
-     insertSandboxFileInfo
+     insertSandboxFileInfo,checkSandboxFile
 allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reassignJobs',
                    'getJobStatistics','getJobStatisticsPerSite','resubmitJobs','queryLastFilesInDataset','getPandaIDsSite',
                    'getJobsToBeUpdated','updateProdDBUpdateTimes','runTaskAssignment','getAssigningTask','getSiteSpecs',
@@ -70,7 +70,7 @@ allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reass
                    'checkMergeGenerationStatus','sendLogInfo','getNumPilots','retryFailedJobsInActive',
                    'getJobStatisticsWithLabel','getPandaIDwithJobExeID','getJobStatisticsPerUserSite',
                    'getDisInUseForAnal','getLFNsInUseForAnal','getScriptOfflineRunning','setDebugMode',
-                   'insertSandboxFileInfo']
+                   'insertSandboxFileInfo','checkSandboxFile']
 
 # import error
 import taskbuffer.ErrorCode

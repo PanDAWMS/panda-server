@@ -177,12 +177,15 @@ def putFile(req,file):
         # use None to avoid delay for now
         checkSum = None
         _logger.debug("CRC calculated %s" % checkSum)
+    # file size
+    fileSize = len(fileContent)
+    # user name
     username = cleanUserID(req.subprocess_env['SSL_CLIENT_S_DN'])    
     _logger.debug("putFile : written dn=%s file=%s size=%s crc=%s" % \
-                  (username,file.filename,contentLength,checkSum))
+                  (username,file.filename,fileSize,checkSum))
     # put file info to DB
     statClient,outClient = Client.insertSandboxFileInfo(username,file.filename,
-                                                        contentLength,checkSum)
+                                                        fileSize,checkSum)
     if statClient != 0 or outClient.startswith("ERROR"):
         _logger.error("putFile : failed to put sandbox to DB with %s %s" % (statClient,outClient))
         #_logger.debug("putFile : end")

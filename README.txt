@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * fixed insertSandboxInfo to use real file size
+  * added checkSandboxFile
   * fixed brokerage for nightlies
   * extracting crc from input sandbox in putFile
   * added changes for debug mode

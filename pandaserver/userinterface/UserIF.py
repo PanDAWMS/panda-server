@@ -200,6 +200,13 @@ class UserIF:
         return ret
 
 
+    # check duplicated sandbox file
+    def checkSandboxFile(self,userName,fileSize,checkSum):
+        ret = self.taskBuffer.checkSandboxFile(userName,fileSize,checkSum)
+        # return
+        return ret
+
+
     # get job status
     def getJobStatus(self,idsStr):
         try:
@@ -983,6 +990,16 @@ def insertSandboxFileInfo(req,userName,fileName,fileSize,checkSum):
     hostName = req.get_remote_host()
     # exec    
     return userIF.insertSandboxFileInfo(userName,hostName,fileName,fileSize,checkSum)
+
+
+# check duplicated sandbox file
+def checkSandboxFile(req,fileSize,checkSum):
+    # get DN
+    if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        return "ERROR: SSL connection is required"
+    user = _getDN(req)
+    # exec    
+    return userIF.checkSandboxFile(user,fileSize,checkSum)
 
 
 # add files to memcached
