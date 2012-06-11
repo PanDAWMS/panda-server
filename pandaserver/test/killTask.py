@@ -13,6 +13,8 @@ from config import panda_config
 optP = optparse.OptionParser(conflict_handler="resolve")
 optP.add_option('-9',action='store_const',const=True,dest='forceKill',
                 default=False,help='kill jobs even if they are still running')
+optP.add_option('--noRunning',action='store_const',const=True,dest='noRunning',
+                default=False,help='kill only activated/assigned/waiting jobs')
 options,args = optP.parse_args()
 
 proxyS = DBProxy()
@@ -23,7 +25,11 @@ jobs = []
 varMap = {}
 varMap[':prodSourceLabel']  = 'managed'
 varMap[':taskID'] = args[0]
-sql = "SELECT PandaID FROM %s WHERE prodSourceLabel=:prodSourceLabel AND taskID=:taskID ORDER BY PandaID"
+if not options.noRunning:
+    sql = "SELECT PandaID FROM %s WHERE prodSourceLabel=:prodSourceLabel AND taskID=:taskID ORDER BY PandaID"
+else:
+    sql = "SELECT PandaID FROM %s WHERE prodSourceLabel=:prodSourceLabel AND taskID=:taskID AND jobStatus<>:jobStatus ORDER BY PandaID"
+    varMap[':jobStatus'] = 'running'
 for table in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4','ATLAS_PANDA.jobsDefined4']:
     status,res = proxyS.querySQLS(sql % table,varMap)
     if res != None:

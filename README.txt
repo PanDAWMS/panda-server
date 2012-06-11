@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added --noRunning to killTask
   * fixed insertSandboxInfo to use real file size
   * added checkSandboxFile
   * fixed brokerage for nightlies
