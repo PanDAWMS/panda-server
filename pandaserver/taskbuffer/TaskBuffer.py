@@ -1636,11 +1636,14 @@ class TaskBuffer:
 
     
     # get highest prio jobs
-    def getHighestPrioJobStat(self):
+    def getHighestPrioJobStat(self,perPG=False):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get stat
-        ret = proxy.getHighestPrioJobStat()
+        if not perPG:
+            ret = proxy.getHighestPrioJobStat()
+        else:
+            ret = proxy.getHighestPrioJobStatPerPG()
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

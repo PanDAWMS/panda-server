@@ -335,9 +335,9 @@ class UserIF:
 
 
     # get highest prio jobs
-    def getHighestPrioJobStat(self):
+    def getHighestPrioJobStat(self,perPG=False):
         # get job statistics
-        ret = self.taskBuffer.getHighestPrioJobStat()
+        ret = self.taskBuffer.getHighestPrioJobStat(perPG)
         # serialize 
         return pickle.dumps(ret)
 
@@ -1061,8 +1061,12 @@ def getJobStatistics(req,sourcetype=None):
 
 
 # get highest prio jobs
-def getHighestPrioJobStat(req):
-    return userIF.getHighestPrioJobStat()
+def getHighestPrioJobStat(req,perPG=None):
+    if perPG == 'True':
+        perPG = True
+    else:
+        perPG = False
+    return userIF.getHighestPrioJobStat(perPG)
 
 
 # get job statistics for Babmoo
