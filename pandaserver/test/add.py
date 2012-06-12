@@ -23,7 +23,7 @@ _logger = PandaLogger().getLogger('add')
 _logger.debug("===================== start =====================")
 
 # overall timeout value
-overallTimeout = 30
+overallTimeout = 20
 
 # current minute
 currentMinute = datetime.datetime.utcnow().minute
