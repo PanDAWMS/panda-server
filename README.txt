@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added more message to Finisher 
   * fixed Adder2 for failed jobs to add files to sub
   * reduced the number of add.py
   * modified getHighestPrioJobStat to calculate per PG

@@ -112,10 +112,12 @@ class Finisher (threading.Thread):
                         for file in job.Files:
                             if file.type == 'output' or file.type == 'log':
                                 if file.status != 'ready':
+                                    _logger.debug("Job: %s file:%s %s != ready" % (job.PandaID,file.lfn,file.status))
                                     jobReady = False
                                     break
                         # finish job
                         if jobReady:
+                            _logger.debug("Job: %s all files ready" % job.PandaID)
                             # create XML
                             try:
                                 import xml.dom.minidom

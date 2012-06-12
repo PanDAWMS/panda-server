@@ -48,6 +48,7 @@ class Adder (threading.Thread):
         self.siteMapper = siteMapper
         self.addToTopOnly = False
         self.goToTransferring = False
+        self.logTransferring = False
         self.subscriptionMap = {}
         self.dq2api = None
         self.attemptNr = attemptNr        
@@ -156,10 +157,13 @@ class Adder (threading.Thread):
                         pass
                     elif self.job.jobStatus == 'failed':
                         # failed jobs
+                        if self.job.prodSourceLabel in ['managed','test']:
+                            self.logTransferring = True
                         pass
                     else:
                         self.goToTransferring = True
                     _logger.debug('%s goToTransferring=%s' % (self.jobID,self.goToTransferring))
+                    _logger.debug('%s logTransferring=%s' % (self.jobID,self.logTransferring))
                     if not brokenSched:
                         self._updateOutputs()
                 else:
@@ -604,7 +608,8 @@ class Adder (threading.Thread):
                 del idMap[destinationDBlock]
             # skip sub unless getting transferred
             if origDBlock != None:
-                if not self.goToTransferring and subMap == {} and idMap.has_key(destinationDBlock):
+                if not self.goToTransferring and not self.logTransferring \
+                       and idMap.has_key(destinationDBlock):
                     del idMap[destinationDBlock]
         # print idMap
         _logger.debug("%s idMap = %s" % (self.jobID,idMap))
