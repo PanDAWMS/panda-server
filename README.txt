@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * reduced the number of add.py
   * modified getHighestPrioJobStat to calculate per PG
   * added --noRunning to killTask
   * fixed insertSandboxInfo to use real file size
