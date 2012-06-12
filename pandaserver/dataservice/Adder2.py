@@ -592,21 +592,23 @@ class Adder (threading.Thread):
             return
         # add data to original dataset
         for destinationDBlock in idMap.keys():
+            origDBlock = None
             match = re.search('^(.+)_sub\d+$',destinationDBlock)
             if match != None:
                 # add files to top-level datasets
+                origDBlock = match.group(1)
                 if not self.goToTransferring:
-                    origDBlock = match.group(1)
                     idMap[origDBlock] = idMap[destinationDBlock]
             # add files to top-level datasets only 
             if self.addToTopOnly:
                 del idMap[destinationDBlock]
             # skip sub unless getting transferred
-            if match != None:
-                if not self.goToTransferring and idMap.has_key(destinationDBlock):
+            if origDBlock != None:
+                if not self.goToTransferring and subMap == {} and idMap.has_key(destinationDBlock):
                     del idMap[destinationDBlock]
         # print idMap
         _logger.debug("%s idMap = %s" % (self.jobID,idMap))
+        _logger.debug("%s subMap = %s" % (self.jobID,subMap))        
         # add data
         _logger.debug("%s addFiles start" % self.jobID)
         # count the number of files
