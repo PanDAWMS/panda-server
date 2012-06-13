@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added RbLauncher to run ReBroker in grid env
   * added more message to Finisher 
   * fixed Adder2 for failed jobs to add files to sub
   * reduced the number of add.py

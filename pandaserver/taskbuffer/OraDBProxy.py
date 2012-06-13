@@ -3781,7 +3781,7 @@ class DBProxy:
                         break
                 if runPandaID == None:
                     if not forFailed:
-                        errMsg = "could not get runXYZ jobs in defined/activated state"
+                        errMsg = "no defined/activated jobs to reassign. running/finished/failed jobs are not reassigned by rebrokerage "
                     else:
                         errMsg = "could not get failed runXYZ jobs"                        
             # get libDS
@@ -3876,7 +3876,7 @@ class DBProxy:
                     # check status
                     if errMsg != '':
                         if not buildJobStatus in ['defined','activated','finished','cancelled']:
-                            errMsg = "status of buildJob is '%s' != defined/activated/finished/cancelled which cannot be reassigned" \
+                            errMsg = "status of buildJob is '%s' != defined/activated/finished/cancelled so that jobs cannot be reassigned" \
                                      % buildJobStatus
             # get max/min PandaIDs using the libDS
             if errMsg == '':
@@ -3936,11 +3936,11 @@ class DBProxy:
                     tmpModificationTime, = res
                     # prevent users from rebrokering more than once in one hour
                     timeLimit = datetime.datetime.utcnow()-datetime.timedelta(hours=1)
-                    if simulation:
-                        pass
-                    elif timeLimit < tmpModificationTime and not forceOpt:
+                    if timeLimit < tmpModificationTime and not forceOpt:
                         errMsg = "last mod time is %s > current-1hour. Cannot run (re)brokerage more than once in one hour" \
                                  % tmpModificationTime.strftime('%Y-%m-%d %H:%M:%S')
+                    elif simulation:
+                        pass
                     else:
                         # update modificationTime for locking
                         for tableName in tables:

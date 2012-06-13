@@ -380,6 +380,7 @@ class ReBroker (threading.Thread):
                                                              forFailed=self.forFailed)
         # failed
         if not resST:
+            _logger.debug("%s lockJob failed since %s" % (self.token,resVal['err']))
             return False,resVal['err']
         # keep jobID
         self.jobID = jobID

@@ -16,6 +16,7 @@ from taskbuffer.JobSpec import JobSpec
 from taskbuffer.WrappedPickle import WrappedPickle
 from brokerage.SiteMapper import SiteMapper
 from pandalogger.PandaLogger import PandaLogger
+from RbLauncher import RbLauncher
 from ReBroker import ReBroker
 from taskbuffer import PrioUtil
 from dataservice.DDM import dq2Info
@@ -138,29 +139,25 @@ class UserIF:
 
 
     # run rebrokerage
-    def runReBrokerage(self,dn,jobID,cloud,strExcludedSite,forceRebro):
+    def runReBrokerage(self,dn,jobID,cloud,excludedSite,forceRebro):
         returnVal = "True"
         try:
-            if strExcludedSite == None:
-                # excludedSite is unchanged
-                excludedSite = None
-            else:
-                # convert str to list
-                excludedSite = []
-                for tmpItem in strExcludedSite.split(','):
-                    if tmpItem != '':
-                        excludedSite.append(tmpItem)
-            _logger.debug("runReBrokerage %s JobID:%s cloud=%s ex=%s forceOpt=%s" % (dn,jobID,cloud,str(excludedSite),forceRebro))
-            # instantiate ReBroker
-            thr = ReBroker(self.taskBuffer,cloud,excludedSite,forceOpt=forceRebro,userRequest=True)
-            # lock
-            stLock,retLock = thr.lockJob(dn,jobID)
+            # lock job in simulation mode to check
+            checker = ReBroker(self.taskBuffer,simulation=True,userRequest=True)
+            stLock,retLock = checker.lockJob(dn,jobID)
             # failed
             if not stLock:
                 returnVal = "ERROR: "+retLock
-            else:
-                # start ReBroker
-                thr.start()
+                return returnVal
+            # continue to run rebrokerage in background
+            if excludedSite in [None,'']:
+                # use None for empty excludedSite
+                excludedSite = None
+            _logger.debug("runReBrokerage %s JobID:%s cloud=%s ex=%s forceOpt=%s" % (dn,jobID,cloud,str(excludedSite),forceRebro))
+            # instantiate ReBroker
+            thr = RbLauncher(dn,jobID,cloud,excludedSite)
+            # start ReBroker
+            thr.start()
         except:
             errType,errValue,errTraceBack = sys.exc_info()
             _logger.error("runReBrokerage: %s %s" % (errType,errValue))
