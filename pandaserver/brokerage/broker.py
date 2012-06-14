@@ -585,6 +585,11 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                    or (computingSite in ['RAL_REPRO','INFN-T1_REPRO'] and len(fileList)>=2) \
                    or (prevProType in skipBrokerageProTypes and iJob > 0) \
                    or prevDirectAcc != job.transferType \
+                   or prevMemory != job.minRamCount \
+                   or prevDiskCount != job.maxDiskCount \
+                   or prevCoreCount != job.coreCount \
+                   or prevWorkingGroup != job.workingGroup \
+                   or prevProType != job.processingType \
                    or prevBrokergageSiteList != specialBrokergageSiteList:
                 if indexJob > 1:
                     _log.debug('new bunch')
