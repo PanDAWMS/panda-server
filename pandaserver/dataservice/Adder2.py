@@ -787,6 +787,14 @@ class Adder (threading.Thread):
                                 if dhStatus == 0 or "such request is exist" in dhOut:
                                     _logger.debug("%s %s %s" % (self.jobID,dhStatus,dhOut))
                                     break
+                                # faital errors
+                                if "No input data or input data is incorrect" in dhOut:
+                                    tmpMsg = "%s datriHandler failed with %s %s" % (self.jobID,dhStatus,dhOut)
+                                    _logger.error(tmpMsg)
+                                    self.job.ddmErrorCode = ErrorCode.EC_Adder
+                                    self.job.ddmErrorDiag = "DaTRI failed for %s with %s %s" % (tmpDsName,dhStatus,dhOut)
+                                    return
+                                # retry
                                 if iTry+1 < nTry:
                                     # sleep
                                     time.sleep(60)

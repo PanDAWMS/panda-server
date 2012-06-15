@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added fatal errors for datri in Adder2
   * fixed Adder2 for missing src in schedconfig for analysis with destSE
   * changed brokeage to make a chunk for each diskCount/memory
   * added RbLauncher to run ReBroker in grid env
