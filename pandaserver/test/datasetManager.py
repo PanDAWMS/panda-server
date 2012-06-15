@@ -498,15 +498,20 @@ class T2Cleaner (threading.Thread):
                         # cloud is not found
                         if cloudName == None:        
                             _logger.error("cannot find cloud for %s : %s" % (name,str(tmpRepSites)))
-                        elif not cloudName in ['DE','CA','ES','FR','IT','NL','UK','TW']:
-                            # FIXME : test only EGEE for now
-                            pass
                         else:
                             # look for T2 IDs
                             t2DDMs = []
                             for tmpDDM in tmpRepSites.keys():
                                 if not tmpDDM in t1SiteDDMs and tmpDDM.endswith('_PRODDISK'):
-                                    t2DDMs.append(tmpDDM)
+                                    # check home cloud
+                                    notDeleteFlag = False
+                                    for tmpT2siteID,tmpT2siteSpec in siteMapper.siteSpecList.iteritems():
+                                        if tmpT2siteSpec.ddm == tmpDDM:
+                                            # not delete if src and dest are in US. OSG is regarded as US due to tier1
+                                            if tmpT2siteSpec.cloud in ['US'] and cloudName in ['US','OSG']:
+                                                notDeleteFlag = True
+                                    if not notDeleteFlag:            
+                                        t2DDMs.append(tmpDDM)
                             # delete replica for sub
                             if re.search('_sub\d+$',name) != None and t2DDMs != []:
                                 setMetaFlag = True

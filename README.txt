@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * delete sub from PRODDISK except US clous 
   * added protection to ReBroker against redundant comma in excludedSite 
   * added fatal errors for datri in Adder2
   * fixed Adder2 for missing src in schedconfig for analysis with destSE
