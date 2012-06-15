@@ -150,6 +150,11 @@ class ReBroker (threading.Thread):
                 match = re.search("--excludedSite( +|=)\s*(\'|\")*([^ \"\';$]+)",self.job.metadata)
                 if match != None:
                     self.excludedSite = match.group(3).split(',')
+            # remove empty
+            try:
+                self.excludedSite.remove('')
+            except:
+                pass
             _logger.debug("%s excludedSite=%s" % (self.token,str(self.excludedSite)))
             # check cloud
             if self.cloud == None:
