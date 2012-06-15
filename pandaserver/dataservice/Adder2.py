@@ -123,7 +123,7 @@ class Adder (threading.Thread):
                     else:
                         tmpDstDDM = self.siteMapper.getSite(self.job.destinationSE).ddm
                         tmpDstSEs = brokerage.broker_util.getSEfromSched(self.siteMapper.getSite(self.job.destinationSE).se)
-                        # protection against disappearance from schedconfig
+                        # protection against disappearance of dest from schedconfig
                         if not self.siteMapper.checkSite(self.job.destinationSE):
                             self.job.ddmErrorCode = ErrorCode.EC_Adder
                             self.job.ddmErrorDiag = "destinaitonSE %s is unknown in schedconfig" % self.job.destinationSE
@@ -131,13 +131,14 @@ class Adder (threading.Thread):
                             self.jobStatus = 'failed'
                             _logger.error("%s %s" % (self.jobID,self.job.ddmErrorDiag))
                             brokenSched = True
-                        elif not self.siteMapper.checkSite(self.job.computingSite):
-                            self.job.ddmErrorCode = ErrorCode.EC_Adder
-                            self.job.ddmErrorDiag = "computingSite %s is unknown in schedconfig" % self.job.computingSite
-                            self.job.jobStatus = 'failed'
-                            self.jobStatus = 'failed'
-                            _logger.error("%s %s" % (self.jobID,self.job.ddmErrorDiag))
-                            brokenSched = True
+                    # protection against disappearance of src from schedconfig        
+                    if not self.siteMapper.checkSite(self.job.computingSite):
+                        self.job.ddmErrorCode = ErrorCode.EC_Adder
+                        self.job.ddmErrorDiag = "computingSite %s is unknown in schedconfig" % self.job.computingSite
+                        self.job.jobStatus = 'failed'
+                        self.jobStatus = 'failed'
+                        _logger.error("%s %s" % (self.jobID,self.job.ddmErrorDiag))
+                        brokenSched = True
                     _logger.debug('%s DDM src:%s dst:%s' % (self.jobID,tmpSrcDDM,tmpDstDDM))
                     _logger.debug('%s SE src:%s dst:%s' % (self.jobID,tmpSrcSEs,tmpDstSEs))
                     if re.search('^ANALY_',self.job.computingSite) != None:
