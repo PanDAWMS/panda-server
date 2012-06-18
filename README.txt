@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed datasetManager for T2 cleanup
   * delete sub from PRODDISK except US clous 
   * added protection to ReBroker against redundant comma in excludedSite 
   * added fatal errors for datri in Adder2

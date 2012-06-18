@@ -495,6 +495,8 @@ class T2Cleaner (threading.Thread):
                                 if tmpRepSites.has_key(tmpDDM):
                                     cloudName = tmpCloudName
                                     break
+                            if cloudName != None:
+                                break
                         # cloud is not found
                         if cloudName == None:        
                             _logger.error("cannot find cloud for %s : %s" % (name,str(tmpRepSites)))
