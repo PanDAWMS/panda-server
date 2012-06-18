@@ -478,6 +478,7 @@ class T2Cleaner (threading.Thread):
                     continue
                 else:
                     if out.find("DQUnknownDatasetException") == -1 and out.find("DQDeletedDatasetException") == -1:
+                        listOut = out
                         try:
                             # convert res to map
                             exec "tmpRepSites = %s" % out
@@ -492,6 +493,9 @@ class T2Cleaner (threading.Thread):
                             t1SiteName = siteMapper.getCloud(tmpCloudName)['source']
                             t1SiteDDMs  = siteMapper.getSite(t1SiteName).setokens.values()
                             for tmpDDM in t1SiteDDMs:
+                                # ignore _PRODDISK
+                                if tmpDDM.endswith('_PRODDISK'):
+                                    continue
                                 if tmpRepSites.has_key(tmpDDM):
                                     cloudName = tmpCloudName
                                     break
@@ -538,6 +542,8 @@ class T2Cleaner (threading.Thread):
                                            out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1 and \
                                            out.find("No replica found") == -1:
                                         continue
+                            else:
+                                _logger.debug('no delete for %s due to empty target in %s' % (name,listOut))
                     # update        
                     self.proxyLock.acquire()
                     varMap = {}
