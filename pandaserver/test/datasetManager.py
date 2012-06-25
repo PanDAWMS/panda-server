@@ -690,27 +690,24 @@ while True:
 
 _memoryCheck("finisher")
 
-# finish transferring jobs
-_logger.debug("==== finish transferring jobs ====")
-timeNow   = datetime.datetime.utcnow()
-for loopIdx in ['low','high']:
-    if loopIdx == 'high':
-        highPrioFlag = True
-    else:
-        highPrioFlag = False
-    # get jobs    
-    for ii in range(1000):
-        ret,res = taskBuffer.lockJobsForFinisher(timeNow,200,highPrioFlag)
-        if res == None:
-            _logger.debug("# of jobs to be finished for %s : %s" % (loopIdx,res))
-            break
-        else:
-            _logger.debug("# of jobs to be finished for %s : %s" % (loopIdx,len(res)))
-            if len(res) == 0:
-                break
+# finisher thread
+class FinisherThr (threading.Thread):
+    def __init__(self,lock,proxyLock,ids,pool):
+        threading.Thread.__init__(self)
+        self.ids        = ids
+        self.lock       = lock
+        self.proxyLock  = proxyLock
+        self.pool       = pool
+        self.pool.add(self)
+                                        
+    def run(self):
+        self.lock.acquire()
+        try:
             # get jobs from DB
-            ids = res
+            ids = self.ids
+            self.proxyLock.acquire()
             jobs = taskBuffer.peekJobs(ids,fromDefined=False,fromArchived=False,fromWaiting=False)
+            self.proxyLock.release()
             upJobs = []
             finJobs = []
             for job in jobs:
@@ -729,7 +726,7 @@ for loopIdx in ['low','high']:
                             dq2SE.append(match.group(1))
                     except:
                         type, value, traceBack = sys.exc_info()
-                        _logger.error("Failed to get DQ2/SE for %s with %s %s" % (job.PandaID,type,value))
+                        _logger.error("%s Failed to get DQ2/SE with %s %s" % (job.PandaID,type,value))
                         continue
                 elif siteMapper.checkCloud(job.cloud):
                     # normal production jobs
@@ -758,16 +755,16 @@ for loopIdx in ['low','high']:
                         guids.append(file.GUID)
                         nTokens += len(file.destinationDBlockToken.split(','))
                 # get files in LRC
-                _logger.debug("Cloud:%s DQ2URL:%s" % (job.cloud,dq2URL))
+                _logger.debug("%s Cloud:%s DQ2URL:%s" % (job.PandaID,job.cloud,dq2URL))
                 okFiles = brokerage.broker_util.getFilesFromLRC(lfns,dq2URL,guids,dq2SE,getPFN=True)
                 # count files
                 nOkTokens = 0
                 for okLFN,okPFNs in okFiles.iteritems():
                     nOkTokens += len(okPFNs)
                 # check all files are ready    
-                _logger.debug(" nToken:%s nOkToken:%s" % (nTokens,nOkTokens))
+                _logger.debug("%s nToken:%s nOkToken:%s" % (job.PandaID,nTokens,nOkTokens))
                 if nTokens <= nOkTokens:
-                    _logger.debug("Finisher : Finish %s" % job.PandaID)
+                    _logger.debug("%s Finisher : Finish" % job.PandaID)
                     for file in job.Files:
                         if file.type == 'output' or file.type == 'log':
                             file.status = 'ready'
@@ -793,10 +790,10 @@ for loopIdx in ['low','high']:
                     if timeOutValue < 1:
                         timeOutValue  = 1
                     timeOut = timeNow - datetime.timedelta(days=timeOutValue)
-                    _logger.debug("  Priority:%s Limit:%s End:%s" % (job.currentPriority,str(timeOut),str(endTime)))
+                    _logger.debug("%s  Priority:%s Limit:%s End:%s" % (job.PandaID,job.currentPriority,str(timeOut),str(endTime)))
                     if endTime < timeOut:
                         # timeout
-                        _logger.debug("Finisher : Kill %s" % job.PandaID)
+                        _logger.debug("%s Finisher : Kill" % job.PandaID)
                         strMiss = ''
                         for lfn in lfns:
                             if not lfn in okFiles:
@@ -816,21 +813,59 @@ for loopIdx in ['low','high']:
                                 guidMap[file.destinationDBlock].append(file.GUID)
                     else:
                         # wait
-                        _logger.debug("Finisher : Wait %s" % job.PandaID)
+                        _logger.debug("%s Finisher : Wait" % job.PandaID)
                         for lfn in lfns:
                             if not lfn in okFiles:
-                                _logger.debug("    -> %s" % lfn)
+                                _logger.debug("%s    -> %s" % (job.PandaID,lfn))
                 upJobs.append(job)
             # update
             _logger.debug("updating ...")
+            self.proxyLock.acquire()
             taskBuffer.updateJobs(upJobs,False)
+            self.proxyLock.release()
             # run Finisher
             for job in finJobs:
                 fThr = Finisher(taskBuffer,None,job)
                 fThr.start()
                 fThr.join()
             _logger.debug("done")
-            time.sleep(random.randint(1,10))
+            time.sleep(1)
+        except:
+            pass
+        self.pool.remove(self)
+        self.lock.release()
+
+# finish transferring jobs
+_logger.debug("==== finish transferring jobs ====")
+finisherLock = threading.Semaphore(3)
+finisherProxyLock = threading.Lock()
+finisherThreadPool = ThreadPool()
+timeNow = datetime.datetime.utcnow()
+for loopIdx in ['low','high']:
+    if loopIdx == 'high':
+        highPrioFlag = True
+    else:
+        highPrioFlag = False
+    # get jobs
+    for ii in range(1000):
+        # lock
+        finisherLock.acquire()
+        finisherProxyLock.acquire()
+        ret,res = taskBuffer.lockJobsForFinisher(timeNow,200,highPrioFlag)
+        finisherProxyLock.release()
+        finisherLock.release()
+        if res == None:
+            _logger.debug("# of jobs to be finished for %s : %s" % (loopIdx,res))
+        else:
+            _logger.debug("# of jobs to be finished for %s : %s" % (loopIdx,len(res)))
+        if res == None or len(res) == 0:
+            break
+        # run thread
+        finThr = FinisherThr(finisherLock,finisherProxyLock,res,finisherThreadPool)
+        finThr.start()
+    # wait
+    finisherThreadPool.join()
+
 
 _memoryCheck("end")
 
