@@ -692,12 +692,13 @@ _memoryCheck("finisher")
 
 # finisher thread
 class FinisherThr (threading.Thread):
-    def __init__(self,lock,proxyLock,ids,pool):
+    def __init__(self,lock,proxyLock,ids,pool,timeNow):
         threading.Thread.__init__(self)
         self.ids        = ids
         self.lock       = lock
         self.proxyLock  = proxyLock
         self.pool       = pool
+        self.timeNow    = timeNow
         self.pool.add(self)
                                         
     def run(self):
@@ -789,7 +790,7 @@ class FinisherThr (threading.Thread):
                     # protection
                     if timeOutValue < 1:
                         timeOutValue  = 1
-                    timeOut = timeNow - datetime.timedelta(days=timeOutValue)
+                    timeOut = self.timeNow - datetime.timedelta(days=timeOutValue)
                     _logger.debug("%s  Priority:%s Limit:%s End:%s" % (job.PandaID,job.currentPriority,str(timeOut),str(endTime)))
                     if endTime < timeOut:
                         # timeout
@@ -840,8 +841,8 @@ _logger.debug("==== finish transferring jobs ====")
 finisherLock = threading.Semaphore(3)
 finisherProxyLock = threading.Lock()
 finisherThreadPool = ThreadPool()
-timeNow = datetime.datetime.utcnow()
 for loopIdx in ['low','high']:
+    timeNow = datetime.datetime.utcnow()
     if loopIdx == 'high':
         highPrioFlag = True
     else:
@@ -861,7 +862,7 @@ for loopIdx in ['low','high']:
         if res == None or len(res) == 0:
             break
         # run thread
-        finThr = FinisherThr(finisherLock,finisherProxyLock,res,finisherThreadPool)
+        finThr = FinisherThr(finisherLock,finisherProxyLock,res,finisherThreadPool,timeNow)
         finThr.start()
     # wait
     finisherThreadPool.join()
