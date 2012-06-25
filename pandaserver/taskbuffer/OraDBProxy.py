@@ -2597,12 +2597,13 @@ class DBProxy:
     # kill job
     def killJob(self,pandaID,user,code,prodManager,getUserInfo=False,wgProdRole=[]):
         # code
-        # 2 : expire
-        # 3 : aborted
-        # 4 : expire in waiting
-        # 7 : retry by server
-        # 8 : rebrokerage
-        # 9 : force kill
+        # 2  : expire
+        # 3  : aborted
+        # 4  : expire in waiting
+        # 7  : retry by server
+        # 8  : rebrokerage
+        # 9  : force kill
+        # 91 : kill user jobs with prod role
         comment = ' /* DBProxy.killJob */'        
         _logger.debug("killJob : code=%s PandaID=%s role=%s user=%s wg=%s" % (code,pandaID,prodManager,user,wgProdRole))
         # check PandaID
@@ -2674,7 +2675,7 @@ class DBProxy:
                             validGroupProdRole = True
                             break
                 if prodManager:
-                    if res[1] in ['user','panda'] and (not code in ['2','4','7','8','9']):
+                    if res[1] in ['user','panda'] and (not code in ['2','4','7','8','9','91']):
                         _logger.debug("ignore killJob -> prod proxy tried to kill analysis job type=%s" % res[1])
                         break
                     _logger.debug("killJob : %s using prod role" % pandaID)
