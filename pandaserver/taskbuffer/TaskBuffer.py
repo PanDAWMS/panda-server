@@ -370,6 +370,18 @@ class TaskBuffer:
         return res
 
 
+    # lock jobs for finisher
+    def lockJobsForFinisher(self,timeNow,rownum,highPrio):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.lockJobsForFinisher(timeNow,rownum,highPrio)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
     # get number of activated/defined jobs with output datasets
     def getNumWaitingJobsWithOutDS(self,outputDSs):
         # get DB proxy

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * check LFC every hour for high prio transferring jobs
   * fixed datasetManager for T2 cleanup by recognizing T1 PRODDISK correctly
   * delete sub from PRODDISK except US clous 
   * added protection to ReBroker against redundant comma in excludedSite 

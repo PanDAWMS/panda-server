@@ -3649,6 +3649,55 @@ class DBProxy:
             return False,[]
 
 
+    # lock jobs for finisher
+    def lockJobsForFinisher(self,timeNow,rownum,highPrio):
+        comment = ' /* DBProxy.lockJobsForFinisher */'                        
+        _logger.debug("lockJobsForFinisher : %s %s %s" % (timeNow,rownum,highPrio))
+        try:
+            varMap = {}
+            varMap[':jobStatus'] = 'transferring'
+            varMap[':currentPriority'] = 800
+            varMap[':prodSourceLabel'] = 'managed'
+            # make sql
+            sql  = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
+            sql += "WHERE jobStatus=:jobStatus AND modificationTime<:modificationTime AND prodSourceLabel=:prodSourceLabel "
+            if highPrio:
+                varMap[':modificationTime'] = timeNow - datetime.timedelta(hours=1)
+                sql += "AND currentPriority>=:currentPriority AND rownum<=%s " % rownum
+            else:
+                sql += "AND currentPriority<:currentPriority AND rownum<=%s " % rownum
+                varMap[':modificationTime'] = timeNow - datetime.timedelta(hours=12)
+            sql += "FOR UPDATE "
+            # sql for lock
+            sqlLock = 'UPDATE ATLAS_PANDA.jobsActive4 SET modificationTime=CURRENT_DATE WHERE PandaID=:PandaID'
+            # start transaction
+            self.conn.begin()
+            # select
+            self.cur.arraysize = 1000
+            self.cur.execute(sql+comment,varMap)
+            resList = self.cur.fetchall()
+            retList = []
+            # lock
+            for tmpID, in resList:
+                varLock = {':PandaID':tmpID}
+                self.cur.execute(sqlLock+comment,varLock)
+                retList.append(tmpID)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # sort
+            retList.sort()
+            _logger.debug("lockJobsForFinisher : %s" % (len(retList)))
+            return True,retList
+        except:
+            # roll back
+            self._rollback()
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("lockJobsForFinisher : %s %s" % (errType,errValue))
+            # return empty
+            return False,[]
+
+
     # get the number of waiting jobs with a dataset
     def getNumWaitingJobsForPD2P(self,datasetName):
         comment = ' /* DBProxy.getNumWaitingJobsForPD2P */'                        
