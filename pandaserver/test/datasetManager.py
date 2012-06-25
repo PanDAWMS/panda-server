@@ -693,7 +693,7 @@ _memoryCheck("finisher")
 # finish transferring jobs
 _logger.debug("==== finish transferring jobs ====")
 timeNow   = datetime.datetime.utcnow()
-for loopIdx in ['high','low']:
+for loopIdx in ['low','high']:
     if loopIdx == 'high':
         highPrioFlag = True
     else:
