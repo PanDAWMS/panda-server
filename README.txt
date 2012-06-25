@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * temporally gave a higher priority to phys-higgs for ICHEP2012
   * added code=91 to allow prod role to kill user jobs gracefully 
   * check LFC every hour for high prio transferring jobs
   * fixed datasetManager for T2 cleanup by recognizing T1 PRODDISK correctly
