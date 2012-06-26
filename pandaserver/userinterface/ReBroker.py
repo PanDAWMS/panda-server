@@ -231,31 +231,24 @@ class ReBroker (threading.Thread):
             siteMapper = SiteMapper(self.taskBuffer)
             # get original DDM
             origSiteDDM = self.getAggName(siteMapper.getSite(self.job.computingSite).ddm)
+            # check all datasets
             maxDQ2Sites = []
             if inputDS != []:
-                # check original is there
-                if not replicaMap.has_key(origSiteDDM):
-                    _logger.error("%s original site %s was not found in replica map" % \
-                                  (self.token,origSiteDDM))
-                    _logger.debug("%s failed" % self.token)
-                    return 
-                # look for DQ2 IDs where datasets are available in the same distribution as original site
-                firstLoop = True
-                for tmpOrigDS,tmpOrigVal in replicaMap[origSiteDDM].iteritems():
-                    # loop over all sites
-                    for tmpSite,tmpDsVal in replicaMap.iteritems():
+                # loop over all sites
+                for tmpSite,tmpDsVal in replicaMap.iteritems():
+                    # loop over all datasets
+                    appendFlag = True
+                    for tmpOrigDS in inputDS:
+                        # check completeness
                         if tmpDsVal.has_key(tmpOrigDS) and tmpDsVal[tmpOrigDS]['found'] != None and \
-                               tmpOrigVal['found'] != None and tmpDsVal[tmpOrigDS]['found'] >= tmpOrigVal['found']:
-                            # add in the first loop
-                            if firstLoop:
-                                maxDQ2Sites.append(tmpSite)
+                               tmpDsVal[tmpOrigDS]['total'] == tmpDsVal[tmpOrigDS]['found']:
+                            pass
                         else:
-                            # delete
-                            if tmpSite in maxDQ2Sites:
-                                maxDQ2Sites.remove(tmpSite)
-                    # first loop is over
-                    if firstLoop:
-                        firstLoop = False
+                            appendFlag = False
+                    # append
+                    if appendFlag:
+                        if not tmpSite in maxDQ2Sites:
+                            maxDQ2Sites.append(tmpSite)
             _logger.debug("%s candidate DQ2s -> %s" % (self.token,str(maxDQ2Sites)))
             if inputDS != [] and maxDQ2Sites == []:
                 _logger.debug("%s no DQ2 candidate" % self.token)
