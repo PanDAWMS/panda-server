@@ -6716,15 +6716,15 @@ class DBProxy:
     # get computingSite and destinationSE for a dataset
     def getDestSE(self,dsname,fromArch=False):
         comment = ' /* DBProxy.getDestSE */'        
-        _logger.debug("getDestSE(%s)" % dsname)
+        _logger.debug("getDestSE(%s,%s)" % (dsname,fromArch))
         sql0 = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock "
         if not fromArch:
             sql0 += "AND status=:status "
         sql0 += "AND rownum=1"
-        if not fromArch:
-            sql1 = "SELECT computingSite,destinationSE FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID"
-        else:    
-            sql1 = "SELECT computingSite,destinationSE FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID"
+        sql1 = "SELECT computingSite,destinationSE FROM %s WHERE PandaID=:PandaID"
+        actTableList = ['ATLAS_PANDA.jobsActive4']
+        if fromArch:
+            actTableList.append("ATLAS_PANDA.jobsArchived4")
         try:
             # start transaction
             self.conn.begin()
@@ -6745,14 +6745,20 @@ class DBProxy:
             if pandaID != None:
                 varMap = {}
                 varMap[':PandaID'] = pandaID
-                self.cur.execute(sql1+comment, varMap)
-                res = self.cur.fetchall()
-                if len(res) != 0:
-                    destSE = res[0]
-                else:
-                    # look into ARCH table
+                # loop over all active tables
+                foundInActive = False
+                for actTable in actTableList:
+                    self.cur.execute((sql1 % actTable)+comment, varMap)
+                    res = self.cur.fetchall()
+                    if len(res) != 0:
+                        destSE = res[0]
+                        foundInActive = True
+                        break
+                # look into ARCH table
+                if not foundInActive:
                     if fromArch:
-                        sqlA = "SELECT computingSite,destinationSE FROM ATLAS_PANDAARCH.jobsArchived WHERE PandaID=:PandaID"
+                        sqlA  = "SELECT computingSite,destinationSE FROM ATLAS_PANDAARCH.jobsArchived WHERE PandaID=:PandaID "
+                        sqlA += "AND modificationTime>(CURRENT_DATE-30) "
                         self.cur.execute(sqlA+comment, varMap)
                         res = self.cur.fetchall()
                         if len(res) != 0:
