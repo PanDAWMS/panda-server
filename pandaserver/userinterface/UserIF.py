@@ -615,7 +615,7 @@ class UserIF:
     # run brokerage
     def runBrokerage(self,sitesStr,cmtConfig,atlasRelease,trustIS=False,processingType=None,
                      dn=None,loggingFlag=False,memorySize=None,workingGroup=None,fqans=[],
-                     nJobs=None,preferHomeCountry=False):
+                     nJobs=None,preferHomeCountry=False,siteReliability=None):
         if not loggingFlag:
             ret = 'NULL'
         else:
@@ -671,7 +671,8 @@ class UserIF:
                                                                                          preferHomeCountry,
                                                                                          str(prefCountries)))
             brokerage.broker.schedule([job],self.taskBuffer,siteMapper,True,sites,trustIS,dn,
-                                      reportLog=loggingFlag,minPriority=minPrio,preferredCountries=prefCountries)
+                                      reportLog=loggingFlag,minPriority=minPrio,preferredCountries=prefCountries,
+                                      siteReliability=siteReliability)
             # get computingSite
             if not loggingFlag:
                 ret = job.computingSite
@@ -1200,7 +1201,8 @@ def getNumPilots(req):
 
 # run brokerage
 def runBrokerage(req,sites,cmtConfig=None,atlasRelease=None,trustIS=False,processingType=None,
-                 loggingFlag=False,memorySize=None,workingGroup=None,nJobs=None):
+                 loggingFlag=False,memorySize=None,workingGroup=None,nJobs=None,
+                 siteGroup=None):
     if trustIS=='True':
         trustIS = True
     else:
@@ -1214,11 +1216,17 @@ def runBrokerage(req,sites,cmtConfig=None,atlasRelease=None,trustIS=False,proces
             memorySize = long(memorySize)
         except:
             pass
+    if siteGroup != None:
+        try:
+            siteGroup = int(siteGroup)
+        except:
+            siteGroup = None
     preferHomeCountry = True
     dn = _getDN(req)
     fqans = _getFQAN(req)
     return userIF.runBrokerage(sites,cmtConfig,atlasRelease,trustIS,processingType,dn,
-                               loggingFlag,memorySize,workingGroup,fqans,nJobs,preferHomeCountry)
+                               loggingFlag,memorySize,workingGroup,fqans,nJobs,preferHomeCountry,
+                               siteGroup)
 
 # run rebrokerage
 def runReBrokerage(req,jobID,libDS='',cloud=None,excludedSite=None,forceOpt=None):

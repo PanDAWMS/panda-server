@@ -10,7 +10,7 @@ class SiteSpec(object):
                    'seprodpath','glexec','priorityoffset','allowedgroups','defaulttoken','queue',
                    'localqueue','validatedreleases','accesscontrol','copysetup','maxinputsize',
                    'cachedse','allowdirectaccess','comment','cloudlist','statusmodtime','lfcregister',
-                   'countryGroup','availableCPU','pledgedCPU','coreCount')
+                   'countryGroup','availableCPU','pledgedCPU','coreCount','reliabilityLevel')
 
     # constructor
     def __init__(self):

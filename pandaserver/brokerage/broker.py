@@ -1,6 +1,7 @@
 import re
 import sys
 import time
+import types
 import fcntl
 import random
 import commands
@@ -176,7 +177,8 @@ def _isTooManyInput(nFilesPerJob,inputSizePerJob):
 
 
 # send analysis brokerage info
-def sendAnalyBrokeageInfo(results,prevRelease,diskThreshold,chosenSite,prevCmtConfig):
+def sendAnalyBrokeageInfo(results,prevRelease,diskThreshold,chosenSite,prevCmtConfig,
+                          siteReliability):
     # send log messages
     messageList = []
     for resultType,resultList in results.iteritems():
@@ -194,6 +196,8 @@ def sendAnalyBrokeageInfo(results,prevRelease,diskThreshold,chosenSite,prevCmtCo
                 msgBody = 'action=skip site=%s reason=ramshortage - RAM shortage' % resultItem
             elif resultType == 'status':
                 msgBody = 'action=skip site=%s reason=sitestatus - not online' % resultItem 
+            elif resultType == 'reliability':
+                msgBody = 'action=skip site=%s reason=reliability - insufficient>%s' % (resultItem ,siteReliability)
             elif resultType == 'weight':
                 tmpSite,tmpWeight = resultItem
                 if tmpSite == chosenSite:
@@ -363,10 +367,11 @@ def getPrestageSites(siteMapper):
 def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],trustIS=False,
              distinguishedName=None,specialWeight={},getWeight=False,sizeMapForCheck={},
              datasetSize=0,replicaMap={},pd2pT1=False,reportLog=False,minPriority=None,
-             t2FilesMap={},preferredCountries=[]):
-    _log.debug('start %s %s %s %s minPrio=%s pref=%s' % (forAnalysis,str(setScanSiteList),trustIS,
-                                                         distinguishedName,minPriority,
-                                                         str(preferredCountries)))
+             t2FilesMap={},preferredCountries=[],siteReliability=None):
+    _log.debug('start %s %s %s %s minPrio=%s pref=%s siteRel=%s' % (forAnalysis,str(setScanSiteList),trustIS,
+                                                                    distinguishedName,minPriority,
+                                                                    str(preferredCountries),
+                                                                    siteReliability))
     if specialWeight != {}:
         _log.debug('PD2P weight : %s' % str(specialWeight))
     _log.debug('replicaMap : %s' % str(replicaMap))
@@ -609,7 +614,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     _log.debug('  goToT2         %s' % prevGoToT2Flag)
                 # brokerage decisions    
                 resultsForAnal   = {'rel':[],'pilot':[],'disk':[],'status':[],'weight':[],'memory':[],
-                                    'share':[],'transferring':[],'prefcountry':[],'cpucore':[]}
+                                    'share':[],'transferring':[],'prefcountry':[],'cpucore':[],
+                                    'reliability':[]}
                 # determine site
                 if (iJob == 0 or chosen_ce != 'TOBEDONE') and prevBrokergageSiteList in [None,[]]:
                      # file scan for pre-assigned jobs
@@ -739,6 +745,12 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 resultsForAnal['status'].append(site)
                                 continue
                             _log.debug('   status=%s' % tmpSiteSpec.status)
+                            # reliability
+                            if forAnalysis and isinstance(siteReliability,types.IntType):
+                                if tmpSiteSpec.reliabilityLevel != None and tmpSiteSpec.reliabilityLevel > siteReliability:
+                                    _log.debug(' skip: insufficient reliability %s > %s' % (tmpSiteSpec.reliabilityLevel,siteReliability))
+                                    resultsForAnal['reliability'].append(site)
+                                    continue
                             # change NULL cmtconfig to slc3/4
                             if prevCmtConfig in ['NULL','',None]:
                                 if forAnalysis:
@@ -1207,6 +1219,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 resultsForAnalStr += 'Insufficient RAM at %s. ' % str(resultsForAnal['memory'])
                             if resultsForAnal['status'] != []:
                                 resultsForAnalStr += '%s are not online. ' % str(resultsForAnal['status'])
+                            if resultsForAnal['reliability'] != []:
+                                resultsForAnalStr += 'Insufficient reliability at %s. ' % str(resultsForAnal['reliability'])
                             resultsForAnalStr = resultsForAnalStr[:-1]
                             tmpJob.computingSite = resultsForAnalStr
                         else:
@@ -1214,7 +1228,9 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         # send log
                         if forAnalysis and trustIS and reportLog:
                             # put logging info to ErrorDiag just to give it back to the caller
-                            tmpJob.brokerageErrorDiag = sendAnalyBrokeageInfo(resultsForAnal,prevRelease,diskThreshold,tmpJob.computingSite,prevCmtConfig)
+                            tmpJob.brokerageErrorDiag = sendAnalyBrokeageInfo(resultsForAnal,prevRelease,diskThreshold,
+                                                                              tmpJob.computingSite,prevCmtConfig,
+                                                                              siteReliability)
                         _log.debug('PandaID:%s -> site:%s' % (tmpJob.PandaID,tmpJob.computingSite))
                         if tmpJob.computingElement == 'NULL':
                             if tmpJob.prodSourceLabel == 'ddm':

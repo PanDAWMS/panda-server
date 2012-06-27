@@ -7535,6 +7535,16 @@ class DBProxy:
         try:
             # set autocommit on
             self.conn.begin()
+            # get reliability info
+            sqlRel = "SELECT tier2,t2group FROM ATLAS_GRISLI.t_m4regions_replication"
+            self.cur.arraysize = 10000
+            self.cur.execute(sqlRel+comment)
+            tmpList = self.cur.fetchall()
+            reliabilityMap = {}
+            for tier2,t2group in tmpList:
+                # get prefix
+                tmpPrefix = re.sub('_DATADISK','',tier2)
+                reliabilityMap[tmpPrefix] = t2group
             # select
             sql = "SELECT nickname,dq2url,cloud,ddm,lfchost,se,gatekeeper,releases,memory,"
             sql+= "maxtime,status,space,retry,cmtconfig,setokens,seprodpath,glexec,"
@@ -7593,6 +7603,12 @@ class DBProxy:
                     ret.comment       = comment
                     ret.statusmodtime = lastmod
                     ret.lfcregister   = lfcregister
+                    # reliability
+                    tmpPrefix = re.sub('_[^_]+DISK$','',ret.ddm)
+                    if reliabilityMap.has_key(tmpPrefix):
+                        ret.reliabilityLevel = reliabilityMap[tmpPrefix]
+                    else:
+                        ret.reliabilityLevel = None
                     # contry groups
                     if not countryGroup in ['',None]:
                         ret.countryGroup = countryGroup.split(',')
