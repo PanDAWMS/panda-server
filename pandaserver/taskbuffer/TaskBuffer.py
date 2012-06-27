@@ -1576,11 +1576,11 @@ class TaskBuffer:
 
     
     # get destinationSE for a dataset
-    def getDestSE(self,dsname):
+    def getDestSE(self,dsname,fromArch=False):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get token
-        ret = proxy.getDestSE(dsname)
+        ret = proxy.getDestSE(dsname,fromArch)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

@@ -43,9 +43,13 @@ class Finisher (threading.Thread):
                 # get computingSite/destinationSE
                 computingSite,destinationSE = self.taskBuffer.getDestSE(self.dataset.name)
                 if destinationSE == None:
-                    _logger.error("cannot get source/destination for %s" % self.dataset.name)
-                    _logger.debug("end: %s" % self.dataset.name)                
-                    return
+                    # try to get computingSite/destinationSE from ARCH to delete sub
+                    # even if no active jobs left 
+                    computingSite,destinationSE = self.taskBuffer.getDestSE(self.dataset.name,True)
+                    if destinationSE == None:
+                        _logger.error("cannot get source/destination for %s" % self.dataset.name)
+                        _logger.debug("end: %s" % self.dataset.name)                
+                        return
                 _logger.debug("src: %s" % computingSite)
                 _logger.debug("dst: %s" % destinationSE)
                 # get corresponding token

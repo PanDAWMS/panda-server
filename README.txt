@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed getDestSE to look into ARCH for sub datasets for failed log files
   * fixed rebrokerage when orig replica is set to ToBeDeleted
   * temporally gave a higher priority to phys-higgs for ICHEP2012
   * added code=91 to allow prod role to kill user jobs gracefully 

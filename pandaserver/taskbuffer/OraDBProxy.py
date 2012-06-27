@@ -6714,17 +6714,24 @@ class DBProxy:
 
             
     # get computingSite and destinationSE for a dataset
-    def getDestSE(self,dsname):
+    def getDestSE(self,dsname,fromArch=False):
         comment = ' /* DBProxy.getDestSE */'        
         _logger.debug("getDestSE(%s)" % dsname)
-        sql0 = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock AND status=:status AND rownum=1"
-        sql1 = "SELECT computingSite,destinationSE FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID"
+        sql0 = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock "
+        if not fromArch:
+            sql0 += "AND status=:status "
+        sql0 += "AND rownum=1"
+        if not fromArch:
+            sql1 = "SELECT computingSite,destinationSE FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID"
+        else:    
+            sql1 = "SELECT computingSite,destinationSE FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID"
         try:
             # start transaction
             self.conn.begin()
             # select
             varMap = {}
-            varMap[':status'] = 'transferring'
+            if not fromArch:
+                varMap[':status'] = 'transferring'
             varMap[':destinationDBlock'] = dsname            
             self.cur.arraysize = 10
             self.cur.execute(sql0+comment, varMap)
@@ -6742,6 +6749,14 @@ class DBProxy:
                 res = self.cur.fetchall()
                 if len(res) != 0:
                     destSE = res[0]
+                else:
+                    # look into ARCH table
+                    if fromArch:
+                        sqlA = "SELECT computingSite,destinationSE FROM ATLAS_PANDAARCH.jobsArchived WHERE PandaID=:PandaID"
+                        self.cur.execute(sqlA+comment, varMap)
+                        res = self.cur.fetchall()
+                        if len(res) != 0:
+                            destSE = res[0]
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
