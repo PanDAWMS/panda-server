@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added --killUserJobs to killJob.py
   * added reliability-based brokerage for analysis jobs
   * fixed getDestSE to look into ARCH for sub datasets for failed log files
   * fixed rebrokerage when orig replica is set to ToBeDeleted

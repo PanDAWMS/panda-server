@@ -6,7 +6,9 @@ optP = optparse.OptionParser(conflict_handler="resolve")
 optP.add_option('-9',action='store_const',const=True,dest='forceKill',
                 default=False,help='kill jobs before next heartbeat is coming')
 optP.add_option('--killOwnProdJobs',action='store_const',const=True,dest='killOwnProdJobs',
-                default=True,help='kill own production jobs without a production role')
+                default=False,help='kill own production jobs without a production role')
+optP.add_option('--killUserJobs',action='store_const',const=True,dest='killUserJobs',
+                default=False,help='kill user jobs using a production role')
 options,args = optP.parse_args()
 
 
@@ -17,6 +19,8 @@ useMailAsIDV = False
 
 if options.forceKill:
     codeV = 9
+elif options.killUserJobs:
+    codeV = 91
 if options.killOwnProdJobs:
     useMailAsIDV = True
 
