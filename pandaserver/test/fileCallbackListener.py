@@ -118,8 +118,6 @@ class FileCallbackListener(stomp.ConnectionListener):
                     forInput = True
                     ids = self.taskBuffer.updateInFilesReturnPandaIDs(dsName,'ready',lfn)
                 elif re.search('_sub\d+$',dsName) != None:
-                    # FIXME
-                    continue
                     # sub datasets
                     forInput = False
                     ids = self.taskBuffer.updateOutFilesReturnPandaIDs(dsName,lfn)
