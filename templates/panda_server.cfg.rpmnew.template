@@ -246,3 +246,13 @@ cacheKeySpace = PandaCacheKeySpace
 
 # column family for files
 cacheFileTable = FileTable
+
+
+
+##########################
+#
+# Job Status Monitor
+#
+
+# enable job status change monitoring
+record_statuschange = False

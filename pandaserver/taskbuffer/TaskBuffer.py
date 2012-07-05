@@ -1286,12 +1286,12 @@ class TaskBuffer:
 
 
     # update input files and return corresponding PandaIDs
-    def updateInFilesReturnPandaIDs(self,dataset,status,fileGUID=''):
+    def updateInFilesReturnPandaIDs(self,dataset,status,fileLFN=''):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         retList = []
         # query PandaID
-        retList = proxy.updateInFilesReturnPandaIDs(dataset,status,fileGUID)
+        retList = proxy.updateInFilesReturnPandaIDs(dataset,status,fileLFN)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -1311,12 +1311,24 @@ class TaskBuffer:
 
 
     # update output files and return corresponding PandaIDs
-    def updateOutFilesReturnPandaIDs(self,dataset):
+    def updateOutFilesReturnPandaIDs(self,dataset,fileLFN=''):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         retList = []
         # query PandaID
-        retList = proxy.updateOutFilesReturnPandaIDs(dataset)
+        retList = proxy.updateOutFilesReturnPandaIDs(dataset,fileLFN)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return retList
+
+
+    # get datasets associated with file
+    def getDatasetWithFile(self,lfn,jobPrioity=0):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # query PandaID
+        retList = proxy.getDatasetWithFile(lfn,jobPrioity)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -1487,11 +1499,11 @@ class TaskBuffer:
 
 
     # count the number of pending files
-    def countPendingFiles(self,pandaID):
+    def countPendingFiles(self,pandaID,forInput=True):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # count files
-        ret = proxy.countPendingFiles(pandaID)
+        ret = proxy.countPendingFiles(pandaID,forInput)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

@@ -11,6 +11,7 @@ import fcntl
 import types
 import random
 import urllib
+import socket
 import datetime
 import commands
 import traceback
@@ -65,6 +66,8 @@ class DBProxy:
         self.faresharePolicy = {}
         # update time for fareshare policy
         self.updateTimeForFaresharePolicy = None
+        # hostname
+        self.myHostName = socket.getfqdn()
         
         
     # connect to DB
@@ -318,6 +321,11 @@ class DBProxy:
             if not self._commit():
                 raise RuntimeError, 'Commit error'
             _logger.debug("insertNewJob : %s File OK" % job.PandaID)
+            # record status change
+            try:
+                self.recordStatusChange(job.PandaID,job.jobStatus,jobInfo=job)
+            except:
+                _logger.error('recordStatusChange in insertNewJob')
             return True
         except:
             type, value, traceBack = sys.exc_info()
@@ -494,7 +502,8 @@ class DBProxy:
 
     # activate job. move job from jobsDefined to jobsActive 
     def activateJob(self,job):
-        comment = ' /* DBProxy.activateJob */'        
+        comment = ' /* DBProxy.activateJob */'
+        updatedFlag = False
         if job==None:
             _logger.debug("activateJob : None")
             return True
@@ -558,6 +567,7 @@ class DBProxy:
                         varMap[':PandaID'] = job.PandaID
                         varMap[':param']   = job.jobParameters
                         self.cur.execute(sqlJob+comment, varMap)
+                        updatedFlag = True                        
                 else:
                     # update job
                     sqlJ = ("UPDATE ATLAS_PANDA.jobsDefined4 SET %s " % job.bindUpdateChangesExpression()) + \
@@ -587,9 +597,16 @@ class DBProxy:
                         varMap[':PandaID'] = job.PandaID
                         varMap[':param']   = job.jobParameters
                         self.cur.execute(sqlJob+comment, varMap)
+                        updatedFlag = True
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
+                # record status change
+                try:
+                    if updatedFlag:
+                        self.recordStatusChange(job.PandaID,job.jobStatus,jobInfo=job)
+                except:
+                    _logger.error('recordStatusChange in activateJob')
                 return True
             except:
                 # roll back
@@ -613,7 +630,8 @@ class DBProxy:
         sql2+= JobSpec.bindValuesExpression()
         # time information
         job.modificationTime = datetime.datetime.utcnow()
-        job.stateChangeTime  = job.modificationTime        
+        job.stateChangeTime  = job.modificationTime
+        updatedFlag = False
         nTry=3
         for iTry in range(nTry):
             try:
@@ -642,9 +660,16 @@ class DBProxy:
                             varMap[':row_ID'] = file.row_ID
                             _logger.debug(sqlF+comment+str(varMap))                            
                             self.cur.execute(sqlF+comment, varMap)
+                    updatedFlag = True        
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
+                # record status change
+                try:
+                    if updatedFlag:
+                        self.recordStatusChange(job.PandaID,job.jobStatus,jobInfo=job)
+                except:
+                    _logger.error('recordStatusChange in keepJob')
                 return True
             except:
                 # roll back
@@ -668,6 +693,7 @@ class DBProxy:
             sql1 = "DELETE FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID"            
         sql2 = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
         sql2+= JobSpec.bindValuesExpression()
+        updatedJobList = []
         nTry=3
         for iTry in range(nTry):
             try:
@@ -739,7 +765,9 @@ class DBProxy:
                                         sqlFailedInDis  = 'UPDATE ATLAS_PANDA.Datasets '
                                         sqlFailedInDis += 'SET currentfiles=currentfiles+1 WHERE vuid=:vuid'
                                         self.cur.execute(sqlFailedInDis+comment,varMap)
-                                myDisList.append(tmpFile.dispatchDBlock) 
+                                myDisList.append(tmpFile.dispatchDBlock)
+                    # collect to record state change
+                    updatedJobList.append(job)
                 # delete downstream jobs
                 ddmIDs     = []
                 newJob     = None
@@ -818,6 +846,8 @@ class DBProxy:
                             self.cur.execute(sqlFMod+comment,varMap)
                             self.cur.execute(sqlMMod+comment,varMap)
                             self.cur.execute(sqlPMod+comment,varMap)
+                            # collect to record state change
+                            updatedJobList.append(dJob)
                             # set tobeclosed to sub datasets
                             if not toBeClosedSubList.has_key(dJob.jobDefinitionID):
                                 # init
@@ -941,6 +971,8 @@ class DBProxy:
                                     self.cur.execute(sqlPMod+comment,varMap)
                                     # append
                                     lostJobIDs.append(tmpID)
+                                    # collect to record state change
+                                    updatedJobList.append(dJob)
                                 # get PandaIDs
                                 varMap = {}
                                 varMap[':jobStatus'] = 'assigned'
@@ -986,6 +1018,12 @@ class DBProxy:
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
+                # record status change
+                try:
+                    for tmpJob in updatedJobList:
+                        self.recordStatusChange(tmpJob.PandaID,tmpJob.jobStatus,jobInfo=tmpJob)
+                except:
+                    _logger.error('recordStatusChange in archiveJob')
                 return True,ddmIDs,ddmAttempt,newJob
             except:
                 # roll back
@@ -1326,6 +1364,9 @@ class DBProxy:
     def updateJobStatus(self,pandaID,jobStatus,param,updateStateChange=False,attemptNr=None):
         comment = ' /* DBProxy.updateJobStatus */'        
         _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s" % (pandaID,attemptNr))
+        sql0 = "SELECT commandToPilot,endTime,specialHandling,jobStatus,computingSite,cloud,prodSourceLabel FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
+        varMap0 = {}
+        varMap0[':PandaID'] = pandaID
         sql1 = "UPDATE ATLAS_PANDA.jobsActive4 SET jobStatus=:jobStatus,modificationTime=CURRENT_DATE"
         if updateStateChange or jobStatus in ['starting']:
             sql1 += ",stateChangeTime=CURRENT_DATE"
@@ -1341,57 +1382,66 @@ class DBProxy:
                         varMap[':%s' % key] = param[key][1:]
                 except:
                     pass
-        sql1 += " WHERE PandaID=:PandaID "
+        sql1W = " WHERE PandaID=:PandaID "
         varMap[':PandaID'] = pandaID
         if attemptNr != None:
-            sql1 += "AND attemptNr=:attemptNr "
+            sql0  += "AND attemptNr=:attemptNr "
+            sql1W += "AND attemptNr=:attemptNr "
             varMap[':attemptNr'] = attemptNr
+            varMap0[':attemptNr'] = attemptNr
+        updatedFlag = False
         nTry=3
         for iTry in range(nTry):
             try:
                 # begin transaction
                 self.conn.begin()
-                # update
-                self.cur.execute (sql1+comment,varMap)
-                nUp = self.cur.rowcount
-                _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s nUp=%s" % (pandaID,attemptNr,nUp))
-                if nUp != 0:
-                    # get command
-                    varMap = {}
-                    varMap[':PandaID'] = pandaID
-                    self.cur.arraysize = 10
-                    self.cur.execute ('SELECT commandToPilot,endTime,specialHandling FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID'+comment,varMap)
-                    res = self.cur.fetchone()
-                    if res != None:
-                        ret = ''
-                        # debug mode
-                        """
-                        if not res[2] in [None,''] and 'debug' in res[2]:
-                            ret += 'debugon,'
-                        else:
-                            ret += 'debugoff,'
-                        """    
-                        # kill command    
-                        if res[0] != None:
-                            ret += '%s,' % res[0]
-                        ret = ret[:-1]
-                        # convert empty to NULL
-                        if ret == '':
-                            ret = 'NULL'
-                        # update endTime
-                        endTime = res[1]
-                        if jobStatus == 'holding' and endTime==None:
-                            self.cur.execute ("UPDATE ATLAS_PANDA.jobsActive4 SET endTime=CURRENT_DATE WHERE PandaID=:PandaID"+comment,
-                                              varMap)
+                # select
+                self.cur.arraysize = 10
+                self.cur.execute (sql0+comment,varMap0)
+                res = self.cur.fetchone()
+                if res != None:
+                    ret = ''
+                    commandToPilot,endTime,specialHandling,oldJobStatus,computingSite,cloud,prodSourceLabel = res
+                    # debug mode
+                    """
+                    if not specialHandling in [None,''] and 'debug' in specialHandling:
+                        ret += 'debugon,'
                     else:
-                        # already deleted
-                        ret = 'tobekilled'
+                        ret += 'debugoff,'
+                    """    
+                    # kill command    
+                    if not commandToPilot in [None,'']:
+                        ret += '%s,' % commandToPilot
+                    ret = ret[:-1]
+                    # convert empty to NULL
+                    if ret == '':
+                        ret = 'NULL'
+                    # set endTime if undefined for holding
+                    if jobStatus == 'holding' and endTime==None:
+                        sql1 += ',endTime=CURRENT_DATE '
+                    # update
+                    self.cur.execute (sql1+sql1W+comment,varMap)
+                    nUp = self.cur.rowcount
+                    _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s nUp=%s" % (pandaID,attemptNr,nUp))
+                    if nUp == 1:
+                        updatedFlag = True
                 else:
-                    # attempt number inconsistent
+                    _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s notFound" % (pandaID,attemptNr))
+                    # already deleted or bad attempt number
                     ret = "badattemptnr"
+                    #ret = 'tobekilled'
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
+                # record status change
+                try:
+                    if updatedFlag and oldJobStatus != None and oldJobStatus != jobStatus:
+                        self.recordStatusChange(pandaID,jobStatus,
+                                                infoMap={'computingSite':computingSite,
+                                                         'cloud':cloud,
+                                                         'prodSourceLabel':prodSourceLabel})
+                except:
+                    _logger.error('recordStatusChange in updateJobStatus')
                 return ret
             except:
                 # roll back
@@ -1410,6 +1460,7 @@ class DBProxy:
     def updateJob(self,job,inJobsDefined):
         comment = ' /* DBProxy.updateJob */'        
         _logger.debug("updateJob : %s" % job.PandaID)
+        updatedFlag = False
         nTry=3
         for iTry in range(nTry):
             try:
@@ -1453,9 +1504,16 @@ class DBProxy:
                     varMap[':PandaID'] = job.PandaID
                     varMap[':param']   = job.jobParameters
                     self.cur.execute(sqlJobP+comment, varMap)
+                    updatedFlag = True
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
+                # record status change
+                try:
+                    if updatedFlag:
+                        self.recordStatusChange(job.PandaID,job.jobStatus,jobInfo=job)
+                except:
+                    _logger.error('recordStatusChange in updateJob')
                 return True
             except:
                 # roll back
@@ -1478,6 +1536,7 @@ class DBProxy:
         sql1+= "WHERE PandaID=:PandaID "
         if failedInActive:
             sql1+= "AND jobStatus=:jobStatus "
+        updatedFlag = False    
         nTry=3
         for iTry in range(nTry):
             try:
@@ -1683,6 +1742,7 @@ class DBProxy:
                             varMap[':PandaID'] = job.PandaID
                             varMap[':param']   = job.jobParameters
                             self.cur.execute(sqlJobP+comment, varMap)
+                            updatedFlag = True
                         else:
                             # read metadata
                             sqlMeta = "SELECT metaData FROM ATLAS_PANDA.metaTable WHERE PandaID=:PandaID"
@@ -1750,6 +1810,12 @@ class DBProxy:
                     # commit
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
+                    # record status change
+                    try:
+                        if updatedFlag:
+                            self.recordStatusChange(job.PandaID,job.jobStatus,jobInfo=job)
+                    except:
+                        _logger.error('recordStatusChange in retryJob')
                 return retValue
             except:
                 # roll back
@@ -2342,6 +2408,11 @@ class DBProxy:
                         job.computingSite  = job.computingSite
                 # append
                 retJobs.append(job)
+                # record status change
+                try:
+                    self.recordStatusChange(job.PandaID,job.jobStatus,jobInfo=job)
+                except:
+                    _logger.error('recordStatusChange in getJobs')
             return retJobs,nSent
         except:
             # roll back
@@ -2481,6 +2552,11 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
+            # record status change
+            try:
+                self.recordStatusChange(job.PandaID,job.jobStatus,jobInfo=job)
+            except:
+                _logger.error('recordStatusChange in resetJobs')
             if getOldSubs:
                 return job,oldSubList
             return job
@@ -2582,6 +2658,11 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
+            # record status change
+            try:
+                self.recordStatusChange(job.PandaID,job.jobStatus,jobInfo=job)
+            except:
+                _logger.error('recordStatusChange in resetDefinedJobs')
             if getOldSubs:
                 return job,oldSubList
             return job
@@ -2634,6 +2715,7 @@ class DBProxy:
             userProdSourceLabel = ''
             userJobDefinitionID = ''
             userJobsetID        = ''
+            updatedFlag = False
             # begin transaction
             self.conn.begin()
             for table in ('ATLAS_PANDA.jobsDefined4','ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4'):
@@ -2791,11 +2873,18 @@ class DBProxy:
                 self.cur.execute(sqlMMod+comment,varMap)
                 self.cur.execute(sqlPMod+comment,varMap)
                 flagKilled = True
+                updatedFlag = True
                 break
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
             _logger.debug("killJob : com=%s kill=%s " % (flagCommand,flagKilled))
+            # record status change
+            try:
+                if updatedFlag:
+                    self.recordStatusChange(job.PandaID,job.jobStatus,jobInfo=job)
+            except:
+                _logger.error('recordStatusChange in killJob')
             if getUserInfo:
                 return (flagCommand or flagKilled),{'prodUserID':userProdUserID,
                                                     'prodSourceLabel':userProdSourceLabel,
@@ -5412,13 +5501,18 @@ class DBProxy:
 
 
     # count the number of pending files
-    def countPendingFiles(self,pandaID):
+    def countPendingFiles(self,pandaID,forInput=True):
         comment = ' /* DBProxy.countPendingFiles */'        
-        sql1 = "SELECT COUNT(*) FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:pandaID AND type=:type AND status<>:status "
         varMap = {}
         varMap[':pandaID'] = pandaID
-        varMap[':type'] = 'input'
         varMap[':status'] = 'ready'
+        if forInput:
+            sql1 = "SELECT COUNT(*) FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:pandaID AND type=:type AND status<>:status "
+            varMap[':type'] = 'input'
+        else:
+            sql1 = "SELECT COUNT(*) FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:pandaID AND type IN (:type1,:type2) AND status<>:status "
+            varMap[':type1'] = 'output'
+            varMap[':type2'] = 'log'            
         try:
             # start transaction
             self.conn.begin()
@@ -5433,6 +5527,7 @@ class DBProxy:
             nFiles = -1
             if res != None:
                 nFiles=res[0]
+            _logger.debug("countPendingFiles : %s -> %s" % (pandaID,nFiles))
             return nFiles
         except:
             # roll back
@@ -5440,6 +5535,64 @@ class DBProxy:
             errType,errValue = sys.exc_info()[:2]
             _logger.error("countPendingFiles : %s : %s %s" % (pandaID,errType,errValue))
             return -1
+
+
+    # get datasets associated with file
+    def getDatasetWithFile(self,lfn,jobPrioity=0):
+        comment = ' /* DBProxy.getDatasetWithFile */'        
+        varMap = {}
+        varMap[':lfn'] = lfn
+        varMap[':status1'] = 'pending'
+        varMap[':status2'] = 'transferring'        
+        sql1  = "SELECT PandaID,status,destinationDBlock,destinationDBlockToken,dispatchDBlock FROM ATLAS_PANDA.filesTable4 "
+        sql1 += "WHERE lfn=:lfn AND status IN (:status1,:status2) "
+        try:
+            # start transaction
+            self.conn.begin()
+            retMap = {}
+            # select
+            _logger.debug("getDatasetWithFile : %s start" % lfn)
+            self.cur.arraysize = 1000                
+            retS = self.cur.execute(sql1+comment, varMap)
+            res = self.cur.fetchall()
+            if res != None and len(res) != 0:
+                for pandaID,status,destinationDBlock,destinationDBlockToken,dispatchDBlock in res:
+                    varMap = {}
+                    varMap[':PandaID'] = pandaID 
+                    if status == 'pending':
+                        # input
+                        sqlP = 'SELECT computingSite,prodSourceLabel FROM ATLAS_PANDA.jobsDefined4 ' 
+                        varMap[':jobStatus'] = 'assigned'
+                        dsName  = dispatchDBlock
+                        dsToken = ''
+                    else:
+                        # output
+                        sqlP = 'SELECT destinationSE,prodSourceLabel FROM ATLAS_PANDA.jobsActive4 '
+                        varMap[':jobStatus'] = 'transferring'
+                        dsName  = destinationDBlock
+                        dsToken = destinationDBlockToken
+                    # check duplication
+                    if retMap.has_key(dsName):
+                        continue
+                    # get site info    
+                    sqlP += 'WHERE PandaID=:PandaID AND jobStatus=:jobStatus AND currentPriority>=:currentPriority '
+                    varMap[':currentPriority'] = jobPrioity
+                    self.cur.execute(sqlP+comment, varMap)
+                    resP = self.cur.fetchone()
+                    # append
+                    if resP != None and resP[1] in ['managed','test']:
+                        retMap[dsName] = (resP[0],dsToken)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            _logger.debug("getDatasetWithFile : %s -> %s" % (lfn,str(retMap)))
+            return retMap
+        except:
+            # roll back
+            self._rollback()
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("getDatasetWithFile : %s : %s %s" % (lfn,errType,errValue))
+            return {}
 
 
     # get input files currently in use for analysis
@@ -5767,18 +5920,18 @@ class DBProxy:
 
 
     # update input files and return corresponding PandaIDs
-    def updateInFilesReturnPandaIDs(self,dataset,status,fileGUID=''):
+    def updateInFilesReturnPandaIDs(self,dataset,status,fileLFN=''):
         comment = ' /* DBProxy.updateInFilesReturnPandaIDs */'                                
-        _logger.debug("updateInFilesReturnPandaIDs(%s)" % dataset)
+        _logger.debug("updateInFilesReturnPandaIDs(%s,%s)" % (dataset,fileLFN))
         sql0 = "SELECT /*+ index(tab FILESTABLE4_DISPDBLOCK_IDX) */ row_ID,PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE status<>:status AND dispatchDBlock=:dispatchDBlock"
         sql1 = "UPDATE /*+ index(tab FILESTABLE4_DISPDBLOCK_IDX) */ ATLAS_PANDA.filesTable4 tab SET status=:status WHERE status<>:status AND dispatchDBlock=:dispatchDBlock"
         varMap = {}
         varMap[':status'] = status
         varMap[':dispatchDBlock'] = dataset
-        if fileGUID != '':
-            sql0 += " GUID=:guid"
-            sql1 += " GUID=:guid"
-            varMap[':guid'] = fileGUID
+        if fileLFN != '':
+            sql0 += " AND lfn=:lfn"
+            sql1 += " AND lfn=:lfn"
+            varMap[':lfn'] = fileLFN
         for iTry in range(self.nTry):
             try:
                 # start transaction
@@ -5854,14 +6007,18 @@ class DBProxy:
 
 
     # update output files and return corresponding PandaIDs
-    def updateOutFilesReturnPandaIDs(self,dataset):
+    def updateOutFilesReturnPandaIDs(self,dataset,fileLFN=''):
         comment = ' /* DBProxy.updateOutFilesReturnPandaIDs */'                        
-        _logger.debug("updateOutFilesReturnPandaIDs(%s)" % dataset)
+        _logger.debug("updateOutFilesReturnPandaIDs(%s,fileLFN)" % (dataset,fileLFN))
         sql0 = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ row_ID,PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock AND status=:status"
         sql1 = "UPDATE /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ ATLAS_PANDA.filesTable4 tab SET status='ready' WHERE destinationDBlock=:destinationDBlock AND status=:status"
         varMap = {}
         varMap[':status'] = 'transferring'
         varMap[':destinationDBlock'] = dataset
+        if fileLFN != '':
+            sql0 += " AND lfn=:lfn"
+            sql1 += " AND lfn=:lfn"
+            varMap[':lfn'] = fileLFN
         for iTry in range(self.nTry):
             try:
                 # start transaction
@@ -10081,6 +10238,51 @@ class DBProxy:
             _logger.error("getMouShareForT2PD2P : %s %s" % (errType,errValue))
             return {}
 
+
+    # record status change
+    def recordStatusChange(self,pandaID,jobStatus,jobInfo=None,infoMap={}):
+        comment = ' /* DBProxy.recordStatusChange */'
+        # check config
+        if not hasattr(panda_config,'record_statuschange') or panda_config.record_statuschange != True:
+            return
+        # get job info
+        varMap = {}
+        varMap[':PandaID']          = pandaID
+        varMap[':jobStatus']        = jobStatus
+        varMap[':modificationHost'] = self.myHostName
+        if jobInfo != None:
+            varMap[':computingSite']   = jobInfo.computingSite
+            varMap[':cloud']           = jobInfo.cloud
+            varMap[':prodSourceLabel'] = jobInfo.prodSourceLabel
+        elif infoMap != None:
+            varMap[':computingSite']   = infoMap['computingSite']
+            varMap[':cloud']           = infoMap['cloud']
+            varMap[':prodSourceLabel'] = infoMap['prodSourceLabel']
+        else:
+            # no info
+            return
+        # convert NULL to None
+        for tmpKey in varMap.keys():
+            if varMap[tmpKey] == 'NULL':
+                varMap[tmpKey] = None
+        # insert
+        sql  = "INSERT INTO ATLAS_PANDA.jobs_StatusLog "
+        sql += "(PandaID,modificationTime,jobStatus,prodSourceLabel,cloud,computingSite,modificationHost) "
+        sql += "VALUES (:PandaID,CURRENT_DATE,:jobStatus,:prodSourceLabel,:cloud,:computingSite,:modificationHost) "
+        try:
+            # start transaction
+            self.conn.begin()
+            self.cur.execute(sql+comment,varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+        except:
+            # roll back
+            self._rollback()
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("recordStatusChange %s %s: %s %s" % (pandaID,jobStatus,errType,errValue))
+        return 
+                                                        
         
     # wake up connection
     def wakeUp(self):

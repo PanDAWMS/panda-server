@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * updated file-level callback
+  * added Job Status Monitor
   * added --killUserJobs to killJob.py
   * added reliability-based brokerage for analysis jobs
   * fixed getDestSE to look into ARCH for sub datasets for failed log files

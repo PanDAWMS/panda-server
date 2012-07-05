@@ -188,6 +188,7 @@ setup(
                              'templates/panda_server-merge.sh.exe.template',
                              'templates/panda_server-datasetManager.sh.exe.template',
                              'templates/panda_server-evpPD2P.sh.exe.template',
+                             'templates/panda_server-callback.sh.exe.template',
                              ]
                  ),
                 # var dirs
