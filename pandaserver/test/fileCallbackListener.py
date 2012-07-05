@@ -64,6 +64,7 @@ class FileCallbackListener(stomp.ConnectionListener):
 
     def on_message(self, headers, message):
         try:
+            lfn = 'UNKNOWN'
             # send ack
             id = headers['message-id']
             self.conn.ack({'message-id':id})
@@ -90,6 +91,7 @@ class FileCallbackListener(stomp.ConnectionListener):
             if flagNgPrefix:
                 _logger.debug('%s skip' % lfn)                
                 return
+            _logger.debug('%s 1')
             # get datasets associated with the file only for high priority jobs
             dsNameMap = self.taskBuffer.getDatasetWithFile(lfn,800)
             _logger.debug('%s ds=%s' % (lfn,str(dsNameMap)))
@@ -164,7 +166,7 @@ class FileCallbackListener(stomp.ConnectionListener):
             _logger.debug('%s done' % lfn)
         except:
             errtype,errvalue = sys.exc_info()[:2]
-            _logger.error("on_message : %s %s" % (errtype,errvalue))
+            _logger.error("on_message : %s %s %s" % (lfn,errtype,errvalue))
         
 
 # main
