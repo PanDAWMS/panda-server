@@ -91,7 +91,6 @@ class FileCallbackListener(stomp.ConnectionListener):
             if flagNgPrefix:
                 _logger.debug('%s skip' % lfn)                
                 return
-            _logger.debug('%s 1')
             # get datasets associated with the file only for high priority jobs
             dsNameMap = self.taskBuffer.getDatasetWithFile(lfn,800)
             _logger.debug('%s ds=%s' % (lfn,str(dsNameMap)))

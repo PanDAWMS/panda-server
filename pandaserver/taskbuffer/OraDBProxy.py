@@ -6009,7 +6009,7 @@ class DBProxy:
     # update output files and return corresponding PandaIDs
     def updateOutFilesReturnPandaIDs(self,dataset,fileLFN=''):
         comment = ' /* DBProxy.updateOutFilesReturnPandaIDs */'                        
-        _logger.debug("updateOutFilesReturnPandaIDs(%s,fileLFN)" % (dataset,fileLFN))
+        _logger.debug("updateOutFilesReturnPandaIDs(%s,%s)" % (dataset,fileLFN))
         sql0 = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ row_ID,PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock AND status=:status"
         sql1 = "UPDATE /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ ATLAS_PANDA.filesTable4 tab SET status='ready' WHERE destinationDBlock=:destinationDBlock AND status=:status"
         varMap = {}
