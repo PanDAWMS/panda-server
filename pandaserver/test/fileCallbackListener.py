@@ -10,7 +10,7 @@ import datetime
 import cPickle as pickle
 
 from dq2.common import log as logging
-import stomp
+from dq2.common import stomp
 from config import panda_config
 from brokerage.SiteMapper import SiteMapper
 from dataservice.Finisher import Finisher
