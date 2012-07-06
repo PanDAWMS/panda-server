@@ -5545,7 +5545,7 @@ class DBProxy:
         varMap[':status1'] = 'pending'
         varMap[':status2'] = 'transferring'        
         sql1  = "SELECT PandaID,status,destinationDBlock,destinationDBlockToken,dispatchDBlock FROM ATLAS_PANDA.filesTable4 "
-        sql1 += "WHERE lfn=:lfn AND status IN (:status1,:status2) "
+        sql1 += "WHERE lfn=:lfn AND status IN (:status1,:status2) AND modificationTime<CURRENT_DATE-60 "
         try:
             # start transaction
             self.conn.begin()
