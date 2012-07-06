@@ -206,7 +206,8 @@ def main(backGround=False):
             conn.set_listener('FileCallbackListener', FileCallbackListener(conn,taskBuffer,siteMapper))
             conn.start()
             conn.connect(headers = {'client-id': clientid})
-            conn.subscribe(destination=queue, ack='client-individual')
+            conn.subscribe(destination=queue, ack='client-individual',
+                           headers = {'selector':"cbtype='FileDoneMessage'"})
             if not conn.is_connected():
                 _logger.error("connection failure to %s" % tmpBroker)
 
