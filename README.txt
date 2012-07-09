@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed updateJobStatus for endTime
   * updated the brokerage log to have timestamp
   * updated the brokerage to take maxtime into account
   * updated file-level callback

@@ -1372,10 +1372,13 @@ class DBProxy:
             sql1 += ",stateChangeTime=CURRENT_DATE"
         varMap = {}
         varMap[':jobStatus'] = jobStatus
+        presetEndTime = False
         for key in param.keys():
             if param[key] != None:
                 sql1 += ',%s=:%s' % (key,key)
                 varMap[':%s' % key] = param[key]
+                if key == 'endTime':
+                    presetEndTime = True
                 try:
                     # store positive error code even for pilot retry
                     if key == 'pilotErrorCode' and param[key].startswith('-'):
@@ -1417,7 +1420,7 @@ class DBProxy:
                     if ret == '':
                         ret = 'NULL'
                     # set endTime if undefined for holding
-                    if jobStatus == 'holding' and endTime==None:
+                    if jobStatus == 'holding' and endTime==None and not presetEndTime:
                         sql1 += ',endTime=CURRENT_DATE '
                     # update
                     self.cur.execute (sql1+sql1W+comment,varMap)
