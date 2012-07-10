@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added setPriority.py
   * fixed updateJobStatus for endTime
   * updated the brokerage log to have timestamp
   * updated the brokerage to take maxtime into account
