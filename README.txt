@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed queryLastFilesInDataset agains missing jobs which are still in fileDB
   * added setPriority.py
   * fixed updateJobStatus for endTime
   * updated the brokerage log to have timestamp

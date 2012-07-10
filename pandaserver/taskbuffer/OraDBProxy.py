@@ -6239,7 +6239,7 @@ class DBProxy:
                         raise RuntimeError, 'Commit error'
                     # job not found
                     if processingType == None:
-                        raise RuntimeError, 'job not found'
+                        continue
                     # ignore merge jobs
                     if processingType in ['usermerge']:
                         continue
