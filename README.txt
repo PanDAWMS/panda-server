@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added _LONG as a suffix of hospital queue
   * fixed queryLastFilesInDataset agains missing jobs which are still in fileDB
   * added setPriority.py
   * fixed updateJobStatus for endTime
