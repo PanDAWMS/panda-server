@@ -71,11 +71,7 @@ class TaskBuffer:
         if withProdRole:
             serNum = 0
             weight = 0.0
-            # give higher priorities for ICHEP 2012
-            if workingGroup in ['phys-higgs']:
-                priorityOffset = 4000
-            else:
-                priorityOffset = 2000
+            priorityOffset = 2000
         # reset nJob/weight for HC   
         if jobs[0].processingType in ['hammercloud','gangarobot'] \
                or jobs[0].processingType.startswith('gangarobot-'):

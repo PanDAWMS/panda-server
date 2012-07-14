@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * removed the higher priority to phys-higgs
   * added _LONG as a suffix of hospital queue
   * fixed queryLastFilesInDataset agains missing jobs which are still in fileDB
   * added setPriority.py
