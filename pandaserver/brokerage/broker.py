@@ -794,7 +794,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 releases = tmpSiteSpec.validatedreleases
                             if not useCacheVersion:    
                                 tmpLog.debug('   %s' % str(releases))
-                            if forAnalysis and (tmpSiteSpec.cloud in ['ND','CERN'] or prevRelease==''):
+                            if forAnalysis and (tmpSiteSpec.cloud in ['ND'] or prevRelease==''):
                                 # doesn't check releases for analysis
                                 tmpLog.debug(' no release check')
                                 pass

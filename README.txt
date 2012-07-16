@@ -1,7 +1,7 @@
 Release Note
 
 * current
-  * enabled release check for CERN prod 
+  * enabled release check for CERN
   * removed EVNT from PD2P
   * removed the higher priority to phys-higgs
   * added _LONG as a suffix of hospital queue
