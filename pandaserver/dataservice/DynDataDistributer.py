@@ -29,7 +29,7 @@ def initLogger(pLogger):
                 
 
 # NG datasets
-ngDataTypes = ['RAW','HITS','RDO','ESD']
+ngDataTypes = ['RAW','HITS','RDO','ESD','EVNT']
 
 # excluded provenance
 ngProvenance = []
