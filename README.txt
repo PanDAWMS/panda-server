@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * disabled release check for CERN-RELEASE
   * enabled release check for CERN
   * removed EVNT from PD2P
   * removed the higher priority to phys-higgs

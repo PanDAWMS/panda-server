@@ -806,7 +806,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                         resultsForAnal['rel'].append(site)
                                     continue
                             elif prevRelease != None and \
-                                     (useCacheVersion and not tmpSiteSpec.cloud in ['ND']) and \
+                                     (useCacheVersion and not tmpSiteSpec.cloud in ['ND'] and not site in ['CERN-RELEASE']) and \
                                      (not prevProType in ['reprocessing']) and \
                                      (not site in siteListWithCache):
                                     tmpLog.debug(' skip: cache %s/%s not found' % (prevHomePkg.replace('\n',' '),prevCmtConfig))
@@ -821,8 +821,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                         pass
                                     continue
                             elif prevRelease != None and \
-                                 ((not useCacheVersion and releases != [] and not tmpSiteSpec.cloud in ['ND']) or prevProType in ['reprocessing']) and \
-                                 (((not _checkRelease(prevRelease,releases) and prevManualPreset == False) or not site in siteListWithCache) and not tmpSiteSpec.cloud in ['ND']):
+                                 ((not useCacheVersion and releases != [] and not tmpSiteSpec.cloud in ['ND'] and not site in ['CERN-RELEASE']) or prevProType in ['reprocessing']) and \
+                                 (((not _checkRelease(prevRelease,releases) and prevManualPreset == False) or not site in siteListWithCache) and not tmpSiteSpec.cloud in ['ND'] and not site in ['CERN-RELEASE']):
                                 # release matching
                                 if not useCacheVersion:
                                     tmpLog.debug(' skip: release %s/%s not found' % (prevRelease.replace('\n',' '),prevCmtConfig))
