@@ -2602,6 +2602,7 @@ class DBProxy:
             self.cur.execute(sql1+comment,varMap)
             retU = self.cur.rowcount            
             # not found
+            updatedFlag = False
             job = None
             if retU == 0:
                 _logger.debug("resetDefinedJob : Not found %s" % pandaID)
@@ -2662,12 +2663,14 @@ class DBProxy:
                         varMap[':row_ID'] = file.row_ID
                         _logger.debug(sqlF+comment+str(varMap))                        
                         self.cur.execute(sqlF+comment, varMap)
+                updatedFlag = True        
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
             # record status change
             try:
-                self.recordStatusChange(job.PandaID,job.jobStatus,jobInfo=job)
+                if updatedFlag:
+                    self.recordStatusChange(job.PandaID,job.jobStatus,jobInfo=job)
             except:
                 _logger.error('recordStatusChange in resetDefinedJobs')
             if getOldSubs:
