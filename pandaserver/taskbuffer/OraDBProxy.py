@@ -1419,15 +1419,19 @@ class DBProxy:
                     # convert empty to NULL
                     if ret == '':
                         ret = 'NULL'
-                    # set endTime if undefined for holding
-                    if jobStatus == 'holding' and endTime==None and not presetEndTime:
-                        sql1 += ',endTime=CURRENT_DATE '
-                    # update
-                    self.cur.execute (sql1+sql1W+comment,varMap)
-                    nUp = self.cur.rowcount
-                    _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s nUp=%s" % (pandaID,attemptNr,nUp))
-                    if nUp == 1:
-                        updatedFlag = True
+                    # don't update holding
+                    if oldJobStatus == 'holding' and jobStatus == 'holding':
+                        _logger.debug("updateJobStatus : PandaID=%s skip to reset holding" % pandaID)
+                    else:    
+                        # set endTime if undefined for holding
+                        if jobStatus == 'holding' and endTime==None and not presetEndTime:
+                            sql1 += ',endTime=CURRENT_DATE '
+                        # update
+                        self.cur.execute (sql1+sql1W+comment,varMap)
+                        nUp = self.cur.rowcount
+                        _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s nUp=%s" % (pandaID,attemptNr,nUp))
+                        if nUp == 1:
+                            updatedFlag = True
                 else:
                     _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s notFound" % (pandaID,attemptNr))
                     # already deleted or bad attempt number
