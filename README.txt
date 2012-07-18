@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed file check not to use TAPE replicas when T1 is used as T2
   * disabled release check for CERN-RELEASE
   * enabled release check for CERN
   * removed EVNT from PD2P

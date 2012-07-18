@@ -150,22 +150,29 @@ def _setReadyToFiles(tmpJob,okFiles,siteMapper):
                     else:
                         # set ready                        
                         tmpFile.status = 'ready'
-                        tmpFile.dispatchDBlock = 'NULL'                                
+                        tmpFile.dispatchDBlock = 'NULL'
                 else:
                     # set ready anyway even if LFC is down. i.e. okFiles doesn't contain the file
                     tmpFile.status = 'ready'
                     tmpFile.dispatchDBlock = 'NULL'                                
             elif (((tmpFile.lfn in okFiles) or (tmpJob.computingSite == tmpJob.destinationSE)) \
                      and (not tmpJob.computingSite in prestageSites)) or tmpFile.status == 'missing':
-                # set ready if the file exists and the site doesn't use prestage
-                tmpFile.status = 'ready'
-                tmpFile.dispatchDBlock = 'NULL'                                
+                _log.debug(3)
+                # don't use TAPE replicas when T1 is used as T2
+                if tmpSiteSpec.seprodpath.has_key('ATLASDATATAPE') and len(okFiles[tmpFile.lfn]) == 1 and \
+                   re.search(tmpSiteSpec.seprodpath['ATLASDATATAPE'],okFiles[tmpFile.lfn][0]) != None:
+                    allOK = False
+                else:
+                    # set ready if the file exists and the site doesn't use prestage
+                    tmpFile.status = 'ready'
+                    tmpFile.dispatchDBlock = 'NULL'
             else:
                 # prestage with PandaMover
                 allOK = False
     # unset disp dataset
     if allOK:
         tmpJob.dispatchDBlock = 'NULL'
+        
     
 
 # check number/size of inputs
