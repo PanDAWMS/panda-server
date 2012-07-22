@@ -1,7 +1,6 @@
 Release Note
 
 * current
-  * disabled maxtime brokerage in US
   * fixed resetDefinedJob for for recordStatusChange
   * fixed updateJobStatus not to reset modificationTime of holding jobs
   * fixed file check not to use TAPE replicas when T1 is used as T2
