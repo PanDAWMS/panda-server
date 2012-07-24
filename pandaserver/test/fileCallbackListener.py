@@ -169,7 +169,8 @@ class FileCallbackListener(stomp.ConnectionListener):
         
 
 # main
-def main(backGround=False):
+def main(backGround=False): 
+    _logger.debug('starting ...')
     # register signal handler
     signal.signal(signal.SIGINT, catch_sig)
     signal.signal(signal.SIGHUP, catch_sig)
@@ -202,15 +203,20 @@ def main(backGround=False):
         brokerList = socket.gethostbyname_ex('atlasddm-mb.cern.ch')[-1]
         # set listener
         for tmpBroker in brokerList:
-            conn = stomp.Connection(host_and_ports = [(tmpBroker, 6162)], **ssl_opts)
-            conn.set_listener('FileCallbackListener', FileCallbackListener(conn,taskBuffer,siteMapper))
-            conn.start()
-            conn.connect(headers = {'client-id': clientid})
-            conn.subscribe(destination=queue, ack='client-individual',
-                           headers = {'selector':"cbtype='FileDoneMessage'"})
-            if not conn.is_connected():
-                _logger.error("connection failure to %s" % tmpBroker)
-
+            try:
+                _logger.debug('setting listener on %s' % tmpBroker)                
+                conn = stomp.Connection(host_and_ports = [(tmpBroker, 6162)], **ssl_opts)
+                conn.set_listener('FileCallbackListener', FileCallbackListener(conn,taskBuffer,siteMapper))
+                conn.start()
+                conn.connect(headers = {'client-id': clientid})
+                conn.subscribe(destination=queue, ack='client-individual',
+                               headers = {'selector':"cbtype='FileDoneMessage'"})
+                if not conn.is_connected():
+                    _logger.error("connection failure to %s" % tmpBroker)
+            except:     
+                errtype,errvalue = sys.exc_info()[:2]
+                _logger.error("failed to set listener on %s : %s %s" % (tmpBroker,errtype,errvalue))
+                catch_sig(None,None)
             
 # entry
 if __name__ == "__main__":
