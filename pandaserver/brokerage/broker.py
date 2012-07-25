@@ -158,8 +158,9 @@ def _setReadyToFiles(tmpJob,okFiles,siteMapper):
             elif (((tmpFile.lfn in okFiles) or (tmpJob.computingSite == tmpJob.destinationSE)) \
                      and (not tmpJob.computingSite in prestageSites)) or tmpFile.status == 'missing':
                 # don't use TAPE replicas when T1 is used as T2
-                if tmpSiteSpec.seprodpath.has_key('ATLASDATATAPE') and len(okFiles[tmpFile.lfn]) == 1 and \
-                   re.search(tmpSiteSpec.seprodpath['ATLASDATATAPE'],okFiles[tmpFile.lfn][0]) != None:
+                if okFiles.has_key(tmpFile.lfn) and \
+                       tmpSiteSpec.seprodpath.has_key('ATLASDATATAPE') and len(okFiles[tmpFile.lfn]) == 1 and \
+                       re.search(tmpSiteSpec.seprodpath['ATLASDATATAPE'],okFiles[tmpFile.lfn][0]) != None:
                     allOK = False
                 else:
                     # set ready if the file exists and the site doesn't use prestage

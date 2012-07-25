@@ -191,7 +191,7 @@ enableRedirection = False
 useFastCGI = False
 
 # use WSGI without flup
-useWSGI = False
+useWSGI = True
 
 # verbose in entry point
 entryVerbose = False
@@ -207,7 +207,7 @@ entryVerbose = False
 memcached_enable = True
 
 # memcached servers
-memcached_srvs = voatlas19.cern.ch:11211,voatlas20.cern.ch:11211,voatlas21.cern.ch:11211
+memcached_srvs = voatlas248.cern.ch:11211,voatlas249.cern.ch:11211,voatlas250.cern.ch:11211,voatlas251.cern.ch:11211,voatlas252.cern.ch:11211,voatlas253.cern.ch:11211
 
 # expiration time in memcached
 memcached_exptime = 86400
@@ -226,7 +226,7 @@ nrun_interval = 5
 nrun_hosts = 3
 
 # serial number
-nrun_snum = FIXME
+nrun_snum = 999
 
 
 
