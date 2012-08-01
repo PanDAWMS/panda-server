@@ -24,7 +24,7 @@ for table in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsArchived4']:
 	varMap = {}
 	varMap[':prodSourceLabel'] = 'user'
 	if table == 'ATLAS_PANDA.jobsActive4':
-		sql = "SELECT /*+ INDEX_COMBINE(tab JOBSACTIVE4_JOBSTATUS_IDX JOBSACTIVE4_COMPSITE_IDX) */ COUNT(*),prodUserName,jobStatus,workingGroup,computingSite FROM %s tab WHERE prodSourceLabel=:prodSourceLabel GROUP BY prodUserName,jobStatus,workingGroup,computingSite" % table
+		sql = "SELECT */ COUNT(*),prodUserName,jobStatus,workingGroup,computingSite FROM %s WHERE prodSourceLabel=:prodSourceLabel GROUP BY prodUserName,jobStatus,workingGroup,computingSite" % table
 	else:
 		# with time range for archived table
 		varMap[':modificationTime'] = datetime.datetime.utcnow() - datetime.timedelta(minutes=60)
@@ -195,7 +195,7 @@ for prodUserName,wgValMap in usageBreakDownPerUser.iteritems():
 		varMap[':prodSourceLabel'] = 'user'
 		varMap[':prodUserName'] = prodUserName
 		varMap[':computingSite'] = computingSite
-		sql = "SELECT /*+ INDEX_COMBINE(tab JOBSACTIVE4_JOBSTATUS_IDX JOBSACTIVE4_COMPSITE_IDX) */ MAX(currentPriority) FROM ATLAS_PANDA.jobsActive4 tab WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName AND workingGroup IS NULL AND jobStatus=:jobStatus AND computingSite=:computingSite"
+		sql = "SELECT MAX(currentPriority) FROM ATLAS_PANDA.jobsActive4 WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName AND workingGroup IS NULL AND jobStatus=:jobStatus AND computingSite=:computingSite"
 		status,res = taskBuffer.querySQLS(sql,varMap,arraySize=10)
 		maxPrio = None
 		if res != None:
@@ -224,7 +224,7 @@ for prodUserName,wgValMap in usageBreakDownPerUser.iteritems():
 		varMap[':maxPrio'] = maxPrio
 		varMap[':minPrio'] = minPrio
 		varMap[':rlimit'] = numBoostedJobsSite
-		sql = "UPDATE /*+ INDEX_COMBINE(tab JOBSACTIVE4_JOBSTATUS_IDX JOBSACTIVE4_COMPSITE_IDX) */ ATLAS_PANDA.jobsActive4 tab SET currentPriority=currentPriority+:prioDelta WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName AND workingGroup IS NULL AND jobStatus=:jobStatus AND computingSite=:computingSite AND currentPriority>:minPrio AND currentPriority<=:maxPrio AND rownum<=:rlimit"
+		sql = "UPDATE ATLAS_PANDA.jobsActive4 SET currentPriority=currentPriority+:prioDelta WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName AND workingGroup IS NULL AND jobStatus=:jobStatus AND computingSite=:computingSite AND currentPriority>:minPrio AND currentPriority<=:maxPrio AND rownum<=:rlimit"
 		_logger.debug("boost %s" % str(varMap))
 		status,res = taskBuffer.querySQLS(sql,varMap,arraySize=10)	
 		_logger.debug("   database return : %s" % res)

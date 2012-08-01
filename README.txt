@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * removed hints related to JOBSACTIVE4_JOBSTATUS_IDX
   * fixed setOK to check map
   * fixed resetDefinedJob for for recordStatusChange
   * fixed updateJobStatus not to reset modificationTime of holding jobs
