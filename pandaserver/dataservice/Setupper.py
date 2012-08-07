@@ -1363,46 +1363,50 @@ class Setupper (threading.Thread):
             replaceList = []
             isFailed = False
             for file in job.Files:
-                if file.type == 'input' and file.dispatchDBlock == 'NULL' \
-                        and file.GUID == 'NULL':
-                        #and (file.GUID == 'NULL' or re.search('\.(\d+)$',file.lfn) == None):
-                    # get LFN w/o attemptNr
-                    basename = re.sub('\.\d+$','',file.lfn)
-                    if basename == file.lfn:
-                        # replace
-                        if basename in lfnMap[file.dataset].keys():
-                            file.lfn = lfnMap[file.dataset][basename]
-                            replaceList.append((basename,file.lfn))
-                    # set GUID
-                    if file.lfn in valMap:
-                        file.GUID     = valMap[file.lfn]['guid']
-                        file.fsize    = valMap[file.lfn]['fsize']
-                        file.md5sum   = valMap[file.lfn]['md5sum']
-                        file.checksum = valMap[file.lfn]['chksum']
-                        # remove white space
-                        if file.md5sum != None:
-                            file.md5sum = file.md5sum.strip()
-                        if file.checksum != None:
-                            file.checksum = file.checksum.strip()
+                if file.type == 'input' and file.dispatchDBlock == 'NULL':
+                    addToLfnMap = True
+                    if file.GUID == 'NULL':
+                        # get LFN w/o attemptNr
+                        basename = re.sub('\.\d+$','',file.lfn)
+                        if basename == file.lfn:
+                            # replace
+                            if basename in lfnMap[file.dataset].keys():
+                                file.lfn = lfnMap[file.dataset][basename]
+                                replaceList.append((basename,file.lfn))
+                        # set GUID
+                        if file.lfn in valMap:
+                            file.GUID     = valMap[file.lfn]['guid']
+                            file.fsize    = valMap[file.lfn]['fsize']
+                            file.md5sum   = valMap[file.lfn]['md5sum']
+                            file.checksum = valMap[file.lfn]['chksum']
+                            # remove white space
+                            if file.md5sum != None:
+                                file.md5sum = file.md5sum.strip()
+                            if file.checksum != None:
+                                file.checksum = file.checksum.strip()
+                        else:
+                            # append job to waiting list
+                            errMsg = "GUID for %s not found in DQ2" % file.lfn
+                            _logger.debug("%s %s" % (self.timestamp,errMsg))
+                            file.status = 'missing'
+                            if not job in jobsFailed:
+                                job.jobStatus    = 'failed'                        
+                                job.ddmErrorCode = ErrorCode.EC_GUID
+                                job.ddmErrorDiag = errMsg
+                                jobsFailed.append(job)
+                                isFailed = True
+                            continue
                     else:
-                        # append job to waiting list
-                        errMsg = "GUID for %s not found in DQ2" % file.lfn
-                        _logger.debug("%s %s" % (self.timestamp,errMsg))
-                        file.status = 'missing'
-                        if not job in jobsFailed:
-                            job.jobStatus    = 'failed'                        
-                            job.ddmErrorCode = ErrorCode.EC_GUID
-                            job.ddmErrorDiag = errMsg
-                            jobsFailed.append(job)
-                            isFailed = True
-                        continue
+                        if not job.prodSourceLabel in ['managed','test']:
+                            addToLfnMap = False
                     # add to allLFNs/allGUIDs
-                    if not allLFNs.has_key(job.cloud):
-                        allLFNs[job.cloud] = []
-                    if not allGUIDs.has_key(job.cloud):
-                        allGUIDs[job.cloud] = []
-                    allLFNs[job.cloud].append(file.lfn)
-                    allGUIDs[job.cloud].append(file.GUID)                    
+                    if addToLfnMap:
+                        if not allLFNs.has_key(job.cloud):
+                            allLFNs[job.cloud] = []
+                        if not allGUIDs.has_key(job.cloud):
+                            allGUIDs[job.cloud] = []
+                        allLFNs[job.cloud].append(file.lfn)
+                        allGUIDs[job.cloud].append(file.GUID)                    
             # modify jobParameters
             if not isFailed:
                 for patt,repl in replaceList:
