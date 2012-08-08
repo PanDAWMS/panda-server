@@ -615,7 +615,7 @@ class UserIF:
     # run brokerage
     def runBrokerage(self,sitesStr,cmtConfig,atlasRelease,trustIS=False,processingType=None,
                      dn=None,loggingFlag=False,memorySize=None,workingGroup=None,fqans=[],
-                     nJobs=None,preferHomeCountry=False,siteReliability=None):
+                     nJobs=None,preferHomeCountry=False,siteReliability=None,maxCpuCount=None):
         if not loggingFlag:
             ret = 'NULL'
         else:
@@ -640,6 +640,8 @@ class UserIF:
             else:
                 userDefinedWG = False
                 validWorkingGroup = False
+            if maxCpuCount != None:
+                job.maxCpuCount = maxCpuCount
             # get parameters related to priority
             withProdRole,workingGroup,priorityOffset,serNum,weight = self.taskBuffer.getPrioParameters([job],dn,fqans,
                                                                                                        userDefinedWG,
@@ -1202,7 +1204,7 @@ def getNumPilots(req):
 # run brokerage
 def runBrokerage(req,sites,cmtConfig=None,atlasRelease=None,trustIS=False,processingType=None,
                  loggingFlag=False,memorySize=None,workingGroup=None,nJobs=None,
-                 siteGroup=None):
+                 siteGroup=None,maxCpuCount=None):
     if trustIS=='True':
         trustIS = True
     else:
@@ -1221,12 +1223,17 @@ def runBrokerage(req,sites,cmtConfig=None,atlasRelease=None,trustIS=False,proces
             siteGroup = int(siteGroup)
         except:
             siteGroup = None
+    if maxCpuCount != None:
+        try:
+            maxCpuCount = int(maxCpuCount)
+        except:
+            maxCpuCount = None
     preferHomeCountry = True
     dn = _getDN(req)
     fqans = _getFQAN(req)
     return userIF.runBrokerage(sites,cmtConfig,atlasRelease,trustIS,processingType,dn,
                                loggingFlag,memorySize,workingGroup,fqans,nJobs,preferHomeCountry,
-                               siteGroup)
+                               siteGroup,maxCpuCount)
 
 # run rebrokerage
 def runReBrokerage(req,jobID,libDS='',cloud=None,excludedSite=None,forceOpt=None):

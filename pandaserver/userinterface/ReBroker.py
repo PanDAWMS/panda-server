@@ -321,6 +321,9 @@ class ReBroker (threading.Thread):
                     # memory size
                     if not self.job.minRamCount in ['NULL',None,0]:
                         tmpJobForBrokerage.minRamCount = self.job.minRamCount
+                    # CPU count
+                    if not self.job.maxCpuCount in ['NULL',None,0]:
+                        tmpJobForBrokerage.maxCpuCount = self.job.maxCpuCount
                     # run brokerage
                     brokerage.broker.schedule([tmpJobForBrokerage],self.taskBuffer,siteMapper,forAnalysis=True,
                                               setScanSiteList=maxPandaSites,trustIS=True,reportLog=True)

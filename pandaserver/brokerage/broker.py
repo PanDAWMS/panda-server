@@ -873,7 +873,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     errtype,errvalue = sys.exc_info()[:2]
                                     tmpLog.error("memory check : %s %s" % (errtype,errvalue))
                             # check maxcpucount
-                            if not forAnalysis and tmpSiteSpec.maxtime != 0 and not prevMaxCpuCount in [None,0,'NULL']:
+                            if tmpSiteSpec.maxtime != 0 and not prevMaxCpuCount in [None,0,'NULL']:
                                 try:
                                     if int(tmpSiteSpec.maxtime) < int(prevMaxCpuCount):
                                         tmpLog.debug('  skip: insufficient maxtime %s<%s' % (tmpSiteSpec.maxtime,prevMaxCpuCount))
