@@ -6391,7 +6391,7 @@ class DBProxy:
             tmpPrioMap[':minPriority'] = minPriority
         sql0 += sqlPrio    
         sql0 += "GROUP BY computingSite,jobStatus"
-        sqlA =  "SELECT /*+ index(tab JOBSARCHIVED4_MODTIME_IDX) */ computingSite,jobStatus,COUNT(*) FROM ATLAS_PANDA.jobsArchived4 tab WHERE modificationTime>:modificationTime "
+        sqlA =  "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ computingSite,jobStatus,COUNT(*) FROM ATLAS_PANDA.jobsArchived4 tab WHERE modificationTime>:modificationTime "
         sqlA += "AND prodSourceLabel IN ("
         sqlA += sqlJobType            
         if predefined:
@@ -6431,7 +6431,7 @@ class DBProxy:
                         self.cur.execute(sqlExeTmp, varMap)
                     else:
                         varMap[':modificationTime'] = timeLimit
-                        self.cur.arraysize = 10000                        
+                        self.cur.arraysize = 10000
                         self.cur.execute(sqlA+comment, varMap)
                     res = self.cur.fetchall()
                     # commit
@@ -7034,10 +7034,10 @@ class DBProxy:
         timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
         if sourcetype == 'analysis':
             sql0 = "SELECT jobStatus,COUNT(*),cloud FROM %s WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) GROUP BY jobStatus,cloud"
-            sqlA = "SELECT /*+ index(tab JOBSARCHIVED4_MODTIME_IDX) */ jobStatus,COUNT(*),cloud FROM %s tab WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
+            sqlA = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*),cloud FROM %s tab WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
         else:
             sql0 = "SELECT jobStatus,COUNT(*),cloud FROM %s WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) GROUP BY jobStatus,cloud"
-            sqlA = "SELECT /*+ index(tab JOBSARCHIVED4_MODTIME_IDX) */ jobStatus,COUNT(*),cloud FROM %s tab WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
+            sqlA = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*),cloud FROM %s tab WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
         sqlA+= "AND modificationTime>:modificationTime GROUP BY jobStatus,cloud"
         # sql for materialized view
         sqlMV = re.sub('COUNT\(\*\)','SUM(num_of_jobs)',sql0)
@@ -7111,7 +7111,7 @@ class DBProxy:
         _logger.debug("getJobStatisticsPerProcessingType()")
         sqlN  = "SELECT jobStatus,COUNT(*),cloud,processingType FROM %s "
         sqlN += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) GROUP BY jobStatus,cloud,processingType"
-        sqlA  = "SELECT /*+ index(tab JOBSARCHIVED4_MODTIME_IDX) */ jobStatus,COUNT(*),cloud,processingType FROM %s tab "
+        sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*),cloud,processingType FROM %s tab "
         sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND modificationTime>:modificationTime GROUP BY jobStatus,cloud,processingType"
         # sql for materialized view
         sqlMV = re.sub('COUNT\(\*\)','SUM(num_of_jobs)',sqlN)

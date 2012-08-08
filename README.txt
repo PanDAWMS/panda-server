@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed JOBSARCHIVED4_MODTIME_IDX hint
   * enabled maxtime check for analysis brokerage
   * fixed to check T2 files when get reassigned
   * removed hints related to JOBSACTIVE4_JOBSTATUS_IDX
