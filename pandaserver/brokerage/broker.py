@@ -203,7 +203,7 @@ def sendAnalyBrokeageInfo(results,prevRelease,diskThreshold,chosenSite,prevCmtCo
             elif resultType == 'memory':
                 msgBody = 'action=skip site=%s reason=ramshortage - RAM shortage' % resultItem
             elif resultType == 'maxtime':
-                msgBody = 'action=skip site=%s reason=maxtime - insufficient walltime limit' % resultItem
+                msgBody = 'action=skip site=%s reason=maxtime - shorter walltime limit' % resultItem
             elif resultType == 'status':
                 msgBody = 'action=skip site=%s reason=sitestatus - not online' % resultItem 
             elif resultType == 'reliability':
@@ -1263,7 +1263,12 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             if resultsForAnal['memory'] != []:
                                 resultsForAnalStr += 'Insufficient RAM at %s. ' % str(resultsForAnal['memory'])
                             if resultsForAnal['maxtime'] != []:
-                                resultsForAnalStr += 'Insufficient walltime limit at %s. ' % str(resultsForAnal['maxtime'])
+                                resultsForAnalStr += 'Shorter walltime limit than maxCpuCount:%s at ' % prevMaxCpuCount
+                                for tmpItem in resultsForAnal['maxtime']:
+                                    if siteMapper.checkSite(tmpItem):
+                                        resultsForAnalStr += '%s:%s,' % (tmpItem,siteMapper.getSite(tmpItem).maxtime)
+                                resultsForAnalStr = resultsForAnalStr[:-1]        
+                                resultsForAnalStr += '. '
                             if resultsForAnal['status'] != []:
                                 resultsForAnalStr += '%s are not online. ' % str(resultsForAnal['status'])
                             if resultsForAnal['reliability'] != []:
@@ -1309,7 +1314,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     elif resultsForAnal['cpucore'] != []:
                                         tmpJob.brokerageErrorDiag = "CPU core count mismatch at %s" % tmpJob.computingSite
                                     elif resultsForAnal['maxtime'] != []:
-                                        tmpJob.brokerageErrorDiag = "Insufficient walltime limit at %s" % tmpJob.computingSite
+                                        tmpJob.brokerageErrorDiag = "Shorter walltime limit at %s" % tmpJob.computingSite
                                     elif resultsForAnal['transferring'] != []:
                                         tmpJob.brokerageErrorDiag = '%s too many transferring' % tmpJob.computingSite
                                     elif useCacheVersion:
@@ -1358,7 +1363,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                             usedInDiagSites.append(tmpSiteItem)                                        
                                             tmpSiteStr += '%s,' % tmpSiteItem
                                         tmpSiteStr = tmpSiteStr[:-1]
-                                        tmpJob.brokerageErrorDiag += 'insufficient walltime limit at %s: ' % tmpSiteStr
+                                        tmpJob.brokerageErrorDiag += 'shorter walltime limit at %s: ' % tmpSiteStr
                                     # non-online status     
                                     if resultsForAnal['status'] != []:
                                         tmpSiteStr = ''
