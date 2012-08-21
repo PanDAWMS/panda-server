@@ -46,6 +46,16 @@ def initLogger(pLogger):
     _logger = pLogger
 
 
+# wrapper to patch smtplib.stderr to send debug info to logger 
+class StderrLogger(object):
+    def __init__(self,token):
+        self.token  = token
+    def write(self,message):
+        message = message.strip()
+        if message != '':
+            _logger.debug('%s %s' % (self.token,message))
+
+        
 class Notifier:
     # constructor
     def __init__(self,taskBuffer,job,datasets,summary={},mailFile=None,mailFileName=''):
@@ -302,6 +312,8 @@ Report Panda problems of any sort to
         _logger.debug("%s send to %s\n%s" % (pandaID,mailAddr,message))
         for iTry in range(nTry):
             try:
+                org_smtpstderr = smtplib.stderr
+                smtplib.stderr = StderrLogger(pandaID)
                 smtpPort = smtpPortList[iTry % len(smtpPortList)]
                 server = smtplib.SMTP(panda_config.emailSMTPsrv,smtpPort)
                 server.set_debuglevel(1)
@@ -326,6 +338,11 @@ Report Panda problems of any sort to
                         oMail = open(mailFile,"w")
                         oMail.write(str(self.job.PandaID)+'\n'+fromadd+'\n'+mailAddr+'\n'+message)
                         oMail.close()
+        try:
+            smtplib.stderr = org_smtpstderr
+        except:
+            pass
+        
 
 
     # get email

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * patched smtplib.stderr to send debug info to logger
   * added 32/64 to getScriptOfflineRunning
   * changed JOBSARCHIVED4_MODTIME_IDX hint
   * enabled maxtime check for analysis brokerage
