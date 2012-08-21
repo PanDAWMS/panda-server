@@ -1020,9 +1020,12 @@ class TaskBuffer:
                 for tmpLFN in tmpFileList:
                     scrStr += "ln -fs %s*/%s ./%s\n" % (tmpDS.rstrip("/"),tmpLFN,tmpLFN)
             scrStr += "\n#transform commands\n\n"
+            bitNum = '32'
+            if 'x86_64' in tmpJob.cmtConfig:
+                bitNum = '64'
             for tmpIdx,tmpRel in enumerate(tmpRels):
                 # asetup
-                scrStr += "asetup %s,%s\n" % tuple(tmpRel.split("/"))
+                scrStr += "asetup %s,%s,%s\n" % tuple(tmpRel.split("/")+[bitNum])
                 # add double quotes for zsh
                 tmpParamStr = tmpPars[tmpIdx]
                 tmpSplitter = shlex.shlex(tmpParamStr, posix=True)

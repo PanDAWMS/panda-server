@@ -199,8 +199,7 @@ class MailSender (threading.Thread):
             # start notifier
             from dataservice.Notifier import Notifier
             nThr = Notifier(None,None,None,None,mailFile,tmpFile)
-            nThr.start()
-            nThr.join()
+            nThr.run()
             # remove
             try:
                 os.remove(tmpFile)

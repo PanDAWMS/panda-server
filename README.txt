@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added 32/64 to getScriptOfflineRunning
   * changed JOBSARCHIVED4_MODTIME_IDX hint
   * enabled maxtime check for analysis brokerage
   * fixed to check T2 files when get reassigned
