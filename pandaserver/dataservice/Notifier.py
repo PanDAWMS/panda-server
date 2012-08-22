@@ -300,7 +300,7 @@ Report Panda problems of any sort to
                 message  = self.mailFile.read()
                 _logger.debug("%s start recovery" % pandaID)
                 if message != '':
-                    self.sendMail(pandaID,fromadd,mailAddr,message,10,False)
+                    self.sendMail(pandaID,fromadd,mailAddr,message,5,False)
             except:
                 errType,errValue = sys.exc_info()[:2]            
                 _logger.error("%s %s %s" % (self.mailFileName,errType,errValue))
