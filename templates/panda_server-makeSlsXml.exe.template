@@ -264,7 +264,7 @@ def registration_time(timeSlice=False) :
 	try:
 		com = "grep 'LFC+DQ2' /data/atlpan/srv/var/log/panda/panda-Adder.log"
 		if not timeSlice:
-			com += ' | tail -100'
+			com += ' | tail -1000'
 		output = subprocess.Popen(com,stdout=subprocess.PIPE,shell=True).communicate()[0]
 		regtimeMap = {}
 		for line in output.split('\n'):
