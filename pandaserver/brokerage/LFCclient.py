@@ -1,6 +1,8 @@
 import re
 import os
 import sys
+import socket
+import random
 
 # error codes
 EC_Main          = 70
@@ -16,6 +18,9 @@ except:
 
 # get files from LFC
 def _getFilesLFC(files,lfcHost,storages,verbose=False):
+    # randomly resolve DNS alias
+    if lfcHost in ['prod-lfc-atlas.cern.ch']:
+        lfcHost = random.choice(socket.gethostbyname_ex(lfcHost)[2])
     # set LFC HOST
     os.environ['LFC_HOST'] = lfcHost
     # timeout

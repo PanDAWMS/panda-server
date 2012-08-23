@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed LFCclient to randomly resolve DNS alias for LFC host
   * added makeSlsXml
   * patched smtplib.stderr to send debug info to logger
   * added 32/64 to getScriptOfflineRunning
