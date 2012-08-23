@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added makeSlsXml
   * patched smtplib.stderr to send debug info to logger
   * added 32/64 to getScriptOfflineRunning
   * changed JOBSARCHIVED4_MODTIME_IDX hint
