@@ -289,7 +289,8 @@ def registration_time(timeSlice=False) :
 			for timestamp in timestamps:
 				totalTime += regtimeMap[timestamp]['totalTime']
 				totalReg  += regtimeMap[timestamp]['totalReg']
-			aveRegTime = '%4.1f' % (totalTime/float(totalReg))	
+			if totalReg > 0:	
+				aveRegTime = '%4.1f' % (totalTime/float(totalReg))	
         except:
 		errtype,ervalue = sys.exc_info()[:2]
 		print "ERROR : %s:%s in registration_time" % (errtype,ervalue)
