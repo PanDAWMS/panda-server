@@ -124,7 +124,7 @@ class Adder (threading.Thread):
                         tmpDstDDM = self.siteMapper.getSite(self.job.destinationSE).ddm
                         tmpDstSEs = brokerage.broker_util.getSEfromSched(self.siteMapper.getSite(self.job.destinationSE).se)
                         # protection against disappearance of dest from schedconfig
-                        if not self.siteMapper.checkSite(self.job.destinationSE):
+                        if not self.siteMapper.checkSite(self.job.destinationSE) and self.job.destinationSE != 'local':
                             self.job.ddmErrorCode = ErrorCode.EC_Adder
                             self.job.ddmErrorDiag = "destinaitonSE %s is unknown in schedconfig" % self.job.destinationSE
                             self.job.jobStatus = 'failed'
