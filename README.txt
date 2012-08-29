@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * added useWebCache() to Client
+  * fixed getJobStatistics not to read archived via http by default
   * fixed Adder2 to skip destSE check for ddm=local 
   * fixed LFCclient to randomly resolve DNS alias for LFC host
   * added makeSlsXml

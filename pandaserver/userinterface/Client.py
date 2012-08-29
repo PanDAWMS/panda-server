@@ -224,6 +224,15 @@ public methods
 
 '''
 
+# use web cache
+def useWebCache():
+    global baseURL
+    baseURL = 'http://pandaserver.cern.ch:25085/server/panda'
+    global serverURLs
+    for tmpKey,tmpVal in serverURLs.iteritems():
+        tmpVal['URL'] = baseURL
+    
+
 # submit jobs
 def submitJobs(jobs,srvID=None,toPending=False):
     # set hostname
@@ -591,7 +600,8 @@ def getPandaIDsSite(site,status,limit=500):
 
     
 # get job statistics per site
-def getJobStatisticsPerSite(predefined=False,workingGroup='',countryGroup='',jobType='',minPriority=None):
+def getJobStatisticsPerSite(predefined=False,workingGroup='',countryGroup='',jobType='',minPriority=None,
+                            readArchived=None):
     # instantiate curl
     curl = _Curl()
     # execute
@@ -607,6 +617,8 @@ def getJobStatisticsPerSite(predefined=False,workingGroup='',countryGroup='',job
             data['jobType'] = jobType
         if not minPriority in ['',None]:
             data['minPriority'] = minPriority
+        if not readArchived in ['',None]:    
+            data['readArchived'] = readArchived    
         status,output = curl.get(url,data)
         try:
             tmpRet = status,pickle.loads(output)

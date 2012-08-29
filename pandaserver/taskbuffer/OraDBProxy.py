@@ -6326,43 +6326,39 @@ class DBProxy:
         comment = ' /* DBProxy.getJobStatistics */'        
         _logger.debug("getJobStatistics(%s,%s,'%s','%s','%s',%s,%s)" % (archived,predefined,workingGroup,countryGroup,jobType,forAnal,minPriority))
         timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
-        sql0  = "SELECT computingSite,jobStatus,COUNT(*) FROM %s WHERE prodSourceLabel IN ("
+        sql0  = "SELECT computingSite,jobStatus,COUNT(*) FROM %s "
         # processingType
         tmpJobTypeMap = {}
         sqlJobType = ''
-        if jobType == "":
-            if forAnal == None:
-                tmpJobTypeMap[':prodSourceLabel1'] = 'managed'
-                tmpJobTypeMap[':prodSourceLabel2'] = 'user'
-                tmpJobTypeMap[':prodSourceLabel3'] = 'panda'
-                tmpJobTypeMap[':prodSourceLabel4'] = 'ddm'
-                tmpJobTypeMap[':prodSourceLabel5'] = 'rc_test'
-                sqlJobType = ":prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4,:prodSourceLabel5) "
-            elif forAnal == True:
-                tmpJobTypeMap[':prodSourceLabel1'] = 'user'
-                tmpJobTypeMap[':prodSourceLabel2'] = 'panda'
-                sqlJobType = ":prodSourceLabel1,:prodSourceLabel2) "
-            else:
-                tmpJobTypeMap[':prodSourceLabel1'] = 'managed'
-                sqlJobType = ":prodSourceLabel1) "
+        useWhereInSQL = True
+        if forAnal == None or jobType != "":
+            useWhereInSQL = False
+        elif forAnal == True:
+            tmpJobTypeMap[':prodSourceLabel1'] = 'user'
+            tmpJobTypeMap[':prodSourceLabel2'] = 'panda'
+            sql0 += "WHERE prodSourceLabel IN ("
+            sqlJobType = ":prodSourceLabel1,:prodSourceLabel2) "
         else:
-            # loop over all types
-            idxJT = 1
-            for tmpJT in jobType.split(','):
-                tmpJTkey = ':prodSourceLabel%s' % idxJT
-                sqlJobType += "%s," % tmpJTkey
-                tmpJobTypeMap[tmpJTkey] = tmpJT
-                idxJT += 1                
-            sqlJobType = sqlJobType[:-1] + ") "
+            tmpJobTypeMap[':prodSourceLabel1'] = 'managed'
+            sql0 += "WHERE prodSourceLabel IN ("            
+            sqlJobType = ":prodSourceLabel1) "
         sql0 += sqlJobType
         # predefined    
         if predefined:
-            sql0 += "AND relocationFlag=1 "
+            if useWhereInSQL:
+                sql0 += "AND relocationFlag=1 "
+            else:
+                sql0 += "WHERE relocationFlag=1 "
+                useWhereInSQL = True
         # working group
         tmpGroupMap = {}
         sqlGroups = ''
         if workingGroup != '':
-            sqlGroups += "AND workingGroup IN ("
+            if useWhereInSQL:
+                sqlGroups += "AND workingGroup IN ("
+            else:
+                sqlGroups += "WHERE workingGroup IN ("
+                useWhereInSQL = True                
             # loop over all groups
             idxWG = 1
             for tmpWG in workingGroup.split(','):
@@ -6373,7 +6369,11 @@ class DBProxy:
             sqlGroups = sqlGroups[:-1] + ") "
         # country group    
         if countryGroup != '':
-            sqlGroups += "AND countryGroup IN ("
+            if useWhereInSQL:
+                sqlGroups += "AND countryGroup IN ("
+            else:
+                sqlGroups += "WHERE countryGroup IN ("
+                useWhereInSQL = True
             # loop over all groups
             idxCG = 1
             for tmpCG in countryGroup.split(','):
@@ -6387,13 +6387,18 @@ class DBProxy:
         sqlPrio = ''
         tmpPrioMap = {}
         if minPriority != None:
-            sqlPrio = "AND currentPriority>=:minPriority "
+            if useWhereInSQL:
+                sqlPrio = "AND currentPriority>=:minPriority "
+            else:
+                sqlPrio = "WHERE currentPriority>=:minPriority "
+                useWhereInSQL = True
             tmpPrioMap[':minPriority'] = minPriority
         sql0 += sqlPrio    
         sql0 += "GROUP BY computingSite,jobStatus"
         sqlA =  "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ computingSite,jobStatus,COUNT(*) FROM ATLAS_PANDA.jobsArchived4 tab WHERE modificationTime>:modificationTime "
-        sqlA += "AND prodSourceLabel IN ("
-        sqlA += sqlJobType            
+        if sqlJobType != "":
+            sqlA += "AND prodSourceLabel IN ("
+            sqlA += sqlJobType            
         if predefined:
             sqlA += "AND relocationFlag=1 "
         sqlA += sqlGroups

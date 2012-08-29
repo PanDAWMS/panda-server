@@ -356,9 +356,11 @@ class UserIF:
         
 
     # get job statistics per site
-    def getJobStatisticsPerSite(self,predefined=False,workingGroup='',countryGroup='',jobType='',minPriority=None):
+    def getJobStatisticsPerSite(self,predefined=False,workingGroup='',countryGroup='',jobType='',
+                                minPriority=None,readArchived=True):
         # get job statistics
-        ret = self.taskBuffer.getJobStatistics(True,predefined,workingGroup,countryGroup,jobType,minPriority=minPriority)
+        ret = self.taskBuffer.getJobStatistics(readArchived,predefined,workingGroup,countryGroup,jobType,
+                                               minPriority=minPriority)
         # serialize 
         return pickle.dumps(ret)
 
@@ -1080,7 +1082,8 @@ def getJobStatisticsPerUserSite(req):
 
 
 # get job statistics per site
-def getJobStatisticsPerSite(req,predefined='False',workingGroup='',countryGroup='',jobType='',minPriority=None):
+def getJobStatisticsPerSite(req,predefined='False',workingGroup='',countryGroup='',jobType='',
+                            minPriority=None,readArchived=None):
     if predefined=='True':
         predefined=True
     else:
@@ -1090,7 +1093,19 @@ def getJobStatisticsPerSite(req,predefined='False',workingGroup='',countryGroup=
             minPriority = int(minPriority)
         except:
             minPriority = None
-    return userIF.getJobStatisticsPerSite(predefined,workingGroup,countryGroup,jobType,minPriority)
+    if readArchived=='True':
+        readArchived = True
+    elif readArchived=='False':
+        readArchived = False
+    else:
+        host = req.get_remote_host()
+        # read jobsArchived for panglia
+        if re.search('panglia.*\.triumf\.ca$',host) != None:
+            readArchived = True
+        else:
+            readArchived = False
+    return userIF.getJobStatisticsPerSite(predefined,workingGroup,countryGroup,jobType,
+                                          minPriority,readArchived)
 
 
 # get job statistics per site with label
