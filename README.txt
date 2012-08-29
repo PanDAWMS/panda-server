@@ -1,6 +1,6 @@
 Release Note
 
-* current
+* 0.0.16 (8/29/2012)
   * added useWebCache() to Client
   * fixed getJobStatistics not to read archived via http by default
   * fixed Adder2 to skip destSE check for ddm=local 
