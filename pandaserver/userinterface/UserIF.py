@@ -1100,7 +1100,7 @@ def getJobStatisticsPerSite(req,predefined='False',workingGroup='',countryGroup=
     else:
         host = req.get_remote_host()
         # read jobsArchived for panglia
-        if re.search('panglia.*\.triumf\.ca$',host) != None:
+        if re.search('panglia.*\.triumf\.ca$',host) != None or host in ['gridweb.triumf.ca']:
             readArchived = True
         else:
             readArchived = False
