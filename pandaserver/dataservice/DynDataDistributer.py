@@ -306,7 +306,7 @@ class DynDataDistributer:
                         allCandidatesMoU.remove(selectedSite)
                     # make subscription
                     if not self.simul:
-                        subRet,dq2ID = self.makeSubscription(tmpDS,selectedSite)
+                        subRet,dq2ID = self.makeSubscription(tmpDS,selectedSite,ddmShare='production')
                         self.putLog("made subscription to %s:%s" % (selectedSite,dq2ID),sendLog=True)
                         usedSites.append(selectedSite)
                         # update database
@@ -551,7 +551,7 @@ class DynDataDistributer:
         
 
     # get list of datasets
-    def makeSubscription(self,dataset,sitename,givenDQ2ID=None):
+    def makeSubscription(self,dataset,sitename,givenDQ2ID=None,ddmShare='secondary'):
         # return for failuer
         retFailed = False,''
         # get DQ2 IDs
@@ -571,7 +571,7 @@ class DynDataDistributer:
             status,out = ddm.DQ2.main('registerDatasetSubscription',dataset,dq2ID,version=0,archived=0,
                                       callbacks={},sources={},sources_policy=optSrcPolicy,
                                       wait_for_sources=0,destination=None,query_more_sources=0,
-                                      sshare="production",group=None,activity='Data Brokering',acl_alias='secondary')
+                                      sshare=ddmShare,group=None,activity='Data Brokering',acl_alias='secondary')
             if out.find('DQSubscriptionExistsException') != -1:
                 break
             elif out.find('DQLocationExistsException') != -1:
