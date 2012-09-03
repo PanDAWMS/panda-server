@@ -1,6 +1,8 @@
 Release Note
 
 * 0.0.16 (8/29/2012)
+  * changed Setupper to make sub when data is missing at T1 
+  * change TA to pin input and skip replicas with ToBeDeleted
   * using share=secondary for non T2-close-source PD2P  
   * added useWebCache() to Client
   * fixed getJobStatistics not to read archived via http by default

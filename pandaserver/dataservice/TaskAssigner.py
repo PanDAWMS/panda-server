@@ -6,8 +6,10 @@ setup cloud
 import re
 import sys
 import time
+import types
 import random
 import commands
+import datetime
 import brokerage.broker_util
 from DDM import ddm
 from DDM import dq2Common
@@ -45,6 +47,8 @@ class TaskAssigner:
         self.prodSourceLabel = prodSourceLabel
         self.cloudForSubs = []
         self.job = job
+        self.metadataMap = {}
+        
 
     # check cloud
     def checkCloud(self):
@@ -220,6 +224,12 @@ class TaskAssigner:
                         foundSE  = ''
                         for tmpSE in tmpCloud['tier1SE']:
                             if tmpSE in sites.keys():
+                                # check metadata
+                                metaOK = self.checkMetadata(dataset,tmpSE)
+                                if not metaOK:
+                                    _logger.debug('%s skip %s due to ToBeDeleted' % (self.taskID,tmpSE))
+                                    continue
+                                # check the number of available files
                                 tmpStat = sites[tmpSE][-1]
                                 if tmpStat['found'] == None:
                                     if minFound == -1:
@@ -228,8 +238,20 @@ class TaskAssigner:
                                     minFound = tmpStat['found']
                                     foundSE  = tmpSE
                         # get list of T2s where dataset is available
-                        tmpT2List = DataServiceUtils.getSitesWithDataset(dataset,self.siteMapper,locations,
-                                                                         tmpCloudName,True,useOnlineSite=True)
+                        tmpT2List = []
+                        tmpT2Map = DataServiceUtils.getSitesWithDataset(dataset,self.siteMapper,locations,
+                                                                         tmpCloudName,True,getDQ2ID=True,
+                                                                         useOnlineSite=True)
+                        for tmpT2Name,tmpT2DQ2List in tmpT2Map.iteritems():
+                            # loop over all DQ2 IDs
+                            for tmpT2DQ2 in tmpT2DQ2List:
+                                # check metadata
+                                metaOK = self.checkMetadata(dataset,tmpT2DQ2)
+                                if metaOK:
+                                    tmpT2List.append(tmpT2Name)
+                                    break
+                                else:
+                                    _logger.debug('%s skip %s due to ToBeDeleted' % (self.taskID,tmpT2DQ2))
                         # remove cloud if T1SE or T2 is not a location
                         if foundSE == '':
                             # keep if T2 has the dataset
@@ -574,6 +596,17 @@ class TaskAssigner:
             if retCloudTask == None:
                 _logger.error('%s cannot set CloudTask' % self.taskID)
                 return None
+            # pin input dataset
+            pinSiteList = []
+            if definedCloud in candidatesUsingT2:
+                # pin T2 replicas
+                if t2ListForMissing.has_key(definedCloud):
+                    pinSiteList = t2ListForMissing[definedCloud]
+            else:
+                # pin T1 replica
+                pinSiteList = [self.siteMapper.getCloud(definedCloud)['tier1']]
+            if pinSiteList != []:
+                self.pinDataset(locations,pinSiteList,definedCloud)
             message = '%s set Cloud -> %s' % (self.taskID,retCloudTask.cloud)
             _logger.debug(message)
             self.sendMesg(message)
@@ -897,3 +930,130 @@ class TaskAssigner:
             time.sleep(1)
         # completed
         return True
+
+
+    # pin dataset
+    def pinDataset(self,locationMap,siteList,cloudName):
+        _logger.debug('%s start pin input datasets' % self.taskID)
+        pinLifeTime = 7        
+        # loop over all datasets
+        for tmpDsName,tmpDQ2Map in locationMap.iteritems():
+            # skip DBR
+            if DataServiceUtils.isDBR(tmpDsName):
+                continue
+            # get DQ2 IDs in the cloud where dataset is available
+            tmpDq2Map = DataServiceUtils.getSitesWithDataset(tmpDsName,self.siteMapper,locationMap,
+                                                             cloudName,useHomeCloud=True,
+                                                             getDQ2ID=True,
+                                                             useOnlineSite=True,
+                                                             includeT1=True)
+            # loop over all sites
+            for tmpSiteName in siteList:
+                # pin dataset when the site has replicas
+                if tmpDq2Map.has_key(tmpSiteName):
+                    # loop over all DQ2 IDs
+                    for tmpRepSite in tmpDq2Map[tmpSiteName]:
+                        # get metadata
+                        status,tmpMetadata = self.getReplicaMetadata(tmpDsName,tmpRepSite)
+                        if not status:
+                            continue
+                        # check metadata
+                        metaOK = self.checkMetadata(tmpDsName,tmpRepSite)
+                        if not metaOK:
+                            _logger.debug('%s skip pin %s:%s due to bad metadata' % (self.taskID,tmpDsName,tmpRepSite))
+                            continue
+                        # check pin lifetime                            
+                        if tmpMetadata.has_key('pin_expirationdate'):
+                            if isinstance(tmpMetadata['pin_expirationdate'],types.StringType) and tmpMetadata['pin_expirationdate'] != 'None':
+                                # keep original pin lifetime if it is longer 
+                                origPinLifetime = datetime.datetime.strptime(tmpMetadata['pin_expirationdate'],'%Y-%m-%d %H:%M:%S')
+                                if origPinLifetime > datetime.datetime.utcnow()+datetime.timedelta(days=pinLifeTime):
+                                    _logger.debug('%s skip pinning for %s:%s due to longer lifetime %s' % (self.taskID,
+                                                                                                           tmpDsName,tmpRepSite,
+                                                                                                           tmpMetadata['pin_expirationdate']))
+                                    continue
+                        # set pin lifetime
+                        status = self.setReplicaMetadata(tmpDsName,tmpRepSite,'pin_lifetime','%s days' % pinLifeTime)
+        # return                
+        _logger.debug('%s end pin input datasets' % self.taskID)
+        return
+
+
+    # get replica metadata
+    def getReplicaMetadata(self,datasetName,locationName):
+        # use cached data
+        if self.metadataMap.has_key(datasetName) and self.metadataMap[datasetName].has_key(locationName):
+            return True,self.metadataMap[datasetName][locationName]
+        # response for failure
+        resForFailure = False,{}
+        # get metadata
+        nTry = 3
+        for iDDMTry in range(nTry):
+            _logger.debug('%s %s/%s listMetaDataReplica %s %s' % (self.taskID,iDDMTry,nTry,datasetName,locationName))
+            status,out = ddm.DQ2.main('listMetaDataReplica',locationName,datasetName)
+            if status != 0 or (not DataServiceUtils.isDQ2ok(out)):
+                time.sleep(60)
+            else:
+                break
+        if status != 0 or out.startswith('Error'):
+            _logger.error("%s %s" % (self.taskID,out))
+            return resForFailure
+        metadata = {}
+        try:
+            # convert to map
+            exec "metadata = %s" % out
+        except:
+            _logger.error('%s could not convert HTTP-res to replica metadata for %s:%s' % \
+                          (self.taskID,datasetName,locationName))
+            return resForFailure
+        # append
+        if not self.metadataMap.has_key(datasetName):
+            self.metadataMap[datasetName] = {}
+        self.metadataMap[datasetName][locationName] = metadata    
+        # return
+        _logger.debug('%s getReplicaMetadata -> %s' % (self.taskID,str(metadata)))
+        return True,metadata
+
+
+    # check metadata
+    def checkMetadata(self,dataset,tmpSE):
+        # skip checking for DBR
+        if DataServiceUtils.isDBR(dataset):
+            return True
+        # get metadata
+        status,metaItem = self.getReplicaMetadata(dataset,tmpSE)
+        if not status:
+            raise RuntimeError, 'failed to get metadata at %s for %s' % (tmpSE,dataset)
+        # check     
+        if metaItem.has_key('archived') and isinstance(metaItem['archived'],types.StringType) \
+               and metaItem['archived'].lower() in ['tobedeleted',]:
+            _logger.debug('%s skip %s due to ToBeDeleted' % (self.taskID,tmpSE))
+            # NG
+            return False
+        # OK
+        return True
+
+
+    # set replica metadata
+    def setReplicaMetadata(self,datasetName,locationName,attrname,attrvalue):
+        # response for failure
+        resForFailure = False
+        # get metadata
+        nTry = 3
+        for iDDMTry in range(nTry):
+            _logger.debug('%s %s/%s setReplicaMetaDataAttribute %s %s %s=%s' % (self.taskID,iDDMTry,nTry,datasetName,
+                                                                                locationName,attrname,attrvalue))
+            status,out = ddm.DQ2.main('setReplicaMetaDataAttribute',datasetName,locationName,attrname,attrvalue)
+            if status != 0 or (not DataServiceUtils.isDQ2ok(out)):
+                time.sleep(60)
+            else:
+                break
+        if status != 0 or out.startswith('Error'):
+            _logger.error("%s %s" % (self.taskID,out))
+            return resForFailure
+        # return
+        _logger.debug('%s setReplicaMetadata done' % self.taskID)
+        return True
+
+
+    

@@ -74,6 +74,11 @@ class Setupper (threading.Thread):
         self.availableLFNsInT2 = {}
         # use DQ2 in the same process
         self.useNativeDQ2 = useNativeDQ2
+        # list of missing datasets
+        self.missingDatasetList = {}
+        # lfn ds map
+        self.lfnDatasetMap = {}
+        
         
     # main
     def run(self):
@@ -166,6 +171,8 @@ class Setupper (threading.Thread):
                     self._dynamicDataPlacement()
                     # pin input datasets
                     self._pinInputDatasets()
+                    # make subscription for missing
+                    self._makeSubscriptionForMissing()
             else:
                 # write jobs to file
                 import os
@@ -1210,6 +1217,8 @@ class Setupper (threading.Thread):
                             # protection for empty dataset
                             if out != '()':
                                 exec "items = %s[0]" % out
+                            # keep values to avoid redundant lookup
+                            self.lfnDatasetMap[dataset] = items
                             # loop over all files    
                             for guid,vals in items.iteritems():
                                 valMap[vals['lfn']] = {'guid' : guid, 'fsize' : vals['filesize'],
@@ -1555,6 +1564,23 @@ class Setupper (threading.Thread):
                     if oJob.PandaID == job.PandaID:
                         jobsWaiting.append(oJob)
                         break
+                # get missing datasets
+                if job.processingType.startswith('gangarobot') or \
+                       job.processingType.startswith('hammercloud'):
+                    pass
+                elif not job.prodSourceLabel in ['managed']:
+                    pass
+                else:
+                    for tmpFile in job.Files:
+                        if tmpFile.type == 'input' and tmpFile.status == 'missing' and \
+                               not tmpFile.dataset.startswith('ddo'):
+                            # append
+                            if not self.missingDatasetList.has_key(job.cloud):
+                                self.missingDatasetList[job.cloud] = {}
+                            if not self.missingDatasetList[job.cloud].has_key(tmpFile.dataset):
+                                self.missingDatasetList[job.cloud][tmpFile.dataset] = []
+                            if not tmpFile.GUID in self.missingDatasetList[job.cloud][tmpFile.dataset]:
+                                self.missingDatasetList[job.cloud][tmpFile.dataset].append(tmpFile.GUID)
         # set data summary fields
         for tmpJob in self.jobs:
             try:
@@ -1672,7 +1698,57 @@ class Setupper (threading.Thread):
             return False
         return True
 
-    
+
+    # get list of files in dataset
+    def getListFilesInDataset(self,dataset):
+        # use cache data
+        if self.lfnDatasetMap.has_key(dataset):
+            return True,self.lfnDatasetMap[dataset]
+        for iDDMTry in range(3):
+            _logger.debug((self.timestamp,'listFilesInDataset',dataset))
+            status,out = ddm.DQ2.main('listFilesInDataset',dataset)
+            if out.find("DQUnknownDatasetException") != -1:
+                break
+            elif status == -1:
+                break
+            elif status != 0 or (not self.isDQ2ok(out)):
+                time.sleep(60)
+            else:
+                break
+        if status != 0 or out.startswith('Error'):
+            _logger.error("%s %s" % (self.timestamp,out))
+            return False,{}
+        # convert
+        items = {}
+        try:
+            exec "items = %s[0]" % out
+        except:
+            return False,{}
+        return True,items
+
+        
+    # get list of datasets in container
+    def getListDatasetInContainer(self,container):
+        # get datasets in container
+        _logger.debug((self.timestamp,'listDatasetsInContainer',container))
+        for iDDMTry in range(3):
+            status,out = ddm.DQ2.main('listDatasetsInContainer',container)
+            if status != 0 or (not self.isDQ2ok(out)):
+                time.sleep(60)
+            else:
+                break
+        _logger.debug('%s %s' % (self.timestamp,out))
+        if status != 0 or out.startswith('Error'):
+            return False,out
+        datasets = []
+        try:
+            # convert to list
+            exec "datasets = %s" % out
+        except:
+            return False,out
+        return True,datasets
+
+        
     def getListDatasetReplicasInContainer(self,container,getMap=False):
         # get datasets in container
         _logger.debug((self.timestamp,'listDatasetsInContainer',container))
@@ -2091,6 +2167,57 @@ class Setupper (threading.Thread):
         # retrun                    
         _logger.debug('%s pin input datasets done' % self.timestamp)
         return
+
+
+    # make T1 subscription for missing files
+    def _makeSubscriptionForMissing(self):
+        _logger.debug('%s make subscriptions for missing files' % self.timestamp)
+        # collect datasets
+        missingList = {}
+        for tmpCloud,tmpMissDatasets in self.missingDatasetList.iteritems():
+            # append cloud
+            if not missingList.has_key(tmpCloud):
+                missingList[tmpCloud] = []
+            # loop over all datasets    
+            for tmpDsName,tmpMissFiles in tmpMissDatasets.iteritems():
+                # check if datasets in container are used 
+                if tmpDsName.endswith('/'):
+                    # convert container to datasets
+                    tmpStat,tmpDsList = self.getListDatasetInContainer(tmpDsName)
+                    if not tmpStat:
+                        _logger.error('%s failed to get datasets in container:%s' % (self.timestamp,tmpDsName))
+                        continue
+                    # check if each dataset is actually used
+                    for tmpConstDsName in tmpDsList:
+                        # skip if already checked
+                        if tmpDsName in missingList[tmpCloud]:
+                            continue
+                        # get files in each dataset
+                        tmpStat,tmpFilesInDs = self.getListFilesInDataset(tmpConstDsName)
+                        if not tmpStat:
+                            _logger.error('%s failed to get files in dataset:%s' % (self.timestamp,tmpConstDsName))
+                            continue
+                        # loop over all files to check the dataset is used
+                        for tmpGUID in tmpMissFiles:
+                            # append if used
+                            if tmpFilesInDs.has_key(tmpGUID):
+                                missingList[tmpCloud].append(tmpConstDsName)
+                                break
+                else:
+                    # append dataset w/o checking
+                    if not tmpDsName in missingList[tmpCloud]:
+                        missingList[tmpCloud].append(tmpDsName)
+        # make subscriptions
+        for tmpCloud,missDsNameList in missingList.iteritems():
+            # get distination
+            tmpDstID = self.siteMapper.getCloud(tmpCloud)['source']
+            dstDQ2ID = self.siteMapper.getSite(tmpDstID).ddm
+            # register subscription
+            for missDsName in missDsNameList:
+                self.makeSubscription(missDsName,dstDQ2ID)
+        # retrun
+        _logger.debug('%s make subscriptions for missing files done' % self.timestamp)        
+        return
     
 
     # check DDM response
@@ -2100,6 +2227,41 @@ class Setupper (threading.Thread):
                or out.find("MySQL server has gone away") != -1 \
                or out == '()':
             return False
+        return True
+
+    
+    # make subscription
+    def makeSubscription(self,dataset,dq2ID):
+        # return for failuer
+        retFailed = False
+        # make subscription    
+        optSrcPolicy = 000001
+        nTry = 3
+        for iDDMTry in range(nTry):
+            # register subscription
+            _logger.debug('%s %s/%s registerDatasetSubscription %s %s' % (self.timestamp,iDDMTry,nTry,dataset,dq2ID))
+            status,out = ddm.DQ2.main('registerDatasetSubscription',dataset,dq2ID,version=0,archived=0,
+                                      callbacks={},sources={},sources_policy=optSrcPolicy,
+                                      wait_for_sources=0,destination=None,query_more_sources=0,
+                                      sshare="production",group=None,activity='Production',acl_alias='secondary')
+            status,out = 0,''
+            if out.find('DQSubscriptionExistsException') != -1:
+                break
+            elif out.find('DQLocationExistsException') != -1:
+                break
+            elif status != 0 or (not self.isDQ2ok(out)):
+                time.sleep(60)
+            else:
+                break
+        # result
+        if out.find('DQSubscriptionExistsException') != -1:
+            pass
+        elif status != 0 or out.startswith('Error'):
+            _logger.error("%s %s" % (self.timestamp,out))
+            return retFailed
+        # update 
+        _logger.debug('%s %s %s' % (self.timestamp,status,out))
+        # return
         return True
 
     

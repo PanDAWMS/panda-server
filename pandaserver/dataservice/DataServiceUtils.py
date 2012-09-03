@@ -1,7 +1,8 @@
 import re
 
 # get the list of sites where dataset is available
-def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=False,getDQ2ID=False,useOnlineSite=False):
+def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=False,getDQ2ID=False,
+                        useOnlineSite=False,includeT1=False):
     retList = []
     retDQ2Map = {}
     # no replica map
@@ -17,7 +18,7 @@ def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=Fa
     # check sites in the cloud
     for tmpSiteName in siteMapper.getCloud(cloudKey)['sites']:
         # skip T1
-        if tmpSiteName == siteMapper.getCloud(cloudKey)['source']:
+        if not includeT1 and tmpSiteName == siteMapper.getCloud(cloudKey)['source']:
             continue
         # use home cloud
         if useHomeCloud:
@@ -62,3 +63,19 @@ def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=Fa
     # retrun
     return retList
 
+
+# check DDM response
+def isDQ2ok(out):
+    if out.find("DQ2 internal server exception") != -1 \
+           or out.find("An error occurred on the central catalogs") != -1 \
+           or out.find("MySQL server has gone away") != -1 \
+           or out == '()':
+        return False
+    return True
+
+
+# check if DBR
+def isDBR(datasetName):
+    if datasetName.startswith('ddo'):
+        return True
+    return False
