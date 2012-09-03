@@ -2214,6 +2214,7 @@ class Setupper (threading.Thread):
             dstDQ2ID = self.siteMapper.getSite(tmpDstID).ddm
             # register subscription
             for missDsName in missDsNameList:
+                _logger.debug('%s make subscription at %s for missing %s' % (self.timestamp,dstDQ2ID,missDsName))
                 self.makeSubscription(missDsName,dstDQ2ID)
         # retrun
         _logger.debug('%s make subscriptions for missing files done' % self.timestamp)        
