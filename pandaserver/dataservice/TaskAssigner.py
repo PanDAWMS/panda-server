@@ -48,12 +48,13 @@ class TaskAssigner:
         self.cloudForSubs = []
         self.job = job
         self.metadataMap = {}
+        self.contDsMap = {}
         
 
     # check cloud
     def checkCloud(self):
         try:
-            _logger.debug('%s checkCloud' % self.taskID)
+            _logger.info('%s checkCloud' % self.taskID)
             # get CloudTask from DB
             self.cloudTask = self.taskBuffer.getCloudTask(self.taskID)
             if self.cloudTask == None:
@@ -61,10 +62,10 @@ class TaskAssigner:
                 return None
             # if already assigned
             if self.cloudTask.status == 'assigned':
-                _logger.debug('%s checked Cloud -> %s' % (self.taskID,self.cloudTask.cloud))
+                _logger.info('%s checked Cloud -> %s' % (self.taskID,self.cloudTask.cloud))
                 return self.cloudTask.cloud
             # return "" to set cloud later
-            _logger.debug('%s return Cloud=""' % self.taskID)
+            _logger.info('%s return Cloud=""' % self.taskID)
             return ""
         except:
             type, value, traceBack = sys.exc_info()
@@ -75,8 +76,8 @@ class TaskAssigner:
     # set cloud
     def setCloud(self,lfns,guids,locations={},metadata=None):
         try:
-            _logger.debug('%s setCloud' % self.taskID)
-            _logger.debug('%s metadata="%s"' % (self.taskID,metadata))
+            _logger.info('%s setCloud' % self.taskID)
+            _logger.info('%s metadata="%s"' % (self.taskID,metadata))
             taskType = None
             RWs      = {}
             expRWs   = {}
@@ -109,13 +110,13 @@ class TaskAssigner:
                 pass
             message = '%s taskType==%s prio==%s RW==%s DiskCount==%s' % (self.taskID,taskType,prioMap[self.taskID],
                                                                          expRWs[self.taskID],diskCount)
-            _logger.debug(message)
+            _logger.info(message)
             self.sendMesg(message)
-            _logger.debug('%s RWs     = %s' % (self.taskID,str(RWs)))
-            _logger.debug('%s expRWs  = %s' % (self.taskID,str(expRWs)))
-            _logger.debug('%s prioMap = %s' % (self.taskID,str(prioMap)))            
-            _logger.debug('%s fullRWs = %s' % (self.taskID,str(fullRWs)))
-            _logger.debug('%s tt2Map  = %s' % (self.taskID,str(tt2Map)))
+            _logger.info('%s RWs     = %s' % (self.taskID,str(RWs)))
+            _logger.info('%s expRWs  = %s' % (self.taskID,str(expRWs)))
+            _logger.info('%s prioMap = %s' % (self.taskID,str(prioMap)))            
+            _logger.info('%s fullRWs = %s' % (self.taskID,str(fullRWs)))
+            _logger.info('%s tt2Map  = %s' % (self.taskID,str(tt2Map)))
             # get cloud list
             cloudList = self.siteMapper.getCloudList()
             # get pilot statistics
@@ -151,8 +152,8 @@ class TaskAssigner:
                 if not RWs.has_key(tmpCloudInDB):
                     RWs[tmpCloudInDB] = 0
                 RWs[tmpCloudInDB] += tmpExpRW
-            _logger.debug('%s newRWs  =%s' % (self.taskID,str(RWs)))
-            _logger.debug('%s fullRWs =%s' % (self.taskID,str(fullRWs)))            
+            _logger.info('%s newRWs  =%s' % (self.taskID,str(RWs)))
+            _logger.info('%s fullRWs =%s' % (self.taskID,str(fullRWs)))            
             # remove offline clouds and check validation/fasttrack
             tmpCloudList = []
             for tmpCloudName in cloudList:
@@ -161,20 +162,20 @@ class TaskAssigner:
                 # skip offline clouds
                 if not tmpCloud['status'] in ['online']:
                     message = '%s    %s skip : status==%s' % (self.taskID,tmpCloudName,tmpCloud['status'])
-                    _logger.debug(message)
+                    _logger.info(message)
                     self.sendMesg(message)
                     continue
                 # skip non-validation cloud if validation
                 if self.prodSourceLabel in ['validation'] and tmpCloud['validation'] != 'true':
                     message = "%s    %s skip : validation=='%s'" % (self.taskID,tmpCloudName,tmpCloud['validation'])
-                    _logger.debug(message)
+                    _logger.info(message)
                     self.sendMesg(message)
                     continue
                 # check fast track
                 if ((taskType in ['evgen'] and prioMap[self.taskID] >= 700) or
                     (taskType in ['simul'] and prioMap[self.taskID] >= 800)) and tmpCloud['fasttrack'] != 'true':
                     message = "%s    %s skip : fasttrack=='%s'" % (self.taskID,tmpCloudName,tmpCloud['fasttrack'])
-                    _logger.debug(message)
+                    _logger.info(message)
                     self.sendMesg(message)
                     continue
                 # check disk count
@@ -182,7 +183,7 @@ class TaskAssigner:
                     enoughSpace = self.checkDiskCount(diskCount,tmpCloudName)
                     if not enoughSpace:
                         message = "%s    %s skip : no online sites have enough space for DiskCount==%s" % (self.taskID,tmpCloudName,diskCount)
-                        _logger.debug(message)
+                        _logger.info(message)
                         self.sendMesg(message,msgType='warning')
                         continue
                 # append
@@ -190,7 +191,7 @@ class TaskAssigner:
                 self.cloudForSubs.append(tmpCloudName)
             cloudList = tmpCloudList
             # DQ2 location info
-            _logger.debug('%s DQ2 locations %s' % (self.taskID,str(locations)))
+            _logger.info('%s DQ2 locations %s' % (self.taskID,str(locations)))
             # check immutable datasets
             for tmpDataset,tmpSites in locations.iteritems():
                 sitesForRefresh = []
@@ -201,13 +202,13 @@ class TaskAssigner:
                     elif tmpStat['immutable'] == 0:
                         # using open datasets
                         usingOpenDS = True
-                        _logger.debug('%s open dataset : %s' % (self.taskID,tmpDataset))
+                        _logger.info('%s open dataset : %s' % (self.taskID,tmpDataset))
                 # refresh replica info
                 if sitesForRefresh != []:
                     # invoke listFileReplicasBySites to refresh replica info
-                    _logger.debug('%s listFileReplicasBySites %s:%s' % (self.taskID,tmpDataset,str(sitesForRefresh)))
+                    _logger.info('%s listFileReplicasBySites %s:%s' % (self.taskID,tmpDataset,str(sitesForRefresh)))
                     tmpStat,tmpOut = ddm.DQ2_iter.listFileReplicasBySites(tmpDataset,0,sitesForRefresh,0,300)
-                    _logger.debug('%s listFileReplicasBySites end with %s:%s' % (self.taskID,tmpStat,tmpOut))
+                    _logger.info('%s listFileReplicasBySites end with %s:%s' % (self.taskID,tmpStat,tmpOut))
                     #raise RuntimeError, '%s %s has incorrect replica info' % (self.taskID,tmpDataset)
             removedDQ2Map = {}
             t2ListForMissing = {}
@@ -216,7 +217,7 @@ class TaskAssigner:
                 removedCloud = []
                 for dataset,sites in locations.iteritems():
                     removedDQ2Map[dataset] = []
-                    _logger.debug('%s DS:%s' % (self.taskID,dataset)) 
+                    _logger.info('%s DS:%s' % (self.taskID,dataset)) 
                     for tmpCloudName in cloudList:
                         tmpCloud = self.siteMapper.getCloud(tmpCloudName)
                         # look for T1 SE which holds the max number of files
@@ -227,7 +228,7 @@ class TaskAssigner:
                                 # check metadata
                                 metaOK = self.checkMetadata(dataset,tmpSE)
                                 if not metaOK:
-                                    _logger.debug('%s skip %s due to ToBeDeleted' % (self.taskID,tmpSE))
+                                    _logger.info('%s skip %s due to ToBeDeleted' % (self.taskID,tmpSE))
                                     continue
                                 # check the number of available files
                                 tmpStat = sites[tmpSE][-1]
@@ -251,13 +252,13 @@ class TaskAssigner:
                                     tmpT2List.append(tmpT2Name)
                                     break
                                 else:
-                                    _logger.debug('%s skip %s due to ToBeDeleted' % (self.taskID,tmpT2DQ2))
+                                    _logger.info('%s skip %s due to ToBeDeleted' % (self.taskID,tmpT2DQ2))
                         # remove cloud if T1SE or T2 is not a location
                         if foundSE == '':
                             # keep if T2 has the dataset
                             if tmpT2List == []:
                                 if not tmpCloudName in removedCloud:
-                                    _logger.debug('%s   removed %s' % (self.taskID,tmpCloudName))
+                                    _logger.info('%s   removed %s' % (self.taskID,tmpCloudName))
                                     removedCloud.append(tmpCloudName)
                             # add dataset to map for subscription        
                             if not tmpCloudName in removedDQ2Map[dataset]:
@@ -283,18 +284,19 @@ class TaskAssigner:
                 for tmpCloudName in removedCloud:
                     if tmpCloudName in cloudList:
                         cloudList.remove(tmpCloudName)
-            _logger.debug('%s new locations after DQ2 filter %s' % (self.taskID,str(cloudList)))
+            _logger.info('%s new locations after DQ2 filter %s' % (self.taskID,str(cloudList)))
+            _logger.info('%s removed DQ2 map %s' % (self.taskID,str(removedDQ2Map)))
             if cloudList == []:
                 # make subscription to empty cloud
                 if taskType in taskTypesSub:
-                    _logger.debug('%s makeSubscription start' % self.taskID)                    
+                    _logger.info('%s makeSubscription start' % self.taskID)                    
                     retSub = self.makeSubscription(removedDQ2Map,RWs,fullRWs,expRWs)
-                    _logger.debug('%s makeSubscription end with %s' % (self.taskID,retSub))
+                    _logger.info('%s makeSubscription end with %s' % (self.taskID,retSub))
                 message = '%s no input data locations' % self.taskID
                 self.sendMesg(message,msgType='warning')
                 raise RuntimeError, '%s cloud list is empty after DQ2 filter' % self.taskID
             message = '%s input data locations %s' % (self.taskID,str(cloudList))
-            _logger.debug(message)
+            _logger.info(message)
             self.sendMesg(message)
             # calculate # of loops
             nFile = 200
@@ -321,7 +323,7 @@ class TaskAssigner:
             foundCandidateWithT1 = []
             candidatesUsingT2 = []
             for tmpCloudName in cloudList:
-                _logger.debug('%s calculate weight for %s' % (self.taskID,tmpCloudName))
+                _logger.info('%s calculate weight for %s' % (self.taskID,tmpCloudName))
                 # add missing cloud in RWs
                 if not RWs.has_key(tmpCloudName):
                     RWs[tmpCloudName] = 0
@@ -338,13 +340,13 @@ class TaskAssigner:
                     if nWNmap.has_key(siteName):
                         nPilot += (nWNmap[siteName]['getJob'] + nWNmap[siteName]['updateJob'])
                 weightParams[tmpCloudName]['nPilot'] = nPilot
-                _logger.debug('%s  # of pilots %s' % (self.taskID,nPilot))
+                _logger.info('%s  # of pilots %s' % (self.taskID,nPilot))
                 # available space
                 weightParams[tmpCloudName]['space'] = tmpT1Site.space
-                _logger.debug('%s  T1 space    %s' % (self.taskID,tmpT1Site.space))
+                _logger.info('%s  T1 space    %s' % (self.taskID,tmpT1Site.space))
                 # MC share
                 weightParams[tmpCloudName]['mcshare'] = tmpCloud['mcshare']
-                _logger.debug('%s  MC share    %s' % (self.taskID,tmpCloud['mcshare']))
+                _logger.info('%s  MC share    %s' % (self.taskID,tmpCloud['mcshare']))
                 # calculate available space = totalT1space - ((RW(cloud)+RW(thistask))*GBperSI2kday))
                 aveSpace,sizeCloud,sizeThis = self.getAvailableSpace(weightParams[tmpCloudName]['space'],
                                                                      fullRWs[tmpCloudName],
@@ -354,19 +356,19 @@ class TaskAssigner:
                     message = '%s    %s skip : space:%s (total:%s - assigned:%s - this:%s) < %sGB' % \
                               (self.taskID,tmpCloudName,aveSpace,weightParams[tmpCloudName]['space'],
                                sizeCloud,sizeThis,thr_space_low)
-                    _logger.debug(message)
+                    _logger.info(message)
                     self.sendMesg(message,msgType='warning')
                     del weightParams[tmpCloudName]                    
                     continue
                 else:
-                    _logger.debug('%s    %s pass : space:%s (total:%s - assigned:%s - this:%s)' % \
+                    _logger.info('%s    %s pass : space:%s (total:%s - assigned:%s - this:%s)' % \
                                   (self.taskID,tmpCloudName,aveSpace,weightParams[tmpCloudName]['space'],
                                    sizeCloud,sizeThis))
                 # not assign tasks when RW is too high
                 if RWs.has_key(tmpCloudName) and RWs[tmpCloudName] > thr_RW_high*weightParams[tmpCloudName]['mcshare']:
                     message = '%s    %s skip : too high RW==%s > %s' % \
                               (self.taskID,tmpCloudName,RWs[tmpCloudName],thr_RW_high*weightParams[tmpCloudName]['mcshare'])
-                    _logger.debug(message)
+                    _logger.info(message)
                     self.sendMesg(message,msgType='warning')
                     del weightParams[tmpCloudName]
                     continue
@@ -417,13 +419,13 @@ class TaskAssigner:
                     # show progress
                     iLoop += 1
                     if iLoop % 10 == 1:
-                        _logger.debug('%s %s %s' % (self.taskID,len(guids),iFile))
+                        _logger.info('%s %s %s' % (self.taskID,len(guids),iFile))
                 # skip 
                 if skipFlag:
-                    _logger.debug('%s    %s skip : invalid return from LFC' % (self.taskID,cloudName))
+                    _logger.info('%s    %s skip : invalid return from LFC' % (self.taskID,cloudName))
                     del weightParams[tmpCloudName]
                     continue
-                _logger.debug('%s  # of files at T1 %s' % (self.taskID,weightParams[tmpCloudName]['nFiles']))
+                _logger.info('%s  # of files at T1 %s' % (self.taskID,weightParams[tmpCloudName]['nFiles']))
                 # found candidate
                 foundCandidateT1 = False
                 if weightParams[tmpCloudName]['nFiles'] >= maxNFiles:
@@ -438,7 +440,7 @@ class TaskAssigner:
                 # check T2 if files are missing
                 if (not foundCandidateT1 or weightParams[tmpCloudName]['nFiles'] < maxNFiles) and \
                        t2ListForMissing.has_key(tmpCloudName) and t2ListForMissing[tmpCloudName] != []:
-                    _logger.debug('%s  T2 candidates %s' % (self.taskID,str(t2ListForMissing[tmpCloudName])))
+                    _logger.info('%s  T2 candidates %s' % (self.taskID,str(t2ListForMissing[tmpCloudName])))
                     # list of SEs and LFC
                     tmpLfcSe = {}
                     for tmpT2 in t2ListForMissing[tmpCloudName]:
@@ -463,7 +465,7 @@ class TaskAssigner:
                                                                                    storageName=tmpSE,terminateWhenFailed=True)
                                 if tmpOKFiles == None:
                                     if iTry+1 == nTry:
-                                        _logger.debug('%s invalid return from LFC' % self.taskID)
+                                        _logger.info('%s invalid return from LFC' % self.taskID)
                                         break
                                     else:
                                         # retry
@@ -475,9 +477,9 @@ class TaskAssigner:
                             # show progress
                             iLoop += 1
                             if iLoop % 10 == 1:
-                                _logger.debug('%s %s %s %s T2:%s' % (self.taskID,len(guids),iFile,tmpCloudName,str(tmpSE)))
+                                _logger.info('%s %s %s %s T2:%s' % (self.taskID,len(guids),iFile,tmpCloudName,str(tmpSE)))
                         # use larger value
-                        _logger.debug('%s  # of files at T2:%s %s' % (self.taskID,str(tmpSE),nFilesT2))
+                        _logger.info('%s  # of files at T2:%s %s' % (self.taskID,str(tmpSE),nFilesT2))
                         if nFilesT2 > weightParams[tmpCloudName]['nFiles']:
                             weightParams[tmpCloudName]['nFiles'] = nFilesT2
                             # found candidate
@@ -493,16 +495,20 @@ class TaskAssigner:
             # use clouds where T2 have the data
             maxClouds += candidatesUsingT2
             # logging
-            _logger.debug('%s check nFiles' % self.taskID)            
+            _logger.info('%s check nFiles' % self.taskID)            
             for cloudName,params in weightParams.iteritems():
                 if not cloudName in maxClouds:
-                    message = '%s    %s skip : nFiles==%s<%s' % \
-                              (self.taskID,cloudName,params['nFiles'],maxNFiles)
-                    _logger.debug(message)
+                    if params['nFiles'] != maxNFiles:
+                        message = '%s    %s skip : nFiles==%s<%s' % \
+                                  (self.taskID,cloudName,params['nFiles'],maxNFiles)
+                    else:
+                        message = '%s    %s skip : no complete replica at DATA/GROUPDISK' % \
+                                  (self.taskID,cloudName)
+                    _logger.info(message)
                     self.sendMesg(message)
                     time.sleep(2)                    
             # check RW
-            _logger.debug('%s check RW' % self.taskID)                
+            _logger.info('%s check RW' % self.taskID)                
             tmpInfClouds = []
             for cloudName in maxClouds:
                 # set weight to infinite when RW is too low
@@ -510,12 +516,12 @@ class TaskAssigner:
                     if RWs[cloudName] < thr_RW_low*weightParams[cloudName]['mcshare']:
                         message = '%s    %s infinite weight : RW==%s < %s' % \
                                   (self.taskID,cloudName,RWs[cloudName],thr_RW_low*weightParams[cloudName]['mcshare'])
-                        _logger.debug(message)
+                        _logger.info(message)
                         self.sendMesg(message)
                         tmpInfClouds.append(cloudName)
             # use new list
             if tmpInfClouds != []:
-                _logger.debug('%s use infinite clouds after RW checking' % self.taskID)
+                _logger.info('%s use infinite clouds after RW checking' % self.taskID)
                 maxClouds  = tmpInfClouds
                 useMcShare = True
             elif maxClouds == []:
@@ -523,9 +529,9 @@ class TaskAssigner:
                 self.sendMesg(messageEnd)
                 # make subscription to empty cloud
                 if taskType in taskTypesSub:
-                    _logger.debug('%s makeSubscription start' % self.taskID)                    
+                    _logger.info('%s makeSubscription start' % self.taskID)                    
                     retSub = self.makeSubscription(removedDQ2Map,RWs,fullRWs,expRWs)
-                    _logger.debug('%s makeSubscription end with %s' % (self.taskID,retSub))
+                    _logger.info('%s makeSubscription end with %s' % (self.taskID,retSub))
                     if retSub:
                         message = '%s made subscription' % self.taskID
                         self.sendMesg(message,msgType='info')                        
@@ -533,12 +539,12 @@ class TaskAssigner:
                         message = "%s didn't make subscription" % self.taskID
                         self.sendMesg(message,msgType='warning')
                 # return
-                _logger.debug(messageEnd)
-                _logger.debug("%s end" % self.taskID) 
+                _logger.info(messageEnd)
+                _logger.info("%s end" % self.taskID) 
                 return None
             # choose one
             message = '%s candidates %s' % (self.taskID,str(maxClouds))
-            _logger.debug(message)
+            _logger.info(message)
             self.sendMesg(message)
             if len(maxClouds) == 1:
                 definedCloud = maxClouds[0]
@@ -564,13 +570,13 @@ class TaskAssigner:
                 if totalWeight == 0:
                     raise RuntimeError, 'totalWeight=0'
                 # determin cloud using random number
-                _logger.debug('%s weights %s' % (self.taskID,str(nWeightList)))
+                _logger.info('%s weights %s' % (self.taskID,str(nWeightList)))
                 rNumber = random.random() * totalWeight
-                _logger.debug('%s    totalW   %s' % (self.taskID,totalWeight))                
-                _logger.debug('%s    rNumber  %s' % (self.taskID,rNumber))
+                _logger.info('%s    totalW   %s' % (self.taskID,totalWeight))                
+                _logger.info('%s    rNumber  %s' % (self.taskID,rNumber))
                 for index,tmpWeight in enumerate(nWeightList):
                     rNumber -= tmpWeight
-                    _logger.debug('%s    rNumber  %s : Cloud=%s weight=%s' % 
+                    _logger.info('%s    rNumber  %s : Cloud=%s weight=%s' % 
                                   (self.taskID,rNumber,maxClouds[index],tmpWeight))
                     if rNumber <= 0:
                         definedCloud = maxClouds[index]
@@ -584,12 +590,12 @@ class TaskAssigner:
                 if newT2DQ2Map == {}:
                     _logger.error('%s no subscription map to use T2 datasets cloud=%s map=%s' % (self.taskID,definedCloud,removedDQ2Map))
                     return None
-                _logger.debug('%s makeSubscription to use T2 start' % self.taskID)
+                _logger.info('%s makeSubscription to use T2 start' % self.taskID)
                 retSub = self.makeSubscription(newT2DQ2Map,RWs,fullRWs,expRWs,noEmptyCheck=True,acceptInProcess=True)
                 if not retSub:
                     _logger.error('%s makeSubscription to use T2 failed with %s' % (self.taskID,retSub))
                     return None
-                _logger.debug('%s makeSubscription to use T2 end with %s' % (self.taskID,retSub))
+                _logger.info('%s makeSubscription to use T2 end with %s' % (self.taskID,retSub))
             # set CloudTask in DB
             self.cloudTask.cloud = definedCloud
             retCloudTask = self.taskBuffer.setCloudTask(self.cloudTask)
@@ -608,7 +614,7 @@ class TaskAssigner:
             if pinSiteList != []:
                 self.pinDataset(locations,pinSiteList,definedCloud)
             message = '%s set Cloud -> %s' % (self.taskID,retCloudTask.cloud)
-            _logger.debug(message)
+            _logger.info(message)
             self.sendMesg(message)
             # return
             return retCloudTask.cloud
@@ -685,22 +691,22 @@ class TaskAssigner:
         cloudList = []
         # collect clouds which don't hold datasets
         message = '%s possible clouds : %s' % (self.taskID,str(self.cloudForSubs))
-        _logger.debug(message)
+        _logger.info(message)
         for tmpDS,tmpClouds in dsCloudMap.iteritems():
             for tmpCloud in tmpClouds:
                 if (not tmpCloud in cloudList) and tmpCloud in self.cloudForSubs:
                     cloudList.append(tmpCloud)
         message = '%s candidates for subscription : %s' % (self.taskID,str(cloudList))
-        _logger.debug(message)
+        _logger.info(message)
         self.sendMesg(message)
         if cloudList == []:
-            _logger.debug('%s no candidates for subscription' % self.taskID)            
+            _logger.info('%s no candidates for subscription' % self.taskID)            
             return False
         # get DN
         com = 'unset LD_LIBRARY_PATH; unset PYTHONPATH; export PATH=/usr/local/bin:/bin:/usr/bin; '
         com+= 'source %s; grid-proxy-info -subject' % panda_config.glite_source
         status,DN = commands.getstatusoutput(com)
-        _logger.debug('%s %s' % (self.taskID,DN))
+        _logger.info('%s %s' % (self.taskID,DN))
         # ignore AC issuer
         if re.search('WARNING: Unable to verify signature!',DN) != None:
             status = 0
@@ -723,7 +729,7 @@ class TaskAssigner:
             for tmpDS,tmpClouds in dsCloudMap.iteritems():
                 # get running subscriptions
                 runningSub[tmpDS] = []
-                _logger.debug('%s listSubscriptions(%s)' % (self.taskID,tmpDS))
+                _logger.info('%s listSubscriptions(%s)' % (self.taskID,tmpDS))
                 iTry = 0
                 while True:
                     status,outLoc = ddm.DQ2.listSubscriptions(tmpDS)
@@ -737,7 +743,7 @@ class TaskAssigner:
                     else:
                         _logger.error('%s %s' % (self.taskID,outLoc))
                         return False
-                _logger.debug('%s %s %s' % (self.taskID,status,outLoc))                
+                _logger.info('%s %s %s' % (self.taskID,status,outLoc))                
                 time.sleep(1)
                 # get subscription metadata
                 exec "outLoc = %s" % outLoc
@@ -751,7 +757,7 @@ class TaskAssigner:
                     # skip non-T1
                     if not t1Flag:
                         continue
-                    _logger.debug('%s listSubscriptionInfo(%s,%s)' % (self.taskID,tmpDS,tmpLocation))
+                    _logger.info('%s listSubscriptionInfo(%s,%s)' % (self.taskID,tmpDS,tmpLocation))
                     iTry = 0
                     while True:
                         status,outMeta = ddm.DQ2.listSubscriptionInfo(tmpDS,tmpLocation,0)
@@ -760,7 +766,7 @@ class TaskAssigner:
                             break
                         # skip non-existing ID
                         if re.search('not a Tiers of Atlas Destination',outMeta) != None:
-                            _logger.debug('%s ignore %s' % (self.taskID,outMeta.split('\n')[-1]))
+                            _logger.info('%s ignore %s' % (self.taskID,outMeta.split('\n')[-1]))
                             status = 0
                             outMeta = "()"
                             break
@@ -771,7 +777,7 @@ class TaskAssigner:
                         else:
                             _logger.error('%s %s' % (self.taskID,outMeta))
                             return False
-                    _logger.debug('%s %s %s' % (self.taskID,status,outMeta))
+                    _logger.info('%s %s %s' % (self.taskID,status,outMeta))
                     time.sleep(1)                
                     # look for DN in metadata
                     exec "outMeta = %s" % outMeta
@@ -784,13 +790,13 @@ class TaskAssigner:
                                 if not tmpCloudName in runningSub[tmpDS]:
                                     runningSub[tmpDS].append(tmpCloudName)
                                 break
-            _logger.debug('%s runningSub=%s' % (self.taskID,runningSub))
+            _logger.info('%s runningSub=%s' % (self.taskID,runningSub))
             # doesn't make subscriptions when another subscriptions is in process
             subThr = 1
             for tmpDS,tmpClouds in runningSub.iteritems():
                 if len(tmpClouds) > 0:
                     message = '%s subscription:%s to %s in process' % (self.taskID,tmpDS,str(tmpClouds))
-                    _logger.debug(message)
+                    _logger.info(message)
                     self.sendMesg(message)
                     return False
         # get size of datasets
@@ -819,9 +825,9 @@ class TaskAssigner:
                 except:
                     pass
             # GB
-            _logger.debug('%s %s %sB' % (self.taskID,tmpDS,dsSizeMap[tmpDS]))
+            _logger.info('%s %s %sB' % (self.taskID,tmpDS,dsSizeMap[tmpDS]))
             dsSizeMap[tmpDS] /= (1024*1024*1024)
-        _logger.debug('%s dsSize=%s' % (self.taskID,dsSizeMap))
+        _logger.info('%s dsSize=%s' % (self.taskID,dsSizeMap))
         # check space and RW
         minRW    = None
         minCloud = None
@@ -844,23 +850,23 @@ class TaskAssigner:
             if aveSpace < thr_space_low:
                 message = '%s    %s skip : space==%s total==%s' % (self.taskID,tmpCloudName,aveSpace,
                                                                    tmpT1Site.space)
-                _logger.debug(message)
+                _logger.info(message)
                 self.sendMesg(message,msgType='warning')                
                 continue
-            _logger.debug('%s    %s pass : space==%s total==%s' % (self.taskID,tmpCloudName,aveSpace,
+            _logger.info('%s    %s pass : space==%s total==%s' % (self.taskID,tmpCloudName,aveSpace,
                                                                    tmpT1Site.space))
             # get cloud spec
             tmpCloudSpec = self.siteMapper.getCloud(tmpCloudName)
             # check MC share
             if tmpCloudSpec['mcshare'] == 0:
                 message = '%s    %s skip : mcshare==%s' % (self.taskID,tmpCloudName,tmpCloudSpec['mcshare'])
-                _logger.debug(message)
+                _logger.info(message)
                 continue
             # get minimum RW
             if not RWs.has_key(tmpCloudName):
                 RWs[tmpCloudName] = 0
             tmpRwThr = tmpCloudSpec['mcshare']*thr_RW_sub    
-            _logger.debug('%s    %s RW==%s Thr==%s' % (self.taskID,tmpCloudName,RWs[tmpCloudName],
+            _logger.info('%s    %s RW==%s Thr==%s' % (self.taskID,tmpCloudName,RWs[tmpCloudName],
                                                        tmpRwThr))
             tmpRwRatio = float(RWs[tmpCloudName])/float(tmpRwThr)
             if minRW == None or minRW > tmpRwRatio:
@@ -869,7 +875,7 @@ class TaskAssigner:
         # check RW
         if minCloud == None:
             message = '%s no candidates left for subscription' % self.taskID
-            _logger.debug(message)
+            _logger.info(message)
             self.sendMesg(message)
             return False
         # get cloud spec
@@ -878,11 +884,11 @@ class TaskAssigner:
         if minRW > 1.0 and not noEmptyCheck:
             message = '%s no empty cloud : %s minRW==%s>%s' % \
                       (self.taskID,minCloud,RWs[minCloud],thr_RW_sub*tmpCloudSpec['mcshare'])
-            _logger.debug(message)
+            _logger.info(message)
             self.sendMesg(message)
             return False
         message = '%s %s for subscription : minRW==%s' % (self.taskID,minCloud,minRW)
-        _logger.debug(message)
+        _logger.info(message)
         self.sendMesg(message)
         # get cloud spec for subscription
         tmpCloudSpec = self.siteMapper.getCloud(minCloud)
@@ -891,50 +897,60 @@ class TaskAssigner:
         # dest DQ2 ID
         dq2ID = tmpT1Site.ddm
         # make subscription
-        for tmpDS,tmpClouds in dsCloudMap.iteritems():
+        for tmpDsName,tmpClouds in dsCloudMap.iteritems():
             # skip if the dataset already exists in the cloud
             if not minCloud in tmpClouds:
-                _logger.debug('%s %s already exists in %s' % (self.taskID,tmpDS,minCloud))
+                _logger.info('%s %s already exists in %s' % (self.taskID,tmpDS,minCloud))
                 continue
-            # register subscription
-            optSrcPolicy = 001000 | 010000
-            _logger.debug("%s %s %s" % ('registerDatasetSubscription',(tmpDS,dq2ID),
-                                        {'version':0,'archived':0,'callbacks':{},'sources':{},
-                                         'sources_policy':optSrcPolicy,'wait_for_sources':0,
-                                         'destination':None,'query_more_sources':0,'sshare':"production",
-                                         'group':None,'activity':None,'acl_alias':'secondary'}))
-            iTry = 0
-            while True:
-                # execute
-                status,out = ddm.DQ2.main('registerDatasetSubscription',tmpDS,dq2ID,version=0,archived=0,callbacks={},
-                                          sources={},sources_policy=optSrcPolicy,wait_for_sources=0,destination=None,
-                                          query_more_sources=0,sshare="production",group=None,activity=None,
-                                          acl_alias='secondary')
-                # succeed
-                if status == 0 or 'DQSubscriptionExistsException' in out:
-                    break
-                # failed
-                iTry += 1
-                if iTry < nDDMtry:
-                    time.sleep(30)
-                else:
-                    _logger.error('%s %s %s' % (self.taskID,status,out))
-                    return False
-            if 'DQSubscriptionExistsException' in out:    
-                _logger.debug('%s %s %s' % (self.taskID,status,'DQSubscriptionExistsException'))
+            # get constituents
+            if tmpDsName.endswith('/'):
+                tmpStat,repMap = self.getListDatasetReplicasInContainer(tmpDsName)
+                if not tmpStat:
+                    _logger.info('%s failed to get datasets in %s ' % (self.taskID,tmpDsName))
+                    continue
             else:
-                _logger.debug('%s %s %s' % (self.taskID,status,out))                
-            message = '%s registered %s %s:%s' % (self.taskID,tmpDS,minCloud,dq2ID)
-            _logger.debug(message)
-            self.sendMesg(message)
-            time.sleep(1)
+                repMap = {tmpDsName:{dq2ID:[]}}
+            # loop over all constituents
+            for tmpDS in repMap.keys():
+                # register subscription
+                optSrcPolicy = 001000 | 010000
+                _logger.debug("%s %s %s" % ('registerDatasetSubscription',(tmpDS,dq2ID),
+                                            {'version':0,'archived':0,'callbacks':{},'sources':{},
+                                             'sources_policy':optSrcPolicy,'wait_for_sources':0,
+                                             'destination':None,'query_more_sources':0,'sshare':"production",
+                                             'group':None,'activity':None,'acl_alias':'secondary'}))
+                iTry = 0
+                while True:
+                    # execute
+                    status,out = ddm.DQ2.main('registerDatasetSubscription',tmpDS,dq2ID,version=0,archived=0,callbacks={},
+                                              sources={},sources_policy=optSrcPolicy,wait_for_sources=0,destination=None,
+                                              query_more_sources=0,sshare="production",group=None,activity=None,
+                                              acl_alias='secondary')
+                    # succeed
+                    if status == 0 or 'DQSubscriptionExistsException' in out:
+                        break
+                    # failed
+                    iTry += 1
+                    if iTry < nDDMtry:
+                        time.sleep(30)
+                    else:
+                        _logger.error('%s %s %s' % (self.taskID,status,out))
+                        return False
+                if 'DQSubscriptionExistsException' in out:    
+                    _logger.info('%s %s %s' % (self.taskID,status,'DQSubscriptionExistsException'))
+                else:
+                    _logger.info('%s %s %s' % (self.taskID,status,out))                
+                message = '%s registered subscription %s %s:%s' % (self.taskID,tmpDS,minCloud,dq2ID)
+                _logger.info(message)
+                self.sendMesg(message)
+                time.sleep(1)
         # completed
         return True
 
 
     # pin dataset
     def pinDataset(self,locationMap,siteList,cloudName):
-        _logger.debug('%s start pin input datasets' % self.taskID)
+        _logger.info('%s start pin input datasets' % self.taskID)
         pinLifeTime = 7        
         # loop over all datasets
         for tmpDsName,tmpDQ2Map in locationMap.iteritems():
@@ -953,29 +969,39 @@ class TaskAssigner:
                 if tmpDq2Map.has_key(tmpSiteName):
                     # loop over all DQ2 IDs
                     for tmpRepSite in tmpDq2Map[tmpSiteName]:
-                        # get metadata
-                        status,tmpMetadata = self.getReplicaMetadata(tmpDsName,tmpRepSite)
-                        if not status:
-                            continue
-                        # check metadata
-                        metaOK = self.checkMetadata(tmpDsName,tmpRepSite)
-                        if not metaOK:
-                            _logger.debug('%s skip pin %s:%s due to bad metadata' % (self.taskID,tmpDsName,tmpRepSite))
-                            continue
-                        # check pin lifetime                            
-                        if tmpMetadata.has_key('pin_expirationdate'):
-                            if isinstance(tmpMetadata['pin_expirationdate'],types.StringType) and tmpMetadata['pin_expirationdate'] != 'None':
-                                # keep original pin lifetime if it is longer 
-                                origPinLifetime = datetime.datetime.strptime(tmpMetadata['pin_expirationdate'],'%Y-%m-%d %H:%M:%S')
-                                if origPinLifetime > datetime.datetime.utcnow()+datetime.timedelta(days=pinLifeTime):
-                                    _logger.debug('%s skip pinning for %s:%s due to longer lifetime %s' % (self.taskID,
-                                                                                                           tmpDsName,tmpRepSite,
-                                                                                                           tmpMetadata['pin_expirationdate']))
-                                    continue
-                        # set pin lifetime
-                        status = self.setReplicaMetadata(tmpDsName,tmpRepSite,'pin_lifetime','%s days' % pinLifeTime)
+                        # get constituents
+                        if tmpDsName.endswith('/'):
+                            tmpStat,repMap = self.getListDatasetReplicasInContainer(tmpDsName)
+                            if not tmpStat:
+                                _logger.info('%s failed to get datasets in %s ' % (self.taskID,tmpDsName))
+                                continue
+                        else:
+                            repMap = {tmpDsName:{tmpRepSite:[]}}
+                        # loop over all datasets
+                        for datasetName,locVal in repMap.iteritems():
+                            # check missing
+                            if not repMap[datasetName].has_key(tmpRepSite):
+                                _logger.info('%s skip pinning for %s at %s due to missing replica' % \
+                                              (self.taskID,datasetName,tmpRepSite))
+                                continue
+                            # get metadata
+                            status,tmpMetadata = self.getReplicaMetadata(datasetName,tmpRepSite)
+                            if not status:
+                                continue
+                            # check pin lifetime                            
+                            if tmpMetadata.has_key('pin_expirationdate'):
+                                if isinstance(tmpMetadata['pin_expirationdate'],types.StringType) and tmpMetadata['pin_expirationdate'] != 'None':
+                                    # keep original pin lifetime if it is longer 
+                                    origPinLifetime = datetime.datetime.strptime(tmpMetadata['pin_expirationdate'],'%Y-%m-%d %H:%M:%S')
+                                    if origPinLifetime > datetime.datetime.utcnow()+datetime.timedelta(days=pinLifeTime):
+                                        _logger.info('%s skip pinning for %s:%s due to longer lifetime %s' % (self.taskID,
+                                                                                                               datasetName,tmpRepSite,
+                                                                                                               tmpMetadata['pin_expirationdate']))
+                                        continue
+                            # set pin lifetime
+                            status = self.setReplicaMetadata(datasetName,tmpRepSite,'pin_lifetime','%s days' % pinLifeTime)
         # return                
-        _logger.debug('%s end pin input datasets' % self.taskID)
+        _logger.info('%s end pin input datasets' % self.taskID)
         return
 
 
@@ -1016,20 +1042,40 @@ class TaskAssigner:
 
 
     # check metadata
-    def checkMetadata(self,dataset,tmpSE):
-        # skip checking for DBR
-        if DataServiceUtils.isDBR(dataset):
-            return True
-        # get metadata
-        status,metaItem = self.getReplicaMetadata(dataset,tmpSE)
-        if not status:
-            raise RuntimeError, 'failed to get metadata at %s for %s' % (tmpSE,dataset)
-        # check     
-        if metaItem.has_key('archived') and isinstance(metaItem['archived'],types.StringType) \
-               and metaItem['archived'].lower() in ['tobedeleted',]:
-            _logger.debug('%s skip %s due to ToBeDeleted' % (self.taskID,tmpSE))
-            # NG
-            return False
+    def checkMetadata(self,datasetName,tmpSE):
+        try:
+            # skip checking for DBR
+            if DataServiceUtils.isDBR(datasetName):
+                return True
+            # get constituents
+            if datasetName.endswith('/'):
+                tmpStat,repMap = self.getListDatasetReplicasInContainer(datasetName)
+                if not tmpStat:
+                    raise RuntimeError, 'failed to get datasets in %s when checkMetadata' % datasetName
+            else:
+                repMap = {datasetName:{tmpSE:[]}}
+            # loop over all datasets
+            for dataset,locVal in repMap.iteritems():
+                # check missing
+                if not locVal.has_key(tmpSE):
+                    _logger.info('%s skip %s at %s due to missing replica when checkMetadata' % (self.taskID,dataset,tmpSE))
+                    # NG
+                    return False
+                # get metadata
+                status,metaItem = self.getReplicaMetadata(dataset,tmpSE)
+                if not status:
+                    raise RuntimeError, 'failed to get metadata at %s for %s when checkMetadata' % (tmpSE,dataset)
+                # check     
+                if metaItem.has_key('archived') and isinstance(metaItem['archived'],types.StringType) \
+                       and metaItem['archived'].lower() in ['tobedeleted',]:
+                    _logger.info('%s skip %s due to ToBeDeleted when checkMetadata' % (self.taskID,tmpSE))
+                    # NG
+                    return False
+        except:
+            errtype,errvalue = sys.exc_info()[:2]
+            _logger.error("%s checkMetadata : %s %s" % (self.taskID,errtype,errvalue))
+            # FIXME
+            #return False
         # OK
         return True
 
@@ -1052,8 +1098,57 @@ class TaskAssigner:
             _logger.error("%s %s" % (self.taskID,out))
             return resForFailure
         # return
-        _logger.debug('%s setReplicaMetadata done' % self.taskID)
+        _logger.info('%s setReplicaMetadata done for %s:%s' % (self.taskID,datasetName,locationName))
         return True
+
+
+    # get list of replicas in container 
+    def getListDatasetReplicasInContainer(self,container):
+        # use cache
+        if self.contDsMap.has_key(container):
+            return True,self.contDsMap[container]
+        # get datasets in container
+        _logger.debug((self.taskID,'listDatasetsInContainer',container))
+        for iDDMTry in range(3):
+            status,out = ddm.DQ2.main('listDatasetsInContainer',container)
+            if status != 0 or (not DataServiceUtils.isDQ2ok(out)):
+                time.sleep(60)
+            else:
+                break
+        _logger.debug('%s %s' % (self.taskID,out))
+        if status != 0 or out.startswith('Error'):
+            return False,out
+        datasets = []
+        try:
+            # convert to list
+            exec "datasets = %s" % out
+        except:
+            return False,out
+        # loop over all datasets
+        allRepMap = {}
+        for dataset in datasets:
+            _logger.debug((self.taskID,'listDatasetReplicas',dataset))
+            for iDDMTry in range(3):
+                status,out = ddm.DQ2.main('listDatasetReplicas',dataset,0,None,False)
+                if status != 0 or (not DataServiceUtils.isDQ2ok(out)):
+                    time.sleep(60)
+                else:
+                    break
+            _logger.debug('%s %s' % (self.taskID,out))                
+            if status != 0 or out.startswith('Error'):
+                return False,out
+            tmpRepSites = {}
+            try:
+                # convert res to map
+                exec "tmpRepSites = %s" % out
+            except:
+                return False,out
+            # get map
+            allRepMap[dataset] = tmpRepSites
+        # return
+        _logger.debug('%s %s' % (self.taskID,str(allRepMap)))
+        self.contDsMap[container] = allRepMap
+        return True,allRepMap
 
 
     
