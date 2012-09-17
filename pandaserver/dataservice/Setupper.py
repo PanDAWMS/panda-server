@@ -1564,7 +1564,8 @@ class Setupper (threading.Thread):
                     if oJob.PandaID == job.PandaID:
                         jobsWaiting.append(oJob)
                         break
-                # get missing datasets
+            # get missing datasets
+            if missingFlag:    
                 if job.processingType.startswith('gangarobot') or \
                        job.processingType.startswith('hammercloud'):
                     pass
