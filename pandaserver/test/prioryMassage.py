@@ -24,7 +24,7 @@ for table in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsArchived4']:
 	varMap = {}
 	varMap[':prodSourceLabel'] = 'user'
 	if table == 'ATLAS_PANDA.jobsActive4':
-		sql = "SELECT */ COUNT(*),prodUserName,jobStatus,workingGroup,computingSite FROM %s WHERE prodSourceLabel=:prodSourceLabel GROUP BY prodUserName,jobStatus,workingGroup,computingSite" % table
+		sql = "SELECT COUNT(*),prodUserName,jobStatus,workingGroup,computingSite FROM %s WHERE prodSourceLabel=:prodSourceLabel GROUP BY prodUserName,jobStatus,workingGroup,computingSite" % table
 	else:
 		# with time range for archived table
 		varMap[':modificationTime'] = datetime.datetime.utcnow() - datetime.timedelta(minutes=60)
