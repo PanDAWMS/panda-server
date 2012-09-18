@@ -6751,14 +6751,25 @@ class DBProxy:
 
 
     # get highest prio jobs per process group
-    def getHighestPrioJobStatPerPG(self):
+    def getHighestPrioJobStatPerPG(self,useMorePG=False):
         comment = ' /* DBProxy.getHighestPrioJobStatPerPG */'        
         _logger.debug("getHighestPrioJobStatPerPG()")
-        sql0  = "SELECT cloud,max(currentPriority),processingType FROM %s WHERE "
-        sql0 += "prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) GROUP BY cloud,processingType"
-        sqlC  = "SELECT COUNT(*) FROM %s WHERE "
-        sqlC += "prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) AND "
-        sqlC += "cloud=:cloud AND currentPriority=:currentPriority AND processingType=:processingType"
+        if not useMorePG:
+            sql0  = "SELECT cloud,max(currentPriority),processingType FROM %s WHERE "
+            sql0 += "prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) GROUP BY cloud,processingType"
+            sqlC  = "SELECT COUNT(*) FROM %s WHERE "
+            sqlC += "prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) AND "
+            sqlC += "cloud=:cloud AND currentPriority=:currentPriority AND processingType=:processingType"
+        else:
+            sql0  = "SELECT cloud,max(currentPriority),processingType,coreCount FROM %s WHERE "
+            sql0 += "prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) GROUP BY cloud,processingType,coreCount"
+            sqlC  = "SELECT COUNT(*) FROM %s WHERE "
+            sqlC += "prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) AND "
+            sqlC += "cloud=:cloud AND currentPriority=:currentPriority AND processingType=:processingType AND coreCount=:coreCount"
+            sqlCN  = "SELECT COUNT(*) FROM %s WHERE "
+            sqlCN += "prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) AND "
+            sqlCN += "cloud=:cloud AND currentPriority=:currentPriority AND processingType=:processingType AND coreCount IS NULL"
+            
         tables = ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4']
         ret = {}
         try:
@@ -6782,7 +6793,13 @@ class DBProxy:
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
                 # create map
-                for cloud,maxPriority,processingType in res:
+                for tmpItem in res:
+                    if not useMorePG:
+                        cloud,maxPriority,processingType = tmpItem
+                    else:
+                        cloud,maxPriority,processingType,coreCount = tmpItem
+                        # convert cloud and processingType for extended process group
+                        cloud,processingType = ProcessGroups.converCPTforEPG(cloud,processingType,coreCount)
                     # add cloud
                     if not ret.has_key(cloud):
                         ret[cloud] = {}
@@ -6813,6 +6830,8 @@ class DBProxy:
                         varMap[':cloud'] = cloud
                         varMap[':currentPriority'] = maxPriority
                         varMap[':processingType'] = processingType
+                        if useMorePG and coreCount != None:
+                            varMap[':coreCount'] = coreCount
                         self.cur.arraysize = 10
                         _logger.debug((sqlC+comment) % table+str(varMap))
                         self.cur.execute((sqlC+comment) % table, varMap)
@@ -7110,14 +7129,20 @@ class DBProxy:
 
 
     # get job statistics per processingType
-    def getJobStatisticsPerProcessingType(self):
+    def getJobStatisticsPerProcessingType(self,useMorePG=False):
         comment = ' /* DBProxy.getJobStatisticsPerProcessingType */'                
         timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
         _logger.debug("getJobStatisticsPerProcessingType()")
-        sqlN  = "SELECT jobStatus,COUNT(*),cloud,processingType FROM %s "
-        sqlN += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) GROUP BY jobStatus,cloud,processingType"
-        sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*),cloud,processingType FROM %s tab "
-        sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND modificationTime>:modificationTime GROUP BY jobStatus,cloud,processingType"
+        if not useMorePG:
+            sqlN  = "SELECT jobStatus,COUNT(*),cloud,processingType FROM %s "
+            sqlN += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) GROUP BY jobStatus,cloud,processingType"
+            sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*),cloud,processingType FROM %s tab "
+            sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND modificationTime>:modificationTime GROUP BY jobStatus,cloud,processingType"
+        else:
+            sqlN  = "SELECT jobStatus,COUNT(*),cloud,processingType,coreCount FROM %s "
+            sqlN += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) GROUP BY jobStatus,cloud,processingType,coreCount"
+            sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*),cloud,processingType,coreCount FROM %s tab "
+            sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND modificationTime>:modificationTime GROUP BY jobStatus,cloud,processingType,coreCount"
         # sql for materialized view
         sqlMV = re.sub('COUNT\(\*\)','SUM(num_of_jobs)',sqlN)
         sqlMV = re.sub('SELECT ','SELECT /*+ RESULT_CACHE */ ',sqlMV)
@@ -7136,7 +7161,7 @@ class DBProxy:
                     varMap[':modificationTime'] = timeLimit
                     self.cur.execute((sqlA+comment) % table, varMap)
                 else:
-                    if table == 'ATLAS_PANDA.jobsActive4': 
+                    if table == 'ATLAS_PANDA.jobsActive4' and not useMorePG: 
                         self.cur.execute((sqlMV+comment) % 'ATLAS_PANDA.MV_JOBSACTIVE4_STATS', varMap)
                     else:
                         self.cur.execute((sqlN+comment) % table, varMap)                        
@@ -7145,16 +7170,23 @@ class DBProxy:
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
                 # create map
-                for jobStatus,count,cloud,processingType in res:
+                for tmpItem in res:
+                    if not useMorePG:
+                        jobStatus,count,cloud,processingType = tmpItem
+                    else:
+                        jobStatus,count,cloud,processingType,coreCount = tmpItem
+                        # convert cloud and processingType for extended process group
+                        cloud,processingType = ProcessGroups.converCPTforEPG(cloud,processingType,coreCount)
                     # add cloud
                     if not ret.has_key(cloud):
                         ret[cloud] = {}
                     # add processingType
                     if not ret[cloud].has_key(processingType):
                         ret[cloud][processingType] = {}
-                    # this is needed for auto_increment of InnoDB
+                    # add status
                     if not ret[cloud][processingType].has_key(jobStatus):
-                        ret[cloud][processingType][jobStatus] = count
+                        ret[cloud][processingType][jobStatus] = 0
+                    ret[cloud][processingType][jobStatus] += count
             # return
             _logger.debug("getJobStatisticsPerProcessingType -> %s" % str(ret))
             return ret
@@ -7717,6 +7749,14 @@ class DBProxy:
                 # get prefix
                 tmpPrefix = re.sub('_DATADISK','',tier2)
                 reliabilityMap[tmpPrefix] = t2group
+            # get CVMFS availability
+            sqlCVMFS  = "SELECT distinct siteid FROM ATLAS_PANDAMETA.installedSW WHERE release=:release"
+            self.cur.execute(sqlCVMFS,{':release':'CVMFS'})
+            tmpList = self.cur.fetchall()
+            cvmfsSites = []
+            for tmpItem, in tmpList:
+                if not tmpItem in cvmfsSites:
+                    cvmfsSites.append(tmpItem)
             # select
             sql = "SELECT nickname,dq2url,cloud,ddm,lfchost,se,gatekeeper,releases,memory,"
             sql+= "maxtime,status,space,retry,cmtconfig,setokens,seprodpath,glexec,"
@@ -7872,6 +7912,11 @@ class DBProxy:
                         ret.allowdirectaccess = True
                     else:
                         ret.allowdirectaccess = False
+                    # CVMFS
+                    if siteid in cvmfsSites:
+                        ret.iscvmfs = True
+                    else:
+                        ret.iscvmfs = False
                     # append
                     retList[ret.nickname] = ret
             _logger.debug("getSiteInfo done")
@@ -8812,7 +8857,7 @@ class DBProxy:
             _logger.error("getCachePrefixes : %s %s" % (type,value))
             return []
 
-        
+
     # get pilot owners
     def getPilotOwners(self):
         comment = ' /* DBProxy.getPilotOwners */'        

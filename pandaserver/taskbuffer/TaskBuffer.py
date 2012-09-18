@@ -1663,14 +1663,14 @@ class TaskBuffer:
 
     
     # get highest prio jobs
-    def getHighestPrioJobStat(self,perPG=False):
+    def getHighestPrioJobStat(self,perPG=False,useMorePG=False):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get stat
         if not perPG:
             ret = proxy.getHighestPrioJobStat()
         else:
-            ret = proxy.getHighestPrioJobStatPerPG()
+            ret = proxy.getHighestPrioJobStatPerPG(useMorePG)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -1702,11 +1702,11 @@ class TaskBuffer:
 
 
     # get job statistics for Bamboo
-    def getJobStatisticsForBamboo(self):
+    def getJobStatisticsForBamboo(self,useMorePG=False):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get serial number
-        ret = proxy.getJobStatisticsPerProcessingType()
+        ret = proxy.getJobStatisticsPerProcessingType(useMorePG)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

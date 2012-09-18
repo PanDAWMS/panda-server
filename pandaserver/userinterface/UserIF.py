@@ -332,9 +332,9 @@ class UserIF:
 
 
     # get highest prio jobs
-    def getHighestPrioJobStat(self,perPG=False):
+    def getHighestPrioJobStat(self,perPG=False,useMorePG=False):
         # get job statistics
-        ret = self.taskBuffer.getHighestPrioJobStat(perPG)
+        ret = self.taskBuffer.getHighestPrioJobStat(perPG,useMorePG)
         # serialize 
         return pickle.dumps(ret)
 
@@ -348,9 +348,9 @@ class UserIF:
 
 
     # get job statistics for Bamboo
-    def getJobStatisticsForBamboo(self):
+    def getJobStatisticsForBamboo(self,useMorePG=False):
         # get job statistics
-        ret = self.taskBuffer.getJobStatisticsForBamboo()
+        ret = self.taskBuffer.getJobStatisticsForBamboo(useMorePG)
         # serialize 
         return pickle.dumps(ret)
         
@@ -1063,17 +1063,25 @@ def getJobStatistics(req,sourcetype=None):
 
 
 # get highest prio jobs
-def getHighestPrioJobStat(req,perPG=None):
+def getHighestPrioJobStat(req,perPG=None,useMorePG=None):
     if perPG == 'True':
         perPG = True
     else:
         perPG = False
-    return userIF.getHighestPrioJobStat(perPG)
+    if useMorePG == 'True':
+        useMorePG = True
+    else:
+        useMorePG = False
+    return userIF.getHighestPrioJobStat(perPG,useMorePG)
 
 
 # get job statistics for Babmoo
-def getJobStatisticsForBamboo(req):
-    return userIF.getJobStatisticsForBamboo()
+def getJobStatisticsForBamboo(req,useMorePG=None):
+    if useMorePG == 'True':
+        useMorePG = True
+    else:
+        useMorePG = False
+    return userIF.getJobStatisticsForBamboo(useMorePG)
 
 
 # get the number of waiting jobs per site and user

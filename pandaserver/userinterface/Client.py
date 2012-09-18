@@ -486,7 +486,7 @@ def getJobStatistics(sourcetype=None):
 
 
 # get job statistics for Bamboo
-def getJobStatisticsForBamboo():
+def getJobStatisticsForBamboo(useMorePG=False):
     # instantiate curl
     curl = _Curl()
     # execute
@@ -494,6 +494,8 @@ def getJobStatisticsForBamboo():
     for srvID in getPandas():
         url = _getURL('URL',srvID) + '/getJobStatisticsForBamboo'
         data = {}
+        if useMorePG:
+            data['useMorePG'] = True
         status,output = curl.get(url,data)
         try:
             tmpRet = status,pickle.loads(output)
@@ -525,13 +527,15 @@ def getJobStatisticsForBamboo():
 
 
 # get highest prio jobs
-def getHighestPrioJobStat(perPG=False):
+def getHighestPrioJobStat(perPG=False,useMorePG=False):
     # instantiate curl
     curl = _Curl()
     # execute
     ret = {}
     url = baseURL + '/getHighestPrioJobStat'
     data = {'perPG':perPG}
+    if useMorePG:
+        data['useMorePG'] = True
     status,output = curl.get(url,data)
     try:
         return status,pickle.loads(output)

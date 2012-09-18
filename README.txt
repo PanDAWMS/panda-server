@@ -1,5 +1,9 @@
 Release Note
 
+* current
+  * introduced mcore queue in PG
+  * added iscvmfs to SiteSpec
+
 * 0.0.16 (8/29/2012)
   * changed Setupper to make sub when data is available only at T2
   * changed Setupper to make sub when data is missing at T1 

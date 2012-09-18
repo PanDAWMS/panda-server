@@ -2,6 +2,7 @@ processGroups = [('others',       []),
                  ('evgensimul',   ['evgen','simul']),
                  ('reprocessing', ['reprocessing']),
                  ('test',         ['prod_test','rc_test','validation']),
+                 ('mcore',        ['mcore']),
                  ]
 
 # source labels used for panda internal purpose
@@ -29,6 +30,15 @@ def getProcessGroup(valGroup):
     return tmpGroup
     
 
+# convert cloud and processingType for extended PG
+def converCPTforEPG(cloud,processingType,coreCount):
+    if coreCount in [0,1,None]:
+        return cloud,processingType
+    else:
+        # use MCORE queue for MPC jobs in all clouds
+        return "ALL","mcore"
+
+    
 # count the number of jobs per group
 def countJobsPerGroup(valMap):
     ret = {}
