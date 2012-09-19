@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed brokerage not to overwrite file's destSE for destSE=local
   * introduced mcore queue in PG
   * added iscvmfs to SiteSpec
 
