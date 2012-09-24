@@ -156,7 +156,9 @@ def _setReadyToFiles(tmpJob,okFiles,siteMapper):
                     tmpFile.status = 'ready'
                     tmpFile.dispatchDBlock = 'NULL'                                
             elif (((tmpFile.lfn in okFiles) or (tmpJob.computingSite == tmpJob.destinationSE)) \
-                     and (not tmpJob.computingSite in prestageSites)) or tmpFile.status == 'missing':
+                     and (not tmpJob.computingSite in prestageSites or \
+                          (tmpJob.computingSite in prestageSites and not tmpJob.cloud in ['US']))) \
+                  or tmpFile.status == 'missing':
                 # don't use TAPE replicas when T1 is used as T2
                 if okFiles.has_key(tmpFile.lfn) and \
                        tmpSiteSpec.seprodpath.has_key('ATLASDATATAPE') and len(okFiles[tmpFile.lfn]) == 1 and \
