@@ -64,6 +64,7 @@ def make_server( host ) :
         data_used     = volume_use( 'data' )
 	var_used      = volume_use( 'var' )
 	ave_regtime   = registration_time()
+	ave_regtimeDQ2 = registration_time(onlyDQ2=True) 
 
 	sls_xml = SLSxml.xml_doc()
 	sls_xml.set_id( 'PandaServer_%s' % ( host ) )
@@ -77,6 +78,8 @@ def make_server( host ) :
 			  str( num_holdings ) )
 	sls_xml.add_data( "RegistrationTime", "Average time for DQ2+LFC registration in second",
 			  str( ave_regtime ) )
+	sls_xml.add_data( "RegistrationTimeDQ2", "Average time for DQ2 registration in second",
+			  str( ave_regtimeDQ2 ) )
 	sls_xml.add_data( "DataVolumeUse", "Percent use of the local /data volume",
 		str( data_used ) )
 	sls_xml.add_data( "VarVolumeUse", "Percent use of the local /var volume",
@@ -259,10 +262,13 @@ def count_holdings() :
 		count += 1
 	return count
 
-def registration_time(timeSlice=False) :
+def registration_time(timeSlice=False,onlyDQ2=False) :
 	aveRegTime = '0.0'
 	try:
-		com = "grep 'LFC+DQ2' /data/atlpan/srv/var/log/panda/panda-Adder.log"
+		if onlyDQ2:
+			com = "grep registraion /data/atlpan/srv/var/log/panda/panda-Adder.log | grep DQ2 | grep -v LFC"
+		else:
+			com = "grep 'LFC+DQ2' /data/atlpan/srv/var/log/panda/panda-Adder.log"
 		if not timeSlice:
 			com += ' | tail -1000'
 		output = subprocess.Popen(com,stdout=subprocess.PIPE,shell=True).communicate()[0]
