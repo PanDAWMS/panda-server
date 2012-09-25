@@ -2,4 +2,12 @@
 
 source /etc/profile.d/grid-env.sh
 
-voms-proxy-init -voms atlas:/atlas/Role=production -out /data/atlpan/x509up_u25606 -valid 96:00 -cert=/data/atlpan/x509up_u25606_novoms
+NOVOMS=/data/atlpan/x509up_u25606_novoms
+
+voms-proxy-init -voms atlas:/atlas/Role=production -out /data/atlpan/x509up_u25606 -valid 96:00 -cert=$NOVOMS
+
+# check lifetime of certificate
+grid-proxy-info -e -h 168 -f $NOVOMS
+if [ $? -ne 0 ]; then
+  echo $NOVOMS expires in 1 week on `hostname` | mail -s "WARNING : Grid certificate expires soon on panda server" tmaeno@cern.ch
+fi
