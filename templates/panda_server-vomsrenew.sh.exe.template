@@ -9,5 +9,5 @@ voms-proxy-init -voms atlas:/atlas/Role=production -out /data/atlpan/x509up_u256
 # check lifetime of certificate
 grid-proxy-info -e -h 168 -f $NOVOMS
 if [ $? -ne 0 ]; then
-  echo $NOVOMS expires in 1 week on `hostname` | mail -s "WARNING : Grid certificate expires soon on panda server" tmaeno@cern.ch
+  echo $NOVOMS expires in 1 week on `hostname` | mail -s "WARNING : Grid certificate expires soon on panda server" atlas-adc-panda-support@cern.ch
 fi
