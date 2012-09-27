@@ -7889,7 +7889,15 @@ class DBProxy:
                     tmpTokens = setokens.split(',')
                     for idxToken,tmpddmID in enumerate(ddm.split(',')):
                         if idxToken < len(tmpTokens):
-                            ret.setokens[tmpTokens[idxToken]] = tmpddmID
+                            tmpTokenNameBase = tmpTokens[idxToken]
+                            if not ret.setokens.has_key(tmpTokenNameBase):
+                                tmpTokenName = tmpTokenNameBase
+                            else:
+                                for tmpTokenNameIndex in range(10000):
+                                    tmpTokenName = '%s%s' % (tmpTokenNameBase,tmpTokenNameIndex)
+                                    if not ret.setokens.has_key(tmpTokenName):
+                                        break
+                            ret.setokens[tmpTokenName] = tmpddmID
                     # expand [] in se path
                     match = re.search('([^\[]*)\[([^\]]+)\](.*)',seprodpath)
                     if match != None and len(match.groups()) == 3:
