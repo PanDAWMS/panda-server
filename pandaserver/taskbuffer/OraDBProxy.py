@@ -7910,7 +7910,15 @@ class DBProxy:
                     tmpTokens = setokens.split(',')
                     for idxToken,tmpSePath in enumerate(seprodpath.split(',')):
                         if idxToken < len(tmpTokens):
-                            ret.seprodpath[tmpTokens[idxToken]] = tmpSePath
+                            tmpTokenNameBase = tmpTokens[idxToken]
+                            if not ret.seprodpath.has_key(tmpTokenNameBase):
+                                tmpTokenName = tmpTokenNameBase
+                            else:
+                                for tmpTokenNameIndex in range(10000):
+                                    tmpTokenName = '%s%s' % (tmpTokenNameBase,tmpTokenNameIndex)
+                                    if not ret.seprodpath.has_key(tmpTokenName):
+                                        break
+                            ret.seprodpath[tmpTokenName] = tmpSePath
                     # VO related params
                     ret.priorityoffset = priorityoffset
                     ret.allowedgroups  = allowedgroups
