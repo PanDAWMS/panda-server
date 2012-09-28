@@ -18,8 +18,13 @@ def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=Fa
     # check sites in the cloud
     for tmpSiteName in siteMapper.getCloud(cloudKey)['sites']:
         # skip T1
-        if not includeT1 and tmpSiteName == siteMapper.getCloud(cloudKey)['source']:
-            continue
+        if not includeT1:
+            # T1
+            if tmpSiteName == siteMapper.getCloud(cloudKey)['source']:
+                continue
+            # hospital queue
+            if siteMapper.getSite(tmpSiteName).ddm == siteMapper.getSite(siteMapper.getCloud(cloudKey)['source']).ddm:
+                continue
         # use home cloud
         if useHomeCloud:
             if siteMapper.getSite(tmpSiteName).cloud != cloudKey:

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed Setupper to use correct location when pinning dis at foreign T1
   * fixed sitemapper to allow multiple DQ2 site IDs to use the same token
   * added DQ2 registration time to SLS
   * fixed vomsrenew.sh to check certificate and proxy lifetime

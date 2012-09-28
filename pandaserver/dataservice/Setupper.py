@@ -1465,8 +1465,8 @@ class Setupper (threading.Thread):
                 missLFNs[cloudKey] = []
             missLFNs[cloudKey] += tmpMissLFNs
         _logger.debug('%s correctLFN 7' % self.timestamp)
-        # check availability of missing files at T2
-        for cloudKey,tmpMissLFNs in missLFNs.iteritems():
+        # check availability of files at T2
+        for cloudKey,tmpMissLFNs in allLFNs.iteritems():
             # add cloud
             if not self.availableLFNsInT2.has_key(cloudKey):
                 self.availableLFNsInT2[cloudKey] = {}
@@ -1487,8 +1487,14 @@ class Setupper (threading.Thread):
                     self.availableLFNsInT2[cloudKey][tmpDsName]['allguids'].append(allGUIDs[cloudKey][allLFNs[cloudKey].index(tmpMissLFN)])
             # get available files at each T2
             for tmpDsName in self.availableLFNsInT2[cloudKey].keys():
+                checkedDq2SiteMap = {}
                 for tmpSiteName in self.availableLFNsInT2[cloudKey][tmpDsName]['sites'].keys():
                     tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
+                    # use ap to avoid redundant lookup
+                    if checkedDq2SiteMap.has_key(tmpSiteSpec.ddm):
+                        self.availableLFNsInT2[cloudKey][tmpDsName]['sites'][tmpSiteName] \
+                            = self.availableLFNsInT2[cloudKey][tmpDsName]['sites'][checkedDq2SiteMap[tmpSiteSpec.ddm]]
+                        continue
                     # get SEs
                     tmpSEList = []
                     if tmpSiteSpec.se != None:
@@ -1502,6 +1508,8 @@ class Setupper (threading.Thread):
                                                    'lfc://'+tmpSiteSpec.lfchost+':/grid/atlas/',
                                                    self.availableLFNsInT2[cloudKey][tmpDsName]['allguids'],
                                                    storageName=tmpSEList)
+                    # set map to avoid redundant lookup
+                    checkedDq2SiteMap[tmpSiteSpec.ddm] = tmpSiteName 
         _logger.debug('%s missLFNs %s' % (self.timestamp,missLFNs))
         _logger.debug('%s available at T2s %s' % (self.timestamp,self.availableLFNsInT2))
         # check if files in source LRC/LFC
@@ -1936,6 +1944,12 @@ class Setupper (threading.Thread):
                     break
             # append site
             destDQ2ID = self.siteMapper.getSite(tmpJob.computingSite).ddm
+            # T1 used as T2
+            if tmpJob.cloud != self.siteMapper.getSite(tmpJob.computingSite).cloud and \
+               not destDQ2ID.endswith('PRODDISK'):
+                tmpSeTokens = self.siteMapper.getSite(tmpJob.computingSite).setokens
+                if tmpSeTokens.has_key('ATLASPRODDISK'):
+                    destDQ2ID = tmpSeTokens['ATLASPRODDISK']
             mapKeyJob = (destDQ2ID,logSubDsName)
             # increment the number of jobs per key
             if not nJobsMap.has_key(mapKeyJob):
