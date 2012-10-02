@@ -1114,7 +1114,7 @@ class Setupper (threading.Thread):
         cloudMap = {}
         lfnDsMap = {}
         replicaMap = {}
-        _logger.debug('%s correctLFN 0' % self.timestamp)
+        _logger.debug('%s go into LFN correction' % self.timestamp)
         for job in self.jobs:
             if self.onlyTA:            
                 _logger.debug("%s start TA session %s" % (self.timestamp,job.taskID))
@@ -1181,7 +1181,6 @@ class Setupper (threading.Thread):
                     if not file.dataset in datasets:
                         datasets.append(file.dataset)
             # get LFN list
-            _logger.debug('%s correctLFN 1' % self.timestamp)
             for dataset in datasets:
                 if not dataset in lfnMap.keys():
                     prodError[dataset] = ''
@@ -1281,7 +1280,6 @@ class Setupper (threading.Thread):
                                 self.replicaMapForBroker[dataset] = tmpRepSites
             # error
             isFailed = False
-            _logger.debug('%s correctLFN 2' % self.timestamp)            
             # check for failed
             for dataset in datasets:
                 if missingDS.has_key(dataset):
@@ -1302,7 +1300,6 @@ class Setupper (threading.Thread):
                     else:
                         _logger.debug("%s %s failed with %s" % (self.timestamp,job.PandaID,missingDS[dataset]))
                     break
-            _logger.debug('%s correctLFN 3' % self.timestamp)                
             if isFailed:
                 continue
             # check for waiting
@@ -1315,7 +1312,6 @@ class Setupper (threading.Thread):
                     if self.onlyTA:                            
                         _logger.error("%s %s" % (self.timestamp,prodError[dataset]))
                     break
-            _logger.debug('%s correctLFN 4' % self.timestamp)                
             if isFailed:
                 continue
             # set cloud
@@ -1367,7 +1363,7 @@ class Setupper (threading.Thread):
                 # message for TA
                 if self.onlyTA:            
                     _logger.debug("%s set %s:%s" % (self.timestamp,job.taskID,job.cloud))
-            _logger.debug('%s correctLFN 5' % self.timestamp)                    
+            _logger.debug('%s replacing generic LFNs' % self.timestamp)                    
             # replace generic LFN with real LFN
             replaceList = []
             isFailed = False
@@ -1426,7 +1422,7 @@ class Setupper (threading.Thread):
         if self.onlyTA:
             _logger.debug("%s end TA sessions" % self.timestamp)
             return
-        _logger.debug('%s correctLFN 6' % self.timestamp)        
+        _logger.debug('%s checking missing files at T1' % self.timestamp)        
         # get missing LFNs from source LRC/LFC
         missLFNs = {}
         for cloudKey in allLFNs.keys():
@@ -1464,9 +1460,13 @@ class Setupper (threading.Thread):
             if not missLFNs.has_key(cloudKey):
                 missLFNs[cloudKey] = []
             missLFNs[cloudKey] += tmpMissLFNs
-        _logger.debug('%s correctLFN 7' % self.timestamp)
+        _logger.debug('%s checking T2 LFC' % self.timestamp)
         # check availability of files at T2
         for cloudKey,tmpMissLFNs in allLFNs.iteritems():
+            if len(self.jobs) > 0 and (self.jobs[0].prodSourceLabel in ['user','panda','ddm'] or \
+                                       self.jobs[0].processingType.startswith('gangarobot') or \
+                                       self.jobs[0].processingType.startswith('hammercloud')):
+                continue
             # add cloud
             if not self.availableLFNsInT2.has_key(cloudKey):
                 self.availableLFNsInT2[cloudKey] = {}
@@ -1474,10 +1474,15 @@ class Setupper (threading.Thread):
             for tmpMissLFN in tmpMissLFNs:
                 # add dataset
                 tmpDsName = lfnDsMap[tmpMissLFN]
+                # ignore DBR
+                if tmpDsName.startswith('ddo'):
+                    continue
                 if not self.availableLFNsInT2[cloudKey].has_key(tmpDsName):
-                    self.availableLFNsInT2[cloudKey][tmpDsName] = {'allfiles':[],'allguids':[],'sites':{}}
                     # collect sites
-                    tmpSiteNameDQ2Map = DataServiceUtils.getSitesWithDataset(tmpDsName,self.siteMapper,replicaMap,cloudKey,getDQ2ID=True) 
+                    tmpSiteNameDQ2Map = DataServiceUtils.getSitesWithDataset(tmpDsName,self.siteMapper,replicaMap,cloudKey,getDQ2ID=True)
+                    if tmpSiteNameDQ2Map == {}:
+                        continue
+                    self.availableLFNsInT2[cloudKey][tmpDsName] = {'allfiles':[],'allguids':[],'sites':{}}
                     for tmpSiteName in tmpSiteNameDQ2Map.keys():
                         self.availableLFNsInT2[cloudKey][tmpDsName]['sites'][tmpSiteName] = []
                     self.availableLFNsInT2[cloudKey][tmpDsName]['siteDQ2IDs'] = tmpSiteNameDQ2Map   
@@ -1488,30 +1493,55 @@ class Setupper (threading.Thread):
             # get available files at each T2
             for tmpDsName in self.availableLFNsInT2[cloudKey].keys():
                 checkedDq2SiteMap = {}
+                checkLfcSeMap = {}
                 for tmpSiteName in self.availableLFNsInT2[cloudKey][tmpDsName]['sites'].keys():
                     tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
-                    # use ap to avoid redundant lookup
-                    if checkedDq2SiteMap.has_key(tmpSiteSpec.ddm):
-                        self.availableLFNsInT2[cloudKey][tmpDsName]['sites'][tmpSiteName] \
-                            = self.availableLFNsInT2[cloudKey][tmpDsName]['sites'][checkedDq2SiteMap[tmpSiteSpec.ddm]]
-                        continue
-                    # get SEs
-                    tmpSEList = []
+                    # add LFC
+                    if not checkLfcSeMap.has_key(tmpSiteSpec.lfchost):
+                        checkLfcSeMap[tmpSiteSpec.lfchost] = {}
+                    # add site
+                    if not checkLfcSeMap[tmpSiteSpec.lfchost].has_key(tmpSiteName):
+                        checkLfcSeMap[tmpSiteSpec.lfchost][tmpSiteName] = []
+                    # add SE        
                     if tmpSiteSpec.se != None:
                         for tmpSrcSiteSE in tmpSiteSpec.se.split(','):
                             match = re.search('.+://([^:/]+):*\d*/*',tmpSrcSiteSE)
                             if match != None:
-                                tmpSEList.append(match.group(1))
-                    # get available file list    
-                    self.availableLFNsInT2[cloudKey][tmpDsName]['sites'][tmpSiteName] = \
-                                                   brokerage.broker_util.getFilesFromLRC(self.availableLFNsInT2[cloudKey][tmpDsName]['allfiles'],
-                                                   'lfc://'+tmpSiteSpec.lfchost+':/grid/atlas/',
-                                                   self.availableLFNsInT2[cloudKey][tmpDsName]['allguids'],
-                                                   storageName=tmpSEList)
-                    # set map to avoid redundant lookup
-                    checkedDq2SiteMap[tmpSiteSpec.ddm] = tmpSiteName 
-        _logger.debug('%s missLFNs %s' % (self.timestamp,missLFNs))
-        _logger.debug('%s available at T2s %s' % (self.timestamp,self.availableLFNsInT2))
+                                checkLfcSeMap[tmpSiteSpec.lfchost][tmpSiteName].append(match.group(1))
+                # LFC lookup
+                for tmpLfcHost in checkLfcSeMap.keys():  
+                    # get SEs
+                    tmpSEList = []
+                    for tmpSiteName in checkLfcSeMap[tmpLfcHost].keys():
+                        tmpSEList += checkLfcSeMap[tmpLfcHost][tmpSiteName]
+                    # get available file list
+                    _logger.debug('%s checking T2 LFC=%s for %s' % (self.timestamp,tmpLfcHost,tmpSEList))
+                    bulkAvFiles = brokerage.broker_util.getFilesFromLRC(self.availableLFNsInT2[cloudKey][tmpDsName]['allfiles'],
+                                                                        'lfc://'+tmpLfcHost+':/grid/atlas/',
+                                                                        self.availableLFNsInT2[cloudKey][tmpDsName]['allguids'],
+                                                                        storageName=tmpSEList,getPFN=True)
+                    # check each site
+                    for tmpSiteName in checkLfcSeMap[tmpLfcHost].keys():
+                        self.availableLFNsInT2[cloudKey][tmpDsName]['sites'][tmpSiteName] = []                        
+                        for tmpLFNck,tmpPFNlistck in bulkAvFiles.iteritems():
+                            siteHasFileFlag = False
+                            for tmpPFNck in tmpPFNlistck:
+                                # check se
+                                for tmpSE in checkLfcSeMap[tmpLfcHost][tmpSiteName]:
+                                    if '://'+tmpSE in tmpPFNck:
+                                        siteHasFileFlag = True
+                                        break
+                                # escape
+                                if siteHasFileFlag:
+                                    break
+                            # append
+                            if siteHasFileFlag:
+                                self.availableLFNsInT2[cloudKey][tmpDsName]['sites'][tmpSiteName].append(tmpLFNck)
+                        _logger.debug('%s available %s files at %s T2=%s for %s' % \
+                                      (self.timestamp,
+                                       len(self.availableLFNsInT2[cloudKey][tmpDsName]['sites'][tmpSiteName]),
+                                       cloudKey,tmpSiteName,tmpDsName))
+        _logger.debug('%s missLFNs at T1 %s' % (self.timestamp,missLFNs))
         # check if files in source LRC/LFC
         tmpJobList = tuple(jobsProcessed)
         for job in tmpJobList:

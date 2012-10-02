@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed Setupper to scan T2 LFC per LFC host instead of per SE
   * fixed Setupper to use correct location when pinning dis at foreign T1
   * fixed sitemapper to allow multiple DQ2 site IDs to use the same token
   * added DQ2 registration time to SLS
