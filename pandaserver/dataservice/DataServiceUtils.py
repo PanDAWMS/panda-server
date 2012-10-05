@@ -48,6 +48,7 @@ def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=Fa
                    '_LOCALGROUPDISK' in tmpDQ2ID or \
                    'TAPE'            in tmpDQ2ID or \
                    '_DAQ'            in tmpDQ2ID or \
+                   '_TMPDISK'        in tmpDQ2ID or \
                    '_TZERO'          in tmpDQ2ID:
                 continue
             # check DQ2 prefix

@@ -877,7 +877,7 @@ class Setupper (threading.Thread):
                                 if job.cloud in ['CERN','US'] and self.replicaMap.has_key(job.dispatchDBlock):
                                     setNewIDflag = False
                                     if job.cloud == 'CERN':
-                                        otherIDs = ['CERN-PROD_DAQ','CERN-PROD_TZERO']
+                                        otherIDs = ['CERN-PROD_DAQ','CERN-PROD_TZERO','CERN-PROD_TMPDISK']
                                     else:
                                         otherIDs = ['BNLPANDA']
                                     for tmpDataset,tmpRepMap in self.replicaMap[job.dispatchDBlock].iteritems():

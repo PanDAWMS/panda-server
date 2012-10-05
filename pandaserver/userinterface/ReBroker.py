@@ -192,7 +192,7 @@ class ReBroker (threading.Thread):
                 for tmpDS,tmpRepMap in tmpRepMaps.iteritems():
                     for tmpSite,tmpStat in tmpRepMap.iteritems():
                         # ignore special sites
-                        if tmpSite in ['CERN-PROD_TZERO','CERN-PROD_DAQ']:
+                        if tmpSite in ['CERN-PROD_TZERO','CERN-PROD_DAQ','CERN-PROD_TMPDISK']:
                             continue
                         # ignore tape sites
                         if tmpSite.endswith('TAPE'):
