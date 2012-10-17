@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * removed selector from fileCallbackListener 
   * fixed for TMPDISK
   * fixed Setupper to scan T2 LFC per LFC host instead of per SE
   * fixed Setupper to use correct location when pinning dis at foreign T1
