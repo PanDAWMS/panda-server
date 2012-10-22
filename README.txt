@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * updated TA to use a special weight reduction when only TAPE is available
   * removed selector from fileCallbackListener 
   * fixed for TMPDISK
   * fixed Setupper to scan T2 LFC per LFC host instead of per SE

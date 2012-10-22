@@ -30,6 +30,9 @@ thr_RW_sub  = 600
 # cutoff for disk
 thr_space_low = (1 * 1024)
 
+# special reduction for TAPE
+reductionForTape = 0.5
+
 # task types using MC share
 taskTypesMcShare = ['evgen']
 
@@ -212,10 +215,11 @@ class TaskAssigner:
                     #raise RuntimeError, '%s %s has incorrect replica info' % (self.taskID,tmpDataset)
             removedDQ2Map = {}
             t2ListForMissing = {}
-            completedCloud = []
+            diskCopyCloud = None
             if locations != {}:
                 removedCloud = []
                 for dataset,sites in locations.iteritems():
+                    tmpDiskCopyCloud = []
                     removedDQ2Map[dataset] = []
                     _logger.info('%s DS:%s' % (self.taskID,dataset)) 
                     for tmpCloudName in cloudList:
@@ -224,6 +228,10 @@ class TaskAssigner:
                         minFound = -1
                         foundSE  = ''
                         for tmpSE in tmpCloud['tier1SE']:
+                            # skip DE TAPE
+                            if tmpCloudName in ['DE'] and tmpSE.endswith('DATATAPE'):
+                                _logger.info('%s skip %s due to DATATAPE' % (self.taskID,tmpSE))                                
+                                continue
                             if tmpSE in sites.keys():
                                 # check metadata
                                 metaOK = self.checkMetadata(dataset,tmpSE)
@@ -238,6 +246,10 @@ class TaskAssigner:
                                 elif minFound < tmpStat['found']:
                                     minFound = tmpStat['found']
                                     foundSE  = tmpSE
+                                # check if disk copy is available
+                                if tmpSE.endswith('DATADISK') or tmpSE.endswith('GROUPDISK') or tmpSE.endswith('HOTDISK'):
+                                    if tmpStat['found'] != None and tmpStat['found'] == tmpStat['total']:
+                                        tmpDiskCopyCloud.append(tmpCloudName)
                         # get list of T2s where dataset is available
                         tmpT2List = []
                         tmpT2Map = DataServiceUtils.getSitesWithDataset(dataset,self.siteMapper,locations,
@@ -280,11 +292,21 @@ class TaskAssigner:
                                 if tmpT2 in tmpT2List:
                                     newTmpT2List.append(tmpT2)
                             t2ListForMissing[tmpCloudName] = newTmpT2List
+                    # disk copy cloud
+                    if diskCopyCloud == None:
+                        diskCopyCloud = tmpDiskCopyCloud
+                    else:
+                        newDiskCopyCloud = []
+                        for tmpCloudName in diskCopyCloud:
+                            if tmpCloudName in tmpDiskCopyCloud:
+                                newDiskCopyCloud.append(tmpCloudName)
+                        diskCopyCloud = newDiskCopyCloud        
                 # remove clouds
                 for tmpCloudName in removedCloud:
                     if tmpCloudName in cloudList:
                         cloudList.remove(tmpCloudName)
             _logger.info('%s new locations after DQ2 filter %s' % (self.taskID,str(cloudList)))
+            _logger.info('%s clouds where complete disk copies are available %s' % (self.taskID,str(diskCopyCloud)))
             _logger.info('%s removed DQ2 map %s' % (self.taskID,str(removedDQ2Map)))
             if cloudList == []:
                 # make subscription to empty cloud
@@ -563,6 +585,10 @@ class TaskAssigner:
                         message = "%s %s weight==%s/%s" % (self.taskID,cloudName,
                                                           weightParams[cloudName]['nPilot'],
                                                           1+RWs[cloudName])
+                    # use different weight if DISK is available
+                    if diskCopyCloud != [] and cloudName not in diskCopyCloud:
+                        tmpWeight *= float(reductionForTape)
+                        message += '*%s' % reductionForTape
                     self.sendMesg(message)
                     nWeightList.append(tmpWeight)
                     totalWeight += tmpWeight
