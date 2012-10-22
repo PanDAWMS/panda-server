@@ -1084,6 +1084,11 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 if max(maxTransferring,2*nRunJobs) < nTraJobs:
                                     tmpLog.debug(" skip: %s many transferring=%s > max(%s,2*running=%s)" % (site,nTraJobs,maxTransferring,nRunJobs))
                                     resultsForAnal['transferring'].append(site)
+                                    if prevSourceLabel in ['managed','test']:
+                                        # make message
+                                        message = '%s - too many transferring' % site
+                                        if not message in loggerMessages:
+                                            loggerMessages.append(message)
                                     continue
                             # get ratio of running jobs = run(cloud)/run(all) for multi cloud
                             multiCloudFactor = 1
