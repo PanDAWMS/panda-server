@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed wrong error message in TA when open dataset is incomplete
   * updated TA to use a special weight reduction when only TAPE is available
   * removed selector from fileCallbackListener 
   * fixed for TMPDISK

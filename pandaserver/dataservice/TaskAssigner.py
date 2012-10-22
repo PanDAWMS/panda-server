@@ -520,7 +520,10 @@ class TaskAssigner:
             _logger.info('%s check nFiles' % self.taskID)            
             for cloudName,params in weightParams.iteritems():
                 if not cloudName in maxClouds:
-                    if params['nFiles'] != maxNFiles:
+                    if maxNFiles == 0:
+                        message = '%s    %s skip : missing files at DATA/GROUPDISK' % \
+                                  (self.taskID,cloudName)
+                    elif params['nFiles'] != maxNFiles:
                         message = '%s    %s skip : nFiles==%s<%s' % \
                                   (self.taskID,cloudName,params['nFiles'],maxNFiles)
                     else:
