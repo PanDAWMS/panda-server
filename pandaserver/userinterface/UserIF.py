@@ -1069,18 +1069,28 @@ def getHighestPrioJobStat(req,perPG=None,useMorePG=None):
     else:
         perPG = False
     if useMorePG == 'True':
-        useMorePG = True
-    else:
+        useMorePG = taskbuffer.ProcessGroups.extensionLevel_1
+    elif useMorePG in ['False',None]:
         useMorePG = False
+    else:
+        try:
+            useMorePG = int(useMorePG)
+        except:
+            useMorePG = False
     return userIF.getHighestPrioJobStat(perPG,useMorePG)
 
 
 # get job statistics for Babmoo
 def getJobStatisticsForBamboo(req,useMorePG=None):
     if useMorePG == 'True':
-        useMorePG = True
-    else:
+        useMorePG = taskbuffer.ProcessGroups.extensionLevel_1
+    elif useMorePG in ['False',None]:
         useMorePG = False
+    else:
+        try:
+            useMorePG = int(useMorePG)
+        except:
+            useMorePG = False
     return userIF.getJobStatisticsForBamboo(useMorePG)
 
 

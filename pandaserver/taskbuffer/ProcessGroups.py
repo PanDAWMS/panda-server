@@ -3,6 +3,7 @@ processGroups = [('others',       []),
                  ('reprocessing', ['reprocessing']),
                  ('test',         ['prod_test','rc_test','validation']),
                  ('mcore',        ['mcore']),
+                 ('group',        ['group']),                 
                  ]
 
 # source labels used for panda internal purpose
@@ -13,6 +14,9 @@ maxDebugJobs   = 3
 
 # maximum number of debug jobs for prod role
 maxDebugProdJobs  = 30
+
+# extension level for GP
+extensionLevel_1 = 1
 
 
 # get corresponding group
@@ -31,8 +35,11 @@ def getProcessGroup(valGroup):
     
 
 # convert cloud and processingType for extended PG
-def converCPTforEPG(cloud,processingType,coreCount):
+def converCPTforEPG(cloud,processingType,coreCount,workingGroup=None):
     if coreCount in [0,1,None]:
+        # use group queue for GP jobs
+        if workingGroup != None and workingGroup.startswith('GP_') and cloud == 'DE':
+            return cloud,'group'
         return cloud,processingType
     else:
         # use MCORE queue for MPC jobs in all clouds

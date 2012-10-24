@@ -494,8 +494,8 @@ def getJobStatisticsForBamboo(useMorePG=False):
     for srvID in getPandas():
         url = _getURL('URL',srvID) + '/getJobStatisticsForBamboo'
         data = {}
-        if useMorePG:
-            data['useMorePG'] = True
+        if useMorePG != False:
+            data['useMorePG'] = useMorePG
         status,output = curl.get(url,data)
         try:
             tmpRet = status,pickle.loads(output)
@@ -534,8 +534,8 @@ def getHighestPrioJobStat(perPG=False,useMorePG=False):
     ret = {}
     url = baseURL + '/getHighestPrioJobStat'
     data = {'perPG':perPG}
-    if useMorePG:
-        data['useMorePG'] = True
+    if useMorePG != False:
+        data['useMorePG'] = useMorePG
     status,output = curl.get(url,data)
     try:
         return status,pickle.loads(output)
