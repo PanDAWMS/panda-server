@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed weight reduction in TA for no input tasks
   * added group queue in DE
   * fixed the brokerage to send message to logger for too many transferring's
   * fixed wrong error message in TA when open dataset is incomplete

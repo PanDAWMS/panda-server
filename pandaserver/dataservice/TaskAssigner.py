@@ -589,7 +589,7 @@ class TaskAssigner:
                                                           weightParams[cloudName]['nPilot'],
                                                           1+RWs[cloudName])
                     # use different weight if DISK is available
-                    if diskCopyCloud != [] and cloudName not in diskCopyCloud:
+                    if diskCopyCloud != None and diskCopyCloud != [] and cloudName not in diskCopyCloud:
                         tmpWeight *= float(reductionForTape)
                         message += '*%s' % reductionForTape
                     self.sendMesg(message)
