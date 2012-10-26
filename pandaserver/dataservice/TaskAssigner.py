@@ -228,10 +228,6 @@ class TaskAssigner:
                         minFound = -1
                         foundSE  = ''
                         for tmpSE in tmpCloud['tier1SE']:
-                            # skip DE TAPE
-                            if tmpCloudName in ['DE'] and tmpSE.endswith('DATATAPE'):
-                                _logger.info('%s skip %s due to DATATAPE' % (self.taskID,tmpSE))                                
-                                continue
                             if tmpSE in sites.keys():
                                 # check metadata
                                 metaOK = self.checkMetadata(dataset,tmpSE)
@@ -947,13 +943,13 @@ class TaskAssigner:
                                             {'version':0,'archived':0,'callbacks':{},'sources':{},
                                              'sources_policy':optSrcPolicy,'wait_for_sources':0,
                                              'destination':None,'query_more_sources':0,'sshare':"production",
-                                             'group':None,'activity':None,'acl_alias':'secondary'}))
+                                             'group':None,'activity':"Production",'acl_alias':'secondary'}))
                 iTry = 0
                 while True:
                     # execute
                     status,out = ddm.DQ2.main('registerDatasetSubscription',tmpDS,dq2ID,version=0,archived=0,callbacks={},
                                               sources={},sources_policy=optSrcPolicy,wait_for_sources=0,destination=None,
-                                              query_more_sources=0,sshare="production",group=None,activity=None,
+                                              query_more_sources=0,sshare="production",group=None,activity="Production",
                                               acl_alias='secondary')
                     # succeed
                     if status == 0 or 'DQSubscriptionExistsException' in out:

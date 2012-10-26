@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * removed hard-coded FZK-LCG2_DATATAPE removal in TA
+  * set activity=Production to TA subscriptions
   * fixed weight reduction in TA for no input tasks
   * added group queue in DE
   * fixed the brokerage to send message to logger for too many transferring's
