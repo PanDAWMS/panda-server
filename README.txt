@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added FOR UPDATE when getting jobdefID for users
   * removed hard-coded FZK-LCG2_DATATAPE removal in TA
   * set activity=Production to TA subscriptions
   * fixed weight reduction in TA for no input tasks

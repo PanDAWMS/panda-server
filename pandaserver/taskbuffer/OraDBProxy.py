@@ -9075,7 +9075,8 @@ class DBProxy:
             self.conn.begin()
             # select
             name = self.cleanUserID(dn)
-            sql = "SELECT jobid,status FROM ATLAS_PANDAMETA.users WHERE name=:name"
+            sql  = "SELECT jobid,status FROM ATLAS_PANDAMETA.users WHERE name=:name "
+            sql += "FOR UPDATE "
             varMap = {}
             varMap[':name'] = name
             self.cur.execute(sql+comment,varMap)
