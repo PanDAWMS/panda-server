@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed getHighestPrioJobStatPerPG for group queue
   * added group queue to all clouds
   * added FOR UPDATE when getting jobdefID for users
   * removed hard-coded FZK-LCG2_DATATAPE removal in TA

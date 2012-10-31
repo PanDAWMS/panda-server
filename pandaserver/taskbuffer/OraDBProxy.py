@@ -6799,16 +6799,18 @@ class DBProxy:
                     if useMorePG == False:
                         cloud,maxPriority,processingType = tmpItem
                         origCloud = cloud
+                        origProcessingType = processingType
                     else:
-                        origCloud,maxPriority,processingType,coreCount,workingGroup = tmpItem
+                        origCloud,maxPriority,origProcessingType,coreCount,workingGroup = tmpItem
                         # convert cloud and processingType for extended process group
                         if useMorePG == ProcessGroups.extensionLevel_1:
-                            cloud,processingType = ProcessGroups.converCPTforEPG(origCloud,processingType,
+                            # extension level 1
+                            cloud,processingType = ProcessGroups.converCPTforEPG(origCloud,origProcessingType,
                                                                                  coreCount)
                         else:
-                            cloud,processingType = ProcessGroups.converCPTforEPG(origCloud,processingType,
+                            # extension level 2
+                            cloud,processingType = ProcessGroups.converCPTforEPG(origCloud,origProcessingType,
                                                                                  coreCount,workingGroup)
-                            
                     # add cloud
                     if not ret.has_key(cloud):
                         ret[cloud] = {}
@@ -6838,7 +6840,7 @@ class DBProxy:
                     if getNumber:
                         varMap[':cloud'] = origCloud
                         varMap[':currentPriority'] = maxPriority
-                        varMap[':processingType'] = processingType
+                        varMap[':processingType'] = origProcessingType
                         if useMorePG != False:
                             varMap[':workingGroup'] = workingGroup
                             if coreCount != None:
