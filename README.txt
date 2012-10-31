@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added a protection to Setupper for file lost after job submission
   * fixed getHighestPrioJobStatPerPG for group queue
   * added group queue to all clouds
   * added FOR UPDATE when getting jobdefID for users

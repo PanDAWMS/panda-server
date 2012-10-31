@@ -1389,7 +1389,12 @@ class Setupper (threading.Thread):
                                 file.md5sum = file.md5sum.strip()
                             if file.checksum != None:
                                 file.checksum = file.checksum.strip()
-                        else:
+                    else:
+                        if not job.prodSourceLabel in ['managed','test']:
+                            addToLfnMap = False
+                    # check missing file
+                    if file.GUID == 'NULL' or job.prodSourceLabel in ['managed','test']:
+                        if not file.lfn in valMap:
                             # append job to waiting list
                             errMsg = "GUID for %s not found in DQ2" % file.lfn
                             _logger.debug("%s %s" % (self.timestamp,errMsg))
@@ -1401,9 +1406,6 @@ class Setupper (threading.Thread):
                                 jobsFailed.append(job)
                                 isFailed = True
                             continue
-                    else:
-                        if not job.prodSourceLabel in ['managed','test']:
-                            addToLfnMap = False
                     # add to allLFNs/allGUIDs
                     if addToLfnMap:
                         if not allLFNs.has_key(job.cloud):
@@ -1473,6 +1475,8 @@ class Setupper (threading.Thread):
             # loop over all missing files to find datasets
             for tmpMissLFN in tmpMissLFNs:
                 # add dataset
+                if not lfnDsMap.has_key(tmpMissLFN):
+                    continue
                 tmpDsName = lfnDsMap[tmpMissLFN]
                 # ignore DBR
                 if tmpDsName.startswith('ddo'):
