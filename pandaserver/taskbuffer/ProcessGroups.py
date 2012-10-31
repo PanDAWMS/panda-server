@@ -38,7 +38,7 @@ def getProcessGroup(valGroup):
 def converCPTforEPG(cloud,processingType,coreCount,workingGroup=None):
     if coreCount in [0,1,None]:
         # use group queue for GP jobs
-        if workingGroup != None and workingGroup.startswith('GP_') and cloud == 'DE':
+        if workingGroup != None and workingGroup.startswith('GP_'):
             return cloud,'group'
         return cloud,processingType
     else:

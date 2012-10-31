@@ -1,11 +1,11 @@
 Release Note
 
 * current
+  * added group queue to all clouds
   * added FOR UPDATE when getting jobdefID for users
   * removed hard-coded FZK-LCG2_DATATAPE removal in TA
   * set activity=Production to TA subscriptions
   * fixed weight reduction in TA for no input tasks
-  * added group queue in DE
   * fixed the brokerage to send message to logger for too many transferring's
   * fixed wrong error message in TA when open dataset is incomplete
   * updated TA to use a special weight reduction when only TAPE is available
