@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed Merger for standalone ROOT
   * fixed Closer to trigger merging for cancelled jobs 
   * fixed Setupper to pin DBR as well
   * added a protection to Setupper for file lost after job submission

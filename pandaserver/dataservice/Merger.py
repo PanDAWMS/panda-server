@@ -72,6 +72,16 @@ class Merger:
             _logger.debug("%s cannot find -r parameter from parent job" % self.job.PandaID)
         return rundir
 
+    # parse jobParameters and get ROOT version
+    def getRootVer(self):
+        ver = ""
+        try:
+            m = re.match(r'.*\--rootVer\s+(\S+)\s+.*', self.job.jobParameters.strip())
+            if m:
+                ver = m.group(1)
+        except:
+            _logger.debug("%s cannot find --rootVer parameter from parent job" % self.job.PandaID)
+        return ver
 
     # get file type
     def getFileType(self,tmpLFN):
@@ -634,7 +644,13 @@ class Merger:
 
         params += " -t %s" % usedMergeType
         params += " -i \"%s\"" % repr(fileList)
-        
+       
+        if self.getRootVer():
+            params += " --rootVer %s" % self.getRootVer()
+   
+        if self.job.jobParameters.find('--useRootCore'):
+            params += " --useRootCore"
+ 
         # output
         tmpFile = FileSpec()
         if attNum == None:
