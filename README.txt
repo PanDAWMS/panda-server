@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed Setupper to pin DBR as well
   * added a protection to Setupper for file lost after job submission
   * fixed getHighestPrioJobStatPerPG for group queue
   * added group queue to all clouds

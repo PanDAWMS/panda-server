@@ -1479,8 +1479,8 @@ class Setupper (threading.Thread):
                     continue
                 tmpDsName = lfnDsMap[tmpMissLFN]
                 # ignore DBR
-                if tmpDsName.startswith('ddo'):
-                    continue
+                #if tmpDsName.startswith('ddo'):
+                #    continue
                 if not self.availableLFNsInT2[cloudKey].has_key(tmpDsName):
                     # collect sites
                     tmpSiteNameDQ2Map = DataServiceUtils.getSitesWithDataset(tmpDsName,self.siteMapper,replicaMap,cloudKey,getDQ2ID=True)
@@ -2000,8 +2000,8 @@ class Setupper (threading.Thread):
                 if not tmpFile.status in ['ready']:
                     continue
                 # ignore DBR
-                if 'DBRelease' in tmpFile.dataset:
-                    continue
+                #if 'DBRelease' in tmpFile.dataset:
+                #    continue
                 # if available at T2
                 realDestDQ2ID = (destDQ2ID,)
                 if self.availableLFNsInT2.has_key(tmpJob.cloud) and self.availableLFNsInT2[tmpJob.cloud].has_key(tmpFile.dataset) \
