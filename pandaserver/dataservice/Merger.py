@@ -648,7 +648,7 @@ class Merger:
         if self.getRootVer():
             params += " --rootVer %s" % self.getRootVer()
    
-        if self.job.jobParameters.find('--useRootCore'):
+        if self.job.jobParameters.find('--useRootCore') >= 0:
             params += " --useRootCore"
  
         # output
