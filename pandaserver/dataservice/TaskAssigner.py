@@ -13,6 +13,7 @@ import datetime
 import brokerage.broker_util
 from DDM import ddm
 from DDM import dq2Common
+from DDM import toa
 from config import panda_config
 from taskbuffer import ProcessGroups
 from pandalogger.PandaLogger import PandaLogger
@@ -227,8 +228,15 @@ class TaskAssigner:
                         # look for T1 SE which holds the max number of files
                         minFound = -1
                         foundSE  = ''
-                        for tmpSE in tmpCloud['tier1SE']:
-                            if tmpSE in sites.keys():
+                        for tmpSePat in tmpCloud['tier1SE']:
+                            # make regexp pattern 
+                            if '*' in tmpSePat:
+                                tmpSePat = tmpSePat.replace('*','.*')
+                            tmpSePat = '^' + tmpSePat +'$'
+                            for tmpSE in sites.keys():
+                                # check name with regexp pattern
+                                if re.search(tmpSePat,tmpSE) == None:
+                                    continue
                                 # check metadata
                                 metaOK = self.checkMetadata(dataset,tmpSE)
                                 if not metaOK:
@@ -243,9 +251,12 @@ class TaskAssigner:
                                     minFound = tmpStat['found']
                                     foundSE  = tmpSE
                                 # check if disk copy is available
-                                if tmpSE.endswith('DATADISK') or tmpSE.endswith('GROUPDISK') or tmpSE.endswith('HOTDISK'):
+                                tmpStatusSE,tmpRetSE = toa.getSiteProperty(tmpSE,'tape')
+                                if tmpRetSE != 'True':
                                     if tmpStat['found'] != None and tmpStat['found'] == tmpStat['total']:
                                         tmpDiskCopyCloud.append(tmpCloudName)
+                                else:
+                                    _logger.info('%s %s is on tape : %s' % (self.taskID,tmpSE,tmpRetSE))
                         # get list of T2s where dataset is available
                         tmpT2List = []
                         tmpT2Map = DataServiceUtils.getSitesWithDataset(dataset,self.siteMapper,locations,
