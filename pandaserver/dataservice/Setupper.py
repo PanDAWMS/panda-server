@@ -900,7 +900,8 @@ class Setupper (threading.Thread):
                             # T1 used as T2
                             if job.cloud != self.siteMapper.getSite(job.computingSite).cloud and \
                                    (not dstDQ2ID.endswith('PRODDISK')) and \
-                                   (not job.prodSourceLabel in ['user','panda']):
+                                   (not job.prodSourceLabel in ['user','panda']) and \
+                                   not self.siteMapper.getSite(job.computingSite).cloud in ['ND','ES']:
                                 seTokens = self.siteMapper.getSite(job.computingSite).setokens
                                 # use T1_PRODDISK
                                 if seTokens.has_key('ATLASPRODDISK'):
@@ -1980,7 +1981,8 @@ class Setupper (threading.Thread):
             destDQ2ID = self.siteMapper.getSite(tmpJob.computingSite).ddm
             # T1 used as T2
             if tmpJob.cloud != self.siteMapper.getSite(tmpJob.computingSite).cloud and \
-               not destDQ2ID.endswith('PRODDISK'):
+               not destDQ2ID.endswith('PRODDISK') and \
+               not self.siteMapper.getSite(tmpJob.computingSite).cloud in ['ND','ES']:
                 tmpSeTokens = self.siteMapper.getSite(tmpJob.computingSite).setokens
                 if tmpSeTokens.has_key('ATLASPRODDISK'):
                     destDQ2ID = tmpSeTokens['ATLASPRODDISK']

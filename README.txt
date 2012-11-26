@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * using DATADISK for MCP T1 input at ND and ES
   * allowed wildcards in cloudconfig.tier1SE
   * fixed Merger for standalone ROOT
   * fixed Closer to trigger merging for cancelled jobs 
