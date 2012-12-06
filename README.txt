@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added a patch for MWT2 to associate MWT2_DATADISK in TA
   * using DATADISK for MCP T1 input at ND and ES
   * allowed wildcards in cloudconfig.tier1SE
   * fixed Merger for standalone ROOT

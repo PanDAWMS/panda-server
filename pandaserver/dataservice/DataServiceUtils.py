@@ -1,5 +1,17 @@
 import re
 
+# get prefix for DQ2
+def getDQ2Prefix(dq2SiteID):
+    # prefix of DQ2 ID
+    tmpDQ2IDPrefix = re.sub('_[A-Z,0-9]+DISK$','',dq2SiteID)
+    # remove whitespace 
+    tmpDQ2IDPrefix = tmpDQ2IDPrefix.strip()
+    # patchfor MWT2
+    if tmpDQ2IDPrefix == 'MWT2_UC':
+        tmpDQ2IDPrefix = 'MWT2'
+    return tmpDQ2IDPrefix
+
+
 # get the list of sites where dataset is available
 def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=False,getDQ2ID=False,
                         useOnlineSite=False,includeT1=False):
@@ -33,9 +45,8 @@ def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=Fa
         if siteMapper.getSite(tmpSiteName).status != 'online':
             continue
         # prefix of DQ2 ID
-        tmpDQ2IDPrefix = re.sub('_[A-Z,0-9]+DISK$','',siteMapper.getSite(tmpSiteName).ddm)
+        tmpDQ2IDPrefix = getDQ2Prefix(siteMapper.getSite(tmpSiteName).ddm)
         # ignore empty
-        tmpDQ2IDPrefix = tmpDQ2IDPrefix.strip()
         if tmpDQ2IDPrefix == '':
             continue
         # loop over all DQ2 IDs
