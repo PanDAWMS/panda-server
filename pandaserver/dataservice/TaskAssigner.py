@@ -463,6 +463,8 @@ class TaskAssigner:
                     for tmpDS,tmpT2CloudList in removedDQ2Map.iteritems():
                         if tmpCloudName in tmpT2CloudList:
                             foundCandidateT1 = False
+                            # reset nFiles at T1
+                            weightParams[tmpCloudName]['nFiles'] = 0
                             break
                     if foundCandidateT1:        
                         foundCandidateWithT1.append(tmpCloudName)

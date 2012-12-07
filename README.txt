@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed TA since replicas at T1 non DATADISK prevented T2 replicas from being used
   * using DATADISK for MCP T1 input at ND,ES,DE,NL,TW
   * added a patch for MWT2 to associate MWT2_DATADISK in TA
   * allowed wildcards in cloudconfig.tier1SE
