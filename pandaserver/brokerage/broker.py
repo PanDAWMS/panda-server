@@ -831,7 +831,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     continue
                             elif prevRelease != None and \
                                  ((not useCacheVersion and releases != [] and not tmpSiteSpec.cloud in ['ND'] and not site in ['CERN-RELEASE']) or prevProType in ['reprocessing']) and \
-                                 (((not _checkRelease(prevRelease,releases) and prevManualPreset == False) or not site in siteListWithCache) and not tmpSiteSpec.cloud in ['ND'] and not site in ['CERN-RELEASE']):
+                                 (((not _checkRelease(prevRelease,releases) and prevManualPreset == False) or (not prevProType in ['reprocessing'] and not site in siteListWithCache)) and not tmpSiteSpec.cloud in ['ND'] and not site in ['CERN-RELEASE']):
                                 # release matching
                                 if not useCacheVersion:
                                     tmpLog.debug(' skip: release %s/%s not found' % (prevRelease.replace('\n',' '),prevCmtConfig))
