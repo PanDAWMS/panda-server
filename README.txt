@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * added a protection against overwriting of dataset status by datasetMgr
+  * implemented a nested fareshare management mechanism
   * fixed the brokerage message when release is missing for repro
   * fixed TA since replicas at T1 non DATADISK prevented T2 replicas from being used
   * using DATADISK for MCP T1 input at ND,ES,DE,NL,TW

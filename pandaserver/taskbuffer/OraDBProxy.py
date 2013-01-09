@@ -8220,10 +8220,13 @@ class DBProxy:
                     # sum
                     tmpShareDef['count'][jobStatus] += cnt
             # loop over all policies to calcurate total number of running jobs and total share
-            totalShare   = 0
             totalRunning = 0
             shareMap     = {}
             msgShare     = 'share->'
+            msgShareMap  = {}
+            totalShareNonGP       = 0
+            totalRunningNonGP     = 0
+            totalActiveShareNonGP = 0
             for tmpShareDef in shareDefList:
                 tmpNumMap = tmpShareDef['count']
                 policyName = tmpShareDef['policy']['name']
@@ -8244,7 +8247,16 @@ class DBProxy:
                 else:
                     tmpNumRunning = tmpNumMap['running']
                 # debug message for share
-                msgShare += '%s:activated=%s:running=%s,' % (policyName,tmpNumActivated,tmpNumRunning)
+                msgShareMap[policyName] = '%s:activated=%s:running=%s' % (policyName,tmpNumActivated,tmpNumRunning)
+                # get total share and total number of running jobs for non-GP
+                if tmpShareDef['policy']['group'] == None:
+                    totalShareNonGP += tmpShareValue
+                    totalRunningNonGP += tmpNumRunning
+                    # get total share for active non-GP
+                    if tmpNumActivated != 0:
+                        totalActiveShareNonGP += tmpShareValue
+                # sum
+                totalRunning += tmpNumRunning
                 # not use the policy if no activated jobs
                 if tmpNumActivated == 0:
                     continue
@@ -8254,9 +8266,24 @@ class DBProxy:
                     'running':tmpNumRunning,
                     'policy':tmpShareDef['policy'],
                     }
-                # sum
-                totalShare += tmpShareValue
-                totalRunning += tmpNumRunning
+            # re-normalize when some non-GP policies are inactive
+            if totalShareNonGP != totalActiveShareNonGP and totalActiveShareNonGP != 0:
+                for policyName,tmpVarMap in shareMap.iteritems():
+                    # essentially non-GP share is multiplied by totalShareNonGP/totalActiveShareNonGP
+                    if tmpVarMap['policy']['group'] == None:
+                        tmpVarMap['share'] *= totalShareNonGP
+                    else:
+                        tmpVarMap['share'] *= totalActiveShareNonGP
+            # make message with share info    
+            for policyName in msgShareMap.keys():
+                if shareMap.has_key(policyName):
+                    msgShare += '%s:share=%s,' % (msgShareMap[policyName],shareMap[policyName]['share'])
+                else:
+                    msgShare += '%s:share=0,' % msgShareMap[policyName]
+            # get total share
+            totalShare = 0
+            for policyName,tmpVarMap in shareMap.iteritems():
+                totalShare += tmpVarMap['share']
             msgShare = msgShare[:-1]
             # loop over all policies to check if the priority constraint should be activated
             prioToBeImposed = []

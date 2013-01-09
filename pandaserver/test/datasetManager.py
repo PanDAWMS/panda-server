@@ -258,8 +258,9 @@ class CloserThr (threading.Thread):
                     self.proxyLock.acquire()
                     varMap = {}
                     varMap[':vuid'] = vuid
-                    varMap[':status'] = 'completed'
-                    taskBuffer.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status=:status,modificationdate=CURRENT_DATE WHERE vuid=:vuid",
+                    varMap[':newstatus'] = 'completed'
+                    varMap[':oldstatus'] = 'tobeclosed'
+                    taskBuffer.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status=:newstatus,modificationdate=CURRENT_DATE WHERE vuid=:vuid AND status=:oldstatus",
                                      varMap)
                     self.proxyLock.release()                    
                     if name.startswith('pandaddm_'):
