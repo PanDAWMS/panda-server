@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * using a default fareshare defined per cloud if T2 doesn't define share
   * added a protection against overwriting of dataset status by datasetMgr
   * implemented a nested fareshare management mechanism
   * fixed the brokerage message when release is missing for repro

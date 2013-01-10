@@ -8548,10 +8548,23 @@ class DBProxy:
         try:
             # set autocommit on
             self.conn.begin()
-            # select
-            sql  = "SELECT siteid,fairsharePolicy "
-            sql += "FROM ATLAS_PANDAMETA.schedconfig WHERE fairsharePolicy IS NOT NULL AND NOT siteid LIKE 'ANALY_%' GROUP BY siteid,fairsharePolicy"
+            # get default share
+            cloudShareMap = {}
+            cloudTier1Map = {}
+            sqlD = "SELECT name,fairshare,tier1 FROM ATLAS_PANDAMETA.cloudconfig"
             self.cur.arraysize = 100000            
+            self.cur.execute(sqlD+comment)
+            res = self.cur.fetchall()
+            for cloudName,cloudShare,cloudTier1 in res:
+                try:
+                    cloudTier1Map[cloudName] = cloudTier1.split(',')
+                except:
+                    pass
+                if not cloudShare in ['',None]:
+                    cloudShareMap[cloudName] = cloudShare
+            # get share per site
+            sql  = "SELECT siteid,fairsharePolicy,cloud "
+            sql += "FROM ATLAS_PANDAMETA.schedconfig WHERE NOT siteid LIKE 'ANALY_%' GROUP BY siteid,fairsharePolicy,cloud"
             self.cur.execute(sql+comment)
             res = self.cur.fetchall()
             # commit
@@ -8559,8 +8572,18 @@ class DBProxy:
                 raise RuntimeError, 'Commit error'
             # update policy
             faresharePolicy = {}
-            for siteid,faresharePolicyStr in res:
+            for siteid,faresharePolicyStr,cloudName in res:
                 try:
+                    # share is undefined
+                    if faresharePolicyStr in ['',None]:
+                        # skip if share is not defined at site or cloud 
+                        if not cloudShareMap.has_key(cloudName):
+                            continue
+                        # skip if T1 doesn't define share
+                        if cloudTier1Map.has_key(cloudName) and siteid in cloudTier1Map[cloudName]:
+                            continue
+                        # use default share
+                        faresharePolicyStr = cloudShareMap[cloudName]
                     # decompose
                     hasNonPrioPolicy = False
                     for tmpItem in faresharePolicyStr.split(','):
