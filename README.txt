@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * increased the number of PandaMover channels to 15
   * using DATADISK for MCP T1 input at CERN
   * using a default fareshare defined per cloud if T2 doesn't define share
   * added a protection against overwriting of dataset status by datasetMgr

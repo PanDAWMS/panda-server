@@ -2165,7 +2165,7 @@ class DBProxy:
                         # no activated jobs
                         if (not channelMap[channel].has_key('activated')) or channelMap[channel]['activated'] == 0:
                             continue
-                        maxRunning = 10
+                        maxRunning = 15
                         # prestaging job
                         if channel[0] == channel[1] and channel[2] == 'dis':
                             maxRunning = 50
