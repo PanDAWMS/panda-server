@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed the bulk OK file lookup in the brokerge for multiple ddm endpoints
   * increased the number of PandaMover channels to 15
   * using DATADISK for MCP T1 input at CERN
   * using a default fareshare defined per cloud if T2 doesn't define share

@@ -74,7 +74,15 @@ def _checkRelease(jobRels,siteRels):
 def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs,allOkFilesMap):
     # DQ2 URL
     dq2URL = v_ce.dq2url
-    dq2ID  = v_ce.ddm
+    dq2IDs = v_ce.setokens.keys()
+    dq2IDs.sort()
+    if dq2IDs == []:
+        dq2ID = v_ce.ddm
+    else:
+        dq2ID = ''
+        for tmpID in dq2IDs:
+            dq2ID += '%s,' % tmpID
+        dq2ID = dq2ID[:-1]    
     # set LFC and SE name 
     tmpSE = []
     if not v_ce.lfchost in [None,'']:
@@ -747,7 +755,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     if True:
                         # loop over all sites    
                         for site in scanSiteList:
-                            tmpLog.debug('calculate weight for site:%s' % site)                    
+                            tmpLog.debug('calculate weight for site:%s' % site)
                             # _allSites may conain NULL after sort()
                             if site == 'NULL':
                                 continue
