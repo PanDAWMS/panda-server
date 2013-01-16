@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * reduced interval of PandaMover reattempts to 15min from 3h
   * fixed the bulk OK file lookup in the brokerge for multiple ddm endpoints
   * increased the number of PandaMover channels to 15
   * using DATADISK for MCP T1 input at CERN
