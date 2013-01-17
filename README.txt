@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed the bulk OK file lookup again for unique ddm endpoint sites
   * reduced interval of PandaMover reattempts to 15min from 3h
   * fixed the bulk OK file lookup in the brokerge for multiple ddm endpoints
   * increased the number of PandaMover channels to 15

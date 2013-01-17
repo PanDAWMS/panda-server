@@ -75,6 +75,10 @@ def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs,allOkFilesMap):
     # DQ2 URL
     dq2URL = v_ce.dq2url
     dq2IDs = v_ce.setokens.keys()
+    try:
+        dq2IDs.remove('')
+    except:
+        pass
     dq2IDs.sort()
     if dq2IDs == []:
         dq2ID = v_ce.ddm
