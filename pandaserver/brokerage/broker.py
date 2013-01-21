@@ -966,13 +966,6 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                         except:
                                             pass
                                         continue
-                            # number of jobs per node
-                            if not nWNmap.has_key(site):
-                                nJobsPerNode = 1
-                            elif jobStatistics[site]['running']==0 or nWNmap[site]['updateJob']==0:
-                                nJobsPerNode = 1
-                            else:
-                                nJobsPerNode = float(jobStatistics[site]['running'])/float(nWNmap[site]['updateJob'])
                             # get the process group
                             tmpProGroup = ProcessGroups.getProcessGroup(prevProType)
                             if prevProType in skipBrokerageProTypes:
@@ -1054,6 +1047,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             if not jobStatBroker[site].has_key(tmpProGroup):
                                 jobStatBroker[site][tmpProGroup] = {'assigned':0,'activated':0,'running':0,'transferring':0}
                             # count # of assigned and activated jobs for prod by taking priorities in to account
+                            nRunJobsPerGroup = None
                             if not forAnalysis and prevSourceLabel in ['managed','test']:
                                 if not jobStatBrokerCloudsWithPrio.has_key(prevPriority):
                                     jobStatBrokerCloudsWithPrio[prevPriority] = taskBuffer.getJobStatisticsBrokerage(prevPriority)
@@ -1065,6 +1059,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     jobStatBrokerCloudsWithPrio[prevPriority][previousCloud][site][tmpProGroup] = {'assigned':0,'activated':0,'running':0,'transferring':0}
                                 nAssJobs = jobStatBrokerCloudsWithPrio[prevPriority][previousCloud][site][tmpProGroup]['assigned']
                                 nActJobs = jobStatBrokerCloudsWithPrio[prevPriority][previousCloud][site][tmpProGroup]['activated']
+                                nRunJobsPerGroup = jobStatBrokerCloudsWithPrio[prevPriority][previousCloud][site][tmpProGroup]['running']
                                 # add newly assigned jobs
                                 for tmpNewPriority in newJobStatWithPrio.keys():
                                     if tmpNewPriority < prevPriority:
@@ -1081,6 +1076,19 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 if forAnalysis and jobStatBroker[site][tmpProGroup].has_key('defined'):
                                     nAssJobs += jobStatBroker[site][tmpProGroup]['defined']
                                 nActJobs = jobStatBroker[site][tmpProGroup]['activated']
+                            # number of jobs per node
+                            if not nWNmap.has_key(site):
+                                nJobsPerNode = 1
+                            elif jobStatistics[site]['running']==0 or nWNmap[site]['updateJob']==0:
+                                nJobsPerNode = 1
+                            else:
+                                if nRunJobsPerGroup == None:
+                                    nJobsPerNode = float(jobStatistics[site]['running'])/float(nWNmap[site]['updateJob'])
+                                else:
+                                    if nRunJobsPerGroup == 0:
+                                        nJobsPerNode = 1.0/float(nWNmap[site]['updateJob'])
+                                    else:
+                                        nJobsPerNode = float(nRunJobsPerGroup)/float(nWNmap[site]['updateJob'])
                             # limit of the number of transferring jobs
                             if tmpSiteSpec.transferringlimit == 0:
                                 maxTransferring   = 2000
@@ -1159,8 +1167,12 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                         weightUsedByBrokerage[site] = "%s" % specialWeight[site]
                             else:
                                 if not forAnalysis:
-                                    tmpLog.debug('   %s assigned:%s activated:%s running:%s nPilots:%s nJobsPerNode:%s multiCloud:%s' %
-                                               (site,nAssJobs,nActJobs,jobStatistics[site]['running'],nPilots,nJobsPerNode,multiCloudFactor))
+                                    if nRunJobsPerGroup == None:
+                                        tmpLog.debug('   %s assigned:%s activated:%s running:%s nPilots:%s nJobsPerNode:%s multiCloud:%s' %
+                                                     (site,nAssJobs,nActJobs,jobStatistics[site]['running'],nPilots,nJobsPerNode,multiCloudFactor))
+                                    else:
+                                        tmpLog.debug('   %s assigned:%s activated:%s running:%s nPilots:%s nJobsPerNodePG:%s multiCloud:%s' %
+                                                     (site,nAssJobs,nActJobs,nRunJobsPerGroup,nPilots,nJobsPerNode,multiCloudFactor))
                                 else:
                                     tmpLog.debug('   %s assigned:%s activated:%s running:%s nWNsG:%s nWNsU:%s' %
                                                (site,nAssJobs,nActJobs,nRunningMap[site],nPilotsGet,nPilotsUpdate))

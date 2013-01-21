@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * improved the brokerage to count the number of running jobs per processingType
   * using transferringlimit in the brokerage
   * fixed the bulk OK file lookup again for unique ddm endpoint sites
   * reduced interval of PandaMover reattempts to 15min from 3h

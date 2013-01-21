@@ -6550,8 +6550,13 @@ class DBProxy:
         sqlMV = re.sub(':minPriority','TRUNC(:minPriority,-1)',sqlMV)
         sqlMV = re.sub('SELECT ','SELECT /*+ RESULT_CACHE */ ',sqlMV)
         tables = ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4']
+        if minPriority != None:
+            # read the number of running jobs with prio<=MIN
+            tables.append('ATLAS_PANDA.jobsActive4')
+            sqlMVforRun = re.sub('currentPriority>=','currentPriority<=',sqlMV)
         ret = {}
         nTry=3
+        iActive = 0
         for iTry in range(nTry):
             try:
                 for table in tables:
@@ -6563,8 +6568,19 @@ class DBProxy:
                     for tmpPrio in tmpPrioMap.keys():
                         varMap[tmpPrio] = tmpPrioMap[tmpPrio]
                     self.cur.arraysize = 10000
+                    useRunning = None
                     if table == 'ATLAS_PANDA.jobsActive4':
-                        self.cur.execute((sqlMV+comment) % 'ATLAS_PANDA.MV_JOBSACTIVE4_STATS', varMap)
+                        # first count non-running and then running if minPriority is specified
+                        if minPriority != None:
+                            if iActive == 0:
+                                useRunning = False
+                            else:
+                                useRunning = True
+                            iActive += 1
+                        if useRunning in [None,False]:
+                            self.cur.execute((sqlMV+comment) % 'ATLAS_PANDA.MV_JOBSACTIVE4_STATS', varMap)
+                        else:
+                            self.cur.execute((sqlMVforRun+comment) % 'ATLAS_PANDA.MV_JOBSACTIVE4_STATS', varMap)
                     else:
                         self.cur.execute((sql0+comment) % table, varMap)
                     res = self.cur.fetchall()
@@ -6573,6 +6589,14 @@ class DBProxy:
                         raise RuntimeError, 'Commit error'
                     # create map
                     for cloud,computingSite,jobStatus,processingType,count in res:
+                        # check jobstatus if minPriority isspecified
+                        if minPriority != None:
+                            # count the number of non-running with prio>=MIN
+                            if useRunning == True and jobStatus != 'running':
+                                continue
+                            # count the number of running with prio<=MIN
+                            if  useRunning == False and jobStatus == 'running':
+                                continue
                         # add cloud
                         if not ret.has_key(cloud):
                             ret[cloud] = {}                            
