@@ -11,7 +11,7 @@ class SiteSpec(object):
                    'localqueue','validatedreleases','accesscontrol','copysetup','maxinputsize',
                    'cachedse','allowdirectaccess','comment','cloudlist','statusmodtime','lfcregister',
                    'countryGroup','availableCPU','pledgedCPU','coreCount','reliabilityLevel',
-                   'iscvmfs')
+                   'iscvmfs','transferringlimit')
 
     # constructor
     def __init__(self):

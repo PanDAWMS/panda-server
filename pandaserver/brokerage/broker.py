@@ -468,8 +468,6 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
         diskThreshold     = 200
         diskThresholdPD2P = 1024 * 3
         manyInputsThr     = 20
-        maxTransferring   = 2000
-
         weightUsedByBrokerage = {}
 
         prestageSites = getPrestageSites(siteMapper)
@@ -1083,6 +1081,11 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 if forAnalysis and jobStatBroker[site][tmpProGroup].has_key('defined'):
                                     nAssJobs += jobStatBroker[site][tmpProGroup]['defined']
                                 nActJobs = jobStatBroker[site][tmpProGroup]['activated']
+                            # limit of the number of transferring jobs
+                            if tmpSiteSpec.transferringlimit == 0:
+                                maxTransferring   = 2000
+                            else:
+                                maxTransferring = maxTransferring
                             # get ration of transferring to running
                             if not forAnalysis and not tmpSiteSpec.cloud in ['ND']:
                                 nTraJobs = 0
@@ -1092,7 +1095,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                         nRunJobs += tmpCountsForTra['running']
                                     if tmpCountsForTra.has_key('transferring'):
                                         nTraJobs += tmpCountsForTra['transferring']
-                                tmpLog.debug('   running=%s transferring=%s' % (nRunJobs,nTraJobs))
+                                tmpLog.debug('   running=%s transferring=%s max=%s' % (nRunJobs,nTraJobs,maxTransferring))
                                 if max(maxTransferring,2*nRunJobs) < nTraJobs:
                                     tmpLog.debug(" skip: %s many transferring=%s > max(%s,2*running=%s)" % (site,nTraJobs,maxTransferring,nRunJobs))
                                     resultsForAnal['transferring'].append(site)

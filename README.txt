@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * using transferringlimit in the brokerage
   * fixed the bulk OK file lookup again for unique ddm endpoint sites
   * reduced interval of PandaMover reattempts to 15min from 3h
   * fixed the bulk OK file lookup in the brokerge for multiple ddm endpoints

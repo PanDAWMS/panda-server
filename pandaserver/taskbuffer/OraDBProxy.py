@@ -7788,7 +7788,7 @@ class DBProxy:
             sql+= "priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue,"
             sql+= "validatedreleases,accesscontrol,copysetup,maxinputsize,cachedse,"
             sql+= "allowdirectaccess,comment_,lastmod,multicloud,lfcregister,"
-            sql+= "countryGroup,availableCPU,pledgedCPU,coreCount "
+            sql+= "countryGroup,availableCPU,pledgedCPU,coreCount,transferringlimit "
             sql+= "FROM ATLAS_PANDAMETA.schedconfig WHERE siteid IS NOT NULL"
             self.cur.arraysize = 10000            
             self.cur.execute(sql+comment)
@@ -7811,7 +7811,7 @@ class DBProxy:
                        priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue,\
                        validatedreleases,accesscontrol,copysetup,maxinputsize,cachedse,\
                        allowdirectaccess,comment,lastmod,multicloud,lfcregister, \
-                       countryGroup,availableCPU,pledgedCPU,coreCount \
+                       countryGroup,availableCPU,pledgedCPU,coreCount,transferringlimit \
                        = resTmp
                     # skip invalid siteid
                     if siteid in [None,'']:
@@ -7958,6 +7958,13 @@ class DBProxy:
                         ret.iscvmfs = True
                     else:
                         ret.iscvmfs = False
+                    # limit of the number of transferring jobs
+                    ret.transferringlimit = 0
+                    if not transferringlimit in ['',None]:
+                        try:
+                            ret.transferringlimit = int(transferringlimit)
+                        except:
+                            pass
                     # append
                     retList[ret.nickname] = ret
             _logger.debug("getSiteInfo done")
