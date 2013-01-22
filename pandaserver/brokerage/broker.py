@@ -1093,7 +1093,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             if tmpSiteSpec.transferringlimit == 0:
                                 maxTransferring   = 2000
                             else:
-                                maxTransferring = maxTransferring
+                                maxTransferring = tmpSiteSpec.transferringlimit
                             # get ration of transferring to running
                             if not forAnalysis and not tmpSiteSpec.cloud in ['ND']:
                                 nTraJobs = 0
