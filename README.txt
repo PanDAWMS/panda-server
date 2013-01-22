@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * reducing lifetime of dis when corresponding jobs finished and some of them failed
   * improved the brokerage to count the number of running jobs per processingType
   * using transferringlimit in the brokerage
   * fixed the bulk OK file lookup again for unique ddm endpoint sites

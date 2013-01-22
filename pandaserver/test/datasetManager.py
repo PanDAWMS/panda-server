@@ -193,14 +193,18 @@ def setTobeDeletedToDis(subDsName):
                 _logger.debug("setTobeDeletedToDis : skip %s since status=%s" % (tmpDisName,tmpDS.status))
                 continue
             # check the number of failed jobs associated to the _dis
-            if tmpDS.currentfiles != 0:
-                _logger.debug("setTobeDeletedToDis : skip %s since nFailed=%s" % (tmpDisName,tmpDS.currentfiles))
-                continue
+            if tmpDS.currentfiles == 0:
+                # all succeeded
+                tmpDS.status = 'deleting'
+                excStatus    = 'deleted'
+            else:
+                # some failed, to reduce the lifetime 
+                tmpDS.status = 'shortening'
+                excStatus    = 'shortened'
             # update dataset
-            tmpDS.status = 'deleting'
             retU = taskBuffer.updateDatasets([tmpDS],withLock=True,withCriteria="status<>:crStatus",
-                                             criteriaMap={':crStatus':'deleted'})
-            _logger.debug("setTobeDeletedToDis : set deleting to %s with %s" % (tmpDisName,str(retU)))
+                                             criteriaMap={':crStatus':excStatus})
+            _logger.debug("setTobeDeletedToDis : set %s to %s with %s" % (tmpDS.status,tmpDisName,str(retU)))
     except:
         errType,errValue = sys.exc_info()[:2]
         _logger.error("setTobeDeletedToDis : %s %s %s" % (subDsName,errType,errValue))
@@ -606,13 +610,14 @@ while True:
 
 # delete dis datasets
 class EraserThr (threading.Thread):
-    def __init__(self,lock,proxyLock,datasets,pool):
+    def __init__(self,lock,proxyLock,datasets,pool,operationType):
         threading.Thread.__init__(self)
         self.datasets   = datasets
         self.lock       = lock
         self.proxyLock  = proxyLock
         self.pool       = pool
         self.pool.add(self)
+        self.operationType = operationType
                                         
     def run(self):
         self.lock.acquire()
@@ -624,19 +629,56 @@ class EraserThr (threading.Thread):
                     _logger.error("Eraser : non disDS %s" % name)
                     continue
                 # delete
-                _logger.debug("Eraser delete dis %s %s" % (modDate,name))
-                status,out = ddm.DQ2.main('eraseDataset',name)
-                if status != 0 and out.find('DQFrozenDatasetException') == -1 and \
-                       out.find("DQUnknownDatasetException") == -1 and out.find("DQSecurityException") == -1 and \
-                       out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1:
-                    _logger.error(out)
-                    continue
+                _logger.debug("Eraser %s dis %s %s" % (self.operationType,modDate,name))
+                # delete or shorten
+                if self.operationType == 'deleting':
+                    # erase
+                    endStatus = 'deleted'
+                    status,out = ddm.DQ2.main('eraseDataset',name)
+                    if status != 0 and out.find('DQFrozenDatasetException') == -1 and \
+                           out.find("DQUnknownDatasetException") == -1 and out.find("DQSecurityException") == -1 and \
+                           out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1:
+                        _logger.error(out)
+                        continue
+                else:
+                    # change replica lifetime
+                    endStatus = 'shortened'
+                    # get list of replicas
+                    status,out = ddm.DQ2.main('listDatasetReplicas',name,0,None,False)
+                    if status != 0 and out.find('DQFrozenDatasetException')  == -1 and \
+                           out.find("DQUnknownDatasetException") == -1 and out.find("DQSecurityException") == -1 and \
+                           out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1:
+                        _logger.error(out)
+                        continue
+                    if out.find("DQUnknownDatasetException") == -1 and out.find("DQDeletedDatasetException") == -1:
+                        try:
+                            # convert res to map
+                            exec "tmpRepSites = %s" % out
+                        except:
+                            tmpRepSites = {}
+                            _logger.error("cannot convert to replica map")
+                            _logger.error(out)
+                            continue
+                        # set replica lifetime
+                        setMetaFlag = True
+                        for tmpDDM in tmpRepSites.keys():
+                            _logger.debug('setReplicaMetaDataAttribute %s %s' % (name,tmpDDM))
+                            status,out = ddm.DQ2.main('setReplicaMetaDataAttribute',name,tmpDDM,'lifetime','1 days')
+                            if status != 0:
+                                _logger.error(out)
+                                if out.find('DQFrozenDatasetException')  == -1 and \
+                                       out.find("DQUnknownDatasetException") == -1 and out.find("DQSecurityException") == -1 and \
+                                       out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1 and \
+                                       out.find("No replica found") == -1:
+                                    setMetaFlag = False
+                        if not setMetaFlag:
+                            continue
                 _logger.debug('OK with %s' % name)
                 # update
                 self.proxyLock.acquire()
                 varMap = {}
                 varMap[':vuid'] = vuid
-                varMap[':status'] = 'deleted'
+                varMap[':status'] = endStatus
                 taskBuffer.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status=:status,modificationdate=CURRENT_DATE WHERE vuid=:vuid",
                                      varMap)
                 self.proxyLock.release()
@@ -653,7 +695,7 @@ disEraseLock = threading.Semaphore(5)
 disEraseProxyLock = threading.Lock()
 disEraseThreadPool = ThreadPool()
 maxRows = 100000
-while True:
+for targetStatus in ['deleting','shortening']:
     # lock
     disEraseLock.acquire()
     # get datasets
@@ -661,16 +703,16 @@ while True:
     varMap[':modificationdateU'] = timeLimitU
     varMap[':modificationdateL'] = timeLimitL    
     varMap[':type']   = 'dispatch'
-    varMap[':status'] = 'deleting'
+    varMap[':status'] = targetStatus
     sqlQuery = "type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= %s" % maxRows     
     disEraseProxyLock.acquire()
     proxyS = taskBuffer.proxyPool.getProxy()
     res = proxyS.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60')
     taskBuffer.proxyPool.putProxy(proxyS)
     if res == None:
-        _logger.debug("# of dis datasets to be deleted: %s" % res)
+        _logger.debug("# of dis datasets for %s: None" % targetStatus)
     else:
-        _logger.debug("# of dis datasets to be deleted: %s" % len(res))
+        _logger.debug("# of dis datasets for %s: %s" % (targetStatus,len(res)))
     if res==None or len(res)==0:
         disEraseProxyLock.release()
         disEraseLock.release()
@@ -682,12 +724,12 @@ while True:
     iRows = 0
     nRows = 500
     while iRows < len(res):        
-        disEraser = EraserThr(disEraseLock,disEraseProxyLock,res[iRows:iRows+nRows],disEraseThreadPool)
+        disEraser = EraserThr(disEraseLock,disEraseProxyLock,res[iRows:iRows+nRows],
+                              disEraseThreadPool,targetStatus)
         disEraser.start()
         iRows += nRows
     disEraseThreadPool.join()
-    if len(res) < maxRows:
-        break
+
 
 _memoryCheck("finisher")
 
