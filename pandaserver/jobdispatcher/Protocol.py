@@ -70,6 +70,7 @@ class Response:
         strGUID = ''
         strFSize = ''
         strCheckSum = ''
+        strScope = ''
         logFile = ''
         logGUID = ''        
         for file in job.Files:
@@ -95,6 +96,7 @@ class Response:
                     strCheckSum += '%s,' % file.checksum
                 else:
                     strCheckSum += '%s,' % file.md5sum
+                strScope += '%s,' % file.scope    
             if file.type == 'output' or file.type == 'log':
                 if strOFiles != '':
                     strOFiles += ','
@@ -146,6 +148,8 @@ class Response:
         self.data['checksum'] = strCheckSum[:-1]
         # fsize
         self.data['fsize'] = strFSize[:-1]
+        # scope
+        self.data['scope'] = strScope[:-1]
         # destinationSE
         self.data['destinationSE'] = job.destinationSE
         # user ID

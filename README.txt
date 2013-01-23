@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added filespec.scope
   * reducing lifetime of dis when corresponding jobs finished and some of them failed
   * improved the brokerage to count the number of running jobs per processingType
   * using transferringlimit in the brokerage

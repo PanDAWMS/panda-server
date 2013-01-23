@@ -310,7 +310,7 @@ class Adder (threading.Thread):
                            and file.type == 'output':
                         guidList.append({'lfn':file.lfn,'guid':file.GUID,'type':file.type,
                                          'checksum':file.checksum,'md5sum':file.md5sum,
-                                         'fsize':file.fsize})
+                                         'fsize':file.fsize,'scope':self.extractScope(file.dataset)})
                 if guidList != []:
                     retG = self.taskBuffer.setGUIDs(guidList)
                 if destDBList != []:
@@ -938,6 +938,18 @@ class Adder (threading.Thread):
         if not self.addToTopOnly and tmpSiteSpec.lfcregister in ['server']:
             return True
         return False
+
+
+    # extract scope
+    def extractScope(self,datasetName):
+        # split by .
+        items = datasetName.split('.')
+        # not enough items
+        if len(items) < 2:
+            return None
+        # return user's scope 
+        return items[0]+'.'+items[1]
+
 
     # remove unmerged files
     def _removeUnmerged(self):

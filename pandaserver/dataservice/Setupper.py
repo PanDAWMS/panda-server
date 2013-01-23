@@ -1223,7 +1223,8 @@ class Setupper (threading.Thread):
                             for guid,vals in items.iteritems():
                                 valMap[vals['lfn']] = {'guid' : guid, 'fsize' : vals['filesize'],
                                                        'md5sum' : vals['checksum'],
-                                                       'chksum' : vals['checksum']}
+                                                       'chksum' : vals['checksum'],
+                                                       'scope'  : vals['scope']}
                                 genLFN = re.sub('\.\d+$','',vals['lfn'])
                                 if lfnMap[dataset].has_key(genLFN):
                                     # get attemptNr
@@ -1385,6 +1386,7 @@ class Setupper (threading.Thread):
                             file.fsize    = valMap[file.lfn]['fsize']
                             file.md5sum   = valMap[file.lfn]['md5sum']
                             file.checksum = valMap[file.lfn]['chksum']
+                            file.scope    = valMap[file.lfn]['scope']
                             # remove white space
                             if file.md5sum != None:
                                 file.md5sum = file.md5sum.strip()

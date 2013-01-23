@@ -6117,7 +6117,7 @@ class DBProxy:
     def setGUIDs(self,files):
         comment = ' /* DBProxy.setGUIDs */'                        
         _logger.debug("setGUIDs(%s)" % files)
-        sql0 = "UPDATE ATLAS_PANDA.filesTable4 SET GUID=:GUID,fsize=:fsize,checksum=:checksum WHERE lfn=:lfn"
+        sql0 = "UPDATE ATLAS_PANDA.filesTable4 SET GUID=:GUID,fsize=:fsize,checksum=:checksum,scope=:scope WHERE lfn=:lfn"
         for iTry in range(self.nTry):
             try:
                 # start transaction
@@ -6132,6 +6132,10 @@ class DBProxy:
                     else:
                         varMap[':checksum'] = file['checksum']
                     varMap[':fsize']    = file['fsize']                    
+                    if not file.has_key('scope') or file['scope'] in ['','NULL']:
+                        varMap[':scope'] = None
+                    else:
+                        varMap[':scope'] = file['scope']
                     self.cur.execute(sql0+comment, varMap)
                     retU = self.cur.rowcount
                     _logger.debug("setGUIDs : retU %s" % retU)
