@@ -138,6 +138,25 @@ class UserIF:
         return pickle.dumps(ret)
 
 
+    # change job priorities
+    def changeJobPriorities(self,user,prodRole,newPrioMapStr):
+        # check production role
+        if not prodRole:
+            return False,"production role is required"
+        try:
+            # deserialize map
+            newPrioMap = WrappedPickle.loads(newPrioMapStr)
+            _logger.debug("changeJobPriorities %s : %s" % (user,str(newPrioMap)))
+            # change
+            ret = self.taskBuffer.changeJobPriorities(newPrioMap)
+        except:
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("changeJobPriorities : %s %s" % (errType,errValue))
+            return False,'internal server error' 
+        # serialize 
+        return ret
+
+
     # run rebrokerage
     def runReBrokerage(self,dn,jobID,cloud,excludedSite,forceRebro):
         returnVal = "True"
@@ -1209,6 +1228,21 @@ def resubmitJobs(req,ids):
     if not isSecure(req):
         return False
     return userIF.resubmitJobs(ids)
+
+
+# change job priorities
+def changeJobPriorities(req,newPrioMap=None):
+    # check security
+    if not isSecure(req):
+        return pickle.dumps((False,'secure connection is required'))
+    # get DN
+    user = None
+    if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        user = _getDN(req)        
+    # check role
+    prodRole = _isProdRoleATLAS(req)
+    ret = userIF.changeJobPriorities(user,prodRole,newPrioMap)
+    return pickle.dumps(ret)
 
 
 # get list of site spec

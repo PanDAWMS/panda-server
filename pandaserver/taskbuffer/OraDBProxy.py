@@ -5138,6 +5138,46 @@ class DBProxy:
             return retVal
 
 
+    # change job priorities
+    def changeJobPriorities(self,newPrioMap):
+        comment = ' /* DBProxy.changeJobPriorities */'
+        try:
+            _logger.debug("changeJobPriorities start")
+            sql  = "UPDATE %s SET currentPriority=:currentPriority,assignedPriority=:assignedPriority "
+            sql += "WHERE PandaID=:PandaID"
+            # loop over all PandaIDs
+            for pandaID,newPrio in newPrioMap.iteritems():
+                varMap = {}
+                varMap[':PandaID'] = pandaID
+                varMap[':currentPriority']  = newPrio
+                varMap[':assignedPriority'] = newPrio
+                _logger.debug("changeJobPriorities PandaID=%s -> prio=%s" % (pandaID,newPrio))
+                # start transaction
+                self.conn.begin()
+                # try active tables
+                retU = None
+                for tableName in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4','ATLAS_PANDA.jobsWaiting4']:
+                    # execute
+                    self.cur.execute((sql % tableName)+comment,varMap)
+                    retU = self.cur.rowcount
+                    if retU > 0:
+                        break
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                _logger.debug("changeJobPriorities PandaID=%s retU=%s" % (pandaID,retU))
+            # return
+            _logger.debug("changeJobPriorities done")
+            return True,''
+        except:
+            # roll back
+            self._rollback()
+            # error
+            errtype,errvalue = sys.exc_info()[:2]
+            _logger.error("changeJobPriorities : %s %s" % (errtype,errvalue))
+            return False,'database error'
+
+
     # update transfer status for a dataset
     def updateTransferStatus(self,datasetname,bitMap):
         comment = ' /* DBProxy.updateTransferStatus */'        

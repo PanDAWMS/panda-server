@@ -856,3 +856,25 @@ def getRW(priority=0):
         errStr = "ERROR getRW : %s %s" % (type,value)
         print errStr
         return EC_Failed,output+'\n'+errStr
+
+
+# change job priorities
+def changeJobPriorities(newPrioMap):
+    # serialize
+    newPrioMapStr = pickle.dumps(newPrioMap)
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+    # execute
+    url = baseURLSSL + '/changeJobPriorities'
+    data = {'newPrioMap':newPrioMapStr}
+    status,output = curl.post(url,data)
+    try:
+        return status,pickle.loads(output)
+    except:
+        errtype,errvalue = sys.exc_info()[:2]
+        errStr = "ERROR changeJobPriorities : %s %s" % (errtype,errvalue)
+        return EC_Failed,output+'\n'+errStr
+                                    
+            

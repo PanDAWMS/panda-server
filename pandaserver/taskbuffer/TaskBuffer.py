@@ -1574,6 +1574,18 @@ class TaskBuffer:
         return ret
 
 
+    # change job priorities
+    def changeJobPriorities(self,newPrioMap):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get 
+        ret = proxy.changeJobPriorities(newPrioMap)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
     # get destinationDBlockToken for a dataset
     def getDestTokens(self,dsname):
         # get DBproxy
