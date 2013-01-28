@@ -44,33 +44,37 @@ def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=Fa
         # online
         if siteMapper.getSite(tmpSiteName).status != 'online':
             continue
-        # prefix of DQ2 ID
-        tmpDQ2IDPrefix = getDQ2Prefix(siteMapper.getSite(tmpSiteName).ddm)
-        # ignore empty
-        if tmpDQ2IDPrefix == '':
-            continue
-        # loop over all DQ2 IDs
+        # check all associated DQ2 IDs
         tmpFoundFlag = False
-        for tmpDQ2ID in replicaMap[tmpDsName].keys():
-            # use DATADISK or GROUPDISK 
-            if '_SCRATCHDISK'        in tmpDQ2ID or \
-                   '_USERDISK'       in tmpDQ2ID or \
-                   '_PRODDISK'       in tmpDQ2ID or \
-                   '_LOCALGROUPDISK' in tmpDQ2ID or \
-                   'TAPE'            in tmpDQ2ID or \
-                   '_DAQ'            in tmpDQ2ID or \
-                   '_TMPDISK'        in tmpDQ2ID or \
-                   '_TZERO'          in tmpDQ2ID:
+        tmpSiteSpec = siteMapper.getSite(tmpSiteName)
+        for tmpSiteDQ2ID in [tmpSiteSpec.ddm]+tmpSiteSpec.setokens.values():
+            # prefix of DQ2 ID
+            tmpDQ2IDPrefix = getDQ2Prefix(tmpSiteDQ2ID)
+            # ignore empty
+            if tmpDQ2IDPrefix == '':
                 continue
-            # check DQ2 prefix
-            if tmpDQ2ID.startswith(tmpDQ2IDPrefix):
-                tmpFoundFlag = True
-                if not getDQ2ID:
-                    break
-                # append map
-                if not retDQ2Map.has_key(tmpSiteName):
-                    retDQ2Map[tmpSiteName] = []
-                retDQ2Map[tmpSiteName].append(tmpDQ2ID)    
+            # loop over all replica DQ2 IDs 
+            for tmpDQ2ID in replicaMap[tmpDsName].keys():
+                # use DATADISK or GROUPDISK 
+                if '_SCRATCHDISK'        in tmpDQ2ID or \
+                       '_USERDISK'       in tmpDQ2ID or \
+                       '_PRODDISK'       in tmpDQ2ID or \
+                       '_LOCALGROUPDISK' in tmpDQ2ID or \
+                       'TAPE'            in tmpDQ2ID or \
+                       '_DAQ'            in tmpDQ2ID or \
+                       '_TMPDISK'        in tmpDQ2ID or \
+                       '_TZERO'          in tmpDQ2ID:
+                    continue
+                # check DQ2 prefix
+                if tmpDQ2ID.startswith(tmpDQ2IDPrefix):
+                    tmpFoundFlag = True
+                    if not getDQ2ID:
+                        break
+                    # append map
+                    if not retDQ2Map.has_key(tmpSiteName):
+                        retDQ2Map[tmpSiteName] = []
+                    if not tmpDQ2ID in retDQ2Map[tmpSiteName]:    
+                        retDQ2Map[tmpSiteName].append(tmpDQ2ID)    
         # append
         if tmpFoundFlag:
             retList.append(tmpSiteName)

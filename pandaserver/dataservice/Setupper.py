@@ -1467,7 +1467,7 @@ class Setupper (threading.Thread):
             missLFNs[cloudKey] += tmpMissLFNs
         _logger.debug('%s checking T2 LFC' % self.timestamp)
         # check availability of files at T2
-        for cloudKey,tmpMissLFNs in allLFNs.iteritems():
+        for cloudKey,tmpAllLFNs in allLFNs.iteritems():
             if len(self.jobs) > 0 and (self.jobs[0].prodSourceLabel in ['user','panda','ddm'] or \
                                        self.jobs[0].processingType.startswith('gangarobot') or \
                                        self.jobs[0].processingType.startswith('hammercloud')):
@@ -1475,15 +1475,12 @@ class Setupper (threading.Thread):
             # add cloud
             if not self.availableLFNsInT2.has_key(cloudKey):
                 self.availableLFNsInT2[cloudKey] = {}
-            # loop over all missing files to find datasets
-            for tmpMissLFN in tmpMissLFNs:
+            # loop over all files to find datasets
+            for tmpCheckLFN in tmpAllLFNs:
                 # add dataset
-                if not lfnDsMap.has_key(tmpMissLFN):
+                if not lfnDsMap.has_key(tmpCheckLFN):
                     continue
-                tmpDsName = lfnDsMap[tmpMissLFN]
-                # ignore DBR
-                #if tmpDsName.startswith('ddo'):
-                #    continue
+                tmpDsName = lfnDsMap[tmpCheckLFN]
                 if not self.availableLFNsInT2[cloudKey].has_key(tmpDsName):
                     # collect sites
                     tmpSiteNameDQ2Map = DataServiceUtils.getSitesWithDataset(tmpDsName,self.siteMapper,replicaMap,cloudKey,getDQ2ID=True)
@@ -1494,9 +1491,9 @@ class Setupper (threading.Thread):
                         self.availableLFNsInT2[cloudKey][tmpDsName]['sites'][tmpSiteName] = []
                     self.availableLFNsInT2[cloudKey][tmpDsName]['siteDQ2IDs'] = tmpSiteNameDQ2Map   
                 # add files    
-                if not tmpMissLFN in self.availableLFNsInT2[cloudKey][tmpDsName]:
-                    self.availableLFNsInT2[cloudKey][tmpDsName]['allfiles'].append(tmpMissLFN)
-                    self.availableLFNsInT2[cloudKey][tmpDsName]['allguids'].append(allGUIDs[cloudKey][allLFNs[cloudKey].index(tmpMissLFN)])
+                if not tmpCheckLFN in self.availableLFNsInT2[cloudKey][tmpDsName]:
+                    self.availableLFNsInT2[cloudKey][tmpDsName]['allfiles'].append(tmpCheckLFN)
+                    self.availableLFNsInT2[cloudKey][tmpDsName]['allguids'].append(allGUIDs[cloudKey][allLFNs[cloudKey].index(tmpCheckLFN)])
             # get available files at each T2
             for tmpDsName in self.availableLFNsInT2[cloudKey].keys():
                 checkedDq2SiteMap = {}
@@ -1996,16 +1993,13 @@ class Setupper (threading.Thread):
             nJobsMap[mapKeyJob] += 1
             if not dsFileMap.has_key(mapKey):
                 dsFileMap[mapKey] = {}
-            # add files    
+            # add files
             for tmpFile in tmpJob.Files:
                 if tmpFile.type != 'input':
                     continue
                 # if files are unavailable at the dest site normal dis datasets contain them
                 if not tmpFile.status in ['ready']:
                     continue
-                # ignore DBR
-                #if 'DBRelease' in tmpFile.dataset:
-                #    continue
                 # if available at T2
                 realDestDQ2ID = (destDQ2ID,)
                 if self.availableLFNsInT2.has_key(tmpJob.cloud) and self.availableLFNsInT2[tmpJob.cloud].has_key(tmpFile.dataset) \

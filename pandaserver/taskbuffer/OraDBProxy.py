@@ -293,6 +293,9 @@ class DBProxy:
                 if not job.prodSourceLabel in ['managed']:
                     file.lfn = re.sub('\$JOBSETID', jobsetID, file.lfn)
                     file.lfn = re.sub('\$GROUPJOBSN', groupJobSN, file.lfn)
+                # set scope
+                if file.type in ['output','log']:
+                    file.scope = self.extractScope(file.dataset)
                 # insert
                 varMap = file.valuesMap(useSeq=True)
                 varMap[':newRowID'] = self.cur.var(cx_Oracle.NUMBER)
@@ -6171,7 +6174,7 @@ class DBProxy:
                         varMap[':checksum'] = None
                     else:
                         varMap[':checksum'] = file['checksum']
-                    varMap[':fsize']    = file['fsize']                    
+                    varMap[':fsize']    = file['fsize']
                     if not file.has_key('scope') or file['scope'] in ['','NULL']:
                         varMap[':scope'] = None
                     else:
@@ -9119,6 +9122,20 @@ class DBProxy:
         except:
             return id
 
+    
+    # extract scope from dataset name
+    def extractScope(self,name):
+        try:
+            if name.lower().startswith('user') or \
+                   name.lower().startswith('group'):
+                # return None if there are not enough fields
+                if len(name.split('.')) < 2:
+                    return None
+                return name.lower().split('.')[0] + '.' + name.lower().split('.')[1]
+            return name.split('.')[0]
+        except:
+            return None
+        
     
     # check quota
     def checkQuota(self,dn):

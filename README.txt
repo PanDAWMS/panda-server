@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * fixed to use correct DQ2 site ID for pinning at sites with multi-endpoints
+  * modified to send scopes for output files to the pilot
   * added changeJobPriorities
   * using DATADISK for MCP T1 input at all T1s except US
   * added filespec.scope

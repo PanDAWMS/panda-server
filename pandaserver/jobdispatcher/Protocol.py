@@ -70,7 +70,9 @@ class Response:
         strGUID = ''
         strFSize = ''
         strCheckSum = ''
-        strScope = ''
+        strScopeIn  = ''
+        strScopeOut = ''
+        strScopeLog = ''        
         logFile = ''
         logGUID = ''        
         for file in job.Files:
@@ -96,7 +98,7 @@ class Response:
                     strCheckSum += '%s,' % file.checksum
                 else:
                     strCheckSum += '%s,' % file.md5sum
-                strScope += '%s,' % file.scope    
+                strScopeIn += '%s,' % file.scope    
             if file.type == 'output' or file.type == 'log':
                 if strOFiles != '':
                     strOFiles += ','
@@ -110,6 +112,9 @@ class Response:
                 if file.type == 'log':
                     logFile = file.lfn
                     logGUID = file.GUID
+                    strScopeLog = file.scope                                            
+                else:
+                    strScopeOut += '%s,' % file.scope                        
                 if strDestToken != '':
                     strDestToken += ','
                 strDestToken += file.destinationDBlockToken.split(',')[0]
@@ -149,7 +154,9 @@ class Response:
         # fsize
         self.data['fsize'] = strFSize[:-1]
         # scope
-        self.data['scope'] = strScope[:-1]
+        self.data['scopeIn']  = strScopeIn[:-1]
+        self.data['scopeOut'] = strScopeOut[:-1]
+        self.data['scopeLog'] = strScopeLog
         # destinationSE
         self.data['destinationSE'] = job.destinationSE
         # user ID

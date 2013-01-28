@@ -1574,6 +1574,18 @@ class TaskBuffer:
         return ret
 
 
+    # extract scope from dataset name
+    def extractScope(self,name):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get 
+        ret = proxy.extractScope(name)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
     # change job priorities
     def changeJobPriorities(self,newPrioMap):
         # get DBproxy
