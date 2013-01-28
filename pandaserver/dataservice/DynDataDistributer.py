@@ -306,7 +306,7 @@ class DynDataDistributer:
                         allCandidatesMoU.remove(selectedSite)
                     # make subscription
                     if not self.simul:
-                        subRet,dq2ID = self.makeSubscription(tmpDS,selectedSite,ddmShare='production')
+                        subRet,dq2ID = self.makeSubscription(tmpDS,selectedSite,ddmShare='secondary')
                         self.putLog("made subscription to %s:%s" % (selectedSite,dq2ID),sendLog=True)
                         usedSites.append(selectedSite)
                         # update database

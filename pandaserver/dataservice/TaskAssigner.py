@@ -955,14 +955,14 @@ class TaskAssigner:
                 _logger.debug("%s %s %s" % ('registerDatasetSubscription',(tmpDS,dq2ID),
                                             {'version':0,'archived':0,'callbacks':{},'sources':{},
                                              'sources_policy':optSrcPolicy,'wait_for_sources':0,
-                                             'destination':None,'query_more_sources':0,'sshare':"production",
+                                             'destination':None,'query_more_sources':0,'sshare':"secondary",
                                              'group':None,'activity':"Production",'acl_alias':'secondary'}))
                 iTry = 0
                 while True:
                     # execute
                     status,out = ddm.DQ2.main('registerDatasetSubscription',tmpDS,dq2ID,version=0,archived=0,callbacks={},
                                               sources={},sources_policy=optSrcPolicy,wait_for_sources=0,destination=None,
-                                              query_more_sources=0,sshare="production",group=None,activity="Production",
+                                              query_more_sources=0,sshare="secondary",group=None,activity="Production",
                                               acl_alias='secondary')
                     # succeed
                     if status == 0 or 'DQSubscriptionExistsException' in out:

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed PD2P to use secondary share
   * fixed to use correct DQ2 site ID for pinning at sites with multi-endpoints
   * modified to send scopes for output files to the pilot
   * added changeJobPriorities
