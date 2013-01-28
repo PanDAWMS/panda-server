@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * set limit on the number of IDs to be sent to the logger for reassign/killJobs
+  * removed LFC lookup from TA
   * changed PD2P to use secondary share
   * fixed to use correct DQ2 site ID for pinning at sites with multi-endpoints
   * modified to send scopes for output files to the pilot

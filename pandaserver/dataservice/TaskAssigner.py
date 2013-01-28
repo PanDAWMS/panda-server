@@ -217,6 +217,7 @@ class TaskAssigner:
             removedDQ2Map = {}
             t2ListForMissing = {}
             diskCopyCloud = None
+            badMetaMap = {}
             if locations != {}:
                 removedCloud = []
                 for dataset,sites in locations.iteritems():
@@ -240,6 +241,9 @@ class TaskAssigner:
                                 # check metadata
                                 metaOK = self.checkMetadata(dataset,tmpSE)
                                 if not metaOK:
+                                    if not badMetaMap.has_key(dataset):
+                                        badMetaMap[dataset] = []
+                                    badMetaMap[dataset].append(tmpSE)    
                                     _logger.info('%s skip %s due to ToBeDeleted' % (self.taskID,tmpSE))
                                     continue
                                 # check the number of available files
@@ -271,6 +275,9 @@ class TaskAssigner:
                                     tmpT2List.append(tmpT2Name)
                                     break
                                 else:
+                                    if not badMetaMap.has_key(dataset):
+                                        badMetaMap[dataset] = []
+                                    badMetaMap[dataset].append(tmpT2DQ2)
                                     _logger.info('%s skip %s due to ToBeDeleted' % (self.taskID,tmpT2DQ2))
                         # remove cloud if T1SE or T2 is not a location
                         if foundSE == '':
@@ -401,59 +408,27 @@ class TaskAssigner:
                     self.sendMesg(message,msgType='warning')
                     del weightParams[tmpCloudName]
                     continue
-                # DQ2 URL
-                dq2URL = tmpT1Site.dq2url
-                dq2ID  = tmpT1Site.ddm
-                # set LFC and SE name 
-                tmpSE = []
-                if not tmpT1Site.lfchost in [None,'']:
-                    dq2URL = 'lfc://'+tmpT1Site.lfchost+':/grid/atlas/'
-                    tmpSE = []
-                    if tmpT1Site.se != None:
-                        for tmpSrcSiteSE in tmpT1Site.se.split(','):
-                            match = re.search('.+://([^:/]+):*\d*/*',tmpSrcSiteSE)
-                            if match != None:
-                                tmpSE.append(match.group(1))
+                # T1
+                t1List = [tmpT1Site.sitename]
                 # hack for split T1
                 if tmpCloudName == 'NL':
-                    tmpSplitSite = self.siteMapper.getSite('NIKHEF-ELPROD')
-                    if tmpSplitSite.se != None:
-                        for tmpSrcSiteSE in tmpSplitSite.se.split(','):
-                            match = re.search('.+://([^:/]+):*\d*/*',tmpSrcSiteSE)
-                            if match != None: 
-                                tmpSE.append(match.group(1))                                
-                # get files from LRC
+                    t1List.append('NIKHEF-ELPROD')
+                # get files
                 weightParams[tmpCloudName]['nFiles'] = 0
-                # loop over all files
-                iLoop = 0
-                skipFlag = False
-                for iFile in iFileList:
-                    nTry = 3
-                    for iTry in range(nTry):
-                        tmpOKFiles = brokerage.broker_util.getFilesFromLRC(lfns[iFile:iFile+nFile],dq2URL,guids=guids[iFile:iFile+nFile],
-                                                                           storageName=tmpSE,terminateWhenFailed=True)
-                        # failed
-                        if tmpOKFiles == None:
-                            if iTry+1 == nTry:
-                                message = '%s %s failed to access LFC/LRC' % (self.taskID,tmpCloudName)
-                                self.sendMesg(message,msgType='error')
-                                raise RuntimeError, 'invalid return from getFilesFromLRC'
-                            else:
-                                # retry
-                                time.sleep(60)
-                        else:
-                            break
-                    # sum    
-                    weightParams[tmpCloudName]['nFiles'] += len(tmpOKFiles)
-                    # show progress
-                    iLoop += 1
-                    if iLoop % 10 == 1:
-                        _logger.info('%s %s %s' % (self.taskID,len(guids),iFile))
-                # skip 
-                if skipFlag:
-                    _logger.info('%s    %s skip : invalid return from LFC' % (self.taskID,cloudName))
-                    del weightParams[tmpCloudName]
-                    continue
+                # loop
+                tmpMaxNumFile = 0
+                for tmpSiteNameScan in t1List:
+                    tmpScanRet,tmpN = DataServiceUtils.getNumAvailableFilesSite(tmpSiteNameScan,
+                                                                                self.siteMapper,
+                                                                                locations,badMetaMap)
+                    # failed
+                    if not tmpScanRet:
+                        raise RuntimeError, 'failed to get nFiles at %s due to %s' % (tmpSiteNameScan,tmpN)
+                    # max
+                    if tmpMaxNumFile < tmpN:
+                        tmpMaxNumFile = tmpN
+                # set
+                weightParams[tmpCloudName]['nFiles'] = tmpMaxNumFile
                 _logger.info('%s  # of files at T1 %s' % (self.taskID,weightParams[tmpCloudName]['nFiles']))
                 # found candidate
                 foundCandidateT1 = False
@@ -472,47 +447,19 @@ class TaskAssigner:
                 if (not foundCandidateT1 or weightParams[tmpCloudName]['nFiles'] < maxNFiles) and \
                        t2ListForMissing.has_key(tmpCloudName) and t2ListForMissing[tmpCloudName] != []:
                     _logger.info('%s  T2 candidates %s' % (self.taskID,str(t2ListForMissing[tmpCloudName])))
-                    # list of SEs and LFC
-                    tmpLfcSe = {}
-                    for tmpT2 in t2ListForMissing[tmpCloudName]:
-                        tmpT2Spec = self.siteMapper.getSite(tmpT2)
-                        tmpDq2URL = 'lfc://'+tmpT2Spec.lfchost+':/grid/atlas/'
-                        if tmpT2Spec.se != None:
-                            for tmpSrcSiteSE in tmpT2Spec.se.split(','):
-                                match = re.search('.+://([^:/]+):*\d*/*',tmpSrcSiteSE)
-                                if match != None:
-                                    if not tmpLfcSe.has_key(tmpDq2URL):
-                                        tmpLfcSe[tmpDq2URL] = [] 
-                                    tmpLfcSe[tmpDq2URL].append(match.group(1))
-                    # loop over all LFC and SEs
-                    for tmpDq2URL,tmpSE in tmpLfcSe.iteritems():
-                        # loop over all files
-                        iLoop = 0
-                        nFilesT2 = 0
-                        for iFile in iFileList:
-                            nTry = 3
-                            for iTry in range(nTry):
-                                tmpOKFiles = brokerage.broker_util.getFilesFromLRC(lfns[iFile:iFile+nFile],tmpDq2URL,guids=guids[iFile:iFile+nFile],
-                                                                                   storageName=tmpSE,terminateWhenFailed=True)
-                                if tmpOKFiles == None:
-                                    if iTry+1 == nTry:
-                                        _logger.info('%s invalid return from LFC' % self.taskID)
-                                        break
-                                    else:
-                                        # retry
-                                        time.sleep(60)
-                                else:
-                                    break
-                            # sum    
-                            nFilesT2 += len(tmpOKFiles)
-                            # show progress
-                            iLoop += 1
-                            if iLoop % 10 == 1:
-                                _logger.info('%s %s %s %s T2:%s' % (self.taskID,len(guids),iFile,tmpCloudName,str(tmpSE)))
+                    # loop
+                    tmpMaxNumFile = 0
+                    for tmpSiteNameScan in t2ListForMissing[tmpCloudName]:
+                        tmpScanRet,tmpN = DataServiceUtils.getNumAvailableFilesSite(tmpSiteNameScan,
+                                                                                    self.siteMapper,
+                                                                                    locations)
+                        # failed
+                        if not tmpScanRet:
+                            raise RuntimeError, 'failed to get nFiles at %s due to %s' % (tmpSiteNameScan,tmpN)
                         # use larger value
                         _logger.info('%s  # of files at T2:%s %s' % (self.taskID,str(tmpSE),nFilesT2))
-                        if nFilesT2 > weightParams[tmpCloudName]['nFiles']:
-                            weightParams[tmpCloudName]['nFiles'] = nFilesT2
+                        if tmpN > weightParams[tmpCloudName]['nFiles']:
+                            weightParams[tmpCloudName]['nFiles'] = tmpN
                             # found candidate
                             if weightParams[tmpCloudName]['nFiles'] >= maxNFiles:
                                 candidatesUsingT2.append(tmpCloudName)

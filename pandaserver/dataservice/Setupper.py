@@ -88,7 +88,10 @@ class Setupper (threading.Thread):
             # run main procedure in the same process
             if not self.forkRun:
                 if self.jobs != None and len(self.jobs) > 0:
-                    _logger.debug('%s PandaID:%s type:%s' % (self.timestamp,self.jobs[0].PandaID,self.jobs[0].prodSourceLabel))
+                    _logger.debug('%s PandaID:%s type:%s taskID:%s' % (self.timestamp,
+                                                             self.jobs[0].PandaID,
+                                                             self.jobs[0].prodSourceLabel,
+                                                             self.jobs[0].taskID))
                 # instantiate site mapper
                 self.siteMapper = SiteMapper(self.taskBuffer)
                 # use native DQ2

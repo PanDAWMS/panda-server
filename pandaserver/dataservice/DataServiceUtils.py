@@ -1,4 +1,5 @@
 import re
+import sys
 
 # get prefix for DQ2
 def getDQ2Prefix(dq2SiteID):
@@ -83,6 +84,64 @@ def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=Fa
         return retDQ2Map
     # retrun
     return retList
+
+
+# get the number of files available at the site
+def getNumAvailableFilesSite(siteName,siteMapper,replicaMap,badMetaMap):
+    try:
+        # get DQ2 endpoints 
+        tmpSiteSpec = siteMapper.getSite(siteName)
+        prefixList = []
+        for tmpSiteDQ2ID in [tmpSiteSpec.ddm]+tmpSiteSpec.setokens.values():
+            # prefix of DQ2 ID
+            tmpDQ2IDPrefix = getDQ2Prefix(tmpSiteDQ2ID)
+            # ignore empty
+            if tmpDQ2IDPrefix != '':
+                prefixList.append(tmpDQ2IDPrefix)
+        # loop over datasets
+        totalNum = 0
+        for tmpDsName,tmpSitesData in replicaMap.iteritems():
+            maxNumFile = 0
+            # check explicit endpoint name
+            for tmpSiteDQ2ID in [tmpSiteSpec.ddm]+tmpSiteSpec.setokens.values():
+                # skip bad metadata
+                if badMetaMap.has_key(tmpDsName) and tmpSiteDQ2ID in badMetaMap[tmpDsName]:
+                    continue
+                # ignore empty
+                if tmpSiteDQ2ID == '':
+                    continue
+                # get max num of files
+                if tmpSitesData.has_key(tmpSiteDQ2ID):
+                    tmpN = tmpSitesData[tmpSiteDQ2ID][0]['found']
+                    if tmpN != None and tmpN > maxNumFile:
+                        maxNumFile = tmpN
+            # check prefix
+            for tmpDQ2IDPrefix in prefixList:
+                for tmpDQ2ID,tmpStat in tmpSitesData.iteritems():
+                    # skip bad metadata
+                    if badMetaMap.has_key(tmpDsName) and tmpDQ2ID in badMetaMap[tmpDsName]:
+                        continue
+                    # ignore NG
+                    if     '_SCRATCHDISK'    in tmpDQ2ID or \
+                           '_USERDISK'       in tmpDQ2ID or \
+                           '_PRODDISK'       in tmpDQ2ID or \
+                           '_LOCALGROUPDISK' in tmpDQ2ID or \
+                           '_DAQ'            in tmpDQ2ID or \
+                           '_TMPDISK'        in tmpDQ2ID or \
+                           '_TZERO'          in tmpDQ2ID:
+                        continue
+                    # check prefix
+                    if tmpDQ2ID.startswith(tmpDQ2IDPrefix):
+                        tmpN = tmpSitesData[tmpDQ2ID][0]['found']
+                        if tmpN != None and tmpN > maxNumFile:
+                            maxNumFile = tmpN
+            # sum
+            totalNum += maxNumFile
+        # return
+        return True,totalNum
+    except:
+        errtype,errvalue = sys.exc_info()[:2]
+        return False,'%s:%s' % (errtype,errvalue) 
 
 
 # check DDM response

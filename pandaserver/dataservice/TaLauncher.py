@@ -45,10 +45,10 @@ class TaLauncher (threading.Thread):
                         panda_config.pandaPython_dir,outFileName)
                 # add option for TA
                 com += " -t"
-                _logger.debug(com)
+                _logger.debug('%s taskID:%s %s' % (self.timestamp,job.taskID,com))
                 # exeute
                 status,output = commands.getstatusoutput(com)
-                _logger.debug("Ret from another process: %s %s" % (status,output))                
+                _logger.debug("%s Ret from child process: %s %s" % (self.timestamp,status,output))                
             _logger.debug('%s endRun' % self.timestamp)
         except:
             type, value, traceBack = sys.exc_info()

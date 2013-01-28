@@ -529,8 +529,11 @@ class UserIF:
         try:
             # make message
             message = '%s - PandaID =' % host
-            for id in ids:
+            maxID = 10            
+            for id in ids[:maxID]:
                 message += ' %s' % id
+            if len(ids) > maxID:
+                message += ' ...'
             # get logger
             _pandaLogger = PandaLogger()            
             _pandaLogger.lock()
@@ -556,8 +559,11 @@ class UserIF:
         try:
             # make message
             message = '%s - PandaID =' % host
-            for id in ids:
+            maxID = 10
+            for id in ids[:maxID]:
                 message += ' %s' % id
+            if len(ids) > maxID:
+                message += ' ...'
             # get logger
             _pandaLogger = PandaLogger()            
             _pandaLogger.lock()
