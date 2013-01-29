@@ -470,7 +470,7 @@ class TaskAssigner:
                     for tmpSiteNameScan in t2ListForMissing[tmpCloudName]:
                         tmpScanRet,tmpN = DataServiceUtils.getNumAvailableFilesSite(tmpSiteNameScan,
                                                                                     self.siteMapper,
-                                                                                    locations)
+                                                                                    locations,badMetaMap)
                         # failed
                         if not tmpScanRet:
                             raise RuntimeError, 'failed to get nFiles at %s due to %s' % (tmpSiteNameScan,tmpN)
