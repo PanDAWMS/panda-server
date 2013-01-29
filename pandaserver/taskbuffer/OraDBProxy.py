@@ -294,7 +294,7 @@ class DBProxy:
                     file.lfn = re.sub('\$JOBSETID', jobsetID, file.lfn)
                     file.lfn = re.sub('\$GROUPJOBSN', groupJobSN, file.lfn)
                 # set scope
-                if file.type in ['output','log']:
+                if file.type in ['output','log'] and job.VO in ['atlas']:
                     file.scope = self.extractScope(file.dataset)
                 # insert
                 varMap = file.valuesMap(useSeq=True)

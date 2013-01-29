@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * setting scope only for ATLAS
   * improved the task brokerage to check datasets with fewer replicas first
   * set limit on the number of IDs to be sent to the logger for reassign/killJobs
   * removed LFC lookup from TA
