@@ -219,8 +219,22 @@ class TaskAssigner:
             diskCopyCloud = None
             badMetaMap = {}
             if locations != {}:
-                removedCloud = []
+                # sort datasets by the number of sites
+                numSitesDatasetMap = {}
                 for dataset,sites in locations.iteritems():
+                    numSites = len(sites)
+                    if not numSitesDatasetMap.has_key(numSites):
+                        numSitesDatasetMap[numSites] = []
+                    numSitesDatasetMap[numSites].append(dataset)    
+                numSitesList = numSitesDatasetMap.keys()
+                numSitesList.sort()
+                sortedDatasetList = []
+                for numSites in numSitesList:
+                    sortedDatasetList += numSitesDatasetMap[numSites]
+                # loop over datasets starting with fewer replicas
+                removedCloud = []
+                for dataset in sortedDatasetList:
+                    sites = locations[dataset]
                     tmpDiskCopyCloud = []
                     removedDQ2Map[dataset] = []
                     _logger.info('%s DS:%s' % (self.taskID,dataset)) 
@@ -267,6 +281,10 @@ class TaskAssigner:
                                                                          tmpCloudName,True,getDQ2ID=True,
                                                                          useOnlineSite=True)
                         for tmpT2Name,tmpT2DQ2List in tmpT2Map.iteritems():
+                            # skip redundant lookup
+                            if t2ListForMissing.has_key(tmpCloudName) and \
+                                   not tmpT2Name in t2ListForMissing[tmpCloudName]:
+                                continue
                             # loop over all DQ2 IDs
                             for tmpT2DQ2 in tmpT2DQ2List:
                                 # check metadata
