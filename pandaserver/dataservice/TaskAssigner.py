@@ -475,7 +475,7 @@ class TaskAssigner:
                         if not tmpScanRet:
                             raise RuntimeError, 'failed to get nFiles at %s due to %s' % (tmpSiteNameScan,tmpN)
                         # use larger value
-                        _logger.info('%s  # of files at T2:%s %s' % (self.taskID,str(tmpSE),nFilesT2))
+                        _logger.info('%s  # of files at T2:%s %s' % (self.taskID,str(tmpSE),tmpN))
                         if tmpN > weightParams[tmpCloudName]['nFiles']:
                             weightParams[tmpCloudName]['nFiles'] = tmpN
                             # found candidate
