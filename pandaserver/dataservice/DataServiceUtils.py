@@ -87,7 +87,7 @@ def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=Fa
 
 
 # get the number of files available at the site
-def getNumAvailableFilesSite(siteName,siteMapper,replicaMap,badMetaMap):
+def getNumAvailableFilesSite(siteName,siteMapper,replicaMap,badMetaMap,additionalSEs=[]):
     try:
         # get DQ2 endpoints 
         tmpSiteSpec = siteMapper.getSite(siteName)
@@ -102,39 +102,63 @@ def getNumAvailableFilesSite(siteName,siteMapper,replicaMap,badMetaMap):
         totalNum = 0
         for tmpDsName,tmpSitesData in replicaMap.iteritems():
             maxNumFile = 0
-            # check explicit endpoint name
-            for tmpSiteDQ2ID in [tmpSiteSpec.ddm]+tmpSiteSpec.setokens.values():
-                # skip bad metadata
-                if badMetaMap.has_key(tmpDsName) and tmpSiteDQ2ID in badMetaMap[tmpDsName]:
-                    continue
-                # ignore empty
-                if tmpSiteDQ2ID == '':
-                    continue
-                # get max num of files
-                if tmpSitesData.has_key(tmpSiteDQ2ID):
-                    tmpN = tmpSitesData[tmpSiteDQ2ID][0]['found']
-                    if tmpN != None and tmpN > maxNumFile:
-                        maxNumFile = tmpN
-            # check prefix
-            for tmpDQ2IDPrefix in prefixList:
-                for tmpDQ2ID,tmpStat in tmpSitesData.iteritems():
-                    # skip bad metadata
-                    if badMetaMap.has_key(tmpDsName) and tmpDQ2ID in badMetaMap[tmpDsName]:
+            # for T1 or T2
+            if additionalSEs != []:
+                # check T1 endpoints
+                for tmpSePat in additionalSEs:
+                    # ignore empty
+                    if tmpSePat == '':
                         continue
-                    # ignore NG
-                    if     '_SCRATCHDISK'    in tmpDQ2ID or \
-                           '_USERDISK'       in tmpDQ2ID or \
-                           '_PRODDISK'       in tmpDQ2ID or \
-                           '_LOCALGROUPDISK' in tmpDQ2ID or \
-                           '_DAQ'            in tmpDQ2ID or \
-                           '_TMPDISK'        in tmpDQ2ID or \
-                           '_TZERO'          in tmpDQ2ID:
-                        continue
-                    # check prefix
-                    if tmpDQ2ID.startswith(tmpDQ2IDPrefix):
-                        tmpN = tmpSitesData[tmpDQ2ID][0]['found']
+                    # make regexp pattern
+                    if '*' in tmpSePat:
+                        tmpSePat = tmpSePat.replace('*','.*')
+                    tmpSePat = '^' + tmpSePat +'$'
+                    # loop over all sites
+                    for tmpSE in tmpSitesData.keys():
+                        # skip bad metadata
+                        if badMetaMap.has_key(tmpDsName) and tmpSE in badMetaMap[tmpDsName]:
+                            continue
+                        # check match
+                        if re.search(tmpSePat,tmpSE) == None:
+                            continue
+                        # get max num of files
+                        tmpN = tmpSitesData[tmpSE][0]['found']
                         if tmpN != None and tmpN > maxNumFile:
                             maxNumFile = tmpN
+            else:
+                # check explicit endpoint name
+                for tmpSiteDQ2ID in [tmpSiteSpec.ddm]+tmpSiteSpec.setokens.values():
+                    # skip bad metadata
+                    if badMetaMap.has_key(tmpDsName) and tmpSiteDQ2ID in badMetaMap[tmpDsName]:
+                        continue
+                    # ignore empty
+                    if tmpSiteDQ2ID == '':
+                        continue
+                    # get max num of files
+                    if tmpSitesData.has_key(tmpSiteDQ2ID):
+                        tmpN = tmpSitesData[tmpSiteDQ2ID][0]['found']
+                        if tmpN != None and tmpN > maxNumFile:
+                            maxNumFile = tmpN
+                # check prefix
+                for tmpDQ2IDPrefix in prefixList:
+                    for tmpDQ2ID,tmpStat in tmpSitesData.iteritems():
+                        # skip bad metadata
+                        if badMetaMap.has_key(tmpDsName) and tmpDQ2ID in badMetaMap[tmpDsName]:
+                            continue
+                        # ignore NG
+                        if     '_SCRATCHDISK'    in tmpDQ2ID or \
+                               '_USERDISK'       in tmpDQ2ID or \
+                               '_PRODDISK'       in tmpDQ2ID or \
+                               '_LOCALGROUPDISK' in tmpDQ2ID or \
+                               '_DAQ'            in tmpDQ2ID or \
+                               '_TMPDISK'        in tmpDQ2ID or \
+                               '_TZERO'          in tmpDQ2ID:
+                            continue
+                        # check prefix
+                        if tmpDQ2ID.startswith(tmpDQ2IDPrefix):
+                            tmpN = tmpSitesData[tmpDQ2ID][0]['found']
+                            if tmpN != None and tmpN > maxNumFile:
+                                maxNumFile = tmpN
             # sum
             totalNum += maxNumFile
         # return

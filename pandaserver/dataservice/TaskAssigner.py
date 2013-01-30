@@ -438,7 +438,8 @@ class TaskAssigner:
                 for tmpSiteNameScan in t1List:
                     tmpScanRet,tmpN = DataServiceUtils.getNumAvailableFilesSite(tmpSiteNameScan,
                                                                                 self.siteMapper,
-                                                                                locations,badMetaMap)
+                                                                                locations,badMetaMap,
+                                                                                tmpCloud['tier1SE'])
                     # failed
                     if not tmpScanRet:
                         raise RuntimeError, 'failed to get nFiles at %s due to %s' % (tmpSiteNameScan,tmpN)

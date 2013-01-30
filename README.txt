@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * using cloudconfig.tier1SE to count files at T1
   * setting scope only for ATLAS
   * improved the task brokerage to check datasets with fewer replicas first
   * set limit on the number of IDs to be sent to the logger for reassign/killJobs
