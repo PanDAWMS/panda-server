@@ -87,7 +87,8 @@ def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=Fa
 
 
 # get the number of files available at the site
-def getNumAvailableFilesSite(siteName,siteMapper,replicaMap,badMetaMap,additionalSEs=[]):
+def getNumAvailableFilesSite(siteName,siteMapper,replicaMap,badMetaMap,additionalSEs=[],
+                             noCheck=[]):
     try:
         # get DQ2 endpoints 
         tmpSiteSpec = siteMapper.getSite(siteName)
@@ -101,6 +102,14 @@ def getNumAvailableFilesSite(siteName,siteMapper,replicaMap,badMetaMap,additiona
         # loop over datasets
         totalNum = 0
         for tmpDsName,tmpSitesData in replicaMap.iteritems():
+            # dataset type
+            datasetType = getDatasetType(tmpDsName)
+            # use total num to effectively skip file availability check
+            if datasetType in noCheck:
+                columnName = 'total'
+            else:
+                columnName = 'found'
+            # get num of files
             maxNumFile = 0
             # for T1 or T2
             if additionalSEs != []:
@@ -122,7 +131,7 @@ def getNumAvailableFilesSite(siteName,siteMapper,replicaMap,badMetaMap,additiona
                         if re.search(tmpSePat,tmpSE) == None:
                             continue
                         # get max num of files
-                        tmpN = tmpSitesData[tmpSE][0]['found']
+                        tmpN = tmpSitesData[tmpSE][0][columnName]                            
                         if tmpN != None and tmpN > maxNumFile:
                             maxNumFile = tmpN
             else:
@@ -136,7 +145,7 @@ def getNumAvailableFilesSite(siteName,siteMapper,replicaMap,badMetaMap,additiona
                         continue
                     # get max num of files
                     if tmpSitesData.has_key(tmpSiteDQ2ID):
-                        tmpN = tmpSitesData[tmpSiteDQ2ID][0]['found']
+                        tmpN = tmpSitesData[tmpSiteDQ2ID][0][columnName]
                         if tmpN != None and tmpN > maxNumFile:
                             maxNumFile = tmpN
                 # check prefix
@@ -156,7 +165,7 @@ def getNumAvailableFilesSite(siteName,siteMapper,replicaMap,badMetaMap,additiona
                             continue
                         # check prefix
                         if tmpDQ2ID.startswith(tmpDQ2IDPrefix):
-                            tmpN = tmpSitesData[tmpDQ2ID][0]['found']
+                            tmpN = tmpSitesData[tmpDQ2ID][0][columnName]
                             if tmpN != None and tmpN > maxNumFile:
                                 maxNumFile = tmpN
             # sum
@@ -183,3 +192,13 @@ def isDBR(datasetName):
     if datasetName.startswith('ddo'):
         return True
     return False
+
+
+# get dataset type
+def getDatasetType(dataset):
+    datasetType = None
+    try:
+        datasetType = dataset.split('.')[4]
+    except:
+        pass
+    return datasetType

@@ -40,6 +40,8 @@ taskTypesMcShare = ['evgen']
 # task types for subscriptions
 taskTypesSub = ['simul']
 
+# dataset type to ignore file availability check
+datasetTypeToSkipCheck = ['log']
 
 class TaskAssigner:
     # constructor
@@ -213,7 +215,8 @@ class TaskAssigner:
                     _logger.info('%s listFileReplicasBySites %s:%s' % (self.taskID,tmpDataset,str(sitesForRefresh)))
                     tmpStat,tmpOut = ddm.DQ2_iter.listFileReplicasBySites(tmpDataset,0,sitesForRefresh,0,300)
                     _logger.info('%s listFileReplicasBySites end with %s:%s' % (self.taskID,tmpStat,tmpOut))
-                    #raise RuntimeError, '%s %s has incorrect replica info' % (self.taskID,tmpDataset)
+                    # reset tmod to shorten retry interval
+                    self.taskBuffer.resetTmodCloudTask(self.taskID)
             removedDQ2Map = {}
             t2ListForMissing = {}
             diskCopyCloud = None
@@ -237,7 +240,8 @@ class TaskAssigner:
                     sites = locations[dataset]
                     tmpDiskCopyCloud = []
                     removedDQ2Map[dataset] = []
-                    _logger.info('%s DS:%s' % (self.taskID,dataset)) 
+                    _logger.info('%s DS:%s' % (self.taskID,dataset))
+                    datasetType = DataServiceUtils.getDatasetType(dataset)
                     for tmpCloudName in cloudList:
                         tmpCloud = self.siteMapper.getCloud(tmpCloudName)
                         # look for T1 SE which holds the max number of files
@@ -310,7 +314,8 @@ class TaskAssigner:
                         else:
                             # check incomplete or not
                             tmpStat = sites[foundSE][-1]
-                            if tmpStat['found'] == None or tmpStat['found'] < tmpStat['total']:
+                            if tmpStat['found'] == None or \
+                                   (not datasetType in datasetTypeToSkipCheck and tmpStat['found'] < tmpStat['total']):
                                 # add dataset to map which is subscribed when the task is used due to T2 files
                                 if not tmpCloudName in removedDQ2Map[dataset]:
                                     removedDQ2Map[dataset].append(tmpCloudName)
@@ -439,7 +444,8 @@ class TaskAssigner:
                     tmpScanRet,tmpN = DataServiceUtils.getNumAvailableFilesSite(tmpSiteNameScan,
                                                                                 self.siteMapper,
                                                                                 locations,badMetaMap,
-                                                                                tmpCloud['tier1SE'])
+                                                                                tmpCloud['tier1SE'],
+                                                                                noCheck=datasetTypeToSkipCheck)
                     # failed
                     if not tmpScanRet:
                         raise RuntimeError, 'failed to get nFiles at %s due to %s' % (tmpSiteNameScan,tmpN)
@@ -471,7 +477,8 @@ class TaskAssigner:
                     for tmpSiteNameScan in t2ListForMissing[tmpCloudName]:
                         tmpScanRet,tmpN = DataServiceUtils.getNumAvailableFilesSite(tmpSiteNameScan,
                                                                                     self.siteMapper,
-                                                                                    locations,badMetaMap)
+                                                                                    locations,badMetaMap,
+                                                                                    noCheck=datasetTypeToSkipCheck)
                         # failed
                         if not tmpScanRet:
                             raise RuntimeError, 'failed to get nFiles at %s due to %s' % (tmpSiteNameScan,tmpN)

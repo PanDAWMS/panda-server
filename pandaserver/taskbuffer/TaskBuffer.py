@@ -617,6 +617,18 @@ class TaskBuffer:
         return retList
 
 
+    # reset modification time of a task to shorten retry interval
+    def resetTmodCloudTask(self,tid):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # run
+        res = proxy.resetTmodCloudTask(tid)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
     # get assigning task
     def getAssigningTask(self):
         # get DBproxy

@@ -5366,6 +5366,36 @@ class DBProxy:
             _logger.error("seeCloudTask() : %s %s" % (type,value))
             return None
 
+
+    # reset modification time of a task to shorten retry interval
+    def resetTmodCloudTask(self,tid):
+        comment = ' /* resetTmodCloudTask */'        
+        try:
+            _logger.debug("resetTmodCloudTask %s" % tid)
+            # check tid
+            if tid in [None,'NULL']:
+                _logger.error("invalid TID : %s" % tid)
+                return None
+            # start transaction
+            self.conn.begin()
+            # update
+            sql  = "UPDATE ATLAS_PANDA.cloudtasks SET tmod=:tmod WHERE taskid=:taskid"
+            varMap = {}
+            varMap[':taskid'] = tid
+            varMap[':tmod'] = datetime.datetime.utcnow() - datetime.timedelta(minutes=165)
+            self.cur.execute(sql+comment, varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            return True
+        except:
+            # roll back
+            self._rollback()
+            # error
+            type, value, traceBack = sys.exc_info()
+            _logger.error("resetTmodCloudTask : %s %s" % (type,value))
+            return False
+
         
     # get assigning task
     def getAssigningTask(self):
