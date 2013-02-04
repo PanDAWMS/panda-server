@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * introduced ProcessLimiter
   * changed TA to shorten retry interval after refreshing replica info
   * skipping file availability check for log datasets in TA
   * using cloudconfig.tier1SE to count files at T1

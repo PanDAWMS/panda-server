@@ -10,6 +10,7 @@ from brokerage.SiteMapper import SiteMapper
 from dataservice.Setupper import Setupper
 from dataservice.Closer import Closer
 from dataservice.TaLauncher import TaLauncher
+from dataservice.ProcessLimiter import ProcessLimiter
 
 # logger
 from pandalogger.PandaLogger import PandaLogger
@@ -26,6 +27,7 @@ class TaskBuffer:
     def __init__(self):
         self.proxyPool = None
         self.lock = Lock()
+        self.processLimiter = None
 
 
     # initialize
@@ -35,6 +37,9 @@ class TaskBuffer:
         # create Proxy Pool
         if self.proxyPool == None:
             self.proxyPool = DBProxyPool(dbname,dbpass,nDBConnection,useTimeout)
+        # create process limiter
+        if self.processLimiter == None:
+            self.processLimiter = ProcessLimiter()
         # release
         self.lock.release()
 

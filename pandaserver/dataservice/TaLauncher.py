@@ -47,7 +47,7 @@ class TaLauncher (threading.Thread):
                 com += " -t"
                 _logger.debug('%s taskID:%s %s' % (self.timestamp,job.taskID,com))
                 # exeute
-                status,output = commands.getstatusoutput(com)
+                status,output = self.taskBuffer.processLimiter.getstatusoutput(com)
                 _logger.debug("%s Ret from child process: %s %s" % (self.timestamp,status,output))                
             _logger.debug('%s endRun' % self.timestamp)
         except:

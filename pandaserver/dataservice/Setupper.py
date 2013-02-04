@@ -194,7 +194,7 @@ class Setupper (threading.Thread):
                     com += " -t"
                 _logger.debug(com)
                 # exeute
-                status,output = commands.getstatusoutput(com)
+                status,output = self.taskBuffer.processLimiter.getstatusoutput(com)
                 _logger.debug("Ret from another process: %s %s" % (status,output))                
             self._memoryCheck()            
             _logger.debug('%s endRun' % self.timestamp)
