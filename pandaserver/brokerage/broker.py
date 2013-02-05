@@ -406,10 +406,10 @@ def makeCompactDiagMessage(header,results):
                   'scratch'      : 'small scratch disk'
                   }
     # put header
-    if header == '':
+    if header in ['',None]:
         retStr = 'No candidate - '
     else:
-        retStr = header
+        retStr = 'special brokerage for %s - ' % header
     # count number of sites per type
     numTypeMap = {}
     for resultType,resultList in results.iteritems():
@@ -437,8 +437,9 @@ def makeCompactDiagMessage(header,results):
             else:
                 retStr += '%s at' % resultType
             # use comact format or not
-            if resultType in compactTypeList+largeTypes \
-               or len(results[resultType]) >= maxSiteList:
+            if (resultType in compactTypeList+largeTypes \
+               or len(results[resultType]) >= maxSiteList) \
+               and header in ['',None,'reprocessing'] :
                 if len(results[resultType]) == 1:
                     retStr += '%s site' % len(results[resultType])
                 else:
@@ -1430,13 +1431,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     tmpJob.brokerageErrorDiag = 'failed to set diag. see brokerage log in the panda server'
                             elif not prevBrokergageSiteList in [[],None]:
                                 try:
-                                    usedInDiagSites = []
-                                    tmpJob.brokerageErrorDiag = ''
-                                    # note
-                                    if not prevBrokerageNote in ['',None]:
-                                        tmpJob.brokerageErrorDiag += 'special brokerage for %s: ' % prevBrokerageNote
                                     # make message
-                                    tmpJob.brokerageErrorDiag = makeCompactDiagMessage(tmpJob.brokerageErrorDiag,resultsForAnal)
+                                    tmpJob.brokerageErrorDiag = makeCompactDiagMessage(prevBrokerageNote,resultsForAnal)
                                 except:
                                     errtype,errvalue = sys.exc_info()[:2]
                                     tmpLog.error("failed to set special diag for %s: %s %s" % (tmpJob.PandaID,errtype,errvalue))
