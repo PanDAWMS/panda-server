@@ -124,11 +124,15 @@ def _isReproJob(tmpJob):
 
     
 # set 'ready' if files are already there
-def _setReadyToFiles(tmpJob,okFiles,siteMapper):
+def _setReadyToFiles(tmpJob,okFiles,siteMapper,tmpLog):
     allOK = True
     tmpSiteSpec = siteMapper.getSite(tmpJob.computingSite)
     tmpSrcSpec  = siteMapper.getSite(siteMapper.getCloud(tmpJob.cloud)['source'])
-    _log.debug(tmpSiteSpec.seprodpath)
+    # direct usage of remote SE
+    if tmpSiteSpec.ddm != tmpSrcSpec.ddm and tmpSrcSpec.ddm in tmpSiteSpec.setokens.values():
+        tmpSiteSpec = tmpSrcSpec
+        tmpLog.debug('%s uses remote SiteSpec of %s for %s' % (tmpJob.PandaID,tmpSrcSpec.sitename,tmpJob.computingSite))
+    tmpLog.debug('%s %s' % (tmpJob.PandaID,str(tmpSiteSpec.seprodpath)))
     prestageSites = getPrestageSites(siteMapper)
     for tmpFile in tmpJob.Files:
         if tmpFile.type == 'input':
@@ -744,7 +748,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                          # loop over all jobs
                          for tmpJob in jobsInBunch:
                              # set 'ready' if files are already there
-                             _setReadyToFiles(tmpJob,okFiles,siteMapper)
+                             _setReadyToFiles(tmpJob,okFiles,siteMapper,tmpLog)
                 else:
                     # load balancing
                     minSites = {}
@@ -1452,7 +1456,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             tmpLog.debug('PandaID:%s %s' % (tmpJob.PandaID,tmpJob.brokerageErrorDiag))
                             continue
                         # set ready if files are already there
-                        _setReadyToFiles(tmpJob,okFiles,siteMapper)                        
+                        _setReadyToFiles(tmpJob,okFiles,siteMapper,tmpLog)
                         # update statistics
                         tmpProGroup = ProcessGroups.getProcessGroup(tmpJob.processingType)
                         if tmpJob.processingType in skipBrokerageProTypes:

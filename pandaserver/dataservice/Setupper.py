@@ -754,15 +754,22 @@ class Setupper (threading.Thread):
                     # use cloud's source
                     tmpSrcID = self.siteMapper.getCloud(job.cloud)['source']
                 srcDQ2ID = self.siteMapper.getSite(tmpSrcID).ddm
+                # destination
+                tmpDstID = job.computingSite
+                if srcDQ2ID != self.siteMapper.getSite(job.computingSite).ddm and \
+                       srcDQ2ID in self.siteMapper.getSite(job.computingSite).setokens.values():
+                    # direct usage of remote SE. Mainly for prestaging
+                    tmpDstID = tmpSrcID
+                    _logger.debug('%s use remote SiteSpec of %s for %s' % (self.timestamp,tmpDstID,job.computingSite))
                 # use srcDQ2ID as dstDQ2ID when dst SE is same as src SE
                 srcSEs = brokerage.broker_util.getSEfromSched(self.siteMapper.getSite(tmpSrcID).se)
-                dstSEs = brokerage.broker_util.getSEfromSched(self.siteMapper.getSite(job.computingSite).se)
+                dstSEs = brokerage.broker_util.getSEfromSched(self.siteMapper.getSite(tmpDstID).se)
                 if srcSEs == dstSEs or job.computingSite.endswith("_REPRO"):
                     dstDQ2ID = srcDQ2ID
                 else:
                     dstDQ2ID = self.siteMapper.getSite(job.computingSite).ddm
                 # use DQ2
-                if (not self.pandaDDM) and (not srcDQ2ID in PandaDDMSource or self.siteMapper.getSite(job.computingSite).cloud != 'US') \
+                if (not self.pandaDDM) and (not srcDQ2ID in PandaDDMSource or self.siteMapper.getSite(tmpDstID).cloud != 'US') \
                        and (job.prodSourceLabel != 'ddm') and (not job.computingSite.endswith("_REPRO")):
                     # look for replica
                     dq2ID = srcDQ2ID
@@ -868,7 +875,7 @@ class Setupper (threading.Thread):
                             optSub['DATASET_STAGED_EVENT'] = ['https://%s:%s/server/panda/datasetCompleted' % \
                                                               (panda_config.pserverhost,panda_config.pserverport)]
                             # use ATLAS*TAPE
-                            seTokens = self.siteMapper.getSite(job.computingSite).setokens
+                            seTokens = self.siteMapper.getSite(tmpDstID).setokens
                             if seTokens.has_key('ATLASDATATAPE') and seTokens.has_key('ATLASMCTAPE'):
                                 dq2ID = seTokens['ATLASDATATAPE']
                                 # use MCDISK if needed
@@ -901,11 +908,11 @@ class Setupper (threading.Thread):
                             for tmpDQ2ID in dq2IDList:
                                 optSource[tmpDQ2ID] = {'policy' : 0}
                             # T1 used as T2
-                            if job.cloud != self.siteMapper.getSite(job.computingSite).cloud and \
+                            if job.cloud != self.siteMapper.getSite(tmpDstID).cloud and \
                                    (not dstDQ2ID.endswith('PRODDISK')) and \
                                    (not job.prodSourceLabel in ['user','panda']) and \
-                                   self.siteMapper.getSite(job.computingSite).cloud in ['US']:
-                                seTokens = self.siteMapper.getSite(job.computingSite).setokens
+                                   self.siteMapper.getSite(tmpDstID).cloud in ['US']:
+                                seTokens = self.siteMapper.getSite(tmpDstID).setokens
                                 # use T1_PRODDISK
                                 if seTokens.has_key('ATLASPRODDISK'):
                                     dq2ID = seTokens['ATLASPRODDISK']

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed Setupper to trigger prestaging when sites with multi-endpoints use TAPE
   * put all info to ErrorDiag in the brokerage
   * added modificationTime constraint to URL sent to the user by Notifier
   * introduced ProcessLimiter
