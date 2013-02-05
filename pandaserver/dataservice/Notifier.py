@@ -251,6 +251,7 @@ Parameters : %s""" % self.job.metadata
                             urlData['job'] = '*'
                             urlData['jobDefinitionID'] = tmpJobID
                             urlData['user'] = self.job.prodUserName
+                            urlData['at'] = (str(creationTime)).split()[0]
                             if tmpIdx == 0:
                                 message += \
 """
@@ -265,6 +266,7 @@ PandaMonURL : http://panda.cern.ch/server/pandamon/query?%s""" % urllib.urlencod
                         urlData['job'] = '*'
                         urlData['jobsetID'] = self.job.jobsetID
                         urlData['user'] = self.job.prodUserName
+                        urlData['at'] = (str(creationTime)).split()[0]
                         message += \
 """
 

@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * put all info to ErrorDiag in the brokerage
+  * added modificationTime constraint to URL sent to the user by Notifier
   * introduced ProcessLimiter
   * changed TA to shorten retry interval after refreshing replica info
   * skipping file availability check for log datasets in TA

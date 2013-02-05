@@ -387,6 +387,72 @@ def getPrestageSites(siteMapper):
     return retList
 
 
+# make compact dialog message
+def makeCompactDiagMessage(header,results):
+    # limit
+    maxSiteList  = 5
+    # types for compact format
+    compactTypeList = ['status','cpucore']
+    # message mapping
+    messageMap = {'rel'          : 'missing rel/cache',
+                  'pilot'        : 'no pilot', 
+                  'status'       : 'not online',
+                  'disk'         : 'SE full',
+                  'memory'       : 'RAM shortage',
+                  'transferring' : 'many transferring',
+                  'share'        : 'zero share',
+                  'maxtime'      : 'short walltime',
+                  'cpucore'      : 'CPU core mismatch',
+                  'scratch'      : 'small scratch disk'
+                  }
+    # put header
+    if header == '':
+        retStr = 'No candidate - '
+    else:
+        retStr = header
+    # count number of sites per type
+    numTypeMap = {}
+    for resultType,resultList in results.iteritems():
+        # ignore empty
+        if len(resultList) == 0:
+            continue
+        # add
+        nSites = len(resultList)
+        if not numTypeMap.has_key(nSites):
+            numTypeMap[nSites] = []
+        numTypeMap[nSites].append(resultType)    
+    # sort
+    numTypeKeys = numTypeMap.keys()
+    numTypeKeys.sort()
+    # use compact format for largest one
+    largeTypes = None
+    if len(numTypeKeys) > 0:
+        largeTypes = numTypeMap[numTypeKeys[-1]]
+    # loop over all types
+    for numTypeKey in numTypeKeys:
+        for resultType in numTypeMap[numTypeKey]:
+            # label
+            if messageMap.has_key(resultType):
+                retStr += '%s at ' % messageMap[resultType]
+            else:
+                retStr += '%s at' % resultType
+            # use comact format or not
+            if resultType in compactTypeList+largeTypes \
+               or len(results[resultType]) >= maxSiteList:
+                if len(results[resultType]) == 1:
+                    retStr += '%s site' % len(results[resultType])
+                else:
+                    retStr += '%s sites' % len(results[resultType])
+            else:
+                for tmpSite in results[resultType]:
+                    retStr += '%s,' % tmpSite
+                retStr = retStr[:-1]
+            retStr += '. '
+    retStr = retStr[:-2]
+    # return
+    return retStr
+
+
 # message class
 class MsgWrapper:
     def __init__(self):
@@ -662,7 +728,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 # brokerage decisions    
                 resultsForAnal   = {'rel':[],'pilot':[],'disk':[],'status':[],'weight':[],'memory':[],
                                     'share':[],'transferring':[],'prefcountry':[],'cpucore':[],
-                                    'reliability':[],'maxtime':[]}
+                                    'reliability':[],'maxtime':[],'scratch':[]}
                 # determine site
                 if (iJob == 0 or chosen_ce != 'TOBEDONE') and prevBrokergageSiteList in [None,[]]:
                      # file scan for pre-assigned jobs
@@ -792,71 +858,6 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 resultsForAnal['status'].append(site)
                                 continue
                             tmpLog.debug('   status=%s' % tmpSiteSpec.status)
-                            # reliability
-                            if forAnalysis and isinstance(siteReliability,types.IntType):
-                                if tmpSiteSpec.reliabilityLevel != None and tmpSiteSpec.reliabilityLevel > siteReliability:
-                                    tmpLog.debug(' skip: insufficient reliability %s > %s' % (tmpSiteSpec.reliabilityLevel,siteReliability))
-                                    resultsForAnal['reliability'].append(site)
-                                    continue
-                            # change NULL cmtconfig to slc3/4
-                            if prevCmtConfig in ['NULL','',None]:
-                                if forAnalysis:
-                                    tmpCmtConfig = 'i686-slc4-gcc34-opt'
-                                else:
-                                    tmpCmtConfig = 'i686-slc3-gcc323-opt'                                    
-                            else:
-                                tmpCmtConfig = prevCmtConfig
-                            # set release
-                            releases = tmpSiteSpec.releases
-                            if prevProType in ['reprocessing']:
-                                # use validated releases for reprocessing
-                                releases = tmpSiteSpec.validatedreleases
-                            if not useCacheVersion:    
-                                tmpLog.debug('   %s' % str(releases))
-                            if forAnalysis and (tmpSiteSpec.cloud in ['ND'] or prevRelease==''):
-                                # doesn't check releases for analysis
-                                tmpLog.debug(' no release check')
-                                pass
-                            elif forAnalysis and useCacheVersion:
-                                # cache matching 
-                                if not site in siteListWithCache:
-                                    tmpLog.debug(' skip: cache %s/%s not found' % (prevRelease.replace('\n',' '),prevCmtConfig))
-                                    if trustIS:
-                                        resultsForAnal['rel'].append(site)
-                                    continue
-                            elif prevRelease != None and \
-                                     (useCacheVersion and not tmpSiteSpec.cloud in ['ND'] and not site in ['CERN-RELEASE']) and \
-                                     (not prevProType in ['reprocessing']) and \
-                                     (not site in siteListWithCache):
-                                    tmpLog.debug(' skip: cache %s/%s not found' % (prevHomePkg.replace('\n',' '),prevCmtConfig))
-                                    # send message to logger
-                                    try:
-                                        if prevSourceLabel in ['managed','test']:
-                                            # make message
-                                            message = '%s - cache %s/%s not found' % (site,prevHomePkg.replace('\n',' '),prevCmtConfig)
-                                            if not message in loggerMessages:
-                                                loggerMessages.append(message)
-                                    except:
-                                        pass
-                                    continue
-                            elif prevRelease != None and \
-                                 ((not useCacheVersion and releases != [] and not tmpSiteSpec.cloud in ['ND'] and not site in ['CERN-RELEASE']) or prevProType in ['reprocessing']) and \
-                                 (((not _checkRelease(prevRelease,releases) and prevManualPreset == False) or not site in siteListWithCache) and not tmpSiteSpec.cloud in ['ND'] and not site in ['CERN-RELEASE']):
-                                # release matching
-                                if not useCacheVersion:
-                                    tmpLog.debug(' skip: release %s/%s not found' % (prevRelease.replace('\n',' '),prevCmtConfig))
-                                else:
-                                    tmpLog.debug(' skip: repro cache %s/%s not found' % (prevHomePkg.replace('\n',' '),prevCmtConfig))
-                                if forAnalysis and trustIS:
-                                    resultsForAnal['rel'].append(site)
-                                continue
-                            elif not foundRelease:
-                                # found at least one site has the release
-                                foundRelease = True
-                            # direct access
-                            if prevDirectAcc == 'direct' and not tmpSiteSpec.allowdirectaccess:
-                                tmpLog.debug(' skip: no direct access support')
-                                continue
                             # check core count
                             if tmpSiteSpec.coreCount > 1:
                                 # use multi-core queue for MP jobs
@@ -899,11 +900,77 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 try:
                                     if int(tmpSiteSpec.maxinputsize) < int(prevDiskCount):
                                         tmpLog.debug('  skip: not enough disk %s<%s' % (tmpSiteSpec.maxinputsize,prevDiskCount))
+                                        resultsForAnal['scratch'].append(site)
                                         continue
                                 except:
                                     errtype,errvalue = sys.exc_info()[:2]
                                     tmpLog.error("disk check : %s %s" % (errtype,errvalue))
                             tmpLog.debug('   maxinput=%s' % tmpSiteSpec.maxinputsize)
+                            # reliability
+                            if forAnalysis and isinstance(siteReliability,types.IntType):
+                                if tmpSiteSpec.reliabilityLevel != None and tmpSiteSpec.reliabilityLevel > siteReliability:
+                                    tmpLog.debug(' skip: insufficient reliability %s > %s' % (tmpSiteSpec.reliabilityLevel,siteReliability))
+                                    resultsForAnal['reliability'].append(site)
+                                    continue
+                            # change NULL cmtconfig to slc3/4
+                            if prevCmtConfig in ['NULL','',None]:
+                                if forAnalysis:
+                                    tmpCmtConfig = 'i686-slc4-gcc34-opt'
+                                else:
+                                    tmpCmtConfig = 'i686-slc3-gcc323-opt'                                    
+                            else:
+                                tmpCmtConfig = prevCmtConfig
+                            # set release
+                            releases = tmpSiteSpec.releases
+                            if prevProType in ['reprocessing']:
+                                # use validated releases for reprocessing
+                                releases = tmpSiteSpec.validatedreleases
+                            if not useCacheVersion:    
+                                tmpLog.debug('   %s' % str(releases))
+                            if forAnalysis and (tmpSiteSpec.cloud in ['ND'] or prevRelease==''):
+                                # doesn't check releases for analysis
+                                tmpLog.debug(' no release check')
+                                pass
+                            elif forAnalysis and useCacheVersion:
+                                # cache matching 
+                                if not site in siteListWithCache:
+                                    tmpLog.debug(' skip: cache %s/%s not found' % (prevRelease.replace('\n',' '),prevCmtConfig))
+                                    if trustIS:
+                                        resultsForAnal['rel'].append(site)
+                                    continue
+                            elif prevRelease != None and \
+                                     (useCacheVersion and not tmpSiteSpec.cloud in ['ND'] and not site in ['CERN-RELEASE']) and \
+                                     (not prevProType in ['reprocessing']) and \
+                                     (not site in siteListWithCache):
+                                    tmpLog.debug(' skip: cache %s/%s not found' % (prevHomePkg.replace('\n',' '),prevCmtConfig))
+                                    # send message to logger
+                                    try:
+                                        if prevSourceLabel in ['managed','test']:
+                                            resultsForAnal['rel'].append(site)                                    
+                                            # make message
+                                            message = '%s - cache %s/%s not found' % (site,prevHomePkg.replace('\n',' '),prevCmtConfig)
+                                            if not message in loggerMessages:
+                                                loggerMessages.append(message)
+                                    except:
+                                        pass
+                                    continue
+                            elif prevRelease != None and \
+                                 ((not useCacheVersion and releases != [] and not tmpSiteSpec.cloud in ['ND'] and not site in ['CERN-RELEASE']) or prevProType in ['reprocessing']) and \
+                                 (((not _checkRelease(prevRelease,releases) and prevManualPreset == False) or not site in siteListWithCache) and not tmpSiteSpec.cloud in ['ND'] and not site in ['CERN-RELEASE']):
+                                # release matching
+                                if not useCacheVersion:
+                                    tmpLog.debug(' skip: release %s/%s not found' % (prevRelease.replace('\n',' '),prevCmtConfig))
+                                else:
+                                    tmpLog.debug(' skip: repro cache %s/%s not found' % (prevHomePkg.replace('\n',' '),prevCmtConfig))
+                                resultsForAnal['rel'].append(site)
+                                continue
+                            elif not foundRelease:
+                                # found at least one site has the release
+                                foundRelease = True
+                            # direct access
+                            if prevDirectAcc == 'direct' and not tmpSiteSpec.allowdirectaccess:
+                                tmpLog.debug(' skip: no direct access support')
+                                continue
                             # get pilot statistics
                             nPilotsGet = 0
                             nPilotsUpdate = 0
@@ -1338,19 +1405,21 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     if resultsForAnal['pilot'] != []:
                                         tmpJob.brokerageErrorDiag = '%s no pilots' % tmpJob.computingSite
                                     elif resultsForAnal['disk'] != []:
-                                        tmpJob.brokerageErrorDiag = 'disk shortage at %s' % tmpJob.computingSite
+                                        tmpJob.brokerageErrorDiag = 'SE full at %s' % tmpJob.computingSite
                                     elif resultsForAnal['memory'] != []:
-                                        tmpJob.brokerageErrorDiag = 'memory shortage at %s' % tmpJob.computingSite
+                                        tmpJob.brokerageErrorDiag = 'RAM shortage at %s' % tmpJob.computingSite
                                     elif resultsForAnal['status'] != []:
                                         tmpJob.brokerageErrorDiag = '%s not online' % tmpJob.computingSite
                                     elif resultsForAnal['share'] != []:
                                         tmpJob.brokerageErrorDiag = '%s zero share' % tmpJob.computingSite
                                     elif resultsForAnal['cpucore'] != []:
-                                        tmpJob.brokerageErrorDiag = "CPU core count mismatch at %s" % tmpJob.computingSite
+                                        tmpJob.brokerageErrorDiag = "CPU core mismatch at %s" % tmpJob.computingSite
                                     elif resultsForAnal['maxtime'] != []:
-                                        tmpJob.brokerageErrorDiag = "Shorter walltime limit at %s" % tmpJob.computingSite
+                                        tmpJob.brokerageErrorDiag = "short walltime at %s" % tmpJob.computingSite
                                     elif resultsForAnal['transferring'] != []:
-                                        tmpJob.brokerageErrorDiag = '%s too many transferring' % tmpJob.computingSite
+                                        tmpJob.brokerageErrorDiag = 'too many transferring at %s' % tmpJob.computingSite
+                                    elif resultsForAnal['scratch'] != []:
+                                        tmpJob.brokerageErrorDiag = 'small scratch disk at %s' % tmpJob.computingSite
                                     elif useCacheVersion:
                                         tmpJob.brokerageErrorDiag = '%s/%s not found at %s' % (tmpJob.homepackage,tmpJob.cmtConfig,tmpJob.computingSite)
                                     else:
@@ -1366,89 +1435,11 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     # note
                                     if not prevBrokerageNote in ['',None]:
                                         tmpJob.brokerageErrorDiag += 'special brokerage for %s: ' % prevBrokerageNote
-                                    # no pilots
-                                    if resultsForAnal['pilot'] != []:
-                                        tmpSiteStr = ''
-                                        for tmpSiteItem in resultsForAnal['pilot']:
-                                            usedInDiagSites.append(tmpSiteItem)
-                                            tmpSiteStr += '%s,' % tmpSiteItem
-                                        tmpSiteStr = tmpSiteStr[:-1]
-                                        tmpJob.brokerageErrorDiag += 'no pilots at %s: ' % tmpSiteStr
-                                    # disk shortage    
-                                    if resultsForAnal['disk'] != []:
-                                        tmpSiteStr = ''
-                                        for tmpSiteItem in resultsForAnal['disk']:
-                                            usedInDiagSites.append(tmpSiteItem)                                        
-                                            tmpSiteStr += '%s,' % tmpSiteItem
-                                        tmpSiteStr = tmpSiteStr[:-1]
-                                        tmpJob.brokerageErrorDiag += 'disk shortage at %s: ' % tmpSiteStr
-                                    # memory shortage    
-                                    if resultsForAnal['memory'] != []:
-                                        tmpSiteStr = ''
-                                        for tmpSiteItem in resultsForAnal['memory']:
-                                            usedInDiagSites.append(tmpSiteItem)                                        
-                                            tmpSiteStr += '%s,' % tmpSiteItem
-                                        tmpSiteStr = tmpSiteStr[:-1]
-                                        tmpJob.brokerageErrorDiag += 'memory shortage at %s: ' % tmpSiteStr
-                                    # walltime limit
-                                    if resultsForAnal['maxtime'] != []:
-                                        tmpSiteStr = ''
-                                        for tmpSiteItem in resultsForAnal['maxtime']:
-                                            usedInDiagSites.append(tmpSiteItem)                                        
-                                            tmpSiteStr += '%s,' % tmpSiteItem
-                                        tmpSiteStr = tmpSiteStr[:-1]
-                                        tmpJob.brokerageErrorDiag += 'shorter walltime limit at %s: ' % tmpSiteStr
-                                    # non-online status     
-                                    if resultsForAnal['status'] != []:
-                                        tmpSiteStr = ''
-                                        for tmpSiteItem in resultsForAnal['status']:
-                                            usedInDiagSites.append(tmpSiteItem)
-                                            tmpSiteStr += '%s,' % tmpSiteItem
-                                        tmpSiteStr = tmpSiteStr[:-1]
-                                        tmpJob.brokerageErrorDiag += 'not online at %s: ' % tmpSiteStr
-                                    # zero share
-                                    if resultsForAnal['share'] != []:
-                                        tmpSiteStr = ''
-                                        for tmpSiteItem in resultsForAnal['share']:
-                                            usedInDiagSites.append(tmpSiteItem)
-                                            tmpSiteStr += '%s,' % tmpSiteItem
-                                        tmpSiteStr = tmpSiteStr[:-1]
-                                        tmpJob.brokerageErrorDiag += 'zero share at %s: ' % tmpSiteStr
-                                    if resultsForAnal['cpucore'] != []:
-                                        tmpSiteStr = ''
-                                        for tmpSiteItem in resultsForAnal['cpucore']:
-                                            usedInDiagSites.append(tmpSiteItem)
-                                            tmpSiteStr += '%s,' % tmpSiteItem
-                                        tmpSiteStr = tmpSiteStr[:-1]
-                                        tmpJob.brokerageErrorDiag += 'CPU core count mismatch at %s: ' % tmpSiteStr
-                                    # too many transferring        
-                                    if resultsForAnal['transferring'] != []:
-                                        tmpSiteStr = ''
-                                        for tmpSiteItem in resultsForAnal['transferring']:
-                                            usedInDiagSites.append(tmpSiteItem)
-                                            tmpSiteStr += '%s,' % tmpSiteItem
-                                        tmpSiteStr = tmpSiteStr[:-1]
-                                        tmpJob.brokerageErrorDiag += 'too many transferring at %s: ' % tmpSiteStr
-                                    # missing release    
-                                    tmpSiteStr = ''
-                                    for tmpSiteItem in prevBrokergageSiteList:
-                                        if not tmpSiteItem in usedInDiagSites:
-                                            tmpSiteStr += '%s,' % tmpSiteItem
-                                    tmpSiteStr = tmpSiteStr[:-1]
-                                    if tmpSiteStr != '':
-                                        if useCacheVersion:
-                                            if prevProType in ['reprocessing'] and prevBrokerageNote != 'reprocessing':
-                                                tmpJob.brokerageErrorDiag += 'validatedreleases!=True or '
-                                            tmpJob.brokerageErrorDiag += '%s/%s not found at %s' % (tmpJob.homepackage,tmpJob.cmtConfig,tmpSiteStr)
-                                        else:
-                                            tmpJob.brokerageErrorDiag += '%s/%s not found at %s' % (tmpJob.AtlasRelease,tmpJob.cmtConfig,tmpSiteStr)
-                                        if prevGoToT2Flag:
-                                            tmpJob.brokerageErrorDiag += ' where missing files are available'
-                                    else:
-                                        tmpJob.brokerageErrorDiag = tmpJob.brokerageErrorDiag[:-2]
+                                    # make message
+                                    tmpJob.brokerageErrorDiag = makeCompactDiagMessage(tmpJob.brokerageErrorDiag,resultsForAnal)
                                 except:
                                     errtype,errvalue = sys.exc_info()[:2]
-                                    tmpLog.error("failed to set diag for %s: %s %s" % (tmpJob.PandaID,errtype,errvalue))
+                                    tmpLog.error("failed to set special diag for %s: %s %s" % (tmpJob.PandaID,errtype,errvalue))
                                     tmpJob.brokerageErrorDiag = 'failed to set diag. see brokerage log in the panda server'
                             elif prevProType in ['reprocessing']:
                                 tmpJob.brokerageErrorDiag = '%s/%s not found at reprocessing sites' % (tmpJob.homepackage,tmpJob.cmtConfig)
@@ -1456,8 +1447,13 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 tmpJob.brokerageErrorDiag = '%s/%s not found at online sites with enough memory and disk' % \
                                                             (tmpJob.AtlasRelease,tmpJob.cmtConfig)
                             else:
-                                tmpJob.brokerageErrorDiag = '%s/%s not found at online sites' % (tmpJob.homepackage,tmpJob.cmtConfig)
-                            tmpLog.debug(tmpJob.brokerageErrorDiag)
+                                try:
+                                    tmpJob.brokerageErrorDiag = makeCompactDiagMessage('',resultsForAnal)
+                                except:
+                                    errtype,errvalue = sys.exc_info()[:2]
+                                    tmpLog.error("failed to set compact diag for %s: %s %s" % (tmpJob.PandaID,errtype,errvalue))
+                                    tmpJob.brokerageErrorDiag = 'failed to set diag. see brokerage log in the panda server'
+                            tmpLog.debug('PandaID:%s %s' % (tmpJob.PandaID,tmpJob.brokerageErrorDiag))
                             continue
                         # set ready if files are already there
                         _setReadyToFiles(tmpJob,okFiles,siteMapper)                        
