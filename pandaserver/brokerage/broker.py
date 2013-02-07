@@ -1187,7 +1187,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     continue
                             # get ratio of running jobs = run(cloud)/run(all) for multi cloud
                             multiCloudFactor = 1
-                            if not forAnalysis:                                
+                            if not forAnalysis and not previousCloud in ['NL']:
                                 tmpTotalRunningMulti = 0
                                 tmpNCloudMulti = 0
                                 for tmpCloudMulti,tmpCloudValMulti in jobStatBrokerClouds.iteritems():

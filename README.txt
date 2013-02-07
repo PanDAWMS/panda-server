@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * removed multiCloudFactor from the brokerage for NL
   * added a protection to updateJobStatus to prevent holding->transferring
   * fixed getUserParameter to insert new row if the user is missing
   * fixed Setupper to trigger prestaging when sites with multi-endpoints use TAPE
