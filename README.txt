@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed PD2P to be triggered by the second job
   * removed multiCloudFactor from the brokerage for NL
   * added a protection to updateJobStatus to prevent holding->transferring
   * fixed getUserParameter to insert new row if the user is missing

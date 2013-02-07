@@ -254,8 +254,14 @@ class DynDataDistributer:
                     # protection against too many replications
                     maxSitesHaveDS = min(maxSitesHaveDS,protectionMaxNumReplicas)
                     self.putLog("PD2P maxSitesHaveDS : %s" % maxSitesHaveDS)
+                    # ignore the first job
+                    if nUsed == 0:
+                        self.putLog("skip the first job",
+                                    sendLog=True,actionTag='SKIPPED',tagsMap={'reason':'FIRSTJOB','dataset':tmpDS})
+                        if not self.simul:
+                            continue
                     # check number of replicas                        
-                    if len(allCompPd2pSites) >= maxSitesHaveDS and nUsed != 0:
+                    if len(allCompPd2pSites) >= maxSitesHaveDS and nUsed != 1:
                         self.putLog("skip since many T2 PD2P sites (%s>=%s) have the replica" % (len(allCompPd2pSites),maxSitesHaveDS),
                                     sendLog=True,actionTag='SKIPPED',tagsMap={'reason':'TOO_MANY_T2_REPLICAS','dataset':tmpDS})
                         if not self.simul:
@@ -264,7 +270,7 @@ class DynDataDistributer:
                     maxNumSubInAllCloud = max(0,maxSitesHaveDS-len(allCompPd2pSites))
                     maxNumSubInAllCloud = min(2,maxNumSubInAllCloud)
                     self.putLog("PD2P maxNumSubInAllCloud : %s" % maxNumSubInAllCloud)
-                    if totalUserSub >= maxNumSubInAllCloud and nUsed != 0:
+                    if totalUserSub >= maxNumSubInAllCloud:
                         self.putLog("skip since enough subscriptions (%s>=%s) were already made for T2 PD2P" % \
                                     (totalUserSub,maxNumSubInAllCloud),
                                     sendLog=True,actionTag='SKIPPED',tagsMap={'reason':'TOO_MANY_T2_SUBSCRIPTIONS','dataset':tmpDS})
@@ -296,8 +302,11 @@ class DynDataDistributer:
                             tmpActionTag = 'SELECTEDT2'
                         else:
                             tmpActionTag = 'UNSELECTEDT2'
+                        tmpTagsMap = {'site':tmpWeightSite,'weight':tmpWeightStr,'dataset':tmpDS}
+                        if tmpActionTag == 'SELECTEDT2':
+                            tmpTagsMap['nused'] = nUsed
                         self.putLog("weight %s %s" % (tmpWeightSite,tmpWeightStr),sendLog=True,
-                                    actionTag=tmpActionTag,tagsMap={'site':tmpWeightSite,'weight':tmpWeightStr,'dataset':tmpDS})
+                                    actionTag=tmpActionTag,tagsMap=tmpTagsMap)
                     self.putLog("site for T2 PD2P -> %s" % selectedSite)
                     # remove from candidate list
                     if selectedSite in allCandidates:
@@ -312,9 +321,10 @@ class DynDataDistributer:
                         # update database
                         if subRet:
                             self.taskBuffer.addUserSubscription(tmpDS,[dq2ID])
-                    # additional T2 copy with MoU share when it is the first submission
-                    if nUsed == 0 or self.simul:
-                        retT2MoU,selectedSite = self.makeT2SubscriptionMoU(allCandidatesMoU,tmpDS,dsSize,'T2MOU')
+                    # additional T2 copy with MoU share when it is the second submission
+                    if nUsed == 1 or self.simul:
+                        retT2MoU,selectedSite = self.makeT2SubscriptionMoU(allCandidatesMoU,tmpDS,dsSize,
+                                                                           'T2MOU',nUsed)
             self.putLog("end for %s" % self.jobs[0].PandaID)
         except:
             errType,errValue = sys.exc_info()[:2]
@@ -1521,7 +1531,7 @@ class DynDataDistributer:
 
 
     # make T2 subscription with MoU share
-    def makeT2SubscriptionMoU(self,allCandidates,tmpDS,dsSize,pd2pType):
+    def makeT2SubscriptionMoU(self,allCandidates,tmpDS,dsSize,pd2pType,nUsed=None):
         # no candidate
         if allCandidates == []:
             return True,None
@@ -1577,8 +1587,11 @@ class DynDataDistributer:
             return False,None
         # make subscription
         subRet,dq2ID = self.makeSubscription(tmpDS,selectedSite)
+        tmpTagsMap = {'site':selectedSite,'dataset':tmpDS}
+        if nUsed != None:
+            tmpTagsMap['nused'] = nUsed
         self.putLog("made subscription for T2 with %s to %s:%s" % (pd2pType,selectedSite,dq2ID),sendLog=True,
-                    actionTag='SELECTEDT2_%s' % pd2pType,tagsMap={'site':selectedSite,'dataset':tmpDS})
+                    actionTag='SELECTEDT2_%s' % pd2pType,tagsMap=tmpTagsMap)
         # update database
         if subRet:
             self.taskBuffer.addUserSubscription(tmpDS,[dq2ID])
