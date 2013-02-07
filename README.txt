@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * added a protection to updateJobStatus to prevent holding->transferring
+  * fixed getUserParameter to insert new row if the user is missing
   * fixed Setupper to trigger prestaging when sites with multi-endpoints use TAPE
   * put all info to ErrorDiag in the brokerage
   * added modificationTime constraint to URL sent to the user by Notifier

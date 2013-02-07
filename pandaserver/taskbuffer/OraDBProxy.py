@@ -1366,7 +1366,7 @@ class DBProxy:
     # update Job status in jobsActive
     def updateJobStatus(self,pandaID,jobStatus,param,updateStateChange=False,attemptNr=None):
         comment = ' /* DBProxy.updateJobStatus */'        
-        _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s" % (pandaID,attemptNr))
+        _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s status=%s" % (pandaID,attemptNr,jobStatus))
         sql0 = "SELECT commandToPilot,endTime,specialHandling,jobStatus,computingSite,cloud,prodSourceLabel FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
         varMap0 = {}
         varMap0[':PandaID'] = pandaID
@@ -1395,6 +1395,10 @@ class DBProxy:
             sql1W += "AND attemptNr=:attemptNr "
             varMap[':attemptNr'] = attemptNr
             varMap0[':attemptNr'] = attemptNr
+        # prevent change from holding to transferring which doesn't register files to sub/tid
+        if jobStatus == 'transferring':
+            sql1W += "AND NOT jobStatus=:ngStatus "
+            varMap[':ngStatus'] = 'holding'
         updatedFlag = False
         nTry=3
         for iTry in range(nTry):
@@ -1435,6 +1439,8 @@ class DBProxy:
                         _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s nUp=%s" % (pandaID,attemptNr,nUp))
                         if nUp == 1:
                             updatedFlag = True
+                        if nUp == 0 and jobStatus == 'transferring':
+                            _logger.debug("updateJobStatus : PandaID=%s ignore to update for transferring" % pandaID)
                 else:
                     _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s notFound" % (pandaID,attemptNr))
                     # already deleted or bad attempt number
@@ -9251,11 +9257,26 @@ class DBProxy:
             name = self.cleanUserID(dn)
             sql  = "SELECT jobid,status FROM ATLAS_PANDAMETA.users WHERE name=:name "
             sql += "FOR UPDATE "
+            sqlAdd  = "INSERT INTO ATLAS_PANDAMETA.users "
+            sqlAdd += "(ID,NAME,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
+            sqlAdd += "VALUES(ATLAS_PANDALOG.USERS_ID_SEQ.nextval,:name,"
+            sqlAdd += "CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,0,1) "
             varMap = {}
             varMap[':name'] = name
             self.cur.execute(sql+comment,varMap)
             self.cur.arraysize = 10            
             res = self.cur.fetchall()
+            # insert if no record
+            if res == None or len(res) == 0:
+                try:
+                    self.cur.execute(sqlAdd+comment,varMap)
+                    retI = self.cur.rowcount
+                    _logger.debug("getUserParameter %s inserted new row with %s" % (dn,retI))
+                    # emulate DB response
+                    res = [[1,'']]
+                except:
+                    errType,errValue = sys.exc_info()[:2]
+                    _logger.error("getUserParameter %s failed to insert new row with %s:%s" % (dn,errType,errValue))
             if res != None and len(res) != 0:
                 item = res[0]
                 # JobID in DB
