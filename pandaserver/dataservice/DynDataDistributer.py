@@ -223,13 +223,13 @@ class DynDataDistributer:
                                           nT1Sub == 0 and allT1Candidates != []):
                             self.putLog("making T1-T1",sendLog=True)
                             # make subscription
-                            retT1Sub,useSmallT1 = self.makeT1Subscription(allT1Candidates,tmpDS,dsSize)
+                            retT1Sub,useSmallT1 = self.makeT1Subscription(allT1Candidates,tmpDS,dsSize,nUsed)
                             self.putLog("done for T1-T1")
                             triggeredT1PD2P = True
                     # make a T2 copy when T1 PD2P was triggered
                     if triggeredT1PD2P:
                         # TODO
-                        retT2MoU,selectedSite = self.makeT2SubscriptionMoU(allCandidatesMoU,tmpDS,dsSize,'T1MOU')
+                        retT2MoU,selectedSite = self.makeT2SubscriptionMoU(allCandidatesMoU,tmpDS,dsSize,'T1MOU',nUsed)
                         if retT2MoU and selectedSite != None:
                             # remove from candidate list
                             if selectedSite in allCandidates:
@@ -298,13 +298,20 @@ class DynDataDistributer:
                                                            sizeMapForCheck=freeSizeMap,datasetSize=dsSize)
                     selectedSite = tmpJob.computingSite
                     for tmpWeightSite,tmpWeightStr in usedWeight.iteritems():
+                        tmpTagsMap = {'site':tmpWeightSite,'weight':tmpWeightStr,'dataset':tmpDS}                        
                         if tmpWeightSite == selectedSite:
-                            tmpActionTag = 'SELECTEDT2'
+                            if nUsed == 1:
+                                tmpActionTag = 'SELECTEDT2_JOB'
+                            elif len(allCompPd2pSites) == 0:
+                                tmpActionTag = 'SELECTEDT2_NOREP'
+                            else:
+                                tmpActionTag = 'SELECTEDT2_WAIT'
+                            tmpTagsMap['nused']           = nUsed
+                            tmpTagsMap['nwaitingjobs']    = nWaitingJobsAll
+                            tmpTagsMap['nwaitingjobsets'] = nWaitingJobsets
+                            tmpTagsMap['nsiteshaveds']    = len(allCompPd2pSites)
                         else:
                             tmpActionTag = 'UNSELECTEDT2'
-                        tmpTagsMap = {'site':tmpWeightSite,'weight':tmpWeightStr,'dataset':tmpDS}
-                        if tmpActionTag == 'SELECTEDT2':
-                            tmpTagsMap['nused'] = nUsed
                         self.putLog("weight %s %s" % (tmpWeightSite,tmpWeightStr),sendLog=True,
                                     actionTag=tmpActionTag,tagsMap=tmpTagsMap)
                     self.putLog("site for T2 PD2P -> %s" % selectedSite)
@@ -323,8 +330,7 @@ class DynDataDistributer:
                             self.taskBuffer.addUserSubscription(tmpDS,[dq2ID])
                     # additional T2 copy with MoU share when it is the second submission
                     if nUsed == 1 or self.simul:
-                        retT2MoU,selectedSite = self.makeT2SubscriptionMoU(allCandidatesMoU,tmpDS,dsSize,
-                                                                           'T2MOU',nUsed)
+                        retT2MoU,selectedSite = self.makeT2SubscriptionMoU(allCandidatesMoU,tmpDS,dsSize,'T2MOU',nUsed)
             self.putLog("end for %s" % self.jobs[0].PandaID)
         except:
             errType,errValue = sys.exc_info()[:2]
@@ -1478,7 +1484,8 @@ class DynDataDistributer:
     
                 
     # make T1 subscription
-    def makeT1Subscription(self,allCloudCandidates,tmpDS,dsSize):
+    def makeT1Subscription(self,allCloudCandidates,tmpDS,dsSize,
+                           nUsed=None,nWaitingJobs=None,nWaitingJobsets=None):
         useSmallT1 = None
         # no candidate
         if allCloudCandidates == []:
@@ -1517,8 +1524,15 @@ class DynDataDistributer:
         # make subscription
         tmpJob.computingSite = selectedSite
         subRet,dq2ID = self.makeSubscription(tmpDS,tmpJob.computingSite)
+        tmpTagsMap = {'site':tmpJob.computingSite,'dataset':tmpDS}
+        if nUsed != None:
+            tmpTagsMap['nused'] = nUsed
+        if nWaitingJobs != None:
+            tmpTagsMap['nwaitingjobs'] = nWaitingJobs
+        if nWaitingJobsets != None:
+            tmpTagsMap['nwaitingjobsets'] = nWaitingJobsets
         self.putLog("made subscription for T1-T1 to %s:%s" % (tmpJob.computingSite,dq2ID),sendLog=True,
-                    actionTag='SELECTEDT1',tagsMap={'site':tmpJob.computingSite,'dataset':tmpDS})
+                    actionTag='SELECTEDT1',tagsMap=tmpTagsMap)
         # check if small cloud is used
         if siteToCloud[tmpJob.computingSite] in cloudsWithSmallT1:
             useSmallT1 = siteToCloud[tmpJob.computingSite]
@@ -1531,7 +1545,8 @@ class DynDataDistributer:
 
 
     # make T2 subscription with MoU share
-    def makeT2SubscriptionMoU(self,allCandidates,tmpDS,dsSize,pd2pType,nUsed=None):
+    def makeT2SubscriptionMoU(self,allCandidates,tmpDS,dsSize,pd2pType,
+                              nUsed=None,nWaitingJobs=None,nWaitingJobsets=None):
         # no candidate
         if allCandidates == []:
             return True,None
@@ -1590,6 +1605,10 @@ class DynDataDistributer:
         tmpTagsMap = {'site':selectedSite,'dataset':tmpDS}
         if nUsed != None:
             tmpTagsMap['nused'] = nUsed
+        if nWaitingJobs != None:    
+            tmpTagsMap['nwaitingjobs'] = nWaitingJobs
+        if nWaitingJobsets != None:    
+            tmpTagsMap['nwaitingjobsets'] = nWaitingJobsets
         self.putLog("made subscription for T2 with %s to %s:%s" % (pd2pType,selectedSite,dq2ID),sendLog=True,
                     actionTag='SELECTEDT2_%s' % pd2pType,tagsMap=tmpTagsMap)
         # update database

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * sending more info in PD2P logging
   * fixed LFC lookup in the brokerage
   * changed PD2P to be triggered by the second job
   * removed multiCloudFactor from the brokerage for NL
