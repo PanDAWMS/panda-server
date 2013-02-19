@@ -837,6 +837,15 @@ class Setupper (threading.Thread):
                                 for tmpSplitT1Key in splitT1IDsHaveDS:
                                     if not tmpSplitT1Key in dq2IDList:
                                         dq2IDList.append(tmpSplitT1Key)
+                            # consider cloudconfig.tier1se 
+                            tmpCloudSEs = DataServiceUtils.getEndpointsAtT1(tmpRepMap,self.siteMapper,job.cloud)
+                            useCloudSEs = []
+                            for tmpCloudSE in tmpCloudSEs:
+                                if not tmpCloudSE in dq2IDList:
+                                    useCloudSEs.append(tmpCloudSE)
+                            if useCloudSEs != []:
+                                dq2IDList += useCloudSEs
+                                _logger.debug('%s use additional endpoints %s from cloudconfig' % (self.timestamp,str(useCloudSEs)))
                         # use default location if empty
                         if dq2IDList == []:
                             dq2IDList = [dq2ID]

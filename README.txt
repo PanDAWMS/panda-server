@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * fixed Setupper to take cloudconfig.tier1se into account for dis subscriptions
+  * set a limit on G/U in the brokerage
   * sending more info in PD2P logging
   * fixed LFC lookup in the brokerage
   * changed PD2P to be triggered by the second job

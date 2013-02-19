@@ -177,6 +177,33 @@ def getNumAvailableFilesSite(siteName,siteMapper,replicaMap,badMetaMap,additiona
         return False,'%s:%s' % (errtype,errvalue) 
 
 
+# get the list of sites where dataset is available
+def getEndpointsAtT1(tmpRepMap,siteMapper,cloudName):
+    retList = []
+    # get cloud SEs
+    tmpCloud = siteMapper.getCloud(cloudName)
+    cloudSEs = tmpCloud['tier1SE']
+    # check T1 endpoints
+    for tmpSePat in cloudSEs:
+        # ignore empty
+        if tmpSePat == '':
+            continue
+        # make regexp pattern
+        if '*' in tmpSePat:
+            tmpSePat = tmpSePat.replace('*','.*')
+        tmpSePat = '^' + tmpSePat +'$'
+        # loop over all sites
+        for tmpSE in tmpRepMap.keys():
+            # check match
+            if re.search(tmpSePat,tmpSE) == None:
+                continue
+            # append
+            if not tmpSE in retList:
+                retList.append(tmpSE)
+    # return
+    return retList
+
+
 # check DDM response
 def isDQ2ok(out):
     if out.find("DQ2 internal server exception") != -1 \

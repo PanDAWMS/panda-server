@@ -989,6 +989,16 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 nPilotsUpdate = nWNmap[site]['updateJob']
                             else:
                                 nPilots = 0
+                            tmpLog.debug(' original nPilots:%s get:%s update:%s' % (nPilots,nPilotsGet,nPilotsUpdate))
+                            # limit on (G+1)/(U+1)
+                            limitOnGUmax = 2.0
+                            limitOnGUmin = 0.5                            
+                            guRatio = float(1+nPilotsGet)/float(1+nPilotsUpdate) 
+                            if guRatio > limitOnGUmax:
+                                nPilotsGet = limitOnGUmax * float(1+nPilotsUpdate) - 1.0
+                            elif guRatio < limitOnGUmin:
+                                nPilotsGet = limitOnGUmin * float(1+nPilotsUpdate) - 1.0
+                            tmpLog.debug(' limited nPilots:%s get:%s update:%s' % (nPilots,nPilotsGet,nPilotsUpdate))
                             # if no pilots
                             if nPilots == 0 and nWNmap != {}:
                                 tmpLog.debug(" skip: %s no pilot" % site)
@@ -1242,20 +1252,21 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             else:
                                 if not forAnalysis:
                                     if nRunJobsPerGroup == None:
-                                        tmpLog.debug('   %s assigned:%s activated:%s running:%s nPilots:%s nJobsPerNode:%s multiCloud:%s' %
-                                                     (site,nAssJobs,nActJobs,jobStatistics[site]['running'],nPilots,nJobsPerNode,multiCloudFactor))
+                                        tmpLog.debug('   %s assigned:%s activated:%s running:%s nPilotsGet:%s nPilotsUpdate:%s multiCloud:%s' %
+                                                     (site,nAssJobs,nActJobs,jobStatistics[site]['running'],nPilotsGet,nPilotsUpdate,multiCloudFactor))
                                     else:
-                                        tmpLog.debug('   %s assigned:%s activated:%s running:%s nPilots:%s nJobsPerNodePG:%s multiCloud:%s' %
-                                                     (site,nAssJobs,nActJobs,nRunJobsPerGroup,nPilots,nJobsPerNode,multiCloudFactor))
+                                        tmpLog.debug('   %s assigned:%s activated:%s runningGroup:%s nPilotsGet:%s nPilotsUpdate:%s multiCloud:%s' %
+                                                     (site,nAssJobs,nActJobs,nRunJobsPerGroup,nPilotsGet,nPilotsUpdate,multiCloudFactor))
                                 else:
                                     tmpLog.debug('   %s assigned:%s activated:%s running:%s nWNsG:%s nWNsU:%s' %
                                                (site,nAssJobs,nActJobs,nRunningMap[site],nPilotsGet,nPilotsUpdate))
                                 if forAnalysis:
                                     winv = float(nAssJobs+nActJobs) / float(1+nRunningMap[site]) / (1.0+float(nPilotsGet)/float(1+nPilotsUpdate))
-                                elif nPilots != 0:
-                                    winv = (float(nAssJobs+nActJobs)) / float(nPilots) / nJobsPerNode
                                 else:
-                                    winv = (float(nAssJobs+nActJobs)) / nJobsPerNode
+                                    if nRunJobsPerGroup == None:
+                                        winv = float(nAssJobs+nActJobs) / float(1+jobStatistics[site]['running']) / (float(1+nPilotsGet)/float(1+nPilotsUpdate))
+                                    else:
+                                        winv = float(nAssJobs+nActJobs) / float(1+nRunJobsPerGroup) / (float(1+nPilotsGet)/float(1+nPilotsUpdate))
                                 winv *= float(multiCloudFactor)    
                                 # send jobs to T1 when they require many or large inputs
                                 if _isTooManyInput(nFilesPerJob,inputSizePerJob):
