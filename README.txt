@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed Setupper to make dis for pin at MCP sites in ND cloud
   * fixed Setupper to take cloudconfig.tier1se into account for dis subscriptions
   * set a limit on G/U in the brokerage
   * sending more info in PD2P logging
