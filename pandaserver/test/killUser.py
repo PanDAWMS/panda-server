@@ -59,8 +59,13 @@ for table in tables:
             if not id in jobs:
                 jobs.append(id)
 if len(jobs):
-    print "kill %s" % jobs
-    Client.killJobs(jobs,code=9)
+    iJob = 0
+    nJob = 1000
+    while iJob < len(jobs):
+        subJobs = jobs[iJob:iJob+nJob]
+        print "kill %s %s/%s" % (str(subJobs),iJob,len(jobs))
+        Client.killJobs(subJobs,code=9)
+        iJob += nJob 
 else:
     print "no job was killed" 
 
