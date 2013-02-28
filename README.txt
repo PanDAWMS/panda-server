@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed insertNewJob not to insert metadata when it is empty
   * fixed killUser to kill jobs gradually
   * fixed Setupper to make dis for pin at MCP sites in ND cloud
   * fixed Setupper to take cloudconfig.tier1se into account for dis subscriptions

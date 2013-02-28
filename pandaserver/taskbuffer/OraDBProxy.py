@@ -305,7 +305,7 @@ class DBProxy:
                 # reset changed attribute list
                 file.resetChangedList()
             # metadata
-            if job.prodSourceLabel in ['user','panda']:
+            if job.prodSourceLabel in ['user','panda'] and job.metadata != '':
                 sqlMeta = "INSERT INTO ATLAS_PANDA.metaTable (PandaID,metaData) VALUES (:PandaID,:metaData)"
                 varMap = {}
                 varMap[':PandaID']  = job.PandaID
