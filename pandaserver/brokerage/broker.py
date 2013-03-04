@@ -802,7 +802,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                                                                 caches=prevRelease.split(':')[1],
                                                                                 cmtConfig=prevCmtConfig)
                             tmpLog.debug('  using installSW for release:cache %s' % prevRelease)
-                    elif previousCloud in ['DE','NL','FR','CA','ES','IT','TW','UK','US','ND','CERN']:
+                    elif previousCloud in ['DE','NL','FR','CA','ES','IT','TW','UK','US','ND','CERN','RU']:
                             useCacheVersion = True
                             # change / to -
                             convedPrevHomePkg = prevHomePkg.replace('/','-')
