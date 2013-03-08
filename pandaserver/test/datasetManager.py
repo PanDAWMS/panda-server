@@ -492,6 +492,17 @@ class T2Cleaner (threading.Thread):
                             _logger.error("cannot convert to replica map")
                             _logger.error(out)
                             continue
+                        # check if there is active subscription
+                        _logger.debug('listSubscriptions %s' % name)
+                        subStat,subOut = ddm.DQ2.main('listSubscriptions',name)
+                        if subStat != 0:
+                            _logger.error("cannot get subscriptions for %s" % name) 
+                            _logger.error(subOut)
+                        _logger.debug('subscriptions for %s = %s' % (name,subOut))
+                        # active subscriotions
+                        if subOut != '[]':
+                            _logger.debug("wait %s due to active subscription" % name)
+                            continue
                         # check cloud
                         cloudName = None
                         for tmpCloudName in siteMapper.getCloudList():
