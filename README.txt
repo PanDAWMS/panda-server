@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed for site.priorityoffset
   * fixed T2 cleanup to check if there is active subscription
   * fixed brokerage and copyArchive for RU
   * changed insertNewJob not to insert metadata when it is empty

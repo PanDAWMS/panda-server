@@ -182,7 +182,9 @@ class TaskBuffer:
                             tmpOffset = 0
                         # loop over all FQANs
                         for tmpFQAN in fqans:
-                            if re.search('^%s/' % tmpGroup,tmpFQAN) != None:
+                            _logger.debug(tmpFQAN)
+                            if re.search('^%s/' % tmpGroup,tmpFQAN) != None or \
+                                   re.search('%s$' % tmpGroup,tmpFQAN) != None:
                                 # use the largest offset
                                 if tmpOffset > priorityOffset:
                                     priorityOffset = tmpOffset
