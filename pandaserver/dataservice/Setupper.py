@@ -1359,6 +1359,7 @@ class Setupper (threading.Thread):
                         tmpLFNs  = []
                         tmpGUIDs = []
                         tmpReLoc = {}
+                        tmpCountMap = {}
                         for dataset in datasets:
                             # get LFNs
                             eachDSLFNs = lfnMap[dataset].values()
@@ -1367,10 +1368,13 @@ class Setupper (threading.Thread):
                             for oneLFN in eachDSLFNs:
                                 tmpGUIDs.append(valMap[oneLFN]['guid'])
                             # locations
-                            tmpReLoc[dataset] = replicaMap[dataset] 
+                            tmpReLoc[dataset] = replicaMap[dataset]
+                            # file counts
+                            tmpCountMap[dataset] = len(eachDSLFNs)
                         # set cloud
                         _logger.debug("%s set cloud for %s" % (self.timestamp,job.taskID))                        
-                        retCloud = cloudResolver.setCloud(tmpLFNs,tmpGUIDs,tmpReLoc,metadata=job.metadata)
+                        retCloud = cloudResolver.setCloud(tmpLFNs,tmpGUIDs,tmpReLoc,metadata=job.metadata,
+                                                          fileCounts=tmpCountMap)
                         _logger.debug("%s setCloud() -> %s" % (self.timestamp,retCloud))
                         if retCloud == None:
                             _logger.debug("failed to set cloud for %s" % job.taskID)
@@ -2017,6 +2021,7 @@ class Setupper (threading.Thread):
                 if tmpFile.type != 'input':
                     continue
                 # if files are unavailable at the dest site normal dis datasets contain them
+                # or files are cached
                 if not tmpFile.status in ['ready']:
                     continue
                 # if available at T2

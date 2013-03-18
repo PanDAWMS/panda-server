@@ -10,6 +10,7 @@ import ErrorCode
 import broker_util
 import PandaSiteIDs
 from taskbuffer import ProcessGroups
+from dataservice import DataServiceUtils
 from config import panda_config
 
 from pandalogger.PandaLogger import PandaLogger
@@ -123,7 +124,6 @@ def _isReproJob(tmpJob):
             return True
     return False
 
-
     
 # set 'ready' if files are already there
 def _setReadyToFiles(tmpJob,okFiles,siteMapper,tmpLog):
@@ -138,7 +138,11 @@ def _setReadyToFiles(tmpJob,okFiles,siteMapper,tmpLog):
     prestageSites = getPrestageSites(siteMapper)
     for tmpFile in tmpJob.Files:
         if tmpFile.type == 'input':
-            if (tmpJob.computingSite.endswith('_REPRO') or tmpJob.computingSite == siteMapper.getCloud(tmpJob.cloud)['source'] \
+            if DataServiceUtils.isCachedFile(tmpFile.dataset,tmpSiteSpec):
+                # cached file
+                tmpFile.status = 'cached'
+                tmpFile.dispatchDBlock = 'NULL'
+            elif (tmpJob.computingSite.endswith('_REPRO') or tmpJob.computingSite == siteMapper.getCloud(tmpJob.cloud)['source'] \
                 or tmpSiteSpec.ddm == tmpSrcSpec.ddm) \
                    and (not tmpJob.computingSite in prestageSites):
                 # EGEE T1. use DQ2 prestage only for on-tape files
@@ -929,12 +933,17 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 tmpCmtConfig = prevCmtConfig
                             # set release
                             releases = tmpSiteSpec.releases
+                            origReleases = releases
                             if prevProType in ['reprocessing']:
                                 # use validated releases for reprocessing
                                 releases = tmpSiteSpec.validatedreleases
                             if not useCacheVersion:    
                                 tmpLog.debug('   %s' % str(releases))
-                            if forAnalysis and (tmpSiteSpec.cloud in ['ND'] or prevRelease==''):
+                            if origReleases == ['ANY']:
+                                # doesn't check releases for catch all
+                                tmpLog.debug(' no release check due to releases=%s'  % origReleases)
+                                foundRelease = True
+                            elif forAnalysis and (tmpSiteSpec.cloud in ['ND'] or prevRelease==''):
                                 # doesn't check releases for analysis
                                 tmpLog.debug(' no release check')
                                 pass

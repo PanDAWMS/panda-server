@@ -13,6 +13,23 @@ def getDQ2Prefix(dq2SiteID):
     return tmpDQ2IDPrefix
 
 
+# check if the file is cached
+def isCachedFile(datasetName,siteSpec):
+    # using CVMFS
+    if siteSpec.iscvmfs != True:
+        return False
+    # FIXME
+    if not siteSpec.cloud in ['IT']:
+        return False
+    # look for DBR
+    if not datasetName.startswith('ddo.'):
+        return False
+    # look for three digits
+    if re.search('v\d{6}$',datasetName) == None:
+        return False
+    return True
+
+
 # get the list of sites where dataset is available
 def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=False,getDQ2ID=False,
                         useOnlineSite=False,includeT1=False):
@@ -88,7 +105,7 @@ def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=Fa
 
 # get the number of files available at the site
 def getNumAvailableFilesSite(siteName,siteMapper,replicaMap,badMetaMap,additionalSEs=[],
-                             noCheck=[]):
+                             noCheck=[],fileCounts=None):
     try:
         # get DQ2 endpoints 
         tmpSiteSpec = siteMapper.getSite(siteName)
@@ -102,6 +119,12 @@ def getNumAvailableFilesSite(siteName,siteMapper,replicaMap,badMetaMap,additiona
         # loop over datasets
         totalNum = 0
         for tmpDsName,tmpSitesData in replicaMap.iteritems():
+            # cached files
+            if isCachedFile(tmpDsName,tmpSiteSpec) and fileCounts != None and \
+               fileCounts.has_key(tmpDsName):
+                # add with no check
+                totalNum += fileCounts[tmpDsName]
+                continue
             # dataset type
             datasetType = getDatasetType(tmpDsName)
             # use total num to effectively skip file availability check
@@ -219,6 +242,33 @@ def isDBR(datasetName):
     if datasetName.startswith('ddo'):
         return True
     return False
+
+
+# get the list of sites in a cloud which cache a dataset
+def getSitesWithCacheDS(cloudKey,excludedSites,siteMapper,datasetName):
+    retList = []
+    # check sites in the cloud
+    for tmpSiteName in siteMapper.getCloud(cloudKey)['sites']:
+        # excluded
+        if tmpSiteName in excludedSites:
+            continue
+        # skip T1
+        if tmpSiteName == siteMapper.getCloud(cloudKey)['source']:
+            continue
+        # hospital queue
+        if siteMapper.getSite(tmpSiteName).ddm == siteMapper.getSite(siteMapper.getCloud(cloudKey)['source']).ddm:
+            continue
+        # not home cloud
+        if siteMapper.getSite(tmpSiteName).cloud != cloudKey:
+            continue
+        # online
+        if siteMapper.getSite(tmpSiteName).status != 'online':
+            continue
+        # check CVMFS
+        if isCachedFile(datasetName,siteMapper.getSite(tmpSiteName)):
+            retList.append(tmpSiteName)
+    # return
+    return retList
 
 
 # get dataset type

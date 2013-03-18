@@ -511,7 +511,7 @@ class DBProxy:
             _logger.debug("activateJob : None")
             return True
         _logger.debug("activateJob : %s" % job.PandaID)                        
-        sql0 = "SELECT row_ID FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type=:type AND status!=:status "
+        sql0 = "SELECT row_ID FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type=:type AND NOT status IN (:status1,:status2) "
         sql1 = "DELETE FROM ATLAS_PANDA.jobsDefined4 "
         sql1+= "WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2) AND commandToPilot IS NULL"
         sql2 = "INSERT INTO ATLAS_PANDA.jobsActive4 (%s) " % JobSpec.columnNames()
@@ -527,7 +527,7 @@ class DBProxy:
                 # check if all files are ready
                 allOK = True
                 for file in job.Files:
-                    if file.type == 'input' and file.status != 'ready':
+                    if file.type == 'input' and not file.status in ['ready','cached']:
                         allOK = False
                         break
                 # begin transaction
@@ -535,7 +535,8 @@ class DBProxy:
                 # check all inputs are ready
                 varMap = {}
                 varMap[':type']    = 'input'
-                varMap[':status']  = 'ready'
+                varMap[':status1'] = 'ready'
+                varMap[':status2'] = 'cached'                
                 varMap[':PandaID'] = job.PandaID
                 self.cur.arraysize = 100
                 self.cur.execute(sql0+comment, varMap)

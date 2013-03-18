@@ -80,10 +80,11 @@ class TaskAssigner:
 
 
     # set cloud
-    def setCloud(self,lfns,guids,locations={},metadata=None):
+    def setCloud(self,lfns,guids,locations={},metadata=None,fileCounts=None):
         try:
             _logger.info('%s setCloud' % self.taskID)
             _logger.info('%s metadata="%s"' % (self.taskID,metadata))
+            _logger.info('%s fileCounts="%s"' % (self.taskID,fileCounts))            
             taskType = None
             RWs      = {}
             expRWs   = {}
@@ -243,42 +244,50 @@ class TaskAssigner:
                     _logger.info('%s DS:%s' % (self.taskID,dataset))
                     datasetType = DataServiceUtils.getDatasetType(dataset)
                     for tmpCloudName in cloudList:
+                        useCacheT1 = False
                         tmpCloud = self.siteMapper.getCloud(tmpCloudName)
-                        # look for T1 SE which holds the max number of files
-                        minFound = -1
-                        foundSE  = ''
-                        for tmpSePat in tmpCloud['tier1SE']:
-                            # make regexp pattern 
-                            if '*' in tmpSePat:
-                                tmpSePat = tmpSePat.replace('*','.*')
-                            tmpSePat = '^' + tmpSePat +'$'
-                            for tmpSE in sites.keys():
-                                # check name with regexp pattern
-                                if re.search(tmpSePat,tmpSE) == None:
-                                    continue
-                                # check metadata
-                                metaOK = self.checkMetadata(dataset,tmpSE)
-                                if not metaOK:
-                                    if not badMetaMap.has_key(dataset):
-                                        badMetaMap[dataset] = []
-                                    badMetaMap[dataset].append(tmpSE)    
-                                    _logger.info('%s skip %s due to ToBeDeleted' % (self.taskID,tmpSE))
-                                    continue
-                                # check the number of available files
-                                tmpStat = sites[tmpSE][-1]
-                                if tmpStat['found'] == None:
-                                    if minFound == -1:
+                        if DataServiceUtils.isCachedFile(dataset,self.siteMapper.getSite(tmpCloud['source'])):
+                            # use site's endpoint for CVMFS cache 
+                            foundSE  = self.siteMapper.getSite(tmpCloud['source']).ddm
+                            tmpDiskCopyCloud.append(tmpCloudName)
+                            # using cached files at T1
+                            useCacheT1 = True
+                        else:    
+                            # look for T1 SE which holds the max number of files
+                            minFound = -1
+                            foundSE  = ''
+                            for tmpSePat in tmpCloud['tier1SE']:
+                                # make regexp pattern 
+                                if '*' in tmpSePat:
+                                    tmpSePat = tmpSePat.replace('*','.*')
+                                tmpSePat = '^' + tmpSePat +'$'
+                                for tmpSE in sites.keys():
+                                    # check name with regexp pattern
+                                    if re.search(tmpSePat,tmpSE) == None:
+                                        continue
+                                    # check metadata
+                                    metaOK = self.checkMetadata(dataset,tmpSE)
+                                    if not metaOK:
+                                        if not badMetaMap.has_key(dataset):
+                                            badMetaMap[dataset] = []
+                                        badMetaMap[dataset].append(tmpSE)    
+                                        _logger.info('%s skip %s due to ToBeDeleted' % (self.taskID,tmpSE))
+                                        continue
+                                    # check the number of available files
+                                    tmpStat = sites[tmpSE][-1]
+                                    if tmpStat['found'] == None:
+                                        if minFound == -1:
+                                            foundSE  = tmpSE
+                                    elif minFound < tmpStat['found']:
+                                        minFound = tmpStat['found']
                                         foundSE  = tmpSE
-                                elif minFound < tmpStat['found']:
-                                    minFound = tmpStat['found']
-                                    foundSE  = tmpSE
-                                # check if disk copy is available
-                                tmpStatusSE,tmpRetSE = toa.getSiteProperty(tmpSE,'tape')
-                                if tmpRetSE != 'True':
-                                    if tmpStat['found'] != None and tmpStat['found'] == tmpStat['total']:
-                                        tmpDiskCopyCloud.append(tmpCloudName)
-                                else:
-                                    _logger.info('%s %s is on tape : %s' % (self.taskID,tmpSE,tmpRetSE))
+                                    # check if disk copy is available
+                                    tmpStatusSE,tmpRetSE = toa.getSiteProperty(tmpSE,'tape')
+                                    if tmpRetSE != 'True':
+                                        if tmpStat['found'] != None and tmpStat['found'] == tmpStat['total']:
+                                            tmpDiskCopyCloud.append(tmpCloudName)
+                                    else:
+                                        _logger.info('%s %s is on tape : %s' % (self.taskID,tmpSE,tmpRetSE))
                         # get list of T2s where dataset is available
                         tmpT2List = []
                         tmpT2Map = DataServiceUtils.getSitesWithDataset(dataset,self.siteMapper,locations,
@@ -301,6 +310,9 @@ class TaskAssigner:
                                         badMetaMap[dataset] = []
                                     badMetaMap[dataset].append(tmpT2DQ2)
                                     _logger.info('%s skip %s due to ToBeDeleted' % (self.taskID,tmpT2DQ2))
+                        # take CVMFS cache into account            
+                        tmpT2CacheList = DataServiceUtils.getSitesWithCacheDS(tmpCloudName,tmpT2List,self.siteMapper,dataset)
+                        tmpT2List += tmpT2CacheList
                         # remove cloud if T1SE or T2 is not a location
                         if foundSE == '':
                             # keep if T2 has the dataset
@@ -308,17 +320,18 @@ class TaskAssigner:
                                 if not tmpCloudName in removedCloud:
                                     _logger.info('%s   removed %s' % (self.taskID,tmpCloudName))
                                     removedCloud.append(tmpCloudName)
-                            # add dataset to map for subscription        
-                            if not tmpCloudName in removedDQ2Map[dataset]:
+                            # add dataset to map for subscription when T2 has non-cached replica       
+                            if (tmpT2List != [] and len(tmpT2CacheList) != len(tmpT2List)) and not tmpCloudName in removedDQ2Map[dataset]:
                                 removedDQ2Map[dataset].append(tmpCloudName)
                         else:
-                            # check incomplete or not
-                            tmpStat = sites[foundSE][-1]
-                            if tmpStat['found'] == None or \
-                                   (not datasetType in datasetTypeToSkipCheck and tmpStat['found'] < tmpStat['total']):
-                                # add dataset to map which is subscribed when the task is used due to T2 files
-                                if not tmpCloudName in removedDQ2Map[dataset]:
-                                    removedDQ2Map[dataset].append(tmpCloudName)
+                            if not useCacheT1:
+                                # check incomplete or not
+                                tmpStat = sites[foundSE][-1]
+                                if tmpStat['found'] == None or \
+                                       (not datasetType in datasetTypeToSkipCheck and tmpStat['found'] < tmpStat['total']):
+                                    # add dataset to map which is subscribed when the task is used due to T2 files
+                                    if not tmpCloudName in removedDQ2Map[dataset]:
+                                        removedDQ2Map[dataset].append(tmpCloudName)
                         # aggregate T2 list
                         if not t2ListForMissing.has_key(tmpCloudName):
                             t2ListForMissing[tmpCloudName] = tmpT2List
@@ -445,7 +458,8 @@ class TaskAssigner:
                                                                                 self.siteMapper,
                                                                                 locations,badMetaMap,
                                                                                 tmpCloud['tier1SE'],
-                                                                                noCheck=datasetTypeToSkipCheck)
+                                                                                noCheck=datasetTypeToSkipCheck,
+                                                                                fileCounts=fileCounts)
                     # failed
                     if not tmpScanRet:
                         raise RuntimeError, 'failed to get nFiles at %s due to %s' % (tmpSiteNameScan,tmpN)
@@ -478,7 +492,8 @@ class TaskAssigner:
                         tmpScanRet,tmpN = DataServiceUtils.getNumAvailableFilesSite(tmpSiteNameScan,
                                                                                     self.siteMapper,
                                                                                     locations,badMetaMap,
-                                                                                    noCheck=datasetTypeToSkipCheck)
+                                                                                    noCheck=datasetTypeToSkipCheck,
+                                                                                    fileCounts=fileCounts)
                         # failed
                         if not tmpScanRet:
                             raise RuntimeError, 'failed to get nFiles at %s due to %s' % (tmpSiteNameScan,tmpN)

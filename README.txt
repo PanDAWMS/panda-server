@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * changed job/task brokerages not to check DBR with DQ2 at CVMFS sites
+  * changed the brokerage to skip release checks for releases=ANY
   * fixed for site.priorityoffset
   * fixed T2 cleanup to check if there is active subscription
   * fixed brokerage and copyArchive for RU
