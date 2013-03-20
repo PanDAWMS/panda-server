@@ -536,15 +536,16 @@ class Adder (threading.Thread):
                                                 if self.siteMapper.getSite(self.job.computingSite).setokens.has_key(tmpSrcToken):
                                                     dq2ID = self.siteMapper.getSite(self.job.computingSite).setokens[tmpSrcToken]
                                                 optSource[dq2ID] = {'policy' : 0}
-                                            # use PRODDISK for T1 used as T2
-                                            usingPRODDISK = False
+                                            # T1 used as T2
                                             if self.siteMapper.getSite(self.job.computingSite).cloud != self.job.cloud and \
                                                (not tmpSrcDDM.endswith('PRODDISK')) and  \
-                                               self.siteMapper.getSite(self.job.computingSite).setokens.has_key('ATLASPRODDISK') and \
                                                (not self.job.prodSourceLabel in ['user','panda']):
-                                                dq2ID = self.siteMapper.getSite(self.job.computingSite).setokens['ATLASPRODDISK']
-                                                usingPRODDISK = True
-                                                optSource[dq2ID] = {'policy' : 0}
+                                                # register both DATADISK and PRODDISK as source locations
+                                                if self.siteMapper.getSite(self.job.computingSite).setokens.has_key('ATLASPRODDISK'):
+                                                    dq2ID = self.siteMapper.getSite(self.job.computingSite).setokens['ATLASPRODDISK']
+                                                    optSource[dq2ID] = {'policy' : 0}
+                                                if not optSource.has_key(tmpSrcDDM):
+                                                    optSource[tmpSrcDDM] = {'policy' : 0}
                                             # use another location when token is set
                                             if not file.destinationDBlockToken in ['NULL','']:
                                                 tmpDQ2IDList = []

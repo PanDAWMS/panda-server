@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * improved fairshare to support per-cloud shares
+  * changed Setupper to register both DATADISK and PRODDISK as locations for sub
   * changed job/task brokerages not to check DBR with DQ2 at CVMFS sites
   * changed the brokerage to skip release checks for releases=ANY
   * fixed for site.priorityoffset

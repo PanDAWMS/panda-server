@@ -550,22 +550,23 @@ class Setupper (threading.Thread):
                                        or len(tmpTokenList) > 1:
                                     time.sleep(1)
                                     # register location
-                                    usingPRODDISK = False
+                                    usingT1asT2 = False
                                     if job.prodSourceLabel == 'user' and not self.siteMapper.siteSpecList.has_key(computingSite):
                                         dq2IDList = [self.siteMapper.getSite(job.computingSite).ddm]
                                     else:
                                         if self.siteMapper.getSite(computingSite).cloud != job.cloud and \
                                            re.search('_sub\d+$',name) != None and \
                                            (not job.prodSourceLabel in ['user','panda']) and \
-                                           (not self.siteMapper.getSite(computingSite).ddm.endswith('PRODDISK')) and \
-                                           self.siteMapper.getSite(computingSite).setokens.has_key('ATLASPRODDISK'):
-                                            # T1 used as T2
-                                            dq2IDList = [self.siteMapper.getSite(computingSite).setokens['ATLASPRODDISK']]
-                                            usingPRODDISK = True
+                                           (not self.siteMapper.getSite(computingSite).ddm.endswith('PRODDISK')):
+                                            # T1 used as T2. Use both DATADISK and PRODDISK as locations while T1 PRODDISK is phasing out
+                                            dq2IDList = [self.siteMapper.getSite(computingSite).ddm]
+                                            if self.siteMapper.getSite(computingSite).setokens.has_key('ATLASPRODDISK'):
+                                                dq2IDList += [self.siteMapper.getSite(computingSite).setokens['ATLASPRODDISK']]
+                                            usingT1asT2 = True
                                         else:
                                             dq2IDList = [self.siteMapper.getSite(computingSite).ddm]
                                     # use another location when token is set
-                                    if (not usingPRODDISK) and (not file.destinationDBlockToken in ['NULL','']):
+                                    if (not usingT1asT2) and (not file.destinationDBlockToken in ['NULL','']):
                                         dq2IDList = []
                                         for tmpToken in tmpTokenList:
                                             # set default

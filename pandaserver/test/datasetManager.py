@@ -524,7 +524,7 @@ class T2Cleaner (threading.Thread):
                             # look for T2 IDs
                             t2DDMs = []
                             for tmpDDM in tmpRepSites.keys():
-                                if not tmpDDM in t1SiteDDMs and tmpDDM.endswith('_PRODDISK'):
+                                if not tmpDDM in t1SiteDDMs:
                                     # check home cloud
                                     notDeleteFlag = False
                                     for tmpT2siteID,tmpT2siteSpec in siteMapper.siteSpecList.iteritems():

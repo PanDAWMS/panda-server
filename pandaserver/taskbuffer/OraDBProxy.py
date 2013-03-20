@@ -8184,41 +8184,54 @@ class DBProxy:
             # definition for fareshare
             usingGroup = self.faresharePolicy[siteName]['usingGroup'] 
             usingType  = self.faresharePolicy[siteName]['usingType'] 
-            usingPrio  = self.faresharePolicy[siteName]['usingPrio'] 
+            usingPrio  = self.faresharePolicy[siteName]['usingPrio']
+            usingCloud = self.faresharePolicy[siteName]['usingCloud']
             shareDefList   = []
             for tmpDefItem in self.faresharePolicy[siteName]['policyList']:
-                shareDefList.append({'policy':tmpDefItem,'count':{}})
-            # set autocommit on
-            self.conn.begin()
+                shareDefList.append({'policy':tmpDefItem,'count':{},'maxprio':{}})
             # check if countryGroup has activated jobs
-            varMap = {}
-
-            varMap[':prodSourceLabel'] = 'managed'
-            sql  = "SELECT /*+ RESULT_CACHE */ jobStatus,"
+            varMapAll = {}
+            varMapAll[':prodSourceLabel'] = 'managed'
+            sqlH  = "SELECT /*+ RESULT_CACHE */ jobStatus,"
             if usingGroup:
-                sql += 'workingGroup,'
+                sqlH += 'workingGroup,'
             if usingType:
-                sql += 'processingType,'
+                sqlH += 'processingType,'
             if usingPrio:
-                sql += 'currentPriority,'
-            sql += "SUM(num_of_jobs) FROM ATLAS_PANDA.MV_JOBSACTIVE4_STATS "
-            sql += "WHERE computingSite IN ("
+                sqlH += 'currentPriority,'
+            sqlH += "SUM(num_of_jobs),MAX(currentPriority) FROM ATLAS_PANDA.MV_JOBSACTIVE4_STATS "
+            varMapSite = {}
+            sqlSite = "WHERE computingSite IN ("
             tmpIdx = 0
             for tmpSiteName in [siteName]+aggSites:
                 tmpKey = ':computingSite%s' % tmpIdx
-                varMap[tmpKey] = tmpSiteName
-                sql += '%s,' % tmpKey
+                varMapSite[tmpKey] = tmpSiteName
+                sqlSite += '%s,' % tmpKey
                 tmpIdx += 1
-            sql = sql[:-1]
-            sql += ") AND prodSourceLabel=:prodSourceLabel "
-            sql += "GROUP BY jobStatus"
+            sqlSite = sqlSite[:-1]
+            sqlSite += ") "
+            if usingCloud != '':
+                varMapCloud = {}
+                sqlCloud = "WHERE cloud=:cloud "
+                varMapCloud[':cloud'] = usingCloud
+            sqlT = "AND prodSourceLabel=:prodSourceLabel "
+            sqlT += "GROUP BY jobStatus"
             if usingGroup:
-                sql += ',workingGroup'
+                sqlT += ',workingGroup'
             if usingType:
-                sql += ',processingType'
+                sqlT += ',processingType'
             if usingPrio:
-                sql += ',currentPriority'
+                sqlT += ',currentPriority'
+            # set autocommit on
+            self.conn.begin()
             self.cur.arraysize = 100000
+            # get site info
+            varMap = {}
+            for tmpKey,tmpVal in varMapAll.iteritems():
+                varMap[tmpKey] = tmpVal
+            for tmpKey,tmpVal in varMapSite.iteritems():
+                varMap[tmpKey] = tmpVal
+            sql = sqlH + sqlSite + sqlT
             self.cur.execute(sql+comment,varMap)
             res = self.cur.fetchall()
             # commit
@@ -8228,12 +8241,41 @@ class DBProxy:
             if res == None or len(res) == 0:
                 _logger.debug("getCriteriaForProdShare %s : ret=None - no jobs" % siteName)
                 return retForNone
+            nSiteRow = len(res)
+            # get cloud info
+            if usingCloud != '':
+                # set autocommit on
+                self.conn.begin()
+                self.cur.arraysize = 100000
+                # get site info
+                varMap = {}
+                for tmpKey,tmpVal in varMapAll.iteritems():
+                    varMap[tmpKey] = tmpVal
+                for tmpKey,tmpVal in varMapCloud.iteritems():
+                    varMap[tmpKey] = tmpVal
+                sql = sqlH + sqlCloud + sqlT
+                self.cur.execute(sql+comment,varMap)
+                resC = self.cur.fetchall()
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                if resC != None:
+                    res += resC
             # loop over all rows
             workingGroupInQueueMap = {}
             processGroupInQueueMap = {} 
-            for tmpItem in res:
+            for indexRow,tmpItem in enumerate(res):
                 tmpIdx = 0
+                # map some job status to running
                 jobStatus = tmpItem[tmpIdx]
+                if jobStatus in ['sent','starting']:
+                    jobStatus = 'running'
+                # use cloud info for running jobs if cloud share is used
+                if usingCloud != '':
+                    if jobStatus == 'running' and indexRow < nSiteRow:
+                        continue
+                    if jobStatus != 'running' and indexRow >= nSiteRow:
+                        continue
                 tmpIdx += 1
                 if usingGroup:
                     workingGroup = tmpItem[tmpIdx]
@@ -8254,6 +8296,8 @@ class DBProxy:
                 else:
                     currentPriority = None
                 cnt = tmpItem[tmpIdx]
+                tmpIdx += 1
+                maxPriority = tmpItem[tmpIdx]
                 # append processingType list    
                 if not processGroupInQueueMap.has_key(processGroup):
                     processGroupInQueueMap[processGroup] = []
@@ -8326,14 +8370,16 @@ class DBProxy:
                             elif tmpShareDef['policy']['prioCondition'] == '<':    
                                 if currentPriority >= tmpShareDef['policy']['priority']:
                                     continue
-                    # map some job status to running
-                    if jobStatus in ['sent','starting']:
-                        jobStatus = 'running'
                     # append job status
                     if not tmpShareDef['count'].has_key(jobStatus):
                         tmpShareDef['count'][jobStatus] = 0
                     # sum
                     tmpShareDef['count'][jobStatus] += cnt
+                    # max priority
+                    if not tmpShareDef['maxprio'].has_key(jobStatus):
+                        tmpShareDef['maxprio'][jobStatus] = maxPriority
+                    elif tmpShareDef['maxprio'][jobStatus] < maxPriority:
+                        tmpShareDef['maxprio'][jobStatus] = maxPriority
             # loop over all policies to calcurate total number of running jobs and total share
             totalRunning = 0
             shareMap     = {}
@@ -8375,11 +8421,16 @@ class DBProxy:
                 # not use the policy if no activated jobs
                 if tmpNumActivated == 0:
                     continue
+                # max priority
+                maxPriority = 0
+                if tmpShareDef['maxprio'].has_key('activated'):
+                    maxPriority = tmpShareDef['maxprio']['activated']
                 # append
                 shareMap[policyName] = {
                     'share':tmpShareValue,
                     'running':tmpNumRunning,
                     'policy':tmpShareDef['policy'],
+                    'maxprio':maxPriority,
                     }
             # re-normalize when some non-GP policies are inactive
             if totalShareNonGP != totalActiveShareNonGP and totalActiveShareNonGP != 0:
@@ -8464,6 +8515,12 @@ class DBProxy:
                 tmpShareDef = float(tmpVarMap['share']) / float(totalShare)
                 tmpShareNow = float(tmpVarMap['running']) / float(totalRunning) 
                 tmpShareRatio = tmpShareNow / tmpShareDef
+                # take max priority into account for cloud share
+                if usingCloud != '':
+                    # skip over share
+                    if tmpShareNow > tmpShareDef:
+                        continue
+                    tmpShareRatio /= float(1000 + tmpVarMap['maxprio'])
                 if lowestShareRatio == None or lowestShareRatio > tmpShareRatio:
                     lowestShareRatio  = tmpShareRatio
                     lowestSharePolicy = policyName
@@ -8575,8 +8632,8 @@ class DBProxy:
                     retVarMap[tmpKey] = tmpDefItem['priority']
                     retStr += ('AND currentPriority%s%s' % (retStrP,tmpKey)) 
                     tmpIdx += 1
-            _logger.debug("getCriteriaForProdShare %s : sql='%s' var=%s %s %s" % \
-                          (siteName,retStr,str(retVarMap),msgShare,msgPrio))
+            _logger.debug("getCriteriaForProdShare %s : sql='%s' var=%s cloud=%s %s %s" % \
+                          (siteName,retStr,str(retVarMap),usingCloud,msgShare,msgPrio))
             # append criteria for test jobs
             if retStr != '':
                 retVarMap[':shareLabel1'] = 'managed'
@@ -8690,6 +8747,7 @@ class DBProxy:
             for siteid,faresharePolicyStr,cloudName in res:
                 try:
                     # share is undefined
+                    usingCloudShare = ''
                     if faresharePolicyStr in ['',None]:
                         # skip if share is not defined at site or cloud 
                         if not cloudShareMap.has_key(cloudName):
@@ -8697,8 +8755,9 @@ class DBProxy:
                         # skip if T1 doesn't define share
                         if cloudTier1Map.has_key(cloudName) and siteid in cloudTier1Map[cloudName]:
                             continue
-                        # use default share
+                        # use cloud share
                         faresharePolicyStr = cloudShareMap[cloudName]
+                        usingCloudShare = cloudName
                     # decompose
                     hasNonPrioPolicy = False
                     for tmpItem in faresharePolicyStr.split(','):
@@ -8754,6 +8813,7 @@ class DBProxy:
                     faresharePolicy[siteid]['usingGroup'] = False
                     faresharePolicy[siteid]['usingType']  = False
                     faresharePolicy[siteid]['usingPrio']  = False
+                    faresharePolicy[siteid]['usingCloud'] = usingCloudShare
                     faresharePolicy[siteid]['groupList']  = []
                     faresharePolicy[siteid]['typeList']   = {}
                     faresharePolicy[siteid]['groupListWithPrio']  = []
