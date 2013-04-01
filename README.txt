@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * improved getDisInUseForAnal
   * changed getJob() to allow the normal pilot to get installation jobs
   * added boostUser
   * improved fairshare to support per-cloud shares
