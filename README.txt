@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * changed getJob() to allow the normal pilot to get installation jobs
+  * added boostUser
   * improved fairshare to support per-cloud shares
   * changed Setupper to register both DATADISK and PRODDISK as locations for sub
   * changed job/task brokerages not to check DBR with DQ2 at CVMFS sites

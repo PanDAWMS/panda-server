@@ -2045,10 +2045,11 @@ class DBProxy:
             sql1+= "AND prodSourceLabel=:prodSourceLabel "
             getValMap[':prodSourceLabel'] = 'ddm'
         elif prodSourceLabel in [None,'managed']:
-            sql1+= "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3) "
+            sql1+= "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4) "
             getValMap[':prodSourceLabel1'] = 'managed'
             getValMap[':prodSourceLabel2'] = 'test'
-            getValMap[':prodSourceLabel3'] = 'prod_test'            
+            getValMap[':prodSourceLabel3'] = 'prod_test'
+            getValMap[':prodSourceLabel3'] = 'install'
         elif prodSourceLabel == 'software':
             sql1+= "AND prodSourceLabel=:prodSourceLabel "
             getValMap[':prodSourceLabel'] = 'software'
@@ -8639,7 +8640,8 @@ class DBProxy:
                 retVarMap[':shareLabel1'] = 'managed'
                 retVarMap[':shareLabel2'] = 'test'
                 retVarMap[':shareLabel3'] = 'prod_test'
-                retStr = 'AND (prodSourceLabel IN (:shareLabel2,:shareLabel3) OR (prodSourceLabel=:shareLabel1 ' + retStr + '))'
+                retVarMap[':shareLabel4'] = 'install'                
+                retStr = 'AND (prodSourceLabel IN (:shareLabel2,:shareLabel3,:shareLabel4) OR (prodSourceLabel=:shareLabel1 ' + retStr + '))'
             return retStr,retVarMap
         except:
             errtype,errvalue = sys.exc_info()[:2]

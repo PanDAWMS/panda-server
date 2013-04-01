@@ -189,7 +189,8 @@ setup(
                              'templates/panda_server-datasetManager.sh.exe.template',
                              'templates/panda_server-evpPD2P.sh.exe.template',
                              'templates/panda_server-callback.sh.exe.template',
-                             'templates/panda_server-makeSlsXml.exe.template',                             
+                             'templates/panda_server-makeSlsXml.exe.template',
+                             'templates/panda_server-boostUser.sh.exe.template',
                              ]
                  ),
                 # var dirs
