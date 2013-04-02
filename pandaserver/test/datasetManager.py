@@ -504,23 +504,20 @@ class T2Cleaner (threading.Thread):
                             _logger.debug("wait %s due to active subscription" % name)
                             continue
                         # check cloud
+                        self.proxyLock.acquire()
+                        proxyS = taskBuffer.proxyPool.getProxy()
+                        destSE = proxyS.getDestSEwithDestDBlock(name)
+                        taskBuffer.proxyPool.putProxy(proxyS)
+                        self.proxyLock.release()
                         cloudName = None
-                        for tmpCloudName in siteMapper.getCloudList():
-                            t1SiteName = siteMapper.getCloud(tmpCloudName)['source']
-                            t1SiteDDMs  = siteMapper.getSite(t1SiteName).setokens.values()
-                            for tmpDDM in t1SiteDDMs:
-                                # ignore _PRODDISK
-                                if tmpDDM.endswith('_PRODDISK'):
-                                    continue
-                                if tmpRepSites.has_key(tmpDDM):
-                                    cloudName = tmpCloudName
-                                    break
-                            if cloudName != None:
-                                break
+                        if siteMapper.checkSite(destSE):
+                            cloudName = siteMapper.getSite(destSE).cloud
                         # cloud is not found
                         if cloudName == None:        
                             _logger.error("cannot find cloud for %s : %s" % (name,str(tmpRepSites)))
                         else:
+                            _logger.debug('cloud=%s for %s' % (cloudName,name))
+                            t1SiteDDMs  = siteMapper.getSite(destSE).setokens.values()
                             # look for T2 IDs
                             t2DDMs = []
                             for tmpDDM in tmpRepSites.keys():

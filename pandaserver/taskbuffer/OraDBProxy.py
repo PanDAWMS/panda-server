@@ -3381,6 +3381,41 @@ class DBProxy:
             _logger.error("getPandaIDwithDestDBlock : %s %s" % (errType,errValue))
             # return empty list
             return None
+
+
+    # get destSE with destinationDBlock
+    def getDestSEwithDestDBlock(self,destinationDBlock):
+        comment = ' /* DBProxy.getDestSEwithDestDBlock */'                        
+        _logger.debug("getDestSEwithDestDBlock : %s" % destinationDBlock)
+        try:
+            sqlP  = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ destinationSE FROM ATLAS_PANDA.filesTable4 tab "
+            sqlP += "WHERE type IN (:type1,:type2) AND destinationDBlock=:destinationDBlock AND rownum<=1"
+            # start transaction
+            self.conn.begin()
+            varMap = {}
+            varMap[':type1'] = 'log'
+            varMap[':type2'] = 'output'
+            varMap[':destinationDBlock'] = destinationDBlock
+            # select
+            self.cur.arraysize = 10
+            self.cur.execute(sqlP+comment, varMap)
+            res = self.cur.fetchone()
+            # append
+            destinationSE = None            
+            if res != None:
+                destinationSE, = res
+            # commit to release tables
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # return
+            return destinationSE
+        except:
+            # roll back
+            self._rollback()
+            errType,errValue = sys.exc_info()[:2]
+            _logger.error("getDestSEwithDestDBlock : %s %s" % (errType,errValue))
+            # return empty list
+            return None
             
 
     # get number of activated/defined jobs with output datasets
