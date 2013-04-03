@@ -1876,7 +1876,7 @@ class DBProxy:
                 return None
             nJobsInDef = res[0]
             # get failed PandaIDs in Active
-            sql0 = "SELECT PandaID,jobStatus,taskBufferErrorCode FROM ATLAS_PANDA.jobsActive4 "
+            sql0 = "SELECT PandaID,jobStatus,taskBufferErrorCode,attemptNr FROM ATLAS_PANDA.jobsActive4 "
             sql0+= "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
             sql0+= "AND prodSourceLabel=:prodSourceLabel "
             varMap = {}
@@ -1892,10 +1892,10 @@ class DBProxy:
             nJobsInAct = len(res)
             # loop over all PandaID
             failedPandaIDs = []
-            for pandaID,tmpJobStatus,tmpTaskBufferErrorCode in res:
+            for pandaID,tmpJobStatus,tmpTaskBufferErrorCode,tmpAttemptNr in res:
                 if tmpJobStatus == 'failed' and not tmpTaskBufferErrorCode in \
                        [ErrorCode.EC_Reassigned,ErrorCode.EC_Retried,ErrorCode.EC_PilotRetried]:
-                    failedPandaIDs.append(pandaID)
+                    failedPandaIDs.append((pandaID,tmpAttemptNr))
             _logger.debug("retryJobsInActive : %s %s - %s failed jobs" % (prodUserName,jobDefinitionID,len(failedPandaIDs)))
             # there are some failed jobs in Active
             if failedPandaIDs != []:
@@ -1903,7 +1903,7 @@ class DBProxy:
                 sqlF  = "SELECT DISTINCT destinationDBlock FROM ATLAS_PANDA.filesTable4 "
                 sqlF += "WHERE PandaID=:PandaID AND type IN (:type1,:type2) "
                 varMap = {}
-                varMap[':PandaID'] = failedPandaIDs[0]
+                varMap[':PandaID'] = failedPandaIDs[0][0]
                 varMap[':type1']   = 'log'
                 varMap[':type2']   = 'output'                
                 # begin transaction
@@ -1958,8 +1958,9 @@ class DBProxy:
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
                     # loop over all PandaIDs
-                    for pandaID in failedPandaIDs:
-                        self.retryJob(pandaID,{},failedInActive=True)
+                    for pandaID,tmpAttemptNr in failedPandaIDs:
+                        retryRet = self.retryJob(pandaID,{},failedInActive=True,attemptNr=tmpAttemptNr)
+                        _logger.debug("retryJobsInActive : %s %s - PandaID=%s %s" % (prodUserName,jobDefinitionID,pandaID,retryRet))
                     # unlock datasets
                     sqlDU = "UPDATE ATLAS_PANDA.Datasets SET status=:nStatus,modificationdate=CURRENT_DATE "
                     sqlDU+= "WHERE vuid=:vuid AND status=:oStatus"
