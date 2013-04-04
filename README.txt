@@ -1,10 +1,10 @@
 Release Note
 
 * current
+  * changed getJob() to allow the prod/analy pilot to get installation jobs
   * fixed retryJobsInActive
   * fixed datasetManager to delete sub from foreign T1 instead of home T1
   * improved getDisInUseForAnal
-  * changed getJob() to allow the normal pilot to get installation jobs
   * added boostUser
   * improved fairshare to support per-cloud shares
   * changed Setupper to register both DATADISK and PRODDISK as locations for sub

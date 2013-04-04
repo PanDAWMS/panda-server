@@ -2038,9 +2038,10 @@ class DBProxy:
             sql1+= "AND (maxDiskCount<=:maxDiskCount OR maxDiskCount=0) "
             getValMap[':maxDiskCount'] = diskSpace
         if prodSourceLabel == 'user':
-            sql1+= "AND (prodSourceLabel=:prodSourceLabel1 OR prodSourceLabel=:prodSourceLabel2) "
+            sql1+= "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3) "
             getValMap[':prodSourceLabel1'] = 'user'
             getValMap[':prodSourceLabel2'] = 'panda'
+            getValMap[':prodSourceLabel3'] = 'install'
         elif prodSourceLabel == 'ddm':
             dynamicBrokering = True
             sql1+= "AND prodSourceLabel=:prodSourceLabel "
