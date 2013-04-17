@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added TaskMonitor link to email notifications
   * changed getJob() to allow the prod/analy pilot to get installation jobs
   * fixed retryJobsInActive
   * fixed datasetManager to delete sub from foreign T1 instead of home T1

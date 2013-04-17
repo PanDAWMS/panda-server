@@ -142,6 +142,7 @@ class Notifier:
                     iDSList = []
                     oDSList = []
                     siteMap = {}
+                    logDS = None 
                     for tmpJob in jobs:
                         if not siteMap.has_key(tmpJob.jobDefinitionID):
                             siteMap[tmpJob.jobDefinitionID] = tmpJob.computingSite
@@ -152,6 +153,8 @@ class Notifier:
                             else:
                                 if not file.dataset in oDSList:
                                     oDSList.append(file.dataset)
+                                if file.type == 'log':
+                                    logDS = file.dataset
                     # job/jobset IDs and site
                     if self.summary == {}:                
                         jobIDsite = "%s/%s" % (self.job.jobDefinitionID,self.job.computingSite)
@@ -271,6 +274,10 @@ PandaMonURL : http://panda.cern.ch/server/pandamon/query?%s""" % urllib.urlencod
 """
 
 PandaMonURL : http://panda.cern.ch/server/pandamon/query?%s""" % urllib.urlencode(urlData)
+                        if logDS != None:
+                            message += \
+"""
+TaskMonitorURL : https://dashb-atlas-task.cern.ch/templates/task-analysis/#task=%s""" % logDS
                     
                     # tailer            
                     message += \
