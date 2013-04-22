@@ -44,6 +44,8 @@ class Response:
     def appendJob(self,job):
         # PandaID
         self.data['PandaID'] = job.PandaID
+        # prodSourceLabel
+        self.data['prodSourceLabel'] = job.prodSourceLabel
         # swRelease
         self.data['swRelease'] = job.AtlasRelease
         # homepackage

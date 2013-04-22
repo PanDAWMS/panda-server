@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * modified dispatcher to send prodSourceLabel for getJob
+  * changed ATLAS_PANDALOG.USERS_ID_SEQ to ATLAS_PANDAMETA.USERS_ID_SEQ
   * added TaskMonitor link to email notifications
   * changed getJob() to allow the prod/analy pilot to get installation jobs
   * fixed retryJobsInActive

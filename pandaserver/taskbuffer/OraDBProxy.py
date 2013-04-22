@@ -9330,7 +9330,7 @@ class DBProxy:
             sql += "FOR UPDATE "
             sqlAdd  = "INSERT INTO ATLAS_PANDAMETA.users "
             sqlAdd += "(ID,NAME,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
-            sqlAdd += "VALUES(ATLAS_PANDALOG.USERS_ID_SEQ.nextval,:name,"
+            sqlAdd += "VALUES(ATLAS_PANDAMETA.USERS_ID_SEQ.nextval,:name,"
             sqlAdd += "CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,0,1) "
             varMap = {}
             varMap[':name'] = name
