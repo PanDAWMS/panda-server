@@ -1737,7 +1737,10 @@ class DBProxy:
                             oldPatt = match[0]+oldName+match[-1]
                             newPatt = match[0]+newName+match[-1]
                             job.jobParameters = re.sub(oldPatt,newPatt,job.jobParameters)
-                        if not changeJobInMem and not getNewPandaID:    
+                        if not changeJobInMem and not getNewPandaID:
+                            # reset file status
+                            if file.type in ['output','log']:
+                                file.status = 'unknown'
                             # update files
                             sqlFup = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % file.bindUpdateChangesExpression()) + "WHERE row_ID=:row_ID"
                             varMap = file.valuesMap(onlyChanged=True)
