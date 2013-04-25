@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * split runRebro from copyArchived
   * fixed retryInActive to reset file status 
   * modified dispatcher to send prodSourceLabel for getJob
   * changed ATLAS_PANDALOG.USERS_ID_SEQ to ATLAS_PANDAMETA.USERS_ID_SEQ

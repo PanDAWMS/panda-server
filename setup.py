@@ -191,6 +191,7 @@ setup(
                              'templates/panda_server-callback.sh.exe.template',
                              'templates/panda_server-makeSlsXml.exe.template',
                              'templates/panda_server-boostUser.sh.exe.template',
+                             'templates/panda_server-runRebro.sh.exe.template',
                              ]
                  ),
                 # var dirs
