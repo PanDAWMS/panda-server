@@ -1,6 +1,7 @@
 import os
 import re
 import sys
+import pytz
 import time
 import fcntl
 import types
@@ -132,13 +133,24 @@ try:
         from userinterface.ReBroker import ReBroker
         recentRuntimeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
         # loop over all user/jobID combinations
+        iComb = 0
+        nComb = len(res)
+        _logger.debug("total combinations = %s" % nComb)
         for jobDefinitionID,prodUserName,prodUserID,computingSite,maxModificationTime in res:
+            # check time if it is closed to log-rotate
+            timeNow  = datetime.datetime.now(pytz.timezone('Europe/Zurich'))
+            timeCron = timeNow.replace(hour=16,minute=40,second=0,microsecond=0)
+            if (timeNow-timeCron) < datetime.timedelta(seconds=60*10) and \
+               (timeCron-timeNow) < datetime.timedelta(seconds=60*30):
+                _logger.debug("terminate since close to log-rotate time")
+                break
             # check if jobs with the jobID have run recently 
             varMap = {}
             varMap[':prodUserName']     = prodUserName
             varMap[':jobDefinitionID']  = jobDefinitionID
             varMap[':modificationTime'] = recentRuntimeLimit
-            _logger.debug(" rebro:%s:%s" % (jobDefinitionID,prodUserName))
+            _logger.debug(" rebro:%s/%s:ID=%s:%s" % (iComb,nComb,jobDefinitionID,prodUserName))
+            iComb += 1
             hasRecentJobs = False
             # check site
             if not siteMapper.checkSite(computingSite):
