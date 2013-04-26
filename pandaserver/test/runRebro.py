@@ -139,7 +139,7 @@ try:
         for jobDefinitionID,prodUserName,prodUserID,computingSite,maxModificationTime in res:
             # check time if it is closed to log-rotate
             timeNow  = datetime.datetime.now(pytz.timezone('Europe/Zurich'))
-            timeCron = timeNow.replace(hour=16,minute=40,second=0,microsecond=0)
+            timeCron = timeNow.replace(hour=4,minute=0,second=0,microsecond=0)
             if (timeNow-timeCron) < datetime.timedelta(seconds=60*10) and \
                (timeCron-timeNow) < datetime.timedelta(seconds=60*30):
                 _logger.debug("terminate since close to log-rotate time")
