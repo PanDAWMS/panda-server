@@ -2,9 +2,12 @@
 
 source /etc/profile.d/grid-env.sh
 
-NOVOMS=/data/atlpan/x509up_u25606_novoms
+# import env vars from sysconfig
+source @@install_dir@@/etc/sysconfig/panda_server-sysconfig
 
-voms-proxy-init -voms atlas:/atlas/Role=production -out /data/atlpan/x509up_u25606 -valid 96:00 -cert=$NOVOMS
+NOVOMS=${X509_USER_PROXY}_novoms
+
+voms-proxy-init -voms atlas:/atlas/Role=production -out $X509_USER_PROXY -valid 96:00 -cert=$NOVOMS
 
 # check lifetime of certificate
 grid-proxy-info -e -h 504 -f $NOVOMS
@@ -13,8 +16,8 @@ if [ $? -ne 0 ]; then
 fi
 
 # check lifetime of certificate
-voms-proxy-info -exists -hours 72 -file /data/atlpan/x509up_u25606
+voms-proxy-info -exists -hours 72 -file $X509_USER_PROXY
 if [ $? -ne 0 ]; then
-  echo /data/atlpan/x509up_u25606 expires in 3 days on `hostname` | mail -s "WARNING : Grid proxy expires soon on panda server" atlas-adc-panda-support@cern.ch,atlas-adc-expert@cern.ch
+  echo $X509_USER_PROXY expires in 3 days on `hostname` | mail -s "WARNING : Grid proxy expires soon on panda server" atlas-adc-panda-support@cern.ch,atlas-adc-expert@cern.ch
 fi
 

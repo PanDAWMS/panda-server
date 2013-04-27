@@ -112,10 +112,13 @@ class Finisher (threading.Thread):
                     _logger.debug("Job: %s" % job.PandaID)
                     if job.jobStatus == 'transferring':
                         jobReady = True
+                        failedFiles = []
                         # check file status
                         for file in job.Files:
                             if file.type == 'output' or file.type == 'log':
-                                if file.status != 'ready':
+                                if file.status == 'failed':
+                                    failedFiles.append(file.lfn)
+                                elif file.status != 'ready':
                                     _logger.debug("Job: %s file:%s %s != ready" % (job.PandaID,file.lfn,file.status))
                                     jobReady = False
                                     break
@@ -130,6 +133,9 @@ class Finisher (threading.Thread):
                                 topNode = doc.createElement("POOLFILECATALOG")
                                 for file in job.Files:
                                     if file.type in ['output','log']:
+                                        # skip failed files
+                                        if file.lfn in failedFiles:
+                                            continue
                                         # File
                                         fileNode = doc.createElement("File")
                                         fileNode.setAttribute("ID",file.GUID)
@@ -158,8 +164,13 @@ class Finisher (threading.Thread):
                                         fileNode.appendChild(fsizeNode)
                                         fileNode.appendChild(chksumNode)
                                         topNode.appendChild(fileNode)
+                                # status in file name
+                                if failedFiles == []:
+                                    statusFileName = 'finished'
+                                else:
+                                    statusFileName = 'failed'
                                 # write to file
-                                xmlFile = '%s/%s_%s_%s' % (panda_config.logdir,job.PandaID,'finished',commands.getoutput('uuidgen'))
+                                xmlFile = '%s/%s_%s_%s' % (panda_config.logdir,job.PandaID,statusFileName,commands.getoutput('uuidgen'))
                                 oXML = open(xmlFile,"w")
                                 oXML.write(topNode.toxml())
                                 oXML.close()

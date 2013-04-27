@@ -96,7 +96,7 @@ class _Curl:
         # path to curl
         self.path = 'curl'
         # verification of the host certificate
-        self.verifyHost = False
+        self.verifyHost = True
         # request a compressed response
         self.compress = True
         # SSL cert/key
@@ -112,10 +112,13 @@ class _Curl:
         com = '%s --silent --get' % self.path
         if not self.verifyHost:
             com += ' --insecure'
+        elif os.environ.has_key('X509_CERT_DIR'):
+            com += ' --capath %s' % os.environ['X509_CERT_DIR']
         if self.compress:
             com += ' --compressed'
         if self.sslCert != '':
             com += ' --cert %s' % self.sslCert
+            com += ' --cacert %s' % self.sslCert
         if self.sslKey != '':
             com += ' --key %s' % self.sslKey
         # timeout
@@ -155,10 +158,13 @@ class _Curl:
         com = '%s --silent' % self.path
         if not self.verifyHost:
             com += ' --insecure'
+        elif os.environ.has_key('X509_CERT_DIR'):
+            com += ' --capath %s' % os.environ['X509_CERT_DIR']
         if self.compress:
             com += ' --compressed'
         if self.sslCert != '':
             com += ' --cert %s' % self.sslCert
+            com += ' --cacert %s' % self.sslCert
         if self.sslKey != '':
             com += ' --key %s' % self.sslKey
         # timeout
@@ -198,10 +204,13 @@ class _Curl:
         com = '%s --silent' % self.path
         if not self.verifyHost:
             com += ' --insecure'
+        elif os.environ.has_key('X509_CERT_DIR'):
+            com += ' --capath %s' % os.environ['X509_CERT_DIR']
         if self.compress:
             com += ' --compressed'
         if self.sslCert != '':
             com += ' --cert %s' % self.sslCert
+            com += ' --cacert %s' % self.sslCert
         if self.sslKey != '':
             com += ' --key %s' % self.sslKey
         # emulate PUT 

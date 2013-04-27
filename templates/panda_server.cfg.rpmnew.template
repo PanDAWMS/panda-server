@@ -61,13 +61,13 @@ dq2_dir = /opt/dq2
 globus_dir = /opt/globus
 
 # path to native python 
-native_python = /data/atlpan/bin
+native_python = /usr/bin
 
 # path to python for lfc client (/data/atlpan/bin/python cannot be used due to lack of libpythonX.Y.so)
 native_python32 = /usr/bin
 
 # glite source file
-glite_source = /opt/glite/etc/profile.d/grid-env.sh
+glite_source = /etc/profile.d/grid-env.sh
 
 # location for Panda common
 pandaCommon_dir = @@install_purelib@@/pandacommon

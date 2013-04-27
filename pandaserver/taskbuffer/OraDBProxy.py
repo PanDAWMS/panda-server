@@ -7885,15 +7885,19 @@ class DBProxy:
             # set autocommit on
             self.conn.begin()
             # get reliability info
-            sqlRel = "SELECT tier2,t2group FROM ATLAS_GRISLI.t_m4regions_replication"
-            self.cur.arraysize = 10000
-            self.cur.execute(sqlRel+comment)
-            tmpList = self.cur.fetchall()
             reliabilityMap = {}
-            for tier2,t2group in tmpList:
-                # get prefix
-                tmpPrefix = re.sub('_DATADISK','',tier2)
-                reliabilityMap[tmpPrefix] = t2group
+            try:
+                sqlRel = "SELECT tier2,t2group FROM ATLAS_GRISLI.t_m4regions_replication"
+                self.cur.arraysize = 10000
+                self.cur.execute(sqlRel+comment)
+                tmpList = self.cur.fetchall()
+                for tier2,t2group in tmpList:
+                    # get prefix
+                    tmpPrefix = re.sub('_DATADISK','',tier2)
+                    reliabilityMap[tmpPrefix] = t2group
+            except:
+                errType,errValue = sys.exc_info()[:2]
+                _logger.error("getSiteInfo {0}:{1}".format(errType.__class__.__name__,errValue))
             # get CVMFS availability
             sqlCVMFS  = "SELECT distinct siteid FROM ATLAS_PANDAMETA.installedSW WHERE release=:release"
             self.cur.execute(sqlCVMFS,{':release':'CVMFS'})

@@ -7,6 +7,7 @@ release_version='0.0.5'
 
 import re
 import sys
+import socket
 import commands
 from distutils.core import setup
 from distutils.command.install import install as install_org
@@ -55,6 +56,8 @@ class install_data_panda (install_data_org):
     def initialize_options (self):
         install_data_org.initialize_options (self)
         self.install_purelib = None
+        self.host_name = socket.getfqdn()
+        self.python_exec_version = '%s.%s' % sys.version_info[:2]
         
     def finalize_options (self):
         # set install_purelib
