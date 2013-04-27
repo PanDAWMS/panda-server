@@ -1,6 +1,6 @@
 Release Note
 
-* current
+* 0.0.17 (4/27/2013)
   * split runRebro from copyArchived
   * fixed retryInActive to reset file status 
   * modified dispatcher to send prodSourceLabel for getJob
