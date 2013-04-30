@@ -67,7 +67,6 @@ class GenCallbackConsumer(stomp.ConnectionListener):
         try:
             # send ack
             id = headers['message-id']
-            self.conn.ack({'message-id':id})
             _logger.debug('%s start' % id)
             # re-construct message
             _logger.debug(str(message))
@@ -110,6 +109,7 @@ class GenCallbackConsumer(stomp.ConnectionListener):
                 fThr = Finisher(self.taskBuffer,None,job)
                 fThr.start()
                 fThr.join()
+            self.conn.ack({'message-id':id})
             _logger.debug('%s done' % pandaID)
         except:
             errtype,errvalue = sys.exc_info()[:2]

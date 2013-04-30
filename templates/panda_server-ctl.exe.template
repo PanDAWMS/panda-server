@@ -1,5 +1,13 @@
 #!/bin/sh
 #
+# chkconfig: - 85 15
+#
+# description: Panda server webserver
+# processname: httpd
+# config: /data/atlpan/srv/etc/panda/panda_server-httpd.conf
+# config: /etc/sysconfig/httpd-pandasrv
+# pidfile: /var/run/httpd-pandasrv.pid
+#
 # Copyright 2000-2004 The Apache Software Foundation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -40,7 +48,7 @@ ARGV="$@"
 # --------------------                              --------------------
 # 
 # the path to your httpd binary, including options if necessary
-HTTPD='/usr/sbin/httpd.worker'
+HTTPD='/usr/sbin/httpd'
 
 #
 # a command that outputs a formatted text version of the HTML at the
