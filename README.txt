@@ -1,6 +1,7 @@
 Release Note
 
 * 0.0.17 (4/27/2013)
+  * giving a higher prio to install jobs
   * split runRebro from copyArchived
   * fixed retryInActive to reset file status 
   * modified dispatcher to send prodSourceLabel for getJob
