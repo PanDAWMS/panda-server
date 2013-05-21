@@ -782,7 +782,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     inputSizePerJob = float(totalInputSize)/float(iJob)
                     # use T1 for jobs with many inputs when weight is negative
                     if (not forAnalysis) and _isTooManyInput(nFilesPerJob,inputSizePerJob) and \
-                           siteMapper.getCloud(previousCloud)['weight'] < 0:
+                           siteMapper.getCloud(previousCloud)['weight'] < 0 and prevManualPreset == False:
                         scanSiteList = [siteMapper.getCloud(previousCloud)['source']]
                         # set site list to use T1 and T1_VL
                         if hospitalQueueMap.has_key(previousCloud):

@@ -1,5 +1,9 @@
 Release Note
 
+* current
+  * fixed brokerage to respect preset computingSite even for too many input
+    jobs in cloud with negative t1weight
+
 * 0.0.17 (4/27/2013)
   * giving a higher prio to install jobs
   * split runRebro from copyArchived
