@@ -77,7 +77,13 @@ class GenCallbackConsumer(stomp.ConnectionListener):
             transferError = None
             if messageObj.has_key('transferError'):
                 transferError = messageObj['transferError']
-            _logger.debug('%s id=%s status=%s err=%s' % (pandaID,id,fileStatus,transferError))
+            transferErrorCode = None
+            try:
+                transferErrorCode = int(messageObj['transferErrorCode'])
+            except:
+                pass
+            _logger.debug('%s id=%s status=%s err=%s code=%s' % \
+                              (pandaID,id,fileStatus,transferError,transferErrorCode))
             # get job
             job = self.taskBuffer.peekJobs([pandaID],
                                            fromDefined=False,
@@ -101,9 +107,14 @@ class GenCallbackConsumer(stomp.ConnectionListener):
                         tmpFile.status = 'failed'
                         isFailed = True
                     _logger.debug('%s set %s to %s' % (pandaID,tmpFile.status,tmpFile.lfn))
-                if isFailed and transferError != None:
-                    self.taskBuffer.updateJobStatus(job.PandaID,job.jobStatus,
-                                                    {'ddmErrorDiag':str(transferError)})
+                if isFailed:
+                    updateAttr = {}
+                    if transferError != None:
+                        updateAttr['ddmErrorDiag'] = str(transferError)
+                    if transferErrorCode != None:
+                        updateAttr['ddmErrorCode'] = transferErrorCode
+                    if updateAttr != {}:    
+                        self.taskBuffer.updateJobStatus(job.PandaID,job.jobStatus,updateAttr)
                 # call finisher
                 _logger.debug('%s call finisher' % pandaID)
                 fThr = Finisher(self.taskBuffer,None,job)

@@ -114,6 +114,8 @@ class _Curl:
             com += ' --insecure'
         elif os.environ.has_key('X509_CERT_DIR'):
             com += ' --capath %s' % os.environ['X509_CERT_DIR']
+        elif os.path.exists('/etc/grid-security/certificates'):
+            com += ' --capath /etc/grid-security/certificates'
         if self.compress:
             com += ' --compressed'
         if self.sslCert != '':
@@ -160,6 +162,8 @@ class _Curl:
             com += ' --insecure'
         elif os.environ.has_key('X509_CERT_DIR'):
             com += ' --capath %s' % os.environ['X509_CERT_DIR']
+        elif os.path.exists('/etc/grid-security/certificates'):
+            com += ' --capath /etc/grid-security/certificates'
         if self.compress:
             com += ' --compressed'
         if self.sslCert != '':
@@ -206,6 +210,8 @@ class _Curl:
             com += ' --insecure'
         elif os.environ.has_key('X509_CERT_DIR'):
             com += ' --capath %s' % os.environ['X509_CERT_DIR']
+        elif os.path.exists('/etc/grid-security/certificates'):
+            com += ' --capath /etc/grid-security/certificates'
         if self.compress:
             com += ' --compressed'
         if self.sslCert != '':
