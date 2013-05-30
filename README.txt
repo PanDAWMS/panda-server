@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * removed priority boost for group analysis jobs
   * fixed brokerage to respect preset computingSite even for too many input
     jobs in cloud with negative t1weight
 
