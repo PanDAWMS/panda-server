@@ -37,6 +37,10 @@ for table in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsArchived4']:
 		_logger.debug("total %s " % len(res))
 		# make map
 		for cnt,prodUserName,jobStatus,workingGroup,computingSite in res:
+			# use workingGroup name as prodUserName
+			if workingGroup != None:
+				prodUserName = workingGroup
+				workingGroup = None
 			# append to PerUser map
 			if not usageBreakDownPerUser.has_key(prodUserName):
 				usageBreakDownPerUser[prodUserName] = {}

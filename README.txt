@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * included group analysis jobs in priority massage 
   * removed priority boost for group analysis jobs
   * fixed brokerage to respect preset computingSite even for too many input
     jobs in cloud with negative t1weight
