@@ -20,6 +20,7 @@ taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
 # get usage breakdown
 usageBreakDownPerUser = {}
 usageBreakDownPerSite = {}
+workingGroupList = []
 for table in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsArchived4']:
 	varMap = {}
 	varMap[':prodSourceLabel'] = 'user'
@@ -39,6 +40,8 @@ for table in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsArchived4']:
 		for cnt,prodUserName,jobStatus,workingGroup,computingSite in res:
 			# use workingGroup name as prodUserName
 			if workingGroup != None:
+				if not workingGroup in workingGroupList:
+					workingGroupList.append(workingGroup)
 				prodUserName = workingGroup
 				workingGroup = None
 			# append to PerUser map
@@ -228,7 +231,14 @@ for prodUserName,wgValMap in usageBreakDownPerUser.iteritems():
 		varMap[':maxPrio'] = maxPrio
 		varMap[':minPrio'] = minPrio
 		varMap[':rlimit'] = numBoostedJobsSite
-		sql = "UPDATE ATLAS_PANDA.jobsActive4 SET currentPriority=currentPriority+:prioDelta WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName AND workingGroup IS NULL AND jobStatus=:jobStatus AND computingSite=:computingSite AND currentPriority>:minPrio AND currentPriority<=:maxPrio AND rownum<=:rlimit"
+		sql  = "UPDATE ATLAS_PANDA.jobsActive4 SET currentPriority=currentPriority+:prioDelta "
+		sql += "WHERE prodSourceLabel=:prodSourceLabel "
+		if prodUserName in workingGroupList:
+			sql += "AND workingGroup=:prodUserName "
+		else:
+			sql += "AND prodUserName=:prodUserName AND workingGroup IS NULL "
+		sql += "AND jobStatus=:jobStatus AND computingSite=:computingSite AND currentPriority>:minPrio "
+		sql += "AND currentPriority<=:maxPrio AND rownum<=:rlimit"
 		_logger.debug("boost %s" % str(varMap))
 		status,res = taskBuffer.querySQLS(sql,varMap,arraySize=10)	
 		_logger.debug("   database return : %s" % res)
