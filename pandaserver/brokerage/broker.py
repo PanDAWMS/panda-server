@@ -32,6 +32,7 @@ _lockGetUU   = open(panda_config.lockfile_getUU, 'w')
 shortLongMap = {'ANALY_BNL_ATLAS_1':'ANALY_LONG_BNL_ATLAS',
                 'ANALY_LYON-T2'    :'ANALY_LONG_LYON-T2',
                 'ANALY_LYON_DCACHE':'ANALY_LONG_LYON_DCACHE',
+                'ANALY_BNL_SHORT'  :'ANALY_BNL_LONG',
                 }
 
 # processingType to skip brokerage

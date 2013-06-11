@@ -1670,6 +1670,9 @@ class DBProxy:
                             tmpLongSiteList.append(tmpLongSite)
                             tmpLongSite = job.computingSite + '_LONG'
                             tmpLongSiteList.append(tmpLongSite)
+                            tmpLongSite = re.sub('SHORT','LONG',job.computingSite)
+                            if tmpLongSite != job.computingSite:
+                                tmpLongSiteList.append(tmpLongSite)
                             # loop over all possible long sitenames
                             for tmpLongSite in tmpLongSiteList:
                                 varMap = {}
@@ -1683,6 +1686,7 @@ class DBProxy:
                                     break
                             # use long site if exists
                             if longSite != None:
+                                _logger.debug('sending PandaID:%s to %s' % (job.PandaID,longSite))
                                 job.computingSite = longSite
                                 # set destinationSE if queue is changed
                                 if oldComputingSite == job.destinationSE:

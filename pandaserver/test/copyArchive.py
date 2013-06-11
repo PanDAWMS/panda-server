@@ -300,7 +300,7 @@ else:
     _logger.debug("# of Anal Watcher : %s" % len(res))    
     for (id,) in res:
         _logger.debug("Anal Watcher %s" % id)    
-        thr = Watcher(taskBuffer,id,single=True,sleepTime=60)
+        thr = Watcher(taskBuffer,id,single=True,sleepTime=60,sitemapper=siteMapper)
         thr.start()
         thr.join()
         time.sleep(1)
@@ -318,7 +318,7 @@ else:
     _logger.debug("# of Sent Watcher : %s" % len(res))
     for (id,) in res:
         _logger.debug("Sent Watcher %s" % id)        
-        thr = Watcher(taskBuffer,id,single=True,sleepTime=30)
+        thr = Watcher(taskBuffer,id,single=True,sleepTime=30,sitemapper=siteMapper)
         thr.start()
         thr.join()
         time.sleep(1)
@@ -351,7 +351,7 @@ else:
         if int(id) in xmlIDs:
             _logger.debug("   found XML -> skip %s" % id)
             continue
-        thr = Watcher(taskBuffer,id,single=True,sleepTime=180)
+        thr = Watcher(taskBuffer,id,single=True,sleepTime=180,sitemapper=siteMapper)
         thr.start()
         thr.join()
         time.sleep(1)
@@ -371,7 +371,7 @@ else:
     _logger.debug("# of Holding Watcher : %s" % len(res))    
     for (id,) in res:
         _logger.debug("Holding Watcher %s" % id)
-        thr = Watcher(taskBuffer,id,single=True,sleepTime=60*timeOutVal)
+        thr = Watcher(taskBuffer,id,single=True,sleepTime=60*timeOutVal,sitemapper=siteMapper)
         thr.start()
         thr.join()
         time.sleep(1)
@@ -393,7 +393,7 @@ else:
     _logger.debug("# of DDM Watcher : %s" % len(res))    
     for (id,) in res:
         _logger.debug("DDM Watcher %s" % id)
-        thr = Watcher(taskBuffer,id,single=True,sleepTime=120)
+        thr = Watcher(taskBuffer,id,single=True,sleepTime=120,sitemapper=siteMapper)
         thr.start()
         thr.join()
         time.sleep(1)

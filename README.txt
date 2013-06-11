@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed for ANALY_BNL_SHORT and ANALY_BNL_LONG
   * included group analysis jobs in priority massage 
   * removed priority boost for group analysis jobs
   * fixed brokerage to respect preset computingSite even for too many input

@@ -76,13 +76,25 @@ class Watcher (threading.Thread):
                         # TEMPORARY : send it to long queue
                         oldComputingSite = job.computingSite
                         if job.jobStatus != 'sent' and job.computingSite.startswith('ANALY') and (not job.computingSite.startswith('ANALY_LONG_')):
-                            longSite = re.sub('^ANALY_','ANALY_LONG_',job.computingSite)
-                            longSite = re.sub('_\d+$','',longSite)
-                            if longSite in PandaSiteIDs.keys():
-                                job.computingSite = longSite
-                                # set destinationSE
-                                if job.destinationSE == oldComputingSite:
-                                    job.destinationSE = job.computingSite
+                            tmpLongSiteList = []
+                            tmpLongSite = re.sub('^ANALY_','ANALY_LONG_',job.computingSite)
+                            tmpLongSite = re.sub('_\d+$','',tmpLongSite)
+                            tmpLongSiteList.append(tmpLongSite)
+                            tmpLongSite = job.computingSite + '_LONG'
+                            tmpLongSiteList.append(tmpLongSite)
+                            tmpLongSite = re.sub('SHORT','LONG',job.computingSite)
+                            if tmpLongSite != job.computingSite:
+                                tmpLongSiteList.append(tmpLongSite)
+                            for longSite in tmpLongSiteList:
+                                if self.siteMapper.checkSite(longSite):
+                                    tmpSiteSpec = self.siteMapper.getSite(longSite)
+                                    if tmpSiteSpec.status == 'online':
+                                        job.computingSite = longSite
+                                        _logger.debug(' -> sending PandaID:%s to %s' % (job.PandaID,job.computingSite))
+                                        # set destinationSE
+                                        if job.destinationSE == oldComputingSite:
+                                            job.destinationSE = job.computingSite
+                                        break    
                         # modify LFNs and destinationSE
                         for file in job.Files:
                             modTypes = ('output','log')
