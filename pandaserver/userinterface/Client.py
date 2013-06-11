@@ -242,7 +242,7 @@ public methods
 # use web cache
 def useWebCache():
     global baseURL
-    baseURL = 'http://pandaserver.cern.ch:25085/server/panda'
+    baseURL = re.sub('25080','25085',baseURL)
     global serverURLs
     for tmpKey,tmpVal in serverURLs.iteritems():
         tmpVal['URL'] = baseURL
