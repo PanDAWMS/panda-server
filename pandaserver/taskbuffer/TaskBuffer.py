@@ -1047,6 +1047,9 @@ class TaskBuffer:
             for tmpIdx,tmpRel in enumerate(tmpRels):
                 # asetup
                 scrStr += "asetup %s,%s,%s\n" % tuple(tmpRel.split("/")+[bitNum])
+                # athenaMP
+                if not tmpJob.coreCount in ['NULL',None] and tmpJob.coreCount > 1:
+                    scrStr += "export ATHENA_PROC_NUMBER=%s\n" % tmpJob.coreCount
                 # add double quotes for zsh
                 tmpParamStr = tmpPars[tmpIdx]
                 tmpSplitter = shlex.shlex(tmpParamStr, posix=True)

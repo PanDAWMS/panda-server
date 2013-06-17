@@ -1625,7 +1625,7 @@ class DBProxy:
                      and not job.processingType.startswith('gangarobot') \
                      and not job.processingType.startswith('hammercloud') \
                      and job.computingSite.startswith('ANALY_') and param.has_key('pilotErrorCode') \
-                     and param['pilotErrorCode'] in ['1200','1201'] and (not job.computingSite.startswith('ANALY_LONG_')) \
+                     and param['pilotErrorCode'] in ['1200','1201','1213'] and (not job.computingSite.startswith('ANALY_LONG_')) \
                      and job.attemptNr < 2) or (job.prodSourceLabel == 'ddm' and job.cloud == 'CA' and job.attemptNr <= 10) \
                      or failedInActive or usePilotRetry) \
                      and job.commandToPilot != 'tobekilled':
@@ -2066,12 +2066,14 @@ class DBProxy:
             getValMap[':prodSourceLabel'] = 'software'
         elif prodSourceLabel == 'test' and computingElement != None:
             dynamicBrokering = True
-            sql1+= "AND (processingType IN (:processingType1,:processingType2,:processingType3) OR prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2)) "
+            sql1+= "AND (processingType IN (:processingType1,:processingType2,:processingType3) "
+            sql1+= "OR prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3)) "
             getValMap[':processingType1']   = 'gangarobot'
             getValMap[':processingType2']   = 'analy_test'            
             getValMap[':processingType3']   = 'prod_test'            
             getValMap[':prodSourceLabel1']  = 'test'
-            getValMap[':prodSourceLabel2']  = 'prod_test'            
+            getValMap[':prodSourceLabel2']  = 'prod_test'
+            getValMap[':prodSourceLabel3'] = 'install'
         else:
             sql1+= "AND prodSourceLabel=:prodSourceLabel "
             getValMap[':prodSourceLabel'] = prodSourceLabel
