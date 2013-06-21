@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * fixed datriHandler for SLC6
+  * improved getLFNsInUseForAnal
   * fixed getScriptOfflineRunning for athenaMP
   * fixed dispatcher so that install jobs can run on sites with status=test
   * fixed for ANALY_BNL_SHORT and ANALY_BNL_LONG
