@@ -1,0 +1,159 @@
+#!/bin/bash
+
+"exec" "python" "$0" "$@"
+
+
+def _usage():
+    print \
+"""
+NAME
+	pdq2_cr - copy and register DQ2 dataset via PANDA
+
+SYNOPSIS
+
+	pdq2_cr [ -h | --help]
+                [ -p | --parallel n ]                
+                [ -t | --timeout n ]                
+                [ -d | --destination destination ]
+                [ -r | --remote remoteSite ]
+                [ -s | --source sourceSite ]
+                datasetname
+                [lfn1 [lfn2 [...]]]
+DESCRIPTION
+
+	dq2_cr copies and registers DQ2 dataset. It scans the LRC to find missing or corrupted
+        files in a dataset, copies the files to the local SE using 3rd-party transfers, and
+        registers the files to the LRC. 
+
+OPTIONS
+
+        -h | --help		Print this message
+
+	-p | --parallel         Number of copy threads (default:3)
+
+	-t | --timeout          Timeout limit in second for each file transfer (default:1800)
+
+	-d | --destination      Directory in the storage element where files will be put.
+
+	-r | --remote           Specify remote site to which files get copied
+
+	-s | --source           Specify source site from which files get copied        
+                                
+"""
+
+# error codes
+EC_Configuration = 20
+EC_VUID          = 30
+EC_QueryFiles    = 40
+EC_Location      = 50
+EC_Copy          = 60
+EC_Main          = 70
+EC_PFNfromLFC    = 80
+EC_INVALIDSIZE   = 90
+EC_RegisterLRC   = 100
+EC_LS            = 110
+
+####################################################################
+# main
+def main():
+    import sys
+    import getopt
+
+    # option class
+    class _options:
+        def __init__(self):
+            pass
+    options = _options()
+    del _options
+    # set default values
+    options.source      = ''
+    options.destination = ''
+    options.remote      = ''
+    # get command-line parameters
+    try:
+        opts, args = getopt.getopt(sys.argv[1:],"hvn:cd:p:t:s:r:l:u",
+                                   ["help","verbose","ntry=","choose",
+                                    "destination=","parallel=","timeout=",
+                                    "source=","remote=","location=","uber",
+                                    "noSleep","uberHost=","gsiHost=","srmHost=",
+                                    "guids=","lfns=","debug",
+                                    ])
+    except:
+        _usage()
+        print "ERROR : Invalid options"
+        sys.exit(EC_Main)    
+    # set options
+    for o, a in opts:
+        if o in ("-h","--help"):
+            _usage()
+            sys.exit()
+        if o in ("-s","--source"):
+            options.source = a
+        if o in ("-r","--remote"):
+            options.remote = a
+        if o in ("-d","--destination"):
+            options.destination = a
+    # datasetname
+    if len(args) == 0:
+        print "ERROR : no datasetname"
+        sys.exit(EC_Main)
+    # source
+    if options.source == "":
+        print "ERROR : no source. use -s"
+        sys.exit(EC_Main)
+    # destination
+    if options.destination == "":
+        print "ERROR : no destination. use -d"
+        sys.exit(EC_Main)
+    # remote
+    if options.remote == "":
+        print "ERROR : no remote. use -r"
+        sys.exit(EC_Main)
+
+    # submit    
+    import time
+    import commands
+    import userinterface.Client as Client
+    from taskbuffer.JobSpec import JobSpec
+    from taskbuffer.FileSpec import FileSpec
+
+    site = "BNL_ATLAS_DDM"
+
+    datasetName = 'panda.destDB.%s' % commands.getoutput('uuidgen')
+    destName    = 'BNL_SE'
+
+    jobList = []
+
+    job = JobSpec()
+    job.jobDefinitionID   = int(time.time()) % 10000
+    job.jobName           = "%s" % commands.getoutput('uuidgen')
+    job.transformation    = 'https://gridui01.usatlas.bnl.gov:24443/dav/test/run_dq2_cr'
+    job.destinationDBlock = datasetName
+    job.destinationSE     = destName
+    job.currentPriority   = 100000
+    job.prodSourceLabel   = 'test'
+    job.computingSite     = site
+    
+    fileOL = FileSpec()
+    fileOL.lfn = "%s.job.log.tgz" % job.jobName
+    fileOL.destinationDBlock = job.destinationDBlock
+    fileOL.destinationSE     = job.destinationSE
+    fileOL.dataset           = job.destinationDBlock
+    fileOL.type = 'log'
+    job.addFile(fileOL)
+
+    argStr = ""
+    for arg in sys.argv[1:]:
+        argStr += "%s " % arg
+    job.jobParameters = argStr
+        
+    jobList.append(job)
+
+    s,o = Client.submitJobs(jobList)
+    print "---------------------"
+    print s
+    for x in o:
+        print "PandaID=%s" % x[0]
+
+if __name__ == "__main__":
+    main()

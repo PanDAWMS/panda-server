@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# setup grid stuff
+source /opt/glite/etc/profile.d/grid-env.sh
+
+# import env vars from sysconfig
+source @@install_dir@@/etc/sysconfig/panda_server-sysconfig
+
+# set PYTHONPATH for LFC.py
+export PYTHONPATH=/opt/lcg/lib64/python2.5/site-packages:$PYTHONPATH
+
+python2.5 @@install_purelib@@/pandaserver/test/add.py

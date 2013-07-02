@@ -1,0 +1,137 @@
+Installation
+--------------------
+
+1. Checkout panda-common and panda-server.
+
+$ svn co svn+ssh://svn.cern.ch/reps/panda/panda-common/tags/X.Y.Z panda-common
+$ svn co svn+ssh://svn.cern.ch/reps/panda/panda-server/tags/A.B.C panda-server
+
+* For tar-ball installation
+
+$ cd panda-common
+$ python setup.py install --prefix=INSTALLDIR
+$ cd ../panda-server
+$ python setup.py install --prefix=INSTALLDIR
+
+where INSTALLDIR is /data/atlpan/testsrv, for example.
+
+* For RPM installation
+
+$ cd panda-common
+$ python setup.py bdist_rpm
+$ sudo rpm -Uvh dist/panda-common-*.noarch.rpm
+$ cd ../panda-server 
+$ python setup.py bdist_rpm
+$ sudo rpm -Uvh dist/panda-server-*.noarch.rpm
+
+INSTALLDIR is set to /data/atlpan/srv automatically for RPMs
+
+
+2. Modify config files
+
+$ cd INSTALLDIR/etc/panda
+$ mv panda_common.cfg.rpmnew panda_common.cfg
+$ mv panda_server.cfg.rpmnew panda_server.cfg       
+$ mv panda_server-httpd.conf.rpmnew panda_server-httpd.conf        
+$ emacs -nw panda_server.cfg
+
+fix FIXME
+
+dq2_dir = /opt/dq2
+
+->
+
+dq2_dir = /data/atlpan/DQ2Clients/DQ2Clients
+
+$ emacs -nw panda_server-httpd.conf
+
+SSLCertificateFile      InstallDir/etc/panda/server.crt
+SSLCertificateKeyFile   InstallDir/etc/panda/server.key
+
+->
+
+SSLCertificateFile      /etc/httpd/conf/ssl.crt/server.crt
+SSLCertificateKeyFile   /etc/httpd/conf/ssl.key/server.key
+
+$ cd INSTALLDIR/etc/sysconfig
+$ mv panda_server-sysconfig.rpmnew panda_server-sysconfig
+$ emacs -nw panda_server-sysconfig
+
+add
+
+export X509_USER_PROXY=/data/atlpan/x509up_u25606
+
+
+3. Add .gacl
+
+$ cd INSTALLDIR/lib/python*/site-packages/pandaserver/server/
+$ emacs -nw .gacl
+<gacl>
+<entry>
+  <any-user/>
+  <allow><read/><list/></allow>
+</entry>
+</gacl>
+
+
+4. Add grid-env.sh if needed
+
+e.g.,
+$ cat INSTALLDIR/etc/grid-env.sh
+export LD_LIBRARY_PATH=/opt/glite/lib64:/opt/globus/lib:/opt/lcg/lib64:$LD_LIBRARY_PATH
+export PYTHONPATH=/opt/glite/lib64/python:/opt/lcg/lib64/python:$PYTHONPATH
+export PATH=/opt/edg/bin:/opt/glite/bin:/opt/globus/bin:/opt/lcg/bin:$PATH
+
+and modify panda_server.cfg
+
+$ emacs -nw INSTALLDIR/etc/panda/panda_server.cfg
+
+glite_source = /opt/glite/etc/profile.d/grid-env.sh
+
+->
+
+glite_source = INSTALLDIR/etc/grid-env.sh
+
+
+5. Make log and cache dirs, and change owner if RPM is used 
+
+mkdir -p INSTALLDIR/var/log/panda
+mkdir -p INSTALLDIR/var/log/panda/wsgisocks
+mkdir -p INSTALLDIR/var/cache/pandaserver
+chown atlpan:zp INSTALLDIR/var/log/panda
+chown atlpan:zp INSTALLDIR/var/log/panda/wsgisocks
+chown atlpan:zp INSTALLDIR/var/cache/pandaserver
+
+6. For voatlas
+
+cp ~/devsrv/share/httpd-pandasrv /etc/rc.d/init.d/
+/sbin/chkconfig --add httpd-pandasrv
+cp ~/devsrv/share/panda_server-httpd.conf.VM /data/atlpan/srv/etc/panda/panda_server-httpd.conf
+cp ~/devsrv/share/panda_server.cfg.VM /data/atlpan/srv/etc/panda/panda_server.cfg
+cp ~/devsrv/share/x509up_u25606_novoms /data/atlpan/
+chown atlpan:zp /data/atlpan/x509up_u25606_novoms
+cp ~/devsrv/share/pandasrv /etc/logrotate.d/
+cp ~/devsrv/share/pandasrv.cron /etc/cron.d/
+
+
+Start the server
+--------------------
+
+Add the following to crontab.
+
+0-59/5 * * * * INSTALLDIR/usr/bin/panda_server-add.sh > /dev/null 2>&1
+15 0-21/3 * * * INSTALLDIR/usr/bin/panda_server-copyArchive.sh > /dev/null 2>&1
+
+Run the server.
+
+$ sudo INSTALLDIR/etc/init.d/panda_server-ctl start
+
+Stop the server.
+
+$ sudo INSTALLDIR/etc/init.d/panda_server-ctl stop
+
+
+
+
+
+

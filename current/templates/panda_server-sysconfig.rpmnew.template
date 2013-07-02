@@ -1,0 +1,31 @@
+# Configuration file for the httpd service.
+
+OPTIONS="-f @@install_dir@@/etc/panda/panda_server-httpd.conf"
+
+# for FastCGI/WSGI
+#OPTIONS="-f @@install_dir@@/etc/panda/panda_server-httpd-FastCGI.conf"
+#HTTPD='/usr/sbin/httpd'
+
+# for DQ2
+export X509_CERT_DIR=/etc/grid-security/certificates
+export RUCIO_ACCOUNT=panda
+export RUCIO_APPID=pandasrv
+
+# panda home
+export PANDA_HOME=@@install_dir@@
+
+# timezone
+export TZ=UTC
+
+# import panda modules
+export PYTHONPATH=@@install_purelib@@/pandacommon:@@install_purelib@@/pandaserver
+
+# avoid to use AFS
+export HOME=/home/atlpan
+
+# set user's proxy
+export X509_USER_PROXY=FIXME
+
+# panda server URLs
+export PANDA_URL='http://localhost:25080/server/panda'
+export PANDA_URL_SSL='https://localhost:25443/server/panda'

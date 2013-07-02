@@ -1,0 +1,14 @@
+@@install_dir@@/var/log/panda/*log {
+    rotate 180
+    daily
+    compress    
+    missingok
+    notifempty
+    sharedscripts
+    daily       
+    postrotate
+	killall -u atlpan python || true
+        killall -u atlpan python2.5 || true
+	/sbin/service httpd-pandasrv restart > /dev/null 2>/dev/null || true
+    endscript
+}

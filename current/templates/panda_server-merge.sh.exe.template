@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# setup grid stuff
+source /opt/glite/etc/profile.d/grid-env.sh
+
+# import env vars from sysconfig
+source @@install_dir@@/etc/sysconfig/panda_server-sysconfig
+
+python2.5 @@install_purelib@@/pandaserver/test/runMerger.py

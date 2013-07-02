@@ -1,0 +1,334 @@
+#!/usr/bin/python2.5
+
+import SLSxml
+import socket
+import subprocess
+import re
+import sys
+import optparse
+
+###########################################
+## define options
+###########################################
+parser = optparse.OptionParser()
+parser.add_option( "-u", "--use", dest="use", type="string",
+	help="Use of xml, allowed values: 'mon', 'server' or 'bamboo'" )
+parser.add_option( "--host", dest="host", type="string",
+	help="Hostname of server to check, default is current machine hostname" )
+parser.add_option( "-d", "--dir", dest="dir", type="string",
+	help="Filename of the xml file output.  Default is " + 
+	"/data/atlpan/oracle/panda/monitoring" )
+parser.add_option( "--debug", action="store_true", dest="debug", 
+	default=False, help="Print out debug statements." )
+
+( options, args ) = parser.parse_args()
+
+def __main__() :
+
+	if( options.host ) :
+		host = options.host
+	else :
+		host = socket.gethostname()
+		host = re.sub( r'^(\w+).*', r'\1', host )
+	
+	if( options.use == 'mon' ) :
+		tmp_xml = make_monitor( host )
+		file_part = 'PandaMon'
+	elif( options.use == 'server' ) :
+		tmp_xml = make_server( host )
+		file_part = 'PandaServer'
+	elif( options.use == 'bamboo' ) :
+		tmp_xml = make_bamboo( host )
+		file_part = 'PandaBamboo'
+	else :
+		print "Err: please choose a use, 'mon', 'server' or 'bamboo'."
+		return
+	
+	if( options.dir ) :
+		file_dir = options.dir
+	else :
+		file_dir = '/data/atlpan/oracle/panda/monitoring'
+	
+	file_name = '%s/%s_%s.xml' % ( file_dir, file_part, host )
+	tmp_file = open( file_name, 'w' )
+	tmp_file.write( tmp_xml )
+	tmp_file.close
+
+def make_server( host ) :
+
+	if( options.debug ) : print "Creating the server monitoring xml"
+	
+	server_avail = server_availability( host )
+	add_processes = count_add_processes()
+	num_holdings  = count_holdings()
+        data_used     = volume_use( 'data' )
+	var_used      = volume_use( 'var' )
+	ave_regtime   = registration_time()
+	ave_regtimeDQ2 = registration_time(onlyDQ2=True) 
+
+	sls_xml = SLSxml.xml_doc()
+	sls_xml.set_id( 'PandaServer_%s' % ( host ) )
+	sls_xml.set_shortname( 'PandaServer monitoring service at %s' % ( host ) )
+	sls_xml.set_fullname( 'PandaServer monitoring service at %s' % ( host ) )
+	sls_xml.set_availability( str( server_avail ) )
+
+	sls_xml.add_data( "AddProcesses", "Number of processes for DQ2+LFC registration",
+			  str( add_processes ) )
+	sls_xml.add_data( "HoldingJobs", "Number of holding jobs to be registered",
+			  str( num_holdings ) )
+	sls_xml.add_data( "RegistrationTime", "Average time for DQ2+LFC registration in second",
+			  str( ave_regtime ) )
+	sls_xml.add_data( "RegistrationTimeDQ2", "Average time for DQ2 registration in second",
+			  str( ave_regtimeDQ2 ) )
+	sls_xml.add_data( "DataVolumeUse", "Percent use of the local /data volume",
+		str( data_used ) )
+	sls_xml.add_data( "VarVolumeUse", "Percent use of the local /var volume",
+		str( var_used ) )
+
+	return sls_xml.print_xml()
+
+def make_bamboo( host ) :
+
+	if( options.debug ) : print "Creating the server monitoring xml"
+	
+	server_avail = bamboo_availability( host )
+
+	sls_xml = SLSxml.xml_doc()
+	sls_xml.set_id( 'PandaBamboo_%s' % ( host ) )
+	sls_xml.set_shortname( 'PandaBamboo monitoring service at %s' % ( host ) )
+	sls_xml.set_fullname( 'PandaBamboo monitoring service at %s' % ( host ) )
+	sls_xml.set_availability( str( server_avail ) )
+	return sls_xml.print_xml()
+
+def make_monitor( host ) :
+
+	if( options.debug ) : print "Creating the monitor monitoring xml"
+	
+	errormes = False
+	messagetext = ''
+	
+	http_avail = httpd_availability( host )
+	if( http_avail == 0 ) :
+		errormes = True
+		messagetext += "Error: web server on %s not working\n" % ( host )
+	
+	squid_avail = squid_availability()
+	if( squid_avail == 0 ) :
+		errormes = True
+		messagetext += "Error: squid server on %s not working\n" % ( host )
+	
+	panda_avail = panda_availability( host )
+	if( panda_avail == 0 ) :
+		errormes = True
+		messagetext += "Error: panda monitor on %s not working\n" % ( host )
+	
+	http_processes = count_processes()
+	
+	data_used = volume_use( 'data' )
+	var_used = volume_use( 'var' )
+
+	if( errormes ) :
+		error_mail( host, messagetext )
+
+	if( options.debug ) :
+		print 'web - %s, squid - %s, panda - %s' % ( http_avail, squid_avail,
+			panda_avail )
+
+	sls_xml = SLSxml.xml_doc()
+	sls_xml.set_id( 'PandaMon_%s' % ( host ) )
+	sls_xml.set_shortname( 'PandaMonitor monitoring service at %s' % ( host ) )
+	sls_xml.set_fullname( 'PandaMonitor monitoring service at %s' % ( host ) )
+	sls_xml.set_availability( str( panda_avail ) )
+	
+	#adding intervention by hand here
+	#sls_xml.add_intervention( "2011-01-16T20:00:00", "PT36H", 
+	#	"Panda services with be out for over a day due to database server changes." )
+	
+	sls_xml.add_data( "HttpdAvailability", "Availability of the httpd server",
+		str( http_avail ) )
+	sls_xml.add_data( "SquidAvailability", "Availability of the squid server",
+		str( squid_avail ) )
+	sls_xml.add_data( "PandaAvailability", "Availability of the panda monitor",
+		str( panda_avail ) )
+	sls_xml.add_data( "HttpProcesses", "Number of processes for the panda monitor",
+		str( http_processes ) )
+	sls_xml.add_data( "DataVolumeUse", "Percent use of the local /data volume",
+		str( data_used ) )
+	sls_xml.add_data( "VarVolumeUse", "Percent use of the local /var volume",
+		str( var_used ) )
+	return sls_xml.print_xml()
+
+def httpd_availability( host ) :
+	url = 'http://%s.cern.ch/robots.txt' % ( host )
+	return check_url( url, "go away" )
+
+def squid_availability() :
+	command = '/usr/bin/squidclient -p 25980 cache_object://localhost/info'
+	return check_command( command, 'OK' )
+	
+def panda_availability( host ) :
+	
+	port = '25980'
+	baseurl = 'http://' + host + ':' + port + '/server/pandamon/query?'
+	
+	reply = check_url( baseurl + 'isAlive', 'yes' )
+	if( reply != '100' ) : return '0'
+	
+	return '100'
+	
+	#The above is a simpler test of the python code, for now, until the
+	#panda monitor migration is more stable, and all network tweaks are
+	#in quator, so things are stable on reboot/upgrade.  Once that is 
+	#true the below tests should be put back.
+
+	reply = check_url( baseurl + 'dash=prod', 'CERN:OK' )
+	if( reply != '100' ) : return '0'
+	
+	reply = check_url( baseurl + 'dash=clouds', 'Cloud status' )
+	if( reply != '100' ) : return '0'
+		
+	reply = check_url( baseurl + 'overview=incidents', 'Recorded incidents' )
+	if( reply != '100' ) : return '0'
+	
+	reply = check_url( baseurl + 'dash=ddm', 'Space available' )
+	if( reply != '100' ) : return '0'
+	
+	return '100'
+	
+def server_availability( host ) :
+	
+	tmp_url = '--no-check-certificate https://%s:25443/server/panda/isAlive' % ( host )
+	reply = check_url( tmp_url, 'alive=yes' )
+	if( reply != '100' ) : return '0'
+	
+	return '100'	
+
+def bamboo_availability( host ) :
+	
+	tmp_url = 'http://%s:25070/bamboo/bamboo/isAlive' % ( host )
+	reply = check_url( tmp_url, 'alive=yes' )
+	if( reply != '100' ) : return '0'
+	
+	return '100'	
+
+def check_url( url, check_string ) :
+	command = "wget -q -O - " + url
+	return check_command( command, check_string )
+	
+def check_command( command, check_string ) :
+	
+	if( options.debug ) :
+		print "Checking command : %s" % ( command )
+		print "For string : %s" % ( check_string )
+	
+	tmp_array = command.split()
+	output = subprocess.Popen( tmp_array, stdout=subprocess.PIPE ).communicate()[0]
+		
+	if( re.search( check_string, output ) ) :
+		if( options.debug ) : print "Found the string, return 100"
+		return '100'
+	else :
+		if( options.debug ) : print "String not found, return 0"
+		return '0'
+
+def count_processes() :
+	output = subprocess.Popen( ['ps', 'aux'], stdout=subprocess.PIPE ).communicate()[0]
+	count = 0
+	for line in output.split( '\n' ) :
+		if( re.match( 'atlpan', line ) ) :
+			if( re.search( 'http', line ) ) :
+				count += 1
+	return count
+
+def count_add_processes() :
+	output = subprocess.Popen( "pgrep -f add.py",
+				   stdout=subprocess.PIPE,shell=True).communicate()[0]
+	count = 0
+	for line in output.split( '\n' ) :
+		line = line.strip()
+		if  line == '':
+			continue
+		count += 1
+	return count
+
+def count_holdings() :
+	output = subprocess.Popen("ls /data/atlpan/srv/var/log/panda/ | egrep '(finished|failed)'",
+				  stdout=subprocess.PIPE,shell=True).communicate()[0]
+        count =0
+	for line in output.split( '\n' ) :
+		line = line.strip()
+		if  line == '':
+			continue
+		count += 1
+	return count
+
+def registration_time(timeSlice=False,onlyDQ2=False) :
+	aveRegTime = '0.0'
+	try:
+		if onlyDQ2:
+			com = "grep registraion /data/atlpan/srv/var/log/panda/panda-Adder.log | grep DQ2 | grep -v LFC"
+		else:
+			com = "grep 'LFC+DQ2' /data/atlpan/srv/var/log/panda/panda-Adder.log"
+		if not timeSlice:
+			com += ' | tail -1000'
+		output = subprocess.Popen(com,stdout=subprocess.PIPE,shell=True).communicate()[0]
+		regtimeMap = {}
+		for line in output.split('\n'):
+			try:
+				items = line.split()
+				timestamp = items[1][:2]
+				regtime   = float(items[-2])
+				if not regtimeMap.has_key(timestamp):
+					regtimeMap[timestamp] = {'totalTime':0.,'totalReg':0}
+				regtimeMap[timestamp]['totalTime'] += regtime
+				regtimeMap[timestamp]['totalReg'] += 1
+			except:
+				pass
+		timestamps = regtimeMap.keys()
+		if timeSlice:	
+			timestamps.sort()
+			for timestamp in timestamps:
+				print "%s %4.1fsec" % (timestamp,regtimeMap[timestamp]['totalTime']/float(regtimeMap[timestamp]['totalReg']))
+		else:
+			totalTime = 0.
+			totalReg  = 0
+			for timestamp in timestamps:
+				totalTime += regtimeMap[timestamp]['totalTime']
+				totalReg  += regtimeMap[timestamp]['totalReg']
+			if totalReg > 0:	
+				aveRegTime = '%4.1f' % (totalTime/float(totalReg))	
+        except:
+		errtype,ervalue = sys.exc_info()[:2]
+		print "ERROR : %s:%s in registration_time" % (errtype,ervalue)
+	return aveRegTime
+
+def volume_use( volume_name ) :
+	command = "df -Pkh /" + volume_name
+
+	tmp_array = command.split()
+	output = subprocess.Popen( tmp_array, stdout=subprocess.PIPE ).communicate()[0]
+	
+	for line in output.split( '\n' ) :
+		if( re.search( volume_name, line ) ) :
+			used_amount = re.search( r"(\d+)\%", line ).group(1)
+			
+	return used_amount
+
+def error_mail( host, message ) :
+	
+	mail_cmd = []
+	mail_cmd.append( 'mail' )
+	mail_cmd.append( '-s' )
+	mail_cmd.append( 'Problems with %s' % ( host ) )
+	mail_cmd.append( 'douglas@cern.ch' )
+
+	text = "Problems with %s :\n\n" % ( host )
+	text += message
+
+	p = subprocess.Popen( mail_cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE )
+	p.stdin.write( text )
+	p.stdin.close()
+
+
+#run program
+__main__()
