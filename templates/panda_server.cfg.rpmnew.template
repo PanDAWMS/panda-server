@@ -256,3 +256,13 @@ cacheFileTable = FileTable
 
 # enable job status change monitoring
 record_statuschange = False
+
+
+
+##########################
+#
+# JEDI
+#
+
+# use JEDI
+useJEDI = False

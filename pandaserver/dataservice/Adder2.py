@@ -299,7 +299,7 @@ class Adder (threading.Thread):
                 guidList = []
                 for file in self.job.Files:
                     # ignore inputs
-                    if file.type == 'input':
+                    if file.type in ['input','pseudo_input']:
                         continue
                     # start closer for output/log datasets
                     if not file.destinationDBlock in destDBList:
@@ -358,7 +358,7 @@ class Adder (threading.Thread):
         # get input files
         inputLFNs = []
         for file in self.job.Files:
-            if file.type == 'input':
+            if file.type in ['input','pseudo_input']:
                 inputLFNs.append(file.lfn)
         # parse XML
         lfns    = []

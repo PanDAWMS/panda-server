@@ -1,5 +1,8 @@
 Release Note
 
+* current
+  * added JEDI stuff
+
 * 0.0.18 (7/2/2013)
   * tagged for JEDI
   * fixed datriHandler for SLC6

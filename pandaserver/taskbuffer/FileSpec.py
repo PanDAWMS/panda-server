@@ -8,7 +8,8 @@ class FileSpec(object):
     # attributes
     _attributes = ('row_ID','PandaID','GUID','lfn','type','dataset','status','prodDBlock',
                    'prodDBlockToken','dispatchDBlock','dispatchDBlockToken','destinationDBlock',
-                   'destinationDBlockToken','destinationSE','fsize','md5sum','checksum','scope')
+                   'destinationDBlockToken','destinationSE','fsize','md5sum','checksum','scope',
+                   'jediTaskID','datasetID','fileID','attemptNr')
     # slots
     __slots__ = _attributes+('_owner','_changedAttrs','_oldPandaID')
     # attributes which have 0 by default

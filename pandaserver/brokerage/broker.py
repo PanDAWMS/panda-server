@@ -531,6 +531,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
         prevHomePkg    = None
         prevDirectAcc  = None
         prevCoreCount  = None
+        prevIsJEDI     = None
         prevBrokergageSiteList = None
         prevManualPreset = None
         prevGoToT2Flag   = None
@@ -550,13 +551,21 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
 
         prestageSites = getPrestageSites(siteMapper)
 
+        # check if only JEDI
+        onlyJEDI = True
+        for tmpJob in jobs:
+            if tmpJob.lockedby != 'jedi':
+                onlyJEDI = False
+                break
+
         # get statistics
         faresharePolicy = {}
         newJobStatWithPrio = {}
         jobStatBrokerCloudsWithPrio = {}
         if len(jobs) > 0 and (jobs[0].processingType.startswith('gangarobot') or \
                               jobs[0].processingType.startswith('hammercloud') or \
-                              jobs[0].processingType in ['pandamover','usermerge']):
+                              jobs[0].processingType in ['pandamover','usermerge'] or \
+                              onlyJEDI):
             # disable redundant counting for HC
             jobStatistics = {}
             jobStatBroker = {}
@@ -704,6 +713,10 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 manualPreset = True
                 brokerageNote = 'presetSite'
             overwriteSite = False
+            # check JEDI
+            isJEDI = False
+            if job != None and job.lockedby == 'jedi':
+                isJEDI = True
             # new bunch or terminator
             if job == None or len(fileList) >= nFile \
                    or (dispatchDBlock == None and job.homepackage.startswith('AnalysisTransforms')) \
@@ -719,7 +732,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                    or prevWorkingGroup != job.workingGroup \
                    or prevProType != job.processingType \
                    or prevMaxCpuCount != job.maxCpuCount \
-                   or prevBrokergageSiteList != specialBrokergageSiteList:
+                   or prevBrokergageSiteList != specialBrokergageSiteList \
+                   or prevIsJEDI != isJEDI:
                 if indexJob > 1:
                     tmpLog.debug('new bunch')
                     tmpLog.debug('  iJob           %s'    % iJob)
@@ -1345,7 +1359,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             minSites = {minSites.keys()[0]:0}
                     # choose site
                     tmpLog.debug('Min Sites:%s' % minSites)
-                    if len(fileList) ==0:
+                    if len(fileList) ==0 or prevIsJEDI == True:
                         # choose min 1/weight
                         minSite = minSites.keys()[0]
                         minWinv = minSites[minSite]
@@ -1479,7 +1493,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             tmpLog.debug('PandaID:%s %s' % (tmpJob.PandaID,tmpJob.brokerageErrorDiag))
                             continue
                         # set ready if files are already there
-                        _setReadyToFiles(tmpJob,okFiles,siteMapper,tmpLog)
+                        if prevIsJEDI == False:
+                            _setReadyToFiles(tmpJob,okFiles,siteMapper,tmpLog)
                         # update statistics
                         tmpProGroup = ProcessGroups.getProcessGroup(tmpJob.processingType)
                         if tmpJob.processingType in skipBrokerageProTypes:
@@ -1567,6 +1582,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             prevGoToT2Flag   = goToT2Flag
             prevWorkingGroup = job.workingGroup
             prevBrokerageNote = brokerageNote
+            prevIsJEDI = isJEDI
             # truncate prio to avoid too many lookups
             if not job.currentPriority in [None,'NULL']:
                 prevPriority = (job.currentPriority / 50) * 50

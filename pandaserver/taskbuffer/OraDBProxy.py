@@ -287,7 +287,7 @@ class DBProxy:
             sqlFile+= " RETURNING row_ID INTO :newRowID"
             for file in job.Files:
                 file.row_ID = None
-                if file.status != 'ready':
+                if not file.status in ['ready','cached']:
                     file.status='unknown'
                 # replace $PANDAID with real PandaID
                 file.lfn = re.sub('\$PANDAID', '%05d' % job.PandaID, file.lfn)
@@ -306,6 +306,21 @@ class DBProxy:
                 file.row_ID = long(varMap[':newRowID'].getvalue())
                 # reset changed attribute list
                 file.resetChangedList()
+                # update JEDI table
+                if hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and job.lockedby == 'jedi':
+                    # update Dataset_Contents table
+                    varMap = {}
+                    varMap[':fileID'] = file.fileID
+                    varMap[':status'] = 'running'
+                    varMap[':oldStatus'] = 'picked'
+                    varMap[':attemptNr'] = file.attemptNr
+                    varMap[':datasetID'] = file.datasetID
+                    varMap[':keepTrack'] = 1
+                    varMap[':jediTaskID'] = file.jediTaskID
+                    sqlJediFile  = "UPDATE ATLAS_PANDA.JEDI_Dataset_Contents SET status=:status "
+                    sqlJediFile += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+                    sqlJediFile += "AND attemptNr=:attemptNr AND status=:oldStatus AND keepTrack=:keepTrack "
+                    self.cur.execute(sqlJediFile+comment, varMap)
             # metadata
             if job.prodSourceLabel in ['user','panda'] and job.metadata != '':
                 sqlMeta = "INSERT INTO ATLAS_PANDA.metaTable (PandaID,metaData) VALUES (:PandaID,:metaData)"
@@ -560,6 +575,7 @@ class DBProxy:
                         # insert
                         self.cur.execute(sql2+comment, job.valuesMap())
                         # update files
+                        datasetContentsStat = {}
                         for file in job.Files:
                             sqlF = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % file.bindUpdateChangesExpression()) + "WHERE row_ID=:row_ID"
                             varMap = file.valuesMap(onlyChanged=True)
@@ -774,6 +790,9 @@ class DBProxy:
                                 myDisList.append(tmpFile.dispatchDBlock)
                     # collect to record state change
                     updatedJobList.append(job)
+                    # update JEDI tables
+                    if hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and job.lockedby == 'jedi':
+                        self.propagateResultToJEDI(job,self.cur)
                 # delete downstream jobs
                 ddmIDs     = []
                 newJob     = None
@@ -854,6 +873,9 @@ class DBProxy:
                             self.cur.execute(sqlPMod+comment,varMap)
                             # collect to record state change
                             updatedJobList.append(dJob)
+                            # update JEDI tables
+                            if hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and dJob.lockedby == 'jedi':
+                                self.propagateResultToJEDI(dJob,self.cur)
                             # set tobeclosed to sub datasets
                             if not toBeClosedSubList.has_key(dJob.jobDefinitionID):
                                 # init
@@ -2457,7 +2479,7 @@ class DBProxy:
     # reset job in jobsActive or jobsWaiting
     def resetJob(self,pandaID,activeTable=True,keepSite=False,getOldSubs=False,forPending=True):
         comment = ' /* DBProxy.resetJob */'        
-        _logger.debug("resetJobs : %s" % pandaID)
+        _logger.debug("resetJob : %s activeTable=%s" % (pandaID,activeTable))
         # select table
         table = 'ATLAS_PANDA.jobsWaiting4'        
         if activeTable:
@@ -2568,7 +2590,8 @@ class DBProxy:
                     if not file.destinationDBlock in oldSubList:
                         oldSubList.append(file.destinationDBlock)
                 # reset status, destinationDBlock and dispatchDBlock
-                file.status         ='unknown'
+                if job.lockedby != 'jedi':
+                    file.status         ='unknown'
                 file.dispatchDBlock = None
                 file.destinationDBlock = re.sub('_sub\d+$','',file.destinationDBlock)
                 # add file
@@ -2718,6 +2741,7 @@ class DBProxy:
         # 7  : retry by server
         # 8  : rebrokerage
         # 9  : force kill
+        # 50 : kill by JEDI
         # 91 : kill user jobs with prod role
         comment = ' /* DBProxy.killJob */'        
         _logger.debug("killJob : code=%s PandaID=%s role=%s user=%s wg=%s" % (code,pandaID,prodManager,user,wgProdRole))
@@ -2742,6 +2766,8 @@ class DBProxy:
         sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
         sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
         sqlPMod = "UPDATE ATLAS_PANDA.jobParamsTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
+        sqlFile = "SELECT %s FROM ATLAS_PANDA.filesTable4 " % FileSpec.columnNames()
+        sqlFile+= "WHERE PandaID=:PandaID"
         try:
             flagCommand = False
             flagKilled  = False
@@ -2791,7 +2817,7 @@ class DBProxy:
                             validGroupProdRole = True
                             break
                 if prodManager:
-                    if res[1] in ['user','panda'] and (not code in ['2','4','7','8','9','91']):
+                    if res[1] in ['user','panda'] and (not code in ['2','4','7','8','9','50','91']):
                         _logger.debug("ignore killJob -> prod proxy tried to kill analysis job type=%s" % res[1])
                         break
                     _logger.debug("killJob : %s using prod role" % pandaID)
@@ -2875,6 +2901,10 @@ class DBProxy:
                         job.taskBufferErrorCode = ErrorCode.EC_Reassigned
                         job.taskBufferErrorDiag = 'reassigned to another site by rebrokerage. new %s' % user
                         job.commandToPilot      = None
+                    elif code=='50':
+                        # killed by JEDI
+                        job.taskBufferErrorCode = ErrorCode.EC_Kill
+                        job.taskBufferErrorDiag = user
                     else:
                         # killed
                         job.taskBufferErrorCode = ErrorCode.EC_Kill
@@ -2908,6 +2938,20 @@ class DBProxy:
                 self.cur.execute(sqlPMod+comment,varMap)
                 flagKilled = True
                 updatedFlag = True
+                # update JEDI tables
+                if hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and job.lockedby == 'jedi':
+                    # read files
+                    varMap = {}
+                    varMap[':PandaID'] = pandaID
+                    self.cur.arraysize = 10000
+                    self.cur.execute(sqlFile+comment, varMap)
+                    resFs = self.cur.fetchall()
+                    for resF in resFs:
+                        fileSpec = FileSpec()
+                        fileSpec.pack(resF)
+                        job.addFile(fileSpec)
+                    # update JEDI
+                    self.propagateResultToJEDI(job,self.cur)
                 break
             # commit
             if not self._commit():
@@ -7912,15 +7956,19 @@ class DBProxy:
             # set autocommit on
             self.conn.begin()
             # get reliability info
-            sqlRel = "SELECT tier2,t2group FROM ATLAS_GRISLI.t_m4regions_replication"
-            self.cur.arraysize = 10000
-            self.cur.execute(sqlRel+comment)
-            tmpList = self.cur.fetchall()
             reliabilityMap = {}
-            for tier2,t2group in tmpList:
-                # get prefix
-                tmpPrefix = re.sub('_DATADISK','',tier2)
-                reliabilityMap[tmpPrefix] = t2group
+            try:
+                sqlRel = "SELECT tier2,t2group FROM ATLAS_GRISLI.t_m4regions_replication"
+                self.cur.arraysize = 10000
+                self.cur.execute(sqlRel+comment)
+                tmpList = self.cur.fetchall()
+                for tier2,t2group in tmpList:
+                    # get prefix
+                    tmpPrefix = re.sub('_DATADISK','',tier2)
+                    reliabilityMap[tmpPrefix] = t2group
+            except:
+                errType,errValue = sys.exc_info()[:2]
+                _logger.error("getSiteInfo %s:%s" % (errType.__class__.__name__,errValue))
             # get CVMFS availability
             sqlCVMFS  = "SELECT distinct siteid FROM ATLAS_PANDAMETA.installedSW WHERE release=:release"
             self.cur.execute(sqlCVMFS,{':release':'CVMFS'})
@@ -7935,7 +7983,8 @@ class DBProxy:
             sql+= "priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue,"
             sql+= "validatedreleases,accesscontrol,copysetup,maxinputsize,cachedse,"
             sql+= "allowdirectaccess,comment_,lastmod,multicloud,lfcregister,"
-            sql+= "countryGroup,availableCPU,pledgedCPU,coreCount,transferringlimit "
+            sql+= "countryGroup,availableCPU,pledgedCPU,coreCount,transferringlimit, "
+            sql+= "maxwdir,fairsharePolicy "
             sql+= "FROM ATLAS_PANDAMETA.schedconfig WHERE siteid IS NOT NULL"
             self.cur.arraysize = 10000            
             self.cur.execute(sql+comment)
@@ -7958,7 +8007,8 @@ class DBProxy:
                        priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue,\
                        validatedreleases,accesscontrol,copysetup,maxinputsize,cachedse,\
                        allowdirectaccess,comment,lastmod,multicloud,lfcregister, \
-                       countryGroup,availableCPU,pledgedCPU,coreCount,transferringlimit \
+                       countryGroup,availableCPU,pledgedCPU,coreCount,transferringlimit, \
+                       maxwdir,fairsharePolicy \
                        = resTmp
                     # skip invalid siteid
                     if siteid in [None,'']:
@@ -7987,6 +8037,12 @@ class DBProxy:
                     ret.comment       = comment
                     ret.statusmodtime = lastmod
                     ret.lfcregister   = lfcregister
+                    ret.fairsharePolicy = fairsharePolicy
+                    # maxwdir
+                    try:
+                        ret.maxwdir = int(maxwdir)
+                    except:
+                        ret.maxwdir = 16336
                     # reliability
                     tmpPrefix = re.sub('_[^_]+DISK$','',ret.ddm)
                     if reliabilityMap.has_key(tmpPrefix):
@@ -10678,6 +10734,109 @@ class DBProxy:
             errType,errValue = sys.exc_info()[:2]
             _logger.error("recordStatusChange %s %s: %s %s" % (pandaID,jobStatus,errType,errValue))
         return 
+
+
+    # propagate result to JEDI
+    def propagateResultToJEDI(self,jobSpec,cur):
+        comment = ' /* DBProxy.propagateResultToJEDI */'
+        datasetContentsStat = {}
+        # loop over all files
+        for fileSpec in jobSpec.Files:
+            # update Dataset Contents table
+            updateMetadata  = False
+            updateAttemptNr = False
+            varMap = {}
+            varMap[':fileID']     = fileSpec.fileID
+            varMap[':attemptNr']  = fileSpec.attemptNr
+            varMap[':datasetID']  = fileSpec.datasetID
+            varMap[':keepTrack']  = 1
+            varMap[':jediTaskID'] = jobSpec.jediTaskID
+            # set file status
+            if fileSpec.type in ['input','pseudo_input']:
+                if jobSpec.jobStatus == 'finished':
+                    varMap[':status'] = 'finished'
+                else:
+                    varMap[':status'] = 'ready'
+                    updateAttemptNr = True
+            else:
+                varMap[':status'] = jobSpec.jobStatus
+                if jobSpec.jobStatus == 'finished':
+                    varMap[':status'] = 'finished'
+                    # update metadata
+                    updateMetadata = True
+            sqlFile = "UPDATE ATLAS_PANDA.JEDI_Dataset_Contents SET status=:status"
+            # attempt number
+            if updateAttemptNr == True:
+                # increment attemptNr for next attempt
+                sqlFile += ",attemptNr=attemptNr+1"
+            # metadata
+            if updateMetadata:
+                # set file metadata
+                for tmpKey in ['lfn','GUID','fsize','checksum']:
+                    tmpVal = getattr(fileSpec,tmpKey)
+                    if tmpVal == 'NULL':
+                        if tmpKey in fileSpec._zeroAttrs:
+                            tmpVal = 0
+                        else:
+                            tmpVal = None
+                    tmpMapKey = ':%s' % tmpKey        
+                    sqlFile += ",%s=%s" % (tmpKey,tmpMapKey)
+                    varMap[tmpMapKey] = tmpVal
+            sqlFile += " WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+            sqlFile += "AND attemptNr=:attemptNr AND keepTrack=:keepTrack "
+            sqlFile += "RETURNING attemptNr,maxAttempt INTO :newAttemptNr,:maxAttempt "
+            varMap[':maxAttempt']   = cur.var(cx_Oracle.NUMBER)
+            varMap[':newAttemptNr'] = cur.var(cx_Oracle.NUMBER)
+            _logger.debug(sqlFile+comment+str(varMap))
+            cur.execute(sqlFile+comment,varMap)
+            nRow = cur.rowcount
+            if nRow == 1:
+                datasetID = fileSpec.datasetID
+                if not datasetContentsStat.has_key(datasetID):
+                    datasetContentsStat[datasetID] = {'nFilesUsed':0,'nFilesFinished':0,'nFilesFailed':0}
+                if varMap[':status'] == 'ready':
+                    # check attemptNr and maxAttempt when the file failed (ready = input failed)
+                    # skip secondary datasets which have maxAttempt=None 
+                    if varMap[':maxAttempt'].getvalue() != None:
+                        maxAttempt   = long(varMap[':maxAttempt'].getvalue())
+                        newAttemptNr = long(varMap[':newAttemptNr'].getvalue())
+                        if maxAttempt > newAttemptNr:
+                            # decrement nUsed to trigger reattempt
+                            datasetContentsStat[datasetID]['nFilesUsed'] -= 1
+                        else:
+                            # no more reattempt
+                            datasetContentsStat[datasetID]['nFilesFailed'] += 1
+                elif varMap[':status'] == 'finished':
+                    # successfully used or produced
+                    datasetContentsStat[datasetID]['nFilesFinished'] += 1
+                else:
+                    # failed to produce the file
+                    datasetContentsStat[datasetID]['nFilesFailed'] += 1
+        # update JEDI_Datasets table
+        if datasetContentsStat != {}:
+            for tmpDatasetID,tmpContentsStat in datasetContentsStat.iteritems():
+                # sql to update nFiles info
+                toUpdateFlag = False
+                sqlJediDS = "UPDATE ATLAS_PANDA.JEDI_Datasets SET "
+                for tmpStatKey,tmpStatVal in tmpContentsStat.iteritems():
+                    if tmpStatVal == 0:
+                        continue
+                    if tmpStatVal > 0:
+                        sqlJediDS += '%s=%s+%s,' % (tmpStatKey,tmpStatKey,tmpStatVal)
+                    else:
+                        sqlJediDS += '%s=%s-%s,' % (tmpStatKey,tmpStatKey,abs(tmpStatVal))
+                    toUpdateFlag = True
+                sqlJediDS  = sqlJediDS[:-1]
+                sqlJediDS += " WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+                varMap = {}
+                varMap[':jediTaskID'] = jobSpec.jediTaskID
+                varMap[':datasetID']  = tmpDatasetID
+                # update
+                if toUpdateFlag:
+                    _logger.debug(sqlJediDS+comment+str(varMap))                            
+                    cur.execute(sqlJediDS+comment,varMap)
+        # return
+        return True
 
 
     # wake up connection

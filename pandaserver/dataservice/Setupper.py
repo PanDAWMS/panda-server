@@ -436,7 +436,7 @@ class Setupper (threading.Thread):
                 continue
             for file in job.Files:
                 # ignore input files
-                if file.type == 'input':
+                if file.type in ['input','pseudo_input']:
                     continue
                 # don't touch with outDS for unmerge jobs
                 if job.prodSourceLabel == 'panda' and job.processingType == 'unmerge' and file.type != 'log':
