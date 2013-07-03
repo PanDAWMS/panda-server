@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * removed the requorement to run jobs at T1 for MCORE jobs
   * added JEDI stuff
 
 * 0.0.18 (7/2/2013)

@@ -661,6 +661,16 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     specialBrokergageSiteList = ['NIKHEF-ELPROD']
                     tmpLog.debug('PandaID:%s -> set SiteList=%s for split T1' % (job.PandaID,specialBrokergageSiteList))
                     brokerageNote = 'useSplitNLT1'                    
+            # use limited sites for MP jobs
+            if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
+                   and not job.coreCount in [None,'NULL'] and job.coreCount > 1 and specialBrokergageSiteList == []:
+                for tmpSiteName in siteMapper.getCloud(job.cloud)['sites']:
+                    if siteMapper.checkSite(tmpSiteName):
+                        tmpSiteSpec = siteMapper.getSite(tmpSiteName)
+                        if tmpSiteSpec.coreCount > 1:
+                            specialBrokergageSiteList.append(tmpSiteName)
+                tmpLog.debug('PandaID:%s -> set SiteList=%s for MP=%scores' % (job.PandaID,specialBrokergageSiteList,job.coreCount))
+                brokerageNote = 'MP=%score' % job.coreCount
             # set computingSite to T1 for high priority jobs
             if job != None and job.currentPriority >= 950 and job.computingSite == 'NULL' \
                    and job.prodSourceLabel in ('test','managed') and specialBrokergageSiteList == []:
@@ -695,16 +705,6 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             specialBrokergageSiteList.append(tmpSiteName)
                 tmpLog.debug('PandaID:%s -> set SiteList=%s for processingType=%s' % (job.PandaID,specialBrokergageSiteList,job.processingType))
                 brokerageNote = '%s' % job.processingType                
-            # use limited sites for MP jobs
-            if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
-                   and not job.coreCount in [None,'NULL'] and job.coreCount > 1 and specialBrokergageSiteList == []:
-                for tmpSiteName in siteMapper.getCloud(job.cloud)['sites']:
-                    if siteMapper.checkSite(tmpSiteName):
-                        tmpSiteSpec = siteMapper.getSite(tmpSiteName)
-                        if tmpSiteSpec.coreCount > 1:
-                            specialBrokergageSiteList.append(tmpSiteName)
-                tmpLog.debug('PandaID:%s -> set SiteList=%s for MP=%scores' % (job.PandaID,specialBrokergageSiteList,job.coreCount))
-                brokerageNote = 'MP=%score' % job.coreCount
             # manually set site
             manualPreset = False
             if job != None and job.computingSite != 'NULL' and job.prodSourceLabel in ('test','managed') \
@@ -797,7 +797,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     inputSizePerJob = float(totalInputSize)/float(iJob)
                     # use T1 for jobs with many inputs when weight is negative
                     if (not forAnalysis) and _isTooManyInput(nFilesPerJob,inputSizePerJob) and \
-                           siteMapper.getCloud(previousCloud)['weight'] < 0 and prevManualPreset == False:
+                           siteMapper.getCloud(previousCloud)['weight'] < 0 and prevManualPreset == False and \
+                           (not prevCoreCount in ['NULL',None] and prevCoreCount > 1):
                         scanSiteList = [siteMapper.getCloud(previousCloud)['source']]
                         # set site list to use T1 and T1_VL
                         if hospitalQueueMap.has_key(previousCloud):
