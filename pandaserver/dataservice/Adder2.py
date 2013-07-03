@@ -99,6 +99,8 @@ class Adder (threading.Thread):
             elif self.attemptNr != None and self.job.attemptNr != self.attemptNr:
                 _logger.error('%s : wrong attemptNr -> job=%s <> %s' % (self.jobID,self.job.attemptNr,self.attemptNr))
             else:
+                # keep old status
+                oldJobStatus = self.job.jobStatus
                 # add files only to top-level datasets for transferring jobs
                 if self.job.jobStatus == 'transferring':
                     self.addToTopOnly = True
@@ -280,7 +282,7 @@ class Adder (threading.Thread):
                 if self.job.commandToPilot == 'tobekilled' and self.job.jobStatus == 'failed':
                     self.job.jobStatus = 'cancelled'
                 # update job
-                retU = self.taskBuffer.updateJobs([self.job],False)
+                retU = self.taskBuffer.updateJobs([self.job],False,oldJobStatusList=[oldJobStatus])
                 _logger.debug("%s retU: %s" % (self.jobID,retU))
                 # failed
                 if not retU[0]:

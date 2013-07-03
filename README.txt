@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * updating nFilesOnHold
   * removed the requorement to run jobs at T1 for MCORE jobs
   * added JEDI stuff
 

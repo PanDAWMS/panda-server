@@ -285,6 +285,10 @@ class DBProxy:
             sqlFile = "INSERT INTO ATLAS_PANDA.filesTable4 (%s) " % FileSpec.columnNames()
             sqlFile+= FileSpec.bindValuesExpression(useSeq=True)
             sqlFile+= " RETURNING row_ID INTO :newRowID"
+            useJEDI = False
+            if hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and \
+                    job.lockedby == 'jedi' and self.checkTaskStatusJEDI(job.jediTaskID,self.cur):
+                useJEDI = True
             for file in job.Files:
                 file.row_ID = None
                 if not file.status in ['ready','cached']:
@@ -307,7 +311,7 @@ class DBProxy:
                 # reset changed attribute list
                 file.resetChangedList()
                 # update JEDI table
-                if hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and job.lockedby == 'jedi':
+                if useJEDI:
                     # update Dataset_Contents table
                     varMap = {}
                     varMap[':fileID'] = file.fileID
@@ -791,7 +795,8 @@ class DBProxy:
                     # collect to record state change
                     updatedJobList.append(job)
                     # update JEDI tables
-                    if hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and job.lockedby == 'jedi':
+                    if hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and \
+                            job.lockedby == 'jedi' and self.checkTaskStatusJEDI(job.jediTaskID,self.cur):
                         self.propagateResultToJEDI(job,self.cur)
                 # delete downstream jobs
                 ddmIDs     = []
@@ -874,7 +879,8 @@ class DBProxy:
                             # collect to record state change
                             updatedJobList.append(dJob)
                             # update JEDI tables
-                            if hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and dJob.lockedby == 'jedi':
+                            if hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and \
+                                    dJob.lockedby == 'jedi' and self.checkTaskStatusJEDI(dJob.jediTaskID,self.cur):
                                 self.propagateResultToJEDI(dJob,self.cur)
                             # set tobeclosed to sub datasets
                             if not toBeClosedSubList.has_key(dJob.jobDefinitionID):
@@ -1392,7 +1398,8 @@ class DBProxy:
     def updateJobStatus(self,pandaID,jobStatus,param,updateStateChange=False,attemptNr=None):
         comment = ' /* DBProxy.updateJobStatus */'        
         _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s status=%s" % (pandaID,attemptNr,jobStatus))
-        sql0 = "SELECT commandToPilot,endTime,specialHandling,jobStatus,computingSite,cloud,prodSourceLabel FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
+        sql0  = "SELECT commandToPilot,endTime,specialHandling,jobStatus,computingSite,cloud,prodSourceLabel,lockedby,jediTaskID "
+        sql0 += "FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
         varMap0 = {}
         varMap0[':PandaID'] = pandaID
         sql1 = "UPDATE ATLAS_PANDA.jobsActive4 SET jobStatus=:jobStatus,modificationTime=CURRENT_DATE"
@@ -1436,7 +1443,7 @@ class DBProxy:
                 res = self.cur.fetchone()
                 if res != None:
                     ret = ''
-                    commandToPilot,endTime,specialHandling,oldJobStatus,computingSite,cloud,prodSourceLabel = res
+                    commandToPilot,endTime,specialHandling,oldJobStatus,computingSite,cloud,prodSourceLabel,lockedby,jediTaskID = res
                     # debug mode
                     """
                     if not specialHandling in [None,''] and 'debug' in specialHandling:
@@ -1466,6 +1473,65 @@ class DBProxy:
                             updatedFlag = True
                         if nUp == 0 and jobStatus == 'transferring':
                             _logger.debug("updateJobStatus : PandaID=%s ignore to update for transferring" % pandaID)
+                        # update nFilesOnHold for JEDI
+                        if updatedFlag and oldJobStatus != jobStatus and (jobStatus == 'transferring' or oldJobStatus == 'transferring') and \
+                                hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and \
+                                lockedby == 'jedi' and self.checkTaskStatusJEDI(jediTaskID,self.cur):
+                            # SQL to get file list from Panda
+                            sqlJediFP  = "SELECT datasetID,fileID,attemptNr FROM ATLAS_PANDA.filesTable4 "
+                            sqlJediFP += "WHERE PandaID=:pandaID AND type IN (:type1,:type2) "
+                            # SQL to check JEDI files
+                            sqlJediFJ  = "SELECT 1 FROM ATLAS_PANDA.JEDI_Dataset_Contents "
+                            sqlJediFJ += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+                            sqlJediFJ += "AND attemptNr=:attemptNr AND status=:status AND keepTrack=:keepTrack "
+                            # get file list 
+                            varMap = {}
+                            varMap[':pandaID'] = pandaID
+                            varMap[':type1'] = 'input'
+                            varMap[':type2'] = 'pseudo_input'
+                            self.cur.arraysize = 100000
+                            self.cur.execute(sqlJediFP+comment, varMap)
+                            resJediFile = self.cur.fetchall()
+                            datasetContentsStat = {}
+                            # loop over all files
+                            for tmpDatasetID,tmpFileID,tmpAttemptNr in resJediFile:
+                                # check file in JEDI
+                                varMap = {}
+                                varMap[':jediTaskID'] = jediTaskID
+                                varMap[':datasetID']  = tmpDatasetID
+                                varMap[':fileID']     = tmpFileID
+                                varMap[':attemptNr']  = tmpAttemptNr
+                                varMap[':status']     = 'running'
+                                varMap[':keepTrack']  = 1
+                                self.cur.execute(sqlJediFJ+comment, varMap)
+                                res = self.cur.fetchone()
+                                if res != None:
+                                    if not datasetContentsStat.has_key(tmpDatasetID):
+                                        datasetContentsStat[tmpDatasetID] = 0
+                                    if jobStatus == 'transferring':
+                                        # increment nOnHold
+                                        datasetContentsStat[tmpDatasetID] += 1
+                                    else:
+                                        # decrement nOnHold
+                                        datasetContentsStat[tmpDatasetID] -= 1
+                            # loop over all datasets
+                            for tmpDatasetID,diffNum in datasetContentsStat.iteritems():
+                                # no difference
+                                if diffNum == 0:
+                                    continue
+                                # SQL
+                                sqlJediDU  = "UPDATE ATLAS_PANDA.JEDI_Datasets SET "
+                                if diffNum > 0:
+                                    sqlJediDU += "nFilesOnHold=nFilesOnHold+:diffNum "
+                                else:
+                                    sqlJediDU += "nFilesOnHold=nFilesOnHold-:diffNum "
+                                sqlJediDU += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+                                varMap = {}
+                                varMap[':jediTaskID'] = jediTaskID
+                                varMap[':datasetID']  = tmpDatasetID
+                                varMap[':diffNum']    = abs(diffNum)
+                                _logger.debug(sqlJediDU+comment+str(varMap))
+                                self.cur.execute(sqlJediDU+comment, varMap)
                 else:
                     _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s notFound" % (pandaID,attemptNr))
                     # already deleted or bad attempt number
@@ -1498,7 +1564,7 @@ class DBProxy:
 
 
     # update job information in jobsActive or jobsDefined
-    def updateJob(self,job,inJobsDefined):
+    def updateJob(self,job,inJobsDefined,oldJobStatus=None):
         comment = ' /* DBProxy.updateJob */'        
         _logger.debug("updateJob : %s" % job.PandaID)
         updatedFlag = False
@@ -1532,6 +1598,18 @@ class DBProxy:
                     # already killed or activated
                     _logger.debug("updateJob : Not found %s" % job.PandaID)
                 else:
+                    # check if JEDI is used
+                    useJEDI = False
+                    if oldJobStatus != job.jobStatus and (job.jobStatus == 'transferring' or oldJobStatus == 'transferring') and \
+                            hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and \
+                            job.lockedby == 'jedi' and self.checkTaskStatusJEDI(job.jediTaskID,self.cur):
+                        useJEDI = True
+                    # SQL to check JEDI files                                                                                                 
+                    sqlJediFJ  = "SELECT 1 FROM ATLAS_PANDA.JEDI_Dataset_Contents "
+                    sqlJediFJ += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+                    sqlJediFJ += "AND attemptNr=:attemptNr AND status=:status AND keepTrack=:keepTrack "
+                    datasetContentsStat = {}
+                    # loop over all files    
                     for file in job.Files:
                         sqlF = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % file.bindUpdateChangesExpression()) + "WHERE row_ID=:row_ID"
                         varMap = file.valuesMap(onlyChanged=True)
@@ -1539,6 +1617,43 @@ class DBProxy:
                             varMap[':row_ID'] = file.row_ID
                             _logger.debug(sqlF+comment+str(varMap))
                             self.cur.execute(sqlF+comment, varMap)
+                        if useJEDI and file.type in ['input','pseudo_input']:
+                            # check file in JEDI
+                            varMap = {}
+                            varMap[':jediTaskID'] = file.jediTaskID
+                            varMap[':datasetID']  = file.datasetID
+                            varMap[':fileID']     = file.fileID
+                            varMap[':attemptNr']  = file.attemptNr
+                            varMap[':status']     = 'running'
+                            varMap[':keepTrack']  = 1
+                            self.cur.execute(sqlJediFJ+comment, varMap)
+                            res = self.cur.fetchone()
+                            if res != None:
+                                if not datasetContentsStat.has_key(file.datasetID):
+                                    datasetContentsStat[file.datasetID] = 0
+                                if job.jobStatus == 'transferring':
+                                    # increment nOnHold
+                                    datasetContentsStat[file.datasetID] += 1
+                                else:
+                                    # decrement nOnHold
+                                    datasetContentsStat[file.datasetID] -= 1
+                    # loop over all JEDI datasets
+                    for tmpDatasetID,diffNum in datasetContentsStat.iteritems():
+                        # no difference
+                        if diffNum == 0:
+                            continue
+                        # SQL to update dataset 
+                        sqlJediDU  = "UPDATE ATLAS_PANDA.JEDI_Datasets SET "
+                        if diffNum > 0:
+                            sqlJediDU += "nFilesOnHold=nFilesOnHold+:diffNum "
+                        else:
+                            sqlJediDU += "nFilesOnHold=nFilesOnHold-:diffNum "
+                        sqlJediDU += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+                        varMap = {}
+                        varMap[':jediTaskID'] = job.jediTaskID
+                        varMap[':datasetID']  = tmpDatasetID
+                        varMap[':diffNum']    = abs(diffNum)
+                        self.cur.execute(sqlJediDU+comment, varMap)
                     # update job parameters
                     sqlJobP = "UPDATE ATLAS_PANDA.jobParamsTable SET jobParameters=:param WHERE PandaID=:PandaID"
                     varMap = {}
@@ -2877,6 +2992,7 @@ class DBProxy:
                 retD = self.cur.rowcount                                        
                 if retD == 0:
                     continue
+                oldJobStatus = job.jobStatus
                 # error code
                 if job.jobStatus != 'failed':
                     # set status etc for non-failed jobs                    
@@ -2939,7 +3055,8 @@ class DBProxy:
                 flagKilled = True
                 updatedFlag = True
                 # update JEDI tables
-                if hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and job.lockedby == 'jedi':
+                if hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and \
+                        job.lockedby == 'jedi' and self.checkTaskStatusJEDI(job.jediTaskID,self.cur):
                     # read files
                     varMap = {}
                     varMap[':PandaID'] = pandaID
@@ -2951,7 +3068,7 @@ class DBProxy:
                         fileSpec.pack(resF)
                         job.addFile(fileSpec)
                     # update JEDI
-                    self.propagateResultToJEDI(job,self.cur)
+                    self.propagateResultToJEDI(job,self.cur,oldJobStatus)
                 break
             # commit
             if not self._commit():
@@ -10737,7 +10854,7 @@ class DBProxy:
 
 
     # propagate result to JEDI
-    def propagateResultToJEDI(self,jobSpec,cur):
+    def propagateResultToJEDI(self,jobSpec,cur,oldJobStatus=None):
         comment = ' /* DBProxy.propagateResultToJEDI */'
         datasetContentsStat = {}
         # loop over all files
@@ -10793,7 +10910,8 @@ class DBProxy:
             if nRow == 1:
                 datasetID = fileSpec.datasetID
                 if not datasetContentsStat.has_key(datasetID):
-                    datasetContentsStat[datasetID] = {'nFilesUsed':0,'nFilesFinished':0,'nFilesFailed':0}
+                    datasetContentsStat[datasetID] = {'nFilesUsed':0,'nFilesFinished':0,
+                                                      'nFilesFailed':0,'nFilesOnHold':0}
                 if varMap[':status'] == 'ready':
                     # check attemptNr and maxAttempt when the file failed (ready = input failed)
                     # skip secondary datasets which have maxAttempt=None 
@@ -10812,6 +10930,10 @@ class DBProxy:
                 else:
                     # failed to produce the file
                     datasetContentsStat[datasetID]['nFilesFailed'] += 1
+                # changed from transferring
+                if fileSpec.type in ['input','pseudo_input']:
+                    if oldJobStatus == 'transferring':
+                        datasetContentsStat[datasetID]['nFilesOnHold'] -= 1
         # update JEDI_Datasets table
         if datasetContentsStat != {}:
             for tmpDatasetID,tmpContentsStat in datasetContentsStat.iteritems():
@@ -10837,6 +10959,25 @@ class DBProxy:
                     cur.execute(sqlJediDS+comment,varMap)
         # return
         return True
+
+
+
+    # check if task is active
+    def checkTaskStatusJEDI(self,jediTaskID,cur):
+        comment = ' /* DBProxy.checkTaskStatusJEDI */'
+        retVal = False
+        if not jediTaskID in ['NULL',None]:
+            sql = "SELECT status FROM ATLAS_PANDA.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            cur.execute(sql+comment,varMap)
+            res = cur.fetchone()
+            if res != None:
+                if res[0] in ['running','scouting','pending']:
+                    retVal = True
+        _logger.debug('checkTaskStatusJEDI jediTaskID=%s with %s' % (jediTaskID,retVal))            
+        return retVal
+
 
 
     # wake up connection
