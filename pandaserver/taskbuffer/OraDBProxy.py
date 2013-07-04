@@ -10973,7 +10973,7 @@ class DBProxy:
             cur.execute(sql+comment,varMap)
             res = cur.fetchone()
             if res != None:
-                if res[0] in ['running','scouting','pending']:
+                if res[0] in ['ready','running','scouting','pending']:
                     retVal = True
         _logger.debug('checkTaskStatusJEDI jediTaskID=%s with %s' % (jediTaskID,retVal))            
         return retVal
