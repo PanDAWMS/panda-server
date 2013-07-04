@@ -8842,7 +8842,7 @@ class DBProxy:
                         continue
                     tmpKey = ':sharePrio%s' % tmpIdx
                     retVarMap[tmpKey] = tmpDefItem['priority']
-                    retStr += ('AND currentPriority%s%s' % (retStrP,tmpKey)) 
+                    retStr += ('AND currentPriority%s%s ' % (retStrP,tmpKey)) 
                     tmpIdx += 1
             _logger.debug("getCriteriaForProdShare %s : sql='%s' var=%s cloud=%s %s %s" % \
                           (siteName,retStr,str(retVarMap),usingCloud,msgShare,msgPrio))
@@ -9140,7 +9140,7 @@ class DBProxy:
 
 
     # check sites with release/cache
-    def checkSitesWithRelease(self,sites,releases,caches,cmtConfig=None):
+    def checkSitesWithRelease(self,sites,releases,caches,cmtConfig=None,onlyCmtConfig=False):
         comment = ' /* DBProxy.checkSitesWithRelease */'
         try:
             relStr = releases
@@ -9166,12 +9166,18 @@ class DBProxy:
                 loopKey = ':release'
                 loopValues = releases.split('\n')
                 sql += "release=:release AND cache='None' "
+            elif onlyCmtConfig:
+                loopKey = None
+                loopValues = [None]
             else:
                 # don't check
                 return sites
             checkCMT = False
             if not cmtConfig in ['','NULL',None]:
-                sql += "AND cmtConfig=:cmtConfig "
+                if onlyCmtConfig:
+                    sql += "cmtConfig=:cmtConfig "
+                else:
+                    sql += "AND cmtConfig=:cmtConfig "
                 checkCMT = True
             sql += "AND siteid IN ("
             # start transaction
@@ -9179,15 +9185,16 @@ class DBProxy:
             self.cur.arraysize = 1000
             # loop over all releases/caches
             for loopIdx,loopVal in enumerate(loopValues):
-                # remove Atlas-
-                loopVal = re.sub('^Atlas-','',loopVal)
                 sqlSite = sql
                 varMap = {}
-                varMap[loopKey] = loopVal
-                if loopKey2 != None:
-                    loopVal2 = loopValues2[loopIdx]
-                    loopVal2 = re.sub('^Atlas-','',loopVal2)
-                    varMap[loopKey2] = loopVal2
+                if loopKey != None:
+                    # remove Atlas-
+                    loopVal = re.sub('^Atlas-','',loopVal)
+                    varMap[loopKey] = loopVal
+                    if loopKey2 != None:
+                        loopVal2 = loopValues2[loopIdx]
+                        loopVal2 = re.sub('^Atlas-','',loopVal2)
+                        varMap[loopKey2] = loopVal2
                 if checkCMT:
                     varMap[':cmtConfig'] = cmtConfig
                 tmpRetSites = []
@@ -9216,9 +9223,10 @@ class DBProxy:
                         # reset
                         sqlSite = sql
                         varMap = {}
-                        varMap[loopKey] = loopVal
-                        if loopKey2 != None:
-                            varMap[loopKey2] = loopVal2
+                        if loopKey != None:
+                            varMap[loopKey] = loopVal
+                            if loopKey2 != None:
+                                varMap[loopKey2] = loopVal2
                         if checkCMT:
                             varMap[':cmtConfig'] = cmtConfig
                 # set

@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * fixed getJobs for priority cap
+  * fixed brokerage for ROOT
   * fixed handshake to JEDI
   * updating nFilesOnHold
   * removed the requorement to run jobs at T1 for MCORE jobs

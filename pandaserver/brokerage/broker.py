@@ -807,7 +807,22 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     useCacheVersion = False
                     siteListWithCache = []
                     if forAnalysis:
-                        if re.search('-\d+\.\d+\.\d+\.\d+',prevRelease) != None:
+                        if not prevRelease in ['','NULL',None] and prevRelease.startswith('ROOT'):
+                            if not prevCmtConfig in ['NULL',None,'']:
+                                # hack until x86_64-slc6-gcc47-opt is published in installedsw
+                                if prevCmtConfig == 'x86_64-slc6-gcc47-opt':
+                                    tmpCmtConfig = 'x86_64-slc6-gcc46-opt'
+                                else:
+                                    tmpCmtConfig = prevCmtConfig
+                                useCacheVersion = True
+                                siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,
+                                                                                     cmtConfig=tmpCmtConfig,
+                                                                                     onlyCmtConfig=True)
+                                tmpLog.debug('  using installSW for ROOT:cmtConfig %s' % prevCmtConfig)
+                            else:
+                                # reset release info for backward compatibility
+                                prevRelease = ''
+                        elif re.search('-\d+\.\d+\.\d+\.\d+',prevRelease) != None:
                             useCacheVersion = True
                             siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,caches=prevRelease,cmtConfig=prevCmtConfig)
                             tmpLog.debug('  using installSW for cache %s' % prevRelease)
