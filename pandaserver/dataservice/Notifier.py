@@ -270,6 +270,11 @@ PandaMonURL : http://panda.cern.ch/server/pandamon/query?%s""" % urllib.urlencod
                         urlData['jobsetID'] = self.job.jobsetID
                         urlData['user'] = self.job.prodUserName
                         urlData['at'] = (str(creationTime)).split()[0]
+                        newUrlData = {}
+                        newUrlData['jobtype'] = 'analysis'
+                        newUrlData['jobsetID'] = self.job.jobsetID
+                        newUrlData['prodUserName'] = self.job.prodUserName
+                        newUrlData['hours'] = 71
                         message += \
 """
 
@@ -278,6 +283,8 @@ PandaMonURL : http://panda.cern.ch/server/pandamon/query?%s""" % urllib.urlencod
                             message += \
 """
 TaskMonitorURL : https://dashb-atlas-task.cern.ch/templates/task-analysis/#task=%s""" % logDS
+"""
+NewPandaMonURL : https://http://pandamon.cern.ch/jobinfo?%s""" % urllib.urlencode(newUrlData)
                     
                     # tailer            
                     message += \

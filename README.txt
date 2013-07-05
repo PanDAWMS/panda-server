@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added docstring to Client.py
   * fixed getJobs for priority cap
   * fixed brokerage for ROOT
   * fixed handshake to JEDI

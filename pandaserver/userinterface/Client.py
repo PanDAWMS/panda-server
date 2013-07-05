@@ -220,12 +220,18 @@ class _Curl:
             
 
 '''
-public methods
+Client API
 
 '''
 
 # use web cache
 def useWebCache():
+    """Switch to use web cache for some read-only requests so that the number
+    of hits to the back-end database is reduced.
+
+       args:
+       returns:
+    """     
     global baseURL
     baseURL = 'http://pandaserver.cern.ch:25085/server/panda'
     global serverURLs
@@ -235,6 +241,21 @@ def useWebCache():
 
 # submit jobs
 def submitJobs(jobs,srvID=None,toPending=False):
+    """Submit jobs
+
+       args:
+           jobs: the list of JobSpecs
+           srvID: obsolete
+           toPending: set True if jobs need to be pending state for the
+                      two-staged submission mechanism
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           return code
+                 True: request is processed
+                 False: not processed
+    """     
     # set hostname
     hostname = commands.getoutput('hostname')
     for job in jobs:
@@ -265,6 +286,18 @@ def submitJobs(jobs,srvID=None,toPending=False):
 
 # run task assignment
 def runTaskAssignment(jobs):
+    """Run the task brokerage
+
+       args:
+           ids: list of typical JobSpecs for tasks to be assigned
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           return code
+                 True: request is processed
+                 False: not processed
+    """     
     # set hostname
     hostname = commands.getoutput('hostname')
     for job in jobs:
@@ -293,6 +326,16 @@ def runTaskAssignment(jobs):
 
 # get job status
 def getJobStatus(ids,srvID=None):
+    """Get job status
+
+       args:
+           ids: the list of PandaIDs
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           the list of JobSpecs (or Nones for non-existing PandaIDs)
+    """     
     # serialize
     strIDs = pickle.dumps(ids)
     # instantiate curl
@@ -312,6 +355,16 @@ def getJobStatus(ids,srvID=None):
 
 # get PandaID with jobexeID
 def getPandaIDwithJobExeID(ids):
+    """Get the list of PandaIDs corresponding to a given jobExecutionIDs
+
+       args:
+           ids: list of jobExecutionIDs
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           the list of PandaIDs (or Nones for non-existing IDs)
+    """     
     # serialize
     strIDs = pickle.dumps(ids)
     # instantiate curl
@@ -331,6 +384,16 @@ def getPandaIDwithJobExeID(ids):
 
 # get assigning task
 def getAssigningTask():
+    """Get the list of IDs of tasks which are being assigned by the
+    task brokerage
+
+       args:
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           the list of taskIDs
+    """     
     # instantiate curl
     curl = _Curl()
     # execute
@@ -348,6 +411,19 @@ def getAssigningTask():
 
 # get assigned cloud for tasks
 def seeCloudTask(ids):
+    """Check to which clouds the tasks are assigned
+
+       args:
+           ids: the list of taskIDs
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           the list of clouds (or Nones if tasks are not yet assigned) 
+        raises:
+           EC_Failed: if communication failure to the panda server  
+
+    """     
     # serialize
     strIDs = pickle.dumps(ids)
     # instantiate curl
@@ -367,6 +443,31 @@ def seeCloudTask(ids):
 
 # kill jobs
 def killJobs(ids,code=None,verbose=False,srvID=None,useMailAsID=False):
+    """Kill jobs. Normal users can kill only their own jobs.
+    People with production VOMS role can kill any jobs.
+    Running jobs are killed when next heartbeat comes from the pilot.
+    Set code=9 if running jobs need to be killed immediately. 
+
+       args:
+           ids: the list of PandaIDs
+           code: specify why the jobs are killed
+                 2: expire
+                 3: aborted
+                 4: expire in waiting
+                 7: retry by server
+                 8: rebrokerage
+                 9: force kill
+                 50: kill by JEDI
+                 91: kill user jobs with prod role
+           verbose: set True to see what's going on
+           srvID: obsolete
+           useMailAsID: obsolete
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           the list of clouds (or Nones if tasks are not yet assigned) 
+    """     
     # serialize
     strIDs = pickle.dumps(ids)
     # instantiate curl
@@ -389,6 +490,20 @@ def killJobs(ids,code=None,verbose=False,srvID=None,useMailAsID=False):
 
 # reassign jobs
 def reassignJobs(ids,forPending=False):
+    """Triggers reassignment of jobs. This is not effective if jobs were preassgined to sites before being submitted. 
+
+       args:
+           ids: the list of taskIDs
+           forPending: set True if pending jobs are reassgined
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           return code
+                 True: request is processed
+                 False: not processed
+
+    """     
     # serialize
     strIDs = pickle.dumps(ids)
     # instantiate curl
@@ -410,7 +525,7 @@ def reassignJobs(ids,forPending=False):
         return EC_Failed,output+'\n'+errStr
 
 
-# query PandaIDs
+# query PandaIDs (obsolete)
 def queryPandaIDs(ids):
     # serialize
     strIDs = pickle.dumps(ids)
@@ -429,7 +544,7 @@ def queryPandaIDs(ids):
         return EC_Failed,output+'\n'+errStr
 
 
-# query job info per cloud
+# query job info per cloud (obsolete)
 def queryJobInfoPerCloud(cloud,schedulerID=None):
     # instantiate curl
     curl = _Curl()
@@ -450,6 +565,20 @@ def queryJobInfoPerCloud(cloud,schedulerID=None):
     
 # get job statistics
 def getJobStatistics(sourcetype=None):
+    """Get job statistics
+
+       args:
+           sourcetype: type of jobs
+               all: all jobs
+               analysis: analysis jobs
+               production: production jobs
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           map of the number jobs per job status in each site 
+
+    """     
     # instantiate curl
     curl = _Curl()
     # execute
@@ -487,6 +616,17 @@ def getJobStatistics(sourcetype=None):
 
 # get job statistics for Bamboo
 def getJobStatisticsForBamboo(useMorePG=False):
+    """Get job statistics for Bamboo
+
+       args:
+           useMorePG: set True if fine-grained classification is required
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           map of the number jobs per job status in each site 
+
+    """
     # instantiate curl
     curl = _Curl()
     # execute
@@ -528,6 +668,18 @@ def getJobStatisticsForBamboo(useMorePG=False):
 
 # get highest prio jobs
 def getHighestPrioJobStat(perPG=False,useMorePG=False):
+    """Get the number of jobs with the highest priorities in each combination of cloud and processingType
+
+       args:
+           perPG: set True if grouped by processingGroup instead of processingType
+           useMorePG: set True if fine-grained classification is required
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           map of the number jobs and priorities in each combination of cloud and processingType (or processingGroup)
+
+    """
     # instantiate curl
     curl = _Curl()
     # execute
@@ -549,6 +701,19 @@ def getHighestPrioJobStat(perPG=False,useMorePG=False):
 
 # get jobs updated recently
 def getJobsToBeUpdated(limit=5000,lockedby='',srvID=None):
+    """Get the list of jobs which have been recently updated.
+
+       args:
+           limit: the maximum number of jobs 
+           lockedby: name of the machinery which submitted jobs
+           srvID: obsolete
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           the lit of PandaIDs
+
+    """
     # instantiate curl
     curl = _Curl()
     # execute
@@ -566,6 +731,21 @@ def getJobsToBeUpdated(limit=5000,lockedby='',srvID=None):
 
 # update prodDBUpdateTimes
 def updateProdDBUpdateTimes(params,verbose=False,srvID=None):
+    """Update timestamp of jobs when update info is propagated to another database 
+
+       args:
+           params: map of PandaID and jobStatus and timestamp 
+           verbose: set True to see what's going on
+           srvID: obsolete
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           return code
+                 True: request is processed
+                 False: not processed
+
+    """
     # serialize
     strPar = pickle.dumps(params)
     # instantiate curl
@@ -588,6 +768,19 @@ def updateProdDBUpdateTimes(params,verbose=False,srvID=None):
 
 # get PandaID at site
 def getPandaIDsSite(site,status,limit=500):
+    """Get the list of jobs in a job status at at a site 
+
+       args:
+           site: site name 
+           status: job status
+           limit: maximum number of jobs
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           the list of PandaIDs
+
+    """
     # instantiate curl
     curl = _Curl()
     # execute
@@ -606,6 +799,25 @@ def getPandaIDsSite(site,status,limit=500):
 # get job statistics per site
 def getJobStatisticsPerSite(predefined=False,workingGroup='',countryGroup='',jobType='',minPriority=None,
                             readArchived=None):
+    """Get job statistics with job attributes
+
+       args:
+           predefined: get jobs which are assiggned to sites before being submitted
+           workingGroup: commna-separated list of workingGroups
+           countryGroup: commna-separated list of countryGroups
+           jobType: type of jobs
+               all: all jobs
+               analysis: analysis jobs
+               production: production jobs
+           minPriority: get jobs with higher priorities than this value
+           readArchived: get jobs with finished/failed/cancelled state in addition
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           map of the number jobs per job status in each site 
+
+    """     
     # instantiate curl
     curl = _Curl()
     # execute
@@ -651,6 +863,17 @@ def getJobStatisticsPerSite(predefined=False,workingGroup='',countryGroup='',job
 
 # get job statistics per site with label
 def getJobStatisticsWithLabel(site=''):
+    """Get job statistics per prodSourceLabel
+
+       args:
+           site: commna-separated list of sites. An empty string for all sites.
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           map of the number jobs per job status and prodSourceLabel in each site 
+
+    """     
     # instantiate curl
     curl = _Curl()
     # execute
@@ -669,7 +892,7 @@ def getJobStatisticsWithLabel(site=''):
         return EC_Failed,output+'\n'+errStr
 
 
-# get the number of waiting jobs per site and user
+# get the number of waiting jobs per site and user (obsolete)
 def getJobStatisticsPerUserSite():
     # instantiate curl
     curl = _Curl()
@@ -689,6 +912,17 @@ def getJobStatisticsPerUserSite():
 
 # query last files in datasets
 def queryLastFilesInDataset(datasets):
+    """Get names of files which have the largest serial number in each dataset
+
+       args:
+           datasets: the list of dataset names
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           map of the dataset name and the file name
+
+    """     
     # serialize
     strDSs = pickle.dumps(datasets)
     # instantiate curl
@@ -707,6 +941,20 @@ def queryLastFilesInDataset(datasets):
 
 # insert sandbox file info
 def insertSandboxFileInfo(userName,fileName,fileSize,checkSum,verbose=False):
+    """Insert infomation of input sandbox
+
+       args:
+           userName: the name of the user
+           fileName: the file name
+           fileSize: the file size
+           fileSize: md5sum of the file
+           verbose: set True to see what's going on
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 else: communication failure
+
+    """     
     # instantiate curl
     curl = _Curl()
     curl.sslCert = _x509()
@@ -718,8 +966,18 @@ def insertSandboxFileInfo(userName,fileName,fileSize,checkSum,verbose=False):
     return curl.post(url,data)
 
 
-# put file
+# upload input sandbox file
 def putFile(file):
+    """Upload input sandbox
+
+       args:
+           file: the file name
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 else: communication failure
+
+    """     
     # instantiate curl
     curl = _Curl()
     curl.sslCert = _x509()
@@ -730,7 +988,7 @@ def putFile(file):
     return curl.put(url,data)
 
 
-# delete file
+# delete file (obsolete)
 def deleteFile(file):
     # instantiate curl
     curl = _Curl()
@@ -742,7 +1000,7 @@ def deleteFile(file):
     return curl.post(url,data)
 
 
-# touch file
+# touch file (obsolete)
 def touchFile(sourceURL,filename):
     # instantiate curl
     curl = _Curl()
@@ -754,28 +1012,22 @@ def touchFile(sourceURL,filename):
     return curl.post(url,data)
 
 
-# resubmit jobs
-def resubmitJobs(ids):
-    # serialize
-    strIDs = pickle.dumps(ids)
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey  = _x509()
-    # execute
-    url = baseURLSSL + '/resubmitJobs'
-    data = {'ids':strIDs}
-    status,output = curl.post(url,data)
-    try:
-        return status,pickle.loads(output)
-    except:
-        type, value, traceBack = sys.exc_info()
-        print "ERROR resubmitJobs : %s %s" % (type,value)
-        return EC_Failed,None
-
-
 # get site specs
 def getSiteSpecs(siteType=None):
+    """Get list of site specifications
+
+       args:
+           siteType: type of sites
+               None: all sites
+               analysis: analysis sites
+               production: production sites
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           map of site and attributes
+
+    """     
     # instantiate curl
     curl = _Curl()
     # execute
@@ -795,6 +1047,16 @@ def getSiteSpecs(siteType=None):
 
 # get cloud specs
 def getCloudSpecs():
+    """Get list of cloud specifications
+
+       args:
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           map of cloud and attributes
+
+    """     
     # instantiate curl
     curl = _Curl()
     # execute
@@ -809,7 +1071,7 @@ def getCloudSpecs():
         return EC_Failed,output+'\n'+errStr
 
 
-# get nPilots
+# get nPilots (obsolete)
 def getNumPilots():
     # instantiate curl
     curl = _Curl()
@@ -827,6 +1089,19 @@ def getNumPilots():
 
 # run brokerage
 def runBrokerage(sites,atlasRelease,cmtConfig=None):
+    """Run brokerage
+
+       args:
+           sites: the list of candidate sites
+           atlasRelease: version number of SW release
+           cmtConfig: cmt config
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 else: communication failure
+           the name of the selected site
+
+    """     
     # serialize
     strSites = pickle.dumps(sites)
     # instantiate curl
@@ -842,6 +1117,17 @@ def runBrokerage(sites,atlasRelease,cmtConfig=None):
 
 # get RW
 def getRW(priority=0):
+    """Get the amount of workload queued in each cloud
+
+       args:
+           priority: workload with higher priorities than this value
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           map of cloud and the amount of workload
+
+    """     
     # instantiate curl
     curl = _Curl()
     # execute
@@ -858,7 +1144,7 @@ def getRW(priority=0):
         return EC_Failed,output+'\n'+errStr
 
 
-# change job priorities
+# change job priorities (obsolete)
 def changeJobPriorities(newPrioMap):
     # serialize
     newPrioMapStr = pickle.dumps(newPrioMap)
