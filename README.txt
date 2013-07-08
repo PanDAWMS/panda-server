@@ -1,6 +1,7 @@
 Release Note
 
-* current
+* 0.0.19 (7/8/2013)
+  * tagged for SLC6
   * added docstring to Client.py
   * fixed getJobs for priority cap
   * fixed brokerage for ROOT
