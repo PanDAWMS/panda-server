@@ -1,6 +1,0 @@
-#!/bin/bash
-
-# import env vars from sysconfig
-source @@install_dir@@/etc/sysconfig/panda_server-sysconfig
-
-echo $1 | python2.5 @@install_purelib@@/pandaserver/test/boostUser.py
