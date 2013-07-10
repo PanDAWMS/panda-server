@@ -3,4 +3,4 @@
 # import env vars from sysconfig
 source @@install_dir@@/etc/sysconfig/panda_server-sysconfig
 
-python2.5 @@install_purelib@@/pandaserver/test/prioryMassage.py
+python@@python_exec_version@@ @@install_purelib@@/pandaserver/test/prioryMassage.py

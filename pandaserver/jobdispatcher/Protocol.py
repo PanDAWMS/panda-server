@@ -72,6 +72,7 @@ class Response:
         strGUID = ''
         strFSize = ''
         strCheckSum = ''
+        strFileDestinationSE = ''
         strScopeIn  = ''
         strScopeOut = ''
         strScopeLog = ''        
@@ -111,6 +112,7 @@ class Response:
                 if strRealDataset != '':
                     strRealDataset += ','
                 strRealDataset += file.dataset
+                strFileDestinationSE += '%s,' % file.destinationSE
                 if file.type == 'log':
                     logFile = file.lfn
                     logGUID = file.GUID
@@ -141,6 +143,8 @@ class Response:
         self.data['realDatasets'] = strRealDataset
         # real output datasets
         self.data['realDatasetsIn'] = strRealDatasetIn[:-1]
+        # file's destinationSE
+        self.data['fileDestinationSE'] = strFileDestinationSE[:-1]
         # log filename
         self.data['logFile'] = logFile
         # log GUID

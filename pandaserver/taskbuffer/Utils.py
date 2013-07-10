@@ -118,7 +118,7 @@ def putFile(req,file):
     fullSizeLimit = 768*1024*1024
     if not file.filename.startswith('sources.'):
         noBuild = True
-        sizeLimit = 10*1024*1024
+        sizeLimit = 100*1024*1024
     else:
         noBuild = False
         sizeLimit = fullSizeLimit

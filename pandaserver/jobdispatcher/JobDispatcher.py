@@ -273,12 +273,14 @@ def _checkRole(fqans,dn,jdCore,withVomsPatch=True,site='',hostname=''):
                      '/atlas/Role=production',
                      '/atlas/Role=pilot',
                      '/osg/Role=pilot',
+                     '/cms/Role=pilot',
+                     '/ams/Role=pilot',                     
                      '/Engage/LBNE/Role=pilot',
                      ]
         if withVomsPatch:
             # FIXEME once http://savannah.cern.ch/bugs/?47136 is solved
             prodAttrs += ['/atlas/']
-            prodAttrs += ['/osg/']
+            prodAttrs += ['/osg/','/cms/','/ams/']
             prodAttrs += ['/Engage/LBNE/']            
         for fqan in fqans:
             # check atlas/usatlas production role

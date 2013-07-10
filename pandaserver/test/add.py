@@ -10,7 +10,7 @@ import commands
 import threading
 from taskbuffer.TaskBuffer import taskBuffer
 from pandalogger.PandaLogger import PandaLogger
-from dataservice.Adder2 import Adder
+from dataservice.AdderGen import AdderGen
 from brokerage.SiteMapper import SiteMapper
 
 # password
@@ -225,7 +225,7 @@ class ForkThr (threading.Thread):
         self.fileName = fileName
 
     def run(self):
-        setupStr  = 'source /opt/glite/etc/profile.d/grid-env.sh; '
+        setupStr  = 'source %s; ' % panda_config.glite_source
         setupStr += 'source /data/atlpan/srv/etc/sysconfig/panda_server-sysconfig; '
         runStr  = '%s/python -Wignore ' % panda_config.native_python
         runStr += panda_config.pandaPython_dir + '/dataservice/forkSetupper.py -i '
@@ -299,14 +299,13 @@ class AdderThr (threading.Thread):
         self.lock       = lock
         self.pool       = pool
         self.pool.add(self)
-        self.adder = Adder(taskBuffer,pandaID,"",jobStatus,xmlFile=fileName,
-                           ignoreDDMError=ignoreError,joinCloser=True,addOutput=True,
-                           siteMapper=aSiteMapper)
+        self.adder = AdderGen(taskBuffer,pandaID,jobStatus,fileName,
+                              ignoreTmpError=ignoreError,
+                              siteMapper=aSiteMapper)
                                         
     def run(self):
         self.lock.acquire()
-        self.adder.start()
-        self.adder.join()
+        self.adder.run()
         self.pool.remove(self)
         self.lock.release()
 

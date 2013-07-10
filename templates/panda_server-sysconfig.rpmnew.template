@@ -6,6 +6,10 @@ OPTIONS="-f @@install_dir@@/etc/panda/panda_server-httpd.conf"
 #OPTIONS="-f @@install_dir@@/etc/panda/panda_server-httpd-FastCGI.conf"
 #HTTPD='/usr/sbin/httpd'
 
+# reset PATH/LD_LIBRARY_PATH since atlpan's ones break grid-tools
+export PATH=/bin:/usr/local/bin:/usr/bin
+unset LD_LIBRARY_PATH
+
 # for DQ2
 export X509_CERT_DIR=/etc/grid-security/certificates
 export RUCIO_ACCOUNT=panda
@@ -27,5 +31,5 @@ export HOME=/home/atlpan
 export X509_USER_PROXY=FIXME
 
 # panda server URLs
-export PANDA_URL='http://localhost:25080/server/panda'
-export PANDA_URL_SSL='https://localhost:25443/server/panda'
+export PANDA_URL='http://@@host_name@@:25080/server/panda'
+export PANDA_URL_SSL='https://@@host_name@@:25443/server/panda'

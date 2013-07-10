@@ -1946,12 +1946,13 @@ class DBProxy:
                             sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
                             self.cur.execute(sqlFMod+comment,varMap)
                             # metadata
-                            sqlMeta = "INSERT INTO ATLAS_PANDA.metaTable (PandaID,metaData,modificationTime) VALUES (:PandaID,:metaData,:modTime)"
-                            varMap = {}
-                            varMap[':PandaID']  = job.PandaID
-                            varMap[':metaData'] = job.metadata
-                            varMap[':modTime']  = job.modificationTime                            
-                            self.cur.execute(sqlMeta+comment, varMap)
+                            if job.VO != 'cms':
+                                sqlMeta = "INSERT INTO ATLAS_PANDA.metaTable (PandaID,metaData,modificationTime) VALUES (:PandaID,:metaData,:modTime)"
+                                varMap = {}
+                                varMap[':PandaID']  = job.PandaID
+                                varMap[':metaData'] = job.metadata
+                                varMap[':modTime']  = job.modificationTime                            
+                                self.cur.execute(sqlMeta+comment, varMap)
                             # job parameters
                             sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters,modificationTime) VALUES (:PandaID,:param,:modTime)"
                             varMap = {}
