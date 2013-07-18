@@ -332,6 +332,7 @@ class AdderAtlasPlugin (AdderPluginBase):
             except (DQ2.DQClosedDatasetException,
                     DQ2.DQFrozenDatasetException,
                     DQ2.DQUnknownDatasetException,
+                    DQ2.DQDatasetExistsException,
                     DQ2.DQFileMetaDataMismatchException):
                 # fatal errors
                 errType,errValue = sys.exc_info()[:2]

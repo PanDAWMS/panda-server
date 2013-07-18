@@ -6,5 +6,8 @@ source /etc/profile.d/grid-env.sh
 # import env vars from sysconfig
 source @@install_dir@@/etc/sysconfig/panda_server-sysconfig
 
-#python@@python_exec_version@@ @@install_purelib@@/pandaserver/test/fileCallbackListener.py
-python@@python_exec_version@@ @@install_purelib@@/pandaserver/test/genCallbackConsumer.py
+# set PYTHONPATH for dashboard
+export PYTHONPATH=/opt/dashboard/lib/dashboard:/opt/dashboard/lib:$PYTHONPATH
+
+python@@python_exec_version@@ @@install_purelib@@/pandaserver/test/fileCallbackListener.py
+#python@@python_exec_version@@ @@install_purelib@@/pandaserver/test/genCallbackConsumer.py

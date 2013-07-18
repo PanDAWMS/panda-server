@@ -1,6 +1,8 @@
 Release Note
 
 current
+  * fixed AdderAtlas to give up DQDatasetExistsException	
+  * fixed callbach.sh for dashboard	
   * merging branches/sl6:r15320 through r16058 
 
 * 0.0.19 (7/8/2013)
