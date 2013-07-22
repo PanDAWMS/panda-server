@@ -6,6 +6,7 @@ client methods
 import os
 import re
 import sys
+import json
 import urllib
 import commands
 import cPickle as pickle
@@ -1176,6 +1177,38 @@ def changeJobPriorities(newPrioMap):
     except:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR changeJobPriorities : %s %s" % (errtype,errvalue)
+        return EC_Failed,output+'\n'+errStr
+
+
+# insert task params
+def insertTaskParams(taskParams):
+    """Insert task parameters 
+
+       args:
+           taskParams: a dictionary of task parameters
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           tuple of return code and JediTaskID
+                 True: request is processed
+                 False: not processed
+    """     
+    # serialize
+    taskParamsStr = json.dumps(taskParams)
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+    # execute
+    url = baseURLSSL + '/insertTaskParams'
+    data = {'taskParams':taskParamsStr}
+    status,output = curl.post(url,data)
+    try:
+        return status,pickle.loads(output)
+    except:
+        errtype,errvalue = sys.exc_info()[:2]
+        errStr = "ERROR insertTaskParams : %s %s" % (errtype,errvalue)
         return EC_Failed,output+'\n'+errStr
                                     
             
