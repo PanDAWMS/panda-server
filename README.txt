@@ -1,6 +1,7 @@
 Release Note
 
 current
+  * reduced the number of threads in Adder to avoid crash caused by DQ2 API
   * fixed AdderAtlas to give up DQDatasetExistsException	
   * fixed callbach.sh for dashboard	
   * merging branches/sl6:r15320 through r16058 

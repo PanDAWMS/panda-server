@@ -313,7 +313,8 @@ class AdderAtlasPlugin (AdderPluginBase):
             isFatal  = False
             setErrorDiag = False
             out = 'OK'
-            fatalErrStrs = ['[ORA-00001] unique constraint (ATLAS_DQ2.UQ_01_FILES_GUID) violated']
+            fatalErrStrs = ['[ORA-00001] unique constraint (ATLAS_DQ2.UQ_01_FILES_GUID) violated',
+                            '[USER][OTHER] Parameter value [None] is not a valid uid!']
             regStart = datetime.datetime.utcnow()
             try:
                 if not self.useCentralLFC():
@@ -348,7 +349,10 @@ class AdderAtlasPlugin (AdderPluginBase):
                         self.job.ddmErrorDiag = 'failed to add files : ' + tmpFatalErrStr
                         setErrorDiag = True
                         break
-                isFatal = False
+                if setErrorDiag:
+                    isFatal = True
+                else:
+                    isFatal = False
                 isFailed = True                
             regTime = datetime.datetime.utcnow() - regStart
             self.logger.debug(regMsgStr + \

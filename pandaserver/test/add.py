@@ -1,3 +1,5 @@
+import lfcthr
+lfcthr.init()
 import os
 import re
 import sys
@@ -354,7 +356,7 @@ random.shuffle(randTmp)
 fileList = tmpList[:nFixed] + randTmp
 
 # create thread pool and semaphore
-adderLock = threading.Semaphore(3)
+adderLock = threading.Semaphore(1)
 adderThreadPool = ThreadPool()
 
 # add
