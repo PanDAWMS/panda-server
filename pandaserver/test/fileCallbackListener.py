@@ -14,6 +14,8 @@ from dq2.common import stomp
 from config import panda_config
 from brokerage.SiteMapper import SiteMapper
 from dataservice.Finisher import Finisher
+from dataservice import DataServiceUtils
+
 
 # logger
 from pandalogger.PandaLogger import PandaLogger
@@ -186,6 +188,12 @@ def main(backGround=False):
     else:    
         # main loop
         from taskbuffer.TaskBuffer import taskBuffer
+        # check certificate
+        certName = '/data/atlpan/pandasv1_usercert.pem'
+        _logger.debug('checking certificate {0}'.format(certName))
+        certOK,certMsg = DataServiceUtils.checkCertificate(certName)
+        if not certOK:
+            _logger.error('bad certificate : {0}'.format(certMsg))
         # initialize cx_Oracle using dummy connection
         from taskbuffer.Initializer import initializer
         initializer.init()
@@ -197,7 +205,7 @@ def main(backGround=False):
         clientid = 'PANDA-' + socket.getfqdn()
         queue = '/queue/Consumer.PANDA.atlas.ddm.siteservices'
         ssl_opts = {'use_ssl' : True,
-                    'ssl_cert_file' : '/data/atlpan/pandasv1_usercert.pem',
+                    'ssl_cert_file' : certName,
                     'ssl_key_file'  : '/data/atlpan/pandasv1_userkey.pem'}
         # resolve multiple brokers
         brokerList = socket.gethostbyname_ex('atlasddm-mb.cern.ch')[-1]

@@ -1,5 +1,7 @@
 import re
 import sys
+from OpenSSL import crypto
+
 
 # get prefix for DQ2
 def getDQ2Prefix(dq2SiteID):
@@ -279,3 +281,19 @@ def getDatasetType(dataset):
     except:
         pass
     return datasetType
+
+
+# check certificate
+def checkCertificate(certName):
+    try:
+        cert = crypto.load_certificate(c.FILETYPE_PEM,file(certName).read())
+        if cert.has_expired() == True:
+            return False,"{0} expired".format(certName)
+        else:
+            return True,None
+    except:
+        errtype,errvalue = sys.exc_info()[:2]
+        return False,'{0}:{1}'.format(errtype.__name__,errvalue)
+
+
+    

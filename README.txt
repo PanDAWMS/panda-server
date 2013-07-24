@@ -1,6 +1,7 @@
 Release Note
 
 current
+  * added certificate check in fileCallbackListener
   * reduced the number of threads in Adder to avoid crash caused by DQ2 API
   * fixed AdderAtlas to give up DQDatasetExistsException	
   * fixed callbach.sh for dashboard	
