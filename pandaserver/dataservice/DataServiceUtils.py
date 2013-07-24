@@ -286,7 +286,7 @@ def getDatasetType(dataset):
 # check certificate
 def checkCertificate(certName):
     try:
-        cert = crypto.load_certificate(c.FILETYPE_PEM,file(certName).read())
+        cert = crypto.load_certificate(crypto.FILETYPE_PEM,file(certName).read())
         if cert.has_expired() == True:
             return False,"{0} expired".format(certName)
         else:
