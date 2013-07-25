@@ -28,8 +28,8 @@ thr_RW_low  = 400
 thr_RW_high = 8000
 thr_RW_sub  = 600
 
-# cutoff for disk
-thr_space_low = (1 * 1024)
+# cutoff for disk in TB
+thr_space_low = 5
 
 # special reduction for TAPE
 reductionForTape = 0.5
@@ -424,10 +424,10 @@ class TaskAssigner:
                                                                      fullRWs[tmpCloudName],
                                                                      expRWs[self.taskID])
                 # no task is assigned if available space is less than 1TB
-                if aveSpace < thr_space_low:
-                    message = '%s    %s skip : space:%s (total:%s - assigned:%s - this:%s) < %sGB' % \
+                if aveSpace < (thr_space_low * 1024 * tmpCloud['mcshare']):
+                    message = '%s    %s skip : space:%s (total:%s - assigned:%s - this:%s) < %s(mcshare) x %sTB' % \
                               (self.taskID,tmpCloudName,aveSpace,weightParams[tmpCloudName]['space'],
-                               sizeCloud,sizeThis,thr_space_low)
+                               sizeCloud,sizeThis,tmpCloud['mcshare'],thr_space_low)
                     _logger.info(message)
                     self.sendMesg(message,msgType='warning')
                     del weightParams[tmpCloudName]                    

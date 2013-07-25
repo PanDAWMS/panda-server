@@ -1,6 +1,7 @@
 Release Note
 
 current
+  * changed space limit in TA to take MC share into account
   * added certificate check in fileCallbackListener
   * reduced the number of threads in Adder to avoid crash caused by DQ2 API
   * fixed AdderAtlas to give up DQDatasetExistsException	
