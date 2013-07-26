@@ -6,11 +6,14 @@ client methods
 import os
 import re
 import sys
-import json
 import urllib
 import commands
 import cPickle as pickle
 
+try:
+    import json
+except:
+    import simplejson as json
 
 # configuration
 try:
