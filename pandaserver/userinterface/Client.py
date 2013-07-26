@@ -1213,5 +1213,36 @@ def insertTaskParams(taskParams):
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR insertTaskParams : %s %s" % (errtype,errvalue)
         return EC_Failed,output+'\n'+errStr
+
+
+
+# kill task
+def killTask(jediTaskID):
+    """Kill a task
+
+       args:
+           jediTaskID: jediTaskID of the task to be killed 
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           tuple of return code and diagnostic message
+                 True: request is processed
+                 False: not processed
+    """     
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+    # execute
+    url = baseURLSSL + '/killTask'
+    data = {'jediTaskID':jediTaskID}
+    status,output = curl.post(url,data)
+    try:
+        return status,pickle.loads(output)
+    except:
+        errtype,errvalue = sys.exc_info()[:2]
+        errStr = "ERROR killTask : %s %s" % (errtype,errvalue)
+        return EC_Failed,output+'\n'+errStr
                                     
             
