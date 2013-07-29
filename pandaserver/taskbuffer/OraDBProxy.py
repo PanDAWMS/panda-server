@@ -8160,7 +8160,13 @@ class DBProxy:
                     try:
                         ret.maxwdir = int(maxwdir)
                     except:
-                        ret.maxwdir = 16336
+                        if ret.maxinputsize in [0,None]:
+                            ret.maxwdir = 0
+                        else:
+                            try:
+                                ret.maxwdir = ret.maxinputsize + 2000
+                            except:
+                                ret.maxwdir = 16336
                     # reliability
                     tmpPrefix = re.sub('_[^_]+DISK$','',ret.ddm)
                     if reliabilityMap.has_key(tmpPrefix):
