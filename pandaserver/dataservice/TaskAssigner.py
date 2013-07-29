@@ -446,9 +446,6 @@ class TaskAssigner:
                     continue
                 # T1
                 t1List = [tmpT1Site.sitename]
-                # hack for split T1
-                if tmpCloudName == 'NL':
-                    t1List.append('NIKHEF-ELPROD')
                 # get files
                 weightParams[tmpCloudName]['nFiles'] = 0
                 # loop

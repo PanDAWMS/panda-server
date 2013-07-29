@@ -825,19 +825,6 @@ class Setupper (threading.Thread):
                                     # MCTAPE
                                     if not mctapeID in dq2IDList:
                                         dq2IDList.append(mctapeID)
-                            # hack for split T1
-                            splitT1IDsHaveDS = []
-                            for tmpSplitT1Key in tmpRepMap.keys():
-                                if tmpSplitT1Key.startswith('NIKHEF-ELPROD'):
-                                    splitT1IDsHaveDS.append(tmpSplitT1Key)
-                            if job.cloud == 'NL' and splitT1IDsHaveDS != [] \
-                                   and not tmpRepMap.has_key('SARA-MATRIX_MCDISK') \
-                                   and not tmpRepMap.has_key('SARA-MATRIX_DATADISK') \
-                                   and not tmpRepMap.has_key('SARA-MATRIX_MCTAPE') \
-                                   and not tmpRepMap.has_key('SARA-MATRIX_DATATAPE'):
-                                for tmpSplitT1Key in splitT1IDsHaveDS:
-                                    if not tmpSplitT1Key in dq2IDList:
-                                        dq2IDList.append(tmpSplitT1Key)
                             # consider cloudconfig.tier1se 
                             tmpCloudSEs = DataServiceUtils.getEndpointsAtT1(tmpRepMap,self.siteMapper,job.cloud)
                             useCloudSEs = []
@@ -1471,14 +1458,6 @@ class Setupper (threading.Thread):
                             match = re.search('.+://([^:/]+):*\d*/*',tmpSrcSiteSE)
                             if match != None:
                                 dq2SE.append(match.group(1))
-                    # hack for split T1
-                    if cloudKey == 'NL':
-                        tmpSplitSite = self.siteMapper.getSite('NIKHEF-ELPROD')
-                        if tmpSplitSite.se != None:
-                            for tmpSrcSiteSE in tmpSplitSite.se.split(','):
-                                match = re.search('.+://([^:/]+):*\d*/*',tmpSrcSiteSE)
-                                if match != None:
-                                    dq2SE.append(match.group(1)) 
                 else:
                     # LRC
                     dq2URL = tmpSrcSite.dq2url

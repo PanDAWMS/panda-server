@@ -57,7 +57,8 @@ from userinterface.UserIF        import submitJobs,getJobStatus,queryPandaIDs,ki
      checkMergeGenerationStatus,sendLogInfo,getNumPilots,retryFailedJobsInActive,\
      getJobStatisticsWithLabel,getPandaIDwithJobExeID,getJobStatisticsPerUserSite,\
      getDisInUseForAnal,getLFNsInUseForAnal,getScriptOfflineRunning,setDebugMode,\
-     insertSandboxFileInfo,checkSandboxFile,changeJobPriorities
+     insertSandboxFileInfo,checkSandboxFile,changeJobPriorities,insertTaskParams,\
+     killTask
 allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reassignJobs',
                    'getJobStatistics','getJobStatisticsPerSite','resubmitJobs','queryLastFilesInDataset','getPandaIDsSite',
                    'getJobsToBeUpdated','updateProdDBUpdateTimes','runTaskAssignment','getAssigningTask','getSiteSpecs',
@@ -70,7 +71,8 @@ allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reass
                    'checkMergeGenerationStatus','sendLogInfo','getNumPilots','retryFailedJobsInActive',
                    'getJobStatisticsWithLabel','getPandaIDwithJobExeID','getJobStatisticsPerUserSite',
                    'getDisInUseForAnal','getLFNsInUseForAnal','getScriptOfflineRunning','setDebugMode',
-                   'insertSandboxFileInfo','checkSandboxFile','changeJobPriorities']
+                   'insertSandboxFileInfo','checkSandboxFile','changeJobPriorities','insertTaskParams',
+                   'killTask']
 
 # import error
 import taskbuffer.ErrorCode

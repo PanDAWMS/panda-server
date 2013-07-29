@@ -11046,3 +11046,113 @@ class DBProxy:
             pass
         # return
         return retVal
+
+
+
+    # dump error message
+    def dumpErrorMessage(self,tmpLog,methodName):
+        # error
+        errtype,errvalue = sys.exc_info()[:2]
+        tmpLog.error("{0}: {1} {2}".format(methodName,errtype.__name__,errvalue))
+
+
+
+    # get DEFT schema
+    def getSchemaDEFT(self):
+        if not hasattr(panda_config,'schemaDEFT'):
+            return "ATLAS_DEFT"
+        return panda_config.schemaDEFT
+
+
+
+    # insert TaskParams
+    def insertTaskParamsPanda(self,taskParams,dn,prodRole):
+        comment = ' /* JediDBProxy.insertTaskParamsPanda */'
+        try:
+            methodName = "insertTaskParamsPanda"
+            # get compact DN
+            compactDN = self.cleanUserID(dn)
+            if compactDN in ['','NULL',None]:
+                compactDN = dn
+            _logger.debug('{0} start for {1}'.format(methodName,compactDN))
+            # sql to insert task parameters
+            schemaDEFT = self.getSchemaDEFT()
+            sqlT  = "INSERT INTO {0}.DEFT_TASK (TASK_ID,TASK_PARAM) VALUES ".format(schemaDEFT)
+            sqlT += "({0}.PRODSYS2_TASK_ID_SEQ.nextval,:param) ".format(schemaDEFT)
+            sqlT += "RETURNING TASK_ID INTO :jediTaskID"
+            # sql to insert command
+            sqlC  = "INSERT INTO {0}.PRODSYS_COMM (COMM_TASK,COMM_OWNER,COMM_CMD) ".format(schemaDEFT)
+            sqlC += "VALUES (:jediTaskID,:comm_owner,:comm_cmd) "
+            # begin transaction
+            self.conn.begin()
+            # insert task parameters
+            varMap = {}
+            varMap[':param']  = taskParams
+            varMap[':jediTaskID'] = self.cur.var(cx_Oracle.NUMBER)
+            self.cur.execute(sqlT+comment,varMap)
+            jediTaskID = long(varMap[':jediTaskID'].getvalue())
+            # insert command
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            varMap[':comm_cmd']  = 'submit'
+            varMap[':comm_owner']  = 'DEFT'
+            self.cur.execute(sqlC+comment,varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            _logger.debug('{0} done for {1} with new jediTaskID={2}'.format(methodName,compactDN,jediTaskID))
+            return True,jediTaskID
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return False,None
+
+
+
+    # kill task
+    def killTaskPanda(self,jediTaskID,dn,prodRole):
+        comment = ' /* JediDBProxy.killTaskPanda */'
+        try:
+            methodName = "killTaskPanda"
+            # get compact DN
+            compactDN = self.cleanUserID(dn)
+            if compactDN in ['','NULL',None]:
+                compactDN = dn
+            _logger.debug('{0} start for {1}'.format(methodName,compactDN))
+            # sql to insert task parameters
+            schemaDEFT = self.getSchemaDEFT()
+            sqlT  = "DELETE FROM {0}.PRODSYS_COMM ".format(schemaDEFT)
+            sqlT += "WHERE COMM_TASK=:jediTaskID "
+            # sql to insert command
+            sqlC  = "INSERT INTO {0}.PRODSYS_COMM (COMM_TASK,COMM_OWNER,COMM_CMD,COMM_COMMENT) ".format(schemaDEFT)
+            sqlC += "VALUES (:jediTaskID,:comm_owner,:comm_cmd,:comm_comment) "
+            # begin transaction
+            self.conn.begin()
+            # delete command just in case
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            self.cur.execute(sqlT+comment,varMap)
+            # insert command
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            varMap[':comm_cmd']  = 'kill'
+            varMap[':comm_owner']  = 'DEFT'
+            varMap[':comm_comment'] = 'kill by {0}'.format(compactDN)  
+            self.cur.execute(sqlC+comment,varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            _logger.debug('{0} done for {1} with new jediTaskID={2}'.format(methodName,compactDN,jediTaskID))
+            return True,'command is registered'
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return False,'failed to register command'
+
+
+
+

@@ -1,6 +1,9 @@
 Release Note
 
 current
+  * added insertTask and killTask
+  * using graceful in logrotation 
+  * removed split T1
   * changed space limit in TA to take MC share into account
   * added certificate check in fileCallbackListener
   * reduced the number of threads in Adder to avoid crash caused by DQ2 API

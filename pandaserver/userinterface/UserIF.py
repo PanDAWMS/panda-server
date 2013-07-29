@@ -6,6 +6,7 @@ provide web interface to users
 import re
 import sys
 import time
+import json
 import types
 import cPickle as pickle
 import jobdispatcher.Protocol as Protocol
@@ -835,6 +836,22 @@ class UserIF:
         return str(ret)
 
 
+    # insert task params
+    def insertTaskParams(self,taskParams,user,prodRole):
+        # register
+        ret = self.taskBuffer.insertTaskParamsPanda(taskParams,user,prodRole)
+        # return
+        return ret
+
+
+    # kill task
+    def killTask(self,jediTaskID,user,prodRole):
+        # kill
+        ret = self.taskBuffer.killTaskPanda(jediTaskID,user,prodRole)
+        # return
+        return ret
+
+
 # Singleton
 userIF = UserIF()
 del UserIF
@@ -1568,3 +1585,48 @@ def updateSiteAccess(req,method,siteid,userName,attrValue=''):
     requesterDN = req.subprocess_env['SSL_CLIENT_S_DN']
     # update
     return userIF.updateSiteAccess(method,siteid,requesterDN,userName,attrValue)
+
+
+# insert task params
+def insertTaskParams(req,taskParams=None):
+    # check security
+    if not isSecure(req):
+        return pickle.dumps((False,'secure connection is required'))
+    # get DN
+    user = None
+    if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        user = _getDN(req)        
+    # check role
+    prodRole = _isProdRoleATLAS(req)
+    if not prodRole:
+        return pickle.dumps((False,'production role is required'))
+    # check format
+    try:
+        json.loads(taskParams)
+    except:
+        return pickle.dumps((False,'failed to decode json'))        
+    ret = userIF.insertTaskParams(taskParams,user,prodRole)
+    return pickle.dumps(ret)
+
+
+
+# kill task
+def killTask(req,jediTaskID=None):
+    # check security
+    if not isSecure(req):
+        return pickle.dumps((False,'secure connection is required'))
+    # get DN
+    user = None
+    if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        user = _getDN(req)        
+    # check role
+    prodRole = _isProdRoleATLAS(req)
+    if not prodRole:
+        return pickle.dumps((False,'production role is required'))
+    # check jediTaskID
+    try:
+        jediTaskID = long(jediTaskID)
+    except:
+        return pickle.dumps((False,'jediTaskID must be an integer'))        
+    ret = userIF.killTask(jediTaskID,user,prodRole)
+    return pickle.dumps(ret)
