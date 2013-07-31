@@ -60,6 +60,14 @@ Alias /appdir/ "@@install_dir@@/var/appdir/"
     Deny from 192.203.218.14
 </Directory>
 
+<Directory "@@install_dir@@/var/cache/pandaserver/jedilog">
+    Options FollowSymLinks
+    AllowOverride None
+    Order allow,deny
+    Allow from all
+    Header set Content-Encoding gzip
+</Directory>
+
 <IfModule mod_fastcgi.c>
     FastCgiIpcDir @@install_dir@@/var/log/panda/fastsocks
     FastCgiServer @@install_purelib@@/pandaserver/server/panda.py \

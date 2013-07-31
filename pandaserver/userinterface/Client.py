@@ -6,8 +6,10 @@ client methods
 import os
 import re
 import sys
+import gzip
 import urllib
 import commands
+import tempfile
 import cPickle as pickle
 
 try:
@@ -1245,4 +1247,34 @@ def killTask(jediTaskID):
         errStr = "ERROR killTask : %s %s" % (errtype,errvalue)
         return EC_Failed,output+'\n'+errStr
                                     
+
             
+# upload log
+def uploadLog(logStr,logFileName):
+    """Upload ut sandbox
+
+       args:
+           logStr: log message
+           logFileName: name of log file
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 else: communication failure
+
+    """     
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+    # write log to a tmp file
+    fh = tempfile.NamedTemporaryFile(delete=False)
+    gfh = gzip.open(fh.name,mode='wb')
+    gfh.write(logStr)
+    gfh.close()
+    # execute
+    url = baseURLSSL + '/uploadLog'
+    data = {'file':'{0};filename={1}'.format(fh.name,logFileName)}
+    retVal = curl.put(url,data)
+    os.unlink(fh.name)
+    return retVal
+

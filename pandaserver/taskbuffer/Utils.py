@@ -17,6 +17,7 @@ from userinterface import Client
 from config import panda_config
 
 from pandalogger.PandaLogger import PandaLogger
+from pandalogger.LogWrapper import LogWrapper
 
 # logger
 _logger = PandaLogger().getLogger('Utils')
@@ -445,6 +446,10 @@ def touchFile(req,filename):
 def getServer(req):
     return "%s:%s" % (panda_config.pserverhost,panda_config.pserverport)
 
+# get server name:port for HTTP
+def getServerHTTP(req):
+    return "%s:%s" % (panda_config.pserverhost,panda_config.pserverporthttp)
+
  
 # update stdout
 def updateLog(req,file):
@@ -509,4 +514,54 @@ def getAttr(req):
     retStr = ''
     for tmpStr in allAttrs:
         retStr += tmpStr
+    return retStr
+
+
+# upload log
+def uploadLog(req,file):
+    if not Protocol.isSecure(req):
+        return False
+    if '/CN=limited proxy' in req.subprocess_env['SSL_CLIENT_S_DN']:
+        return False
+    tmpLog = LogWrapper(_logger,'uploadLog <{0}>'.format(file.filename))
+    tmpLog.debug("start {0}".format(req.subprocess_env['SSL_CLIENT_S_DN']))
+    # size check
+    sizeLimit = 100*1024*1024
+    # get file size
+    contentLength = 0
+    try:
+        contentLength = long(req.headers_in["content-length"])
+    except:
+        if req.headers_in.has_key("content-length"):
+            tmpLog.error("cannot get CL : %s" % req.headers_in["content-length"])
+        else:
+            tmpLog.error("no CL")
+    tmpLog.debug("size %s" % contentLength)
+    if contentLength > sizeLimit:
+        errStr = "failed to upload log due to size limit"
+        tmpLog.error(errStr)
+        tmpLog.debug("end")            
+        return errStr
+    jediLogDir = '/jedilog'
+    retStr = ''
+    try:
+        fileBaseName = file.filename.split('/')[-1]
+        fileFullPath = '{0}{1}/{2}'.format(panda_config.cache_dir,jediLogDir,fileBaseName)
+        # delete old file 
+        if os.path.exists(fileFullPath):
+            os.remove(fileFullPath)
+        # write
+        fo = open(fileFullPath,'wb')
+        fileContent = file.file.read()
+        fo.write(fileContent)
+        fo.close()
+        tmpLog.debug("written to {0}".format(fileFullPath))
+        retStr = 'http://{0}/cache{1}/{2}'.format(getServerHTTP(None),jediLogDir,fileBaseName) 
+    except:
+        errtype,errvalue = sys.exc_info()[:2]
+        errStr = "failed to write log with {0}:{1}".format(errtype.__name__,errvalue)
+        tmpLog.error(errStr)
+        tmpLog.debug("end")
+        return errStr
+    tmpLog.debug("end")
     return retStr

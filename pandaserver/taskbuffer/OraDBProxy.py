@@ -8102,7 +8102,7 @@ class DBProxy:
             sql+= "validatedreleases,accesscontrol,copysetup,maxinputsize,cachedse,"
             sql+= "allowdirectaccess,comment_,lastmod,multicloud,lfcregister,"
             sql+= "countryGroup,availableCPU,pledgedCPU,coreCount,transferringlimit, "
-            sql+= "maxwdir,fairsharePolicy "
+            sql+= "maxwdir,fairsharePolicy,minmemory,maxmemory,mintime "
             sql+= "FROM ATLAS_PANDAMETA.schedconfig WHERE siteid IS NOT NULL"
             self.cur.arraysize = 10000            
             self.cur.execute(sql+comment)
@@ -8126,7 +8126,7 @@ class DBProxy:
                        validatedreleases,accesscontrol,copysetup,maxinputsize,cachedse,\
                        allowdirectaccess,comment,lastmod,multicloud,lfcregister, \
                        countryGroup,availableCPU,pledgedCPU,coreCount,transferringlimit, \
-                       maxwdir,fairsharePolicy \
+                       maxwdir,fairsharePolicy,minmemory,maxmemory,mintime \
                        = resTmp
                     # skip invalid siteid
                     if siteid in [None,'']:
@@ -8167,6 +8167,20 @@ class DBProxy:
                                 ret.maxwdir = ret.maxinputsize + 2000
                             except:
                                 ret.maxwdir = 16336
+                    # memory
+                    if minmemory != None:     
+                        ret.minmemory = minmemory
+                    else:
+                        ret.minmemory = 0
+                    if maxmemory != None:     
+                        ret.maxmemory = maxmemory
+                    else:
+                        ret.maxmemory = 0
+                    # mintime
+                    if mintime != None:
+                        ret.mintime = mintime
+                    else:
+                        ret.mintime = 0
                     # reliability
                     tmpPrefix = re.sub('_[^_]+DISK$','',ret.ddm)
                     if reliabilityMap.has_key(tmpPrefix):

@@ -28,6 +28,10 @@ for tmpKey,tmpVal in tmpDict.iteritems():
 # set hostname
 tmpSelf.__dict__['pserverhost'] = commands.getoutput('hostname -f')
 
+# set port for http
+if not tmpSelf.__dict__.has_key('pserverporthttp'):
+    tmpSelf.__dict__['pserverporthttp'] = 25080
+
 # change the number of database connections for FastCGI/WSGI
 if tmpSelf.__dict__['useFastCGI'] or tmpSelf.__dict__['useWSGI']:
     tmpSelf.__dict__['nDBConnection'] = tmpSelf.__dict__['nDBConForFastCGIWSGI']

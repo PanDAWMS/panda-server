@@ -1,6 +1,8 @@
 Release Note
 
 current
+  * added uploadLog	
+  * added minmemory,maxmemory,mintime
   * changed available disk check in the brokerage
   * added insertTask and killTask
   * using graceful in logrotation 
