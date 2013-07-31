@@ -624,45 +624,6 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     specialBrokergageSiteList = currentT2CandList
                     tmpLog.debug('PandaID:%s -> set SiteList=%s to use T2 for missing files at T1' % (job.PandaID,specialBrokergageSiteList))
                     brokerageNote = 'useT2'
-            # hack for split T1
-            if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
-               and job.cloud == 'NL' and specialBrokergageSiteList == []:
-                # loop over all input datasets
-                tmpCheckedDS = []
-                useSplitT1 = None
-                for tmpFile in job.Files:
-                    if tmpFile.type == 'input' and (not tmpFile.dataset.startswith('ddo')) \
-                       and (not tmpFile.dataset in tmpCheckedDS):
-                        # init
-                        if useSplitT1 == None:
-                            useSplitT1 = True
-                        # no replica map
-                        if not replicaMap.has_key(tmpFile.dataset):
-                            # not set
-                            useSplitT1 = False
-                            break
-                        # check if input datasets are available only at NIKHEF
-                        tmpRepMap = replicaMap[tmpFile.dataset]
-                        splitT1HasDS = False
-                        for tmpSplitT1Key in tmpRepMap.keys():
-                            if tmpSplitT1Key.startswith('NIKHEF-ELPROD'):
-                                splitT1HasDS = True
-                                break
-                        if splitT1HasDS \
-                               and not tmpRepMap.has_key('SARA-MATRIX_MCDISK') \
-                               and not tmpRepMap.has_key('SARA-MATRIX_DATADISK') \
-                               and not tmpRepMap.has_key('SARA-MATRIX_MCTAPE') \
-                               and not tmpRepMap.has_key('SARA-MATRIX_DATATAPE'):
-                            pass
-                        else:
-                            # not set
-                            useSplitT1 = False
-                            break
-                # set
-                if useSplitT1 == True:
-                    specialBrokergageSiteList = ['NIKHEF-ELPROD']
-                    tmpLog.debug('PandaID:%s -> set SiteList=%s for split T1' % (job.PandaID,specialBrokergageSiteList))
-                    brokerageNote = 'useSplitNLT1'                    
             # use limited sites for MP jobs
             if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
                    and not job.coreCount in [None,'NULL'] and job.coreCount > 1 and specialBrokergageSiteList == []:
@@ -1252,26 +1213,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                         if not message in loggerMessages:
                                             loggerMessages.append(message)
                                     continue
-                            # get ratio of running jobs = run(cloud)/run(all) for multi cloud
+                            # get ratio of running jobs = run(cloud)/run(all) for multi cloud (disabled)
                             multiCloudFactor = 1
-                            if not forAnalysis and not previousCloud in ['NL']:
-                                tmpTotalRunningMulti = 0
-                                tmpNCloudMulti = 0
-                                for tmpCloudMulti,tmpCloudValMulti in jobStatBrokerClouds.iteritems():
-                                    if tmpCloudValMulti.has_key(site):
-                                        if tmpCloudValMulti[site].has_key(tmpProGroup):
-                                            tmpNCloudMulti += 1
-                                            if tmpCloudValMulti[site][tmpProGroup].has_key('running'):
-                                                tmpTotalRunningMulti += tmpCloudValMulti[site][tmpProGroup]['running']
-                                # no running
-                                if tmpTotalRunningMulti == 0:
-                                    if tmpNCloudMulti != 0:
-                                        multiCloudFactor = tmpNCloudMulti
-                                else:
-                                    multiCloudFactor = float(tmpTotalRunningMulti+1)/float(jobStatBroker[site][tmpProGroup]['running']+1)
-                                tmpLog.debug('   totalRun:%s cloudRun:%s multiCloud:%s' % (tmpTotalRunningMulti,
-                                                                                         jobStatBroker[site][tmpProGroup]['running'],
-                                                                                         multiCloudFactor))
                             # country preference
                             preferredCountryWeight = 1.0
                             preferredCountryWeightStr = ''

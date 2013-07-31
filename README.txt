@@ -1,6 +1,7 @@
 Release Note
 
 current
+  * removed muliCloudFactor from the brokerage	
   * added uploadLog	
   * added minmemory,maxmemory,mintime
   * changed available disk check in the brokerage
