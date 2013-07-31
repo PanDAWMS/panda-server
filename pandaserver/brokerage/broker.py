@@ -994,8 +994,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 nPilots = 0
                             tmpLog.debug(' original nPilots:%s get:%s update:%s' % (nPilots,nPilotsGet,nPilotsUpdate))
                             # limit on (G+1)/(U+1)
-                            limitOnGUmax = 2.0
-                            limitOnGUmin = 0.5                            
+                            limitOnGUmax = 1.1
+                            limitOnGUmin = 0.9                            
                             guRatio = float(1+nPilotsGet)/float(1+nPilotsUpdate) 
                             if guRatio > limitOnGUmax:
                                 nPilotsGet = limitOnGUmax * float(1+nPilotsUpdate) - 1.0
