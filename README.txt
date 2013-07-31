@@ -1,6 +1,7 @@
 Release Note
 
 current
+  * changed available disk check in the brokerage
   * added insertTask and killTask
   * using graceful in logrotation 
   * removed split T1

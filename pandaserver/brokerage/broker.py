@@ -544,7 +544,9 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
         indexJob = 0
         vomsOK = None
 
-        diskThreshold     = 200
+        diskThresholdT1   = 20 * 1024
+        diskThresholdT2   = 200
+        diskThresholdAna  = 200
         diskThresholdPD2P = 1024 * 3
         manyInputsThr     = 20
         weightUsedByBrokerage = {}
@@ -1067,15 +1069,28 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                         if getWeight:
                                             weightUsedByBrokerage[site] = "NA : disk shortage"
                                         continue
-                            elif site != siteMapper.getCloud(previousCloud)['source']:
-                                # for T2
+                            else:
                                 if tmpSiteSpec.space != 0:
-                                    nRemJobs = jobStatistics[site]['assigned']+jobStatistics[site]['activated']+jobStatistics[site]['running']
+                                    # production
                                     if not forAnalysis:
                                         # take assigned/activated/running jobs into account for production
-                                        remSpace = tmpSiteSpec.space - 0.250*nRemJobs
+                                        nJobsIn  = float(jobStatistics[site]['assigned'])
+                                        nJobsOut = float(jobStatistics[site]['activated']+jobStatistics[site]['running'])
+                                        # get remaining space and threshold
+                                        if site == siteMapper.getCloud(previousCloud)['source']:
+                                            # T1
+                                            remSpace = float(tmpSiteSpec.space) - 0.2 * nJobsOut
+                                            remSpace = int(remSpace)
+                                            diskThreshold = diskThresholdT1
+                                        else:
+                                            # T2
+                                            remSpace = float(tmpSiteSpec.space) - 0.2 * nJobsOut - 2.0 * nJobsIn
+                                            remSpace = int(remSpace)
+                                            diskThreshold = diskThresholdT2
                                     else:
+                                        # analysis
                                         remSpace = tmpSiteSpec.space
+                                        diskThreshold = diskThresholdAna
                                     tmpLog.debug('   space available=%s remain=%s' % (tmpSiteSpec.space,remSpace))
                                     if remSpace < diskThreshold:
                                         tmpLog.debug('  skip: disk shortage < %s' % diskThreshold)
@@ -1418,7 +1433,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             if resultsForAnal['pilot'] != []:
                                 resultsForAnalStr += '%s are inactive (no pilots for last 3 hours). ' % str(resultsForAnal['pilot'])
                             if resultsForAnal['disk'] != []:
-                                resultsForAnalStr += 'Disk shortage < %sGB at %s. ' % (diskThreshold,str(resultsForAnal['disk']))
+                                resultsForAnalStr += 'Disk shortage < %sGB at %s. ' % (diskThresholdAna,str(resultsForAnal['disk']))
                             if resultsForAnal['memory'] != []:
                                 resultsForAnalStr += 'Insufficient RAM at %s. ' % str(resultsForAnal['memory'])
                             if resultsForAnal['maxtime'] != []:
@@ -1439,7 +1454,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         # send log
                         if forAnalysis and trustIS and reportLog:
                             # put logging info to ErrorDiag just to give it back to the caller
-                            tmpJob.brokerageErrorDiag = sendAnalyBrokeageInfo(resultsForAnal,prevRelease,diskThreshold,
+                            tmpJob.brokerageErrorDiag = sendAnalyBrokeageInfo(resultsForAnal,prevRelease,diskThresholdAna,
                                                                               tmpJob.computingSite,prevCmtConfig,
                                                                               siteReliability)
                         tmpLog.debug('PandaID:%s -> site:%s' % (tmpJob.PandaID,tmpJob.computingSite))
