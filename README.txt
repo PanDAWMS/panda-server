@@ -1,6 +1,7 @@
 Release Note
 
 current
+  * changed TaskBuffer to give high prio to hammercloud-fax 	
   * removed muliCloudFactor from the brokerage	
   * added uploadLog	
   * added minmemory,maxmemory,mintime

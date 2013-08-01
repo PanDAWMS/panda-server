@@ -80,12 +80,14 @@ class TaskBuffer:
             priorityOffset = 2000
         """    
         # reset nJob/weight for HC   
-        if jobs[0].processingType in ['hammercloud','gangarobot'] \
+        if jobs[0].processingType in ['hammercloud','gangarobot','hammercloud-fax'] \
                or jobs[0].processingType.startswith('gangarobot-'):
             serNum = 0
             weight = 0.0
         if jobs[0].processingType in ['gangarobot','gangarobot-pft']:
             priorityOffset = 3000
+        if jobs[0].processingType in ['hammercloud-fax']:    
+            priorityOffset = 1001
         # check quota
         if weight == None:
             weight = proxy.checkQuota(user)
