@@ -8010,7 +8010,6 @@ class DBProxy:
             self.cur.arraysize = 10000
             # get
             self.cur.execute(sqlMax+comment,varMap)
-            self.cur.execute(sqlMax+comment,varMap)
             res = self.cur.fetchall()
             # commit
             if not self._commit():
