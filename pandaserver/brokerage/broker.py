@@ -880,16 +880,26 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                                                                                             prevCoreCount))
                                     resultsForAnal['cpucore'].append(site)
                                     continue
-                            # check memory
+                            # check max memory
                             if tmpSiteSpec.memory != 0 and not prevMemory in [None,0,'NULL']:
                                 try:
                                     if int(tmpSiteSpec.memory) < int(prevMemory):
-                                        tmpLog.debug('  skip: memory shortage %s<%s' % (tmpSiteSpec.memory,prevMemory))
+                                        tmpLog.debug('  skip: site memory shortage %s<%s' % (tmpSiteSpec.memory,prevMemory))
                                         resultsForAnal['memory'].append(site)
                                         continue
                                 except:
                                     errtype,errvalue = sys.exc_info()[:2]
-                                    tmpLog.error("memory check : %s %s" % (errtype,errvalue))
+                                    tmpLog.error("max memory check : %s %s" % (errtype,errvalue))
+                            # check min memory
+                            if tmpSiteSpec.minmemory != 0 and not prevMemory in [None,0,'NULL']:
+                                try:
+                                    if int(tmpSiteSpec.minmemory) > int(prevMemory):
+                                        tmpLog.debug('  skip: job memory shortage %s>%s' % (tmpSiteSpec.memory,prevMemory))
+                                        resultsForAnal['memory'].append(site)
+                                        continue
+                                except:
+                                    errtype,errvalue = sys.exc_info()[:2]
+                                    tmpLog.error("min memory check : %s %s" % (errtype,errvalue))
                             # check maxcpucount
                             if tmpSiteSpec.maxtime != 0 and not prevMaxCpuCount in [None,0,'NULL']:
                                 try:
