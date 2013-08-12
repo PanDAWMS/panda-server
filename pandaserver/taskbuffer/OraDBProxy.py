@@ -10929,9 +10929,6 @@ class DBProxy:
                     varMap[tmpMapKey] = tmpVal
             sqlFile += " WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
             sqlFile += "AND attemptNr=:attemptNr AND keepTrack=:keepTrack "
-            sqlFile += "RETURNING attemptNr,maxAttempt INTO :newAttemptNr,:maxAttempt "
-            varMap[':maxAttempt']   = cur.var(cx_Oracle.NUMBER)
-            varMap[':newAttemptNr'] = cur.var(cx_Oracle.NUMBER)
             _logger.debug(sqlFile+comment+str(varMap))
             cur.execute(sqlFile+comment,varMap)
             nRow = cur.rowcount
@@ -10943,15 +10940,24 @@ class DBProxy:
                 if varMap[':status'] == 'ready':
                     # check attemptNr and maxAttempt when the file failed (ready = input failed)
                     # skip secondary datasets which have maxAttempt=None 
-                    if varMap[':maxAttempt'].getvalue() != None:
-                        maxAttempt   = long(varMap[':maxAttempt'].getvalue())
-                        newAttemptNr = long(varMap[':newAttemptNr'].getvalue())
-                        if maxAttempt > newAttemptNr:
-                            # decrement nUsed to trigger reattempt
-                            datasetContentsStat[datasetID]['nFilesUsed'] -= 1
-                        else:
-                            # no more reattempt
-                            datasetContentsStat[datasetID]['nFilesFailed'] += 1
+                    sqlAttNr  = "SELECT attemptNr,maxAttempt FROM ATLAS_PANDA.JEDI_Dataset_Contents "
+                    sqlAttNr += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+                    varMap = {}
+                    varMap[':fileID']     = fileSpec.fileID
+                    varMap[':datasetID']  = fileSpec.datasetID
+                    varMap[':jediTaskID'] = jobSpec.jediTaskID
+                    _logger.debug(sqlAttNr+comment+str(varMap))
+                    cur.execute(sqlAttNr+comment,varMap)
+                    resAttNr = self.cur.fetchone()
+                    if resAttNr != None:
+                        newAttemptNr,maxAttempt = resAttNr
+                        if maxAttempt != None:
+                            if maxAttempt > newAttemptNr:
+                                # decrement nUsed to trigger reattempt
+                                datasetContentsStat[datasetID]['nFilesUsed'] -= 1
+                            else:
+                                # no more reattempt
+                                datasetContentsStat[datasetID]['nFilesFailed'] += 1
                 elif varMap[':status'] == 'finished':
                     # successfully used or produced
                     datasetContentsStat[datasetID]['nFilesFinished'] += 1
