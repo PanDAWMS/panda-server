@@ -782,11 +782,16 @@ for tmpCloud in siteMapper.getCloudList():
     if tmpCloud in ['CERN','OSG']:
         continue
     status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsActive4",timeLimit,['activated'],['managed'],
-                                                ['evgen','simul'],[siteMapper.getCloud(tmpCloud)['tier1']],[])
+                                                ['evgen','simul'],[siteMapper.getCloud(tmpCloud)['tier1']],[],
+                                                True)
     jobs = []
+    jediJobs = []
     if res != None:
-        for (id,) in res:
-            jobs.append(id)
+        for (id,lockedby) in res:
+            if lockedby == 'jedi':
+                jediJobs.append(id)
+            else:
+                jobs.append(id)
     _logger.debug('reassignJobs for Active T1 evgensimul in %s -> #%s' % (tmpCloud,len(jobs)))
     if len(jobs) != 0:
         nJob = 100
@@ -794,6 +799,14 @@ for tmpCloud in siteMapper.getCloudList():
         while iJob < len(jobs):
             _logger.debug('reassignJobs for Active T1 evgensimul (%s)' % jobs[iJob:iJob+nJob])
             taskBuffer.reassignJobs(jobs[iJob:iJob+nJob],joinThr=True)
+            iJob += nJob
+    _logger.debug('reassignJobs for Active T1 JEDI evgensimul in %s -> #%s' % (tmpCloud,len(jediJobs)))
+    if len(jediJobs) != 0:
+        nJob = 100
+        iJob = 0
+        while iJob < len(jediJobs):
+            _logger.debug('reassignJobs for Active T1 JEDI evgensimul (%s)' % jediJobs[iJob:iJob+nJob])
+            Client.killJobs(jediJobs[iJob:iJob+nJob],51)
             iJob += nJob
 
 # reassign too long-standing evgen/simul jobs with active state at T2
@@ -832,11 +845,15 @@ try:
                 _logger.debug(' %s:%s %s/%s > %s' % (tmpCloud,tmpComputingSite,tmpStatData['activated'],tmpStatData['running'],stuckThr))
                 # get stuck jobs
                 status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsActive4",timeLimit,['activated'],['managed'],
-                                                            ['evgen','simul'],[tmpComputingSite],[tmpCloud])
+                                                            ['evgen','simul'],[tmpComputingSite],[tmpCloud],True)
                 jobs = []
+                jediJobs = []
                 if res != None:
-                    for (id,) in res:
-                        jobs.append(id)
+                    for (id,lockedby) in res:
+                        if lockedby == 'jedi':
+                            jediJobs.append(id)
+                        else:
+                            jobs.append(id)
                 _logger.debug('reassignJobs for Active T2 evgensimul %s:%s -> #%s' % (tmpCloud,tmpComputingSite,len(jobs)))
                 if len(jobs) > 0:
                     nJob = 100
@@ -845,17 +862,29 @@ try:
                         _logger.debug('reassignJobs for Active T2 evgensimul (%s)' % jobs[iJob:iJob+nJob])
                         taskBuffer.reassignJobs(jobs[iJob:iJob+nJob],joinThr=True)
                         iJob += nJob
+                _logger.debug('reassignJobs for Active T2 JEDI evgensimul %s:%s -> #%s' % (tmpCloud,tmpComputingSite,len(jediJobs)))
+                if len(jediJobs) > 0:
+                    nJob = 100
+                    iJob = 0
+                    while iJob < len(jediJobs):
+                        _logger.debug('reassignJobs for Active T2 JEDI evgensimul (%s)' % jediJobs[iJob:iJob+nJob])
+                        Client.killJobs(jediJobs[iJob:iJob+nJob],51)
+                        iJob += nJob
 except:
     errType,errValue = sys.exc_info()[:2]
     _logger.error("failed to reassign T2 evgensimul with %s:%s" % (errType,errValue))
 
 # reassign too long-standing jobs in active table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=2)
-status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsActive4",timeLimit,['activated'],['managed'],[],[],[])
+status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsActive4",timeLimit,['activated'],['managed'],[],[],[],True)
 jobs = []
+jediJobs = []
 if res != None:
-    for (id,) in res:
-        jobs.append(id)
+    for (id,lockedby) in res:
+        if lockedby == 'jedi':
+            jediJobs.append(id)
+        else:
+            jobs.append(id)
 _logger.debug('reassignJobs for long in active table -> #%s' % len(jobs))
 if len(jobs) != 0:
     nJob = 100
@@ -863,6 +892,14 @@ if len(jobs) != 0:
     while iJob < len(jobs):
         _logger.debug('reassignJobs for long in active table (%s)' % jobs[iJob:iJob+nJob])
         taskBuffer.reassignJobs(jobs[iJob:iJob+nJob],joinThr=True)
+        iJob += nJob
+_logger.debug('reassignJobs for long JEDI in active table -> #%s' % len(jediJobs))
+if len(jediJobs) != 0:
+    nJob = 100
+    iJob = 0
+    while iJob < len(jediJobs):
+        _logger.debug('reassignJobs for long JEDI in active table (%s)' % jediJobs[iJob:iJob+nJob])
+        Client.killJobs(jediJobs[iJob:iJob+nJob],51)
         iJob += nJob
         
 

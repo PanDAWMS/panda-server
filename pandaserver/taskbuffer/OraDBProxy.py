@@ -2858,6 +2858,7 @@ class DBProxy:
         # 8  : rebrokerage
         # 9  : force kill
         # 50 : kill by JEDI
+        # 51 : reassigned by JEDI
         # 91 : kill user jobs with prod role
         comment = ' /* DBProxy.killJob */'        
         _logger.debug("killJob : code=%s PandaID=%s role=%s user=%s wg=%s" % (code,pandaID,prodManager,user,wgProdRole))
@@ -2933,7 +2934,7 @@ class DBProxy:
                             validGroupProdRole = True
                             break
                 if prodManager:
-                    if res[1] in ['user','panda'] and (not code in ['2','4','7','8','9','50','91']):
+                    if res[1] in ['user','panda'] and (not code in ['2','4','7','8','9','50','51','91']):
                         _logger.debug("ignore killJob -> prod proxy tried to kill analysis job type=%s" % res[1])
                         break
                     _logger.debug("killJob : %s using prod role" % pandaID)
@@ -3022,6 +3023,10 @@ class DBProxy:
                         # killed by JEDI
                         job.taskBufferErrorCode = ErrorCode.EC_Kill
                         job.taskBufferErrorDiag = user
+                    elif code=='51':
+                        # reassigned by JEDI
+                        job.taskBufferErrorCode = ErrorCode.EC_Kill
+                        job.taskBufferErrorDiag = 'reassigned by JEDI'
                     else:
                         # killed
                         job.taskBufferErrorCode = ErrorCode.EC_Kill
@@ -3885,13 +3890,17 @@ class DBProxy:
 
 
     # lock jobs for reassign
-    def lockJobsForReassign(self,tableName,timeLimit,statList,labels,processTypes,sites,clouds):
+    def lockJobsForReassign(self,tableName,timeLimit,statList,labels,processTypes,sites,clouds,
+                            useJEDI=False):
         comment = ' /* DBProxy.lockJobsForReassign */'                        
-        _logger.debug("lockJobsForReassign : %s %s %s %s %s %s %s" % \
-                      (tableName,timeLimit,statList,labels,processTypes,sites,clouds))
+        _logger.debug("lockJobsForReassign : %s %s %s %s %s %s %s %s" % \
+                      (tableName,timeLimit,statList,labels,processTypes,sites,clouds,useJEDI))
         try:
             # make sql
-            sql  = "SELECT PandaID FROM %s " % tableName
+            if not useJEDI:
+                sql  = "SELECT PandaID FROM %s " % tableName
+            else:
+                sql  = "SELECT PandaID,lockedby FROM %s " % tableName
             sql += "WHERE modificationTime<:modificationTime "
             varMap = {}
             varMap[':modificationTime'] = timeLimit
@@ -3950,10 +3959,11 @@ class DBProxy:
             resList = self.cur.fetchall()
             retList = []
             # lock
-            for tmpID, in resList:
+            for tmpItem in resList:
+                tmpID = tmpItem[0]
                 varLock = {':PandaID':tmpID}
                 self.cur.execute(sqlLock+comment,varLock)
-                retList.append((tmpID,))
+                retList.append(tmpItem)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'

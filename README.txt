@@ -1,6 +1,7 @@
 Release Note
 
 current
+  * modified copyArchive for JEDI reassignment
   * removed RETURNING from propagateResultToJEDI	
   * changed the brokerage to use maxmemory
   * changed TaskBuffer to give high prio to hammercloud-fax 	
