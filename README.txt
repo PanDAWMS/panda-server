@@ -1,6 +1,8 @@
 Release Note
 
 current
+  * changed broekrage not to use LOCALGROUPTAPE
+  * fixed link to new pandamon in Notifier
   * modified copyArchive for JEDI reassignment
   * removed RETURNING from propagateResultToJEDI	
   * changed the brokerage to use maxmemory

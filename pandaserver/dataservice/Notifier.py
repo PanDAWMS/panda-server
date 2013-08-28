@@ -285,7 +285,7 @@ PandaMonURL : http://panda.cern.ch/server/pandamon/query?%s""" % urllib.urlencod
 TaskMonitorURL : https://dashb-atlas-task.cern.ch/templates/task-analysis/#task=%s""" % logDS
                         message += \
 """
-NewPandaMonURL : https://http://pandamon.cern.ch/jobinfo?%s""" % urllib.urlencode(newUrlData)
+NewPandaMonURL : https://pandamon.cern.ch/jobinfo?%s""" % urllib.urlencode(newUrlData)
                     
                     # tailer            
                     message += \
