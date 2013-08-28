@@ -2135,10 +2135,17 @@ class Setupper (threading.Thread):
         # collect input datasets and locations
         doneList = []
         allReplicaMap = {}
+        useShortLivedReplicasFlag = False 
         for tmpJob in self.jobs:
             # ignore HC jobs
             if tmpJob.processingType.startswith('gangarobot') or \
                tmpJob.processingType.startswith('hammercloud'):
+                continue
+            # not pin if --useShortLivedReplicas was used
+            if tmpJob.metadata != None and '--useShortLivedReplicas' in tmpJob.metadata:
+                if not useShortLivedReplicasFlag:
+                    _logger.debug('%s   skip pin due to --useShortLivedReplicas' % self.timestamp)
+                    useShortLivedReplicasFlag = True
                 continue
             # use production or test or user jobs only
             if not tmpJob.prodSourceLabel in ['managed','test','user']:
