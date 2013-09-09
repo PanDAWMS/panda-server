@@ -464,6 +464,8 @@ class AdderAtlasPlugin (AdderPluginBase):
                     # loop over all output datasets
                     for tmpDsName,dq2IDlist in tmpTopDatasets.iteritems():
                         for tmpDQ2ID in dq2IDlist:
+                            if tmpDQ2ID == 'NULL':
+                                continue
                             tmpMsg = "%s %s ds=%s site=%s id=%s" % (self.jobID,'datriHandler.sendRequest',
                                                                     tmpDsName,tmpDQ2ID,tmpDN)
                             self.logger.debug(tmpMsg)

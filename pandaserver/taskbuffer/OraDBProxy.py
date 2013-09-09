@@ -2634,7 +2634,8 @@ class DBProxy:
                 # return
                 return None
             # do nothing for analysis jobs
-            if job.prodSourceLabel in ['user','panda']:
+            if job.prodSourceLabel in ['user','panda'] and not forPending \
+                    and job.jobStatus != 'pending':
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
@@ -2667,11 +2668,12 @@ class DBProxy:
                 job.currentPriority = 100
             # reset computing site and dispatchDBlocks
             job.jobStatus = 'defined'
-            job.dispatchDBlock   = None
-            # erase old assignment
-            if (not keepSite) and job.relocationFlag != 1:
-                job.computingSite = None
-            job.computingElement = None
+            if not job.prodSourceLabel in ['user','panda']:
+                job.dispatchDBlock   = None
+                # erase old assignment
+                if (not keepSite) and job.relocationFlag != 1:
+                    job.computingSite = None
+                job.computingElement = None
             # host and time information
             job.modificationHost = self.hostname
             job.modificationTime = datetime.datetime.utcnow()
@@ -2708,7 +2710,8 @@ class DBProxy:
                 # reset status, destinationDBlock and dispatchDBlock
                 if job.lockedby != 'jedi':
                     file.status         ='unknown'
-                file.dispatchDBlock = None
+                if not job.prodSourceLabel in ['user','panda']:    
+                    file.dispatchDBlock = None
                 file.destinationDBlock = re.sub('_sub\d+$','',file.destinationDBlock)
                 # add file
                 job.addFile(file)                

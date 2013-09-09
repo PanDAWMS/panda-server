@@ -1,6 +1,7 @@
 Release Note
 
 current
+  * fixed resetJob for anal jobs
   * changed not to pin input data when --useShortLivedReplicas is used
   * changed broekrage not to use LOCALGROUPTAPE
   * fixed link to new pandamon in Notifier
