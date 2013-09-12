@@ -182,6 +182,7 @@ def getNumAvailableFilesSite(siteName,siteMapper,replicaMap,badMetaMap,additiona
                                '_USERDISK'       in tmpDQ2ID or \
                                '_PRODDISK'       in tmpDQ2ID or \
                                '_LOCALGROUPDISK' in tmpDQ2ID or \
+                               '_LOCALGROUPTAPE' in tmpDQ2ID or \
                                '_DAQ'            in tmpDQ2ID or \
                                '_TMPDISK'        in tmpDQ2ID or \
                                '_TZERO'          in tmpDQ2ID:
