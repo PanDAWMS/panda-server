@@ -1305,6 +1305,10 @@ class DBProxy:
                     self.cur.execute(sqlFMod+comment,varMap)
                     self.cur.execute(sqlMMod+comment,varMap)
                     self.cur.execute(sqlPMod+comment,varMap)
+                    # update JEDI tables
+                    if hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and \
+                            job.lockedby == 'jedi' and self.checkTaskStatusJEDI(job.jediTaskID,self.cur):
+                        self.propagateResultToJEDI(job,self.cur)
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'

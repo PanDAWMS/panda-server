@@ -1047,12 +1047,9 @@ class TaskBuffer:
                 for tmpLFN in tmpFileList:
                     scrStr += "ln -fs %s*/%s ./%s\n" % (tmpDS.rstrip("/"),tmpLFN,tmpLFN)
             scrStr += "\n#transform commands\n\n"
-            bitNum = '32'
-            if 'x86_64' in tmpJob.cmtConfig:
-                bitNum = '64'
             for tmpIdx,tmpRel in enumerate(tmpRels):
                 # asetup
-                scrStr += "asetup %s,%s,%s\n" % tuple(tmpRel.split("/")+[bitNum])
+                scrStr += "asetup --cmtconfig=%s %s,%s\n" % tuple([tmpJob.cmtConfig]+tmpRel.split("/"))
                 # athenaMP
                 if not tmpJob.coreCount in ['NULL',None] and tmpJob.coreCount > 1:
                     scrStr += "export ATHENA_PROC_NUMBER=%s\n" % tmpJob.coreCount

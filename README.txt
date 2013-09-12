@@ -1,6 +1,7 @@
 Release Note
 
 current
+  * fixed getScriptOfflineRunning to set cmtconfig	
   * fixed resetJob for anal jobs
   * changed not to pin input data when --useShortLivedReplicas is used
   * changed broekrage not to use LOCALGROUPTAPE
