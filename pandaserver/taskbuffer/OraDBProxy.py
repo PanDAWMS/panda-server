@@ -7600,15 +7600,14 @@ class DBProxy:
 
         
     # get number of analysis jobs per user
-    def getNUserJobs(self,siteName,nJobs):
+    def getNUserJobs(self,siteName):
         comment = ' /* DBProxy.getNUserJobs */'        
         _logger.debug("getNUserJobs(%s)" % siteName)
-        sql0  = "SELECT * FROM (SELECT prodUserID FROM ATLAS_PANDA.jobsActive4 "
+        sql0  = "SELECT prodUserID,count(*) FROM ATLAS_PANDA.jobsActive4 "
         sql0 += "WHERE jobStatus=:jobStatus AND prodSourceLabel in (:prodSourceLabel1,:prodSourceLabel2) "
-        sql0 += "AND computingSite=:computingSite ORDER BY currentPriority DESC) WHERE rownum<=:nJobs"
+        sql0 += "AND computingSite=:computingSite GROUP BY prodUserID "
         varMap = {}
         varMap[':computingSite'] = siteName
-        varMap[':nJobs'] = nJobs
         varMap[':jobStatus'] = 'activated'
         varMap[':prodSourceLabel1'] = 'user'
         varMap[':prodSourceLabel2'] = 'panda'
@@ -7618,16 +7617,17 @@ class DBProxy:
             self.conn.begin()
             # select
             self.cur.arraysize = 10000            
+            _logger.debug(1)
             self.cur.execute(sql0+comment, varMap)
+            _logger.debug(2)
             res = self.cur.fetchall()
             # commit
+            _logger.debug(3)
             if not self._commit():
                 raise RuntimeError, 'Commit error'
             # create map
-            for prodUserID, in res:
-                if not ret.has_key(prodUserID):
-                    ret[prodUserID] = 0
-                ret[prodUserID] += 1
+            for prodUserID,nJobs in res:
+                ret[prodUserID] = nJobs
             # return
             _logger.debug("getNUserJobs() : %s" % str(ret))
             return ret

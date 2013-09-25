@@ -1108,6 +1108,37 @@ def getNumPilots():
         return EC_Failed,output+'\n'+errStr
 
 
+
+# get a list of DN/myproxy pass phrase/queued job count at a site
+def getNUserJobs(siteName):
+    """Get a list of DN/myproxy pass phrase/queued job count at a site. production or pilot role is required
+
+       args:
+           siteName: the site name
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 else: communication failure
+           a dictionary of DN, myproxy pass phrase, queued job count, hostname of myproxy server 
+
+    """     
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+    # execute
+    url = baseURLSSL + '/getNUserJobs'
+    data = {'siteName':siteName}
+    status,output = curl.get(url,data)
+    try:
+        return status,pickle.loads(output)
+    except:
+        type, value, traceBack = sys.exc_info()
+        errStr = "ERROR getNUserJobs : %s %s" % (type,value)
+        print errStr
+        return EC_Failed,output+'\n'+errStr
+
+
 # run brokerage
 def runBrokerage(sites,atlasRelease,cmtConfig=None):
     """Run brokerage

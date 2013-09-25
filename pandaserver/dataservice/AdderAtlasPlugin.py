@@ -473,7 +473,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                                                      site=tmpDQ2ID,
                                                      userid=tmpDN)
                             # number of retry
-                            nTry = 3
+                            nTry = 1
                             for iTry in range(nTry):
                                 dhStatus,dhOut = tmpHandler.sendRequest()
                                 # succeeded

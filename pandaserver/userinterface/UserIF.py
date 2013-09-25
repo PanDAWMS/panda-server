@@ -412,9 +412,9 @@ class UserIF:
 
 
     # get number of analysis jobs per user  
-    def getNUserJobs(self,siteName,nJobs):
+    def getNUserJobs(self,siteName):
         # get 
-        ret = self.taskBuffer.getNUserJobs(siteName,nJobs)
+        ret = self.taskBuffer.getNUserJobs(siteName)
         # serialize 
         return pickle.dumps(ret)
 
@@ -1507,8 +1507,8 @@ def getFullJobStatus(req,ids):
     return userIF.getFullJobStatus(ids,dn)
 
 
-# get number of analysis jobs per user  
-def getNUserJobs(req,siteName,nJobs=100):
+# get a list of DN/myproxy pass phrase/queued job count at a site
+def getNUserJobs(req,siteName):
     # check security
     prodManager = False
     if not isSecure(req):
@@ -1531,14 +1531,9 @@ def getNUserJobs(req,siteName,nJobs=100):
             break
     # only prod managers can use this method
     if not prodManager:
-        return "Failed : VOMS authorization failure"
-    # convert nJobs to int
-    try:
-        nJobs = int(nJobs)
-    except:
-        nJobs = 100
+        return "Failed : VOMS authorization failure. production or pilot role required"
     # execute
-    return userIF.getNUserJobs(siteName,nJobs)
+    return userIF.getNUserJobs(siteName)
 
 
 # add account to siteaccess
