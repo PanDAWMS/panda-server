@@ -14,6 +14,7 @@ from taskbuffer.TaskBuffer import taskBuffer
 from pandalogger.PandaLogger import PandaLogger
 from dataservice.AdderGen import AdderGen
 from brokerage.SiteMapper import SiteMapper
+from pandautils import PandaUtils
 
 # password
 from config import panda_config
@@ -394,6 +395,10 @@ while len(fileList) != 0:
                     else:
                         tmpList.append(file)
         fileList = tmpList
+    # check if 
+    if PandaUtils.isLogRotating(5,5):    
+        _logger.debug("terminate since close to log-rotate time")
+        break
     # choose a file
     file = fileList.pop(0)
     # release lock

@@ -1,6 +1,7 @@
 Release Note
 
 current
+  * changed add.py not to run around log rotate 	
   * dusted getNUserJobs off	
   * fixed getScriptOfflineRunning to set cmtconfig	
   * fixed resetJob for anal jobs
