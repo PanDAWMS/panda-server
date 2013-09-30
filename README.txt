@@ -1,6 +1,7 @@
 Release Note
 
 current
+  * improved the brokerage to use mintime
   * changed add.py not to run around log rotate 	
   * dusted getNUserJobs off	
   * fixed getScriptOfflineRunning to set cmtconfig	

@@ -910,6 +910,15 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 except:
                                     errtype,errvalue = sys.exc_info()[:2]
                                     tmpLog.error("maxtime check : %s %s" % (errtype,errvalue))
+                            if tmpSiteSpec.mintime != 0 and not prevMaxCpuCount in [None,0,'NULL']:
+                                try:
+                                    if int(tmpSiteSpec.mintime) > int(prevMaxCpuCount):
+                                        tmpLog.debug('  skip: insufficient job maxtime %s<%s' % (prevMaxCpuCount,tmpSiteSpec.mintime))
+                                        resultsForAnal['maxtime'].append(site)
+                                        continue
+                                except:
+                                    errtype,errvalue = sys.exc_info()[:2]
+                                    tmpLog.error("mintime check : %s %s" % (errtype,errvalue))
                             # check max input size
                             if tmpSiteSpec.maxinputsize != 0 and (not prevDiskCount in [None,0,'NULL']):
                                 try:
