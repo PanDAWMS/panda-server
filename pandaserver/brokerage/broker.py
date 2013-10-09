@@ -335,7 +335,7 @@ def getT2CandList(tmpJob,siteMapper,t2FilesMap):
 def getHospitalQueues(siteMapper):
     retMap = {}
     # hospital words
-    goodWordList = ['CORE$','VL$','MEM$','MP\d+$','LONG$']
+    goodWordList = ['CORE$','VL$','MEM$','MP\d+$','LONG$','_HIMEM']
     # loop over all clouds
     for tmpCloudName in siteMapper.getCloudList():
         # get cloud
@@ -644,6 +644,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 tmpLog.debug('PandaID:%s -> set SiteList=%s for high prio' % (job.PandaID,specialBrokergageSiteList))
                 brokerageNote = 'highPrio'
             # set computingSite to T1 when too many inputs are required
+            """    
             if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
                    and specialBrokergageSiteList == []:
                 # counts # of inputs
@@ -658,6 +659,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         specialBrokergageSiteList += hospitalQueueMap[job.cloud]
                     tmpLog.debug('PandaID:%s -> set SiteList=%s for too many inputs' % (job.PandaID,specialBrokergageSiteList))
                     brokerageNote = 'manyInput'
+            """        
             # use limited sites for reprocessing
             if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
                    and job.processingType in ['reprocessing'] and specialBrokergageSiteList == []:
