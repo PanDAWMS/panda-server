@@ -1,6 +1,6 @@
 Release Note
 
-current
+* 0.0.20 (10/21/2013)
   * added killTaskJEDI	
   * removed constraint from the brokerage so that many input jobs can go to T2
   * added HIMEM to hospital
