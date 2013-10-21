@@ -1,5 +1,9 @@
 Release Note
 
+* current
+  * introduced WrappedCursor
+  * added MySQL support
+
 * 0.0.20 (10/21/2013)
   * added killTaskJEDI	
   * removed constraint from the brokerage so that many input jobs can go to T2

@@ -16,7 +16,6 @@ import datetime
 import commands
 import traceback
 import warnings
-import cx_Oracle
 import ErrorCode
 import SiteSpec
 import CloudSpec
@@ -26,9 +25,17 @@ from JobSpec  import JobSpec
 from FileSpec import FileSpec
 from DatasetSpec import DatasetSpec
 from CloudTaskSpec import CloudTaskSpec
+from WrappedCursor import WrappedCursor
 from pandalogger.PandaLogger import PandaLogger
 from config import panda_config
 from brokerage.PandaSiteIDs import PandaSiteIDs
+
+if panda_config.backend == 'oracle':
+    import cx_Oracle
+    varNUMBER = cx_Oracle.NUMBER
+else:
+    import MySQLdb
+    varNUMBER = long
 
 warnings.filterwarnings('ignore')
 
@@ -73,7 +80,7 @@ class DBProxy:
     # connect to DB
     def connect(self,dbhost=panda_config.dbhost,dbpasswd=panda_config.dbpasswd,
                 dbuser=panda_config.dbuser,dbname=panda_config.dbname,
-                dbtimeout=None,reconnect=False):
+                dbtimeout=None,reconnect=False,dbport=panda_config.dbport):
         _logger.debug("connect : re=%s" % reconnect)
         # keep parameters for reconnect
         if not reconnect:
@@ -82,6 +89,7 @@ class DBProxy:
             self.dbuser    = dbuser
             self.dbname    = dbname
             self.dbtimeout = dbtimeout
+            self.dbport    = dbport
         # close old connection
         if reconnect:
             _logger.debug("closing old connection")                            
@@ -91,9 +99,14 @@ class DBProxy:
                 _logger.debug("failed to close old connection")                                                
         # connect    
         try:
-            self.conn = cx_Oracle.connect(dsn=self.dbhost,user=self.dbuser,
-                                          password=self.dbpasswd,threaded=True)
-            self.cur=self.conn.cursor()
+            if panda_config.backend == 'oracle':
+                self.conn = cx_Oracle.connect(dsn=self.dbhost,user=self.dbuser,
+                                              password=self.dbpasswd,threaded=True)
+            else:
+                self.conn = MySQLdb.connect(host=self.dbhost, db=self.dbname,
+                                            port=self.dbport, connect_timeout=self.dbtimeout,
+                                            user=self.dbuser, passwd=self.dbpasswd)
+            self.cur = WrappedCursor(self.conn)
             try:
                 # use SQL dumper
                 if panda_config.dump_sql:
@@ -267,10 +280,10 @@ class DBProxy:
             self.conn.begin()
             # insert
             varMap = job.valuesMap(useSeq=True)
-            varMap[':newPandaID'] = self.cur.var(cx_Oracle.NUMBER)
+            varMap[':newPandaID'] = self.cur.var(varNUMBER)
             retI = self.cur.execute(sql1+comment, varMap)
             # set PandaID
-            job.PandaID = long(varMap[':newPandaID'].getvalue())
+            job.PandaID = long(self.cur.getvalue(varMap[':newPandaID']))
             # get jobsetID
             if job.jobsetID in [None,'NULL',-1]:
                 jobsetID = 0
@@ -304,10 +317,10 @@ class DBProxy:
                     file.scope = self.extractScope(file.dataset)
                 # insert
                 varMap = file.valuesMap(useSeq=True)
-                varMap[':newRowID'] = self.cur.var(cx_Oracle.NUMBER)
+                varMap[':newRowID'] = self.cur.var(varNUMBER)
                 self.cur.execute(sqlFile+comment, varMap)
                 # get rowID
-                file.row_ID = long(varMap[':newRowID'].getvalue())
+                file.row_ID = long(self.cur.getvalue(varMap[':newRowID']))
                 # reset changed attribute list
                 file.resetChangedList()
                 # update JEDI table
@@ -1926,11 +1939,11 @@ class DBProxy:
                             # set parentID
                             job.parentID = job.PandaID
                             varMap = job.valuesMap(useSeq=True)
-                            varMap[':newPandaID'] = self.cur.var(cx_Oracle.NUMBER)
+                            varMap[':newPandaID'] = self.cur.var(varNUMBER)
                             # insert
                             retI = self.cur.execute(sql1+comment, varMap)
                             # set PandaID
-                            job.PandaID = long(varMap[':newPandaID'].getvalue())
+                            job.PandaID = long(self.cur.getvalue(varMap[':newPandaID']))
                             _logger.debug('Generate new PandaID %s -> %s #%s' % (job.parentID,job.PandaID,job.attemptNr))
                             # insert files
                             sqlFile = "INSERT INTO ATLAS_PANDA.filesTable4 (%s) " % FileSpec.columnNames()
@@ -1941,7 +1954,7 @@ class DBProxy:
                                 file.row_ID = None
                                 # insert
                                 varMap = file.valuesMap(useSeq=True)
-                                varMap[':newRowID'] = self.cur.var(cx_Oracle.NUMBER)
+                                varMap[':newRowID'] = self.cur.var(varNUMBER)
                                 self.cur.execute(sqlFile+comment, varMap)
                             # update mod time for files
                             varMap = {}
@@ -5498,10 +5511,10 @@ class DBProxy:
             varMap = {}
             varMap[':taskid'] = cloudTask.taskid
             varMap[':status'] = cloudTask.status
-            varMap[':newID']  = self.cur.var(cx_Oracle.NUMBER)                       
+            varMap[':newID']  = self.cur.var(varNUMBER)                       
             self.cur.execute(sql+comment, varMap)
             # get id
-            cloudTask.id = long(varMap[':newID'].getvalue())
+            cloudTask.id = long(self.cur.getvalue(varMap[':newID']))
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -8104,7 +8117,7 @@ class DBProxy:
                 errType,errValue = sys.exc_info()[:2]
                 _logger.error("getSiteInfo %s:%s" % (errType.__class__.__name__,errValue))
             # get CVMFS availability
-            sqlCVMFS  = "SELECT distinct siteid FROM ATLAS_PANDAMETA.installedSW WHERE release=:release"
+            sqlCVMFS  = "SELECT distinct siteid FROM ATLAS_PANDAMETA.installedSW WHERE `release`=:release"
             self.cur.execute(sqlCVMFS,{':release':'CVMFS'})
             tmpList = self.cur.fetchall()
             cvmfsSites = []
@@ -9198,11 +9211,11 @@ class DBProxy:
                 if not releases in ['','NULL',None]:
                     loopKey2 = ':release'
                     loopValues2 = releases.split('\n')
-                    sql += "AND release=:release "
+                    sql += "AND `release`=:release "
             elif not releases in ['','NULL',None]:
                 loopKey = ':release'
                 loopValues = releases.split('\n')
-                sql += "release=:release AND cache='None' "
+                sql += "`release`=:release AND cache='None' "
             elif onlyCmtConfig:
                 loopKey = None
                 loopValues = [None]
@@ -9306,7 +9319,7 @@ class DBProxy:
             else:
                 loopKey = ':release'
                 loopValues = releases.split('\n')
-                sql += "release=:release AND cache='None' "
+                sql += "`release`=:release AND cache='None' "
             # validation
             if validation:
                 sql += "validation=:validation "
@@ -11074,12 +11087,30 @@ class DBProxy:
             oraErrCode = oraErrCode[:-1]
             _logger.debug("rollback EC:%s %s" % (oraErrCode,errValue))
             # error codes for connection error
-            error_Codes  = ['ORA-01012','ORA-01033','ORA-01034','ORA-01089',
-                            'ORA-03113','ORA-03114','ORA-12203','ORA-12500',
-                            'ORA-12571','ORA-03135','ORA-25402']
-            # other errors are apperantly given when connection lost contact
-            if useOtherError:
-                error_Codes += ['ORA-01861','ORA-01008']
+            if panda_config.backend == 'oracle':
+                error_Codes  = ['ORA-01012','ORA-01033','ORA-01034','ORA-01089',
+                                'ORA-03113','ORA-03114','ORA-12203','ORA-12500',
+                                'ORA-12571','ORA-03135','ORA-25402']
+                # other errors are apperantly given when connection lost contact
+                if useOtherError:
+                    error_Codes += ['ORA-01861','ORA-01008']
+            else:
+                # mysql error codes for connection error
+                from MySQLdb.constants.ER import ACCESS_DENIED_ERROR, DBACCESS_DENIED_ERROR, \
+                    SERVER_SHUTDOWN, ILLEGAL_VALUE_FOR_TYPE
+                from MySQLdb.constants.CR import CONNECTION_ERROR, CONN_HOST_ERROR, \
+                    LOCALHOST_CONNECTION, SERVER_LOST
+                error_Codes = [
+                    ACCESS_DENIED_ERROR, DBACCESS_DENIED_ERROR,
+                    SERVER_SHUTDOWN,
+                    CONNECTION_ERROR, CONN_HOST_ERROR, LOCALHOST_CONNECTION,
+                    SERVER_LOST
+                    ]
+                # other errors are apperantly given when connection lost contact
+                if useOtherError:
+                    error_Codes += [
+                        ILLEGAL_VALUE_FOR_TYPE
+                        ]
             if oraErrCode in error_Codes:
                 # reconnect
                 retFlag = self.connect(reconnect=True)
@@ -11130,9 +11161,9 @@ class DBProxy:
             # insert task parameters
             varMap = {}
             varMap[':param']  = taskParams
-            varMap[':jediTaskID'] = self.cur.var(cx_Oracle.NUMBER)
+            varMap[':jediTaskID'] = self.cur.var(varNUMBER)
             self.cur.execute(sqlT+comment,varMap)
-            jediTaskID = long(varMap[':jediTaskID'].getvalue())
+            jediTaskID = long(self.cur.getvalue(varMap[':jediTaskID']))
             # insert command
             varMap = {}
             varMap[':jediTaskID'] = jediTaskID

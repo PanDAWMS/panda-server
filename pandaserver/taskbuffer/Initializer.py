@@ -1,5 +1,4 @@
 import sys
-import cx_Oracle
 from threading import Lock
 
 from config import panda_config
@@ -26,8 +25,15 @@ class Initializer:
             try:
                 _logger.debug("connect")
                 # connect
-                conn = cx_Oracle.connect(dsn=panda_config.dbhost,user=panda_config.dbuser,
-                                         password=panda_config.dbpasswd,threaded=True)
+                if panda_config.backend == 'oracle':
+                    import cx_Oracle
+                    conn = cx_Oracle.connect(dsn=panda_config.dbhost,user=panda_config.dbuser,
+                                             password=panda_config.dbpasswd,threaded=True)
+                else:
+                    import MySQLdb
+                    conn = MySQLdb.connect(host=panda_config.dbhost, db=panda_config.dbname, 
+                                           port=panda_config.dbport, connect_timeout=panda_config.dbtimeout, 
+                                           user=panda_config.dbuser, passwd=panda_config.dbpasswd)
                 # close
                 conn.close()
                 _logger.debug("done")                

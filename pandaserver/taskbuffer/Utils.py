@@ -448,7 +448,7 @@ def getServer(req):
 
 # get server name:port for HTTP
 def getServerHTTP(req):
-    return "%s:%s" % (panda_config.pserverhost,panda_config.pserverporthttp)
+    return "%s:%s" % (panda_config.pserverhosthttp,panda_config.pserverporthttp)
 
  
 # update stdout
