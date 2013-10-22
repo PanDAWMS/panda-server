@@ -811,11 +811,15 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,caches=convedPrevHomePkg,
                                                                                      cmtConfig=prevCmtConfig)
                             else:
-                                # both AtlasRelease and homepackage are used for nightlies
+                                # for nightlies
+                                try:
+                                    # extract only OS version
+                                    osVer = prevCmtConfig.split('-')[1]
+                                except:
+                                    osVer = prevCmtConfig
                                 siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,
-                                                                                     releases=prevRelease,
-                                                                                     caches=convedPrevHomePkg,
-                                                                                     cmtConfig=prevCmtConfig)
+                                                                                     releases='nightlies',
+                                                                                     cmtConfig=osVer)
                             tmpLog.debug('  cache          %s' % prevHomePkg)
                     if useCacheVersion:        
                         tmpLog.debug('  cache/relSites     %s' % str(siteListWithCache))

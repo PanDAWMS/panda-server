@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed the brokerage for nightlies
   * introduced WrappedCursor
   * added MySQL support
 
