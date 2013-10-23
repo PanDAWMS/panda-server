@@ -2304,12 +2304,12 @@ class TaskBuffer:
         return ret
 
 
-    # kill task
-    def killTaskPanda(self,jediTaskID,dn,prodRole):
+    # send command to task
+    def sendCommandTaskPanda(self,jediTaskID,dn,prodRole,comStr):
         # query an SQL return Status  
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.killTaskPanda(jediTaskID,dn,prodRole)
+        ret = proxy.sendCommandTaskPanda(jediTaskID,dn,prodRole,comStr)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

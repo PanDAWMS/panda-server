@@ -11184,11 +11184,11 @@ class DBProxy:
 
 
 
-    # kill task
-    def killTaskPanda(self,jediTaskID,dn,prodRole):
-        comment = ' /* JediDBProxy.killTaskPanda */'
+    # send command to task
+    def sendCommandTaskPanda(self,jediTaskID,dn,prodRole,comStr):
+        comment = ' /* JediDBProxy.sendCommandTaskPanda */'
         try:
-            methodName = "killTaskPanda"
+            methodName = "sendCommandTaskPanda"
             # get compact DN
             compactDN = self.cleanUserID(dn)
             if compactDN in ['','NULL',None]:
@@ -11210,9 +11210,9 @@ class DBProxy:
             # insert command
             varMap = {}
             varMap[':jediTaskID'] = jediTaskID
-            varMap[':comm_cmd']  = 'kill'
+            varMap[':comm_cmd']  = comStr
             varMap[':comm_owner']  = 'DEFT'
-            varMap[':comm_comment'] = 'kill by {0}'.format(compactDN)  
+            varMap[':comm_comment'] = '{0} by {0}'.format(comStr,compactDN)  
             self.cur.execute(sqlC+comment,varMap)
             # commit
             if not self._commit():
@@ -11225,7 +11225,5 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return False,'failed to register command'
-
-
 
 

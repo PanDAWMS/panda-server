@@ -847,7 +847,15 @@ class UserIF:
     # kill task
     def killTask(self,jediTaskID,user,prodRole):
         # kill
-        ret = self.taskBuffer.killTaskPanda(jediTaskID,user,prodRole)
+        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'kill')
+        # return
+        return ret
+
+
+    # finish task
+    def finishTask(self,jediTaskID,user,prodRole):
+        # kill
+        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'finish')
         # return
         return ret
 
@@ -1624,4 +1632,27 @@ def killTask(req,jediTaskID=None):
     except:
         return pickle.dumps((False,'jediTaskID must be an integer'))        
     ret = userIF.killTask(jediTaskID,user,prodRole)
+    return pickle.dumps(ret)
+
+
+
+# finish task
+def finishTask(req,jediTaskID=None):
+    # check security
+    if not isSecure(req):
+        return pickle.dumps((False,'secure connection is required'))
+    # get DN
+    user = None
+    if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        user = _getDN(req)        
+    # check role
+    prodRole = _isProdRoleATLAS(req)
+    if not prodRole:
+        return pickle.dumps((False,'production role is required'))
+    # check jediTaskID
+    try:
+        jediTaskID = long(jediTaskID)
+    except:
+        return pickle.dumps((False,'jediTaskID must be an integer'))        
+    ret = userIF.finishTask(jediTaskID,user,prodRole)
     return pickle.dumps(ret)
