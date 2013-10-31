@@ -8187,7 +8187,10 @@ class DBProxy:
                     ret.fairsharePolicy = fairsharePolicy
                     # maxwdir
                     try:
-                        ret.maxwdir = int(maxwdir)
+                        if maxwdir == None:
+                            ret.maxwdir = 0
+                        else:
+                            ret.maxwdir = int(maxwdir)
                     except:
                         if ret.maxinputsize in [0,None]:
                             ret.maxwdir = 0

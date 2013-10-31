@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed the brokerge to use maxwdir instead of maxinputsize
   * added finishTaskJEDI
   * changed the brokerage for nightlies
   * introduced WrappedCursor

@@ -925,17 +925,17 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 except:
                                     errtype,errvalue = sys.exc_info()[:2]
                                     tmpLog.error("mintime check : %s %s" % (errtype,errvalue))
-                            # check max input size
-                            if tmpSiteSpec.maxinputsize != 0 and (not prevDiskCount in [None,0,'NULL']):
+                            # check max work dir size
+                            if tmpSiteSpec.maxwdir != 0 and (not prevDiskCount in [None,0,'NULL']):
                                 try:
-                                    if int(tmpSiteSpec.maxinputsize) < int(prevDiskCount):
-                                        tmpLog.debug('  skip: not enough disk %s<%s' % (tmpSiteSpec.maxinputsize,prevDiskCount))
+                                    if int(tmpSiteSpec.maxwdir) < int(prevDiskCount):
+                                        tmpLog.debug('  skip: not enough disk %s<%s' % (tmpSiteSpec.maxwdir,prevDiskCount))
                                         resultsForAnal['scratch'].append(site)
                                         continue
                                 except:
                                     errtype,errvalue = sys.exc_info()[:2]
                                     tmpLog.error("disk check : %s %s" % (errtype,errvalue))
-                            tmpLog.debug('   maxinput=%s' % tmpSiteSpec.maxinputsize)
+                            tmpLog.debug('   maxwdir=%s' % tmpSiteSpec.maxwdir)
                             # reliability
                             if forAnalysis and isinstance(siteReliability,types.IntType):
                                 if tmpSiteSpec.reliabilityLevel != None and tmpSiteSpec.reliabilityLevel > siteReliability:
