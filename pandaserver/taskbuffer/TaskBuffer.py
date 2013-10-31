@@ -2296,8 +2296,13 @@ class TaskBuffer:
     def insertTaskParamsPanda(self,taskParams,user,prodRole):
         # query an SQL return Status  
         proxy = self.proxyPool.getProxy()
-        # exec
-        ret = proxy.insertTaskParamsPanda(taskParams,user,prodRole)
+        # check user status
+        tmpStatus = proxy.checkBanUser(user,None)
+        if tmpStatus:
+            # exec
+            ret = proxy.insertTaskParamsPanda(taskParams,user,prodRole)
+        else:
+            ret = False,"The following DN is banned: DN={0}".format(user)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

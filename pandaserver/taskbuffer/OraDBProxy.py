@@ -6,6 +6,7 @@ proxy for database connection
 import re
 import os
 import sys
+import json
 import time
 import fcntl
 import types
@@ -1236,7 +1237,7 @@ class DBProxy:
     def finalizePendingJobs(self,prodUserName,jobDefinitionID):
         comment = ' /* DBProxy.finalizePendingJobs */'                        
         _logger.debug("finalizePendingJobs : %s %s" % (prodUserName,jobDefinitionID))
-        sql0 = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
+        sql0 = "SELECT PandaID,lockedBy,jediTaskID FROM ATLAS_PANDA.jobsActive4 "
         sql0+= "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
         sql0+= "AND prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus "
         sqlU = "UPDATE ATLAS_PANDA.jobsActive4 SET jobStatus=:newJobStatus "
@@ -1266,7 +1267,13 @@ class DBProxy:
                 raise RuntimeError, 'Commit error'
             # lock
             pPandaIDs = []
-            for pandaID, in resPending:
+            lockedBy = None
+            jediTaskID = None
+            for pandaID,tmpLockedBy,tmpJediTaskID in resPending:
+                if lockedBy == None:
+                    lockedBy = tmpLockedBy
+                if jediTaskID == None:
+                    jediTaskID = tmpJediTaskID
                 # begin transaction                
                 self.conn.begin()
                 # update
@@ -1281,6 +1288,11 @@ class DBProxy:
                 retU = self.cur.rowcount
                 if retU != 0:
                     pPandaIDs.append(pandaID)
+            # check if JEDI is used
+            useJEDI = False
+            if hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and \
+                    lockedBy == 'jedi' and self.checkTaskStatusJEDI(jediTaskID,self.cur):
+                useJEDI = True
             # loop over all PandaIDs
             for pandaID in pPandaIDs:
                 # begin transaction
@@ -1319,8 +1331,19 @@ class DBProxy:
                     self.cur.execute(sqlMMod+comment,varMap)
                     self.cur.execute(sqlPMod+comment,varMap)
                     # update JEDI tables
-                    if hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and \
-                            job.lockedby == 'jedi' and self.checkTaskStatusJEDI(job.jediTaskID,self.cur):
+                    if useJEDI:
+                        # read files
+                        sqlFile = "SELECT %s FROM ATLAS_PANDA.filesTable4 " % FileSpec.columnNames()
+                        sqlFile+= "WHERE PandaID=:PandaID"
+                        varMap = {}
+                        varMap[':PandaID'] = pandaID
+                        self.cur.arraysize = 100000
+                        self.cur.execute(sqlFile+comment, varMap)
+                        resFs = self.cur.fetchall()
+                        for resF in resFs:
+                            tmpFile = FileSpec()
+                            tmpFile.pack(resF)
+                            job.addFile(tmpFile)
                         self.propagateResultToJEDI(job,self.cur)
                 # commit
                 if not self._commit():
@@ -1956,6 +1979,7 @@ class DBProxy:
                                 varMap = file.valuesMap(useSeq=True)
                                 varMap[':newRowID'] = self.cur.var(varNUMBER)
                                 self.cur.execute(sqlFile+comment, varMap)
+                                file.row_ID = long(self.cur.getvalue(varMap[':newRowID']))
                             # update mod time for files
                             varMap = {}
                             varMap[':PandaID'] = job.PandaID
@@ -1984,6 +2008,10 @@ class DBProxy:
                             varMap[':errCode'] = ErrorCode.EC_PilotRetried
                             varMap[':errDiag'] = 'retrying at the same site. new PandaID=%s' % job.PandaID
                             self.cur.execute(sqlE+comment, varMap)
+                            # propagate change to JEDI
+                            if hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and \
+                                    job.lockedby == 'jedi' and self.checkTaskStatusJEDI(job.jediTaskID,self.cur):
+                                self.updateForPilotRetryJEDI(job,self.cur)
                     # set return
                     if not getNewPandaID:
                         retValue = True
@@ -10934,7 +10962,12 @@ class DBProxy:
                 if jobSpec.jobStatus == 'finished':
                     varMap[':status'] = 'finished'
                 else:
-                    varMap[':status'] = 'ready'
+                    if fileSpec.status == 'missing':
+                        # lost file
+                        varMap[':status'] = 'lost'
+                    else:
+                        # set ready for next attempt
+                        varMap[':status'] = 'ready'
                     updateAttemptNr = True
             else:
                 varMap[':status'] = jobSpec.jobStatus
@@ -10960,6 +10993,8 @@ class DBProxy:
                     tmpMapKey = ':%s' % tmpKey        
                     sqlFile += ",%s=%s" % (tmpKey,tmpMapKey)
                     varMap[tmpMapKey] = tmpVal
+                # reset keepTrack
+                sqlFile += ",keepTrack=NULL"
             sqlFile += " WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
             sqlFile += "AND attemptNr=:attemptNr AND keepTrack=:keepTrack "
             _logger.debug(sqlFile+comment+str(varMap))
@@ -10991,8 +11026,8 @@ class DBProxy:
                             else:
                                 # no more reattempt
                                 datasetContentsStat[datasetID]['nFilesFailed'] += 1
-                elif varMap[':status'] == 'finished':
-                    # successfully used or produced
+                elif varMap[':status'] in ['finished','lost']:
+                    # successfully used or produced, or lost
                     datasetContentsStat[datasetID]['nFilesFinished'] += 1
                 else:
                     # failed to produce the file
@@ -11044,6 +11079,36 @@ class DBProxy:
                     retVal = True
         _logger.debug('checkTaskStatusJEDI jediTaskID=%s with %s' % (jediTaskID,retVal))            
         return retVal
+
+
+
+    # update JEDI for pilot retry
+    def updateForPilotRetryJEDI(self,job,cur):
+        comment = ' /* DBProxy.updateForPilotRetryJEDI */'
+        # sql to update file
+        sqlFJ  = "UPDATE ATLAS_PANDA.JEDI_Dataset_Contents SET attemptNr=attemptNr+1 "
+        sqlFJ += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+        sqlFJ += "AND attemptNr=:attemptNr AND keepTrack=:keepTrack "
+        sqlFP  = "UPDATE ATLAS_PANDA.filesTable4 SET attemptNr=attemptNr+1 "
+        sqlFP += "WHERE row_ID=:row_ID "
+        for tmpFile in job.Files:
+            # update JEDI contents
+            varMap = {}
+            varMap[':jediTaskID'] = tmpFile.jediTaskID
+            varMap[':datasetID']  = tmpFile.datasetID
+            varMap[':fileID']     = tmpFile.fileID
+            varMap[':attemptNr']  = tmpFile.attemptNr
+            varMap[':keepTrack']  = 1
+            _logger.debug(sqlFJ+comment+str(varMap))
+            cur.execute(sqlFJ+comment,varMap)
+            nRow = cur.rowcount
+            if nRow == 1:
+                # update fileTable if JEDI contents was updated
+                varMap = {}
+                varMap[':row_ID'] = tmpFile.row_ID
+                _logger.debug(sqlFP+comment+str(varMap))
+                cur.execute(sqlFP+comment,varMap)
+        return
 
 
 
@@ -11151,6 +11216,14 @@ class DBProxy:
             if compactDN in ['','NULL',None]:
                 compactDN = dn
             _logger.debug('{0} start for {1}'.format(methodName,compactDN))
+            # decode json
+            taskParamsJson = json.loads(taskParams)
+            # set user name and task type
+            taskParamsJson['userName'] = dn
+            if not prodRole:
+                taskParamsJson['taskType']   = 'anal'
+                taskParamsJson['taskPriority'] = 1000
+            taskParams = json.dumps(taskParamsJson)    
             # sql to insert task parameters
             schemaDEFT = self.getSchemaDEFT()
             sqlT  = "INSERT INTO {0}.DEFT_TASK (TASK_ID,TASK_PARAM) VALUES ".format(schemaDEFT)

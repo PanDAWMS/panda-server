@@ -1599,15 +1599,13 @@ def insertTaskParams(req,taskParams=None):
     user = None
     if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
         user = _getDN(req)        
-    # check role
-    prodRole = _isProdRoleATLAS(req)
-    if not prodRole:
-        return pickle.dumps((False,'production role is required'))
     # check format
     try:
         json.loads(taskParams)
     except:
         return pickle.dumps((False,'failed to decode json'))        
+    # check role
+    prodRole = _isProdRoleATLAS(req)
     ret = userIF.insertTaskParams(taskParams,user,prodRole)
     return pickle.dumps(ret)
 

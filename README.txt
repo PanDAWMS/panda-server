@@ -1,6 +1,11 @@
 Release Note
 
 * current
+  * changed pilotRetry to propagate changes to JEDI
+  * fixed propagateResultToJEDI for finalizePendingJobs
+  * improved not to retry lost files in JEDI
+  * opened addTask for users
+  * add capability to ban users in addTask
   * changed the brokerge to use maxwdir instead of maxinputsize
   * added finishTaskJEDI
   * changed the brokerage for nightlies
