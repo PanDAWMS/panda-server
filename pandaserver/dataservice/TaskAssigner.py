@@ -518,8 +518,8 @@ class TaskAssigner:
                         message = '%s    %s skip : missing files at DATA/GROUPDISK' % \
                                   (self.taskID,cloudName)
                     elif params['nFiles'] != maxNFiles:
-                        message = '%s    %s skip : nFiles==%s<%s' % \
-                                  (self.taskID,cloudName,params['nFiles'],maxNFiles)
+                        message = '%s    %s skip : incomplete replica' % \
+                                  (self.taskID,cloudName)
                     else:
                         message = '%s    %s skip : no complete replica at DATA/GROUPDISK' % \
                                   (self.taskID,cloudName)

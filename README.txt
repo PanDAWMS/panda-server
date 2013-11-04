@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed error message in TA 
   * changed pilotRetry to propagate changes to JEDI
   * fixed propagateResultToJEDI for finalizePendingJobs
   * improved not to retry lost files in JEDI
