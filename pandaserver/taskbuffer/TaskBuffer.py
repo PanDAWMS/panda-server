@@ -2321,6 +2321,19 @@ class TaskBuffer:
         return ret
 
 
+    # update unmerged datasets to trigger merging
+    def updateUnmergedDatasets(self,job):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.updateUnmergedDatasets(job)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 

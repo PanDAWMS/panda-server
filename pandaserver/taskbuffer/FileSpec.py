@@ -215,6 +215,18 @@ class FileSpec(object):
         return ret
 
 
+    # check if related to merging
+    def isMerging(self):
+        if self.destinationDBlockToken == 'TOMERGE':
+            return True
+        return False
+
+
+    # check if unmerged output
+    def isUnMergedOutput(self):
+        if self.type in ['output','log'] and self.isMerging():
+            return True
+        return False
         
 
                        

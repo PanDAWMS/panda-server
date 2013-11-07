@@ -258,6 +258,9 @@ class Closer (threading.Thread):
             # start DDM jobs
             if ddmJobs != []:
                 self.taskBuffer.storeJobs(ddmJobs,self.job.prodUserID,joinThr=True)
+            # update unmerged datasets in JEDI to trigger merging
+            if flagComplete and self.job.toMerge():
+                self.taskBuffer.updateUnmergedDatasets(self.job)
             # change pending jobs to failed
             if flagComplete and self.job.prodSourceLabel=='user':
                 #_logger.debug('%s call RetryMaker for %s %s' % (self.pandaID,self.job.prodUserName,self.job.jobDefinitionID))

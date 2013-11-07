@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed for JEDI merging
   * fixed error message in TA 
   * changed pilotRetry to propagate changes to JEDI
   * fixed propagateResultToJEDI for finalizePendingJobs

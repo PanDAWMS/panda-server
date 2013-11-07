@@ -12,5 +12,8 @@ EC_Adder    = 200
 # Subscription failures
 EC_Subscription = 201
 
+# location registration failures
+EC_Location = 203
+
 # lost file (=taskbuffer.ErrorCode.EC_LostFile)
 EC_LostFile = 110

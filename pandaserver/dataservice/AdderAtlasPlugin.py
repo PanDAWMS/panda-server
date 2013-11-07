@@ -38,6 +38,7 @@ class AdderAtlasPlugin (AdderPluginBase):
         self.subscriptionMap = {}
         self.dq2api = None
         self.pandaDDM = False
+        self.goToMerging = False
 
         
     # main
@@ -53,6 +54,9 @@ class AdderAtlasPlugin (AdderPluginBase):
             # use PandaDDM for ddm jobs                                                                                                                
             if self.job.prodSourceLabel == 'ddm':
                 self.pandaDDM = True
+            # check if the job goes to merging
+            if self.job.toMerge():
+                self.goToMerging = True
             # check if the job should go to trasnferring
             tmpSrcDDM = self.siteMapper.getSite(self.job.computingSite).ddm
             tmpSrcSEs = brokerage.broker_util.getSEfromSched(self.siteMapper.getSite(self.job.computingSite).se)
@@ -99,6 +103,9 @@ class AdderAtlasPlugin (AdderPluginBase):
             elif self.addToTopOnly:
                 # already in transferring
                 pass
+            elif self.goToMerging:
+                # no transferring for merging
+                pass
             elif self.job.jobStatus == 'failed':
                 # failed jobs
                 if self.job.prodSourceLabel in ['managed','test']:
@@ -107,6 +114,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                 self.goToTransferring = True
             self.logger.debug('goToTransferring=%s' % self.goToTransferring)
             self.logger.debug('logTransferring=%s' % self.logTransferring)
+            self.logger.debug('goToMerging=%s' % self.goToMerging)
             retOut = self._updateOutputs()
             self.logger.debug('added outputs with %s' % retOut)
             if retOut != 0:
@@ -281,7 +289,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                 if not self.goToTransferring:
                     idMap[origDBlock] = idMap[destinationDBlock]
             # add files to top-level datasets only 
-            if self.addToTopOnly:
+            if self.addToTopOnly or self.goToMerging:
                 del idMap[destinationDBlock]
             # skip sub unless getting transferred
             if origDBlock != None:
@@ -378,56 +386,94 @@ class AdderAtlasPlugin (AdderPluginBase):
         # register dataset subscription
         subActivity = 'Production'
         if not self.job.prodSourceLabel in ['user']:
-            # make DQ2 subscription for prod jobs
             for tmpName,tmpVal in subMap.iteritems():
                 for dq2ID,optSub,optSource in tmpVal:
-                    self.logger.debug("%s %s %s" % ('registerDatasetSubscription',
-                                                   (tmpName,dq2ID),
-                                                   {'version':0,'archived':0,'callbacks':optSub,
-                                                    'sources':optSource,'sources_policy':(001000 | 010000),
-                                                    'wait_for_sources':0,'destination':None,'query_more_sources':0,
-                                                    'sshare':"production",'group':None,'activity':subActivity,
-                                                    'acl_alias':None,'replica_lifetime':"14 days"}))
-                    for iDDMTry in range(3):
-                        out = 'OK'
-                        isFailed = False                        
-                        try:                        
-                            self.dq2api.registerDatasetSubscription(tmpName,dq2ID,version=0,archived=0,callbacks=optSub,
-                                                                    sources=optSource,sources_policy=(001000 | 010000),
-                                                                    wait_for_sources=0,destination=None,query_more_sources=0,
-                                                                    sshare="production",group=None,activity=subActivity,
-                                                                    acl_alias=None,replica_lifetime="14 days")
-                        except DQ2.DQSubscriptionExistsException:
-                            # harmless error
-                            errType,errValue = sys.exc_info()[:2]
-                            out = '%s : %s' % (errType,errValue)
-                        except:
-                            # unknown errors
-                            errType,errValue = sys.exc_info()[:2]
-                            out = '%s : %s' % (errType,errValue)
-                            isFailed = True
-                            if 'is not a Tiers of Atlas Destination' in str(errValue) or \
-                                   'is not in Tiers of Atlas' in str(errValue):
-                                # fatal error
-                                self.job.ddmErrorCode = ErrorCode.EC_Subscription
+                    if not self.goToMerging:
+                        # make DQ2 subscription for prod jobs
+                        self.logger.debug("%s %s %s" % ('registerDatasetSubscription',
+                                                        (tmpName,dq2ID),
+                                                        {'version':0,'archived':0,'callbacks':optSub,
+                                                         'sources':optSource,'sources_policy':(001000 | 010000),
+                                                         'wait_for_sources':0,'destination':None,'query_more_sources':0,
+                                                         'sshare':"production",'group':None,'activity':subActivity,
+                                                         'acl_alias':None,'replica_lifetime':"14 days"}))
+                        for iDDMTry in range(3):
+                            out = 'OK'
+                            isFailed = False                        
+                            try:                        
+                                self.dq2api.registerDatasetSubscription(tmpName,dq2ID,version=0,archived=0,callbacks=optSub,
+                                                                        sources=optSource,sources_policy=(001000 | 010000),
+                                                                        wait_for_sources=0,destination=None,query_more_sources=0,
+                                                                        sshare="production",group=None,activity=subActivity,
+                                                                        acl_alias=None,replica_lifetime="14 days")
+                            except DQ2.DQSubscriptionExistsException:
+                                # harmless error
+                                errType,errValue = sys.exc_info()[:2]
+                                out = '%s : %s' % (errType,errValue)
+                            except:
+                                # unknown errors
+                                errType,errValue = sys.exc_info()[:2]
+                                out = '%s : %s' % (errType,errValue)
+                                isFailed = True
+                                if 'is not a Tiers of Atlas Destination' in str(errValue) or \
+                                        'is not in Tiers of Atlas' in str(errValue):
+                                    # fatal error
+                                    self.job.ddmErrorCode = ErrorCode.EC_Subscription
+                                else:
+                                    # retry for temporary errors
+                                    time.sleep(60)
                             else:
-                                # retry for temporary errors
-                                time.sleep(60)
-                        else:
-                            break
-                    if isFailed:
-                        self.logger.error('%s' % out)
-                        if self.job.ddmErrorCode == ErrorCode.EC_Subscription:
-                            # fatal error
-                            self.job.ddmErrorDiag = "subscription failure with %s" % out
-                            self.result.setFatal()
-                        else:
-                            # temoprary errors
-                            self.job.ddmErrorCode = ErrorCode.EC_Adder                
-                            self.job.ddmErrorDiag = "could not register subscription : %s" % tmpName
-                            self.result.setTemporary()
-                        return 1
-                    self.logger.debug('%s' % str(out))
+                                break
+                        if isFailed:
+                            self.logger.error('%s' % out)
+                            if self.job.ddmErrorCode == ErrorCode.EC_Subscription:
+                                # fatal error
+                                self.job.ddmErrorDiag = "subscription failure with %s" % out
+                                self.result.setFatal()
+                            else:
+                                # temoprary errors
+                                self.job.ddmErrorCode = ErrorCode.EC_Adder                
+                                self.job.ddmErrorDiag = "could not register subscription : %s" % tmpName
+                                self.result.setTemporary()
+                            return 1
+                        self.logger.debug('%s' % str(out))
+                    else:
+                        # register location
+                        tmpDsNameLoc = re.sub('_sub\d+$','',tmpName)
+                        for tmpLocName in optSource.keys():
+                            self.logger.debug("%s %s %s %s" % ('registerDatasetLocation',tmpDsNameLoc,tmpLocName,
+                                                               {'lifetime':"14 days"}))
+                            for iDDMTry in range(3):
+                                out = 'OK'
+                                isFailed = False                        
+                                try:                        
+                                    self.dq2api.registerDatasetLocation(tmpDsNameLoc,tmpLocName,lifetime="14 days")
+                                except DQ2.DQLocationExistsException:
+                                    # harmless error
+                                    errType,errValue = sys.exc_info()[:2]
+                                    out = '%s : %s' % (errType,errValue)
+                                except:
+                                    # unknown errors
+                                    errType,errValue = sys.exc_info()[:2]
+                                    out = '%s : %s' % (errType,errValue)
+                                    isFailed = True
+                                    # retry for temporary errors
+                                    time.sleep(60)
+                                else:
+                                    break
+                            if isFailed:
+                                self.logger.error('%s' % out)
+                                if self.job.ddmErrorCode == ErrorCode.EC_Location:
+                                    # fatal error
+                                    self.job.ddmErrorDiag = "location registration failure with %s" % out
+                                    self.result.setFatal()
+                                else:
+                                    # temoprary errors
+                                    self.job.ddmErrorCode = ErrorCode.EC_Adder                
+                                    self.job.ddmErrorDiag = "could not register location : %s" % tmpDsNameLoc
+                                    self.result.setTemporary()
+                                return 1
+                            self.logger.debug('%s' % str(out))
                     # set dataset status
                     self.datasetMap[tmpName].status = 'running'
             # keep subscriptions
@@ -508,6 +554,12 @@ class AdderAtlasPlugin (AdderPluginBase):
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
                     self.job.ddmErrorDiag = "DaTRI failed with %s %s" % (errType,errValue)
                     return 0
+        # collect list of merging files
+        if self.goToMerging:
+            for tmpFileList in idMap.values():
+                for tmpFile in tmpFileList:
+                    if not tmpFile['lfn'] in self.result.mergingFiles:
+                        self.result.mergingFiles.append(tmpFile['lfn'])
         # properly finished    
         self.logger.debug("addFiles end")
         return 0

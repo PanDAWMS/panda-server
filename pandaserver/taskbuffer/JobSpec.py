@@ -243,3 +243,12 @@ class JobSpec(object):
         ret  = ret[:-1]
         ret += ' '
         return ret
+
+
+    # check if goint to merging
+    def toMerge(self):
+        for tmpFile in self.Files:
+            if tmpFile.type in ['output','log'] and tmpFile.isMerging():
+                return True
+        return False
+

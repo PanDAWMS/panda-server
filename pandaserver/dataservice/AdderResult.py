@@ -15,6 +15,9 @@ class AdderResult(object):
         # list of files which are being transferred by DMS
         self.transferringFiles = []
 
+        # list of files which are being merged
+        self.mergingFiles = []
+
     # succeeded
     def setSucceeded(self):
         self.statusCode = self.RC_Succeeded

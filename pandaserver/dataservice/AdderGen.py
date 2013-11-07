@@ -127,13 +127,25 @@ class AdderGen:
                     self.job.jobStatus = 'failed'
                     for file in self.job.Files:
                         if file.type in ['output','log']:
-                            file.status = 'failed'
+                            if file.lfn in addResult.mergingFiles:
+                                file.status = 'merging'
+                            else:
+                                file.status = 'failed'
                 else:
                     # reset errors
                     self.job.jobDispatcherErrorCode = 0
                     self.job.jobDispatcherErrorDiag = 'NULL'
-                    # set status for transferring
-                    if addResult.transferringFiles != []:
+                    # set status
+                    if addResult.mergingFiles != []:
+                        # set status for merging:                        
+                        for file in self.job.Files:
+                            if file.lfn in addResult.mergingFiles:
+                                file.status = 'merging'
+                        self.job.jobStatus = 'merging'
+                        # propagate transition to prodDB
+                        self.job.stateChangeTime = time.strftime('%Y-%m-%d %H:%M:%S',time.gmtime())
+                    elif addResult.transferringFiles != []:
+                        # set status for transferring
                         for file in self.job.Files:
                             if file.lfn in addResult.transferringFiles:
                                 file.status = 'transferring'
@@ -184,6 +196,9 @@ class AdderGen:
                 for file in self.job.Files:
                     # ignore inputs
                     if file.type == 'input':
+                        continue
+                    # skip pseudo datasets
+                    if file.destinationDBlock in ['',None,'NULL']:
                         continue
                     # start closer for output/log datasets
                     if not file.destinationDBlock in destDBList:
