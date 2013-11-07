@@ -90,6 +90,7 @@ class AdderGen:
                     self.job.jobStatus = self.jobStatus
                 # parse XML
                 parseResult = self.parseXML()
+                addResult = None
                 if parseResult < 2:
                     # instantiate concrete plugin
                     if self.job.VO == 'cms':
@@ -127,7 +128,7 @@ class AdderGen:
                     self.job.jobStatus = 'failed'
                     for file in self.job.Files:
                         if file.type in ['output','log']:
-                            if file.lfn in addResult.mergingFiles:
+                            if addResult != None and file.lfn in addResult.mergingFiles:
                                 file.status = 'merging'
                             else:
                                 file.status = 'failed'
