@@ -9092,7 +9092,7 @@ class DBProxy:
                 try:
                     # share is undefined
                     usingCloudShare = ''
-                    if faresharePolicyStr in ['',None]:
+                    if faresharePolicyStr in ['',None,' None']:
                         # skip if share is not defined at site or cloud 
                         if not cloudShareMap.has_key(cloudName):
                             continue
