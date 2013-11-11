@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * fixed AdderGen not to repeat subscriptions
+  * cleanup for JEDI merging
   * fixed archiveJob to delete downstream jobs in small chunks
   * changed for JEDI merging
   * fixed error message in TA 

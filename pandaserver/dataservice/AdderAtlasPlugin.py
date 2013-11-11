@@ -55,7 +55,7 @@ class AdderAtlasPlugin (AdderPluginBase):
             if self.job.prodSourceLabel == 'ddm':
                 self.pandaDDM = True
             # check if the job goes to merging
-            if self.job.toMerge():
+            if self.job.produceUnMerge():
                 self.goToMerging = True
             # check if the job should go to trasnferring
             tmpSrcDDM = self.siteMapper.getSite(self.job.computingSite).ddm

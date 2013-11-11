@@ -1714,7 +1714,8 @@ class DBProxy:
                             varMap[':row_ID'] = file.row_ID
                             _logger.debug(sqlF+comment+str(varMap))
                             self.cur.execute(sqlF+comment, varMap)
-                        if useJEDI and file.type in ['input','pseudo_input']:
+                        if useJEDI and (job.jobStatus == 'transferring' or oldJobStatus == 'transferring') and \
+                                file.type in ['input','pseudo_input']:
                             # check file in JEDI
                             varMap = {}
                             varMap[':jediTaskID'] = file.jediTaskID
@@ -1728,7 +1729,7 @@ class DBProxy:
                             if res != None:
                                 if not datasetContentsStat.has_key(file.datasetID):
                                     datasetContentsStat[file.datasetID] = {'diff':0,'cType':'hold'}
-                                if job.jobStatus in ['transferring','merging']:
+                                if job.jobStatus == 'transferring':
                                     # increment nOnHold
                                     datasetContentsStat[file.datasetID]['diff'] += 1
                                 else:
@@ -11051,6 +11052,10 @@ class DBProxy:
         # loop over all files
         finishUnmerge = False
         for fileSpec in jobSpec.Files:
+            # do nothing for unmerged output/log files when merged job successfully finishes,
+            # since they were already updated by merged job
+            if jobSpec.jobStatus == 'finished' and fileSpec.isUnMergedOutput():
+                continue
             # update Dataset Contents table
             updateMetadata  = False
             updateAttemptNr = False
@@ -11452,7 +11457,7 @@ class DBProxy:
         sqlUMS  = "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
         # look for unmerged files
         for tmpFile in job.Files:
-            if tmpFile.type == 'input' and tmpFile.isMerging():
+            if tmpFile.isUnMergedInput():
                 varMap = {}
                 varMap[':fileID'] = tmpFile.fileID
                 varMap[':type1']  = 'output'
@@ -11480,13 +11485,11 @@ class DBProxy:
                         umPandaIDs.append(tmpPandaID)
                         break
         # finish unmerge jobs
-        _logger.debug(1)
         sqlJFJ  = "SELECT %s " % JobSpec.columnNames()
         sqlJFJ += "FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID"
         sqlJFF  = "SELECT %s FROM ATLAS_PANDA.filesTable4 " % FileSpec.columnNames()
         sqlJFF += "WHERE PandaID=:PandaID"
         for tmpPandaID in umPandaIDs:
-            _logger.debug(2)
             # read job
             varMap = {}
             varMap[':PandaID'] = tmpPandaID
@@ -11497,7 +11500,6 @@ class DBProxy:
             umJob.pack(resJFJ)
             umJob.jobStatus = job.jobStatus
             # read files
-            _logger.debug(3)
             self.cur.arraysize = 10000
             self.cur.execute(sqlJFF+comment, varMap)
             resJFFs = self.cur.fetchall()
@@ -11507,6 +11509,7 @@ class DBProxy:
                 umFile.status = umJob.jobStatus
                 umJob.addFile(umFile)
             # finish
+            _logger.debug('updateUnmerged PandaID={0}'.format(umJob))
             self.archiveJob(umJob,False,useCommit=False)
         return
 
@@ -11520,7 +11523,7 @@ class DBProxy:
         umCheckedIDs = []
         # sql to update nFiles in JEDI datasets
         sqlUNF  = "UPDATE ATLAS_PANDA.JEDI_Datasets "
-        sqlUNF += "SET nFilesFinished=0,nFilesOnHold=0,nFilesFailed=0,nFilesTobeUsed=nFilesOnHold "
+        sqlUNF += "SET nFilesFinished=0,nFilesOnHold=0,nFilesFailed=0,nFiles=nFilesOnHold,nFilesTobeUsed=nFilesOnHold "
         sqlUNF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND NOT status IN (:ngStat1,:ngStat2) "
         # sql to check nFiles
         sqlUCF  = "SELECT nFilesTobeUsed FROM ATLAS_PANDA.JEDI_Datasets "

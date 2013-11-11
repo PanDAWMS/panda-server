@@ -91,6 +91,7 @@ class AdderGen:
                 # parse XML
                 parseResult = self.parseXML()
                 addResult = None
+                adderPlugin = None
                 if parseResult < 2:
                     # instantiate concrete plugin
                     if self.job.VO == 'cms':
@@ -217,7 +218,10 @@ class AdderGen:
                     retG = self.taskBuffer.setGUIDs(guidList)
                 if destDBList != []:
                     # start Closer
-                    cThr = Closer.Closer(self.taskBuffer,destDBList,self.job)
+                    if adderPlugin != None and hasattr(adderPlugin,'datasetMap') and adderPlugin.datasetMap != {}:
+                        cThr = Closer.Closer(self.taskBuffer,destDBList,self.job,datasetMap=adderPlugin.datasetMap)
+                    else:
+                        cThr = Closer.Closer(self.taskBuffer,destDBList,self.job)
                     self.logger.debug("start Closer")
                     cThr.start()
                     cThr.join()

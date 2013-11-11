@@ -246,9 +246,9 @@ class JobSpec(object):
 
 
     # check if goint to merging
-    def toMerge(self):
+    def produceUnMerge(self):
         for tmpFile in self.Files:
-            if tmpFile.type in ['output','log'] and tmpFile.isMerging():
+            if tmpFile.isUnMergedOutput():
                 return True
         return False
 

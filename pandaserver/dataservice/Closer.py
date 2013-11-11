@@ -259,7 +259,7 @@ class Closer (threading.Thread):
             if ddmJobs != []:
                 self.taskBuffer.storeJobs(ddmJobs,self.job.prodUserID,joinThr=True)
             # update unmerged datasets in JEDI to trigger merging
-            if flagComplete and self.job.toMerge():
+            if flagComplete and self.job.produceUnMerge():
                 self.taskBuffer.updateUnmergedDatasets(self.job)
             # change pending jobs to failed
             if flagComplete and self.job.prodSourceLabel=='user':
