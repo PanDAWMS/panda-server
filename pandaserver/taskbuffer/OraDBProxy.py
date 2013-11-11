@@ -737,85 +737,18 @@ class DBProxy:
         nTry=3
         for iTry in range(nTry):
             try:
-                useJEDI = False
                 # begin transaction
                 if useCommit:
                     self.conn.begin()
-                # delete
-                varMap = {}
-                varMap[':PandaID'] = job.PandaID
-                if fromJobsDefined:
-                    varMap[':oldJobStatus1'] = 'assigned'
-                    varMap[':oldJobStatus2'] = 'defined'
-                self.cur.execute(sql1+comment, varMap)
-                n = self.cur.rowcount                
-                if n==0:
-                    # already killed
-                    _logger.debug("archiveJob : Not found %s" % job.PandaID)
-                else:
-                    # insert
-                    job.modificationTime = datetime.datetime.utcnow()
-                    job.stateChangeTime  = job.modificationTime                    
-                    if job.endTime == 'NULL':
-                        job.endTime = job.modificationTime
-                    self.cur.execute(sql2+comment, job.valuesMap())
-                    # update files
-                    for file in job.Files:
-                        sqlF = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % file.bindUpdateChangesExpression()) + "WHERE row_ID=:row_ID"
-                        varMap = file.valuesMap(onlyChanged=True)
-                        if varMap != {}:
-                            varMap[':row_ID'] = file.row_ID
-                            _logger.debug(sqlF+comment+str(varMap))
-                            self.cur.execute(sqlF+comment, varMap)
-                    # update metadata and parameters
-                    sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"                    
-                    sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
-                    sqlPMod = "UPDATE ATLAS_PANDA.jobParamsTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
-                    varMap = {}
-                    varMap[':PandaID'] = job.PandaID
-                    varMap[':modificationTime'] = job.modificationTime
-                    self.cur.execute(sqlFMod+comment,varMap)
-                    self.cur.execute(sqlMMod+comment,varMap)
-                    self.cur.execute(sqlPMod+comment,varMap)
-                    # increment the number of failed jobs in _dis
-                    myDisList = []
-                    if job.jobStatus == 'failed' and job.prodSourceLabel in ['managed','test']:
-                        for tmpFile in job.Files:
-                            if tmpFile.type == 'input' and not tmpFile.dispatchDBlock in ['','NULL',None] \
-                                   and not tmpFile.dispatchDBlock in myDisList:
-                                varMap = {}
-                                varMap[':name'] = tmpFile.dispatchDBlock
-                                # check currentfiles
-                                sqlGetCurFiles  = """SELECT /*+ BEGIN_OUTLINE_DATA """
-                                sqlGetCurFiles += """INDEX_RS_ASC(@"SEL$1" "TAB"@"SEL$1" ("DATASETS"."NAME")) """
-                                sqlGetCurFiles += """OUTLINE_LEAF(@"SEL$1") ALL_ROWS """
-                                sqlGetCurFiles += """OPTIMIZER_FEATURES_ENABLE('10.2.0.4') """
-                                sqlGetCurFiles += """IGNORE_OPTIM_EMBEDDED_HINTS """
-                                sqlGetCurFiles += """END_OUTLINE_DATA */ """
-                                sqlGetCurFiles += "currentfiles,vuid FROM ATLAS_PANDA.Datasets tab WHERE name=:name"
-                                self.cur.execute(sqlGetCurFiles+comment,varMap)
-                                resCurFiles = self.cur.fetchone()
-                                _logger.debug("archiveJob : %s %s" % (job.PandaID,str(resCurFiles)))
-                                if resCurFiles != None:
-                                    # increment currentfiles only for the first failed job since that is enough
-                                    tmpCurrentFiles,tmpVUID = resCurFiles
-                                    _logger.debug("archiveJob : %s %s currentfiles=%s" % (job.PandaID,tmpFile.dispatchDBlock,tmpCurrentFiles))
-                                    if tmpCurrentFiles == 0:
-                                        _logger.debug("archiveJob : %s %s update currentfiles" % (job.PandaID,tmpFile.dispatchDBlock))
-                                        varMap = {}
-                                        varMap[':vuid'] = tmpVUID
-                                        sqlFailedInDis  = 'UPDATE ATLAS_PANDA.Datasets '
-                                        sqlFailedInDis += 'SET currentfiles=currentfiles+1 WHERE vuid=:vuid'
-                                        self.cur.execute(sqlFailedInDis+comment,varMap)
-                                myDisList.append(tmpFile.dispatchDBlock)
-                    # collect to record state change
-                    updatedJobList.append(job)
-                    # update JEDI tables
-                    if hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and \
-                            job.lockedby == 'jedi' and self.checkTaskStatusJEDI(job.jediTaskID,self.cur):
-                        useJEDI = True
-                        self.propagateResultToJEDI(job,self.cur)
-                # delete downstream jobs
+                # check if JEDI is used
+                useJEDI = False
+                if hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and \
+                        job.lockedby == 'jedi' and self.checkTaskStatusJEDI(job.jediTaskID,self.cur):
+                    useJEDI = True
+                if useCommit:
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+                # delete downstream jobs first
                 ddmIDs     = []
                 newJob     = None
                 ddmAttempt = 0
@@ -843,6 +776,8 @@ class DBProxy:
                     sqlCloseSub += 'SET status=:status,modificationDate=CURRENT_DATE WHERE name=:name'
                     for upFile in upOutputs:
                         _logger.debug("look for downstream jobs for %s" % upFile)
+                        if useCommit:
+                            self.conn.begin()
                         # select PandaID
                         varMap = {}
                         varMap[':lfn']  = upFile
@@ -850,8 +785,22 @@ class DBProxy:
                         self.cur.arraysize = 100000
                         self.cur.execute(sqlD+comment, varMap)
                         res = self.cur.fetchall()
+                        if useCommit:
+                            if not self._commit():
+                                raise RuntimeError, 'Commit error'
+                        iDownJobs = 0
+                        nDownJobs = len(res)
+                        nDownChunk = 20
+                        inTransaction = False 
+                        _logger.debug("found {0} downstream jobs for {1}".format(nDownJobs,upFile))
+                        # loop over all downstream IDs
                         for downID, in res:
-                            _logger.debug("delete : %s" % downID)        
+                            if useCommit:
+                                if not inTransaction:
+                                    self.conn.begin()
+                                    inTransaction = True
+                            _logger.debug("delete : {0} ({1}/{2})".format(downID,iDownJobs,nDownJobs))
+                            iDownJobs += 1
                             # select jobs
                             varMap = {}
                             varMap[':PandaID'] = downID
@@ -859,6 +808,10 @@ class DBProxy:
                             self.cur.execute(sqlDJS+comment, varMap)
                             resJob = self.cur.fetchall()
                             if len(resJob) == 0:
+                                if useCommit and (iDownJobs % nDownChunk) == 0:
+                                    if not self._commit():
+                                        raise RuntimeError, 'Commit error'
+                                    inTransaction = False
                                 continue
                             # instantiate JobSpec
                             dJob = JobSpec()
@@ -869,6 +822,10 @@ class DBProxy:
                             self.cur.execute(sqlDJD+comment, varMap)
                             retD = self.cur.rowcount
                             if retD == 0:
+                                if useCommit and (iDownJobs % nDownChunk) == 0:
+                                    if not self._commit():
+                                        raise RuntimeError, 'Commit error'
+                                    inTransaction = False
                                 continue
                             # error code
                             dJob.jobStatus = 'cancelled'
@@ -910,6 +867,10 @@ class DBProxy:
                                 self.cur.execute(sqlGetSub+comment, varMap)
                                 resGetSub = self.cur.fetchall()
                                 if len(resGetSub) == 0:
+                                    if useCommit and (iDownJobs % nDownChunk) == 0:
+                                        if not self._commit():
+                                            raise RuntimeError, 'Commit error'
+                                        inTransaction = False
                                     continue
                                 # loop over all sub datasets
                                 for tmpDestinationDBlock, in resGetSub:
@@ -939,7 +900,16 @@ class DBProxy:
                                             _logger.debug("set %s for %s" % (varMap[':status'],topUserDsName))
                                             # append
                                             topUserDsList.append(topUserDsName)
+                            if useCommit and (iDownJobs % nDownChunk) == 0:
+                                if not self._commit():
+                                    raise RuntimeError, 'Commit error'
+                                inTransaction = False
+                        if useCommit and inTransaction:
+                            if not self._commit():
+                                raise RuntimeError, 'Commit error'
                 elif job.prodSourceLabel == 'ddm' and job.jobStatus == 'failed' and job.transferType=='dis':
+                    if useCommit:
+                        self.conn.begin()
                     # get corresponding jobs for production movers
                     vuid = ''
                     # extract vuid
@@ -1036,6 +1006,9 @@ class DBProxy:
                                 # get offset
                                 ddmAttempt = job.attemptNr
                                 _logger.debug("get PandaID for reassign : %s ddmAttempt=%s" % (str(ddmIDs),ddmAttempt))
+                    if useCommit:
+                        if not self._commit():
+                            raise RuntimeError, 'Commit error'
                 elif job.prodSourceLabel == 'ddm' and job.jobStatus == 'failed' and job.transferType=='ddm' and job.attemptNr<2 \
                          and job.commandToPilot != 'tobekilled':
                     # instantiate new mover to retry subscription
@@ -1065,6 +1038,80 @@ class DBProxy:
                         fileOL.dataset           = file.dataset
                         fileOL.type              = file.type
                         newJob.addFile(fileOL)
+                # delete to kill
+                if useCommit:
+                    self.conn.begin()
+                varMap = {}
+                varMap[':PandaID'] = job.PandaID
+                if fromJobsDefined:
+                    varMap[':oldJobStatus1'] = 'assigned'
+                    varMap[':oldJobStatus2'] = 'defined'
+                self.cur.execute(sql1+comment, varMap)
+                n = self.cur.rowcount                
+                if n==0:
+                    # already killed
+                    _logger.debug("archiveJob : Not found %s" % job.PandaID)
+                else:
+                    # insert
+                    job.modificationTime = datetime.datetime.utcnow()
+                    job.stateChangeTime  = job.modificationTime                    
+                    if job.endTime == 'NULL':
+                        job.endTime = job.modificationTime
+                    self.cur.execute(sql2+comment, job.valuesMap())
+                    # update files
+                    for file in job.Files:
+                        sqlF = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % file.bindUpdateChangesExpression()) + "WHERE row_ID=:row_ID"
+                        varMap = file.valuesMap(onlyChanged=True)
+                        if varMap != {}:
+                            varMap[':row_ID'] = file.row_ID
+                            _logger.debug(sqlF+comment+str(varMap))
+                            self.cur.execute(sqlF+comment, varMap)
+                    # update metadata and parameters
+                    sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"                    
+                    sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
+                    sqlPMod = "UPDATE ATLAS_PANDA.jobParamsTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
+                    varMap = {}
+                    varMap[':PandaID'] = job.PandaID
+                    varMap[':modificationTime'] = job.modificationTime
+                    self.cur.execute(sqlFMod+comment,varMap)
+                    self.cur.execute(sqlMMod+comment,varMap)
+                    self.cur.execute(sqlPMod+comment,varMap)
+                    # increment the number of failed jobs in _dis
+                    myDisList = []
+                    if job.jobStatus == 'failed' and job.prodSourceLabel in ['managed','test']:
+                        for tmpFile in job.Files:
+                            if tmpFile.type == 'input' and not tmpFile.dispatchDBlock in ['','NULL',None] \
+                                   and not tmpFile.dispatchDBlock in myDisList:
+                                varMap = {}
+                                varMap[':name'] = tmpFile.dispatchDBlock
+                                # check currentfiles
+                                sqlGetCurFiles  = """SELECT /*+ BEGIN_OUTLINE_DATA """
+                                sqlGetCurFiles += """INDEX_RS_ASC(@"SEL$1" "TAB"@"SEL$1" ("DATASETS"."NAME")) """
+                                sqlGetCurFiles += """OUTLINE_LEAF(@"SEL$1") ALL_ROWS """
+                                sqlGetCurFiles += """OPTIMIZER_FEATURES_ENABLE('10.2.0.4') """
+                                sqlGetCurFiles += """IGNORE_OPTIM_EMBEDDED_HINTS """
+                                sqlGetCurFiles += """END_OUTLINE_DATA */ """
+                                sqlGetCurFiles += "currentfiles,vuid FROM ATLAS_PANDA.Datasets tab WHERE name=:name"
+                                self.cur.execute(sqlGetCurFiles+comment,varMap)
+                                resCurFiles = self.cur.fetchone()
+                                _logger.debug("archiveJob : %s %s" % (job.PandaID,str(resCurFiles)))
+                                if resCurFiles != None:
+                                    # increment currentfiles only for the first failed job since that is enough
+                                    tmpCurrentFiles,tmpVUID = resCurFiles
+                                    _logger.debug("archiveJob : %s %s currentfiles=%s" % (job.PandaID,tmpFile.dispatchDBlock,tmpCurrentFiles))
+                                    if tmpCurrentFiles == 0:
+                                        _logger.debug("archiveJob : %s %s update currentfiles" % (job.PandaID,tmpFile.dispatchDBlock))
+                                        varMap = {}
+                                        varMap[':vuid'] = tmpVUID
+                                        sqlFailedInDis  = 'UPDATE ATLAS_PANDA.Datasets '
+                                        sqlFailedInDis += 'SET currentfiles=currentfiles+1 WHERE vuid=:vuid'
+                                        self.cur.execute(sqlFailedInDis+comment,varMap)
+                                myDisList.append(tmpFile.dispatchDBlock)
+                    # collect to record state change
+                    updatedJobList.append(job)
+                    # update JEDI tables
+                    if useJEDI:
+                        self.propagateResultToJEDI(job,self.cur)
                 # propagate successful result to unmerge job
                 if useJEDI and job.processingType == 'pmerge' and job.jobStatus == 'finished':
                     self.updateUnmergedJobs(job)

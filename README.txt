@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed archiveJob to delete downstream jobs in small chunks
   * changed for JEDI merging
   * fixed error message in TA 
   * changed pilotRetry to propagate changes to JEDI
