@@ -622,6 +622,14 @@ class UserIF:
         return pickle.dumps(ret)
 
 
+    # get list of cmtConfig
+    def getCmtConfigList(self,relaseVer):
+        # get
+        ret = self.taskBuffer.getCmtConfigList(relaseVer)
+        # serialize 
+        return pickle.dumps(ret)
+
+
     # get nPilots
     def getNumPilots(self):
         # get nPilots
@@ -1290,6 +1298,10 @@ def getCloudSpecs(req):
 # get list of cache prefix
 def getCachePrefixes(req):
     return userIF.getCachePrefixes()
+
+# get list of cmtConfig
+def getCmtConfigList(self,relaseVer):
+    return userIF.getCmtConfigList(relaseVer)
 
 # get client version
 def getPandaClientVer(req):

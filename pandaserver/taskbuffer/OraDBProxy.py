@@ -792,14 +792,14 @@ class DBProxy:
                         nDownJobs = len(res)
                         nDownChunk = 20
                         inTransaction = False 
-                        _logger.debug("found {0} downstream jobs for {1}".format(nDownJobs,upFile))
+                        _logger.debug("archiveJob : {0} found {1} downstream jobs for {2}".format(job.PandaID,nDownJobs,upFile))
                         # loop over all downstream IDs
                         for downID, in res:
                             if useCommit:
                                 if not inTransaction:
                                     self.conn.begin()
                                     inTransaction = True
-                            _logger.debug("delete : {0} ({1}/{2})".format(downID,iDownJobs,nDownJobs))
+                            _logger.debug("archiveJob : {0} delete : {1} ({2}/{3})".format(job.PandaID,downID,iDownJobs,nDownJobs))
                             iDownJobs += 1
                             # select jobs
                             varMap = {}
@@ -1125,6 +1125,7 @@ class DBProxy:
                         self.recordStatusChange(tmpJob.PandaID,tmpJob.jobStatus,jobInfo=tmpJob,useCommit=useCommit)
                 except:
                     _logger.error('recordStatusChange in archiveJob')
+                _logger.debug("archiveJob : %s done" % job.PandaID)                
                 return True,ddmIDs,ddmAttempt,newJob
             except:
                 # roll back
@@ -9521,6 +9522,39 @@ class DBProxy:
             self._rollback()
             type,value,traceBack = sys.exc_info()
             _logger.error("getCachePrefixes : %s %s" % (type,value))
+            return []
+
+
+    # get list of cmtConfig
+    def getCmtConfigList(self,relaseVer):
+        comment = ' /* DBProxy.getCmtConfigList */'        
+        try:
+            methodName = "getCmtConfigList"
+            _logger.debug("{0} for {1}".format(methodName,relaseVer))
+            # select
+            sql  = "SELECT distinct cmtConfig FROM ATLAS_PANDAMETA.installedSW WHERE release=:release"
+            # start transaction
+            self.conn.begin()
+            self.cur.arraysize = 10
+            # execute
+            varMap = {}
+            varMap[':release'] = relaseVer
+            self.cur.execute(sql+comment, varMap)
+            resList = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # append
+            tmpList = []
+            for tmpItem, in resList:
+                tmpList.append(tmpItem)
+            _logger.debug("{0} -> {1}".format(methodName,str(tmpList)))
+            return tmpList
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
             return []
 
 

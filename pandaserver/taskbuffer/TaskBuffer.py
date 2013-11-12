@@ -1981,6 +1981,18 @@ class TaskBuffer:
         return ret
 
 
+    # get list of cmtConfig
+    def getCmtConfigList(self,relaseVer):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # check
+        ret = proxy.getCmtConfigList(relaseVer)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
     # get pilot owners
     def getPilotOwners(self):
         # get DBproxy

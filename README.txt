@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added getCmtConfigList
   * fixed AdderGen not to repeat subscriptions
   * cleanup for JEDI merging
   * fixed archiveJob to delete downstream jobs in small chunks

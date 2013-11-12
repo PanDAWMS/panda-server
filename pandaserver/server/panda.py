@@ -59,7 +59,7 @@ from userinterface.UserIF        import submitJobs,getJobStatus,queryPandaIDs,ki
      getJobStatisticsWithLabel,getPandaIDwithJobExeID,getJobStatisticsPerUserSite,\
      getDisInUseForAnal,getLFNsInUseForAnal,getScriptOfflineRunning,setDebugMode,\
      insertSandboxFileInfo,checkSandboxFile,changeJobPriorities,insertTaskParams,\
-     killTask,finishTask
+     killTask,finishTask,getCmtConfigList
 allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reassignJobs',
                    'getJobStatistics','getJobStatisticsPerSite','resubmitJobs','queryLastFilesInDataset','getPandaIDsSite',
                    'getJobsToBeUpdated','updateProdDBUpdateTimes','runTaskAssignment','getAssigningTask','getSiteSpecs',
@@ -73,7 +73,7 @@ allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reass
                    'getJobStatisticsWithLabel','getPandaIDwithJobExeID','getJobStatisticsPerUserSite',
                    'getDisInUseForAnal','getLFNsInUseForAnal','getScriptOfflineRunning','setDebugMode',
                    'insertSandboxFileInfo','checkSandboxFile','changeJobPriorities','insertTaskParams',
-                   'killTask','finishTask']
+                   'killTask','finishTask','getCmtConfigList']
 
 # import error
 import taskbuffer.ErrorCode
