@@ -21,7 +21,8 @@ class JobSpec(object):
                    'jobExecutionID','VO','pilotTiming','workingGroup','processingType','prodUserName',
                    'nInputFiles','countryGroup','batchID','parentID','specialHandling','jobsetID',
                    'coreCount','nInputDataFiles','inputFileType','inputFileProject','inputFileBytes',
-                   'nOutputDataFiles','outputFileBytes','jobMetrics','workQueue_ID','jediTaskID')
+                   'nOutputDataFiles','outputFileBytes','jobMetrics','workQueue_ID','jediTaskID',
+                   'jobSubStatus')
     # slots
     __slots__ = _attributes+('Files','_changedAttrs')
     # attributes which have 0 by default
@@ -40,6 +41,7 @@ class JobSpec(object):
                     'brokerageErrorDiag'     : 250,
                     'pilotErrorDiag'         : 500,
                     'exeErrorDiag'           : 500,
+                    'jobSubStatus'           : 80,
                     }
 
 
@@ -252,3 +254,13 @@ class JobSpec(object):
                 return True
         return False
 
+
+
+    # truncate string attribute
+    def truncateStringAttr(cls,attr,val):
+        if not cls._limitLength.has_key(attr):
+            return val
+        if val == None:
+            return val
+        return val[:cls._limitLength[attr]]
+    truncateStringAttr = classmethod(truncateStringAttr)

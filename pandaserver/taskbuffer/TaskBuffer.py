@@ -2309,10 +2309,14 @@ class TaskBuffer:
         # query an SQL return Status  
         proxy = self.proxyPool.getProxy()
         # check user status
-        tmpStatus = proxy.checkBanUser(user,None)
-        if tmpStatus:
+        tmpStatus = proxy.checkBanUser(user,None,True)
+        if tmpStatus == True:
             # exec
             ret = proxy.insertTaskParamsPanda(taskParams,user,prodRole)
+        elif tmpStatus == 1:
+            ret = False,"Failed to update DN in PandaDB"
+        elif tmpStatus == 2:
+            ret = False,"Failed to insert user info to PandaDB"
         else:
             ret = False,"The following DN is banned: DN={0}".format(user)
         # release proxy

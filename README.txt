@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * changed checkBanUser to update DN
+  * added jobSubStatus
   * added getCmtConfigList
   * fixed AdderGen not to repeat subscriptions
   * cleanup for JEDI merging

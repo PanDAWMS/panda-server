@@ -1507,6 +1507,7 @@ class DBProxy:
         presetEndTime = False
         for key in param.keys():
             if param[key] != None:
+                param[key] = JobSpec.truncateStringAttr(key,param[key])
                 sql1 += ',%s=:%s' % (key,key)
                 varMap[':%s' % key] = param[key]
                 if key == 'endTime':
@@ -9840,17 +9841,19 @@ class DBProxy:
 
         
     # check ban user
-    def checkBanUser(self,dn,sourceLabel):
+    def checkBanUser(self,dn,sourceLabel,jediCheck=False):
         comment = ' /* DBProxy.checkBanUser */'                            
-        _logger.debug("checkBanUser %s %s" % (dn,sourceLabel))
         try:
+            methodName = "checkBanUser"
             # set initial values
             retStatus = True
+            name = self.cleanUserID(dn)
+            methodName += ' {0}'.format(name)
+            _logger.debug("{0} start dn={1} label={2} jediCheck={3}".format(methodName,dn,sourceLabel,jediCheck))
             # set autocommit on
             self.conn.begin()
             # select
-            name = self.cleanUserID(dn)
-            sql = "SELECT status FROM ATLAS_PANDAMETA.users WHERE name=:name"
+            sql = "SELECT status,dn FROM ATLAS_PANDAMETA.users WHERE name=:name"
             varMap = {}
             varMap[':name'] = name
             self.cur.execute(sql+comment,varMap)
@@ -9858,19 +9861,46 @@ class DBProxy:
             res = self.cur.fetchone()            
             if res != None:
                 # check status
-                tmpStatus, = res
+                tmpStatus,dnInDB = res
                 if tmpStatus in ['disabled']:
                     retStatus = False
+                elif jediCheck and (dnInDB in ['',None] or dnInDB != dn): 
+                    # add DN
+                    sqlUp  = "UPDATE ATLAS_PANDAMETA.users SET dn=:dn WHERE name=:name "
+                    varMap = {}
+                    varMap[':name'] = name
+                    varMap[':dn']   = dn
+                    self.cur.execute(sqlUp+comment,varMap)
+                    retI = self.cur.rowcount
+                    _logger.debug("{0} update DN with Status={1}".format(methodName,retI))
+                    if retI != 1:
+                        retStatus = 1
+            else:
+                # new user
+                if jediCheck:
+                    name = self.cleanUserID(dn)
+                    sqlAdd  = "INSERT INTO ATLAS_PANDAMETA.users "
+                    sqlAdd += "(ID,NAME,DN,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
+                    sqlAdd += "VALUES(ATLAS_PANDAMETA.USERS_ID_SEQ.nextval,:name,:dn,"
+                    sqlAdd += "CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,0,1) "
+                    varMap = {}
+                    varMap[':name'] = name
+                    varMap[':dn']   = dn
+                    self.cur.execute(sqlAdd+comment,varMap)
+                    retI = self.cur.rowcount
+                    _logger.debug("{0} inserted new row with Status={1}".format(methodName,retI))
+                    if retI != 1:
+                        retStatus = 2
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
-            _logger.debug("checkBanUser %s %s Status=%s" % (dn,sourceLabel,retStatus))
+            _logger.debug("{0} done with Status={1}".format(methodName,retStatus))
             return retStatus
         except:
-            errType,errValue = sys.exc_info()[:2]
-            _logger.error("checkBanUser %s %s : %s %s" % (dn,sourceLabel,errType,errValue))
             # roll back
             self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
             return retStatus
 
         
@@ -11249,7 +11279,8 @@ class DBProxy:
             cur.execute(sql+comment,varMap)
             res = cur.fetchone()
             if res != None:
-                if res[0] in ['ready','running','scouting','pending']:
+                if res[0] in ['ready','running','scouting','pending',
+                              'topreprocess','preprocessing']:
                     retVal = True
         _logger.debug('checkTaskStatusJEDI jediTaskID=%s with %s' % (jediTaskID,retVal))            
         return retVal
@@ -11393,7 +11424,7 @@ class DBProxy:
             # decode json
             taskParamsJson = json.loads(taskParams)
             # set user name and task type
-            taskParamsJson['userName'] = dn
+            taskParamsJson['userName'] = compactDN
             if not prodRole:
                 taskParamsJson['taskType']   = 'anal'
                 taskParamsJson['taskPriority'] = 1000
