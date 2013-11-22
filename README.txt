@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed brokerage for analysis with nightlies
   * changed checkBanUser to update DN
   * added jobSubStatus
   * added getCmtConfigList
