@@ -774,6 +774,8 @@ class DBProxy:
                     sqlGetSub = "SELECT DISTINCT destinationDBlock FROM ATLAS_PANDA.filesTable4 WHERE type=:type AND PandaID=:PandaID"
                     sqlCloseSub  = 'UPDATE /*+ INDEX_RS_ASC(TAB("DATASETS"."NAME")) */ ATLAS_PANDA.Datasets tab '
                     sqlCloseSub += 'SET status=:status,modificationDate=CURRENT_DATE WHERE name=:name'
+                    sqlDFile = "SELECT %s FROM ATLAS_PANDA.filesTable4 " % FileSpec.columnNames()
+                    sqlDFile+= "WHERE PandaID=:PandaID"
                     for upFile in upOutputs:
                         _logger.debug("look for downstream jobs for %s" % upFile)
                         if useCommit:
@@ -854,6 +856,16 @@ class DBProxy:
                             updatedJobList.append(dJob)
                             # update JEDI tables
                             if useJEDI:
+                                # read files
+                                varMap = {}
+                                varMap[':PandaID'] = downID
+                                self.cur.arraysize = 100000
+                                self.cur.execute(sqlDFile+comment,varMap)
+                                resDFiles = self.cur.fetchall()
+                                for resDFile in resDFiles:
+                                    tmpDFile = FileSpec()
+                                    tmpDFile.pack(resDFile)
+                                    dJob.addFile(tmpDFile)
                                 self.propagateResultToJEDI(dJob,self.cur)
                             # set tobeclosed to sub datasets
                             if not toBeClosedSubList.has_key(dJob.jobDefinitionID):

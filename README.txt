@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * fixed archiveJob to propagate the result of downstream jobs to JEDI
+  * removed direct LFC dependence
   * fixed brokerage for analysis with nightlies
   * changed checkBanUser to update DN
   * added jobSubStatus

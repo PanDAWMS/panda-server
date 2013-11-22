@@ -10,43 +10,40 @@ EC_LFC           = 80
 
 # import lfc api
 try:
-    import lfc
+    import dq2.filecatalog
 except:
-    print "ERROR : could not import lfc"
+    print "ERROR : could not import dq2.filecatalog"
     sys.exit(EC_LFC)
 
 
 # get files from LFC
 def _getFilesLFC(files,lfcHost,storages,verbose=False):
-    # randomly resolve DNS alias
-    if lfcHost in ['prod-lfc-atlas.cern.ch']:
-        lfcHost = random.choice(socket.gethostbyname_ex(lfcHost)[2])
-    # set LFC HOST
-    os.environ['LFC_HOST'] = lfcHost
-    # timeout
-    os.environ['LFC_CONNTIMEOUT'] = '60'
-    os.environ['LFC_CONRETRY']    = '2'
-    os.environ['LFC_CONRETRYINT'] = '6'
-    # get PFN
-    iGUID = 0
-    nGUID = 1000
-    pfnMap   = {}
-    listGUID = []
-    for guid in files.keys():
-        if verbose:
-            sys.stdout.write('.')
-            sys.stdout.flush()
-        iGUID += 1
-        listGUID.append(guid)
-        if iGUID % nGUID == 0 or iGUID == len(files):
-            # get replica
-            ret,resList = lfc.lfc_getreplicas(listGUID,'')
-            if ret == 0:
-                for fr in resList:
-                    if fr != None and ((not hasattr(fr,'errcode')) or \
-                                       (hasattr(fr,'errcode') and fr.errcode == 0)):
+    if ':' in lfcHost:
+        catStr = 'lfc://%s/grid/atlas' % lfcHost
+    else:
+        catStr = 'lfc://%s:/grid/atlas' % lfcHost
+    try:
+        # connect
+        apiLFC = dq2.filecatalog.create_file_catalog(catStr)
+        apiLFC.connect()
+        # get PFN
+        iGUID = 0
+        nGUID = 1000
+        pfnMap   = {}
+        listGUID = {}
+        for guid,tmpLFN in files.iteritems():
+            if verbose:
+                sys.stdout.write('.')
+                sys.stdout.flush()
+            iGUID += 1
+            listGUID[guid] = tmpLFN
+            if iGUID % nGUID == 0 or iGUID == len(files):
+                # get replica
+                resReplicas = apiLFC.bulkFindReplicas(listGUID)
+                for retGUID,resValMap in resReplicas.iteritems():
+                    for retSURL in resValMap['surls']:
                         # get host
-                        match = re.search('^[^:]+://([^:/]+):*\d*/',fr.sfn)
+                        match = re.search('^[^:]+://([^:/]+):*\d*/',retSURL)
                         if match==None:
                             continue
                         # check host
@@ -54,14 +51,17 @@ def _getFilesLFC(files,lfcHost,storages,verbose=False):
                         if storages != [] and (not host in storages):
                             continue
                         # append
-                        if not pfnMap.has_key(fr.guid):
-                            pfnMap[fr.guid] = []
-                        pfnMap[fr.guid].append(fr.sfn)
-            else:
-                print "ERROR : %s" % lfc.sstrerror(lfc.cvar.serrno)
-                sys.exit(EC_LFC)
-            # reset                        
-            listGUID = []
+                        if not pfnMap.has_key(retGUID):
+                            pfnMap[retGUID] = []
+                        pfnMap[retGUID].append(retSURL)
+                # reset                        
+                listGUID = {}
+        # disconnect
+        apiLFC.disconnect()
+    except:
+        errType,errValue = sys.exc_info()[:2]
+        print "ERROR: %s:%s" % (errType,errValue)
+        sys.exit(EC_LFC)
     # collect LFNs
     retLFNs = {}
     for guid,lfn in files.iteritems():
