@@ -202,7 +202,6 @@ def main(backGround=False):
         # instantiate sitemapper
         siteMapper = SiteMapper(taskBuffer)
         # ActiveMQ params
-        clientid = 'PANDA-' + socket.getfqdn()
         queue = '/queue/Consumer.PANDA.atlas.ddm.siteservices'
         ssl_opts = {'use_ssl' : True,
                     'ssl_cert_file' : certName,
@@ -212,7 +211,8 @@ def main(backGround=False):
         # set listener
         for tmpBroker in brokerList:
             try:
-                _logger.debug('setting listener on %s' % tmpBroker)                
+                clientid = 'PANDA-' + socket.getfqdn() + '-' + tmpBroker
+                _logger.debug('setting listener %s' % clientid)
                 conn = stomp.Connection(host_and_ports = [(tmpBroker, 6162)], **ssl_opts)
                 conn.set_listener('FileCallbackListener', FileCallbackListener(conn,taskBuffer,siteMapper))
                 conn.start()
@@ -221,6 +221,7 @@ def main(backGround=False):
                                #,headers = {'selector':"cbtype='FileDoneMessage'"})
                 if not conn.is_connected():
                     _logger.error("connection failure to %s" % tmpBroker)
+                _logger.debug('listener %s is up and running' % clientid)
             except:     
                 errtype,errvalue = sys.exc_info()[:2]
                 _logger.error("failed to set listener on %s : %s %s" % (tmpBroker,errtype,errvalue))

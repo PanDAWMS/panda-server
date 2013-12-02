@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed file callback to connect multiple MB backends
   * fixed archiveJob to propagate the result of downstream jobs to JEDI
   * removed direct LFC dependence
   * fixed brokerage for analysis with nightlies
