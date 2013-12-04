@@ -73,12 +73,10 @@ class TaskBuffer:
                     withProdRole,workingGroup = False,None
                     break
         # set high prioryty for production role
-        """        
-        if withProdRole:
+        if withProdRole and workingGroup in ['det-tile']:
             serNum = 0
             weight = 0.0
             priorityOffset = 2000
-        """    
         # reset nJob/weight for HC   
         if jobs[0].processingType in ['hammercloud','gangarobot','hammercloud-fax'] \
                or jobs[0].processingType.startswith('gangarobot-'):

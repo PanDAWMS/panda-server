@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * increased priorities for det-tile
   * fixed file callback to connect multiple MB backends
   * fixed archiveJob to propagate the result of downstream jobs to JEDI
   * removed direct LFC dependence
