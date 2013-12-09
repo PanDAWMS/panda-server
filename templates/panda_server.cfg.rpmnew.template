@@ -125,8 +125,17 @@ dump_sql = False
 # Panda server parameters
 #
 
-# port
+# port for https
 pserverport = 25443
+
+# port for http
+pserverporthttp = 25080
+
+# port for cache
+pserverportcache = 25085
+
+# alias
+pserveralias = pandaserver.cern.ch
 
 
 

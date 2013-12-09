@@ -43,8 +43,10 @@ allowedMethods += ['isAlive','putFile','deleteFile','getServer','updateLog','fet
 from dataservice.DataService     import datasetCompleted,updateFileStatusInDisp
 allowedMethods += ['datasetCompleted','updateFileStatusInDisp']
 
-from jobdispatcher.JobDispatcher import getJob,updateJob,getStatus,genPilotToken
-allowedMethods += ['getJob','updateJob','getStatus','genPilotToken']
+from jobdispatcher.JobDispatcher import getJob,updateJob,getStatus,genPilotToken,\
+    getEventRanges,updateEventRange
+allowedMethods += ['getJob','updateJob','getStatus','genPilotToken',
+                   'getEventRanges','updateEventRange']
 
 from userinterface.UserIF        import submitJobs,getJobStatus,queryPandaIDs,killJobs,reassignJobs,\
      getJobStatistics,getJobStatisticsPerSite,resubmitJobs,queryLastFilesInDataset,getPandaIDsSite,\
@@ -59,7 +61,8 @@ from userinterface.UserIF        import submitJobs,getJobStatus,queryPandaIDs,ki
      getJobStatisticsWithLabel,getPandaIDwithJobExeID,getJobStatisticsPerUserSite,\
      getDisInUseForAnal,getLFNsInUseForAnal,getScriptOfflineRunning,setDebugMode,\
      insertSandboxFileInfo,checkSandboxFile,changeJobPriorities,insertTaskParams,\
-     killTask,finishTask,getCmtConfigList
+     killTask,finishTask,getCmtConfigList,getJediTasksInTimeRange,getJediTaskDetails,\
+     retryTask
 allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reassignJobs',
                    'getJobStatistics','getJobStatisticsPerSite','resubmitJobs','queryLastFilesInDataset','getPandaIDsSite',
                    'getJobsToBeUpdated','updateProdDBUpdateTimes','runTaskAssignment','getAssigningTask','getSiteSpecs',
@@ -73,7 +76,8 @@ allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reass
                    'getJobStatisticsWithLabel','getPandaIDwithJobExeID','getJobStatisticsPerUserSite',
                    'getDisInUseForAnal','getLFNsInUseForAnal','getScriptOfflineRunning','setDebugMode',
                    'insertSandboxFileInfo','checkSandboxFile','changeJobPriorities','insertTaskParams',
-                   'killTask','finishTask','getCmtConfigList']
+                   'killTask','finishTask','getCmtConfigList','getJediTasksInTimeRange','getJediTaskDetails',
+                   'retryTask']
 
 # import error
 import taskbuffer.ErrorCode

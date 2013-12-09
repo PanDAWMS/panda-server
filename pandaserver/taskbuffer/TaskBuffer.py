@@ -2015,12 +2015,24 @@ class TaskBuffer:
         return ret
 
 
+    # get sites with glexec
+    def getGlexecSites(self):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get sites with glexec
+        ret = proxy.getGlexecSites()
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
     # get email address
-    def getEmailAddr(self,name):
+    def getEmailAddr(self,name,withDN=False):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get 
-        ret = proxy.getEmailAddr(name)
+        ret = proxy.getEmailAddr(name,withDN)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -2303,14 +2315,14 @@ class TaskBuffer:
 
 
     # insert TaskParams
-    def insertTaskParamsPanda(self,taskParams,user,prodRole):
+    def insertTaskParamsPanda(self,taskParams,user,prodRole,fqans=[]):
         # query an SQL return Status  
         proxy = self.proxyPool.getProxy()
         # check user status
         tmpStatus = proxy.checkBanUser(user,None,True)
         if tmpStatus == True:
             # exec
-            ret = proxy.insertTaskParamsPanda(taskParams,user,prodRole)
+            ret = proxy.insertTaskParamsPanda(taskParams,user,prodRole,fqans)
         elif tmpStatus == 1:
             ret = False,"Failed to update DN in PandaDB"
         elif tmpStatus == 2:
@@ -2324,11 +2336,11 @@ class TaskBuffer:
 
 
     # send command to task
-    def sendCommandTaskPanda(self,jediTaskID,dn,prodRole,comStr):
+    def sendCommandTaskPanda(self,jediTaskID,dn,prodRole,comStr,comComment=None,useCommit=True):
         # query an SQL return Status  
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.sendCommandTaskPanda(jediTaskID,dn,prodRole,comStr)
+        ret = proxy.sendCommandTaskPanda(jediTaskID,dn,prodRole,comStr,comComment,useCommit)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -2341,6 +2353,75 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # exec
         ret = proxy.updateUnmergedDatasets(job)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
+    # get active JediTasks in a time range
+    def getJediTasksInTimeRange(self,dn,timeRangeStr):
+        # check DN
+        if dn in ['NULL','','None',None]:
+            return {}
+        # check timeRange
+        match = re.match('^(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)$',timeRangeStr)
+        if match == None:
+            return {}
+        timeRange = datetime.datetime(year   = int(match.group(1)),
+                                      month  = int(match.group(2)),
+                                      day    = int(match.group(3)),
+                                      hour   = int(match.group(4)),
+                                      minute = int(match.group(5)),
+                                      second = int(match.group(6)))
+        # max range is 3 months
+        maxRange = datetime.datetime.utcnow() - datetime.timedelta(days=30)
+        if timeRange < maxRange:
+            timeRange = maxRange
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getJediTasksInTimeRange(dn,timeRange)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
+    # get details of JediTask
+    def getJediTaskDetails(self,jediTaskID,fullFlag,withTaskInfo):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getJediTaskDetails(jediTaskID,fullFlag,withTaskInfo)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
+    # get a list of even ranges for a PandaID
+    def getEventRanges(self,pandaID,nRanges):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getEventRanges(pandaID,nRanges)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
+    # get a list of even ranges for a PandaID
+    def updateEventRange(self,eventRangeID,attemptNr,eventStatus):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.updateEventRange(eventRangeID,attemptNr,eventStatus)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

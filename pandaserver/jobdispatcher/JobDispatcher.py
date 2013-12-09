@@ -39,6 +39,49 @@ class _TimedMethod:
         thr.join() #self.timeout)
 
 
+
+# cached object
+class CachedObject:
+    # constructor
+    def __init__(self,timeInterval,updateFunc):
+        # cached object
+        self.cachedObj = None
+        # datetime of last updated
+        self.lastUpdated = datetime.datetime.utcnow()
+        # how frequently update DN/token map
+        self.timeInterval = datetime.timedelta(seconds=timeInterval)
+        # lock
+        self.lock = Lock()
+        # function to update object
+        self.updateFunc = updateFunc
+
+
+    # update obj
+    def update(self):
+        # get current datetime
+        current = datetime.datetime.utcnow()
+        # lock
+        self.lock.acquire()
+        # update if old
+        if self.cachedObj == None or current-self.lastUpdated > self.timeInterval:
+            self.cachedObj = self.updateFunc()
+            self.lastUpdated = current
+        # release
+        self.lock.release()
+        # return
+        return 
+    
+
+    # contains
+    def __contains__(self,item):
+        try:
+            self.update()
+            return item in self.cachedObj
+        except:
+            return False
+
+
+
 # job dipatcher
 class JobDipatcher:
     # constructor
@@ -55,6 +98,8 @@ class JobDipatcher:
         self.pilotOwners = None
         # hostnames for authorization at grid-free sites
         self.allowedNodes = None
+        # sites with glexec
+        self.glexecSites = None
         # lock
         self.lock = Lock()
 
@@ -75,13 +120,17 @@ class JobDipatcher:
         # get allowed nodes
         if self.allowedNodes == None:
             self.allowedNodes = self.taskBuffer.getAllowedNodes()
+        # sites with glexec
+        if self.glexecSites == None:
+            self.glexecSites = CachedObject(60*10,self.taskBuffer.getGlexecSites)
         # release
         self.lock.release()
         
 
     # get job
     def getJob(self,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-               atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry):
+               atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry,
+               useGLEXEC):
         jobs = []
         # wrapper function for timeout
         tmpWrapper = _TimedMethod(self.taskBuffer.getJobs,timeout)
@@ -104,6 +153,12 @@ class JobDipatcher:
             # set proxy key
             if getProxyKey:
                 response.setProxyKey(proxyKey)
+            # set proxy
+            if useGLEXEC:
+                tmpStat,tmpOut = response.setUserProxy()
+                if not tmpStat:
+                    _logger.warning("getJob : %s %s failed to get user proxy : %s" % (siteName,node,
+                                                                                      tmpOut))
         else:
             if tmpWrapper.result == Protocol.TimeOutToken:
                 # timeout
@@ -205,7 +260,49 @@ class JobDipatcher:
             else:
                 # failed
                 response=Protocol.Response(Protocol.SC_Failed)
-        _logger.debug("getStatus : %s ret -> %s" % (strIDs,response.encode()))                
+        _logger.debug("getStatus : %s ret -> %s" % (strIDs,response.encode()))
+        return response.encode()
+
+
+    # get a list of even ranges for a PandaID
+    def getEventRanges(self,pandaID,nRanges,timeout):
+        # peek jobs
+        tmpWrapper = _TimedMethod(self.taskBuffer.getEventRanges,timeout)
+        tmpWrapper.run(pandaID,nRanges)
+        # make response
+        if tmpWrapper.result == Protocol.TimeOutToken:
+            # timeout
+            response=Protocol.Response(Protocol.SC_TimeOut)
+        else:
+            if isinstance(tmpWrapper.result,types.StringType):
+                # succeed
+                response=Protocol.Response(Protocol.SC_Success)
+                # make return
+                response.appendNode('eventRanges',tmpWrapper.result)
+            else:
+                # failed
+                response=Protocol.Response(Protocol.SC_Failed)
+        _logger.debug("getEventRanges : %s ret -> %s" % (pandaID,response.encode()))
+        return response.encode()
+
+
+    # update an event range
+    def updateEventRange(self,eventRangeID,attemptNr,eventStatus,timeout):
+        # peek jobs
+        tmpWrapper = _TimedMethod(self.taskBuffer.updateEventRange,timeout)
+        tmpWrapper.run(eventRangeID,attemptNr,eventStatus)
+        # make response
+        if tmpWrapper.result == Protocol.TimeOutToken:
+            # timeout
+            response=Protocol.Response(Protocol.SC_TimeOut)
+        else:
+            if tmpWrapper.result:
+                # succeed
+                response=Protocol.Response(Protocol.SC_Success)
+            else:
+                # failed
+                response=Protocol.Response(Protocol.SC_Failed)
+        _logger.debug("updateEventRange : %s/%s ret -> %s" % (eventRangeID,attemptNr,response.encode()))
         return response.encode()
 
 
@@ -356,6 +453,12 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
     realDN = _getDN(req)
     # get FQANs
     fqans = _getFQAN(req)
+    # check if glexec is used
+    useGLEXEC = False
+    if siteName in jobDispatcher.glexecSites:
+        # FIXME
+        #useGLEXEC = True
+        pass
     # check production role
     if getProxyKey == 'True':
         # don't use /atlas to prevent normal proxy getting credname
@@ -386,10 +489,10 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
             diskSpace = 0
     except:
         diskSpace = 0        
-    _logger.debug("getJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s)" \
+    _logger.debug("getJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,DN:%s,role:%s,token:%s,val:%s,glexec:%s,FQAN:%s)" \
                   % (siteName,cpu,mem,diskSpace,prodSourceLabel,node,
                      computingElement,AtlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,
-                     allowOtherCountry,realDN,prodManager,token,validToken,str(fqans)))
+                     allowOtherCountry,realDN,prodManager,token,validToken,useGLEXEC,str(fqans)))
     _pilotReqLogger.info('method=getJob,site=%s,node=%s,type=%s' % (siteName,node,prodSourceLabel))    
     # invalid role
     if (not prodManager) and (not prodSourceLabel in ['user']):
@@ -402,7 +505,7 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
     # invoke JD
     return jobDispatcher.getJob(siteName,prodSourceLabel,cpu,mem,diskSpace,node,int(timeout),
                                 computingElement,AtlasRelease,prodUserID,getProxyKey,countryGroup,
-                                workingGroup,allowOtherCountry)
+                                workingGroup,allowOtherCountry,useGLEXEC)
     
 
 # update job status
@@ -523,6 +626,18 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
 def getStatus(req,ids,timeout=60):
     _logger.debug("getStatus(%s)" % ids)
     return jobDispatcher.getStatus(ids,int(timeout))
+
+
+# get a list of even ranges for a PandaID
+def getEventRanges(req,pandaID,nRanges=10,timeout=60):
+    _logger.debug("getEventRanges(%s)" % pandaID)
+    return jobDispatcher.getEventRanges(pandaID,nRanges,int(timeout))
+
+
+# update an event range
+def updateEventRange(req,eventRangeID,attemptNr,eventStatus,timeout=60):
+    _logger.debug("updateEventRange(%s/%s)" % (eventRangeID,attemptNr))
+    return jobDispatcher.updateEventRange(eventRangeID,attemptNr,eventStatus,int(timeout))
 
 
 # generate pilot token

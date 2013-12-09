@@ -782,6 +782,22 @@ class UserIF:
         return pickle.dumps(ret)
 
 
+    # get active JediTasks in a time range
+    def getJediTasksInTimeRange(self,dn,timeRange):
+        # get IDs
+        ret = self.taskBuffer.getJediTasksInTimeRange(dn,timeRange)
+        # serialize 
+        return pickle.dumps(ret)
+
+
+    # get details of JediTask
+    def getJediTaskDetails(self,jediTaskID,fullFlag,withTaskInfo):
+        # get IDs
+        ret = self.taskBuffer.getJediTaskDetails(jediTaskID,fullFlag,withTaskInfo)
+        # serialize 
+        return pickle.dumps(ret)
+
+
     # get PandaIDs for a JobID
     def getPandIDsWithJobID(self,dn,jobID,nJobs):
         # get IDs
@@ -866,6 +882,15 @@ class UserIF:
         ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'finish')
         # return
         return ret
+
+
+    # retry task
+    def retryTask(self,jediTaskID,user,prodRole):
+        # retry
+        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'retry')
+        # return
+        return ret
+
 
 
 # Singleton
@@ -1473,6 +1498,43 @@ def getJobIDsInTimeRange(req,timeRange,dn=None):
     return userIF.getJobIDsInTimeRange(dn,timeRange)
 
 
+# get active JediTasks in a time range
+def getJediTasksInTimeRange(req,timeRange,dn=None):
+    # check security
+    if not isSecure(req):
+        return False
+    # get DN
+    if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        return False
+    if dn == None:
+        dn = _getDN(req)
+    _logger.debug("getJediTasksInTimeRange %s %s" % (dn,timeRange))
+    # execute
+    return userIF.getJediTasksInTimeRange(dn,timeRange)
+
+
+# get details of JediTask
+def getJediTaskDetails(req,jediTaskID,fullFlag,withTaskInfo):
+    # check security
+    if not isSecure(req):
+        return False
+    # get DN
+    if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        return False
+    # option
+    if fullFlag == 'True':
+        fullFlag = True
+    else:
+        fullFlag = False
+    if withTaskInfo == 'True':
+        withTaskInfo = True
+    else:
+        withTaskInfo = False
+    _logger.debug("getJediTaskDetails %s %s %s" % (jediTaskID,fullFlag,withTaskInfo))
+    # execute
+    return userIF.getJediTaskDetails(jediTaskID,fullFlag,withTaskInfo)
+
+
 # get PandaIDs for a JobID
 def getPandIDsWithJobID(req,jobID,nJobs,dn=None):
     # check security
@@ -1634,8 +1696,6 @@ def killTask(req,jediTaskID=None):
         user = _getDN(req)        
     # check role
     prodRole = _isProdRoleATLAS(req)
-    if not prodRole:
-        return pickle.dumps((False,'production role is required'))
     # check jediTaskID
     try:
         jediTaskID = long(jediTaskID)
@@ -1646,7 +1706,28 @@ def killTask(req,jediTaskID=None):
 
 
 
-# finish task
+# retry task
+def retryTask(req,jediTaskID):
+    # check security
+    if not isSecure(req):
+        return pickle.dumps((False,'secure connection is required'))
+    # get DN
+    user = None
+    if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        user = _getDN(req)        
+    # check role
+    prodRole = _isProdRoleATLAS(req)
+    # check jediTaskID
+    try:
+        jediTaskID = long(jediTaskID)
+    except:
+        return pickle.dumps((False,'jediTaskID must be an integer'))        
+    ret = userIF.retryTask(jediTaskID,user,prodRole)
+    return pickle.dumps(ret)
+
+
+
+# retry task
 def finishTask(req,jediTaskID=None):
     # check security
     if not isSecure(req):
@@ -1657,8 +1738,6 @@ def finishTask(req,jediTaskID=None):
         user = _getDN(req)        
     # check role
     prodRole = _isProdRoleATLAS(req)
-    if not prodRole:
-        return pickle.dumps((False,'production role is required'))
     # check jediTaskID
     try:
         jediTaskID = long(jediTaskID)

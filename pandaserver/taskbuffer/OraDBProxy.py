@@ -276,6 +276,22 @@ class DBProxy:
                 # set maxAttempt to have server/pilot retries for retried jobs
                 if job.maxAttempt <= job.attemptNr:    
                     job.maxAttempt = job.attemptNr + 2    
+        # event service
+        eventServiceInfo = {}
+        esHeader = 'es:'
+        newSpecialHandling = ''
+        try:
+            for tmpItem in job.specialHandling.split(','):
+                if tmpItem.startswith(esHeader):
+                    tmpItem = re.sub('^'+esHeader,'',tmpItem)
+                    esLFN,esEvents,esRange = tmpItem.split('/')
+                    eventServiceInfo[esLFN] = {'nEvents':long(esEvents),
+                                               'nEventsPerRange':long(esRange)}
+                else:
+                    newSpecialHandling += '{0},'.format(tmpItem)
+            job.specialHandling = newSpecialHandling[:-1]
+        except:
+            pass
         try:
             # begin transaction
             self.conn.begin()
@@ -326,6 +342,9 @@ class DBProxy:
                 file.resetChangedList()
                 # update JEDI table
                 if useJEDI:
+                    # skip if no JEDI
+                    if file.fileID == 'NULL':
+                        continue
                     # update Dataset_Contents table
                     varMap = {}
                     varMap[':fileID'] = file.fileID
@@ -335,10 +354,32 @@ class DBProxy:
                     varMap[':datasetID'] = file.datasetID
                     varMap[':keepTrack'] = 1
                     varMap[':jediTaskID'] = file.jediTaskID
-                    sqlJediFile  = "UPDATE ATLAS_PANDA.JEDI_Dataset_Contents SET status=:status "
+                    varMap[':PandaID'] = file.PandaID
+                    sqlJediFile  = "UPDATE ATLAS_PANDA.JEDI_Dataset_Contents SET status=:status,PandaID=:PandaID "
                     sqlJediFile += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                     sqlJediFile += "AND attemptNr=:attemptNr AND status=:oldStatus AND keepTrack=:keepTrack "
                     self.cur.execute(sqlJediFile+comment, varMap)
+                    # insert event tables
+                    if file.lfn in eventServiceInfo:
+                        sqlJediEvent  = "INSERT INTO {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+                        sqlJediEvent += "(jediTaskID,PandaID,fileID,attemptNr,job_processID,def_min_eventID,def_max_eventID,processed_upto_eventID) "
+                        sqlJediEvent += "VALUES(:jediTaskID,:pandaID,:fileID,:attemptNr,:startEvent,:startEvent,:lastEvent,:eventStatus) "
+                        iEvent = 1
+                        while iEvent < eventServiceInfo[file.lfn]['nEvents']:
+                            varMap = {}
+                            varMap[':jediTaskID'] = file.jediTaskID
+                            varMap[':pandaID'] = file.PandaID
+                            varMap[':fileID'] = file.fileID
+                            varMap[':attemptNr'] = 1
+                            varMap[':eventStatus'] = 0
+                            varMap[':startEvent'] = iEvent
+                            lastEvent = iEvent + eventServiceInfo[file.lfn]['nEventsPerRange']
+                            lastEvent -= 1
+                            if lastEvent > eventServiceInfo[file.lfn]['nEvents']:
+                                lastEvent = eventServiceInfo[file.lfn]['nEvents']
+                            varMap[':lastEvent'] = lastEvent
+                            iEvent = lastEvent + 1
+                            self.cur.execute(sqlJediEvent+comment, varMap)
             # metadata
             if job.prodSourceLabel in ['user','panda'] and job.metadata != '':
                 sqlMeta = "INSERT INTO ATLAS_PANDA.metaTable (PandaID,metaData) VALUES (:PandaID,:metaData)"
@@ -3953,10 +3994,11 @@ class DBProxy:
                 else:
                     sql  = "SELECT jobDefinitionID FROM %s " % table                    
                 sql += "WHERE prodUserName=:prodUserName AND modificationTime>:modificationTime "
-                sql += "AND prodSourceLabel=:prodSourceLabel GROUP BY jobDefinitionID"
+                sql += "AND prodSourceLabel=:prodSourceLabel AND lockedBy<>:ngLock GROUP BY jobDefinitionID"
                 varMap = {}
                 varMap[':prodUserName'] = compactDN
                 varMap[':prodSourceLabel']  = 'user'
+                varMap[':ngLock'] = 'jedi'
                 varMap[':modificationTime'] = timeRange
                 # start transaction
                 self.conn.begin()
@@ -7772,10 +7814,8 @@ class DBProxy:
             self.cur.arraysize = 10000            
             _logger.debug(1)
             self.cur.execute(sql0+comment, varMap)
-            _logger.debug(2)
             res = self.cur.fetchall()
             # commit
-            _logger.debug(3)
             if not self._commit():
                 raise RuntimeError, 'Commit error'
             # create map
@@ -9602,6 +9642,37 @@ class DBProxy:
             return []
 
 
+    # get sites with glexec
+    def getGlexecSites(self):
+        comment = ' /* DBProxy.getGlexecSites */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        _logger.debug("{0} start".format(methodName))
+        try:
+            # set autocommit on
+            self.conn.begin()
+            # select
+            sql  = "SELECT DISTINCT siteID FROM ATLAS_PANDAMETA.schedconfig WHERE glexec=:glexec "
+            varMap = {}
+            varMap[':glexec'] = 'True'
+            self.cur.arraysize = 10000
+            self.cur.execute(sql+comment,varMap)
+            resList = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            ret = []
+            for siteID, in resList:
+                ret.append(siteID)
+            _logger.debug("{0} -> {1}".format(methodName,str(ret)))
+            return ret
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return []
+
+
     # get allowed nodes
     def getAllowedNodes(self):
         comment = ' /* DBProxy.getAllowedNodes */'        
@@ -9917,14 +9988,20 @@ class DBProxy:
 
         
     # get email address for a user
-    def getEmailAddr(self,name):
+    def getEmailAddr(self,name,withDN=False):
         comment = ' /* DBProxy.getEmailAddr */'
         _logger.debug("get email for %s" % name) 
+        # sql
+        if withDN:
+            failedRet = "",""
+            sql = "SELECT email,dn FROM ATLAS_PANDAMETA.users WHERE name=:name"
+        else:
+            failedRet = ""
+            sql = "SELECT email FROM ATLAS_PANDAMETA.users WHERE name=:name"
         try:
             # set autocommit on
             self.conn.begin()
             # select
-            sql = "SELECT email FROM ATLAS_PANDAMETA.users WHERE name=:name"
             varMap = {}
             varMap[':name'] = name
             self.cur.execute(sql+comment,varMap)
@@ -9934,15 +10011,18 @@ class DBProxy:
             if not self._commit():
                 raise RuntimeError, 'Commit error'
             if res != None and len(res) != 0:
-                return res[0][0]
+                if withDN:
+                    return res[0]
+                else:
+                    return res[0][0]
             # return empty string
-            return ""
+            return failedRet
         except:
             type, value, traceBack = sys.exc_info()
             _logger.error("getEmailAddr : %s %s" % (type,value))
             # roll back
             self._rollback()
-            return ""
+            return failedRet
 
 
     # get client version
@@ -11303,7 +11383,7 @@ class DBProxy:
     def updateForPilotRetryJEDI(self,job,cur):
         comment = ' /* DBProxy.updateForPilotRetryJEDI */'
         # sql to update file
-        sqlFJ  = "UPDATE ATLAS_PANDA.JEDI_Dataset_Contents SET attemptNr=attemptNr+1 "
+        sqlFJ  = "UPDATE ATLAS_PANDA.JEDI_Dataset_Contents SET attemptNr=attemptNr+1,PandaID=:PandaID "
         sqlFJ += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
         sqlFJ += "AND attemptNr=:attemptNr AND keepTrack=:keepTrack "
         sqlFP  = "UPDATE ATLAS_PANDA.filesTable4 SET attemptNr=attemptNr+1 "
@@ -11315,6 +11395,7 @@ class DBProxy:
             varMap[':datasetID']  = tmpFile.datasetID
             varMap[':fileID']     = tmpFile.fileID
             varMap[':attemptNr']  = tmpFile.attemptNr
+            varMap[':PandaID']    = tmpFile.PandaID
             varMap[':keepTrack']  = 1
             _logger.debug(sqlFJ+comment+str(varMap))
             cur.execute(sqlFJ+comment,varMap)
@@ -11423,8 +11504,19 @@ class DBProxy:
 
 
 
+    # get working group with production role
+    def getWorkingGroup(self,fqans):
+        for fqan in fqans:
+            # check production role
+            match = re.search('/[^/]+/([^/]+)/Role=production',fqan)
+            if match != None:
+                return match.group(1)
+        return None
+
+
+
     # insert TaskParams
-    def insertTaskParamsPanda(self,taskParams,dn,prodRole):
+    def insertTaskParamsPanda(self,taskParams,dn,prodRole,fqans):
         comment = ' /* JediDBProxy.insertTaskParamsPanda */'
         try:
             methodName = "insertTaskParamsPanda"
@@ -11440,9 +11532,15 @@ class DBProxy:
             if not prodRole:
                 taskParamsJson['taskType']   = 'anal'
                 taskParamsJson['taskPriority'] = 1000
-            taskParams = json.dumps(taskParamsJson)    
-            # sql to insert task parameters
+                # extract working group
+                workingGroup = self.getWorkingGroup(fqans)
+                if workingGroup != None:
+                    taskParamsJson['workingGroup'] = workingGroup
             schemaDEFT = self.getSchemaDEFT()
+            # sql to check task duplication
+            sqlTD  = "SELECT jediTaskID,status FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+            sqlTD += "WHERE userName=:userName AND taskName=:taskName "
+            # sql to insert task parameters
             sqlT  = "INSERT INTO {0}.DEFT_TASK (TASK_ID,TASK_PARAM) VALUES ".format(schemaDEFT)
             sqlT += "({0}.PRODSYS2_TASK_ID_SEQ.nextval,:param) ".format(schemaDEFT)
             sqlT += "RETURNING TASK_ID INTO :jediTaskID"
@@ -11451,42 +11549,77 @@ class DBProxy:
             sqlC += "VALUES (:jediTaskID,:comm_owner,:comm_cmd) "
             # begin transaction
             self.conn.begin()
-            # insert task parameters
-            varMap = {}
-            varMap[':param']  = taskParams
-            varMap[':jediTaskID'] = self.cur.var(varNUMBER)
-            self.cur.execute(sqlT+comment,varMap)
-            jediTaskID = long(self.cur.getvalue(varMap[':jediTaskID']))
-            # insert command
-            varMap = {}
-            varMap[':jediTaskID'] = jediTaskID
-            varMap[':comm_cmd']  = 'submit'
-            varMap[':comm_owner']  = 'DEFT'
-            self.cur.execute(sqlC+comment,varMap)
+            # check duplication
+            goForward = True
+            retVal = None
+            if taskParamsJson['taskType'] == 'anal':
+                varMap = {}
+                varMap[':userName'] = taskParamsJson['userName']
+                varMap[':taskName'] = taskParamsJson['taskName']
+                self.cur.execute(sqlTD+comment,varMap)
+                resDT = self.cur.fetchone()
+                if resDT != None:
+                    jediTaskID,taskStatus = resDT
+                    _logger.debug('{0} {1} old jediTaskID={2} in {3}'.format(methodName,compactDN,jediTaskID,taskStatus))
+                    # check task status
+                    if not taskStatus in ['finished','failed','partial']:
+                        # still active
+                        goForward = False
+                        retVal  = 'jediTaskID={0} is in the {1} state for taskName={2}.'.format(jediTaskID,
+                                                                                                taskStatus,
+                                                                                                taskParamsJson['taskName'])
+                        retVal += 'You can re-execute the task once it is in finished/failed/partial'
+                        _logger.debug('{0} {1} skip since old task is not finalized'.format(methodName,compactDN))
+                    else:
+                        # FIXME to invoke incexec
+                        goForward = False
+                        retVal  = 'incexec to be implemeted.'
+                        _logger.debug('{0} {1} {2}'.format(methodName,compactDN,retVal))
+            if goForward:
+                # insert task parameters
+                taskParams = json.dumps(taskParamsJson)    
+                varMap = {}
+                varMap[':param']  = taskParams
+                varMap[':jediTaskID'] = self.cur.var(varNUMBER)
+                self.cur.execute(sqlT+comment,varMap)
+                jediTaskID = long(self.cur.getvalue(varMap[':jediTaskID']))
+                # insert command
+                varMap = {}
+                varMap[':jediTaskID'] = jediTaskID
+                varMap[':comm_cmd']  = 'submit'
+                varMap[':comm_owner']  = 'DEFT'
+                self.cur.execute(sqlC+comment,varMap)
+                retVal = jediTaskID
+                _logger.debug('{0} {1} new jediTaskID={2}'.format(methodName,compactDN,jediTaskID))
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
-            _logger.debug('{0} done for {1} with new jediTaskID={2}'.format(methodName,compactDN,jediTaskID))
-            return True,jediTaskID
+            _logger.debug('{0} {1} done'.format(methodName,compactDN))
+            return True,retVal
         except:
             # roll back
             self._rollback()
             # error
             self.dumpErrorMessage(_logger,methodName)
-            return False,None
+            return False,'failed to register task'
 
 
 
-    # send command to task
-    def sendCommandTaskPanda(self,jediTaskID,dn,prodRole,comStr):
+    # send command to task through DEFT
+    def sendCommandTaskPanda(self,jediTaskID,dn,prodRole,comStr,comComment=None,useCommit=True):
         comment = ' /* JediDBProxy.sendCommandTaskPanda */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += ' <jediTaskID={0}>'.format(jediTaskID)
         try:
-            methodName = "sendCommandTaskPanda"
             # get compact DN
             compactDN = self.cleanUserID(dn)
             if compactDN in ['','NULL',None]:
                 compactDN = dn
-            _logger.debug('{0} start for {1}'.format(methodName,compactDN))
+            _logger.debug("{0} start com={1} DN={2} prod={3} comment={4}".format(methodName,comStr,compactDN,
+                                                                                 prodRole,comComment))
+            # sql to check status and owner
+            sqlTC  = "SELECT status,userName FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+            sqlTC += "WHERE jediTaskID=:jediTaskID FOR UPDATE "
             # sql to insert task parameters
             schemaDEFT = self.getSchemaDEFT()
             sqlT  = "DELETE FROM {0}.PRODSYS_COMM ".format(schemaDEFT)
@@ -11494,27 +11627,53 @@ class DBProxy:
             # sql to insert command
             sqlC  = "INSERT INTO {0}.PRODSYS_COMM (COMM_TASK,COMM_OWNER,COMM_CMD,COMM_COMMENT) ".format(schemaDEFT)
             sqlC += "VALUES (:jediTaskID,:comm_owner,:comm_cmd,:comm_comment) "
+            goForward = True
+            retStr = ''
             # begin transaction
-            self.conn.begin()
-            # delete command just in case
+            if useCommit:
+                self.conn.begin()
+            # get task status and owner
             varMap = {}
             varMap[':jediTaskID'] = jediTaskID
-            self.cur.execute(sqlT+comment,varMap)
-            # insert command
-            varMap = {}
-            varMap[':jediTaskID'] = jediTaskID
-            varMap[':comm_cmd']  = comStr
-            varMap[':comm_owner']  = 'DEFT'
-            varMap[':comm_comment'] = '{0} by {0}'.format(comStr,compactDN)  
-            self.cur.execute(sqlC+comment,varMap)
-            # commit
-            if not self._commit():
-                raise RuntimeError, 'Commit error'
-            _logger.debug('{0} done for {1} with new jediTaskID={2}'.format(methodName,compactDN,jediTaskID))
-            return True,'command is registered'
+            self.cur.execute(sqlTC+comment,varMap)
+            resTC = self.cur.fetchone()
+            if resTC == None:
+                # task not found
+                retStr = 'jediTaskID={0} not found'.format(jediTaskID)
+                _logger.debug("{0} : {1}".format(methodName,retStr))
+                goForward = False
+            # check owner
+            if goForward:
+                if not prodRole and compactDN != userName:
+                    retStr = 'Permission denied: not the task owner or no production role'.format(comStr,taskStatus)
+                    _logger.debug("{0} : {1}".format(methodName,retStr))
+                    goForward = False
+            if goForward:
+                # delete command just in case
+                varMap = {}
+                varMap[':jediTaskID'] = jediTaskID
+                self.cur.execute(sqlT+comment,varMap)
+                # insert command
+                varMap = {}
+                varMap[':jediTaskID'] = jediTaskID
+                varMap[':comm_cmd']  = comStr
+                varMap[':comm_owner']  = 'DEFT'
+                if comComment == None:
+                    varMap[':comm_comment'] = '{0} by {0}'.format(comStr,compactDN)  
+                else:
+                    varMap[':comm_comment'] = comComment
+                self.cur.execute(sqlC+comment,varMap)
+                # commit
+                if useCommit:
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+                _logger.debug('{0} done'.format(methodName))
+                retStr = 'command is registered. will be executed in a few minutes'
+            return True,retStr
         except:
             # roll back
-            self._rollback()
+            if useCommit:
+                self._rollback()
             # error
             self.dumpErrorMessage(_logger,methodName)
             return False,'failed to register command'
@@ -11654,6 +11813,310 @@ class DBProxy:
             if not self._commit():
                 raise RuntimeError, 'Commit error'
             _logger.debug('{0} done PandaID={1}'.format(methodName,job.PandaID))
+            return True
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return False
+
+
+    # get active JediTasks in a time range
+    def getJediTasksInTimeRange(self,dn,timeRange):
+        comment = ' /* DBProxy.getJediTasksInTimeRange */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        _logger.debug("{0} : DN={1} range={2}".format(methodName,dn,timeRange.strftime('%Y-%m-%d %H:%M:%S')))
+        try:
+            # get compact DN
+            compactDN = self.cleanUserID(dn)
+            if compactDN in ['','NULL',None]:
+                compactDN = dn
+            # make sql
+            attrList = ['jediTaskID','modificationTime','status','processingType',
+                        'transUses','transHome','architecture','reqID','creationDate',
+                        'site','cloud','taskName']
+            sql  = 'SELECT '
+            for tmpAttr in attrList:
+                sql += '{0},'.format(tmpAttr)
+            sql  = sql[:-1]
+            sql += " FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+            sql += "WHERE userName=:userName AND modificationTime>=:modificationTime AND prodSourceLabel=:prodSourceLabel "
+            varMap = {}
+            varMap[':userName'] = compactDN
+            varMap[':prodSourceLabel']  = 'user'
+            varMap[':modificationTime'] = timeRange
+            # start transaction
+            self.conn.begin()
+            # select
+            self.cur.arraysize = 10000                
+            _logger.debug(sql+comment+str(varMap))
+            self.cur.execute(sql+comment, varMap)
+            resList = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # append
+            retTasks = {}
+            for tmpRes in resList:
+                tmpDict = {}
+                for tmpIdx,tmpAttr in enumerate(attrList):
+                    tmpDict[tmpAttr] = tmpRes[tmpIdx]
+                retTasks[tmpDict['reqID']] = tmpDict
+            _logger.debug("{0} : {1}".format(methodName,str(retTasks)))
+            return retTasks
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return {}
+
+
+    # get details of JediTask
+    def getJediTaskDetails(self,jediTaskID,fullFlag,withTaskInfo):
+        comment = ' /* DBProxy.getJediTaskDetails */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        _logger.debug("{0} : jediTaskID={1} full={2}".format(methodName,jediTaskID,fullFlag))
+        try:
+            retDict = {'inDS':'','outDS':'','statistics':''}
+            # sql to get task status
+            sqlT  = 'SELECT status FROM {0}.JEDI_Tasks WHERE jediTaskID=:jediTaskID '.format(panda_config.schemaJEDI)
+            # sql to get datasets
+            sqlD  = 'SELECT datasetName,containerName,type,nFiles,nFilesTobeUsed,nFilesFinished,nFilesFailed,masterID '
+            sqlD += 'FROM {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
+            sqlD += "WHERE jediTaskID=:jediTaskID "
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            # start transaction
+            self.conn.begin()
+            # select
+            self.cur.arraysize = 10000 
+            # get task status
+            if withTaskInfo:
+                self.cur.execute(sqlT+comment, varMap)
+                resT = self.cur.fetchone()
+                if resT == None:
+                    raise RuntimeError, 'No task info'
+                retDict['status'] = resT[0]
+            # get datasets
+            self.cur.execute(sqlD+comment, varMap)
+            resList = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # append
+            inDSs = []
+            outDSs = []
+            for datasetName,containerName,datasetType,nFiles,nFilesTobeUsed,nFilesFinished,nFilesFailed,masterID in resList:
+                # primay input
+                if datasetType in ['input','pseudo_input'] and masterID == None:
+                    # collect input dataset names
+                    if datasetType == 'input':
+                        # use container name if not empty
+                        if not containerName in [None,'']:
+                            targetName = containerName
+                        else:
+                            targetName = datasetName
+                        if not targetName in inDSs:
+                            inDSs.append(targetName)
+                            retDict['inDS'] += '{0},'.format(targetName)
+                    # statistics
+                    statStr = ''
+                    nFilesActive = nFiles-nFilesFinished-nFilesFailed
+                    if nFilesActive > 0:
+                        statStr += 'tobedone*{0},'.format(nFilesActive)
+                    if nFilesFinished != 0:
+                        statStr += 'finished*{0},'.format(nFilesFinished)
+                    if nFilesFailed != 0:
+                        statStr += 'failed*{0},'.format(nFilesFailed)
+                    retDict['statistics'] = statStr[:-1]
+                # output
+                if datasetType.endswith('output') or datasetType.endswith('log'):
+                    # use container name if not empty
+                    if not containerName in [None,'']:
+                        targetName = containerName
+                    else:
+                        targetName = datasetName
+                    if not targetName in outDSs:
+                        outDSs.append(targetName)
+                        retDict['outDS'] += '{0},'.format(targetName)
+            retDict['inDS'] = retDict['inDS'][:-1]
+            retDict['outDS'] = retDict['outDS'][:-1]
+            # command line parameters
+            if fullFlag:
+                # sql to read task params
+                sql = "SELECT taskParams FROM {0}.JEDI_TaskParams WHERE jediTaskID=:jediTaskID ".format(panda_config.schemaJEDI)
+                varMap = {}
+                varMap[':jediTaskID'] = jediTaskID
+                # begin transaction
+                self.conn.begin()
+                self.cur.execute(sql+comment,varMap)
+                retStr = ''
+                for tmpItem, in self.cur:
+                    retStr = tmpItem.read()
+                    break
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                # decode json
+                taskParamsJson = json.loads(retStr)
+                if 'cliParams' in taskParamsJson:
+                    retDict['cliParams'] = taskParamsJson['cliParams']
+                else:
+                    retDict['cliParams'] = ''
+            _logger.debug("{0} : {1}".format(methodName,str(retDict)))
+            return retDict
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return {}
+
+
+
+    # get a list of even ranges for a PandaID
+    def getEventRanges(self,pandaID,nRanges):
+        comment = ' /* DBProxy.getEventRanges */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <PandaID={0}>".format(pandaID)
+        _logger.debug("{0} : start".format(methodName))
+        try:
+            # sql to get ranges
+            sql  = 'SELECT * FROM ('
+            sql += 'SELECT jediTaskID,fileID,attemptNr,job_processID,def_min_eventID,def_max_eventID '
+            sql += "FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sql += "WHERE PandaID=:pandaID AND processed_upto_eventID=:eventStatus "
+            sql += "ORDER BY def_min_eventID "
+            sql += ") WHERE rownum<={0} ".format(nRanges)
+            # sql to get file info
+            sqlF  = "SELECT lfn,GUID FROM {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
+            #sqlF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID " 
+            sqlF += "WHERE jediTaskID=:jediTaskID AND fileID=:fileID "
+            # sql to lock range
+            sqlU  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlU += "SET processed_upto_eventID=:eventStatus "
+            sqlU += "WHERE jediTaskID=:jediTaskID AND fileID=:fileID "
+            sqlU += "AND job_processID=:job_processID AND attemptNr=:attemptNr "
+            sqlU += "AND processed_upto_eventID=:oldEventStatus "
+            varMap = {}
+            varMap[':pandaID'] = pandaID
+            varMap[':eventStatus']  = 0 # 0=ready
+            # start transaction
+            self.conn.begin()
+            # select
+            self.cur.arraysize = 10000
+            _logger.debug(sql+comment+str(varMap))                
+            self.cur.execute(sql+comment, varMap)
+            resList = self.cur.fetchall()
+            # make dict
+            fileInfo = {}
+            retRanges = []
+            for jediTaskID,fileID,attemptNr,job_processID,startEvent,lastEvent in resList:
+                # get file info
+                if not fileID in fileInfo:
+                    varMap = {}
+                    varMap[':jediTaskID'] = jediTaskID
+                    #varMap[':datasetID'] = datasetID
+                    varMap[':fileID'] = fileID
+                    self.cur.execute(sqlF+comment, varMap)
+                    resF = self.cur.fetchone()
+                    # not found
+                    if resF == None:
+                        resF = (None,None)
+                        _logger.warning("{0} : file info is not found for fileID={1}".format(methodName,fileID))
+                    fileInfo[fileID] = resF
+                # get LFN and GUID
+                tmpLFN,tmpGUID = fileInfo[fileID]
+                if tmpLFN == None:
+                    continue
+                # make dict
+                tmpDict = {'eventRangeID':'{0}-{1}-{2}'.format(jediTaskID,fileID,job_processID),
+                           'startEvent':startEvent,
+                           'lastEvent':lastEvent,
+                           'attemptNr':attemptNr,
+                           'LFN':tmpLFN,
+                           'GUID':tmpGUID}
+                # lock
+                varMap = {}
+                varMap[':jediTaskID'] = jediTaskID
+                varMap[':fileID'] = fileID
+                varMap[':job_processID'] = job_processID
+                varMap[':attemptNr'] = attemptNr
+                varMap[':eventStatus'] = 1 # 1=sent 
+                varMap[':oldEventStatus'] = 0 # 0=ready
+                self.cur.execute(sqlU+comment, varMap)
+                nRow = self.cur.rowcount
+                if nRow != 1:
+                    # failed to lock
+                    _logger.debug("{0} : failed to lock {1}".format(methodName,tmpDict['eventRangeID']))
+                else:
+                    # append
+                    retRanges.append(tmpDict)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            _logger.debug("{0} : {1}".format(methodName,str(retRanges)))
+            return json.dumps(retRanges)
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return None
+
+
+
+    # get a list of even ranges for a PandaID
+    def updateEventRange(self,eventRangeID,attemptNr,eventStatus):
+        comment = ' /* DBProxy.updateEventRange */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <eventRangeID={0}>".format(eventRangeID)
+        _logger.debug("{0} : start attemptNr={1} status={2}".format(methodName,attemptNr,eventStatus))
+        try:
+            # sql to update status
+            sqlU  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlU += "SET processed_upto_eventID=:eventStatus"
+            if eventStatus == 'failed':
+                sqlU += ',job_processID=job_processID+1' 
+            sqlU += " WHERE jediTaskID=:jediTaskID AND fileID=:fileID "
+            sqlU += "AND job_processID=:job_processID AND attemptNr=:attemptNr "
+            # decompose eventRangeID
+            try:
+                tmpItems = eventRangeID.split('-')
+                jediTaskID,fileID,job_processID = tmpItems
+                jediTaskID = long(jediTaskID)
+                fileID = long(fileID)
+                job_processID = long(job_processID)
+            except:
+                _logger.error("{0} : wrongly formatted eventRangeID".format(methodName))
+                return False
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            varMap[':fileID'] = fileID
+            varMap[':job_processID'] = job_processID
+            varMap[':attemptNr'] = attemptNr
+            # map string status to int
+            if eventStatus == 'running':
+                varMap[':eventStatus'] = 2
+            elif eventStatus == 'finished':
+                varMap[':eventStatus'] = 3
+            elif eventStatus == 'failed':
+                # back to ready for next attempt
+                varMap[':eventStatus'] = 0
+            else:
+                _logger.error("{0} : unknown status")
+                return False
+            # start transaction
+            self.conn.begin()
+            # update
+            self.cur.execute(sqlU+comment, varMap)
+            nRow = self.cur.rowcount
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            _logger.debug("{0} done with nRow={1}".format(methodName,nRow))
             return True
         except:
             # roll back

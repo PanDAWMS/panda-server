@@ -90,6 +90,9 @@ class Closer (threading.Thread):
                 if self.job.destinationSE == 'local' and self.job.prodSourceLabel in ['user','panda']:
                     # close non-DQ2 destinationDBlock immediately
                     finalStatus = 'closed'
+                elif self.job.lockedby == 'jedi' and self.isTopLevelDS(destinationDBlock):
+                    # set it closed in order not to trigger DDM cleanup. It will be closed by JEDI
+                    finalStatus = 'closed'
                 elif self.job.prodSourceLabel in ['user'] and "--mergeOutput" in self.job.jobParameters \
                          and self.job.processingType != 'usermerge':
                     # merge output files
@@ -120,7 +123,7 @@ class Closer (threading.Thread):
                             # get top-level user dataset 
                             topUserDsName = re.sub('_sub\d+$','',dataset.name)
                             # update if it is the first attempt
-                            if topUserDsName != dataset.name and not topUserDsName in topUserDsList:
+                            if topUserDsName != dataset.name and not topUserDsName in topUserDsList and self.job.lockedby != 'jedi':
                                 topUserDs = self.taskBuffer.queryDatasetWithMap({'name':topUserDsName})
                                 if topUserDs != None:
                                     # check status
@@ -271,7 +274,8 @@ class Closer (threading.Thread):
             # start notifier
             _logger.debug('%s source:%s complete:%s' % (self.pandaID,self.job.prodSourceLabel,flagComplete))
             if (self.job.jobStatus != 'transferring') and ((flagComplete and self.job.prodSourceLabel=='user') or \
-               (self.job.jobStatus=='failed' and self.job.prodSourceLabel=='panda')):
+               (self.job.jobStatus=='failed' and self.job.prodSourceLabel=='panda')) and \
+               self.job.lockedby != 'jedi':
                 # don't send email for merge jobs
                 if (not disableNotifier) and not self.job.processingType in ['merge','unmerge']:
                     useNotifier = True
@@ -291,3 +295,12 @@ class Closer (threading.Thread):
             errType,errValue = sys.exc_info()[:2]
             _logger.error("%s %s" % (errType,errValue))
             
+
+
+    # check if top dataset
+    def isTopLevelDS(self,datasetName):
+        topDS = re.sub('_sub\d+$','',datasetName)
+        if topDS == datasetName:
+            return True
+        return False
+

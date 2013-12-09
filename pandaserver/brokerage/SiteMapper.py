@@ -203,3 +203,14 @@ class SiteMapper:
     # accessor for cloud list
     def getCloudList(self):
         return self.cloudSpec.keys()
+
+
+
+    # get ddm point
+    def getDdmEndpoint(self,siteID,storageToken):
+        if not self.checkSite(siteID):
+            return None
+        siteSpec =  self.getSite(siteID)
+        if siteSpec.setokens.has_key(storageToken):
+            return siteSpec.setokens[storageToken]
+        return siteSpec.ddm

@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * fixed for bookkeeping based on JEDI 
+  * added ProxyCache stuff
   * increased priorities for det-tile
   * fixed file callback to connect multiple MB backends
   * fixed archiveJob to propagate the result of downstream jobs to JEDI

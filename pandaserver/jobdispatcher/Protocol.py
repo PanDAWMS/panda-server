@@ -1,4 +1,7 @@
+import re
+import sys
 import urllib
+import ProxyCache
 
 
 # constants
@@ -196,6 +199,27 @@ class Response:
                 self.data[name] = proxyKey[name]
             else:
                 self.data[name] = ''
+
+
+    # set user proxy
+    def setUserProxy(self):
+        try:
+            # remove redundant extensions
+            realDN = self.data['prodUserID']
+            realDN = re.sub('/CN=limited proxy','',realDN)
+            realDN = re.sub('(/CN=proxy)+','',realDN)
+            pIF = ProxyCache.MyProxyInterface()
+            tmpOut = pIF.retrieve(realDN)
+            # not found
+            if tmpOut == None:
+                return False,'proxy not found for {0}'.format(realDN)
+            # set
+            self.data['userProxy'] = tmpOut
+            return True,''
+        except:
+            errtype,errvalue = sys.exc_info()[:2]
+            return False,"proxy retrieval failed with {0} {1}".format(errtype.__name__,errvalue)
+
                 
 
 # check if secure connection
