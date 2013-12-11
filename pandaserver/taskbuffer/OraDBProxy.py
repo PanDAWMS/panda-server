@@ -11879,19 +11879,23 @@ class DBProxy:
         methodName = comment.split(' ')[-2].split('.')[-1]
         _logger.debug("{0} : jediTaskID={1} full={2}".format(methodName,jediTaskID,fullFlag))
         try:
-            retDict = {'inDS':'','outDS':'','statistics':''}
+            retDict = {'inDS':'','outDS':'','statistics':'','PandaID':[],
+                       'mergeStatus':None,'mergePandaID':[]}
             # sql to get task status
             sqlT  = 'SELECT status FROM {0}.JEDI_Tasks WHERE jediTaskID=:jediTaskID '.format(panda_config.schemaJEDI)
             # sql to get datasets
-            sqlD  = 'SELECT datasetName,containerName,type,nFiles,nFilesTobeUsed,nFilesFinished,nFilesFailed,masterID '
+            sqlD  = 'SELECT datasetID,datasetName,containerName,type,nFiles,nFilesTobeUsed,nFilesFinished,nFilesFailed,masterID '
             sqlD += 'FROM {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
             sqlD += "WHERE jediTaskID=:jediTaskID "
+            # sql to get PandaIDs
+            sqlP  = "SELECT distinct PandaID FROM {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
+            sqlP += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND PandaID IS NOT NULL "
             varMap = {}
             varMap[':jediTaskID'] = jediTaskID
             # start transaction
             self.conn.begin()
             # select
-            self.cur.arraysize = 10000 
+            self.cur.arraysize = 100000 
             # get task status
             if withTaskInfo:
                 self.cur.execute(sqlT+comment, varMap)
@@ -11908,9 +11912,14 @@ class DBProxy:
             # append
             inDSs = []
             outDSs = []
-            for datasetName,containerName,datasetType,nFiles,nFilesTobeUsed,nFilesFinished,nFilesFailed,masterID in resList:
+            for datasetID,datasetName,containerName,datasetType,nFiles,nFilesTobeUsed,nFilesFinished,nFilesFailed,masterID in resList:
                 # primay input
-                if datasetType in ['input','pseudo_input'] and masterID == None:
+                if datasetType in ['input','pseudo_input','trn_log'] and masterID == None:
+                    # unmerge dataset
+                    if datasetType == 'trn_log':
+                        unmergeFlag = True
+                    else:
+                        unmergeFlag = False
                     # collect input dataset names
                     if datasetType == 'input':
                         # use container name if not empty
@@ -11925,14 +11934,36 @@ class DBProxy:
                     statStr = ''
                     nFilesActive = nFiles-nFilesFinished-nFilesFailed
                     if nFilesActive > 0:
-                        statStr += 'tobedone*{0},'.format(nFilesActive)
+                        if not unmergeFlag:
+                            statStr += 'tobedone*{0},'.format(nFilesActive)
+                        else:
+                            statStr += 'tobemerged*{0},'.format(nFilesActive)
+                            retDict['mergeStatus'] = 'merging'
                     if nFilesFinished != 0:
-                        statStr += 'finished*{0},'.format(nFilesFinished)
+                        if not unmergeFlag:
+                            statStr += 'finished*{0},'.format(nFilesFinished)
                     if nFilesFailed != 0:
-                        statStr += 'failed*{0},'.format(nFilesFailed)
+                        if not unmergeFlag:
+                            statStr += 'failed*{0},'.format(nFilesFailed)
                     retDict['statistics'] = statStr[:-1]
+                    # collect PandaIDs
+                    varMap = {}
+                    varMap[':jediTaskID'] = jediTaskID
+                    varMap[':datasetID'] = datasetID
+                    self.cur.execute(sqlP+comment, varMap)
+                    resP = self.cur.fetchall()
+                    for tmpPandaID, in resP:
+                        if not unmergeFlag:
+                            if not tmpPandaID in retDict['PandaID']:
+                                retDict['PandaID'].append(tmpPandaID)
+                        else:
+                            if not tmpPandaID in retDict['mergePandaID']:
+                                retDict['mergePandaID'].append(tmpPandaID)
                 # output
                 if datasetType.endswith('output') or datasetType.endswith('log'):
+                    # ignore transient datasets
+                    if 'trn_' in datasetType:
+                        continue
                     # use container name if not empty
                     if not containerName in [None,'']:
                         targetName = containerName
@@ -11965,6 +11996,7 @@ class DBProxy:
                     retDict['cliParams'] = taskParamsJson['cliParams']
                 else:
                     retDict['cliParams'] = ''
+            retDict['PandaID'].sort()
             _logger.debug("{0} : {1}".format(methodName,str(retDict)))
             return retDict
         except:

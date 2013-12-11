@@ -1652,7 +1652,8 @@ class Setupper (threading.Thread):
                             tmpInputFileProject = tmpInputItems[0]
                             # input type. ignore user/group/groupXY 
                             if len(tmpInputItems) > 4 and (not tmpInputItems[0] in ['','NULL','user','group']) \
-                                   and (not tmpInputItems[0].startswith('group')):
+                                   and (not tmpInputItems[0].startswith('group')) \
+                                   and not tmpFile.dataset.startswith('panda.um.'):
                                 tmpInputFileType = tmpInputItems[4]
                 # set input type and project
                 if not tmpJob.prodDBlock in ['',None,'NULL']:

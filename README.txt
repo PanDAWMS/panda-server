@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * added merge info to TaskDetails
+  * ignore inputFileType for panda.um
   * fixed for bookkeeping based on JEDI 
   * added ProxyCache stuff
   * increased priorities for det-tile
