@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed sendCommand for permission check
   * added merge info to TaskDetails
   * ignore inputFileType for panda.um
   * fixed for bookkeeping based on JEDI 

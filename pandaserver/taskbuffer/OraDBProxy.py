@@ -6940,12 +6940,16 @@ class DBProxy:
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
                     # create map
-                    for item in res:
-                        if not ret.has_key(item[0]):
-                            ret[item[0]] = {}
-                        if not ret[item[0]].has_key(item[1]):
-                            ret[item[0]][item[1]] = 0
-                        ret[item[0]][item[1]] += item[2]
+                    for computingSite,jobStatus,nJobs in res:
+                        # FIXME
+                        # ignore some job status since they break APF
+                        if jobStatus in ['merging']:
+                            continue
+                        if not ret.has_key(computingSite):
+                            ret[computingSite] = {}
+                        if not ret[computingSite].has_key(jobStatus):
+                            ret[computingSite][jobStatus] = 0
+                        ret[computingSite][jobStatus] += nJobs
                 # for zero
                 stateList = ['assigned','activated','running']
                 if archived:
@@ -7009,6 +7013,10 @@ class DBProxy:
                     raise RuntimeError, 'Commit error'
                 # create map
                 for computingSite,prodSourceLabel,jobStatus,nCount in res:
+                    # FIXME
+                    # ignore some job status since they break APF
+                    if jobStatus in ['merging']:
+                        continue
                     # add site
                     if not returnMap.has_key(computingSite):
                         returnMap[computingSite] = {}
@@ -11642,10 +11650,12 @@ class DBProxy:
                 retStr = 'jediTaskID={0} not found'.format(jediTaskID)
                 _logger.debug("{0} : {1}".format(methodName,retStr))
                 goForward = False
+            else:
+                taskStatus,userName = resTC
             # check owner
             if goForward:
                 if not prodRole and compactDN != userName:
-                    retStr = 'Permission denied: not the task owner or no production role'.format(comStr,taskStatus)
+                    retStr = 'Permission denied: not the task owner or no production role'
                     _logger.debug("{0} : {1}".format(methodName,retStr))
                     goForward = False
             if goForward:
