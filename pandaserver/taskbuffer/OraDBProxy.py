@@ -11547,7 +11547,7 @@ class DBProxy:
             schemaDEFT = self.getSchemaDEFT()
             # sql to check task duplication
             sqlTD  = "SELECT jediTaskID,status FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
-            sqlTD += "WHERE userName=:userName AND taskName=:taskName "
+            sqlTD += "WHERE userName=:userName AND taskName=:taskName FOR UPDATE "
             # sql to insert task parameters
             sqlT  = "INSERT INTO {0}.DEFT_TASK (TASK_ID,TASK_PARAM) VALUES ".format(schemaDEFT)
             sqlT += "({0}.PRODSYS2_TASK_ID_SEQ.nextval,:param) ".format(schemaDEFT)
