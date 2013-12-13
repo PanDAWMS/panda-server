@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added a protection not to send notification when updating Notifier
   * added a protection against duplicated task insertion
   * fixed sendCommand for permission check
   * added merge info to TaskDetails

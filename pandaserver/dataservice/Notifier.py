@@ -89,7 +89,7 @@ class Notifier:
                     _logger.debug("%s end" % self.job.PandaID)
                     return
                 # not send 
-                if mailAddr in ['notsend','',None]:
+                if mailAddr in ['notsend','',None] or (mailAddr != None and mailAddr.startswith('notsend')):
                     _logger.debug("not send to %s" % self.job.prodUserID)
                     _logger.debug("%s end" % self.job.PandaID)
                     return
