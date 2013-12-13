@@ -456,7 +456,9 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
     # check if glexec is used
     useGLEXEC = False
     if siteName in jobDispatcher.glexecSites:
-        useGLEXEC = True
+        # FIXME
+        # useGLEXEC = True
+        pass
     # check production role
     if getProxyKey == 'True':
         # don't use /atlas to prevent normal proxy getting credname
