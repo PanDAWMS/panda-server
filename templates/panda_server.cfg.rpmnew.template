@@ -275,3 +275,13 @@ record_statuschange = False
 
 # use JEDI
 useJEDI = False
+
+
+
+##########################
+#
+# Proxy Cache
+#
+
+# use Proxy Cache
+useProxyCache = False

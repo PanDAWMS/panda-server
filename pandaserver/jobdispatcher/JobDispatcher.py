@@ -455,10 +455,9 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
     fqans = _getFQAN(req)
     # check if glexec is used
     useGLEXEC = False
-    if siteName in jobDispatcher.glexecSites:
-        # FIXME
-        # useGLEXEC = True
-        pass
+    if hasattr(panda_config,'useProxyCache') and panda_config.useProxyCache == True:
+        if siteName in jobDispatcher.glexecSites:
+            useGLEXEC = True
     # check production role
     if getProxyKey == 'True':
         # don't use /atlas to prevent normal proxy getting credname

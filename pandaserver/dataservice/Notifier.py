@@ -373,10 +373,20 @@ Report Panda problems of any sort to
             _logger.error("cannot get DN for %s" % dn)
             return ""
         # get email from MetaDB
-        mailAddr = self.taskBuffer.getEmailAddr(distinguishedName)
-        if mailAddr == 'notsend':
-            _logger.debug("email from MetaDB : '%s'" % mailAddr)
-            return mailAddr
+        mailAddrInDB,dbUptime = self.taskBuffer.getEmailAddr(distinguishedName,withUpTime=True)
+        _logger.debug("email in MetaDB : '%s'" % mailAddrInDB)
+        notSendMail = False
+        if not mailAddrInDB in [None,'']:
+            # email mortification is suppressed
+            if mailAddrInDB.split(':')[0] == 'notsend':
+                notSendMail = True
+            # avoid too frequently lookup
+            if dbUptime != None and datetime.datetime.utcnow()-dbUptime < datetime.timedelta(hours=1):
+                _logger.debug("no lookup")
+                if notSendMail:
+                    return 'notsend'
+                else:
+                    return mailAddrInDB.split(':')[-1]
         # get email from DQ2
         realDN = re.sub('/CN=limited proxy','',dn)
         realDN = re.sub('(/CN=proxy)+','',realDN)
@@ -393,7 +403,17 @@ Report Panda problems of any sort to
             _logger.debug(out)
             exec "userInfo=%s" % out
             mailAddr = userInfo['email']
-            _logger.debug("email from DQ2 : '%s'" % mailAddr)            
+            _logger.debug("email from DQ2 : '%s'" % mailAddr)
+            # make email field to update DB
+            mailAddrToDB = ''
+            if notSendMail:
+                mailAddrToDB += 'notsend:'
+            mailAddrToDB += mailAddr
+            # update database
+            _logger.debug("update email for %s to %s" % (distinguishedName,mailAddrToDB))
+            self.taskBuffer.setEmailAddr(distinguishedName,mailAddrToDB)
+            if notSendMail:
+                return 'notsend'
             return mailAddr
         except:
             errType,errValue = sys.exc_info()[:2]

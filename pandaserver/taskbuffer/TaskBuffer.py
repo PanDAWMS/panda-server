@@ -2028,11 +2028,23 @@ class TaskBuffer:
 
 
     # get email address
-    def getEmailAddr(self,name,withDN=False):
+    def getEmailAddr(self,name,withDN=False,withUpTime=False):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get 
-        ret = proxy.getEmailAddr(name,withDN)
+        ret = proxy.getEmailAddr(name,withDN,withUpTime)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # set email address for a user
+    def setEmailAddr(self,userName,emailAddr):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # set 
+        ret = proxy.setEmailAddr(userName,emailAddr)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

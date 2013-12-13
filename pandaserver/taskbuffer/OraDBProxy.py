@@ -9996,13 +9996,16 @@ class DBProxy:
 
         
     # get email address for a user
-    def getEmailAddr(self,name,withDN=False):
+    def getEmailAddr(self,name,withDN=False,withUpTime=False):
         comment = ' /* DBProxy.getEmailAddr */'
         _logger.debug("get email for %s" % name) 
         # sql
         if withDN:
             failedRet = "",""
             sql = "SELECT email,dn FROM ATLAS_PANDAMETA.users WHERE name=:name"
+        elif withUpTime:
+            failedRet = "",None
+            sql = "SELECT email,location FROM ATLAS_PANDAMETA.users WHERE name=:name"
         else:
             failedRet = ""
             sql = "SELECT email FROM ATLAS_PANDAMETA.users WHERE name=:name"
@@ -10021,6 +10024,14 @@ class DBProxy:
             if res != None and len(res) != 0:
                 if withDN:
                     return res[0]
+                elif withUpTime:
+                    # convert time
+                    try:
+                        email,upTime = res[0]
+                        upTime = datetime.datetime.strptime(upTime,'%Y-%m-%d %H:%M:%S')
+                    except:
+                        upTime = None
+                    return email,upTime
                 else:
                     return res[0][0]
             # return empty string
@@ -10031,6 +10042,34 @@ class DBProxy:
             # roll back
             self._rollback()
             return failedRet
+
+
+    # set email address for a user
+    def setEmailAddr(self,userName,emailAddr):
+        comment = ' /* DBProxy.setEmailAddr */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        _logger.debug("{0} {1} to {2}".format(methodName,userName,emailAddr))
+        # sql
+        sql = "UPDATE ATLAS_PANDAMETA.users SET email=:email,location=:uptime WHERE name=:name "
+        try:
+            # set autocommit on
+            self.conn.begin()
+            # set
+            varMap = {}
+            varMap[':name'] = userName
+            varMap[':email'] = emailAddr
+            varMap[':uptime'] = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+            self.cur.execute(sql+comment,varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            return True
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return False
 
 
     # get client version

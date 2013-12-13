@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * added config param for proxy cache
+  * changed to update users.email
   * added a protection not to send notification when updating Notifier
   * added a protection against duplicated task insertion
   * fixed sendCommand for permission check
