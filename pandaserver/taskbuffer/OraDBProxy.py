@@ -9659,18 +9659,19 @@ class DBProxy:
             # set autocommit on
             self.conn.begin()
             # select
-            sql  = "SELECT DISTINCT siteID FROM ATLAS_PANDAMETA.schedconfig WHERE glexec=:glexec "
+            sql  = "SELECT DISTINCT siteID,glexec FROM ATLAS_PANDAMETA.schedconfig WHERE glexec IN (:stat1,:stat2) "
             varMap = {}
-            varMap[':glexec'] = 'True'
+            varMap[':stat1'] = 'True'
+            varMap[':stat2'] = 'test'
             self.cur.arraysize = 10000
             self.cur.execute(sql+comment,varMap)
             resList = self.cur.fetchall()
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
-            ret = []
-            for siteID, in resList:
-                ret.append(siteID)
+            ret = {}
+            for siteID,glexec in resList:
+                ret[siteID] = glexec
             _logger.debug("{0} -> {1}".format(methodName,str(ret)))
             return ret
         except:
@@ -10001,8 +10002,8 @@ class DBProxy:
         _logger.debug("get email for %s" % name) 
         # sql
         if withDN:
-            failedRet = "",""
-            sql = "SELECT email,dn FROM ATLAS_PANDAMETA.users WHERE name=:name"
+            failedRet = "","",None
+            sql = "SELECT email,dn,location FROM ATLAS_PANDAMETA.users WHERE name=:name"
         elif withUpTime:
             failedRet = "",None
             sql = "SELECT email,location FROM ATLAS_PANDAMETA.users WHERE name=:name"
@@ -10022,16 +10023,20 @@ class DBProxy:
             if not self._commit():
                 raise RuntimeError, 'Commit error'
             if res != None and len(res) != 0:
-                if withDN:
-                    return res[0]
-                elif withUpTime:
+                if withDN or withUpTime:
+                    if withDN:
+                        email,dn,upTime = res[0]
+                    else:
+                        email,upTime = res[0]
                     # convert time
                     try:
-                        email,upTime = res[0]
                         upTime = datetime.datetime.strptime(upTime,'%Y-%m-%d %H:%M:%S')
                     except:
                         upTime = None
-                    return email,upTime
+                    if withDN:
+                        return email,dn,upTime
+                    else:
+                        return email,upTime
                 else:
                     return res[0][0]
             # return empty string

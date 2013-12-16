@@ -457,7 +457,10 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
     useGLEXEC = False
     if hasattr(panda_config,'useProxyCache') and panda_config.useProxyCache == True:
         if siteName in jobDispatcher.glexecSites:
-            useGLEXEC = True
+            if jobDispatcher.glexecSites[siteName] == 'True':
+                useGLEXEC = True
+            elif jobDispatcher.glexecSites[siteName] == 'test' and prodSourceLabel in ['test']:
+                useGLEXEC = True
     # check production role
     if getProxyKey == 'True':
         # don't use /atlas to prevent normal proxy getting credname

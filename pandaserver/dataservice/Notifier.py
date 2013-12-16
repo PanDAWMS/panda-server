@@ -380,13 +380,13 @@ Report Panda problems of any sort to
             # email mortification is suppressed
             if mailAddrInDB.split(':')[0] == 'notsend':
                 notSendMail = True
-            # avoid too frequently lookup
-            if dbUptime != None and datetime.datetime.utcnow()-dbUptime < datetime.timedelta(hours=1):
-                _logger.debug("no lookup")
-                if notSendMail:
-                    return 'notsend'
-                else:
-                    return mailAddrInDB.split(':')[-1]
+        # avoid too frequently lookup
+        if dbUptime != None and datetime.datetime.utcnow()-dbUptime < datetime.timedelta(hours=1):
+            _logger.debug("no lookup")
+            if notSendMail or mailAddrInDB in [None,'']:
+                return 'notsend'
+            else:
+                return mailAddrInDB.split(':')[-1]
         # get email from DQ2
         realDN = re.sub('/CN=limited proxy','',dn)
         realDN = re.sub('(/CN=proxy)+','',realDN)
@@ -404,6 +404,8 @@ Report Panda problems of any sort to
             exec "userInfo=%s" % out
             mailAddr = userInfo['email']
             _logger.debug("email from DQ2 : '%s'" % mailAddr)
+            if mailAddr == None:
+                mailAddr = ''
             # make email field to update DB
             mailAddrToDB = ''
             if notSendMail:
@@ -419,6 +421,6 @@ Report Panda problems of any sort to
             errType,errValue = sys.exc_info()[:2]
             _logger.error("%s %s" % (errType,errValue))
             return ""
-
+        return ""
                     
         

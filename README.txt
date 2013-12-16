@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * added a protection for missing email address in DQ2 
+  * changed for schedconfig.glexec=test
   * added config param for proxy cache
   * changed to update users.email
   * added a protection not to send notification when updating Notifier
