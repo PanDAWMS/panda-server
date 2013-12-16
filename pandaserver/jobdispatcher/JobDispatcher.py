@@ -55,7 +55,6 @@ class CachedObject:
         # function to update object
         self.updateFunc = updateFunc
 
-
     # update obj
     def update(self):
         # get current datetime
@@ -70,7 +69,6 @@ class CachedObject:
         self.lock.release()
         # return
         return 
-    
 
     # contains
     def __contains__(self,item):
@@ -79,6 +77,10 @@ class CachedObject:
             return item in self.cachedObj
         except:
             return False
+
+    # get item
+    def __getitem__(self,name):
+        return self.cachedObj[name]
 
 
 
