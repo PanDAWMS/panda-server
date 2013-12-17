@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed to work with ATLAS_DEFT.T_TASK
   * added a protection for missing email address in DQ2 
   * changed for schedconfig.glexec=test
   * added config param for proxy cache

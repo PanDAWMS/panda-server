@@ -11593,12 +11593,9 @@ class DBProxy:
             sqlTD  = "SELECT jediTaskID,status FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
             sqlTD += "WHERE userName=:userName AND taskName=:taskName FOR UPDATE "
             # sql to insert task parameters
-            sqlT  = "INSERT INTO {0}.DEFT_TASK (TASK_ID,TASK_PARAM) VALUES ".format(schemaDEFT)
-            sqlT += "({0}.PRODSYS2_TASK_ID_SEQ.nextval,:param) ".format(schemaDEFT)
-            sqlT += "RETURNING TASK_ID INTO :jediTaskID"
-            # sql to insert command
-            sqlC  = "INSERT INTO {0}.PRODSYS_COMM (COMM_TASK,COMM_OWNER,COMM_CMD) ".format(schemaDEFT)
-            sqlC += "VALUES (:jediTaskID,:comm_owner,:comm_cmd) "
+            sqlT  = "INSERT INTO {0}.T_TASK (taskid,step_id,reqid,status,submit_time,jedi_task_parameters) VALUES ".format(schemaDEFT)
+            sqlT += "({0}.PRODSYS2_TASK_ID_SEQ.nextval,:stepID,:reqID,:status,CURRENT_DATE,:param) ".format(schemaDEFT)
+            sqlT += "RETURNING TASKID INTO :jediTaskID"
             # begin transaction
             self.conn.begin()
             # check duplication
@@ -11631,16 +11628,13 @@ class DBProxy:
                 # insert task parameters
                 taskParams = json.dumps(taskParamsJson)    
                 varMap = {}
+                varMap[':stepID'] = 0
+                varMap[':reqID']  = 0
                 varMap[':param']  = taskParams
+                varMap[':status'] = 'submit'
                 varMap[':jediTaskID'] = self.cur.var(varNUMBER)
                 self.cur.execute(sqlT+comment,varMap)
                 jediTaskID = long(self.cur.getvalue(varMap[':jediTaskID']))
-                # insert command
-                varMap = {}
-                varMap[':jediTaskID'] = jediTaskID
-                varMap[':comm_cmd']  = 'submit'
-                varMap[':comm_owner']  = 'DEFT'
-                self.cur.execute(sqlC+comment,varMap)
                 retVal = jediTaskID
                 _logger.debug('{0} {1} new jediTaskID={2}'.format(methodName,compactDN,jediTaskID))
             # commit
