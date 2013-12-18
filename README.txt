@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * removed priority boost for det-tile	
   * changed to work with ATLAS_DEFT.T_TASK
   * added a protection for missing email address in DQ2 
   * changed for schedconfig.glexec=test
