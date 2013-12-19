@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added I/F for incexec
   * removed priority boost for det-tile	
   * changed to work with ATLAS_DEFT.T_TASK
   * added a protection for missing email address in DQ2 

@@ -11576,7 +11576,8 @@ class DBProxy:
             compactDN = self.cleanUserID(dn)
             if compactDN in ['','NULL',None]:
                 compactDN = dn
-            _logger.debug('{0} start for {1}'.format(methodName,compactDN))
+            methodName += ' <{0}>'.format(compactDN)
+            _logger.debug('{0} start'.format(methodName))
             # decode json
             taskParamsJson = json.loads(taskParams)
             # set user name and task type
@@ -11596,6 +11597,12 @@ class DBProxy:
             sqlT  = "INSERT INTO {0}.T_TASK (taskid,step_id,reqid,status,submit_time,jedi_task_parameters) VALUES ".format(schemaDEFT)
             sqlT += "({0}.PRODSYS2_TASK_ID_SEQ.nextval,:stepID,:reqID,:status,CURRENT_DATE,:param) ".format(schemaDEFT)
             sqlT += "RETURNING TASKID INTO :jediTaskID"
+            # sql to delete command
+            sqlDC  = "DELETE FROM {0}.PRODSYS_COMM ".format(schemaDEFT)
+            sqlDC += "WHERE COMM_TASK=:jediTaskID "
+            # sql to insert command
+            sqlIC  = "INSERT INTO {0}.PRODSYS_COMM (COMM_TASK,COMM_OWNER,COMM_CMD,COMM_COMMENT) ".format(schemaDEFT)
+            sqlIC += "VALUES (:jediTaskID,:comm_owner,:comm_cmd,:comm_comment) "
             # begin transaction
             self.conn.begin()
             # check duplication
@@ -11609,21 +11616,40 @@ class DBProxy:
                 resDT = self.cur.fetchone()
                 if resDT != None:
                     jediTaskID,taskStatus = resDT
-                    _logger.debug('{0} {1} old jediTaskID={2} in {3}'.format(methodName,compactDN,jediTaskID,taskStatus))
+                    _logger.debug('{0} old jediTaskID={1} with taskName={2} in status={3}'.format(methodName,jediTaskID,
+                                                                                                  varMap[':taskName'],taskStatus))
                     # check task status
                     if not taskStatus in ['finished','failed','partial']:
                         # still active
                         goForward = False
-                        retVal  = 'jediTaskID={0} is in the {1} state for taskName={2}.'.format(jediTaskID,
-                                                                                                taskStatus,
-                                                                                                taskParamsJson['taskName'])
-                        retVal += 'You can re-execute the task once it is in finished/failed/partial'
-                        _logger.debug('{0} {1} skip since old task is not finalized'.format(methodName,compactDN))
+                        retVal  = 'jediTaskID={0} is in the {1} state for taskName={2}. '.format(jediTaskID,
+                                                                                                 taskStatus,
+                                                                                                 taskParamsJson['taskName'])
+                        retVal += 'You can re-execute the task with the same or another input once it goes into finished/failed/partial'
+                        _logger.debug('{0} skip since old task is not yet finalized'.format(methodName))
                     else:
-                        # FIXME to invoke incexec
+                        # extract several params for incremental execution
+                        newTaskParams = {}
+                        for tmpKey,tmpVal in taskParamsJson.iteritems():
+                            # dataset names
+                            if tmpKey.startswith('dsFor'):
+                                newTaskParams[tmpKey] = tmpVal
+                                continue
+                        # delete command just in case
+                        varMap = {}
+                        varMap[':jediTaskID'] = jediTaskID
+                        self.cur.execute(sqlDC+comment,varMap)
+                        # insert command
+                        varMap = {}
+                        varMap[':jediTaskID'] = jediTaskID
+                        varMap[':comm_cmd']  = 'incexec'
+                        varMap[':comm_owner']  = 'DEFT'
+                        varMap[':comm_comment'] = json.dumps(newTaskParams)
+                        self.cur.execute(sqlIC+comment,varMap)
+                        _logger.debug('{0} {1} jediTaskID={2} with {3}'.format(methodName,varMap[':comm_cmd'],
+                                                                                   jediTaskID,str(newTaskParams)))
+                        retVal = 'jediTaskID={0} will be reactivated with new input'.format(jediTaskID) 
                         goForward = False
-                        retVal  = 'incexec to be implemeted.'
-                        _logger.debug('{0} {1} {2}'.format(methodName,compactDN,retVal))
             if goForward:
                 # insert task parameters
                 taskParams = json.dumps(taskParamsJson)    
@@ -11636,11 +11662,11 @@ class DBProxy:
                 self.cur.execute(sqlT+comment,varMap)
                 jediTaskID = long(self.cur.getvalue(varMap[':jediTaskID']))
                 retVal = jediTaskID
-                _logger.debug('{0} {1} new jediTaskID={2}'.format(methodName,compactDN,jediTaskID))
+                _logger.debug('{0} inserted new jediTaskID={1}'.format(methodName,jediTaskID))
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
-            _logger.debug('{0} {1} done'.format(methodName,compactDN))
+            _logger.debug('{0} done'.format(methodName))
             return True,retVal
         except:
             # roll back
@@ -11666,7 +11692,7 @@ class DBProxy:
             # sql to check status and owner
             sqlTC  = "SELECT status,userName FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
             sqlTC += "WHERE jediTaskID=:jediTaskID FOR UPDATE "
-            # sql to insert task parameters
+            # sql to delete command
             schemaDEFT = self.getSchemaDEFT()
             sqlT  = "DELETE FROM {0}.PRODSYS_COMM ".format(schemaDEFT)
             sqlT += "WHERE COMM_TASK=:jediTaskID "
