@@ -362,16 +362,20 @@ class DBProxy:
                     # insert event tables
                     if file.lfn in eventServiceInfo:
                         sqlJediEvent  = "INSERT INTO {0}.JEDI_Events ".format(panda_config.schemaJEDI)
-                        sqlJediEvent += "(jediTaskID,PandaID,fileID,attemptNr,job_processID,def_min_eventID,def_max_eventID,processed_upto_eventID) "
-                        sqlJediEvent += "VALUES(:jediTaskID,:pandaID,:fileID,:attemptNr,:startEvent,:startEvent,:lastEvent,:eventStatus) "
+                        sqlJediEvent += "(jediTaskID,datasetID,PandaID,fileID,attemptNr,status,"
+                        sqlJediEvent += "job_processID,def_min_eventID,def_max_eventID,processed_upto_eventID) "
+                        sqlJediEvent += "VALUES(:jediTaskID,:datasetID,:pandaID,:fileID,:attemptNr,:eventStatus,"
+                        sqlJediEvent += ":startEvent,:startEvent,:lastEvent,:processedEvent) "
                         iEvent = 1
                         while iEvent < eventServiceInfo[file.lfn]['nEvents']:
                             varMap = {}
                             varMap[':jediTaskID'] = file.jediTaskID
+                            varMap[':datasetID'] = file.datasetID
                             varMap[':pandaID'] = file.PandaID
                             varMap[':fileID'] = file.fileID
                             varMap[':attemptNr'] = 1
                             varMap[':eventStatus'] = 0
+                            varMap[':processedEvent'] = 0
                             varMap[':startEvent'] = iEvent
                             lastEvent = iEvent + eventServiceInfo[file.lfn]['nEventsPerRange']
                             lastEvent -= 1
@@ -12091,21 +12095,20 @@ class DBProxy:
         try:
             # sql to get ranges
             sql  = 'SELECT * FROM ('
-            sql += 'SELECT jediTaskID,fileID,attemptNr,job_processID,def_min_eventID,def_max_eventID '
+            sql += 'SELECT jediTaskID,datasetID,fileID,pandaID,attemptNr,job_processID,def_min_eventID,def_max_eventID '
             sql += "FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
-            sql += "WHERE PandaID=:pandaID AND processed_upto_eventID=:eventStatus "
+            sql += "WHERE PandaID=:pandaID AND status=:eventStatus "
             sql += "ORDER BY def_min_eventID "
             sql += ") WHERE rownum<={0} ".format(nRanges)
             # sql to get file info
             sqlF  = "SELECT lfn,GUID FROM {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
-            #sqlF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID " 
-            sqlF += "WHERE jediTaskID=:jediTaskID AND fileID=:fileID "
+            sqlF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID " 
             # sql to lock range
             sqlU  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
-            sqlU += "SET processed_upto_eventID=:eventStatus "
-            sqlU += "WHERE jediTaskID=:jediTaskID AND fileID=:fileID "
+            sqlU += "SET status=:eventStatus "
+            sqlU += "WHERE jediTaskID=:jediTaskID AND fileID=:fileID AND PandaID=:pandaID "
             sqlU += "AND job_processID=:job_processID AND attemptNr=:attemptNr "
-            sqlU += "AND processed_upto_eventID=:oldEventStatus "
+            sqlU += "AND status=:oldEventStatus "
             varMap = {}
             varMap[':pandaID'] = pandaID
             varMap[':eventStatus']  = 0 # 0=ready
@@ -12119,12 +12122,12 @@ class DBProxy:
             # make dict
             fileInfo = {}
             retRanges = []
-            for jediTaskID,fileID,attemptNr,job_processID,startEvent,lastEvent in resList:
+            for jediTaskID,datasetID,fileID,pandaID,attemptNr,job_processID,startEvent,lastEvent in resList:
                 # get file info
                 if not fileID in fileInfo:
                     varMap = {}
                     varMap[':jediTaskID'] = jediTaskID
-                    #varMap[':datasetID'] = datasetID
+                    varMap[':datasetID'] = datasetID
                     varMap[':fileID'] = fileID
                     self.cur.execute(sqlF+comment, varMap)
                     resF = self.cur.fetchone()
@@ -12138,7 +12141,7 @@ class DBProxy:
                 if tmpLFN == None:
                     continue
                 # make dict
-                tmpDict = {'eventRangeID':'{0}-{1}-{2}'.format(jediTaskID,fileID,job_processID),
+                tmpDict = {'eventRangeID':'{0}-{1}-{2}-{3}'.format(jediTaskID,pandaID,fileID,job_processID),
                            'startEvent':startEvent,
                            'lastEvent':lastEvent,
                            'attemptNr':attemptNr,
@@ -12149,14 +12152,17 @@ class DBProxy:
                 varMap[':jediTaskID'] = jediTaskID
                 varMap[':fileID'] = fileID
                 varMap[':job_processID'] = job_processID
+                varMap[':pandaID'] = pandaID
                 varMap[':attemptNr'] = attemptNr
                 varMap[':eventStatus'] = 1 # 1=sent 
                 varMap[':oldEventStatus'] = 0 # 0=ready
+                _logger.debug(sqlU+comment+str(varMap))
                 self.cur.execute(sqlU+comment, varMap)
                 nRow = self.cur.rowcount
                 if nRow != 1:
                     # failed to lock
-                    _logger.debug("{0} : failed to lock {1}".format(methodName,tmpDict['eventRangeID']))
+                    _logger.debug("{0} : failed to lock {1} with nRow={2}".format(methodName,tmpDict['eventRangeID'],
+                                                                                  nRow))
                 else:
                     # append
                     retRanges.append(tmpDict)
@@ -12183,16 +12189,17 @@ class DBProxy:
         try:
             # sql to update status
             sqlU  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
-            sqlU += "SET processed_upto_eventID=:eventStatus"
+            sqlU += "SET status=:eventStatus"
             if eventStatus == 'failed':
-                sqlU += ',job_processID=job_processID+1' 
-            sqlU += " WHERE jediTaskID=:jediTaskID AND fileID=:fileID "
+                sqlU += ',attemptNr=attemptNr+1' 
+            sqlU += " WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND fileID=:fileID "
             sqlU += "AND job_processID=:job_processID AND attemptNr=:attemptNr "
             # decompose eventRangeID
             try:
                 tmpItems = eventRangeID.split('-')
-                jediTaskID,fileID,job_processID = tmpItems
+                jediTaskID,pandaID,fileID,job_processID = tmpItems
                 jediTaskID = long(jediTaskID)
+                pandaID = long(pandaID)
                 fileID = long(fileID)
                 job_processID = long(job_processID)
             except:
@@ -12200,6 +12207,7 @@ class DBProxy:
                 return False
             varMap = {}
             varMap[':jediTaskID'] = jediTaskID
+            varMap[':pandaID'] = pandaID
             varMap[':fileID'] = fileID
             varMap[':job_processID'] = job_processID
             varMap[':attemptNr'] = attemptNr

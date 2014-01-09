@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed for new columns in JEDI_Events
   * added I/F for incexec
   * removed priority boost for det-tile	
   * changed to work with ATLAS_DEFT.T_TASK
