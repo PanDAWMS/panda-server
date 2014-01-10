@@ -14,7 +14,7 @@ optP = optparse.OptionParser(conflict_handler="resolve")
 optP.add_option('-9',action='store_const',const=True,dest='forceKill',
                 default=False,help='kill jobs even if they are still running')
 optP.add_option('--noRunning',action='store_const',const=True,dest='noRunning',
-                default=True,help='kill jobs if they are not in running or transferring')
+                default=True,help='kill jobs if they are not in running or transferring (ON by default)')
 optP.add_option('--killAny',action='store_const',const=True,dest='killAny',
                 default=False,help='kill jobs in any status')
 options,args = optP.parse_args()
