@@ -680,7 +680,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             overwriteSite = False
             # check JEDI
             isJEDI = False
-            if job != None and job.lockedby == 'jedi':
+            if job != None and job.lockedby == 'jedi' and job.processingType != 'evtest':
                 isJEDI = True
             # new bunch or terminator
             if job == None or len(fileList) >= nFile \

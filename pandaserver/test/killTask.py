@@ -14,7 +14,9 @@ optP = optparse.OptionParser(conflict_handler="resolve")
 optP.add_option('-9',action='store_const',const=True,dest='forceKill',
                 default=False,help='kill jobs even if they are still running')
 optP.add_option('--noRunning',action='store_const',const=True,dest='noRunning',
-                default=False,help='kill only activated/assigned/waiting jobs')
+                default=True,help='kill jobs if they are not in running or transferring')
+optP.add_option('--killAny',action='store_const',const=True,dest='killAny',
+                default=False,help='kill jobs in any status')
 options,args = optP.parse_args()
 
 proxyS = DBProxy()
@@ -25,11 +27,12 @@ jobs = []
 varMap = {}
 varMap[':prodSourceLabel']  = 'managed'
 varMap[':taskID'] = args[0]
-if not options.noRunning:
+if not options.noRunning or options.killAny:
     sql = "SELECT PandaID FROM %s WHERE prodSourceLabel=:prodSourceLabel AND taskID=:taskID ORDER BY PandaID"
 else:
-    sql = "SELECT PandaID FROM %s WHERE prodSourceLabel=:prodSourceLabel AND taskID=:taskID AND jobStatus<>:jobStatus ORDER BY PandaID"
-    varMap[':jobStatus'] = 'running'
+    sql = "SELECT PandaID FROM %s WHERE prodSourceLabel=:prodSourceLabel AND taskID=:taskID AND NOT jobStatus IN (:js1,:js2) ORDER BY PandaID"
+    varMap[':js1'] = 'running'
+    varMap[':js2'] = 'transferring'
 for table in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4','ATLAS_PANDA.jobsDefined4']:
     status,res = proxyS.querySQLS(sql % table,varMap)
     if res != None:

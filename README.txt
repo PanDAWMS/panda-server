@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * fixed killTask.py not to kill transferring jobs when noRunning is used
+  * fixed brokerage for evtest
   * fixed for new columns in JEDI_Events
   * added I/F for incexec
   * removed priority boost for det-tile	
