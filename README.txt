@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed error message for duplicated task submission
   * fixed killTask.py not to kill transferring jobs when noRunning is used
   * fixed brokerage for evtest
   * fixed for new columns in JEDI_Events

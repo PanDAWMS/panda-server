@@ -11626,9 +11626,9 @@ class DBProxy:
                     if not taskStatus in ['finished','failed','partial']:
                         # still active
                         goForward = False
-                        retVal  = 'jediTaskID={0} is in the {1} state for taskName={2}. '.format(jediTaskID,
-                                                                                                 taskStatus,
-                                                                                                 taskParamsJson['taskName'])
+                        retVal  = 'jediTaskID={0} is in the {1} state for outDS={2}. '.format(jediTaskID,
+                                                                                              taskStatus,
+                                                                                              taskParamsJson['taskName'])
                         retVal += 'You can re-execute the task with the same or another input once it goes into finished/failed/partial'
                         _logger.debug('{0} skip since old task is not yet finalized'.format(methodName))
                     else:
@@ -11671,7 +11671,7 @@ class DBProxy:
             if not self._commit():
                 raise RuntimeError, 'Commit error'
             _logger.debug('{0} done'.format(methodName))
-            return True,retVal
+            return goForward,retVal
         except:
             # roll back
             self._rollback()
