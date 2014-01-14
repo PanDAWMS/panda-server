@@ -11837,9 +11837,9 @@ class DBProxy:
         umCheckedIDs = []
         # sql to update nFiles in JEDI datasets
         sqlUNF  = "UPDATE ATLAS_PANDA.JEDI_Datasets "
-        sqlUNF += "SET nFilesFinished=0,nFilesOnHold=0,nFilesFailed=0,nFiles=nFiles+nFilesOnHold,"
-        sqlUNF += "nFilesTobeUsed=nFilesTobeUsed+nFilesOnHold "
-        sqlUNF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND NOT status IN (:ngStat1,:ngStat2) "
+        sqlUNF += "SET nFilesOnHold=0,nFiles=nFilesFinished+nFilesFailed+nFilesOnHold,"
+        sqlUNF += "nFilesUsed=nFilesFinished+nFilesFailed,nFilesTobeUsed=nFilesFinished+nFilesFailed+nFilesOnHold "
+        sqlUNF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
         # sql to check nFiles
         sqlUCF  = "SELECT nFilesTobeUsed FROM ATLAS_PANDA.JEDI_Datasets "
         sqlUCF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
@@ -11863,8 +11863,6 @@ class DBProxy:
                     varMap = {}
                     varMap[':jediTaskID'] = tmpFile.jediTaskID
                     varMap[':datasetID']  = tmpFile.datasetID
-                    varMap[':ngStat1'] = 'ready'
-                    varMap[':ngStat2'] = 'done'
                     self.cur.arraysize = 10
                     _logger.debug(sqlUNF+comment+str(varMap))
                     self.cur.execute(sqlUNF+comment, varMap)
