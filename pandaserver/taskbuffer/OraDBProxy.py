@@ -11841,7 +11841,7 @@ class DBProxy:
         sqlUNF += "nFilesUsed=nFilesFinished+nFilesFailed,nFilesTobeUsed=nFilesFinished+nFilesFailed+nFilesOnHold "
         sqlUNF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
         # sql to check nFiles
-        sqlUCF  = "SELECT nFilesTobeUsed FROM ATLAS_PANDA.JEDI_Datasets "
+        sqlUCF  = "SELECT nFilesTobeUsed,nFilesUsed FROM ATLAS_PANDA.JEDI_Datasets "
         sqlUCF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
         # sql to update dataset status
         sqlUDS  = "UPDATE ATLAS_PANDA.JEDI_Datasets "
@@ -11875,14 +11875,14 @@ class DBProxy:
                         self.cur.execute(sqlUCF+comment, varMap)
                         resUCF = self.cur.fetchone()
                         if resUCF != None:
-                            nFilesTobeUsed, = resUCF
+                            nFilesTobeUsed,nFilesUsed = resUCF
                             varMap = {}
                             varMap[':jediTaskID'] = tmpFile.jediTaskID
                             varMap[':datasetID']  = tmpFile.datasetID
-                            if nFilesTobeUsed == 0:
-                                varMap[':status'] = 'done'
-                            else:
+                            if nFilesTobeUsed-nFilesUsed > 0:
                                 varMap[':status'] = 'ready'
+                            else:
+                                varMap[':status'] = 'done'
                             # update dataset status
                             _logger.debug(sqlUDS+comment+str(varMap))
                             self.cur.execute(sqlUDS+comment, varMap)
