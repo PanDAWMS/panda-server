@@ -11737,7 +11737,7 @@ class DBProxy:
                 varMap[':comm_cmd']  = comStr
                 varMap[':comm_owner']  = 'DEFT'
                 if comComment == None:
-                    varMap[':comm_comment'] = '{0} by {0}'.format(comStr,compactDN)  
+                    varMap[':comm_comment'] = '{0} by {1}'.format(comStr,compactDN)  
                 else:
                     varMap[':comm_comment'] = comComment
                 self.cur.execute(sqlC+comment,varMap)
@@ -11837,7 +11837,8 @@ class DBProxy:
         umCheckedIDs = []
         # sql to update nFiles in JEDI datasets
         sqlUNF  = "UPDATE ATLAS_PANDA.JEDI_Datasets "
-        sqlUNF += "SET nFilesFinished=0,nFilesOnHold=0,nFilesFailed=0,nFiles=nFilesOnHold,nFilesTobeUsed=nFilesOnHold "
+        sqlUNF += "SET nFilesFinished=0,nFilesOnHold=0,nFilesFailed=0,nFiles=nFiles+nFilesOnHold,"
+        sqlUNF += "nFilesTobeUsed=nFilesTobeUsed+nFilesOnHold "
         sqlUNF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND NOT status IN (:ngStat1,:ngStat2) "
         # sql to check nFiles
         sqlUCF  = "SELECT nFilesTobeUsed FROM ATLAS_PANDA.JEDI_Datasets "
