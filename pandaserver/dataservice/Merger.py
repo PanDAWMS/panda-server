@@ -590,9 +590,11 @@ class Merger:
                 tmpFile.checksum   = tmpLibFile.checksum
                 tmpFile.dataset    = tmpLibFile.dataset
                 tmpFile.prodDBlock = tmpLibFile.prodDBlock
+                if not tmpLibFile.scope in ['NULL',None]:
+                    tmpFile.scope      = tmpLibFile.scope
                 tmpFile.type       = 'input'
                 tmpFile.status     = 'ready'
-                tmpFile.prodDBlockToken = 'local'                
+                tmpFile.prodDBlockToken = 'local'
                 tmpJob.addFile(tmpFile)
                 params += " --libTgz %s" % tmpFile.lfn
                 break
@@ -620,6 +622,8 @@ class Merger:
             tmpFile.fsize      = vals['filesize']
             tmpFile.md5sum     = vals['checksum']
             tmpFile.checksum   = vals['checksum']            
+            if vals.has_key('scope'):
+                tmpFile.scope = vals['scope']
             tmpFile.dataset    = containerName
             tmpFile.prodDBlock = tmpFile.dataset
             tmpFile.type       = 'input'

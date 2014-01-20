@@ -131,9 +131,9 @@ class JobDipatcher:
 
     # get job
     def getJob(self,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-               atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry,
-               useGLEXEC):
+               atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry):
         jobs = []
+        useGLEXEC = False
         # wrapper function for timeout
         tmpWrapper = _TimedMethod(self.taskBuffer.getJobs,timeout)
         tmpWrapper.run(1,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
@@ -155,6 +155,15 @@ class JobDipatcher:
             # set proxy key
             if getProxyKey:
                 response.setProxyKey(proxyKey)
+            # check if glexec is used
+            if hasattr(panda_config,'useProxyCache') and panda_config.useProxyCache == True:
+                if siteName in self.glexecSites:
+                    if self.glexecSites[siteName] == 'True':
+                        useGLEXEC = True
+                    elif self.glexecSites[siteName] == 'test' and \
+                            (prodSourceLabel in ['test','prod_test'] or \
+                                 (jobs[0].processingType in ['gangarobot'])):
+                        useGLEXEC = True
             # set proxy
             if useGLEXEC:
                 tmpStat,tmpOut = response.setUserProxy()
@@ -169,7 +178,7 @@ class JobDipatcher:
                 # no available jobs
                 response=Protocol.Response(Protocol.SC_NoJobs)
         # return
-        _logger.debug("getJob : %s %s ret -> %s" % (siteName,node,response.encode()))
+        _logger.debug("getJob : %s %s useGLEXEC=%s ret -> %s" % (siteName,node,useGLEXEC,response.encode()))
         return response.encode()
 
 
@@ -455,14 +464,6 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
     realDN = _getDN(req)
     # get FQANs
     fqans = _getFQAN(req)
-    # check if glexec is used
-    useGLEXEC = False
-    if hasattr(panda_config,'useProxyCache') and panda_config.useProxyCache == True:
-        if siteName in jobDispatcher.glexecSites:
-            if jobDispatcher.glexecSites[siteName] == 'True':
-                useGLEXEC = True
-            elif jobDispatcher.glexecSites[siteName] == 'test' and prodSourceLabel in ['test']:
-                useGLEXEC = True
     # check production role
     if getProxyKey == 'True':
         # don't use /atlas to prevent normal proxy getting credname
@@ -493,10 +494,10 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
             diskSpace = 0
     except:
         diskSpace = 0        
-    _logger.debug("getJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,DN:%s,role:%s,token:%s,val:%s,glexec:%s,FQAN:%s)" \
+    _logger.debug("getJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s)" \
                   % (siteName,cpu,mem,diskSpace,prodSourceLabel,node,
                      computingElement,AtlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,
-                     allowOtherCountry,realDN,prodManager,token,validToken,useGLEXEC,str(fqans)))
+                     allowOtherCountry,realDN,prodManager,token,validToken,str(fqans)))
     _pilotReqLogger.info('method=getJob,site=%s,node=%s,type=%s' % (siteName,node,prodSourceLabel))    
     # invalid role
     if (not prodManager) and (not prodSourceLabel in ['user']):
@@ -509,7 +510,7 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
     # invoke JD
     return jobDispatcher.getJob(siteName,prodSourceLabel,cpu,mem,diskSpace,node,int(timeout),
                                 computingElement,AtlasRelease,prodUserID,getProxyKey,countryGroup,
-                                workingGroup,allowOtherCountry,useGLEXEC)
+                                workingGroup,allowOtherCountry)
     
 
 # update job status
