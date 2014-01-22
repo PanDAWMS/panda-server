@@ -892,6 +892,16 @@ class UserIF:
         return ret
 
 
+    # get retry history
+    def getRetryHistory(self,jediTaskID,user):
+        # get
+        _logger.debug("getRetryHistory jediTaskID={0} start {1}".format(jediTaskID,user))
+        ret = self.taskBuffer.getRetryHistoryJEDI(jediTaskID)
+        _logger.debug("getRetryHistory jediTaskID={0} done".format(jediTaskID))
+        # return
+        return ret
+
+
 
 # Singleton
 userIF = UserIF()
@@ -1727,7 +1737,7 @@ def retryTask(req,jediTaskID):
 
 
 
-# retry task
+# finish task
 def finishTask(req,jediTaskID=None):
     # check security
     if not isSecure(req):
@@ -1744,4 +1754,22 @@ def finishTask(req,jediTaskID=None):
     except:
         return pickle.dumps((False,'jediTaskID must be an integer'))        
     ret = userIF.finishTask(jediTaskID,user,prodRole)
+    return pickle.dumps(ret)
+
+
+
+# get retry history
+def getRetryHistory(req,jediTaskID=None):
+    # check security
+    if not isSecure(req):
+        return pickle.dumps((False,'secure connection is required'))
+    # get DN
+    user = None
+    if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        user = _getDN(req)        
+    try:
+        jediTaskID = long(jediTaskID)
+    except:
+        return pickle.dumps((False,'jediTaskID must be an integer'))        
+    ret = userIF.getRetryHistory(jediTaskID,user)
     return pickle.dumps(ret)

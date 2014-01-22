@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added getRetryHistoryJEDI
   * fixed dispatcher for glexec=test and HC
   * fixed the brokerage for nightlies
   * fixed updateUnmergedDataset to increment nFilesTobeUsed

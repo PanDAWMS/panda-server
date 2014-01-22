@@ -10604,10 +10604,11 @@ class DBProxy:
                 sql  = "SELECT /*+ NO_INDEX(tab JOBS_MODTIME_IDX) INDEX_COMBINE(tab JOBS_PRODSOURCELABEL_IDX JOBS_PRODUSERNAME_IDX) */ "
                 sql += "jobDefinitionID FROM %s tab " % table
                 sql += "WHERE prodUserName=:prodUserName AND modificationTime>:modificationTime "
-                sql += "AND prodSourceLabel=:prodSourceLabel GROUP BY jobDefinitionID"
+                sql += "AND prodSourceLabel=:prodSourceLabel AND lockedBy<>:ngLock GROUP BY jobDefinitionID"
                 varMap = {}
                 varMap[':prodUserName'] = compactDN
                 varMap[':prodSourceLabel'] = 'user'
+                varMap[':ngLock'] = 'jedi'
                 varMap[':modificationTime'] = timeRange
                 # start transaction
                 self.conn.begin()
@@ -11439,11 +11440,15 @@ class DBProxy:
     def updateForPilotRetryJEDI(self,job,cur):
         comment = ' /* DBProxy.updateForPilotRetryJEDI */'
         # sql to update file
-        sqlFJ  = "UPDATE ATLAS_PANDA.JEDI_Dataset_Contents SET attemptNr=attemptNr+1,PandaID=:PandaID "
+        sqlFJ  = "UPDATE {0}.JEDI_Dataset_Contents SET attemptNr=attemptNr+1,PandaID=:PandaID ".format(panda_config.schemaJEDI)
         sqlFJ += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
         sqlFJ += "AND attemptNr=:attemptNr AND keepTrack=:keepTrack "
         sqlFP  = "UPDATE ATLAS_PANDA.filesTable4 SET attemptNr=attemptNr+1 "
         sqlFP += "WHERE row_ID=:row_ID "
+        # sql to record retry history
+        sqlRH  = "INSERT INTO {0}.JEDI_Job_Retry_History ".format(panda_config.schemaJEDI)
+        sqlRH += "(jediTaskID,oldPandaID,newPandaID) "
+        sqlRH += "VALUES(:jediTaskID,:oldPandaID,:newPandaID) "
         for tmpFile in job.Files:
             # update JEDI contents
             varMap = {}
@@ -11462,7 +11467,51 @@ class DBProxy:
                 varMap[':row_ID'] = tmpFile.row_ID
                 _logger.debug(sqlFP+comment+str(varMap))
                 cur.execute(sqlFP+comment,varMap)
+        # record retry history
+        varMap = {}
+        varMap[':jediTaskID'] = job.jediTaskID
+        varMap[':oldPandaID'] = job.parentID
+        varMap[':newPandaID'] = job.PandaID
+        _logger.debug(sqlRH+comment+str(varMap))
+        cur.execute(sqlRH+comment,varMap)
         return
+
+
+
+    # get retry history
+    def getRetryHistoryJEDI(self,jediTaskID):
+        comment = ' /* DBProxy.getRetryHistoryJEDI */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <jediTaskID={0}>".format(jediTaskID)
+        _logger.debug("{0} start".format(methodName))
+        # sql
+        sql  = "SELECT oldPandaID,newPandaID FROM {0}.JEDI_Job_Retry_History ".format(panda_config.schemaJEDI)
+        sql += "WHERE jediTaskID=:jediTaskID "
+        try:
+            # set autocommit on
+            self.conn.begin()
+            self.cur.arraysize = 1000000
+            # set
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            self.cur.execute(sql+comment,varMap)
+            resG = self.cur.fetchall()
+            retMap = {}
+            for oldPandaID,newPandaID in resG:
+                if not retMap.has_key(oldPandaID):
+                    retMap[oldPandaID] = []
+                retMap[oldPandaID].append(newPandaID)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            _logger.debug("{0} return len={1}".format(methodName,len(retMap)))
+            return retMap
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return None
 
 
 

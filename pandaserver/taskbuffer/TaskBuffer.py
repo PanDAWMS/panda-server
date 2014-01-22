@@ -2443,6 +2443,19 @@ class TaskBuffer:
 
 
 
+    # get retry history
+    def getRetryHistoryJEDI(self,jediTaskID):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getRetryHistoryJEDI(jediTaskID)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 
