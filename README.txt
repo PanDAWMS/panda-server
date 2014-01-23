@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed insertTaskParam for uniqueTaskName=False 
   * fixed truncation of priority in the brokerage when getting # of jobs
   * added getRetryHistoryJEDI
   * fixed dispatcher for glexec=test and HC

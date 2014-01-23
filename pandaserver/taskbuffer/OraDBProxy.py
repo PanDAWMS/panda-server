@@ -11664,7 +11664,8 @@ class DBProxy:
             # check duplication
             goForward = True
             retVal = None
-            if taskParamsJson['taskType'] == 'anal':
+            if taskParamsJson['taskType'] == 'anal' and \
+                    (taskParamsJson.has_key('uniqueTaskName') and taskParamsJson['uniqueTaskName'] == True):
                 varMap = {}
                 varMap[':userName'] = taskParamsJson['userName']
                 varMap[':taskName'] = taskParamsJson['taskName']
