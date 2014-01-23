@@ -515,6 +515,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
         fileList = []
         guidList = []
         okFiles = {}
+        prioInterval = 50
         totalNumInputs = 0
         totalInputSize = 0
         chosen_ce      = None
@@ -1174,7 +1175,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             nRunJobsPerGroup = None
                             if not forAnalysis and prevSourceLabel in ['managed','test']:
                                 if not jobStatBrokerCloudsWithPrio.has_key(prevPriority):
-                                    jobStatBrokerCloudsWithPrio[prevPriority] = taskBuffer.getJobStatisticsBrokerage(prevPriority)
+                                    jobStatBrokerCloudsWithPrio[prevPriority] = taskBuffer.getJobStatisticsBrokerage(prevPriority,prevPriority+prioInterval)
                                 if not jobStatBrokerCloudsWithPrio[prevPriority].has_key(previousCloud):
                                     jobStatBrokerCloudsWithPrio[prevPriority][previousCloud] = {}
                                 if not jobStatBrokerCloudsWithPrio[prevPriority][previousCloud].has_key(site):
@@ -1583,7 +1584,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             prevIsJEDI = isJEDI
             # truncate prio to avoid too many lookups
             if not job.currentPriority in [None,'NULL']:
-                prevPriority = (job.currentPriority / 50) * 50
+                prevPriority = (job.currentPriority / prioInterval) * prioInterval
             # assign site
             if chosen_ce != 'TOBEDONE':
                 job.computingSite = chosen_ce.sitename
@@ -1686,7 +1687,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 tmpMsgList.append(tmpMsg)
                 # send log
                 sendMsgToLoggerHTTP(tmpMsgList,jobs[0])
-        # finished            
+        # finished
+        tmpLog.debug('N lookup for prio : {0}'.format(len(jobStatBrokerCloudsWithPrio)))
         tmpLog.debug('finished')
         if getWeight:
             return weightUsedByBrokerage

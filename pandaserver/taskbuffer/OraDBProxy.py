@@ -7044,9 +7044,9 @@ class DBProxy:
 
 
     # get job statistics for brokerage
-    def getJobStatisticsBrokerage(self,minPriority=None):
+    def getJobStatisticsBrokerage(self,minPriority=None,maxPriority=None):
         comment = ' /* DBProxy.getJobStatisticsBrokerage */'        
-        _logger.debug("getJobStatisticsBrokerage(%s)" % minPriority)
+        _logger.debug("getJobStatisticsBrokerage(min=%s max=%s)" % (minPriority,maxPriority))
         sql0 = "SELECT cloud,computingSite,jobStatus,processingType,COUNT(*) FROM %s WHERE "
         sql0 += "prodSourceLabel IN (:prodSourceLabel1) "
         tmpPrioMap = {}
@@ -7059,7 +7059,7 @@ class DBProxy:
         sqlMV = re.sub(':minPriority','TRUNC(:minPriority,-1)',sqlMV)
         sqlMV = re.sub('SELECT ','SELECT /*+ RESULT_CACHE */ ',sqlMV)
         tables = ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4']
-        if minPriority != None:
+        if minPriority != None or maxPriority != None:
             # read the number of running jobs with prio<=MIN
             tables.append('ATLAS_PANDA.jobsActive4')
             sqlMVforRun = re.sub('currentPriority>=','currentPriority<=',sqlMV)
@@ -7089,6 +7089,9 @@ class DBProxy:
                         if useRunning in [None,False]:
                             self.cur.execute((sqlMV+comment) % 'ATLAS_PANDA.MV_JOBSACTIVE4_STATS', varMap)
                         else:
+                            # use maxPriority to avoid underestimation of running jobs
+                            if minPriority != None and maxPriority != None:
+                                varMap[':minPriority'] = maxPriority
                             self.cur.execute((sqlMVforRun+comment) % 'ATLAS_PANDA.MV_JOBSACTIVE4_STATS', varMap)
                     else:
                         self.cur.execute((sql0+comment) % table, varMap)

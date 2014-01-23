@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed truncation of priority in the brokerage when getting # of jobs
   * added getRetryHistoryJEDI
   * fixed dispatcher for glexec=test and HC
   * fixed the brokerage for nightlies
