@@ -812,14 +812,9 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                                                                      cmtConfig=prevCmtConfig)
                             else:
                                 # for nightlies
-                                try:
-                                    # extract only OS version
-                                    osVer = prevCmtConfig.split('-')[1]
-                                except:
-                                    osVer = prevCmtConfig
                                 siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,
                                                                                      releases='nightlies',
-                                                                                     cmtConfig=osVer)
+                                                                                     cmtConfig=prevCmtConfig)
                             tmpLog.debug('  cache          %s' % prevHomePkg)
                     if useCacheVersion:        
                         tmpLog.debug('  cache/relSites     %s' % str(siteListWithCache))

@@ -1,11 +1,11 @@
 Release Note
 
 * current
+  * fixed the brokerage for nightlies
   * fixed insertTaskParam for uniqueTaskName=False 
   * fixed truncation of priority in the brokerage when getting # of jobs
   * added getRetryHistoryJEDI
   * fixed dispatcher for glexec=test and HC
-  * fixed the brokerage for nightlies
   * fixed updateUnmergedDataset to increment nFilesTobeUsed
   * fixed error message for duplicated task submission
   * fixed killTask.py not to kill transferring jobs when noRunning is used
