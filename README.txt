@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added a protection against FileCatalogUnknownFactory
   * fixed the brokerage for nightlies
   * fixed insertTaskParam for uniqueTaskName=False 
   * fixed truncation of priority in the brokerage when getting # of jobs

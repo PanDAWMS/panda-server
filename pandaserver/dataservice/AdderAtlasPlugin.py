@@ -14,6 +14,7 @@ import threading
 import xml.dom.minidom
 import ErrorCode
 from dq2.clientapi import DQ2
+from dq2.filecatalog.FileCatalogUnknownFactory import FileCatalogUnknownFactory
 try:
     from dq2.clientapi.cli import Register2
 except:
@@ -342,7 +343,8 @@ class AdderAtlasPlugin (AdderPluginBase):
                     DQ2.DQFrozenDatasetException,
                     DQ2.DQUnknownDatasetException,
                     DQ2.DQDatasetExistsException,
-                    DQ2.DQFileMetaDataMismatchException):
+                    DQ2.DQFileMetaDataMismatchException,
+                    FileCatalogUnknownFactory):
                 # fatal errors
                 errType,errValue = sys.exc_info()[:2]
                 out = '%s : %s' % (errType,errValue)
