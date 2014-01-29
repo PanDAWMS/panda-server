@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed to register new version before deleting pre-merged files
   * added a protection against FileCatalogUnknownFactory
   * fixed the brokerage for nightlies
   * fixed insertTaskParam for uniqueTaskName=False 

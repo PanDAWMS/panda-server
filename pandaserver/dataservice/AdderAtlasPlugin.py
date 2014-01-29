@@ -602,6 +602,7 @@ class AdderAtlasPlugin (AdderPluginBase):
             return False
         parentDS = tmpMatch.group(1)
         # delete
+        self.logger.debug("registerNewVersion %s" % parentDS)
         self.logger.debug("deleteFilesFromDataset %s %s" % (parentDS,inputFileStr[:-1]))
         nTry = 3
         for iTry in range(nTry):
@@ -610,6 +611,7 @@ class AdderAtlasPlugin (AdderPluginBase):
             isFatal  = False
             out = 'OK'
             try:
+                self.dq2api.registerNewVersion(parentDS)
                 self.dq2api.deleteFilesFromDataset(parentDS,inputFileGUIDs)
             except (DQ2.DQClosedDatasetException,
                     DQ2.DQFrozenDatasetException,
