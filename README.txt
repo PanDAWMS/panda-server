@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added a protection against un-formatted destinationDBlock
   * changed to register new version before deleting pre-merged files
   * added a protection against FileCatalogUnknownFactory
   * fixed the brokerage for nightlies
