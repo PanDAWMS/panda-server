@@ -88,42 +88,46 @@ class AdderGen:
                 # set job status
                 if not self.job.jobStatus in ['transferring']:
                     self.job.jobStatus = self.jobStatus
-                # parse XML
-                parseResult = self.parseXML()
                 addResult = None
                 adderPlugin = None
-                if parseResult < 2:
-                    # instantiate concrete plugin
-                    if self.job.VO == 'cms':
-                        from AdderCmsPlugin import AdderCmsPlugin
-                        adderPlugin = AdderCmsPlugin(self.job,extraInfo=self.extraInfo)
-                    else:
-                        from AdderAtlasPlugin import AdderAtlasPlugin
-                        adderPlugin = AdderAtlasPlugin(self.job,
-                                                       taskBuffer=self.taskBuffer,
-                                                       siteMapper=self.siteMapper,
-                                                       extraInfo=self.extraInfo,
-                                                       logger=self.logger)
-                    # execute
-                    adderPlugin.execute()
-                    addResult = adderPlugin.result
-                    self.logger.debug('plugin done with %s' % (addResult.statusCode))
-                    # ignore temporary errors
-                    if self.ignoreTmpError and addResult.isTemporary():
-                        self.logger.debug(': ignore %s ' % self.job.ddmErrorDiag)
-                        self.logger.debug('escape')
-                        # unlock XML
-                        try:
-                            fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
-                            self.lockXML.close()
-                        except:
-                            type, value, traceBack = sys.exc_info()
-                            self.logger.debug(": %s %s" % (type,value))
-                            self.logger.debug("cannot unlock XML")
-                        return
-                    # failed
-                    if not addResult.isSucceeded():
-                        self.job.jobStatus = 'failed'
+                # skip DDM access for event service jobs
+                if self.job.isEventServiceJob() and self.job.jobStatus == 'finished':
+                    self.logger.debug('skip DDM access for event service')
+                else:
+                    # parse XML
+                    parseResult = self.parseXML()
+                    if parseResult < 2:
+                        # instantiate concrete plugin
+                        if self.job.VO == 'cms':
+                            from AdderCmsPlugin import AdderCmsPlugin
+                            adderPlugin = AdderCmsPlugin(self.job,extraInfo=self.extraInfo)
+                        else:
+                            from AdderAtlasPlugin import AdderAtlasPlugin
+                            adderPlugin = AdderAtlasPlugin(self.job,
+                                                           taskBuffer=self.taskBuffer,
+                                                           siteMapper=self.siteMapper,
+                                                           extraInfo=self.extraInfo,
+                                                           logger=self.logger)
+                        # execute
+                        adderPlugin.execute()
+                        addResult = adderPlugin.result
+                        self.logger.debug('plugin done with %s' % (addResult.statusCode))
+                        # ignore temporary errors
+                        if self.ignoreTmpError and addResult.isTemporary():
+                            self.logger.debug(': ignore %s ' % self.job.ddmErrorDiag)
+                            self.logger.debug('escape')
+                            # unlock XML
+                            try:
+                                fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
+                                self.lockXML.close()
+                            except:
+                                type, value, traceBack = sys.exc_info()
+                                self.logger.debug(": %s %s" % (type,value))
+                                self.logger.debug("cannot unlock XML")
+                            return
+                        # failed
+                        if not addResult.isSucceeded():
+                            self.job.jobStatus = 'failed'
                 # set file status for failed jobs or failed transferring jobs
                 if self.job.jobStatus == 'failed' or self.jobStatus == 'failed':
                     self.job.jobStatus = 'failed'
@@ -138,7 +142,7 @@ class AdderGen:
                     self.job.jobDispatcherErrorCode = 0
                     self.job.jobDispatcherErrorDiag = 'NULL'
                     # set status
-                    if addResult.mergingFiles != []:
+                    if addResult != None and addResult.mergingFiles != []:
                         # set status for merging:                        
                         for file in self.job.Files:
                             if file.lfn in addResult.mergingFiles:
@@ -146,7 +150,7 @@ class AdderGen:
                         self.job.jobStatus = 'merging'
                         # propagate transition to prodDB
                         self.job.stateChangeTime = time.strftime('%Y-%m-%d %H:%M:%S',time.gmtime())
-                    elif addResult.transferringFiles != []:
+                    elif addResult != None and addResult.transferringFiles != []:
                         # set status for transferring
                         for file in self.job.Files:
                             if file.lfn in addResult.transferringFiles:

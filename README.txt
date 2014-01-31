@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * sending info of ObjectStore to the pilot
+  * added retry and merge mechanisms for event service
   * added a protection against un-formatted destinationDBlock
   * changed to register new version before deleting pre-merged files
   * added a protection against FileCatalogUnknownFactory

@@ -71,7 +71,8 @@ class Response:
         strRealDataset = ''
         strRealDatasetIn = ''        
         strDestToken = ''
-        strProdToken = ''        
+        strProdToken = ''
+        strProdTokenForOutput = ''
         strGUID = ''
         strFSize = ''
         strCheckSum = ''
@@ -126,6 +127,7 @@ class Response:
                     strDestToken += ','
                 strDestToken += file.destinationDBlockToken.split(',')[0]
                 strDisTokenForOutput += '%s,' % file.dispatchDBlockToken
+                strProdTokenForOutput += '%s,' % file.prodDBlockToken
         # inFiles
         self.data['inFiles'] = strIFiles
         # dispatch DBlock
@@ -189,7 +191,12 @@ class Response:
         # debug mode
         if job.specialHandling != None and 'debug' in job.specialHandling:
             self.data['debug'] = 'True'
-            
+        # event service
+        if job.isEventServiceJob():
+            self.data['eventService'] = 'True'
+            # prod DBlock space token for pre-merging output
+            self.data['prodDBlockTokenForOutput'] = strProdTokenForOutput[:-1]
+
 
     # set proxy key
     def setProxyKey(self,proxyKey):

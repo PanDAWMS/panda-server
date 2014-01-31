@@ -8,6 +8,7 @@ import os
 import sys
 import json
 import time
+import copy
 import fcntl
 import types
 import random
@@ -284,9 +285,13 @@ class DBProxy:
             for tmpItem in job.specialHandling.split(','):
                 if tmpItem.startswith(esHeader):
                     tmpItem = re.sub('^'+esHeader,'',tmpItem)
-                    esLFN,esEvents,esRange = tmpItem.split('/')
-                    eventServiceInfo[esLFN] = {'nEvents':long(esEvents),
-                                               'nEventsPerRange':long(esRange)}
+                    for esItem in tmpItem.split('^'):
+                        if esItem == '':
+                            continue
+                        esLFN,esEvents,esRange = esItem.split('/')
+                        eventServiceInfo[esLFN] = {'nEvents':long(esEvents),
+                                                   'nEventsPerRange':long(esRange)}
+                    newSpecialHandling += '{0},'.format(esHeader[:-1])
                 else:
                     newSpecialHandling += '{0},'.format(tmpItem)
             job.specialHandling = newSpecialHandling[:-1]
@@ -1095,9 +1100,24 @@ class DBProxy:
                         fileOL.dataset           = file.dataset
                         fileOL.type              = file.type
                         newJob.addFile(fileOL)
-                # delete to kill
+                # main job
                 if useCommit:
                     self.conn.begin()
+                # actions for event service 
+                if useJEDI and job.isEventServiceJob() and job.jobStatus == 'finished':
+                    retEvS = self.ppEventServiceJob(job.PandaID,job.attemptNr,False)
+                    # DB error
+                    if retEvS == None:
+                        raise RuntimeError, 'Faied to retry for Event Service'
+                    elif retEvS == 0:
+                        job.jobStatus = 'cancelled'
+                        job.taskBufferErrorCode = ErrorCode.EC_EventServiceRetried
+                        job.taskBufferErrorDiag = 'to retry unprocessed even ranges'
+                    elif retEvS == 2:
+                        job.jobStatus = 'cancelled'
+                        job.taskBufferErrorCode = ErrorCode.EC_EventServiceMerge
+                        job.taskBufferErrorDiag = 'to merge'
+                # delete to kill
                 varMap = {}
                 varMap[':PandaID'] = job.PandaID
                 if fromJobsDefined:
@@ -2751,12 +2771,75 @@ class DBProxy:
                 # instantiate Job
                 job = JobSpec()
                 job.pack(res)
-                # Files
+                # read files
                 sqlFile = "SELECT %s FROM ATLAS_PANDA.filesTable4 " % FileSpec.columnNames()
                 sqlFile+= "WHERE PandaID=:PandaID"
                 self.cur.arraysize = 10000                                
                 self.cur.execute(sqlFile+comment, varMap)
                 resFs = self.cur.fetchall()
+                eventRangeIDs = {}
+                for resF in resFs:
+                    file = FileSpec()
+                    file.pack(resF)
+                    # add files (including input just in case)
+                    job.addFile(file)
+                    # get event ragnes for event service
+                    if job.isEventServiceMerge():
+                        # only for input
+                        if not file.type in ['output','log']:
+                            # sql to read range
+                            sqlRR  = "SELECT fileID,job_processID,attemptNr "
+                            sqlRR += "FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+                            sqlRR += "WHERE jediTaskID=:jediTaskID AND PandaID=:pandaID AND status=:eventStatus "
+                            # read parent PandaID
+                            sqlPP  = "SELECT oldPandaID FROM {0}.JEDI_Job_Retry_History ".format(panda_config.schemaJEDI)
+                            sqlPP += "WHERE jediTaskID=:jediTaskID AND newPandaID=:pandaID " # FIXME 'to ignore normal retry chain by JEDI' AND type=:esRetry "
+                            ppPandaID = job.PandaID
+                            while True:
+                                # get ranges
+                                varMap = {}
+                                varMap[':pandaID']     = ppPandaID
+                                varMap[':jediTaskID']  = job.jediTaskID
+                                varMap[':eventStatus'] = 3
+                                self.cur.execute(sqlRR+comment, varMap)
+                                resRR = self.cur.fetchall()
+                                for fileID,job_processID,attemptNr in resRR:
+                                    tmpEventRangeID = self.makeEventRangeID(job.jediTaskID,ppPandaID,fileID,job_processID,attemptNr)
+                                    if not eventRangeIDs.has_key(fileID):
+                                        eventRangeIDs[fileID] = {}
+                                    eventRangeIDs[fileID][job_processID] = tmpEventRangeID
+                                # get parent PandaID
+                                varMap = {}
+                                varMap[':pandaID']     = ppPandaID
+                                varMap[':jediTaskID']  = job.jediTaskID
+                                self.cur.execute(sqlPP+comment, varMap)
+                                resPP = self.cur.fetchone()
+                                if resPP == None:
+                                    break
+                                ppPandaID, = resPP
+                # make input for event service merging
+                mergeInputOutputMap = {}
+                mergeInputFiles = []
+                for tmpFileID,tmpMapEventRangeID in eventRangeIDs.iteritems():
+                    jobProcessIDs = tmpMapEventRangeID.keys()
+                    jobProcessIDs.sort()
+                    # make input
+                    for jobProcessID in jobProcessIDs:
+                        for tmpFileSpec in job.Files:
+                            if not tmpFileSpec.type in ['output','log']:
+                                continue
+                            tmpInputFileSpec = copy.copy(tmpFileSpec)
+                            tmpInputFileSpec.type = 'input'
+                            # append eventRangeID as suffix
+                            tmpInputFileSpec.lfn  = tmpInputFileSpec.lfn + '.' + tmpMapEventRangeID[jobProcessID]
+                            # add file
+                            mergeInputFiles.append(tmpInputFileSpec)
+                            # make input/output map
+                            if not mergeInputOutputMap.has_key(tmpFileSpec.lfn):
+                                mergeInputOutputMap[tmpFileSpec.lfn] = []
+                            mergeInputOutputMap[tmpFileSpec.lfn].append(tmpInputFileSpec.lfn)
+                for tmpInputFileSpec in mergeInputFiles:
+                    job.addFile(tmpInputFileSpec)
                 # job parameters
                 sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
                 varMap = {}
@@ -2765,13 +2848,24 @@ class DBProxy:
                 for clobJobP, in self.cur:
                     job.jobParameters = clobJobP.read()
                     break
+                # remove or extract parameters for merge
+                if job.isEventServiceJob():
+                    try:
+                        job.jobParameters = re.sub('<PANDA_ESMERGE_.+>.*</PANDA_ESMERGE_.+>','',job.jobParameters)
+                    except:
+                        pass
+                elif job.isEventServiceMerge():
+                    try:
+                        origJobParameters = job.jobParameters
+                        tmpMatch = re.search('<PANDA_ESMERGE_JOBP>(.*)</PANDA_ESMERGE_JOBP>',origJobParameters)
+                        job.jobParameters = tmpMatch.group(1)
+                        tmpMatch = re.search('<PANDA_ESMERGE_TRF>(.*)</PANDA_ESMERGE_TRF>',origJobParameters)
+                        job.transformation = tmpMatch.group(1)
+                    except:
+                        pass
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
-                for resF in resFs:
-                    file = FileSpec()
-                    file.pack(resF)
-                    job.addFile(file)
                 # overwrite processingType for appdir at aggrigates sites
                 if aggSiteMap.has_key(siteName):
                     if aggSiteMap[siteName].has_key(job.computingSite):
@@ -11277,10 +11371,10 @@ class DBProxy:
             updateAttemptNr = False
             varMap = {}
             varMap[':fileID']     = fileSpec.fileID
-            varMap[':attemptNr']  = fileSpec.attemptNr
             varMap[':datasetID']  = fileSpec.datasetID
             varMap[':keepTrack']  = 1
             varMap[':jediTaskID'] = jobSpec.jediTaskID
+            varMap[':attemptNr']  = fileSpec.attemptNr
             # set file status
             if fileSpec.type in ['input','pseudo_input']:
                 if jobSpec.jobStatus == 'finished':
@@ -12138,6 +12232,14 @@ class DBProxy:
 
 
 
+    # make event range ID for event service
+    def makeEventRangeID(self,jediTaskID,pandaID,fileID,job_processID,attemptNr):
+        return '{0}-{1}-{2}-{3}-{4}'.format(jediTaskID,pandaID,
+                                            fileID,job_processID,
+                                            attemptNr)
+
+                         
+
     # get a list of even ranges for a PandaID
     def getEventRanges(self,pandaID,nRanges):
         comment = ' /* DBProxy.getEventRanges */'
@@ -12145,11 +12247,13 @@ class DBProxy:
         methodName += " <PandaID={0}>".format(pandaID)
         _logger.debug("{0} : start".format(methodName))
         try:
+            # max number of retry
+            maxRetry = 3
             # sql to get ranges
             sql  = 'SELECT * FROM ('
             sql += 'SELECT jediTaskID,datasetID,fileID,pandaID,attemptNr,job_processID,def_min_eventID,def_max_eventID '
             sql += "FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
-            sql += "WHERE PandaID=:pandaID AND status=:eventStatus "
+            sql += "WHERE PandaID=:pandaID AND status=:eventStatus AND attemptNr<:maxAttemptNr "
             sql += "ORDER BY def_min_eventID "
             sql += ") WHERE rownum<={0} ".format(nRanges)
             # sql to get file info
@@ -12164,6 +12268,7 @@ class DBProxy:
             varMap = {}
             varMap[':pandaID'] = pandaID
             varMap[':eventStatus']  = 0 # 0=ready
+            varMap[':maxAttemptNr'] = maxRetry
             # start transaction
             self.conn.begin()
             # select
@@ -12193,10 +12298,11 @@ class DBProxy:
                 if tmpLFN == None:
                     continue
                 # make dict
-                tmpDict = {'eventRangeID':'{0}-{1}-{2}-{3}'.format(jediTaskID,pandaID,fileID,job_processID),
+                tmpDict = {'eventRangeID':self.makeEventRangeID(jediTaskID,pandaID,
+                                                                fileID,job_processID,
+                                                                attemptNr),
                            'startEvent':startEvent,
                            'lastEvent':lastEvent,
-                           'attemptNr':attemptNr,
                            'LFN':tmpLFN,
                            'GUID':tmpGUID}
                 # lock
@@ -12233,11 +12339,11 @@ class DBProxy:
 
 
     # get a list of even ranges for a PandaID
-    def updateEventRange(self,eventRangeID,attemptNr,eventStatus):
+    def updateEventRange(self,eventRangeID,eventStatus):
         comment = ' /* DBProxy.updateEventRange */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <eventRangeID={0}>".format(eventRangeID)
-        _logger.debug("{0} : start attemptNr={1} status={2}".format(methodName,attemptNr,eventStatus))
+        _logger.debug("{0} : start status={1}".format(methodName,eventStatus))
         try:
             # sql to update status
             sqlU  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
@@ -12249,11 +12355,12 @@ class DBProxy:
             # decompose eventRangeID
             try:
                 tmpItems = eventRangeID.split('-')
-                jediTaskID,pandaID,fileID,job_processID = tmpItems
+                jediTaskID,pandaID,fileID,job_processID,attemptNr = tmpItems
                 jediTaskID = long(jediTaskID)
                 pandaID = long(pandaID)
                 fileID = long(fileID)
                 job_processID = long(job_processID)
+                attemptNr = long(attemptNr)
             except:
                 _logger.error("{0} : wrongly formatted eventRangeID".format(methodName))
                 return False
@@ -12290,3 +12397,239 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return False
+
+
+
+    # post-process for event service job
+    def ppEventServiceJob(self,pandaID,attemptNr=None,useCommit=True):
+        comment = ' /* DBProxy.ppEventServiceJob */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <PandaID={0}>".format(pandaID)
+        _logger.debug("{0} : start attemptNr={1}".format(methodName,attemptNr))
+        try:
+            # return values
+            # 0 : generated a retry job
+            # 1 : not retried due to a harmless reason
+            # 2 : generated a merge job
+            # None : fatal error
+            retValue = 1
+            # read job
+            varMap = {}
+            varMap[':PandaID'] = pandaID
+            sqlJ = "SELECT {0} FROM ATLAS_PANDA.jobsActive4 ".format(JobSpec.columnNames())
+            sqlJ+= "WHERE PandaID=:PandaID "
+            if attemptNr != None:
+                sqlJ+= "AND attemptNr=:attemptNr "
+                varMap[':attemptNr'] = attemptNr
+            # begin transaction
+            if useCommit:
+                self.conn.begin()
+            self.cur.arraysize = 10                
+            self.cur.execute(sqlJ+comment, varMap)
+            resJ = self.cur.fetchone()
+            if resJ == None:
+                _logger.debug("{0} : job not found".format(methodName))
+                # commit
+                if useCommit:
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+                return retValue
+            # make job spec
+            jobSpec = JobSpec()
+            jobSpec.pack(resJ)
+            # check if event service job
+            if not jobSpec.isEventServiceJob():
+                _logger.debug("{0} : no event service job".format(methodName))
+                # commit
+                if useCommit:
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+                return retValue
+            # check if already retried
+            if jobSpec.taskBufferErrorCode in [ErrorCode.EC_EventServiceRetried,ErrorCode.EC_EventServiceMerge]:
+                _logger.debug("{0} : already post-processed for event service with EC={1}".format(methodName,jobSpec.taskBufferErrorCode))
+                # commit
+                if useCommit:
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+                return retValue
+            # check if JEDI is used
+            if hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and \
+                    jobSpec.lockedby == 'jedi' and self.checkTaskStatusJEDI(jobSpec.jediTaskID,self.cur):
+                pass
+            else:
+                _logger.debug("{0} : JEDI is not used".format(methodName))
+                # commit
+                if useCommit:
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+                return retValue
+            # increment attempt number for unfinished ranges to disable updating
+            sqlEC  = "UPDATE {0}.JEDI_Events SET attemptNr=attemptNr+1 ".format(panda_config.schemaJEDI)
+            sqlEC += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND status<>:eventStatus "  
+            varMap = {}
+            varMap[':jediTaskID']  = jobSpec.jediTaskID
+            varMap[':pandaID']     = pandaID
+            varMap[':eventStatus'] = 3
+            self.cur.execute(sqlEC+comment, varMap)
+            nRow = self.cur.rowcount
+            if nRow == 0:
+                # do merging since all ranges were done
+                doMerging = True
+            else:
+                doMerging = False
+            # check maxAttempt
+            if not doMerging and jobSpec.maxAttempt <= jobSpec.attemptNr:
+                _logger.debug("{0} : no more attempt maxAttempt={1} <= attemptNr={2} ".format(methodName,jobSpec.maxAttempt,jobSpec.attemptNr))
+                # commit
+                if useCommit:
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+                return retValue
+            # reset job attributes
+            jobSpec.jobStatus        = 'activated'
+            jobSpec.startTime        = None
+            jobSpec.modificationTime = datetime.datetime.utcnow()
+            if not doMerging:
+                jobSpec.attemptNr += 1
+                jobSpec.currentPriority -= 10
+            jobSpec.endTime          = None
+            jobSpec.transExitCode    = None
+            for attr in jobSpec._attributes:
+                if attr.endswith('ErrorCode') or attr.endswith('ErrorDiag'):
+                    setattr(jobSpec,attr,None)
+            # read files
+            varMap = {}
+            varMap[':PandaID'] = pandaID
+            sqlFile  = "SELECT {0} FROM ATLAS_PANDA.filesTable4 ".format(FileSpec.columnNames())
+            sqlFile += "WHERE PandaID=:PandaID"
+            self.cur.arraysize = 100000
+            self.cur.execute(sqlFile+comment, varMap)
+            resFs = self.cur.fetchall()
+            # loop over all files            
+            for resF in resFs:
+                # add
+                fileSpec = FileSpec()
+                fileSpec.pack(resF)
+                jobSpec.addFile(fileSpec)
+                """
+                # set new GUID and LFN to log
+                if fileSpec.type == 'log':
+                    fileSpec.GUID = commands.getoutput('uuidgen')
+                    # append attemptNr to LFN
+                    oldName = fileSpec.lfn
+                    fileSpec.lfn = re.sub('\.\d+$','',fileSpec.lfn)
+                    fileSpec.lfn = fileSpec.lfn + '.' + jobSpec.attemptNr
+                """    
+                # reset file status
+                if fileSpec.type in ['output','log']:
+                    fileSpec.status = 'unknown'
+            # read job parameters
+            sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
+            varMap = {}
+            varMap[':PandaID'] = jobSpec.PandaID
+            self.cur.execute(sqlJobP+comment, varMap)
+            for clobJobP, in self.cur:
+                jobSpec.jobParameters = clobJobP.read()
+                break
+            # changes some attributes for merging
+            if doMerging:
+                # extract parameters for merge
+                try:
+                    tmpMatch = re.search('<PANDA_EVSMERGE>(.*)</PANDA_EVSMERGE>',jobSpec.jobParameters)
+                    jobSpec.jobParameters = tmpMatch.group(1)
+                except:
+                    pass
+                # change special handling
+                jobSpec.setEventServiceMerge()
+            # insert job with new PandaID
+            sql1  = "INSERT INTO ATLAS_PANDA.jobsActive4 ({0}) ".format(JobSpec.columnNames())
+            sql1 += JobSpec.bindValuesExpression(useSeq=True)
+            sql1 += " RETURNING PandaID INTO :newPandaID"
+            # set parentID
+            jobSpec.parentID = jobSpec.PandaID
+            varMap = jobSpec.valuesMap(useSeq=True)
+            varMap[':newPandaID'] = self.cur.var(varNUMBER)
+            # insert
+            retI = self.cur.execute(sql1+comment, varMap)
+            # set PandaID
+            jobSpec.PandaID = long(self.cur.getvalue(varMap[':newPandaID']))
+            msgStr = '{0} Generate new PandaID -> {1}#{2} '.format(methodName,jobSpec.PandaID,jobSpec.attemptNr)
+            if doMerging:
+                msgStr += "for merge"
+            else:
+                msgStr += "for retry"
+            _logger.debug(msgStr)
+            # insert files
+            sqlFile = "INSERT INTO ATLAS_PANDA.filesTable4 ({0}) ".format(FileSpec.columnNames())
+            sqlFile+= FileSpec.bindValuesExpression(useSeq=True)
+            sqlFile+= " RETURNING row_ID INTO :newRowID"
+            for fileSpec in jobSpec.Files:
+                # reset rowID
+                fileSpec.row_ID = None
+                # insert
+                varMap = fileSpec.valuesMap(useSeq=True)
+                varMap[':newRowID'] = self.cur.var(varNUMBER)
+                self.cur.execute(sqlFile+comment, varMap)
+                fileSpec.row_ID = long(self.cur.getvalue(varMap[':newRowID']))
+                # update mod time for files
+                varMap = {}
+                varMap[':PandaID'] = jobSpec.PandaID
+                varMap[':modificationTime'] = jobSpec.modificationTime
+                sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
+                self.cur.execute(sqlFMod+comment,varMap)
+            # insert job parameters
+            sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters,modificationTime) VALUES (:PandaID,:param,:modTime)"
+            varMap = {}
+            varMap[':PandaID'] = jobSpec.PandaID
+            varMap[':param']   = jobSpec.jobParameters
+            varMap[':modTime'] = jobSpec.modificationTime
+            self.cur.execute(sqlJob+comment, varMap)
+            # set error code to original job to avoid being retried by another process
+            sqlE = "UPDATE ATLAS_PANDA.jobsActive4 SET taskBufferErrorCode=:errCode,taskBufferErrorDiag=:errDiag WHERE PandaID=:PandaID"
+            varMap = {}
+            varMap[':PandaID'] = jobSpec.parentID
+            varMap[':errCode'] = ErrorCode.EC_EventServiceRetried
+            varMap[':errDiag'] = 'retrying with event service. new PandaID={0}'.format(jobSpec.PandaID)
+            self.cur.execute(sqlE+comment, varMap)
+            # set new PandaID to unprocessed event ranges
+            nRow = -1
+            if not doMerging:
+                sqlEI  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+                sqlEI += "SET PandaID=:newPandaID,attemptNr=:attemptNr,status=:newEventStatus "
+                sqlEI += "WHERE jediTaskID=:jediTaskID AND PandaID=:oldPandaID AND status<>:oldEventStatus "
+                varMap = {}
+                varMap[':jediTaskID']     = jobSpec.jediTaskID
+                varMap[':oldPandaID']     = pandaID
+                varMap[':newPandaID']     = jobSpec.PandaID
+                varMap[':oldEventStatus'] = 3
+                varMap[':newEventStatus'] = 0
+                varMap[':attemptNr']      = 1
+                self.cur.arraysize = 10000000
+                self.cur.execute(sqlEI+comment, varMap)
+                nRow = self.cur.rowcount
+            # propagate change to JEDI
+            self.updateForPilotRetryJEDI(jobSpec,self.cur)
+            # commit
+            if useCommit:
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+            # set return
+            if not doMerging:
+                retValue = 0
+            else:
+                retValue = 2
+            # record status change
+            try:
+                self.recordStatusChange(jobSpec.PandaID,jobSpec.jobStatus,jobInfo=jobSpec)
+            except:
+                _logger.error('recordStatusChange in ppEventServiceJob')
+            _logger.debug('{0} done for doMergeing={1} with new {2} ranges'.format(methodName,doMerging,nRow))
+            return retValue
+        except:
+            # roll back
+            if useCommit:
+                self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return None

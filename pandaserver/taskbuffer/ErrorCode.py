@@ -27,6 +27,14 @@ EC_PilotRetried = 107
 # lost file (=dataservice.ErrorCode.EC_LostFile)
 EC_LostFile = 110
 
+# retried for event service
+EC_EventServiceRetried = 111
+
+# merge for event service
+EC_EventServiceMerge = 112
+
+
+
 # file not found
 class EC_NotFound:
     pass

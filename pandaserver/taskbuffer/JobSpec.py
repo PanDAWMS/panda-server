@@ -264,3 +264,44 @@ class JobSpec(object):
             return val
         return val[:cls._limitLength[attr]]
     truncateStringAttr = classmethod(truncateStringAttr)
+
+
+    # check if event service job
+    def isEventServiceJob(self):
+        try:
+            if self.specialHandling != None and 'es' in self.specialHandling.split(','):
+                return True
+        except:
+            pass
+        return False
+
+
+    # check if event service merge job
+    def isEventServiceMerge(self):
+        try:
+            if self.specialHandling != None and 'esmerge' in self.specialHandling.split(','):
+                return True
+        except:
+            pass
+        return False
+
+
+
+    # set event service merge
+    def setEventServiceMerge(self):
+        try:
+            # set flag for merging
+            if self.specialHandling == None:
+                self.specialHandling = 'esmerge'
+            else:
+                newSpecialHandling = ''
+                # remove flag for event service
+                for tmpFlag in self.specialHandling.split(','):
+                    if tmpFlag in ['','es']:
+                        continue
+                    newSpecialHandling += tmpFlag
+                    newSpecialHandling += ','
+                newSpecialHandling += 'esmerge'
+                self.specialHandling = newSpecialHandling
+        except:
+            pass

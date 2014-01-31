@@ -298,10 +298,10 @@ class JobDipatcher:
 
 
     # update an event range
-    def updateEventRange(self,eventRangeID,attemptNr,eventStatus,timeout):
+    def updateEventRange(self,eventRangeID,eventStatus,timeout):
         # peek jobs
         tmpWrapper = _TimedMethod(self.taskBuffer.updateEventRange,timeout)
-        tmpWrapper.run(eventRangeID,attemptNr,eventStatus)
+        tmpWrapper.run(eventRangeID,eventStatus)
         # make response
         if tmpWrapper.result == Protocol.TimeOutToken:
             # timeout
@@ -313,7 +313,7 @@ class JobDipatcher:
             else:
                 # failed
                 response=Protocol.Response(Protocol.SC_Failed)
-        _logger.debug("updateEventRange : %s/%s ret -> %s" % (eventRangeID,attemptNr,response.encode()))
+        _logger.debug("updateEventRange : %s ret -> %s" % (eventRangeID,response.encode()))
         return response.encode()
 
 
@@ -640,9 +640,9 @@ def getEventRanges(req,pandaID,nRanges=10,timeout=60):
 
 
 # update an event range
-def updateEventRange(req,eventRangeID,attemptNr,eventStatus,timeout=60):
-    _logger.debug("updateEventRange(%s/%s)" % (eventRangeID,attemptNr))
-    return jobDispatcher.updateEventRange(eventRangeID,attemptNr,eventStatus,int(timeout))
+def updateEventRange(req,eventRangeID,eventStatus,timeout=60):
+    _logger.debug("updateEventRange(%s status=%s)" % (eventRangeID,eventStatus))
+    return jobDispatcher.updateEventRange(eventRangeID,eventStatus,int(timeout))
 
 
 # generate pilot token

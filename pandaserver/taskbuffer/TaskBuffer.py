@@ -2431,11 +2431,11 @@ class TaskBuffer:
 
 
     # get a list of even ranges for a PandaID
-    def updateEventRange(self,eventRangeID,attemptNr,eventStatus):
+    def updateEventRange(self,eventRangeID,eventStatus):
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.updateEventRange(eventRangeID,attemptNr,eventStatus)
+        ret = proxy.updateEventRange(eventRangeID,eventStatus)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
