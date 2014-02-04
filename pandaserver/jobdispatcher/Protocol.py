@@ -120,7 +120,7 @@ class Response:
                 if file.type == 'log':
                     logFile = file.lfn
                     logGUID = file.GUID
-                    strScopeLog = file.scope                                            
+                    strScopeLog = file.scope
                 else:
                     strScopeOut += '%s,' % file.scope                        
                 if strDestToken != '':

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed for log+ObjectStore
   * sending info of ObjectStore to the pilot
   * added retry and merge mechanisms for event service
   * added a protection against un-formatted destinationDBlock

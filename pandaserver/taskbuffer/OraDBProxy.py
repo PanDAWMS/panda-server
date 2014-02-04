@@ -2781,8 +2781,9 @@ class DBProxy:
                 for resF in resFs:
                     file = FileSpec()
                     file.pack(resF)
-                    # add files (including input just in case)
-                    job.addFile(file)
+                    # add files
+                    if not job.isEventServiceMerge() or file.type in ['output','log']: 
+                        job.addFile(file)
                     # get event ragnes for event service
                     if job.isEventServiceMerge():
                         # only for input
@@ -2826,7 +2827,7 @@ class DBProxy:
                     # make input
                     for jobProcessID in jobProcessIDs:
                         for tmpFileSpec in job.Files:
-                            if not tmpFileSpec.type in ['output','log']:
+                            if not tmpFileSpec.type in ['output']:
                                 continue
                             tmpInputFileSpec = copy.copy(tmpFileSpec)
                             tmpInputFileSpec.type = 'input'
@@ -12490,8 +12491,8 @@ class DBProxy:
             jobSpec.jobStatus        = 'activated'
             jobSpec.startTime        = None
             jobSpec.modificationTime = datetime.datetime.utcnow()
+            jobSpec.attemptNr       += 1
             if not doMerging:
-                jobSpec.attemptNr += 1
                 jobSpec.currentPriority -= 10
             jobSpec.endTime          = None
             jobSpec.transExitCode    = None
@@ -12512,15 +12513,13 @@ class DBProxy:
                 fileSpec = FileSpec()
                 fileSpec.pack(resF)
                 jobSpec.addFile(fileSpec)
-                """
                 # set new GUID and LFN to log
                 if fileSpec.type == 'log':
                     fileSpec.GUID = commands.getoutput('uuidgen')
                     # append attemptNr to LFN
                     oldName = fileSpec.lfn
                     fileSpec.lfn = re.sub('\.\d+$','',fileSpec.lfn)
-                    fileSpec.lfn = fileSpec.lfn + '.' + jobSpec.attemptNr
-                """    
+                    fileSpec.lfn = '{0}.{1}'.format(fileSpec.lfn,jobSpec.attemptNr)
                 # reset file status
                 if fileSpec.type in ['output','log']:
                     fileSpec.status = 'unknown'
