@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * chanted to use dq2 for Lucille_CE
   * fixed for log+ObjectStore
   * sending info of ObjectStore to the pilot
   * added retry and merge mechanisms for event service

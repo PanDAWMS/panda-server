@@ -36,6 +36,8 @@ _logger = PandaLogger().getLogger('Setupper')
 # temporary
 PandaDDMSource = ['BNLPANDA','BNL-OSG2_MCDISK','BNL-OSG2_DATADISK','BNL-OSG2_MCTAPE','BNL-OSG2_DATATAPE']
 
+NoPandaMoverSites = ['Lucille_CE']
+
 
 class Setupper (threading.Thread):
     # constructor
@@ -338,7 +340,8 @@ class Setupper (threading.Thread):
                 continue
             # use DQ2
             if (not self.pandaDDM) and (not dispSiteMap[dispatchDBlock]['src'] in PandaDDMSource or \
-                                        self.siteMapper.getSite(dispSiteMap[dispatchDBlock]['site']).cloud != 'US') \
+                                            self.siteMapper.getSite(dispSiteMap[dispatchDBlock]['site']).cloud != 'US' or \
+                                            dispSiteMap[dispatchDBlock]['site'] in NoPandaMoverSites) \
                    and (job.prodSourceLabel != 'ddm') and (not dispSiteMap[dispatchDBlock]['site'].endswith("_REPRO")):
                 # register dispatch dataset
                 disFiles = fileList[dispatchDBlock]
@@ -770,7 +773,8 @@ class Setupper (threading.Thread):
                 else:
                     dstDQ2ID = self.siteMapper.getSite(job.computingSite).ddm
                 # use DQ2
-                if (not self.pandaDDM) and (not srcDQ2ID in PandaDDMSource or self.siteMapper.getSite(tmpDstID).cloud != 'US') \
+                if (not self.pandaDDM) and \
+                        (not srcDQ2ID in PandaDDMSource or self.siteMapper.getSite(tmpDstID).cloud != 'US' or tmpDstID in NoPandaMoverSites) \
                        and (job.prodSourceLabel != 'ddm') and (not job.computingSite.endswith("_REPRO")):
                     # look for replica
                     dq2ID = srcDQ2ID
@@ -1966,7 +1970,8 @@ class Setupper (threading.Thread):
                 continue
             # check cloud
             if (tmpJob.cloud == 'ND' and self.siteMapper.getSite(tmpJob.computingSite).cloud == 'ND') or \
-                   (tmpJob.cloud == 'US' and self.siteMapper.getSite(tmpJob.computingSite).cloud == 'US'):
+                   (tmpJob.cloud == 'US' and self.siteMapper.getSite(tmpJob.computingSite).cloud == 'US' and \
+                        not tmpJob.computingSite in NoPandaMoverSites):
                 continue
             # check SE to use T2 only
             tmpSrcID = self.siteMapper.getCloud(tmpJob.cloud)['source']
