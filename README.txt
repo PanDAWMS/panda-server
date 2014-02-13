@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added protection against RucioFileCatalog error 
   * added protection against task duplication using t_task
   * chanted to use dq2 for Lucille_CE
   * fixed for log+ObjectStore

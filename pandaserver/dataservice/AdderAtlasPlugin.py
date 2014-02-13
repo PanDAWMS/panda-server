@@ -19,6 +19,13 @@ try:
     from dq2.clientapi.cli import Register2
 except:
     pass
+try:
+    from dq2.filecatalog.rucio.RucioFileCatalogException import RucioFileCatalogException
+except:
+    # dummy class
+    class RucioFileCatalogException:
+        pass
+
 
 import brokerage.broker_util
 from config import panda_config
@@ -176,6 +183,8 @@ class AdderAtlasPlugin (AdderPluginBase):
                     # add SURLs if LFC registration is required
                     if self.useCentralLFC():
                         fileAttrs['surl'] = self.extraInfo['surl'][file.lfn]
+                        if fileAttrs['surl'] == None:
+                            raise TypeError,"{0} has SURL=None".format(file.lfn)
                     idMap[file.destinationDBlock].append(fileAttrs)
                     # for subscription
                     if self.job.prodSourceLabel in ['managed','test','software','rc_test','ptest','user'] and \
@@ -357,7 +366,8 @@ class AdderAtlasPlugin (AdderPluginBase):
                     DQ2.DQUnknownDatasetException,
                     DQ2.DQDatasetExistsException,
                     DQ2.DQFileMetaDataMismatchException,
-                    FileCatalogUnknownFactory):
+                    FileCatalogUnknownFactory,
+                    RucioFileCatalogException):
                 # fatal errors
                 errType,errValue = sys.exc_info()[:2]
                 out = '%s : %s' % (errType,errValue)
