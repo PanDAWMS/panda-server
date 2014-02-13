@@ -11730,7 +11730,7 @@ class DBProxy:
             methodName += ' <{0}>'.format(compactDN)
             _logger.debug('{0} start'.format(methodName))
             # decode json
-            taskParamsJson = json.loads(taskParams)
+            taskParamsJson = PrioUtil.decodeJSON(taskParams)
             # set user name and task type
             taskParamsJson['userName'] = compactDN
             if not prodRole:
@@ -11740,13 +11740,18 @@ class DBProxy:
                 workingGroup = self.getWorkingGroup(fqans)
                 if workingGroup != None:
                     taskParamsJson['workingGroup'] = workingGroup
+            _logger.debug('{0} taskName={1}'.format(methodName,taskParamsJson['taskName']))
             schemaDEFT = self.getSchemaDEFT()
             # sql to check task duplication
             sqlTD  = "SELECT jediTaskID,status FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
-            sqlTD += "WHERE userName=:userName AND taskName=:taskName FOR UPDATE "
+            sqlTD += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND userName=:userName AND taskName=:taskName FOR UPDATE "
+            # sql to check DEFT table
+            sqlCD  = "SELECT taskid FROM {0}.T_TASK ".format(schemaDEFT)
+            sqlCD += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND userName=:userName AND taskName=:taskName FOR UPDATE " 
             # sql to insert task parameters
-            sqlT  = "INSERT INTO {0}.T_TASK (taskid,step_id,reqid,status,submit_time,jedi_task_parameters) VALUES ".format(schemaDEFT)
-            sqlT += "({0}.PRODSYS2_TASK_ID_SEQ.nextval,:stepID,:reqID,:status,CURRENT_DATE,:param) ".format(schemaDEFT)
+            sqlT  = "INSERT INTO {0}.T_TASK ".format(schemaDEFT)
+            sqlT += "(taskid,step_id,reqid,status,submit_time,vo,prodSourceLabel,userName,taskName,jedi_task_parameters) VALUES "
+            sqlT += "({0}.PRODSYS2_TASK_ID_SEQ.nextval,:stepID,:reqID,:status,CURRENT_DATE,:vo,:prodSourceLabel,:userName,:taskName,:param) ".format(schemaDEFT)
             sqlT += "RETURNING TASKID INTO :jediTaskID"
             # sql to delete command
             sqlDC  = "DELETE FROM {0}.PRODSYS_COMM ".format(schemaDEFT)
@@ -11762,11 +11767,33 @@ class DBProxy:
             if taskParamsJson['taskType'] == 'anal' and \
                     (taskParamsJson.has_key('uniqueTaskName') and taskParamsJson['uniqueTaskName'] == True):
                 varMap = {}
+                varMap[':vo']       = taskParamsJson['vo']
                 varMap[':userName'] = taskParamsJson['userName']
                 varMap[':taskName'] = taskParamsJson['taskName']
+                varMap[':prodSourceLabel'] = taskParamsJson['prodSourceLabel']
                 self.cur.execute(sqlTD+comment,varMap)
                 resDT = self.cur.fetchone()
-                if resDT != None:
+                if resDT == None:
+                    # check DEFT table
+                    varMap = {}
+                    varMap[':vo']       = taskParamsJson['vo']
+                    varMap[':userName'] = taskParamsJson['userName']
+                    varMap[':taskName'] = taskParamsJson['taskName']
+                    varMap[':prodSourceLabel'] = taskParamsJson['prodSourceLabel']
+                    self.cur.execute(sqlCD+comment,varMap)
+                    resCD = self.cur.fetchone()
+                    if resCD != None:
+                        # task is already in DEFT
+                        jediTaskID, = resCD
+                        _logger.debug('{0} old jediTaskID={1} with taskName={2} in DEFT table'.format(methodName,jediTaskID,
+                                                                                                      varMap[':taskName']))
+                        goForward = False
+                        retVal  = 'jediTaskID={0} is already queued for outDS={1}. '.format(jediTaskID,
+                                                                                            taskParamsJson['taskName'])
+                        retVal += 'You cannot submit duplicated tasks. '
+                        _logger.debug('{0} skip since old task is already queued in DEFT'.format(methodName))
+                else:
+                    # task is already in JEDI table
                     jediTaskID,taskStatus = resDT
                     _logger.debug('{0} old jediTaskID={1} with taskName={2} in status={3}'.format(methodName,jediTaskID,
                                                                                                   varMap[':taskName'],taskStatus))
@@ -11810,6 +11837,10 @@ class DBProxy:
                 varMap[':reqID']  = 0
                 varMap[':param']  = taskParams
                 varMap[':status'] = 'submit'
+                varMap[':vo']       = taskParamsJson['vo']
+                varMap[':userName'] = taskParamsJson['userName']
+                varMap[':taskName'] = taskParamsJson['taskName']
+                varMap[':prodSourceLabel'] = taskParamsJson['prodSourceLabel']
                 varMap[':jediTaskID'] = self.cur.var(varNUMBER)
                 self.cur.execute(sqlT+comment,varMap)
                 jediTaskID = long(self.cur.getvalue(varMap[':jediTaskID']))
