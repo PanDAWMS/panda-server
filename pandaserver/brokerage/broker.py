@@ -1638,6 +1638,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 if file.type in ['output','log'] and destSE != '':
                     if job.prodSourceLabel == 'user' and job.computingSite == file.destinationSE:
                         pass
+                    elif job.prodSourceLabel == 'user' and prevIsJEDI == True and not file.destinationSE in ['','NULL']:
+                        pass
                     elif destSE == 'local':
                         pass
                     else:

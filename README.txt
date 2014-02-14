@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed for JEDI+destSE
   * added protection against RucioFileCatalog error 
   * added protection against task duplication using t_task
   * chanted to use dq2 for Lucille_CE
