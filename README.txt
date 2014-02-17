@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed not to close top-level datasets when upstream JEDI job failed 
   * fixed reassignSite.py
   * fixed for JEDI+destSE
   * added protection against RucioFileCatalog error 

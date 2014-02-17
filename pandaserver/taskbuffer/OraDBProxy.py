@@ -949,7 +949,7 @@ class DBProxy:
                                         toBeClosedSubList[dJob.jobDefinitionID].append(tmpDestinationDBlock)
                                         # close top-level user dataset
                                         topUserDsName = re.sub('_sub\d+$','',tmpDestinationDBlock)
-                                        if topUserDsName != tmpDestinationDBlock and not topUserDsName in topUserDsList:
+                                        if not useJEDI and topUserDsName != tmpDestinationDBlock and not topUserDsName in topUserDsList:
                                             # set tobeclosed
                                             varMap = {}
                                             if dJob.processingType.startswith('gangarobot') or \
