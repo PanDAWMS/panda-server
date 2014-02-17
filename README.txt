@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed reassignSite.py
   * fixed for JEDI+destSE
   * added protection against RucioFileCatalog error 
   * added protection against task duplication using t_task

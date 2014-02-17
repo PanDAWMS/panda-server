@@ -2,6 +2,14 @@ import sys
 import time
 import datetime
 
+import optparse
+
+usage = "%prog [options] siteName"
+optP = optparse.OptionParser(usage=usage,conflict_handler="resolve")
+optP.add_option('--assigned',action='store_const',const=True,dest='assigned',
+                default=False,help='reassign jobs in assigned state. Jobs in activated state are reassigned by default')
+options,args = optP.parse_args()
+
 from taskbuffer.OraDBProxy import DBProxy
 # password
 from config import panda_config
@@ -40,12 +48,20 @@ def eraseDispDatasets(ids):
         status,out = ddm.DQ2.main('eraseDataset',dataset)
         print out
 
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=4)
-varMap[':jobStatus']        = 'activated'
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+varMap = {}
+if options.assigned:
+    varMap[':jobStatus']        = 'assigned'
+else:
+    varMap[':jobStatus']        = 'activated'
 varMap[':modificationTime'] = timeLimit
 varMap[':prodSourceLabel']  = 'managed'
 varMap[':computingSite']    = site
-sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND computingSite=:computingSite AND modificationTime<:modificationTime AND prodSourceLabel=:prodSourceLabel ORDER BY PandaID"
+if options.assigned:
+    sql = "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 "
+else:
+    sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
+sql += "WHERE jobStatus=:jobStatus AND computingSite=:computingSite AND modificationTime<:modificationTime AND prodSourceLabel=:prodSourceLabel ORDER BY PandaID"
 status,res = proxyS.querySQLS(sql,varMap)
 
 jobs = []
