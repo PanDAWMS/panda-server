@@ -11737,9 +11737,10 @@ class DBProxy:
                 taskParamsJson['taskType']   = 'anal'
                 taskParamsJson['taskPriority'] = 1000
                 # extract working group
-                workingGroup = self.getWorkingGroup(fqans)
-                if workingGroup != None:
-                    taskParamsJson['workingGroup'] = workingGroup
+                if taskParamsJson.has_key('official') and taskParamsJson['official'] == True:
+                    workingGroup = self.getWorkingGroup(fqans)
+                    if workingGroup != None:
+                        taskParamsJson['workingGroup'] = workingGroup
             _logger.debug('{0} taskName={1}'.format(methodName,taskParamsJson['taskName']))
             schemaDEFT = self.getSchemaDEFT()
             # sql to check task duplication

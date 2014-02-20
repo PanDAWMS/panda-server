@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * added isDirectIO to SiteSpec
+  * fixed to use FQAN when inserting tasks
   * fixed not to close top-level datasets when upstream JEDI job failed 
   * fixed reassignSite.py
   * fixed for JEDI+destSE

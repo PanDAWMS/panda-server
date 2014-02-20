@@ -861,9 +861,9 @@ class UserIF:
 
 
     # insert task params
-    def insertTaskParams(self,taskParams,user,prodRole):
+    def insertTaskParams(self,taskParams,user,prodRole,fqans):
         # register
-        ret = self.taskBuffer.insertTaskParamsPanda(taskParams,user,prodRole)
+        ret = self.taskBuffer.insertTaskParamsPanda(taskParams,user,prodRole,fqans)
         # return
         return ret
 
@@ -1690,7 +1690,9 @@ def insertTaskParams(req,taskParams=None):
         return pickle.dumps((False,'failed to decode json'))        
     # check role
     prodRole = _isProdRoleATLAS(req)
-    ret = userIF.insertTaskParams(taskParams,user,prodRole)
+    # get FQANs
+    fqans = _getFQAN(req)
+    ret = userIF.insertTaskParams(taskParams,user,prodRole,fqans)
     return pickle.dumps(ret)
 
 

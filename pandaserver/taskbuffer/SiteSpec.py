@@ -27,6 +27,16 @@ class SiteSpec(object):
             str += '%s:%s ' % (attr,getattr(self,attr))
         return str
 
-        
 
+    # check if direct IO
+    def isDirectIO(self):
+        try:
+            params = self.copysetup.split('^')
+            # directIn
+            directIn = params[4]
+            if directIn == 'True':
+                return True
+        except:
+            pass
+        return False
                        
