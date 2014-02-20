@@ -32,10 +32,17 @@ class SiteSpec(object):
     def isDirectIO(self):
         try:
             params = self.copysetup.split('^')
-            # directIn
-            directIn = params[4]
-            if directIn == 'True':
-                return True
+            # long format
+            if len(params) >= 5: 
+                # directIn
+                directIn = params[4]
+                if directIn == 'True':
+                    return True
+            # TURL PFC creation
+            if len(params) == 3:
+                directIn = params[2]
+                if directIn == 'True':
+                    return True
         except:
             pass
         return False
