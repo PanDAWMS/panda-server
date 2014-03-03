@@ -12,7 +12,7 @@ class SiteSpec(object):
                    'cachedse','allowdirectaccess','comment','cloudlist','statusmodtime','lfcregister',
                    'countryGroup','availableCPU','pledgedCPU','coreCount','reliabilityLevel',
                    'iscvmfs','transferringlimit','maxwdir','fairsharePolicy','minmemory','maxmemory',
-                   'mintime')
+                   'mintime','allowfax')
 
     # constructor
     def __init__(self):

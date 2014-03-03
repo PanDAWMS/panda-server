@@ -8420,8 +8420,9 @@ class DBProxy:
             sql+= "priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue,"
             sql+= "validatedreleases,accesscontrol,copysetup,maxinputsize,cachedse,"
             sql+= "allowdirectaccess,comment_,lastmod,multicloud,lfcregister,"
-            sql+= "countryGroup,availableCPU,pledgedCPU,coreCount,transferringlimit, "
-            sql+= "maxwdir,fairsharePolicy,minmemory,maxmemory,mintime "
+            sql+= "countryGroup,availableCPU,pledgedCPU,coreCount,transferringlimit,"
+            sql+= "maxwdir,fairsharePolicy,minmemory,maxmemory,mintime,"
+            sql+= "catchall,allowfax "
             sql+= "FROM ATLAS_PANDAMETA.schedconfig WHERE siteid IS NOT NULL"
             self.cur.arraysize = 10000            
             self.cur.execute(sql+comment)
@@ -8445,7 +8446,8 @@ class DBProxy:
                        validatedreleases,accesscontrol,copysetup,maxinputsize,cachedse,\
                        allowdirectaccess,comment,lastmod,multicloud,lfcregister, \
                        countryGroup,availableCPU,pledgedCPU,coreCount,transferringlimit, \
-                       maxwdir,fairsharePolicy,minmemory,maxmemory,mintime \
+                       maxwdir,fairsharePolicy,minmemory,maxmemory,mintime, \
+                       catchall,allowfax \
                        = resTmp
                     # skip invalid siteid
                     if siteid in [None,'']:
@@ -8628,6 +8630,15 @@ class DBProxy:
                             ret.transferringlimit = int(transferringlimit)
                         except:
                             pass
+                    # FAX
+                    ret.allowfax = False
+                    try:
+                        if catchall != None and 'allowfax' in catchall:
+                            ret.allowfax = True
+                        if allowfax == 'True':
+                            ret.allowfax = True
+                    except:
+                        pass
                     # append
                     retList[ret.nickname] = ret
             _logger.debug("getSiteInfo done")

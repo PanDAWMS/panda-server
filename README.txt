@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added allowFAX
   * added changeTaskPriorityPanda
   * added isDirectIO to SiteSpec
   * fixed to use FQAN when inserting tasks
