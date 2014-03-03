@@ -2456,6 +2456,19 @@ class TaskBuffer:
 
 
 
+    # change task priority
+    def changeTaskPriorityPanda(self,jediTaskID,newPriority):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.changeTaskPriorityPanda(jediTaskID,newPriority)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 

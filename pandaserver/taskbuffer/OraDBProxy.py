@@ -11718,6 +11718,23 @@ class DBProxy:
 
 
 
+    # get country working
+    def getCountryGroup(self,fqans):
+        # extract country group
+        for tmpFQAN in fqans:
+            match = re.search('^/atlas/([^/]+)/',tmpFQAN)
+            if match != None:
+                tmpCountry = match.group(1)
+                # use country code or usatlas
+                if len(tmpCountry) == 2:
+                    return tmpCountry
+                # usatlas
+                if tmpCountry in ['usatlas']:
+                    return 'us'
+        return None
+
+
+
     # insert TaskParams
     def insertTaskParamsPanda(self,taskParams,dn,prodRole,fqans):
         comment = ' /* JediDBProxy.insertTaskParamsPanda */'
@@ -11741,6 +11758,10 @@ class DBProxy:
                     workingGroup = self.getWorkingGroup(fqans)
                     if workingGroup != None:
                         taskParamsJson['workingGroup'] = workingGroup
+                # extract country group
+                countryGroup = self.getCountryGroup(fqans)
+                if countryGroup != None:
+                    taskParamsJson['countryGroup'] = countryGroup
             _logger.debug('{0} taskName={1}'.format(methodName,taskParamsJson['taskName']))
             schemaDEFT = self.getSchemaDEFT()
             # sql to check task duplication
@@ -12661,6 +12682,39 @@ class DBProxy:
             # roll back
             if useCommit:
                 self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return None
+
+
+
+    # change task priority
+    def changeTaskPriorityPanda(self,jediTaskID,newPriority):
+        comment = ' /* DBProxy.changeTaskPriorityPanda */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <jediTaskID={0}>".format(jediTaskID)
+        _logger.debug("{0} newPrio={1}".format(methodName,newPriority))
+        try:
+            # sql to update task status
+            sqlT  = 'UPDATE {0}.JEDI_Tasks set currentPriority=:newPriority WHERE jediTaskID=:jediTaskID '.format(panda_config.schemaJEDI)
+            # start transaction
+            self.conn.begin()
+            # select
+            self.cur.arraysize = 10
+            varMap = {}
+            varMap[':jediTaskID']  = jediTaskID
+            varMap[':newPriority'] = newPriority
+            # get datasets
+            self.cur.execute(sqlT+comment, varMap)
+            nRow = self.cur.rowcount
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            _logger.debug("{0} done with {1}".format(methodName,nRow))
+            return nRow
+        except:
+            # roll back
+            self._rollback()
             # error
             self.dumpErrorMessage(_logger,methodName)
             return None

@@ -902,6 +902,14 @@ class UserIF:
         return ret
 
 
+    # change task priority 
+    def changeTaskPriority(self,jediTaskID,newPriority):
+        # kill
+        ret = self.taskBuffer.changeTaskPriorityPanda(jediTaskID,newPriority)
+        # return
+        return ret
+
+
 
 # Singleton
 userIF = UserIF()
@@ -1774,4 +1782,33 @@ def getRetryHistory(req,jediTaskID=None):
     except:
         return pickle.dumps((False,'jediTaskID must be an integer'))        
     ret = userIF.getRetryHistory(jediTaskID,user)
+    return pickle.dumps(ret)
+
+
+
+# change task priority
+def changeTaskPriority(req,jediTaskID=None,newPriority=None):
+    # check security
+    if not isSecure(req):
+        return pickle.dumps((False,'secure connection is required'))
+    # get DN
+    user = None
+    if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        user = _getDN(req)        
+    # check role
+    prodRole = _isProdRoleATLAS(req)
+    # only prod managers can use this method
+    if not prodRole:
+        return "Failed : production or pilot role required"
+    # check jediTaskID
+    try:
+        jediTaskID = long(jediTaskID)
+    except:
+        return pickle.dumps((False,'jediTaskID must be an integer'))        
+    # check priority
+    try:
+        newPriority = long(newPriority)
+    except:
+        return pickle.dumps((False,'newPriority must be an integer'))        
+    ret = userIF.changeTaskPriority(jediTaskID,newPriority)
     return pickle.dumps(ret)

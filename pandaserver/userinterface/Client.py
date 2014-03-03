@@ -1340,3 +1340,37 @@ def uploadLog(logStr,logFileName):
     os.unlink(fh.name)
     return retVal
 
+
+
+# change task priority
+def changeTaskPriority(jediTaskID,newPriority):
+    """Change task priority
+
+       args:
+           jediTaskID: jediTaskID of the task to change the priority
+           newPriority: new task priority
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           return code
+                 0: unkown task
+                 1: succeeded
+                 None: database error 
+    """     
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+    # execute
+    url = baseURLSSL + '/changeTaskPriority'
+    data = {'jediTaskID':jediTaskID,
+            'newPriority':newPriority}
+    status,output = curl.post(url,data)
+    try:
+        return status,pickle.loads(output)
+    except:
+        errtype,errvalue = sys.exc_info()[:2]
+        errStr = "ERROR changeTaskPriority : %s %s" % (errtype,errvalue)
+        return EC_Failed,output+'\n'+errStr
+
