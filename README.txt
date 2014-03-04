@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed finished/partial to done/finished as task status
   * added allowFAX
   * added changeTaskPriorityPanda
   * added isDirectIO to SiteSpec

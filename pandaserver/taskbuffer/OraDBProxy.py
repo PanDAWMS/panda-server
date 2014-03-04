@@ -11831,13 +11831,13 @@ class DBProxy:
                     _logger.debug('{0} old jediTaskID={1} with taskName={2} in status={3}'.format(methodName,jediTaskID,
                                                                                                   varMap[':taskName'],taskStatus))
                     # check task status
-                    if not taskStatus in ['finished','failed','partial']:
+                    if not taskStatus in ['finished','failed','partial','done']:
                         # still active
                         goForward = False
                         retVal  = 'jediTaskID={0} is in the {1} state for outDS={2}. '.format(jediTaskID,
                                                                                               taskStatus,
                                                                                               taskParamsJson['taskName'])
-                        retVal += 'You can re-execute the task with the same or another input once it goes into finished/failed/partial'
+                        retVal += 'You can re-execute the task with the same or another input once it goes into finished/failed/done'
                         _logger.debug('{0} skip since old task is not yet finalized'.format(methodName))
                     else:
                         # extract several params for incremental execution
