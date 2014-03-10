@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed jobDefinitonID for JEDI jobs
   * changed finished/partial to done/finished as task status
   * added allowFAX
   * added changeTaskPriorityPanda

@@ -268,8 +268,11 @@ class TaskBuffer:
             for job in jobs:
                 # set JobID. keep original JobID when retry
                 if userJobID != -1 and job.prodSourceLabel in ['user','panda'] \
-                       and (job.attemptNr in [0,'0','NULL'] or (not job.jobExecutionID in [0,'0','NULL'])) \
-                       and (not jobs[0].processingType in ['merge','unmerge']):
+                        and (job.attemptNr in [0,'0','NULL'] or \
+                                 (not job.jobExecutionID in [0,'0','NULL']) or \
+                                 (job.lockedby == 'jedi' and job.attemptNr == 1) \
+                                 ) \
+                        and (not jobs[0].processingType in ['merge','unmerge']):
                     job.jobDefinitionID = userJobID
                 # set jobsetID
                 if job.prodSourceLabel in ['user','panda','ptest','rc_test']:
