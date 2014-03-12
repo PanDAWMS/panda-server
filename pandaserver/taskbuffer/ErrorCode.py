@@ -33,6 +33,9 @@ EC_EventServiceRetried = 111
 # merge for event service
 EC_EventServiceMerge = 112
 
+# merge job failed
+EC_MergeFailed = 113
+
 
 
 # file not found

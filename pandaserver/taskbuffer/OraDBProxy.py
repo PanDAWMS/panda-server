@@ -11783,8 +11783,9 @@ class DBProxy:
             sqlCD += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND userName=:userName AND taskName=:taskName FOR UPDATE " 
             # sql to insert task parameters
             sqlT  = "INSERT INTO {0}.T_TASK ".format(schemaDEFT)
-            sqlT += "(taskid,step_id,reqid,status,submit_time,vo,prodSourceLabel,userName,taskName,jedi_task_parameters) VALUES "
-            sqlT += "({0}.PRODSYS2_TASK_ID_SEQ.nextval,:stepID,:reqID,:status,CURRENT_DATE,:vo,:prodSourceLabel,:userName,:taskName,:param) ".format(schemaDEFT)
+            sqlT += "(taskid,step_id,reqid,status,submit_time,vo,prodSourceLabel,userName,taskName,jedi_task_parameters,priority,current_priority) VALUES "
+            sqlT += "({0}.PRODSYS2_TASK_ID_SEQ.nextval,".format(schemaDEFT)
+            sqlT += ":stepID,:reqID,:status,CURRENT_DATE,:vo,:prodSourceLabel,:userName,:taskName,:param,:priority,:current_priority) "
             sqlT += "RETURNING TASKID INTO :jediTaskID"
             # sql to delete command
             sqlDC  = "DELETE FROM {0}.PRODSYS_COMM ".format(schemaDEFT)
@@ -11875,6 +11876,11 @@ class DBProxy:
                 varMap[':taskName'] = taskParamsJson['taskName']
                 varMap[':prodSourceLabel'] = taskParamsJson['prodSourceLabel']
                 varMap[':jediTaskID'] = self.cur.var(varNUMBER)
+                if taskParamsJson.has_key('taskPriority'):
+                    varMap[':priority'] = taskParamsJson['taskPriority']
+                else:
+                    varMap[':priority'] = 100
+                varMap[':current_priority'] = varMap[':priority']
                 self.cur.execute(sqlT+comment,varMap)
                 jediTaskID = long(self.cur.getvalue(varMap[':jediTaskID']))
                 retVal = jediTaskID
@@ -12025,6 +12031,9 @@ class DBProxy:
             umJob = JobSpec()
             umJob.pack(resJFJ)
             umJob.jobStatus = job.jobStatus
+            if umJob.jobStatus in ['failed','cancelled']:
+                umJob.taskBufferErrorCode = ErrorCode.EC_MergeFailed
+                umJob.taskBufferErrorDiag = "merge job {0}".format(umJob.jobStatus)
             # read files
             self.cur.arraysize = 10000
             self.cur.execute(sqlJFF+comment, varMap)

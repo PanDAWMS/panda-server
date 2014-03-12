@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * fixed to set priorities in t_task when tasks are inserted
+  * fixed to set errorcode/diag to permerge jobs when merge job failed
   * fixed jobDefinitonID for JEDI jobs
   * changed finished/partial to done/finished as task status
   * added allowFAX
