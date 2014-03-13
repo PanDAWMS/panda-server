@@ -300,7 +300,8 @@ class TaskBuffer:
                     job.jobParameters = ' '
                 # set country group and nJobs (=taskID)
                 if job.prodSourceLabel in ['user','panda']:
-                    job.countryGroup = userCountry
+                    if job.lockedby != 'jedi':
+                        job.countryGroup = userCountry
                     # set workingGroup
                     if not validWorkingGroup:
                         if withProdRole:

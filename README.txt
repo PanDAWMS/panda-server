@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed to set countryGroup for JEDI
   * fixed to set priorities in t_task when tasks are inserted
   * fixed to set errorcode/diag to permerge jobs when merge job failed
   * fixed jobDefinitonID for JEDI jobs
