@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed the initial task status from submit to waiting 
   * fixed to set countryGroup for JEDI
   * fixed to set priorities in t_task when tasks are inserted
   * fixed to set errorcode/diag to permerge jobs when merge job failed

@@ -11870,7 +11870,7 @@ class DBProxy:
                 varMap[':stepID'] = 0
                 varMap[':reqID']  = 0
                 varMap[':param']  = taskParams
-                varMap[':status'] = 'submit'
+                varMap[':status'] = 'waiting'
                 varMap[':vo']       = taskParamsJson['vo']
                 varMap[':userName'] = taskParamsJson['userName']
                 varMap[':taskName'] = taskParamsJson['taskName']
