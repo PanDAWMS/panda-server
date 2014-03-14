@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed to set parent_tid=taskid when no parent
   * changed the initial task status from submit to waiting 
   * fixed to set countryGroup for JEDI
   * fixed to set priorities in t_task when tasks are inserted

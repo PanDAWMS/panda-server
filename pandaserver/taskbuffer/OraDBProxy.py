@@ -11747,7 +11747,7 @@ class DBProxy:
 
 
     # insert TaskParams
-    def insertTaskParamsPanda(self,taskParams,dn,prodRole,fqans):
+    def insertTaskParamsPanda(self,taskParams,dn,prodRole,fqans,parent_tid):
         comment = ' /* JediDBProxy.insertTaskParamsPanda */'
         try:
             methodName = "insertTaskParamsPanda"
@@ -11783,9 +11783,13 @@ class DBProxy:
             sqlCD += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND userName=:userName AND taskName=:taskName FOR UPDATE " 
             # sql to insert task parameters
             sqlT  = "INSERT INTO {0}.T_TASK ".format(schemaDEFT)
-            sqlT += "(taskid,step_id,reqid,status,submit_time,vo,prodSourceLabel,userName,taskName,jedi_task_parameters,priority,current_priority) VALUES "
+            sqlT += "(taskid,step_id,reqid,status,submit_time,vo,prodSourceLabel,userName,taskName,jedi_task_parameters,priority,current_priority,parent_tid) VALUES "
             sqlT += "({0}.PRODSYS2_TASK_ID_SEQ.nextval,".format(schemaDEFT)
-            sqlT += ":stepID,:reqID,:status,CURRENT_DATE,:vo,:prodSourceLabel,:userName,:taskName,:param,:priority,:current_priority) "
+            sqlT += ":stepID,:reqID,:status,CURRENT_DATE,:vo,:prodSourceLabel,:userName,:taskName,:param,:priority,:current_priority,"
+            if parent_tid == None:
+                sqlT += "{0}.PRODSYS2_TASK_ID_SEQ.currval) ".format(schemaDEFT)
+            else:
+                sqlT += ":parent_tid) "
             sqlT += "RETURNING TASKID INTO :jediTaskID"
             # sql to delete command
             sqlDC  = "DELETE FROM {0}.PRODSYS_COMM ".format(schemaDEFT)
@@ -11874,6 +11878,8 @@ class DBProxy:
                 varMap[':vo']       = taskParamsJson['vo']
                 varMap[':userName'] = taskParamsJson['userName']
                 varMap[':taskName'] = taskParamsJson['taskName']
+                if parent_tid != None:
+                    varMap[':parent_tid']  = parent_tid
                 varMap[':prodSourceLabel'] = taskParamsJson['prodSourceLabel']
                 varMap[':jediTaskID'] = self.cur.var(varNUMBER)
                 if taskParamsJson.has_key('taskPriority'):
