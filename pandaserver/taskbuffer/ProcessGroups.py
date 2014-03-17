@@ -43,7 +43,7 @@ def converCPTforEPG(cloud,processingType,coreCount,workingGroup=None):
         return cloud,processingType
     else:
         # use MCORE queue for MPC jobs in all clouds
-        return "ALL","mcore"
+        return cloud,"mcore"
 
     
 # count the number of jobs per group

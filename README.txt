@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * split mcore queue so that each site has one
   * changed to set parent_tid=taskid when no parent
   * changed the initial task status from submit to waiting 
   * fixed to set countryGroup for JEDI
