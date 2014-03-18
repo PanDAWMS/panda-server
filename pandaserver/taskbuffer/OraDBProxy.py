@@ -11783,9 +11783,9 @@ class DBProxy:
             sqlCD += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND userName=:userName AND taskName=:taskName FOR UPDATE " 
             # sql to insert task parameters
             sqlT  = "INSERT INTO {0}.T_TASK ".format(schemaDEFT)
-            sqlT += "(taskid,step_id,reqid,status,submit_time,vo,prodSourceLabel,userName,taskName,jedi_task_parameters,priority,current_priority,parent_tid) VALUES "
+            sqlT += "(taskid,status,submit_time,vo,prodSourceLabel,userName,taskName,jedi_task_parameters,priority,current_priority,parent_tid) VALUES "
             sqlT += "({0}.PRODSYS2_TASK_ID_SEQ.nextval,".format(schemaDEFT)
-            sqlT += ":stepID,:reqID,:status,CURRENT_DATE,:vo,:prodSourceLabel,:userName,:taskName,:param,:priority,:current_priority,"
+            sqlT += ":status,CURRENT_DATE,:vo,:prodSourceLabel,:userName,:taskName,:param,:priority,:current_priority,"
             if parent_tid == None:
                 sqlT += "{0}.PRODSYS2_TASK_ID_SEQ.currval) ".format(schemaDEFT)
             else:
@@ -11871,8 +11871,6 @@ class DBProxy:
                 # insert task parameters
                 taskParams = json.dumps(taskParamsJson)    
                 varMap = {}
-                varMap[':stepID'] = 0
-                varMap[':reqID']  = 0
                 varMap[':param']  = taskParams
                 varMap[':status'] = 'waiting'
                 varMap[':vo']       = taskParamsJson['vo']

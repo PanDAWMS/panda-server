@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * removed reqid and step_id from t_task
   * split mcore queue so that each site has one
   * changed to set parent_tid=taskid when no parent
   * changed the initial task status from submit to waiting 
