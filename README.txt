@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * updating t_task.total_done_jobs
+  * changed killTask and finishTask to return a proper error code
   * removed reqid and step_id from t_task
   * split mcore queue so that each site has one
   * changed to set parent_tid=taskid when no parent

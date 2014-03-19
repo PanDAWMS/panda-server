@@ -11373,6 +11373,7 @@ class DBProxy:
         datasetContentsStat = {}
         # loop over all files
         finishUnmerge = False
+        hasInput = False
         for fileSpec in jobSpec.Files:
             # do nothing for unmerged output/log files when merged job successfully finishes,
             # since they were already updated by merged job
@@ -11389,6 +11390,7 @@ class DBProxy:
             varMap[':attemptNr']  = fileSpec.attemptNr
             # set file status
             if fileSpec.type in ['input','pseudo_input']:
+                hasInput = True
                 if jobSpec.jobStatus == 'finished':
                     varMap[':status'] = 'finished'
                 else:
@@ -11518,6 +11520,18 @@ class DBProxy:
                 if toUpdateFlag:
                     _logger.debug(sqlJediDS+comment+str(varMap))                            
                     cur.execute(sqlJediDS+comment,varMap)
+            # update t_task
+            if jobSpec.jobStatus == 'finished' and hasInput and jobSpec.processingType != 'pmerge':
+                varMap = {}
+                varMap[':jediTaskID'] = jobSpec.jediTaskID
+                varMap[':status1'] = 'running'
+                varMap[':status2'] = 'submitting'
+                schemaDEFT = self.getSchemaDEFT()
+                sqlTtask  = "UPDATE {0}.T_TASK ".format(schemaDEFT)
+                sqlTtask += "SET total_done_jobs=total_done_jobs+1,timestamp=CURRENT_DATE "
+                sqlTtask += "WHERE taskid=:jediTaskID AND status IN (:status1,:status2) "
+                _logger.debug(sqlTtask+comment+str(varMap))
+                cur.execute(sqlTtask+comment,varMap)
         # propagate failed result to unmerge job
         if finishUnmerge:
             self.updateUnmergedJobs(jobSpec)
@@ -11904,7 +11918,7 @@ class DBProxy:
 
 
     # send command to task through DEFT
-    def sendCommandTaskPanda(self,jediTaskID,dn,prodRole,comStr,comComment=None,useCommit=True):
+    def sendCommandTaskPanda(self,jediTaskID,dn,prodRole,comStr,comComment=None,useCommit=True,properErrorCode=False):
         comment = ' /* JediDBProxy.sendCommandTaskPanda */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += ' <jediTaskID={0}>'.format(jediTaskID)
@@ -11927,6 +11941,7 @@ class DBProxy:
             sqlC += "VALUES (:jediTaskID,:comm_owner,:comm_cmd,:comm_comment) "
             goForward = True
             retStr = ''
+            retCode = 0
             # begin transaction
             if useCommit:
                 self.conn.begin()
@@ -11940,6 +11955,7 @@ class DBProxy:
                 retStr = 'jediTaskID={0} not found'.format(jediTaskID)
                 _logger.debug("{0} : {1}".format(methodName,retStr))
                 goForward = False
+                retCode = 2
             else:
                 taskStatus,userName = resTC
             # check owner
@@ -11948,6 +11964,22 @@ class DBProxy:
                     retStr = 'Permission denied: not the task owner or no production role'
                     _logger.debug("{0} : {1}".format(methodName,retStr))
                     goForward = False
+                    retCode = 3
+            # check task status
+            if goForward:
+                if comStr in ['kill','finish']:
+                    if taskStatus in ['finished','done','prepared','broken','aborted','failed','aborting','finishing']:
+                        goForward = False
+                if comStr == 'retry':
+                    if not taskStatus in ['finished','failed']:
+                        goForward = False
+                if comStr == 'incexec':
+                    if not taskStatus in ['finished','failed','done']:
+                        goForward = False
+                if not goForward:
+                    retStr = 'Command rejected: the {0} command is not accepted if the task is in {1} status'.format(comStr,taskStatus)
+                    _logger.debug("{0} : {1}".format(methodName,retStr))
+                    retCode = 4
             if goForward:
                 # delete command just in case
                 varMap = {}
@@ -11969,14 +12001,23 @@ class DBProxy:
                         raise RuntimeError, 'Commit error'
                 _logger.debug('{0} done'.format(methodName))
                 retStr = 'command is registered. will be executed in a few minutes'
-            return True,retStr
+            if properErrorCode:
+                return retCode,retStr
+            else:
+                if retCode == 0:
+                    return True,retStr
+                else:
+                    return False,retStr
         except:
             # roll back
             if useCommit:
                 self._rollback()
             # error
             self.dumpErrorMessage(_logger,methodName)
-            return False,'failed to register command'
+            if properErrorCode:
+                return 1,'failed to register command'
+            else:
+                return False,'failed to register command'
 
 
 

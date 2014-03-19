@@ -1260,8 +1260,13 @@ def killTask(jediTaskID):
                  0: communication succeeded to the panda server 
                  255: communication failure
            tuple of return code and diagnostic message
-                 True: request is processed
-                 False: not processed
+                 0: request is registered
+                 1: server error
+                 2: task not found
+                 3: permission denied
+                 4: irrelevant task status
+               100: non SSL connection
+               101: irrelevant taskID 
     """     
     # instantiate curl
     curl = _Curl()
@@ -1270,6 +1275,7 @@ def killTask(jediTaskID):
     # execute
     url = baseURLSSL + '/killTask'
     data = {'jediTaskID':jediTaskID}
+    data['properErrorCode'] = True
     status,output = curl.post(url,data)
     try:
         return status,pickle.loads(output)
@@ -1291,8 +1297,13 @@ def finishTask(jediTaskID):
                  0: communication succeeded to the panda server 
                  255: communication failure
            tuple of return code and diagnostic message
-                 True: request is processed
-                 False: not processed
+                 0: request is registered
+                 1: server error
+                 2: task not found
+                 3: permission denied
+                 4: irrelevant task status
+               100: non SSL connection
+               101: irrelevant taskID 
     """     
     # instantiate curl
     curl = _Curl()
@@ -1301,6 +1312,7 @@ def finishTask(jediTaskID):
     # execute
     url = baseURLSSL + '/finishTask'
     data = {'jediTaskID':jediTaskID}
+    data['properErrorCode'] = True
     status,output = curl.post(url,data)
     try:
         return status,pickle.loads(output)
@@ -1313,7 +1325,7 @@ def finishTask(jediTaskID):
             
 # upload log
 def uploadLog(logStr,logFileName):
-    """Upload ut sandbox
+    """Upload sandbox
 
        args:
            logStr: log message

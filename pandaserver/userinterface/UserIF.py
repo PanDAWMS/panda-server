@@ -869,25 +869,25 @@ class UserIF:
 
 
     # kill task
-    def killTask(self,jediTaskID,user,prodRole):
+    def killTask(self,jediTaskID,user,prodRole,properErrorCode):
         # kill
-        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'kill')
+        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'kill',properErrorCode=properErrorCode)
         # return
         return ret
 
 
     # finish task
-    def finishTask(self,jediTaskID,user,prodRole):
+    def finishTask(self,jediTaskID,user,prodRole,properErrorCode):
         # kill
-        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'finish')
+        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'finish',properErrorCode=properErrorCode)
         # return
         return ret
 
 
     # retry task
-    def retryTask(self,jediTaskID,user,prodRole):
+    def retryTask(self,jediTaskID,user,prodRole,properErrorCode):
         # retry
-        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'retry')
+        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'retry',properErrorCode=properErrorCode)
         # return
         return ret
 
@@ -1706,10 +1706,17 @@ def insertTaskParams(req,taskParams=None):
 
 
 # kill task
-def killTask(req,jediTaskID=None):
+def killTask(req,jediTaskID=None,properErrorCode=None):
+    if properErrorCode == 'True':
+        properErrorCode = True
+    else:
+        properErrorCode = False
     # check security
     if not isSecure(req):
-        return pickle.dumps((False,'secure connection is required'))
+        if properErrorCode:
+            return pickle.dumps((100,'secure connection is required'))
+        else:
+            return pickle.dumps((False,'secure connection is required'))
     # get DN
     user = None
     if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
@@ -1720,17 +1727,27 @@ def killTask(req,jediTaskID=None):
     try:
         jediTaskID = long(jediTaskID)
     except:
-        return pickle.dumps((False,'jediTaskID must be an integer'))        
-    ret = userIF.killTask(jediTaskID,user,prodRole)
+        if properErrorCode:
+            return pickle.dumps((101,'jediTaskID must be an integer'))        
+        else:
+            return pickle.dumps((False,'jediTaskID must be an integer'))
+    ret = userIF.killTask(jediTaskID,user,prodRole,properErrorCode)
     return pickle.dumps(ret)
 
 
 
 # retry task
-def retryTask(req,jediTaskID):
+def retryTask(req,jediTaskID,properErrorCode=None):
+    if properErrorCode == 'True':
+        properErrorCode = True
+    else:
+        properErrorCode = False
     # check security
     if not isSecure(req):
-        return pickle.dumps((False,'secure connection is required'))
+        if properErrorCode:
+            return pickle.dumps((100,'secure connection is required'))
+        else:
+            return pickle.dumps((False,'secure connection is required'))
     # get DN
     user = None
     if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
@@ -1741,17 +1758,27 @@ def retryTask(req,jediTaskID):
     try:
         jediTaskID = long(jediTaskID)
     except:
-        return pickle.dumps((False,'jediTaskID must be an integer'))        
-    ret = userIF.retryTask(jediTaskID,user,prodRole)
+        if properErrorCode:
+            return pickle.dumps((101,'jediTaskID must be an integer'))        
+        else:
+            return pickle.dumps((False,'jediTaskID must be an integer'))
+    ret = userIF.retryTask(jediTaskID,user,prodRole,properErrorCode)
     return pickle.dumps(ret)
 
 
 
 # finish task
-def finishTask(req,jediTaskID=None):
+def finishTask(req,jediTaskID=None,properErrorCode=None):
+    if properErrorCode == 'True':
+        properErrorCode = True
+    else:
+        properErrorCode = False
     # check security
     if not isSecure(req):
-        return pickle.dumps((False,'secure connection is required'))
+        if properErrorCode:
+            return pickle.dumps((100,'secure connection is required'))
+        else:
+            return pickle.dumps((False,'secure connection is required'))
     # get DN
     user = None
     if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
@@ -1762,8 +1789,11 @@ def finishTask(req,jediTaskID=None):
     try:
         jediTaskID = long(jediTaskID)
     except:
-        return pickle.dumps((False,'jediTaskID must be an integer'))        
-    ret = userIF.finishTask(jediTaskID,user,prodRole)
+        if properErrorCode:
+            return pickle.dumps((101,'jediTaskID must be an integer'))        
+        else:
+            return pickle.dumps((False,'jediTaskID must be an integer'))
+    ret = userIF.finishTask(jediTaskID,user,prodRole,properErrorCode)
     return pickle.dumps(ret)
 
 
