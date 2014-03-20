@@ -786,7 +786,7 @@ class FinisherThr (threading.Thread):
                     tmpDstID   = siteMapper.getCloud(job.cloud)['dest']
                     tmpDstSite = siteMapper.getSite(tmpDstID)
                     # get catalog URL
-                    tmpStat,dq2URL = toa.getLocalCatalog(tmpSrcSite.ddm)
+                    tmpStat,dq2URL = dataservice.DDM.toa.getLocalCatalog(tmpDstSite.ddm)
                     if tmpDstSite.se != None:
                         for tmpDstSiteSE in tmpDstSite.se.split(','):
                             match = re.search('.+://([^:/]+):*\d*/*',tmpDstSiteSE)
@@ -882,7 +882,8 @@ class FinisherThr (threading.Thread):
             _logger.debug("done")
             time.sleep(1)
         except:
-            pass
+            errtype,errvalue = sys.exc_info()[:2}
+            _logger.error("FinisherThr failed with %s %s" % (errtype,errvalue)
         self.pool.remove(self)
         self.lock.release()
 
