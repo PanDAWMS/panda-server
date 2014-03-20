@@ -883,7 +883,7 @@ class FinisherThr (threading.Thread):
             time.sleep(1)
         except:
             errtype,errvalue = sys.exc_info()[:2]
-            _logger.error("FinisherThr failed with %s %s" % (errtype,errvalue)
+            _logger.error("FinisherThr failed with %s %s" % (errtype,errvalue))
         self.pool.remove(self)
         self.lock.release()
 
