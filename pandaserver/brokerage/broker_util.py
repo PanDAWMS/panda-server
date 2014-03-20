@@ -217,21 +217,22 @@ def _getPFNFromMySQL(lfns,dq2url):
 
 
 # get files from LFC
-def _getPFNFromLFC(lfns,dq2url,guids,storageName):
+def _getPFNFromLFC(lfns,dq2url,guids,storageName,scopeList=[]):
     _log.debug('_getPFNFromLFC')
     outStr = ''
     # check paramter
     if guids == [] or storageName == [] or (len(lfns) != len(guids)):
         return outStr
-    # extract LFC host
-    lfcHost = re.sub('[/:]',' ',dq2url).split()[1]
     # loop over all LFNs
     iLFN = 0
     nLFN = 1000
     strFiles = ''    
     outStr = ''
     for iLFN in range(len(lfns)):
-        strFiles  += '%s %s\n' % (lfns[iLFN],guids[iLFN]) 
+        if scopeList != []:
+            strFiles  += '%s %s %s\n' % (lfns[iLFN],guids[iLFN],scopeList[iLFN]) 
+        else:
+            strFiles  += '%s %s\n' % (lfns[iLFN],guids[iLFN]) 
         # bulk operation
         if (iLFN+1) % nLFN == 0 or (iLFN+1) >= len(lfns):
             # write to file
@@ -248,7 +249,7 @@ def _getPFNFromLFC(lfns,dq2url,guids,storageName):
             com+= 'unset LD_LIBRARY_PATH; unset PYTHONPATH; export PATH=/usr/local/bin:/bin:/usr/bin; '
             com+= 'source %s; %s/python -Wignore %s/LFCclient.py -f %s -l %s -s %s' % \
                   (panda_config.glite_source,panda_config.native_python32,panda_config.lfcClient_dir,
-                   inFileName,lfcHost,strStorage)
+                   inFileName,dq2url,strStorage)
             _log.debug(com)
             # exeute
             status,output = commands.getstatusoutput(com)
@@ -280,7 +281,8 @@ def _getPFNFromLFC(lfns,dq2url,guids,storageName):
                             
 
 # get files from LRC
-def getFilesFromLRC(files,url,guids=[],storageName=[],terminateWhenFailed=False,getPFN=False):
+def getFilesFromLRC(files,url,guids=[],storageName=[],terminateWhenFailed=False,getPFN=False,
+                    scopeList=[]):
     _log.debug('getFilesFromLRC "%s" %s' % (url,str(storageName)))    
     # get PFC
     outSTR = ''
@@ -322,9 +324,9 @@ def getFilesFromLRC(files,url,guids=[],storageName=[],terminateWhenFailed=False,
                 _log.error("could not parse XML - %s %s" % (type, value))
             _log.debug('RetPFN:%s ' % str(outPFN))                
             return outPFN
-    elif url.startswith('lfc://'):
+    elif url.startswith('lfc://') or url.startswith('rucio://'):
         # from LFC
-        outSTR = _getPFNFromLFC(files,url,guids,storageName)
+        outSTR = _getPFNFromLFC(files,url,guids,storageName,scopeList=scopeList)
         # get PFN
         if getPFN:
             outPFN = {}
@@ -369,10 +371,10 @@ def getNFilesFromLRC(files,url):
 
                                             
 # get list of missing LFNs from LRC
-def getMissLFNsFromLRC(files,url,guids=[],storageName=[]):
+def getMissLFNsFromLRC(files,url,guids=[],storageName=[],scopeList=[]):
     _log.debug('getMissLFNsFromLRC')    
     # get OF files
-    okFiles = getFilesFromLRC(files,url,guids,storageName)
+    okFiles = getFilesFromLRC(files,url,guids,storageName,scopeList=scopeList)
     # collect missing files
     missFiles = []
     for file in files:

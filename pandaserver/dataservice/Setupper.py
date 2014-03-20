@@ -15,6 +15,7 @@ import traceback
 import ErrorCode
 import TaskAssigner
 from DDM import ddm
+from DDM import toa
 from dataservice.DDM import dq2Common
 from taskbuffer.JobSpec import JobSpec
 from taskbuffer.FileSpec import FileSpec
@@ -1121,10 +1122,11 @@ class Setupper (threading.Thread):
         jobsWaiting   = []
         jobsFailed    = []
         jobsProcessed = []
-        allLFNs  = {}
-        allGUIDs = {}
-        cloudMap = {}
-        lfnDsMap = {}
+        allLFNs   = {}
+        allGUIDs  = {}
+        allScopes = {}
+        cloudMap  = {}
+        lfnDsMap  = {}
         replicaMap = {}
         _logger.debug('%s go into LFN correction' % self.timestamp)
         for job in self.jobs:
@@ -1430,8 +1432,11 @@ class Setupper (threading.Thread):
                             allLFNs[job.cloud] = []
                         if not allGUIDs.has_key(job.cloud):
                             allGUIDs[job.cloud] = []
+                        if not allScopes.has_key(job.cloud):
+                            allScopes[job.cloud] = []
                         allLFNs[job.cloud].append(file.lfn)
-                        allGUIDs[job.cloud].append(file.GUID)                    
+                        allGUIDs[job.cloud].append(file.GUID)
+                        allScopes[job.cloud].append(file.scope)
             # modify jobParameters
             if not isFailed:
                 for patt,repl in replaceList:
@@ -1453,21 +1458,16 @@ class Setupper (threading.Thread):
             if self.siteMapper.checkCloud(cloudKey):
                 tmpSrcID   = self.siteMapper.getCloud(cloudKey)['source']
                 tmpSrcSite = self.siteMapper.getSite(tmpSrcID)
-                # get LRC/LFC URL
-                if not tmpSrcSite.lfchost in [None,'']:
-                    # LFC
-                    dq2URL = 'lfc://'+tmpSrcSite.lfchost+':/grid/atlas/'
-                    if tmpSrcSite.se != None:
-                        for tmpSrcSiteSE in tmpSrcSite.se.split(','):
-                            match = re.search('.+://([^:/]+):*\d*/*',tmpSrcSiteSE)
-                            if match != None:
-                                dq2SE.append(match.group(1))
-                else:
-                    # LRC
-                    dq2URL = tmpSrcSite.dq2url
-                    dq2SE  = []
+                # get catalog URL
+                tmpStat,dq2URL = toa.getLocalCatalog(tmpSrcSite.ddm)
+                if tmpSrcSite.se != None:
+                    for tmpSrcSiteSE in tmpSrcSite.se.split(','):
+                        match = re.search('.+://([^:/]+):*\d*/*',tmpSrcSiteSE)
+                        if match != None:
+                            dq2SE.append(match.group(1))
             # get missing files
-            tmpMissLFNs = brokerage.broker_util.getMissLFNsFromLRC(allLFNs[cloudKey],dq2URL,allGUIDs[cloudKey],dq2SE)
+            tmpMissLFNs = brokerage.broker_util.getMissLFNsFromLRC(allLFNs[cloudKey],dq2URL,allGUIDs[cloudKey],
+                                                                   dq2SE,scopeList=allScopes[cloudKey])
             # append
             if not missLFNs.has_key(cloudKey):
                 missLFNs[cloudKey] = []
@@ -1493,7 +1493,7 @@ class Setupper (threading.Thread):
                     tmpSiteNameDQ2Map = DataServiceUtils.getSitesWithDataset(tmpDsName,self.siteMapper,replicaMap,cloudKey,getDQ2ID=True)
                     if tmpSiteNameDQ2Map == {}:
                         continue
-                    self.availableLFNsInT2[cloudKey][tmpDsName] = {'allfiles':[],'allguids':[],'sites':{}}
+                    self.availableLFNsInT2[cloudKey][tmpDsName] = {'allfiles':[],'allguids':[],'allscopes':[],'sites':{}}
                     for tmpSiteName in tmpSiteNameDQ2Map.keys():
                         self.availableLFNsInT2[cloudKey][tmpDsName]['sites'][tmpSiteName] = []
                     self.availableLFNsInT2[cloudKey][tmpDsName]['siteDQ2IDs'] = tmpSiteNameDQ2Map   
@@ -1501,44 +1501,48 @@ class Setupper (threading.Thread):
                 if not tmpCheckLFN in self.availableLFNsInT2[cloudKey][tmpDsName]:
                     self.availableLFNsInT2[cloudKey][tmpDsName]['allfiles'].append(tmpCheckLFN)
                     self.availableLFNsInT2[cloudKey][tmpDsName]['allguids'].append(allGUIDs[cloudKey][allLFNs[cloudKey].index(tmpCheckLFN)])
+                    self.availableLFNsInT2[cloudKey][tmpDsName]['allscopes'].append(allScopes[cloudKey][allLFNs[cloudKey].index(tmpCheckLFN)])
             # get available files at each T2
             for tmpDsName in self.availableLFNsInT2[cloudKey].keys():
                 checkedDq2SiteMap = {}
                 checkLfcSeMap = {}
                 for tmpSiteName in self.availableLFNsInT2[cloudKey][tmpDsName]['sites'].keys():
                     tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
-                    # add LFC
-                    if not checkLfcSeMap.has_key(tmpSiteSpec.lfchost):
-                        checkLfcSeMap[tmpSiteSpec.lfchost] = {}
+                    # get catalog 
+                    tmpStat,catURL = toa.getLocalCatalog(tmpSiteSpec.ddm)
+                    # add catalog
+                    if not checkLfcSeMap.has_key(catURL):
+                        checkLfcSeMap[catURL] = {}
                     # add site
-                    if not checkLfcSeMap[tmpSiteSpec.lfchost].has_key(tmpSiteName):
-                        checkLfcSeMap[tmpSiteSpec.lfchost][tmpSiteName] = []
+                    if not checkLfcSeMap[catURL].has_key(tmpSiteName):
+                        checkLfcSeMap[catURL][tmpSiteName] = []
                     # add SE        
                     if tmpSiteSpec.se != None:
                         for tmpSrcSiteSE in tmpSiteSpec.se.split(','):
                             match = re.search('.+://([^:/]+):*\d*/*',tmpSrcSiteSE)
                             if match != None:
-                                checkLfcSeMap[tmpSiteSpec.lfchost][tmpSiteName].append(match.group(1))
+                                checkLfcSeMap[catURL][tmpSiteName].append(match.group(1))
                 # LFC lookup
-                for tmpLfcHost in checkLfcSeMap.keys():  
+                for tmpCatURL in checkLfcSeMap.keys():  
                     # get SEs
                     tmpSEList = []
-                    for tmpSiteName in checkLfcSeMap[tmpLfcHost].keys():
-                        tmpSEList += checkLfcSeMap[tmpLfcHost][tmpSiteName]
+                    for tmpSiteName in checkLfcSeMap[tmpCatURL].keys():
+                        tmpSEList += checkLfcSeMap[tmpCatURL][tmpSiteName]
                     # get available file list
-                    _logger.debug('%s checking T2 LFC=%s for %s' % (self.timestamp,tmpLfcHost,tmpSEList))
+                    _logger.debug('%s checking T2 LFC=%s for %s' % (self.timestamp,tmpCatURL,tmpSEList))
                     bulkAvFiles = brokerage.broker_util.getFilesFromLRC(self.availableLFNsInT2[cloudKey][tmpDsName]['allfiles'],
-                                                                        'lfc://'+tmpLfcHost+':/grid/atlas/',
+                                                                        tmpCatURL,
                                                                         self.availableLFNsInT2[cloudKey][tmpDsName]['allguids'],
-                                                                        storageName=tmpSEList,getPFN=True)
+                                                                        storageName=tmpSEList,getPFN=True,
+                                                                        scopeList=self.availableLFNsInT2[cloudKey][tmpDsName]['allscopes'])
                     # check each site
-                    for tmpSiteName in checkLfcSeMap[tmpLfcHost].keys():
+                    for tmpSiteName in checkLfcSeMap[tmpCatURL].keys():
                         self.availableLFNsInT2[cloudKey][tmpDsName]['sites'][tmpSiteName] = []                        
                         for tmpLFNck,tmpPFNlistck in bulkAvFiles.iteritems():
                             siteHasFileFlag = False
                             for tmpPFNck in tmpPFNlistck:
                                 # check se
-                                for tmpSE in checkLfcSeMap[tmpLfcHost][tmpSiteName]:
+                                for tmpSE in checkLfcSeMap[tmpCatURL][tmpSiteName]:
                                     if '://'+tmpSE in tmpPFNck:
                                         siteHasFileFlag = True
                                         break

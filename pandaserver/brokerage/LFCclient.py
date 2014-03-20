@@ -17,8 +17,10 @@ except:
 
 
 # get files from LFC
-def _getFilesLFC(files,lfcHost,storages,verbose=False):
-    if ':' in lfcHost:
+def _getFilesLFC(files,lfcHost,storages,verbose=False,scopes={}):
+    if '://' in lfcHost:
+        catStr = lfcHost
+    elif ':' in lfcHost:
         catStr = 'lfc://%s/grid/atlas' % lfcHost
     else:
         catStr = 'lfc://%s:/grid/atlas' % lfcHost
@@ -36,7 +38,10 @@ def _getFilesLFC(files,lfcHost,storages,verbose=False):
                 sys.stdout.write('.')
                 sys.stdout.flush()
             iGUID += 1
-            listGUID[guid] = tmpLFN
+            if catStr.startswith('rucio') and scopes.has_key(tmpLFN):
+                listGUID[guid] = scopes[tmpLFN]+':'+tmpLFN
+            else:
+                listGUID[guid] = tmpLFN
             if iGUID % nGUID == 0 or iGUID == len(files):
                 # get replica
                 resReplicas = apiLFC.bulkFindReplicas(listGUID)
@@ -116,6 +121,7 @@ def main():
             options.outfile = a
     # read GUID/LFN
     files = {}
+    scopes = {}
     if options.infile == None:
         for idx in range(len(options.guids)):
             guid = options.guids[idx]
@@ -128,11 +134,14 @@ def main():
             ifile = open(options.infile)
             for line in ifile:
                 items = line.split()
-                if len(items) == 2:
+                if len(items) >= 2:
                     guid = items[1]
                     lfn  = items[0]
                     if guid != 'NULL':
                         files[guid] = lfn
+                    if len(items) >= 3:
+                        scope = items[2]
+                        scopes[lfn] = scope
             # close and delete
             ifile.close()
             os.remove(options.infile)
@@ -141,7 +150,8 @@ def main():
             print "ERROR: %s:%s" % (errType,errValue)
             sys.exit(1)
     # get files
-    retFiles = _getFilesLFC(files,options.lfchost,options.storages,options.verbose)
+    retFiles = _getFilesLFC(files,options.lfchost,options.storages,
+                            options.verbose,scopes)
     print "LFCRet : %s " % retFiles
     # return
     sys.exit(0)

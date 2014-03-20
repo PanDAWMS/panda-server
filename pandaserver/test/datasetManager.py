@@ -11,6 +11,7 @@ import commands
 import threading
 import userinterface.Client as Client
 from dataservice.DDM import ddm
+from dataservice.DDM import toa
 from dataservice.DDM import dashBorad
 from taskbuffer.OraDBProxy import DBProxy
 from taskbuffer.TaskBuffer import taskBuffer
@@ -784,31 +785,29 @@ class FinisherThr (threading.Thread):
                     # normal production jobs
                     tmpDstID   = siteMapper.getCloud(job.cloud)['dest']
                     tmpDstSite = siteMapper.getSite(tmpDstID)
-                    if not tmpDstSite.lfchost in [None,'']:
-                        # LFC
-                        dq2URL = 'lfc://'+tmpDstSite.lfchost+':/grid/atlas/'
-                        if tmpDstSite.se != None:
-                            for tmpDstSiteSE in tmpDstSite.se.split(','):
-                                match = re.search('.+://([^:/]+):*\d*/*',tmpDstSiteSE)
-                                if match != None:
-                                    dq2SE.append(match.group(1))
-                    else:
-                        # LRC
-                        dq2URL = tmpDstSite.dq2url
-                        dq2SE  = []
+                    # get catalog URL
+                    tmpStat,dq2URL = toa.getLocalCatalog(tmpSrcSite.ddm)
+                    if tmpDstSite.se != None:
+                        for tmpDstSiteSE in tmpDstSite.se.split(','):
+                            match = re.search('.+://([^:/]+):*\d*/*',tmpDstSiteSE)
+                            if match != None:
+                                dq2SE.append(match.group(1))
                 # get LFN list
-                lfns  = []
-                guids = []
+                lfns   = []
+                guids  = []
+                scopes = []
                 nTokens = 0
                 for file in job.Files:
                     # only output files are checked
                     if file.type == 'output' or file.type == 'log':
                         lfns.append(file.lfn)
                         guids.append(file.GUID)
+                        scopes.append(file.scope)
                         nTokens += len(file.destinationDBlockToken.split(','))
                 # get files in LRC
                 _logger.debug("%s Cloud:%s DQ2URL:%s" % (job.PandaID,job.cloud,dq2URL))
-                okFiles = brokerage.broker_util.getFilesFromLRC(lfns,dq2URL,guids,dq2SE,getPFN=True)
+                okFiles = brokerage.broker_util.getFilesFromLRC(lfns,dq2URL,guids,dq2SE,
+                                                                getPFN=True,scopeList=scopes)
                 # count files
                 nOkTokens = 0
                 for okLFN,okPFNs in okFiles.iteritems():
