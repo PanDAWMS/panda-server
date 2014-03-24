@@ -157,6 +157,7 @@ class AdderAtlasPlugin (AdderPluginBase):
         idMap = {}
         fileList = []
         subMap = {}        
+        dsDestMap = {}
         for file in self.job.Files:
             if file.type == 'output' or file.type == 'log':
                 # append to fileList
@@ -185,6 +186,26 @@ class AdderAtlasPlugin (AdderPluginBase):
                         fileAttrs['surl'] = self.extraInfo['surl'][file.lfn]
                         if fileAttrs['surl'] == None:
                             raise TypeError,"{0} has SURL=None".format(file.lfn)
+                        # get destination
+                        if not dsDestMap.has_key(file.destinationDBlock):
+                            if file.destinationDBlockToken in ['',None,'NULL']:
+                                tmpDestList = [self.siteMapper.getSite(self.job.computingSite).ddm]
+                            elif self.siteMapper.getSite(self.job.computingSite).cloud != self.job.cloud and \
+                                    (not self.siteMapper.getSite(self.job.computingSite).ddm.endswith('PRODDISK')) and  \
+                                    (not self.job.prodSourceLabel in ['user','panda']):
+                                # T1 used as T2
+                                tmpDestList = [self.siteMapper.getSite(self.job.computingSite).ddm]
+                            else:
+                                tmpDestList = []
+                                tmpSeTokens = self.siteMapper.getSite(self.job.computingSite).setokens
+                                for tmpDestToken in file.destinationDBlockToken.split(','):
+                                    if tmpSeTokens.has_key(tmpDestToken):
+                                        tmpDest = tmpSeTokens[tmpDestToken]
+                                    else:
+                                        tmpDest = self.siteMapper.getSite(self.job.computingSite).ddm
+                                    if not tmpDest in tmpDestList:
+                                        tmpDestList.append(tmpDest)
+                            dsDestMap[file.destinationDBlock] = tmpDestList
                     idMap[file.destinationDBlock].append(fileAttrs)
                     # for subscription
                     if self.job.prodSourceLabel in ['managed','test','software','rc_test','ptest','user'] and \
@@ -309,6 +330,7 @@ class AdderAtlasPlugin (AdderPluginBase):
         # print idMap
         self.logger.debug("idMap = %s" % idMap)
         self.logger.debug("subMap = %s" % subMap)
+        self.logger.debug("dsDestMap = %s" % dsDestMap)
         # check consistency 
         hasSub = False
         for destinationDBlock in idMap.keys():
@@ -332,82 +354,89 @@ class AdderAtlasPlugin (AdderPluginBase):
                 if not tmpRegItem['lfn'] in regFileList:
                     regNumFiles += 1
                     regFileList.append(tmpRegItem['lfn'])
-        # number of retry
-        nTry = 3
-        for iTry in range(nTry):
-            # empty
-            if idMap == {}:
-                break
-            # add data to datasets
-            time.sleep(1)
-            isFailed = False
-            isFatal  = False
-            setErrorDiag = False
-            out = 'OK'
-            fatalErrStrs = ['[ORA-00001] unique constraint (ATLAS_DQ2.UQ_01_FILES_GUID) violated',
-                            '[USER][OTHER] Parameter value [None] is not a valid uid!']
-            regStart = datetime.datetime.utcnow()
-            try:
-                if not self.useCentralLFC():
-                    regMsgStr = "DQ2 registraion for %s files " % regNumFiles                    
-                    self.logger.debug('%s %s' % ('registerFilesInDatasets',str(idMap)))
-                    self.dq2api.registerFilesInDatasets(idMap)
-                else:
-                    regMsgStr = "LFC+DQ2 registraion for %s files " % regNumFiles
-                    self.logger.debug('%s %s' % ('Register.registerFilesInDatasets',str(idMap)))                    
-                    registerAPI = Register2.Register(self.siteMapper.getSite(self.job.computingSite).ddm)
-                    out = registerAPI.registerFilesInDatasets(idMap)
-            except DQ2.DQFileExistsInDatasetException:
-                # hamless error 
-                errType,errValue = sys.exc_info()[:2]
-                out = '%s : %s' % (errType,errValue)
-            except (DQ2.DQClosedDatasetException,
-                    DQ2.DQFrozenDatasetException,
-                    DQ2.DQUnknownDatasetException,
-                    DQ2.DQDatasetExistsException,
-                    DQ2.DQFileMetaDataMismatchException,
-                    FileCatalogUnknownFactory,
-                    RucioFileCatalogException):
-                # fatal errors
-                errType,errValue = sys.exc_info()[:2]
-                out = '%s : %s' % (errType,errValue)
-                isFatal = True
-                isFailed = True
-            except:
-                # unknown errors
-                errType,errValue = sys.exc_info()[:2]
-                out = '%s : %s' % (errType,errValue)
-                for tmpFatalErrStr in fatalErrStrs:
-                    if tmpFatalErrStr in str(errValue):
-                        self.job.ddmErrorDiag = 'failed to add files : ' + tmpFatalErrStr
-                        setErrorDiag = True
-                        break
-                if setErrorDiag:
-                    isFatal = True
-                else:
-                    isFatal = False
-                isFailed = True                
-            regTime = datetime.datetime.utcnow() - regStart
-            self.logger.debug(regMsgStr + \
-                              'took %s.%03d sec' % (regTime.seconds,regTime.microseconds/1000))
-            # failed
-            if isFailed or isFatal:
-                self.logger.error('%s' % out)
-                if (iTry+1) == nTry or isFatal:
-                    self.job.ddmErrorCode = ErrorCode.EC_Adder
-                    errMsg = "Could not add files to DDM: "
-                    self.job.ddmErrorDiag = errMsg + out.split('\n')[-1]
-                    if isFatal:
-                        self.result.setFatal()
-                    else:
-                        self.result.setTemporary()
-                    return 1
-                self.logger.error("Try:%s" % iTry)
-                # sleep
-                time.sleep(120)                    
-            else:
-                self.logger.debug('%s' % str(out))
-                break
+        # decompose idMap
+        if not self.useCentralLFC():
+            destIdMap = {'DUMMY':idMap}
+        else:
+            destIdMap = self.decomposeIdMap(idMap,dsDestMap)          
+        # loop over all destination
+        for tmpDest,tmpIdMap in destIdMap.iteritems():
+             # number of retry
+             nTry = 3
+             for iTry in range(nTry):
+                 # empty
+                 if idMap == {}:
+                     break
+                 # add data to datasets
+                 time.sleep(1)
+                 isFailed = False
+                 isFatal  = False
+                 setErrorDiag = False
+                 out = 'OK'
+                 fatalErrStrs = ['[ORA-00001] unique constraint (ATLAS_DQ2.UQ_01_FILES_GUID) violated',
+                                 '[USER][OTHER] Parameter value [None] is not a valid uid!']
+                 regStart = datetime.datetime.utcnow()
+                 try:
+                     if not self.useCentralLFC():
+                         regMsgStr = "DQ2 registraion for %s files " % regNumFiles                    
+                         self.logger.debug('%s %s' % ('registerFilesInDatasets',str(tmpIdMap)))
+                         self.dq2api.registerFilesInDatasets(tmpIdMap)
+                     else:
+                         regMsgStr = "LFC+DQ2 registraion for %s files " % regNumFiles
+                         self.logger.debug('%s %s %s' % ('Register.registerFilesInDatasets',tmpDest,str(tmpIdMap)))                    
+                         registerAPI = Register2.Register(tmpDest)
+                         out = registerAPI.registerFilesInDatasets(tmpIdMap)
+                 except DQ2.DQFileExistsInDatasetException:
+                     # hamless error 
+                     errType,errValue = sys.exc_info()[:2]
+                     out = '%s : %s' % (errType,errValue)
+                 except (DQ2.DQClosedDatasetException,
+                         DQ2.DQFrozenDatasetException,
+                         DQ2.DQUnknownDatasetException,
+                         DQ2.DQDatasetExistsException,
+                         DQ2.DQFileMetaDataMismatchException,
+                         FileCatalogUnknownFactory,
+                         RucioFileCatalogException):
+                     # fatal errors
+                     errType,errValue = sys.exc_info()[:2]
+                     out = '%s : %s' % (errType,errValue)
+                     isFatal = True
+                     isFailed = True
+                 except:
+                     # unknown errors
+                     errType,errValue = sys.exc_info()[:2]
+                     out = '%s : %s' % (errType,errValue)
+                     for tmpFatalErrStr in fatalErrStrs:
+                         if tmpFatalErrStr in str(errValue):
+                             self.job.ddmErrorDiag = 'failed to add files : ' + tmpFatalErrStr
+                             setErrorDiag = True
+                             break
+                     if setErrorDiag:
+                         isFatal = True
+                     else:
+                         isFatal = False
+                     isFailed = True                
+                 regTime = datetime.datetime.utcnow() - regStart
+                 self.logger.debug(regMsgStr + \
+                                   'took %s.%03d sec' % (regTime.seconds,regTime.microseconds/1000))
+                 # failed
+                 if isFailed or isFatal:
+                     self.logger.error('%s' % out)
+                     if (iTry+1) == nTry or isFatal:
+                         self.job.ddmErrorCode = ErrorCode.EC_Adder
+                         errMsg = "Could not add files to DDM: "
+                         self.job.ddmErrorDiag = errMsg + out.split('\n')[-1]
+                         if isFatal:
+                             self.result.setFatal()
+                         else:
+                             self.result.setTemporary()
+                         return 1
+                     self.logger.error("Try:%s" % iTry)
+                     # sleep
+                     time.sleep(120)                    
+                 else:
+                     self.logger.debug('%s' % str(out))
+                     break
         # register dataset subscription
         subActivity = 'Production'
         if not self.job.prodSourceLabel in ['user']:
@@ -596,6 +625,23 @@ class AdderAtlasPlugin (AdderPluginBase):
         if not self.addToTopOnly and tmpSiteSpec.lfcregister in ['server']:
             return True
         return False
+
+
+    # decompose idMap
+    def decomposeIdMap(self,idMap,dsDestMap):
+        # add item for top datasets
+        for tmpDS in dsDestMap.keys():
+            tmpTopDS = re.sub('_sub\d+$','',tmpDS)
+            if tmpTopDS != tmpDS:
+                dsDestMap[tmpTopDS] = dsDestMap[tmpDS]
+        destIdMap = {}
+        for tmpDS,tmpFiles in idMap.iteritems():
+            for tmpDest in dsDestMap[tmpDS]:
+                if not destIdMap.has_key(tmpDest):
+                    destIdMap[tmpDest] = {}
+                destIdMap[tmpDest][tmpDS] = tmpFiles
+        return destIdMap
+
 
     # remove unmerged files
     def _removeUnmerged(self):

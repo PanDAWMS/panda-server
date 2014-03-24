@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed AdderAtlas for rucio
   * fixed for Rucio migration
   * updating t_task.total_done_jobs
   * changed killTask and finishTask to return a proper error code
