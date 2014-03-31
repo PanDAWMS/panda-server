@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * sending coreCount to the pilot
   * fixed AdderAtlas for rucio
   * fixed for Rucio migration
   * updating t_task.total_done_jobs

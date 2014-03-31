@@ -188,6 +188,8 @@ class Response:
         self.data['currentPriority'] = job.currentPriority
         # taskID
         self.data['taskID'] = job.taskID
+        # core count
+        self.data['coreCount'] = job.coreCount
         # debug mode
         if job.specialHandling != None and 'debug' in job.specialHandling:
             self.data['debug'] = 'True'
