@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed reassignSite
   * sending coreCount to the pilot
   * fixed AdderAtlas for rucio
   * fixed for Rucio migration

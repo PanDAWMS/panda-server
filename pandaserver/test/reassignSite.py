@@ -1,3 +1,4 @@
+import re
 import sys
 import time
 import datetime
@@ -73,7 +74,7 @@ if len(jobs):
     iJob = 0
     while iJob < len(jobs):
         print 'reassign  %s' % str(jobs[iJob:iJob+nJob])
-        eraseDispDatasets(jobs[iJob:iJob+nJob])        
+        #eraseDispDatasets(jobs[iJob:iJob+nJob])        
         Client.reassignJobs(jobs[iJob:iJob+nJob])
         iJob += nJob
         time.sleep(10)
