@@ -65,7 +65,7 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # check production role
         withProdRole,workingGroup = self.checkProdRole(fqans)
-        if withProdRole:
+        if withProdRole and jobs != []:
             # check dataset name
             for tmpFile in jobs[-1].Files:
                 if tmpFile.type in ['output','log'] and not tmpFile.lfn.startswith('group'):
@@ -79,20 +79,23 @@ class TaskBuffer:
             weight = 0.0
             priorityOffset = 2000
         """    
-        # reset nJob/weight for HC   
-        if jobs[0].processingType in ['hammercloud','gangarobot','hammercloud-fax'] \
-               or jobs[0].processingType.startswith('gangarobot-'):
-            serNum = 0
-            weight = 0.0
-        if jobs[0].processingType in ['gangarobot','gangarobot-pft']:
-            priorityOffset = 3000
-        if jobs[0].processingType in ['hammercloud-fax']:    
-            priorityOffset = 1001
+        # reset nJob/weight for HC
+        if jobs != []:
+            if jobs[0].processingType in ['hammercloud','gangarobot','hammercloud-fax'] \
+                   or jobs[0].processingType.startswith('gangarobot-'):
+                serNum = 0
+                weight = 0.0
+            if jobs[0].processingType in ['gangarobot','gangarobot-pft']:
+                priorityOffset = 3000
+            if jobs[0].processingType in ['hammercloud-fax']:    
+                priorityOffset = 1001
         # check quota
         if weight == None:
             weight = proxy.checkQuota(user)
             # get nJob
-            if userDefinedWG and validWorkingGroup:
+            if jobs == []:
+                serNum = proxy.getNumberJobsUser(user,workingGroup=userDefinedWG)
+            elif userDefinedWG and validWorkingGroup:
                 serNum = proxy.getNumberJobsUser(user,workingGroup=jobs[0].workingGroup)
             else:
                 serNum = proxy.getNumberJobsUser(user,workingGroup=None)
@@ -2466,6 +2469,45 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # exec
         ret = proxy.changeTaskPriorityPanda(jediTaskID,newPriority)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
+    # get WAN data flow matrix
+    def getWanDataFlowMaxtrix(self):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getWanDataFlowMaxtrix()
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
+    # throttle job
+    def throttleJob(self,pandaID):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.throttleJob(pandaID)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
+    # unthrottle job
+    def unThrottleJob(self,pandaID):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.unThrottleJob(pandaID)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

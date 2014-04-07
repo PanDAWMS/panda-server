@@ -248,7 +248,7 @@ class DBProxy:
         if job.prodSourceLabel == 'install':
             job.currentPriority = 4100
         elif job.prodSourceLabel == 'user':
-            if job.processingType in ['usermerge'] and not job.currentPriority in ['NULL',None]:
+            if job.processingType in ['usermerge','pmerge'] and not job.currentPriority in ['NULL',None]:
                 # avoid prio reduction for merge jobs 
                 pass
             else:
@@ -8422,7 +8422,7 @@ class DBProxy:
             sql+= "allowdirectaccess,comment_,lastmod,multicloud,lfcregister,"
             sql+= "countryGroup,availableCPU,pledgedCPU,coreCount,transferringlimit,"
             sql+= "maxwdir,fairsharePolicy,minmemory,maxmemory,mintime,"
-            sql+= "catchall,allowfax "
+            sql+= "catchall,allowfax,wansourcelimit,wansinklimit "
             sql+= "FROM ATLAS_PANDAMETA.schedconfig WHERE siteid IS NOT NULL"
             self.cur.arraysize = 10000            
             self.cur.execute(sql+comment)
@@ -8447,7 +8447,7 @@ class DBProxy:
                        allowdirectaccess,comment,lastmod,multicloud,lfcregister, \
                        countryGroup,availableCPU,pledgedCPU,coreCount,transferringlimit, \
                        maxwdir,fairsharePolicy,minmemory,maxmemory,mintime, \
-                       catchall,allowfax \
+                       catchall,allowfax,wansourcelimit,wansinklimit \
                        = resTmp
                     # skip invalid siteid
                     if siteid in [None,'']:
@@ -8639,6 +8639,12 @@ class DBProxy:
                             ret.allowfax = True
                     except:
                         pass
+                    ret.wansourcelimit = 0
+                    if not wansourcelimit in [None,'']:
+                        ret.wansourcelimit = wansourcelimit
+                    ret.wansinklimit = 0
+                    if not wansinklimit in [None,'']:
+                        ret.wansinklimit = wansinklimit
                     # append
                     retList[ret.nickname] = ret
             _logger.debug("getSiteInfo done")
@@ -12769,6 +12775,147 @@ class DBProxy:
             varMap = {}
             varMap[':jediTaskID']  = jediTaskID
             varMap[':newPriority'] = newPriority
+            # get datasets
+            self.cur.execute(sqlT+comment, varMap)
+            nRow = self.cur.rowcount
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            _logger.debug("{0} done with {1}".format(methodName,nRow))
+            return nRow
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return None
+
+
+
+    # get WAN data flow matrix
+    def getWanDataFlowMaxtrix(self):
+        comment = ' /* DBProxy.getWanDataFlowMaxtrix */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        _logger.debug("{0} start".format(methodName))
+        try:
+            # sql to get data flow
+            sqlT  = 'SELECT PandaID,jobStatus,prodUserName,computingSite,sourceSite,maxCpuCount,inputFileBytes,currentPriority '
+            sqlT += 'FROM ATLAS_PANDA.jobsActive4 '
+            sqlT += 'WHERE prodSourceLabel=:prodSourceLabel '
+            sqlT += 'AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3,:jobStatus4,:jobStatus5) '
+            sqlT += 'AND transferType=:transferType '
+            # start transaction
+            self.conn.begin()
+            # select
+            self.cur.arraysize = 100000
+            varMap = {}
+            varMap[':jobStatus1']   = 'activated'
+            varMap[':jobStatus2']   = 'running'
+            varMap[':jobStatus3']   = 'throttled'
+            varMap[':jobStatus4']   = 'sent'
+            varMap[':jobStatus5']   = 'starting'
+            varMap[':transferType'] = 'fax'
+            varMap[':prodSourceLabel'] = 'user'
+            # get data
+            self.cur.execute(sqlT+comment,varMap)
+            resFs = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # loop over all data
+            retMap = {}
+            for pandaID,jobStatus,prodUserName,computingSite,sourceSite,maxCpuCount,inputFileBytes,currentPriority in resFs:
+                # add sink
+                if not retMap.has_key(computingSite):
+                    retMap[computingSite] = {}
+                # add source
+                if not retMap[computingSite].has_key(sourceSite):
+                    retMap[computingSite][sourceSite] = {'flow':0,'user':{}}
+                # add user
+                if not retMap[computingSite][sourceSite]['user'].has_key(prodUserName):
+                    retMap[computingSite][sourceSite]['user'][prodUserName] = {'activated':{'nJobs':0,'jobList':{}},
+                                                                               'throttled':{'nJobs':0,'jobList':{}}
+                                                                               }
+                # action for each jobStatus
+                if jobStatus in ['activated','throttled']:
+                    # collect PandaIDs
+                    if not retMap[computingSite][sourceSite]['user'][prodUserName][jobStatus]['jobList'].has_key(currentPriority):
+                       retMap[computingSite][sourceSite]['user'][prodUserName][jobStatus]['jobList'][currentPriority] = []
+                    retMap[computingSite][sourceSite]['user'][prodUserName][jobStatus]['jobList'][currentPriority].append(pandaID)
+                    # number of jobs
+                    retMap[computingSite][sourceSite]['user'][prodUserName][jobStatus]['nJobs'] += 1
+                else:
+                    # calcurate total flow
+                    if maxCpuCount in [0,None]:
+                        # use the default data flow
+                        dataFlow = 1024
+                    else:
+                        dataFlow = inputFileBytes/maxCpuCount
+                    retMap[computingSite][sourceSite]['flow'] += dataFlow
+            _logger.debug("{0} done".format(methodName))
+            return retMap
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return {}
+
+
+
+    # throttle job
+    def throttleJob(self,pandaID):
+        comment = ' /* DBProxy.throttleJob */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <PandaID={0}>".format(pandaID)
+        _logger.debug("{0} start".format(methodName))
+        try:
+            # sql to update job
+            sqlT  = 'UPDATE ATLAS_PANDA.jobsActive4 SET currentPriority=assignedPriority,jobStatus=:newJobStatus '
+            sqlT += 'WHERE PandaID=:PandaID AND jobStatus=:oldJobStatus '
+            # start transaction
+            self.conn.begin()
+            # select
+            self.cur.arraysize = 10
+            varMap = {}
+            varMap[':PandaID']      = pandaID
+            varMap[':newJobStatus'] = 'throttled'
+            varMap[':oldJobStatus'] = 'activated'
+            # get datasets
+            self.cur.execute(sqlT+comment, varMap)
+            nRow = self.cur.rowcount
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            _logger.debug("{0} done with {1}".format(methodName,nRow))
+            return nRow
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return None
+
+
+
+    # unthrottle job
+    def unThrottleJob(self,pandaID):
+        comment = ' /* DBProxy.unThrottleJob */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <PandaID={0}>".format(pandaID)
+        _logger.debug("{0} start".format(methodName))
+        try:
+            # sql to update job
+            sqlT  = 'UPDATE ATLAS_PANDA.jobsActive4 SET jobStatus=:newJobStatus '
+            sqlT += 'WHERE PandaID=:PandaID AND jobStatus=:oldJobStatus '
+            # start transaction
+            self.conn.begin()
+            # select
+            self.cur.arraysize = 10
+            varMap = {}
+            varMap[':PandaID']      = pandaID
+            varMap[':newJobStatus'] = 'activated'
+            varMap[':oldJobStatus'] = 'throttled'
             # get datasets
             self.cur.execute(sqlT+comment, varMap)
             nRow = self.cur.rowcount

@@ -1,6 +1,9 @@
 Release Note
 
 * current
+  * reseting computingElement for rebrokerage
+  * giving higher priorities to pmerge
+  * added WAN throttling
   * fixed reassignSite
   * sending coreCount to the pilot
   * fixed AdderAtlas for rucio

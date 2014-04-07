@@ -347,7 +347,7 @@ class ReBroker (threading.Thread):
                         _logger.debug("%s end simulation" % self.token)                        
                         return
                     # prepare jobs
-                    status = self.prepareJob(newSiteID,newSiteSpec.cloud)
+                    status = self.prepareJob(newSiteID,newSiteSpec)
                     if status:
                         # run SetUpper
                         statusSetUp = self.runSetUpper()
@@ -403,7 +403,7 @@ class ReBroker (threading.Thread):
 
 
     # move build job to jobsDefined4
-    def prepareJob(self,site,cloud):
+    def prepareJob(self,site,siteSpec):
         _logger.debug("%s prepareJob" % self.token)
         # reuse buildJob + all runJobs
         if self.jobID == self.buildJobID and self.buildStatus in ['defined','activated']:
@@ -541,7 +541,8 @@ class ReBroker (threading.Thread):
                 tmpJob.destinationSE = site
             # set site and cloud    
             tmpJob.computingSite = site
-            tmpJob.cloud = cloud
+            tmpJob.cloud = siteSpec.cloud
+            tmpJob.computingElement = siteSpec.gatekeeper
             # reset destinationDBlock
             for tmpFile in tmpJob.Files:
                 if tmpFile.type in ['output','log']:

@@ -4,6 +4,7 @@ import sys
 import datetime
 from taskbuffer.TaskBuffer import taskBuffer
 from pandalogger.PandaLogger import PandaLogger
+from brokerage.SiteMapper import SiteMapper
 
 # password
 from config import panda_config
@@ -16,6 +17,9 @@ _logger.debug("================= start ==================")
 
 # instantiate TB
 taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
+
+# instantiate sitemapper
+siteMapper = SiteMapper(taskBuffer)
 
 # get usage breakdown
 usageBreakDownPerUser = {}
@@ -360,5 +364,105 @@ try:
 except:
 	errtype,errvalue = sys.exc_info()[:2]
 	_logger.error("failed to redo stalled jobs with %s %s" % (errtype,errvalue))
+
+
+# throttle WAN data access
+_logger.debug("=== throttle WAN data access")
+try:
+	# max number of activated jobs with WAN access
+	maxActivated = 5
+	# get WAN data matrix
+	wanMX = taskBuffer.getWanDataFlowMaxtrix()
+	throttleForSink     = {}
+	throttleForSource   = {}
+	totalFlowFromSource = {}
+	# loop over all sources to get total flows
+	_logger.debug(" >>> checking limits")
+	for sinkSite,sinkMap in wanMX.iteritems():
+		totalFlowToSink = 0 
+		# loop over all sinks
+		for sourceSite,sourceMap in sinkMap.iteritems():
+			# get total flows
+			totalFlowToSink += sourceMap['flow']
+			if not totalFlowFromSource.has_key(sourceSite):
+				totalFlowFromSource[sourceSite] = 0
+			totalFlowFromSource[sourceSite] += sourceMap['flow']
+		# check limit for sink
+		tmpSiteSpec = siteMapper.getSite(sinkSite)
+		if siteMapper.checkSite(sinkSite) and tmpSiteSpec.wansinklimit*1024*1024*1024 > totalFlowToSink:
+			throttleForSink[sinkSite] = False
+			_logger.debug(" release Sink {0} : {1}bps (total) < {2}Gbps (limit)".format(sinkSite,totalFlowToSink,
+												    tmpSiteSpec.wansinklimit))
+		else:
+			throttleForSink[sinkSite] = True
+			_logger.debug(" throttle Sink {0} : {1}bps (total) > {2}Gbps (limit)".format(sinkSite,totalFlowToSink,
+												     tmpSiteSpec.wansinklimit))
+	# check limit for source
+	for sourceSite,totalFlow in totalFlowFromSource.iteritems():
+		tmpSiteSpec = siteMapper.getSite(sourceSite)
+		if siteMapper.checkSite(sourceSite) and tmpSiteSpec.wansourcelimit*1024*1024*1024 > totalFlow:
+                        throttleForSource[sourceSite] = False
+			_logger.debug(" release Src {0} : {1}bps (total) < {2}Gbps (limit)".format(sourceSite,totalFlow,
+												   tmpSiteSpec.wansourcelimit))
+                else:
+                        throttleForSource[sourceSite] = True
+			_logger.debug(" throttle Src {0} : {1}bps (total) > {2}Gbps (limit)".format(sourceSite,totalFlow,
+												    tmpSiteSpec.wansourcelimit))
+	# lopp over all sources to adjust flows
+	_logger.debug(" >>> adjusting flows")
+	for sinkSite,sinkMap in wanMX.iteritems():
+		if throttleForSink[sinkSite]:
+			# sink is throttled
+			iJobs = 0
+			for sourceSite,sourceMap in sinkMap.iteritems():
+				for prodUserName,userMap in sourceMap['user'].iteritems():
+					for currentPriority,jobList in userMap['activated']['jobList'].iteritems():
+						for pandaID in jobList:
+							tmpStat = taskBuffer.throttleJob(pandaID)
+							if tmpStat == 1:
+								iJobs += 1
+			_logger.debug(" throttled {0} jobs to {1}".format(iJobs,sinkSite))
+		else:
+			# no throttle on sink
+			for sourceSite,sourceMap in sinkMap.iteritems():
+				# check if source is throttled
+				if throttleForSource[sourceSite]:
+					# throttled
+					iJobs = 0
+					for prodUserName,userMap in sourceMap['user'].iteritems():
+						for currentPriority,jobList in userMap['activated']['jobList'].iteritems():
+							for pandaID in jobList:
+								tmpStat = taskBuffer.throttleJob(pandaID)
+								if tmpStat == 1:
+									iJobs += 1
+					_logger.debug(" throttled {0} jobs from {1} to {2}".format(iJobs,sourceSite,sinkSite)) 
+				else:
+					# unthrottled
+					iJobs = 0
+					for prodUserName,userMap in sourceMap['user'].iteritems():
+						if userMap['activated']['nJobs'] < maxActivated:
+							# activate jobs with higher priorities
+							currentPriorityList = userMap['throttled']['jobList'].keys()
+							currentPriorityList.sort()
+							currentPriorityList.reverse()
+							nActivated = userMap['activated']['nJobs']
+							for currentPriority in currentPriorityList:
+								if nActivated > maxActivated:
+									break
+								panaIDs = userMap['throttled']['jobList'][currentPriority]
+								panaIDs.sort()
+								for pandaID in panaIDs:
+									tmpStat = taskBuffer.unThrottleJob(pandaID)
+									if tmpStat == 1:
+										nActivated += 1
+										iJobs += 1
+									if nActivated > maxActivated:
+										break
+					_logger.debug(" activated {0} jobs from {1} to {2}".format(iJobs,sourceSite,sinkSite)) 
+except:
+	errtype,errvalue = sys.exc_info()[:2]
+	_logger.error("failed to throttle WAN data access with %s %s" % (errtype,errvalue))
+
+
 			    
 _logger.debug("-------------- end")
