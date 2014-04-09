@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * set array size in setGUID
   * reseting computingElement for rebrokerage
   * giving higher priorities to pmerge
   * added WAN throttling

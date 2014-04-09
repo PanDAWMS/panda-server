@@ -6714,6 +6714,7 @@ class DBProxy:
             try:
                 # start transaction
                 self.conn.begin()
+                self.cur.arraysize = 1000000
                 # update
                 for file in files:
                     varMap = {}
