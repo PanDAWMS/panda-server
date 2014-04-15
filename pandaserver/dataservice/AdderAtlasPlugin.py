@@ -331,6 +331,7 @@ class AdderAtlasPlugin (AdderPluginBase):
         self.logger.debug("idMap = %s" % idMap)
         self.logger.debug("subMap = %s" % subMap)
         self.logger.debug("dsDestMap = %s" % dsDestMap)
+        self.logger.debug("extraInfo = %s" % str(self.extraInfo))
         # check consistency 
         hasSub = False
         for destinationDBlock in idMap.keys():

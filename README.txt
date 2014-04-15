@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed brokerage to use correct catalog for file lookup
   * set array size in setGUID
   * reseting computingElement for rebrokerage
   * giving higher priorities to pmerge

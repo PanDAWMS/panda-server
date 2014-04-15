@@ -37,7 +37,7 @@ class AdderGen:
         self.attemptNr = None
         self.xmlFile = xmlFile
         self.datasetMap = {}
-        self.extraInfo = {'surl':{}}
+        self.extraInfo = {'surl':{},'nevents':{}}
         # exstract attemptNr
         try:
             tmpAttemptNr = self.xmlFile.split('/')[-1].split('_')[-1]
@@ -277,6 +277,7 @@ class AdderGen:
         chksums = []
         surls   = []
         fullLfnMap = {}
+        nEventsMap = {}
         try:
             root  = xml.dom.minidom.parse(self.xmlFile)
             files = root.getElementsByTagName('File')
@@ -343,6 +344,29 @@ class AdderGen:
             else:
                 # XML was deleted
                 return 1
+        # parse metadata to get nEvents
+        try:
+            root  = xml.dom.minidom.parseString(self.job.metadata)
+            files = root.getElementsByTagName('File')
+            for file in files:
+                # get GUID
+                guid = str(file.getAttribute('ID'))
+                # get PFN and LFN nodes
+                logical  = file.getElementsByTagName('logical')[0]
+                lfnNode  = logical.getElementsByTagName('lfn')[0]
+                # convert UTF8 to Raw
+                lfn = str(lfnNode.getAttribute('name'))
+                # get metadata
+                nevents = None
+                for meta in file.getElementsByTagName('metadata'):
+                    # get fsize
+                    name = str(meta.getAttribute('att_name'))
+                    if name == 'events':
+                        nevents = long(meta.getAttribute('att_value'))
+                        nEventsMap[lfn] = nevents
+                        break
+        except:
+            pass
         # check files
         fileList = []
         for file in self.job.Files:
@@ -379,6 +403,9 @@ class AdderGen:
                         file.lfn = fullLfnMap[file.lfn]
                     # add SURL to extraInfo
                     self.extraInfo['surl'][file.lfn] = surl
+                    # add nevents 
+                    if nEventsMap.has_key(file.lfn):
+                        self.extraInfo['nevents'][file.lfn] = nEventsMap[file.lfn]
                 except:
                     # status
                     file.status = 'failed'

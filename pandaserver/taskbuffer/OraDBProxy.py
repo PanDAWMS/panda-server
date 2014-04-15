@@ -354,15 +354,16 @@ class DBProxy:
                     varMap = {}
                     varMap[':fileID'] = file.fileID
                     varMap[':status'] = 'running'
-                    varMap[':oldStatus'] = 'picked'
-                    varMap[':attemptNr'] = file.attemptNr
-                    varMap[':datasetID'] = file.datasetID
-                    varMap[':keepTrack'] = 1
+                    varMap[':oldStatusI'] = 'picked'
+                    varMap[':oldStatusO'] = 'defined'
+                    varMap[':attemptNr']  = file.attemptNr
+                    varMap[':datasetID']  = file.datasetID
+                    varMap[':keepTrack']  = 1
                     varMap[':jediTaskID'] = file.jediTaskID
                     varMap[':PandaID'] = file.PandaID
                     sqlJediFile  = "UPDATE ATLAS_PANDA.JEDI_Dataset_Contents SET status=:status,PandaID=:PandaID "
                     sqlJediFile += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-                    sqlJediFile += "AND attemptNr=:attemptNr AND status=:oldStatus AND keepTrack=:keepTrack "
+                    sqlJediFile += "AND attemptNr=:attemptNr AND status IN (:oldStatusI,:oldStatusO) AND keepTrack=:keepTrack "
                     self.cur.execute(sqlJediFile+comment, varMap)
                     # insert event tables
                     if file.lfn in eventServiceInfo:

@@ -11,6 +11,7 @@ import broker_util
 import PandaSiteIDs
 from taskbuffer import ProcessGroups
 from dataservice import DataServiceUtils
+from dataservice.DDM import toa
 from config import panda_config
 
 from pandalogger.PandaLogger import PandaLogger
@@ -73,7 +74,7 @@ def _checkRelease(jobRels,siteRels):
 
 
 # get list of files which already exist at the site
-def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs,allOkFilesMap,tmpLog=None):
+def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs,allOkFilesMap,tmpLog=None,scopeList=None):
     # DQ2 URL
     dq2URL = v_ce.dq2url
     dq2IDs = v_ce.setokens.values()
@@ -90,10 +91,8 @@ def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs,allOkFilesMap,tmpLog=None)
             dq2ID += '%s,' % tmpID
         dq2ID = dq2ID[:-1]    
     # set LFC and SE name 
-    tmpSE = []
-    if not v_ce.lfchost in [None,'']:
-        dq2URL = 'lfc://'+v_ce.lfchost+':/grid/atlas/'
-        tmpSE  = broker_util.getSEfromSched(v_ce.se)
+    tmpStat,dq2URL = toa.getLocalCatalog(v_ce.ddm)
+    tmpSE = broker_util.getSEfromSched(v_ce.se)
     if tmpLog != None:
         tmpLog.debug('getOkFiles for %s with dq2ID:%s,LFC:%s,SE:%s' % (v_ce.sitename,dq2ID,dq2URL,str(tmpSE)))
     # use bulk lookup
@@ -102,7 +101,8 @@ def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs,allOkFilesMap,tmpLog=None)
         if not allOkFilesMap.has_key(dq2ID):
             # get files from LRC
             allOkFilesMap[dq2ID] = broker_util.getFilesFromLRC(allLFNs,dq2URL,guids=allGUIDs,
-                                                               storageName=tmpSE,getPFN=True)
+                                                               storageName=tmpSE,getPFN=True,
+                                                               scopeList=scopeList)
         # make return map
         retMap = {}
         for tmpLFN in v_files:
@@ -113,7 +113,8 @@ def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs,allOkFilesMap,tmpLog=None)
     else:
         # old style
         return broker_util.getFilesFromLRC(v_files,dq2URL,guids=v_guids,
-                                           storageName=tmpSE,getPFN=True)
+                                           storageName=tmpSE,getPFN=True,
+                                           scopeList=scopeList)
 
 
 # check reprocessing or not
@@ -512,9 +513,10 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
         nJob  = 20
         iJob  = 0
         nFile = 20
-        fileList = []
-        guidList = []
-        okFiles = {}
+        fileList  = []
+        guidList  = []
+        scopeList = []
+        okFiles   = {}
         prioInterval = 50
         totalNumInputs = 0
         totalInputSize = 0
@@ -731,7 +733,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                          # get site spec
                          tmp_chosen_ce = siteMapper.getSite(computingSite)
                          # get files from LRC 
-                         okFiles = _getOkFiles(tmp_chosen_ce,fileList,guidList,allLFNs,allGUIDs,allOkFilesMap,tmpLog)
+                         okFiles = _getOkFiles(tmp_chosen_ce,fileList,guidList,allLFNs,allGUIDs,allOkFilesMap,
+                                               tmpLog,scopeList)
                          # loop over all jobs
                          for tmpJob in jobsInBunch:
                              # set 'ready' if files are already there
@@ -1372,7 +1375,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 tmpOKFiles = {}
                             else:
                                 # get files from LRC 
-                                tmpOKFiles = _getOkFiles(tmp_chosen_ce,fileList,guidList,allLFNs,allGUIDs,allOkFilesMap,tmpLog)
+                                tmpOKFiles = _getOkFiles(tmp_chosen_ce,fileList,guidList,allLFNs,allGUIDs,allOkFilesMap,
+                                                         tmpLog,scopeList)
                             nFiles = len(tmpOKFiles)
                             tmpLog.debug('site:%s - nFiles:%s/%s %s' % (site,nFiles,len(fileList),str(tmpOKFiles)))
                             # choose site holding max # of files
@@ -1519,9 +1523,10 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 # reset iJob
                 iJob = 0
                 # reset file list
-                fileList = []
-                guidList = []            
-                okFiles  = {}
+                fileList  = []
+                guidList  = []            
+                scopeList = []
+                okFiles   = {}
                 totalNumInputs = 0
                 totalInputSize = 0
                 # create new dispDBlock
@@ -1626,6 +1631,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     if not file.lfn in fileList:
                         fileList.append(file.lfn)
                         guidList.append(file.GUID)
+                        scopeList.append(file.scope)
                         try:
                             # get total number/size of inputs except DBRelease
                             # tgz inputs for evgen may be negligible
