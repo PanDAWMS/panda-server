@@ -9502,7 +9502,8 @@ class DBProxy:
 
 
     # check sites with release/cache
-    def checkSitesWithRelease(self,sites,releases,caches,cmtConfig=None,onlyCmtConfig=False):
+    def checkSitesWithRelease(self,sites,releases,caches,cmtConfig=None,onlyCmtConfig=False,
+                              cmtConfigPattern=False):
         comment = ' /* DBProxy.checkSitesWithRelease */'
         try:
             relStr = releases
@@ -9511,7 +9512,8 @@ class DBProxy:
             caStr = caches
             if caches != None:
                 caStr = caches.replace('\n',' ')
-            _logger.debug("checkSitesWithRelease(%s,%s,%s,%s)" % (sites,relStr,caStr,cmtConfig))
+            _logger.debug("checkSitesWithRelease(%s,%s,%s,%s,%s)" % (sites,relStr,caStr,cmtConfig,
+                                                                     cmtConfigPattern))
             # select
             sql  = "SELECT distinct siteid FROM ATLAS_PANDAMETA.InstalledSW WHERE "
             loopKey2 = None
@@ -9537,7 +9539,10 @@ class DBProxy:
             checkCMT = False
             if not cmtConfig in ['','NULL',None]:
                 if onlyCmtConfig:
-                    sql += "cmtConfig=:cmtConfig "
+                    if not cmtConfigPattern:
+                        sql += "cmtConfig=:cmtConfig "
+                    else:
+                        sql += "cmtConfig LIKE :cmtConfig "
                 else:
                     sql += "AND cmtConfig=:cmtConfig "
                 checkCMT = True
