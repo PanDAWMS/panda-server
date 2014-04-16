@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed the brokerage for bulk file lookup
   * fixed the brokearge to accept CVMFS ROOT version format
   * fixed the brokerage to use correct catalog for file lookup
   * set array size in setGUID

@@ -218,10 +218,16 @@ def _getPFNFromMySQL(lfns,dq2url):
 
 # get files from LFC
 def _getPFNFromLFC(lfns,dq2url,guids,storageName,scopeList=[]):
-    _log.debug('_getPFNFromLFC')
+    _log.debug('_getPFNFromLFC %s %s %s %s' % (dq2url,str(storageName),
+                                               str(lfns),str(scopeList)))
     outStr = ''
     # check paramter
     if guids == [] or storageName == [] or (len(lfns) != len(guids)):
+        return outStr
+    # check scopeList
+    if not scopeList in [None,[]] and len(lfns) != len(scopeList):
+        _log.warning('_getPFNFromLFC wrong scopeList %s %s %s %s' % (dq2url,str(storageName),
+                                                                     str(lfns),str(scopeList)))
         return outStr
     # loop over all LFNs
     iLFN = 0
