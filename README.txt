@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added a protection against old JEDI jobs w/o fileIDs
   * changed to update nEvents in JEDI tables
   * changed to update total_req_jobs in t_task
   * changed the brokerge to use wildcard matching for ROOT

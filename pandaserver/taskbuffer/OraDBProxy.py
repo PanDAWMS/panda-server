@@ -11403,7 +11403,10 @@ class DBProxy:
         finishUnmerge = False
         hasInput = False
         for fileSpec in jobSpec.Files:
-            # do nothing for unmerged output/log files when merged job successfully finishes,
+            # slip if no JEDI
+            if fileSpec.fileID == 'NULL':
+                continue
+                        # do nothing for unmerged output/log files when merged job successfully finishes,
             # since they were already updated by merged job
             if jobSpec.jobStatus == 'finished' and fileSpec.isUnMergedOutput():
                 continue
