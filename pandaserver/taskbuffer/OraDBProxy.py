@@ -1199,8 +1199,7 @@ class DBProxy:
                     updatedJobList.append(job)
                     # update JEDI tables
                     if useJEDI:
-                        self.updateFileMetadataInJEDI(job,extraInfo)
-                        self.propagateResultToJEDI(job,self.cur)
+                        self.propagateResultToJEDI(job,self.cur,extraInfo=extraInfo)
                 # propagate successful result to unmerge job
                 if useJEDI and job.processingType == 'pmerge' and job.jobStatus == 'finished':
                     self.updateUnmergedJobs(job)
@@ -1751,7 +1750,7 @@ class DBProxy:
 
 
     # update job information in jobsActive or jobsDefined
-    def updateJob(self,job,inJobsDefined,oldJobStatus=None,extraInfo=None):
+    def updateJob(self,job,inJobsDefined,oldJobStatus=None):
         comment = ' /* DBProxy.updateJob */'        
         _logger.debug("updateJob : %s" % job.PandaID)
         updatedFlag = False
@@ -1805,9 +1804,6 @@ class DBProxy:
                             varMap[':row_ID'] = file.row_ID
                             _logger.debug(sqlF+comment+str(varMap))
                             self.cur.execute(sqlF+comment, varMap)
-                        # update file metadata in JEDI
-                        if useJEDI:
-                            self.updateFileMetadataInJEDI(job,extraInfo)
                         # actions for JEDI
                         if useJEDI and (job.jobStatus == 'transferring' or oldJobStatus == 'transferring') and \
                                 file.type in ['input','pseudo_input']:
@@ -3410,7 +3406,7 @@ class DBProxy:
             return (flagCommand or flagKilled)
         except:
             type, value, traceBack = sys.exc_info()
-            _logger.error("killJob : %s %s" % (type,value))
+            _logger.error("killJob : %s %s %s" % (pandaID,type,value))
             # roll back
             self._rollback()
             if getUserInfo:
@@ -11396,7 +11392,7 @@ class DBProxy:
 
 
     # propagate result to JEDI
-    def propagateResultToJEDI(self,jobSpec,cur,oldJobStatus=None):
+    def propagateResultToJEDI(self,jobSpec,cur,oldJobStatus=None,extraInfo=None):
         comment = ' /* DBProxy.propagateResultToJEDI */'
         datasetContentsStat = {}
         # loop over all files
@@ -11464,6 +11460,12 @@ class DBProxy:
                     tmpMapKey = ':%s' % tmpKey        
                     sqlFile += ",%s=%s" % (tmpKey,tmpMapKey)
                     varMap[tmpMapKey] = tmpVal
+                # nevents
+                if extraInfo != None and extraInfo.has_key('nevents') and extraInfo['nevents'].has_key(fileSpec.lfn):
+                    tmpKey = 'nEvents'
+                    tmpMapKey = ':%s' % tmpKey
+                    sqlFile += ",%s=%s" % (tmpKey,tmpMapKey)
+                    varMap[tmpMapKey] = extraInfo['nevents'][fileSpec.lfn]
                 # reset keepTrack unless merging
                 if fileSpec.status != 'merging':
                     sqlFile += ",keepTrack=NULL"
@@ -12977,29 +12979,3 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return None
-
-
-
-    # update file metadata in JEDI
-    def updateFileMetadataInJEDI(self,job,extraInfo):
-        comment = ' /* DBProxy.updateFileMetadataInJEDI */'
-        retVal = True
-        # no extra info
-        if extraInfo == None:
-            return retVal
-        # sql to update metadata
-        sql  = "UPDATE ATLAS_PANDA.JEDI_Dataset_Contents SET nEvents=:nEvents "
-        sql += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-        sql += "AND attemptNr=:attemptNr AND keepTrack=:keepTrack "
-        for tmpFile in job.Files:
-            # update metadata
-            if extraInfo != None and extraInfo.has_key('nevents') and extraInfo['nevents'].has_key(tmpFile.lfn):
-                varMap = {}
-                varMap[':jediTaskID'] = tmpFile.jediTaskID
-                varMap[':datasetID']  = tmpFile.datasetID
-                varMap[':fileID']     = tmpFile.fileID
-                varMap[':attemptNr']  = tmpFile.attemptNr
-                varMap[':keepTrack']  = 1
-                varMap[':nEvents']    = extraInfo['nevents'][tmpFile.lfn]
-                self.cur.execute(sql+comment,varMap)
-        return retVal

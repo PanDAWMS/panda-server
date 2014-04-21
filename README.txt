@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * removed updateFileMetadataInJEDI
   * added a protection against old JEDI jobs w/o fileIDs
   * changed to update nEvents in JEDI tables
   * changed to update total_req_jobs in t_task
