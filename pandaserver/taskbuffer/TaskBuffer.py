@@ -432,7 +432,7 @@ class TaskBuffer:
     
 
     # update overall job information
-    def updateJobs(self,jobs,inJobsDefined,oldJobStatusList=None):
+    def updateJobs(self,jobs,inJobsDefined,oldJobStatusList=None,extraInfo=None):
         # get DB proxy
         proxy = self.proxyPool.getProxy()        
         # loop over all jobs
@@ -449,11 +449,11 @@ class TaskBuffer:
                 oldJobStatus = None
             if job.jobStatus == 'failed' and job.prodSourceLabel == 'user' and not inJobsDefined:
                 # keep failed analy jobs in Active4
-                ret = proxy.updateJob(job,inJobsDefined,oldJobStatus=oldJobStatus)
+                ret = proxy.updateJob(job,inJobsDefined,oldJobStatus=oldJobStatus,extraInfo=extraInfo)
             elif job.jobStatus in ['finished','failed','cancelled']:
-                ret,tmpddmIDs,ddmAttempt,newMover = proxy.archiveJob(job,inJobsDefined)
+                ret,tmpddmIDs,ddmAttempt,newMover = proxy.archiveJob(job,inJobsDefined,extraInfo=extraInfo)
             else:
-                ret = proxy.updateJob(job,inJobsDefined,oldJobStatus=oldJobStatus)
+                ret = proxy.updateJob(job,inJobsDefined,oldJobStatus=oldJobStatus,extraInfo=extraInfo)
             returns.append(ret)
             # collect IDs for reassign
             if ret:

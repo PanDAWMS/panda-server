@@ -783,23 +783,16 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     if forAnalysis:
                         if not prevRelease in ['','NULL',None] and prevRelease.startswith('ROOT'):
                             if not prevCmtConfig in ['NULL',None,'']:
-                                usePattern = False
-                                if re.search('-gcc\d+\.\d+$',prevCmtConfig) != None:
-                                    usePattern = True
-                                    if 'x86_64' in prevCmtConfig:
-                                        tmpCmtConfig = 'x86_64%'
-                                    else:
-                                        tmpCmtConfig = 'i686%'
-                                    # extract OS ver
-                                    tmpMatch = re.search('(slc\d+)',prevCmtConfig)
-                                    if tmpMatch != None:
-                                        tmpCmtConfig += tmpMatch.group(1)
-                                        tmpCmtConfig += '%'
-                                elif prevCmtConfig == 'x86_64-slc6-gcc47-opt':
-                                    # hack until x86_64-slc6-gcc47-opt is published in installedsw
-                                    tmpCmtConfig = 'x86_64-slc6-gcc46-opt'
+                                usePattern = True
+                                if 'x86_64' in prevCmtConfig:
+                                    tmpCmtConfig = 'x86_64%'
                                 else:
-                                    tmpCmtConfig = prevCmtConfig
+                                    tmpCmtConfig = 'i686%'
+                                # extract OS ver
+                                tmpMatch = re.search('(slc\d+)',prevCmtConfig)
+                                if tmpMatch != None:
+                                    tmpCmtConfig += tmpMatch.group(1)
+                                    tmpCmtConfig += '%'
                                 useCacheVersion = True
                                 siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,
                                                                                      cmtConfig=tmpCmtConfig,

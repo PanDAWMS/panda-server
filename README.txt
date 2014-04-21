@@ -1,6 +1,9 @@
 Release Note
 
 * current
+  * changed to update nEvents in JEDI tables
+  * changed to update total_req_jobs in t_task
+  * changed the brokerge to use wildcard matching for ROOT
   * fixed the brokerage for bulk file lookup
   * fixed the brokearge to accept CVMFS ROOT version format
   * fixed the brokerage to use correct catalog for file lookup

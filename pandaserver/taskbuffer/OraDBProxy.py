@@ -390,6 +390,16 @@ class DBProxy:
                             varMap[':lastEvent'] = lastEvent
                             iEvent = lastEvent + 1
                             self.cur.execute(sqlJediEvent+comment, varMap)
+            # update t_task
+            if useJEDI and not job.prodSourceLabel in ['panda'] and job.processingType != 'pmerge':
+                varMap = {}
+                varMap[':jediTaskID'] = job.jediTaskID
+                schemaDEFT = self.getSchemaDEFT()
+                sqlTtask  = "UPDATE {0}.T_TASK ".format(schemaDEFT)
+                sqlTtask += "SET total_req_jobs=total_req_jobs+1,timestamp=CURRENT_DATE "
+                sqlTtask += "WHERE taskid=:jediTaskID "
+                _logger.debug(sqlTtask+comment+str(varMap))
+                self.cur.execute(sqlTtask+comment,varMap)
             # metadata
             if job.prodSourceLabel in ['user','panda'] and job.metadata != '':
                 sqlMeta = "INSERT INTO ATLAS_PANDA.metaTable (PandaID,metaData) VALUES (:PandaID,:metaData)"
@@ -775,7 +785,7 @@ class DBProxy:
 
 
     # archive job to jobArchived and remove the job from jobsActive or jobsDefined
-    def archiveJob(self,job,fromJobsDefined,useCommit=True):
+    def archiveJob(self,job,fromJobsDefined,useCommit=True,extraInfo=None):
         comment = ' /* DBProxy.archiveJob */'                
         _logger.debug("archiveJob : %s" % job.PandaID)                
         if fromJobsDefined:
@@ -1189,6 +1199,7 @@ class DBProxy:
                     updatedJobList.append(job)
                     # update JEDI tables
                     if useJEDI:
+                        self.updateFileMetadataInJEDI(job,extraInfo)
                         self.propagateResultToJEDI(job,self.cur)
                 # propagate successful result to unmerge job
                 if useJEDI and job.processingType == 'pmerge' and job.jobStatus == 'finished':
@@ -1740,7 +1751,7 @@ class DBProxy:
 
 
     # update job information in jobsActive or jobsDefined
-    def updateJob(self,job,inJobsDefined,oldJobStatus=None):
+    def updateJob(self,job,inJobsDefined,oldJobStatus=None,extraInfo=None):
         comment = ' /* DBProxy.updateJob */'        
         _logger.debug("updateJob : %s" % job.PandaID)
         updatedFlag = False
@@ -1794,6 +1805,10 @@ class DBProxy:
                             varMap[':row_ID'] = file.row_ID
                             _logger.debug(sqlF+comment+str(varMap))
                             self.cur.execute(sqlF+comment, varMap)
+                        # update file metadata in JEDI
+                        if useJEDI:
+                            self.updateFileMetadataInJEDI(job,extraInfo)
+                        # actions for JEDI
                         if useJEDI and (job.jobStatus == 'transferring' or oldJobStatus == 'transferring') and \
                                 file.type in ['input','pseudo_input']:
                             # check file in JEDI
@@ -11395,6 +11410,7 @@ class DBProxy:
             # update Dataset Contents table
             updateMetadata  = False
             updateAttemptNr = False
+            updateNumEvents = False
             varMap = {}
             varMap[':fileID']     = fileSpec.fileID
             varMap[':datasetID']  = fileSpec.datasetID
@@ -11420,6 +11436,8 @@ class DBProxy:
                     varMap[':status'] = 'finished'
                     # update metadata
                     updateMetadata = True
+                    # update nEvents
+                    updateNumEvents = True
                 elif fileSpec.status == 'merging':
                     # set ready to merge files for failed jobs
                     varMap[':status'] = 'ready'
@@ -11457,13 +11475,32 @@ class DBProxy:
             nRow = cur.rowcount
             if nRow == 1:
                 datasetID = fileSpec.datasetID
+                fileStatus = varMap[':status']
                 if not datasetContentsStat.has_key(datasetID):
                     datasetContentsStat[datasetID] = {'nFilesUsed':0,'nFilesFinished':0,
                                                       'nFilesFailed':0,'nFilesOnHold':0,
-                                                      'nFilesTobeUsed':0}
-                if varMap[':status'] == 'ready':
-                    # check attemptNr and maxAttempt when the file failed (ready = input failed)
-                    # skip secondary datasets which have maxAttempt=None 
+                                                      'nFilesTobeUsed':0,'nEvents':0}
+                # read nEvents
+                if updateNumEvents:
+                    sqlEVT = "SELECT nEvents FROM ATLAS_PANDA.JEDI_Dataset_Contents "
+                    sqlEVT += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+                    varMap = {}
+                    varMap[':fileID']     = fileSpec.fileID
+                    varMap[':datasetID']  = fileSpec.datasetID
+                    varMap[':jediTaskID'] = jobSpec.jediTaskID
+                    _logger.debug(sqlEVT+comment+str(varMap))
+                    cur.execute(sqlEVT+comment,varMap)
+                    resEVT = self.cur.fetchone()
+                    if resEVT != None:
+                        tmpNumEvents, = resEVT
+                        if tmpNumEvents != None:
+                            try:
+                                datasetContentsStat[datasetID]['nEvents'] += tmpNumEvents 
+                            except:
+                                pass
+                # check attemptNr and maxAttempt when the file failed (ready = input failed)
+                # skip secondary datasets which have maxAttempt=None 
+                if fileStatus == 'ready':
                     sqlAttNr  = "SELECT attemptNr,maxAttempt FROM ATLAS_PANDA.JEDI_Dataset_Contents "
                     sqlAttNr += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                     varMap = {}
@@ -11500,7 +11537,7 @@ class DBProxy:
                                     cur.execute(sqlUmFile+comment,varMap)
                                     # set flag to update unmerged jobs
                                     finishUnmerge = True
-                elif varMap[':status'] in ['finished','lost']:
+                elif fileStatus in ['finished','lost']:
                     # successfully used or produced, or lost
                     datasetContentsStat[datasetID]['nFilesFinished'] += 1
                 else:
@@ -11533,18 +11570,18 @@ class DBProxy:
                 if toUpdateFlag:
                     _logger.debug(sqlJediDS+comment+str(varMap))                            
                     cur.execute(sqlJediDS+comment,varMap)
-            # update t_task
-            if jobSpec.jobStatus == 'finished' and hasInput and jobSpec.processingType != 'pmerge':
-                varMap = {}
-                varMap[':jediTaskID'] = jobSpec.jediTaskID
-                varMap[':status1'] = 'running'
-                varMap[':status2'] = 'submitting'
-                schemaDEFT = self.getSchemaDEFT()
-                sqlTtask  = "UPDATE {0}.T_TASK ".format(schemaDEFT)
-                sqlTtask += "SET total_done_jobs=total_done_jobs+1,timestamp=CURRENT_DATE "
-                sqlTtask += "WHERE taskid=:jediTaskID AND status IN (:status1,:status2) "
-                _logger.debug(sqlTtask+comment+str(varMap))
-                cur.execute(sqlTtask+comment,varMap)
+        # update t_task
+        if jobSpec.jobStatus == 'finished' and not jobSpec.prodSourceLabel in ['panda'] and jobSpec.processingType != 'pmerge':
+            varMap = {}
+            varMap[':jediTaskID'] = jobSpec.jediTaskID
+            varMap[':status1'] = 'running'
+            varMap[':status2'] = 'submitting'
+            schemaDEFT = self.getSchemaDEFT()
+            sqlTtask  = "UPDATE {0}.T_TASK ".format(schemaDEFT)
+            sqlTtask += "SET total_done_jobs=total_done_jobs+1,timestamp=CURRENT_DATE "
+            sqlTtask += "WHERE taskid=:jediTaskID AND status IN (:status1,:status2) "
+            _logger.debug(sqlTtask+comment+str(varMap))
+            cur.execute(sqlTtask+comment,varMap)
         # propagate failed result to unmerge job
         if finishUnmerge:
             self.updateUnmergedJobs(jobSpec)
@@ -11981,7 +12018,7 @@ class DBProxy:
             # check task status
             if goForward:
                 if comStr in ['kill','finish']:
-                    if taskStatus in ['finished','done','prepared','broken','aborted','failed','aborting','finishing']:
+                    if taskStatus in ['finished','done','prepared','broken','aborted','aborted','toabort','aborting','failed','finishing']:
                         goForward = False
                 if comStr == 'retry':
                     if not taskStatus in ['finished','failed']:
@@ -12937,3 +12974,29 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return None
+
+
+
+    # update file metadata in JEDI
+    def updateFileMetadataInJEDI(self,job,extraInfo):
+        comment = ' /* DBProxy.updateFileMetadataInJEDI */'
+        retVal = True
+        # no extra info
+        if extraInfo == None:
+            return retVal
+        # sql to update metadata
+        sql  = "UPDATE ATLAS_PANDA.JEDI_Dataset_Contents SET nEvents=:nEvents "
+        sql += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+        sql += "AND attemptNr=:attemptNr AND keepTrack=:keepTrack "
+        for tmpFile in job.Files:
+            # update metadata
+            if extraInfo != None and extraInfo.has_key('nevents') and extraInfo['nevents'].has_key(tmpFile.lfn):
+                varMap = {}
+                varMap[':jediTaskID'] = tmpFile.jediTaskID
+                varMap[':datasetID']  = tmpFile.datasetID
+                varMap[':fileID']     = tmpFile.fileID
+                varMap[':attemptNr']  = tmpFile.attemptNr
+                varMap[':keepTrack']  = 1
+                varMap[':nEvents']    = extraInfo['nevents'][tmpFile.lfn]
+                self.cur.execute(sql+comment,varMap)
+        return retVal

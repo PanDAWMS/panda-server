@@ -182,7 +182,8 @@ class AdderGen:
                     self.job.jobStatus = 'cancelled'
                 # update job
                 self.logger.debug("updating DB")
-                retU = self.taskBuffer.updateJobs([self.job],False,oldJobStatusList=[oldJobStatus])
+                retU = self.taskBuffer.updateJobs([self.job],False,oldJobStatusList=[oldJobStatus],
+                                                  extraInfo=self.extraInfo)
                 self.logger.debug("retU: %s" % retU)
                 # failed
                 if not retU[0]:
@@ -367,6 +368,7 @@ class AdderGen:
                         break
         except:
             pass
+        self.logger.debug('nEventsMap=%s' % str(nEventsMap))
         # check files
         fileList = []
         for file in self.job.Files:
