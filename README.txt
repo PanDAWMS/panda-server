@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * disabled pandamover for AGLT2
   * removed updateFileMetadataInJEDI
   * added a protection against old JEDI jobs w/o fileIDs
   * changed to update nEvents in JEDI tables

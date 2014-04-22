@@ -37,7 +37,7 @@ _logger = PandaLogger().getLogger('Setupper')
 # temporary
 PandaDDMSource = ['BNLPANDA','BNL-OSG2_MCDISK','BNL-OSG2_DATADISK','BNL-OSG2_MCTAPE','BNL-OSG2_DATATAPE']
 
-NoPandaMoverSites = ['Lucille_CE']
+NoPandaMoverSites = ['Lucille_CE','Lucille_MCORE','AGLT2_MCORE','AGLT2_SL6']
 
 
 class Setupper (threading.Thread):
