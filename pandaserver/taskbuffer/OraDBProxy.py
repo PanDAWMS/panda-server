@@ -3279,7 +3279,7 @@ class DBProxy:
                 # select
                 varMap = {}
                 varMap[':PandaID'] = pandaID
-                if (userProdSourceLabel in ['managed','test'] or 'test' in userProdSourceLabel) and code in ['9',]:
+                if (userProdSourceLabel in ['managed','test',None] or 'test' in userProdSourceLabel) and code in ['9',]:
                     # use dummy for force kill
                     varMap[':jobStatus'] = 'dummy'
                 else:
