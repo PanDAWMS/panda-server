@@ -761,6 +761,12 @@ class DBProxy:
                             varMap[':row_ID'] = file.row_ID
                             _logger.debug(sqlF+comment+str(varMap))                            
                             self.cur.execute(sqlF+comment, varMap)
+                    # update parameters
+                    sqlJob = "UPDATE ATLAS_PANDA.jobParamsTable SET jobParameters=:param WHERE PandaID=:PandaID"
+                    varMap = {}
+                    varMap[':PandaID'] = job.PandaID
+                    varMap[':param']   = job.jobParameters
+                    self.cur.execute(sqlJob+comment, varMap)
                     updatedFlag = True        
                 # commit
                 if not self._commit():
@@ -12431,7 +12437,7 @@ class DBProxy:
             sql += "ORDER BY def_min_eventID "
             sql += ") WHERE rownum<={0} ".format(nRanges)
             # sql to get file info
-            sqlF  = "SELECT lfn,GUID FROM {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
+            sqlF  = "SELECT lfn,GUID,scope FROM {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
             sqlF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID " 
             # sql to lock range
             sqlU  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
@@ -12468,7 +12474,7 @@ class DBProxy:
                         _logger.warning("{0} : file info is not found for fileID={1}".format(methodName,fileID))
                     fileInfo[fileID] = resF
                 # get LFN and GUID
-                tmpLFN,tmpGUID = fileInfo[fileID]
+                tmpLFN,tmpGUID,tmpScope = fileInfo[fileID]
                 if tmpLFN == None:
                     continue
                 # make dict
@@ -12478,7 +12484,8 @@ class DBProxy:
                            'startEvent':startEvent,
                            'lastEvent':lastEvent,
                            'LFN':tmpLFN,
-                           'GUID':tmpGUID}
+                           'GUID':tmpGUID,
+                           'scope':tmpScope}
                 # lock
                 varMap = {}
                 varMap[':jediTaskID'] = jediTaskID
