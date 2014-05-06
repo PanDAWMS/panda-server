@@ -298,10 +298,10 @@ class JobDipatcher:
 
 
     # update an event range
-    def updateEventRange(self,eventRangeID,eventStatus,timeout):
+    def updateEventRange(self,eventRangeID,eventStatus,coreCount,cpuConsumptionTime,timeout):
         # peek jobs
         tmpWrapper = _TimedMethod(self.taskBuffer.updateEventRange,timeout)
-        tmpWrapper.run(eventRangeID,eventStatus)
+        tmpWrapper.run(eventRangeID,eventStatus,coreCount,cpuConsumptionTime)
         # make response
         if tmpWrapper.result == Protocol.TimeOutToken:
             # timeout
@@ -519,7 +519,7 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
               schedulerID=None,pilotID=None,siteName=None,messageLevel=None,pilotLog='',metaData='',
               cpuConversionFactor=None,exeErrorCode=None,exeErrorDiag=None,pilotTiming=None,computingElement=None,
               startTime=None,endTime=None,nEvents=None,nInputFiles=None,batchID=None,attemptNr=None,jobMetrics=None,
-              stdout='',jobSubStatus=None):
+              stdout='',jobSubStatus=None,coreCount=None):
     _logger.debug("updateJob(%s)" % jobId)
     # get DN
     realDN = _getDN(req)
@@ -529,11 +529,11 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
     prodManager = _checkRole(fqans,realDN,jobDispatcher,site=siteName,hostname=req.get_remote_host())
     # check token
     validToken = _checkToken(token,jobDispatcher)
-    _logger.debug("updateJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,attemptNr:%s,jobSubStatus:%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s\n==XML==\n%s\n==LOG==\n%s\n==Meta==\n%s\n==Metrics==\n%s\n==stdout==\n%s)" %
+    _logger.debug("updateJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,attemptNr:%s,jobSubStatus:%s,core:%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s\n==XML==\n%s\n==LOG==\n%s\n==Meta==\n%s\n==Metrics==\n%s\n==stdout==\n%s)" %
                   (jobId,state,transExitCode,pilotErrorCode,pilotErrorDiag,node,workdir,cpuConsumptionTime,
                    cpuConsumptionUnit,remainingSpace,schedulerID,pilotID,siteName,messageLevel,nEvents,nInputFiles,
                    cpuConversionFactor,exeErrorCode,exeErrorDiag,pilotTiming,computingElement,startTime,endTime,
-                   batchID,attemptNr,jobSubStatus,realDN,prodManager,token,validToken,str(fqans),xml,pilotLog,metaData,jobMetrics,
+                   batchID,attemptNr,jobSubStatus,coreCount,realDN,prodManager,token,validToken,str(fqans),xml,pilotLog,metaData,jobMetrics,
                    stdout))
     _pilotReqLogger.info('method=updateJob,site=%s,node=%s,type=None' % (siteName,node))
     # invalid role
@@ -605,6 +605,8 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
         param['nInputFiles']=nInputFiles
     if not jobSubStatus in [None,'']:
         param['jobSubStatus']=jobSubStatus
+    if not coreCount in [None,'']:
+        param['actualCoreCount']=coreCount
     if startTime != None:
         try:
             param['startTime']=datetime.datetime(*time.strptime(startTime,'%Y-%m-%d %H:%M:%S')[:6])
@@ -640,9 +642,10 @@ def getEventRanges(req,pandaID,nRanges=10,timeout=60):
 
 
 # update an event range
-def updateEventRange(req,eventRangeID,eventStatus,timeout=60):
-    _logger.debug("updateEventRange(%s status=%s)" % (eventRangeID,eventStatus))
-    return jobDispatcher.updateEventRange(eventRangeID,eventStatus,int(timeout))
+def updateEventRange(req,eventRangeID,eventStatus,coreCount=None,cpuConsumptionTime=None,timeout=60):
+    _logger.debug("updateEventRange(%s status=%s coreCount=%s cpuConsumptionTime=%s)" % \
+                      (eventRangeID,eventStatus,coreCount,cpuConsumptionTime))
+    return jobDispatcher.updateEventRange(eventRangeID,eventStatus,coreCount,cpuConsumptionTime,int(timeout))
 
 
 # generate pilot token

@@ -22,7 +22,7 @@ class JobSpec(object):
                    'nInputFiles','countryGroup','batchID','parentID','specialHandling','jobsetID',
                    'coreCount','nInputDataFiles','inputFileType','inputFileProject','inputFileBytes',
                    'nOutputDataFiles','outputFileBytes','jobMetrics','workQueue_ID','jediTaskID',
-                   'jobSubStatus')
+                   'jobSubStatus','actualCoreCount')
     # slots
     __slots__ = _attributes+('Files','_changedAttrs')
     # attributes which have 0 by default

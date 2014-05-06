@@ -1,6 +1,10 @@
 Release Note
 
 * current
+  * added cpuConsumptionTime to updateEventRanges
+  * improved format of specialHandling for ES
+  * adde actualCoreCount
+  * improved to update t_task.total_events
   * fixed keepJob to append attemptNr correctly
   * disabled pandamover for AGLT2
   * removed updateFileMetadataInJEDI

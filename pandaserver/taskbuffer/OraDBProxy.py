@@ -288,8 +288,15 @@ class DBProxy:
                     for esItem in tmpItem.split('^'):
                         if esItem == '':
                             continue
-                        esLFN,esEvents,esRange = esItem.split('/')
+                        esItems = esItem.split('/')
+                        if len(esItems) == 3:
+                            esLFN,esEvents,esRange = esItems
+                            esStartEvent = 0
+                        else:
+                            esLFN,esStartEvent,esEndEvent,esRange = esItems
+                            esEvents = long(esEndEvent) - long(esStartEvent) + 1
                         eventServiceInfo[esLFN] = {'nEvents':long(esEvents),
+                                                   'startEvent':long(esStartEvent),
                                                    'nEventsPerRange':long(esRange)}
                     newSpecialHandling += '{0},'.format(esHeader[:-1])
                 else:
@@ -382,7 +389,7 @@ class DBProxy:
                             varMap[':attemptNr'] = 1
                             varMap[':eventStatus'] = 0
                             varMap[':processedEvent'] = 0
-                            varMap[':startEvent'] = iEvent
+                            varMap[':startEvent'] = eventServiceInfo[file.lfn]['startEvent'] + iEvent
                             lastEvent = iEvent + eventServiceInfo[file.lfn]['nEventsPerRange']
                             lastEvent -= 1
                             if lastEvent > eventServiceInfo[file.lfn]['nEvents']:
@@ -11559,10 +11566,12 @@ class DBProxy:
                     if oldJobStatus == 'transferring':
                         datasetContentsStat[datasetID]['nFilesOnHold'] -= 1
         # update JEDI_Datasets table
+        nOutEvents = 0
         if datasetContentsStat != {}:
             for tmpDatasetID,tmpContentsStat in datasetContentsStat.iteritems():
                 # sql to update nFiles info
                 toUpdateFlag = False
+                eventsToRead = False
                 sqlJediDS = "UPDATE ATLAS_PANDA.JEDI_Datasets SET "
                 for tmpStatKey,tmpStatVal in tmpContentsStat.iteritems():
                     if tmpStatVal == 0:
@@ -11572,6 +11581,8 @@ class DBProxy:
                     else:
                         sqlJediDS += '%s=%s-%s,' % (tmpStatKey,tmpStatKey,abs(tmpStatVal))
                     toUpdateFlag = True
+                    if tmpStatKey == 'nEvents' and tmpStatVal > nOutEvents:
+                        nOutEvents = tmpStatVal
                 sqlJediDS  = sqlJediDS[:-1]
                 sqlJediDS += " WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
                 varMap = {}
@@ -11585,11 +11596,12 @@ class DBProxy:
         if jobSpec.jobStatus == 'finished' and not jobSpec.prodSourceLabel in ['panda'] and jobSpec.processingType != 'pmerge':
             varMap = {}
             varMap[':jediTaskID'] = jobSpec.jediTaskID
-            varMap[':status1'] = 'running'
-            varMap[':status2'] = 'submitting'
+            varMap[':status1']    = 'running'
+            varMap[':status2']    = 'submitting'
+            varMap['noutevents']  = nOutEvents
             schemaDEFT = self.getSchemaDEFT()
             sqlTtask  = "UPDATE {0}.T_TASK ".format(schemaDEFT)
-            sqlTtask += "SET total_done_jobs=total_done_jobs+1,timestamp=CURRENT_DATE "
+            sqlTtask += "SET total_done_jobs=total_done_jobs+1,timestamp=CURRENT_DATE,total_events=total_events+:noutevents "
             sqlTtask += "WHERE taskid=:jediTaskID AND status IN (:status1,:status2) "
             _logger.debug(sqlTtask+comment+str(varMap))
             cur.execute(sqlTtask+comment,varMap)
@@ -12520,11 +12532,12 @@ class DBProxy:
 
 
     # get a list of even ranges for a PandaID
-    def updateEventRange(self,eventRangeID,eventStatus):
+    def updateEventRange(self,eventRangeID,eventStatus,coreCount,cpuConsumptionTime):
         comment = ' /* DBProxy.updateEventRange */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <eventRangeID={0}>".format(eventRangeID)
-        _logger.debug("{0} : start status={1}".format(methodName,eventStatus))
+        _logger.debug("{0} : start status={1} coreCount={2} cpuConsumptionTime={3}".format(methodName,eventStatus,
+                                                                                           coreCount,cpuConsumptionTime))
         try:
             # sql to update status
             sqlU  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
@@ -12533,6 +12546,9 @@ class DBProxy:
                 sqlU += ',attemptNr=attemptNr+1' 
             sqlU += " WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND fileID=:fileID "
             sqlU += "AND job_processID=:job_processID AND attemptNr=:attemptNr "
+            sqlT  = "UPDATE ATLAS_PANDA.jobsActive4 "
+            sqlT += "SET cpuConsumptionTime=cpuConsumptionTime+:actualCpuTime "
+            sqlT += "WHERE PandaID=:PandaID "
             # decompose eventRangeID
             try:
                 tmpItems = eventRangeID.split('-')
@@ -12567,6 +12583,15 @@ class DBProxy:
             # update
             self.cur.execute(sqlU+comment, varMap)
             nRow = self.cur.rowcount
+            # update cpuConsumptionTime
+            if cpuConsumptionTime != None and eventStatus in ['finished','failed']:
+                varMap = {}
+                varMap[':PandaID'] = pandaID
+                if coreCount == None:
+                    varMap[':actualCpuTime'] = long(cpuConsumptionTime)
+                else:
+                    varMap[':actualCpuTime'] = long(coreCount) * long(cpuConsumptionTime)
+                self.cur.execute(sqlT+comment, varMap)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
