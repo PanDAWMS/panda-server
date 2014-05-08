@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added a build number to version name
   * added cpuConsumptionTime to updateEventRanges
   * improved format of specialHandling for ES
   * adde actualCoreCount

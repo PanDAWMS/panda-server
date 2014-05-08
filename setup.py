@@ -1,9 +1,18 @@
-#!/usr/bin/env python
+#
 #
 # Setup prog for Panda Server
 #
 #
-release_version='0.0.5'
+# set PYTHONPATH to use the current directory first
+import sys
+sys.path.insert(0,'.')
+
+# get release version
+import os
+import PandaPkgInfo
+release_version = PandaPkgInfo.release_version
+if os.environ.has_key('BUILD_NUMBER'):
+    release_version = '{0}.{1}'.format(release_version,os.environ['BUILD_NUMBER'])
 
 import re
 import sys
@@ -146,7 +155,7 @@ setup(
     long_description='''This package contains PanDA Server Components''',
     license='GPL',
     author='Panda Team',
-    author_email='hn-atlas-panda-pathena@cern.ch',
+    author_email='atlas-adc-panda@cern.ch',
     url='https://twiki.cern.ch/twiki/bin/view/Atlas/PanDA',
     packages=[ 'pandaserver',
                'pandaserver.brokerage',
