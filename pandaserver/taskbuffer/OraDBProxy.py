@@ -390,12 +390,11 @@ class DBProxy:
                             varMap[':eventStatus'] = 0
                             varMap[':processedEvent'] = 0
                             varMap[':startEvent'] = eventServiceInfo[file.lfn]['startEvent'] + iEvent
-                            lastEvent = iEvent + eventServiceInfo[file.lfn]['nEventsPerRange']
-                            lastEvent -= 1
-                            if lastEvent > eventServiceInfo[file.lfn]['nEvents']:
-                                lastEvent = eventServiceInfo[file.lfn]['nEvents']
+                            iEvent += eventServiceInfo[file.lfn]['nEventsPerRange']
+                            if iEvent > eventServiceInfo[file.lfn]['nEvents']:
+                                iEvent = eventServiceInfo[file.lfn]['nEvents'] + 1
+                            lastEvent = eventServiceInfo[file.lfn]['startEvent'] + iEvent -1
                             varMap[':lastEvent'] = lastEvent
-                            iEvent = lastEvent + 1
                             self.cur.execute(sqlJediEvent+comment, varMap)
             # update t_task
             if useJEDI and not job.prodSourceLabel in ['panda'] and job.processingType != 'pmerge':
