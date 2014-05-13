@@ -511,11 +511,11 @@ def killJobs(ids,code=None,verbose=False,srvID=None,useMailAsID=False):
 
 # reassign jobs
 def reassignJobs(ids,forPending=False):
-    """Triggers reassignment of jobs. This is not effective if jobs were preassgined to sites before being submitted. 
+    """Triggers reassignment of jobs. This is not effective if jobs were preassigned to sites before being submitted. 
 
        args:
            ids: the list of taskIDs
-           forPending: set True if pending jobs are reassgined
+           forPending: set True if pending jobs are reassigned
        returns:
            status code
                  0: communication succeeded to the panda server 
@@ -1319,6 +1319,80 @@ def finishTask(jediTaskID):
     except:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR finishTask : %s %s" % (errtype,errvalue)
+        return EC_Failed,output+'\n'+errStr
+
+
+
+# reassign task to a site
+def reassignTaskToSite(jediTaskID,site):
+    """Reassign a task to a site
+
+       args:
+           jediTaskID: jediTaskID of the task to be reassigned
+           site: the site name where the task is reassigned 
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           tuple of return code and diagnostic message
+                 0: request is registered
+                 1: server error
+                 2: task not found
+                 3: permission denied
+                 4: irrelevant task status
+               100: non SSL connection
+               101: irrelevant taskID 
+    """     
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+    # execute
+    url = baseURLSSL + '/reassignTask'
+    data = {'jediTaskID':jediTaskID,'site':site}
+    status,output = curl.post(url,data)
+    try:
+        return status,pickle.loads(output)
+    except:
+        errtype,errvalue = sys.exc_info()[:2]
+        errStr = "ERROR reassignTaskToSite : %s %s" % (errtype,errvalue)
+        return EC_Failed,output+'\n'+errStr
+
+
+
+# reassign task to a cloud
+def reassignTaskToCloud(jediTaskID,cloud):
+    """Reassign a task to a cloud
+
+       args:
+           jediTaskID: jediTaskID of the task to be reassigned
+           site: the cloud name where the task is reassigned 
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           tuple of return code and diagnostic message
+                 0: request is registered
+                 1: server error
+                 2: task not found
+                 3: permission denied
+                 4: irrelevant task status
+               100: non SSL connection
+               101: irrelevant taskID 
+    """     
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+    # execute
+    url = baseURLSSL + '/reassignTask'
+    data = {'jediTaskID':jediTaskID,'cloud':cloud}
+    status,output = curl.post(url,data)
+    try:
+        return status,pickle.loads(output)
+    except:
+        errtype,errvalue = sys.exc_info()[:2]
+        errStr = "ERROR reassignTaskToCloud : %s %s" % (errtype,errvalue)
         return EC_Failed,output+'\n'+errStr
                                     
 

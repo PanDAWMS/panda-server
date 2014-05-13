@@ -892,6 +892,15 @@ class UserIF:
         return ret
 
 
+    # reassign task
+    def reassignTask(self,jediTaskID,user,prodRole,comComment):
+        # retry
+        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'reassign',
+                                                   comComment=comComment,properErrorCode=True)
+        # return
+        return ret
+
+
     # get retry history
     def getRetryHistory(self,jediTaskID,user):
         # get
@@ -1763,6 +1772,32 @@ def retryTask(req,jediTaskID,properErrorCode=None):
         else:
             return pickle.dumps((False,'jediTaskID must be an integer'))
     ret = userIF.retryTask(jediTaskID,user,prodRole,properErrorCode)
+    return pickle.dumps(ret)
+
+
+
+# reassign task to site/cloud
+def reassignTask(req,jediTaskID,site=None,cloud=None):
+    # check security
+    if not isSecure(req):
+        return pickle.dumps((100,'secure connection is required'))
+    # get DN
+    user = None
+    if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        user = _getDN(req)        
+    # check role
+    prodRole = _isProdRoleATLAS(req)
+    # check jediTaskID
+    try:
+        jediTaskID = long(jediTaskID)
+    except:
+        return pickle.dumps((101,'jediTaskID must be an integer'))        
+    # site or cloud
+    if site != None:
+        # set 'y' to go back to oldStatus immediately
+        ret = userIF.reassignTask(jediTaskID,user,prodRole,'site:{0}:y'.format(site))
+    else:
+        ret = userIF.reassignTask(jediTaskID,user,prodRole,'cloud:{0}:n'.format(cloud))
     return pickle.dumps(ret)
 
 

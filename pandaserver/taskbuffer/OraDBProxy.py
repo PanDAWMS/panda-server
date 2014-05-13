@@ -5987,7 +5987,7 @@ class DBProxy:
 
 
     # set CloudTask by user
-    def setCloudTaskByUser(self,user,tid,cloud,status):
+    def setCloudTaskByUser(self,user,tid,cloud,status,forceUpdate=False):
         comment = ' /* setCloudTaskByUser */'        
         try:
             _logger.debug("setCloudTaskByUser(tid=%s,cloud=%s,status=%s) by %s" % (tid,cloud,status,user))
@@ -5997,9 +5997,9 @@ class DBProxy:
                 _logger.error(tmpMsg)
                 return "ERROR: " + tmpMsg
             # check status
-            statusList = ['tobeaborted']
+            statusList = ['tobeaborted','assigned']
             if not status in statusList:
-                tmpMsg = "invalid status=%s. Must be one of %s" (status,str(statusList))
+                tmpMsg = "invalid status=%s. Must be one of %s" % (status,str(statusList))
                 _logger.error(tmpMsg)
                 return "ERROR: " + tmpMsg
             # start transaction
@@ -6016,10 +6016,15 @@ class DBProxy:
             # already exist
             if res != None and len(res) != 0:
                 # set status
-                sql = "UPDATE ATLAS_PANDA.cloudtasks SET status=:status,tmod=CURRENT_DATE WHERE taskid=:taskid"
+                sql  = "UPDATE ATLAS_PANDA.cloudtasks SET status=:status,tmod=CURRENT_DATE"
+                if forceUpdate:
+                    sql += ",cloud=:cloud"
+                sql += " WHERE taskid=:taskid"
                 varMap = {}
                 varMap[':taskid'] = tid
                 varMap[':status'] = status
+                if forceUpdate:
+                    varMap[':cloud'] = cloud
                 self.cur.execute(sql+comment, varMap)
                 # commit
                 if not self._commit():
@@ -12047,6 +12052,9 @@ class DBProxy:
                         goForward = False
                 if comStr == 'incexec':
                     if not taskStatus in ['finished','failed','done']:
+                        goForward = False
+                if comStr == 'reassign':
+                    if not taskStatus in ['registered','defined','ready','running','scouting','scouted','pending','assigning']:
                         goForward = False
                 if not goForward:
                     retStr = 'Command rejected: the {0} command is not accepted if the task is in {1} status'.format(comStr,taskStatus)

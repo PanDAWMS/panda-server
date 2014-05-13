@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added reassignTask
   * fixed jedi_events.endEvent
   * added a build number to version name
   * added cpuConsumptionTime to updateEventRanges
