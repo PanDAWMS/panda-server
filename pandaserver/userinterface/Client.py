@@ -1366,7 +1366,7 @@ def reassignTaskToCloud(jediTaskID,cloud):
 
        args:
            jediTaskID: jediTaskID of the task to be reassigned
-           site: the cloud name where the task is reassigned 
+           cloud: the cloud name where the task is reassigned 
        returns:
            status code
                  0: communication succeeded to the panda server 

@@ -189,7 +189,10 @@ class Response:
         # taskID
         self.data['taskID'] = job.taskID
         # core count
-        self.data['coreCount'] = job.coreCount
+        if job.coreCount in [None,'NULL']:
+            self.data['coreCount'] = 1
+        else:
+            self.data['coreCount'] = job.coreCount
         # debug mode
         if job.specialHandling != None and 'debug' in job.specialHandling:
             self.data['debug'] = 'True'
