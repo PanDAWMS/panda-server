@@ -1136,9 +1136,9 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                             tmpLFNs  = []
                             tmpGUIDs = []
                             # set cloud
-                            self.logger.debug("set cloud for %s" % taskID)
+                            self.logger.debug("set cloud for %s" % job.taskID)
                             retCloud = cloudResolver.setCloud(tmpLFNs,tmpGUIDs,metadata=job.metadata)
-                            self.logger.debug("setCloud() -> %s" % retCloud)
+                            self.logger.debug("setCloud() %s -> %s" % (taskID,retCloud))
                             if retCloud == None:
                                 self.logger.debug("failed to set cloud for %s" % job.taskID)
                                 # append job to waiting list
@@ -1336,7 +1336,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         self.logger.debug("set cloud for %s" % job.taskID)
                         retCloud = cloudResolver.setCloud(tmpLFNs,tmpGUIDs,tmpReLoc,metadata=job.metadata,
                                                           fileCounts=tmpCountMap)
-                        self.logger.debug("setCloud() -> %s" % retCloud)
+                        self.logger.debug("setCloud() %s -> %s" % (job.taskID,retCloud))
                         if retCloud == None:
                             self.logger.debug("failed to set cloud for %s" % job.taskID)
                             # append job to waiting list
@@ -1350,7 +1350,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 if self.onlyTA:            
                     self.logger.debug("set %s:%s" % (job.taskID,job.cloud))
             if not self.onlyTA:
-                self.logger.debug('replacing generic LFNs')
                 # replace generic LFN with real LFN
                 replaceList = []
                 isFailed = False
