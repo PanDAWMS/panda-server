@@ -812,9 +812,12 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             tmpLog.debug('  using installSW for release %s' % prevRelease)
                         elif re.search(':rel_\d+$$',prevRelease) != None:
                             useCacheVersion = True
+                            # FIXME
+                            #siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,
+                            #                                                     releases='nightlies',
+                            #                                                     cmtConfig=prevCmtConfig)
                             siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,
-                                                                                 releases='nightlies',
-                                                                                 cmtConfig=prevCmtConfig)
+                                                                                 releases='CVMFS')
                             tmpLog.debug('  using installSW for release:cache %s' % prevRelease)
                     elif previousCloud in ['DE','NL','FR','CA','ES','IT','TW','UK','US','ND','CERN','RU']:
                             useCacheVersion = True

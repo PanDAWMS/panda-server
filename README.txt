@@ -1,7 +1,7 @@
 Release Note
 
 * current
-  * setting coreCount=1 when dispatching serial jobs
+  * changed the brokerage to use CVMFS check for nightlies
   * added reassignTask
   * fixed jedi_events.endEvent
   * added a build number to version name
