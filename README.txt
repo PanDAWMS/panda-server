@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed Setupper to have a plugin structure
   * changed the brokerage to use CVMFS check for nightlies
   * added reassignTask
   * fixed jedi_events.endEvent

@@ -72,12 +72,9 @@ class AdderGen:
                                                 fromArchived=False,
                                                 fromWaiting=False,
                                                 forAnal=True)[0]
-            # Hassen comment for debug
-            self.logger.debug('trying to call the plugins for %s' % self.job)  
             # check if job has finished
             if self.job == None:
                 self.logger.debug(': job not found in DB')
-            #Hassen commented for debug
             elif self.job.jobStatus in ['finished','failed','unknown','cancelled']:
                 self.logger.error(': invalid state -> %s' % self.job.jobStatus)
             elif self.attemptNr != None and self.job.attemptNr != self.attemptNr:
@@ -97,23 +94,40 @@ class AdderGen:
                     # parse XML
                     parseResult = self.parseXML()
                     if parseResult < 2:
-                        # instantiate concrete plugin
-                        if self.job.VO == 'cms':
-                            from AdderCmsPlugin import AdderCmsPlugin
-                            adderPlugin = AdderCmsPlugin(self.job,extraInfo=self.extraInfo)
-                        else:
-                            from AdderAtlasPlugin import AdderAtlasPlugin
-                            adderPlugin = AdderAtlasPlugin(self.job,
+                        # intraction with DDM
+                        try:
+                            # set VO=local for DDM free
+                            if self.job.destinationSE == 'local':
+                                tmpVO = 'local'
+                            else:
+                                tmpVO = self.job.VO
+                            # instantiate concrete plugin
+                            adderPluginClass = panda_config.getPlugin('adder_plugins',tmpVO)
+                            if adderPluginClass == None:
+                                # use ATLAS plugin by default
+                                from AdderAtlasPlugin import AdderAtlasPlugin
+                                adderPluginClass = AdderAtlasPlugin
+                            self.logger.debug('plugin name {0}'.format(adderPluginClass.__name__))
+                            adderPlugin = adderPluginClass(self.job,
                                                            taskBuffer=self.taskBuffer,
                                                            siteMapper=self.siteMapper,
                                                            extraInfo=self.extraInfo,
                                                            logger=self.logger)
-                        # execute
-                        adderPlugin.execute()
-                        addResult = adderPlugin.result
-                        self.logger.debug('plugin done with %s' % (addResult.statusCode))
+                            # execute
+                            self.logger.debug('plugin is ready')
+                            adderPlugin.execute()
+                            addResult = adderPlugin.result
+                            self.logger.debug('plugin done with %s' % (addResult.statusCode))
+                        except:
+                            errtype,errvalue = sys.exc_info()[:2]
+                            self.logger.error("failed to execute AdderPlugin for VO={0} with {1}:{2}".format(tmpVO,
+                                                                                                             errtype,
+                                                                                                             errvalue)) 
+                            addResult = None
+                            self.job.ddmErrorCode = ErrorCode.EC_Adder
+                            self.job.ddmErrorDiag = "AdderPlugin failure"
                         # ignore temporary errors
-                        if self.ignoreTmpError and addResult.isTemporary():
+                        if self.ignoreTmpError and addResult != None and addResult.isTemporary():
                             self.logger.debug(': ignore %s ' % self.job.ddmErrorDiag)
                             self.logger.debug('escape')
                             # unlock XML
@@ -126,7 +140,7 @@ class AdderGen:
                                 self.logger.debug("cannot unlock XML")
                             return
                         # failed
-                        if not addResult.isSucceeded():
+                        if addResult == None or not addResult.isSucceeded():
                             self.job.jobStatus = 'failed'
                 # set file status for failed jobs or failed transferring jobs
                 if self.job.jobStatus == 'failed' or self.jobStatus == 'failed':
@@ -285,7 +299,6 @@ class AdderGen:
             for file in files:
                 # get GUID
                 guid = str(file.getAttribute('ID'))
-                self.logger.debug(guid)
                 # get PFN and LFN nodes
                 logical  = file.getElementsByTagName('logical')[0]
                 lfnNode  = logical.getElementsByTagName('lfn')[0]
@@ -415,7 +428,6 @@ class AdderGen:
                     self.logger.error(": %s %s" % (type,value))
         # check consistency between XML and filesTable
         for lfn in lfns:
-            self.logger.debug("lfn %s fileList %s" %(lfn, fileList))
             if not lfn in fileList:
                 self.logger.error("%s is not found in filesTable" % lfn)
                 self.job.jobStatus = 'failed'

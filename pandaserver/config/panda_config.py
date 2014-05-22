@@ -61,3 +61,53 @@ if not tmpSelf.__dict__.has_key('schemaDEFT'):
     tmpSelf.__dict__['schemaDEFT'] = 'ATLAS_DEFT'
 if not tmpSelf.__dict__.has_key('schemaGRISLI'):
     tmpSelf.__dict__['schemaGRISLI'] = 'ATLAS_GRISLI'
+
+
+
+# dict for plugins
+g_pluginMap = {}    
+
+# parser for plugin setup
+def parsePluginConf(modConfigName):
+    global tmpSelf
+    global g_pluginMap
+    if not g_pluginMap.has_key(modConfigName):
+        g_pluginMap[modConfigName] = {}
+    # parse plugin setup
+    try:
+        for configStr in getattr(tmpSelf,modConfigName).split(','):
+            configStr = configStr.strip()
+            items = configStr.split(':')
+            vos          = items[0].split('|')
+            moduleName   = items[1]
+            className    = items[2]
+            for vo in vos:
+                # import
+                mod = __import__(moduleName)
+                for subModuleName in moduleName.split('.')[1:]:
+                    mod = getattr(mod,subModuleName)
+                # get class
+                cls = getattr(mod,className)
+                g_pluginMap[modConfigName][vo] = cls
+    except:
+        pass
+
+
+# accessor for plugin
+def getPlugin(modConfigName,vo):
+    if not g_pluginMap.has_key(modConfigName):
+        return None
+    elif g_pluginMap[modConfigName].has_key(vo):
+        # VO specified
+        return g_pluginMap[modConfigName][vo]
+    elif g_pluginMap[modConfigName].has_key('any'):
+        # catch all
+        return g_pluginMap[modConfigName]['any']
+    # undefined
+    return None
+
+
+
+# plug-ins
+parsePluginConf('adder_plugins')
+parsePluginConf('setupper_plugins')
