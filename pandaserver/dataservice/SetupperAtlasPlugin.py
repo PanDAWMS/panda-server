@@ -2304,7 +2304,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             self.logger.error(out)
             return retFailed
         # update 
-        self.logger.debug('%s %s %s' % (status,out))
+        self.logger.debug('%s %s' % (status,out))
         # return
         return True
 
