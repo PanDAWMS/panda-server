@@ -1138,7 +1138,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                             # set cloud
                             self.logger.debug("set cloud for %s" % job.taskID)
                             retCloud = cloudResolver.setCloud(tmpLFNs,tmpGUIDs,metadata=job.metadata)
-                            self.logger.debug("setCloud() %s -> %s" % (taskID,retCloud))
+                            self.logger.debug("setCloud() %s -> %s" % (job.taskID,retCloud))
                             if retCloud == None:
                                 self.logger.debug("failed to set cloud for %s" % job.taskID)
                                 # append job to waiting list
