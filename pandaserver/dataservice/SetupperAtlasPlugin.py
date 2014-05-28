@@ -39,7 +39,7 @@ NoPandaMoverSites = ['Lucille_CE','Lucille_MCORE','AGLT2_MCORE','AGLT2_SL6',
                      'HU_ATLAS_Tier2','HU_ATLAS_Tier2_MCORE','MWT2_MCORE','MWT2_SL6',
                      'OU_OCHEP_SWT2','OU_OSCER_ATLAS','OU_OSCER_ATLAS_MCORE','OU_OSCER_ATLAS_OPP',
                      'SLACXRD','SLACXRD_LMEM','SLACXRD_MP8','SWT2_CPB','SWT2_CPB_MCORE',
-                     'UTA_SWT2','UTA_SWT2_MCORE']
+                     'UTA_SWT2','UTA_SWT2_MCORE','CONNECT']
 
 
 class SetupperAtlasPlugin (SetupperPluginBase):
