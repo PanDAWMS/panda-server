@@ -12854,8 +12854,11 @@ class DBProxy:
         methodName += " <jediTaskID={0}>".format(jediTaskID)
         _logger.debug("{0} newPrio={1}".format(methodName,newPriority))
         try:
-            # sql to update task status
-            sqlT  = 'UPDATE {0}.JEDI_Tasks set currentPriority=:newPriority WHERE jediTaskID=:jediTaskID '.format(panda_config.schemaJEDI)
+            # sql to update JEDI task table
+            sqlT  = 'UPDATE {0}.JEDI_Tasks SET currentPriority=:newPriority WHERE jediTaskID=:jediTaskID '.format(panda_config.schemaJEDI)
+            # sql to update DEFT task table
+            schemaDEFT = self.getSchemaDEFT()
+            sqlD  = 'UPDATE {0}.T_TASK SET current_priority=:newPriority,timestamp=CURRENT_DATE WHERE taskid=:jediTaskID '.format(schemaDEFT)
             # start transaction
             self.conn.begin()
             # select
@@ -12863,9 +12866,10 @@ class DBProxy:
             varMap = {}
             varMap[':jediTaskID']  = jediTaskID
             varMap[':newPriority'] = newPriority
-            # get datasets
+            # update JEDI
             self.cur.execute(sqlT+comment, varMap)
             nRow = self.cur.rowcount
+            self.cur.execute(sqlD+comment, varMap)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
