@@ -280,6 +280,7 @@ class DBProxy:
         # event service
         eventServiceInfo = {}
         esHeader = 'es:'
+        esToken  = 'eventservice'
         newSpecialHandling = ''
         try:
             for tmpItem in job.specialHandling.split(','):
@@ -298,7 +299,7 @@ class DBProxy:
                         eventServiceInfo[esLFN] = {'nEvents':long(esEvents),
                                                    'startEvent':long(esStartEvent),
                                                    'nEventsPerRange':long(esRange)}
-                    newSpecialHandling += '{0},'.format(esHeader[:-1])
+                    newSpecialHandling += '{0},'.format(esToken)
                 else:
                     newSpecialHandling += '{0},'.format(tmpItem)
             job.specialHandling = newSpecialHandling[:-1]

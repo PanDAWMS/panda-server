@@ -269,7 +269,7 @@ class JobSpec(object):
     # check if event service job
     def isEventServiceJob(self):
         try:
-            if self.specialHandling != None and 'es' in self.specialHandling.split(','):
+            if self.specialHandling != None and 'eventservice' in self.specialHandling.split(','):
                 return True
         except:
             pass
@@ -297,7 +297,7 @@ class JobSpec(object):
                 newSpecialHandling = ''
                 # remove flag for event service
                 for tmpFlag in self.specialHandling.split(','):
-                    if tmpFlag in ['','es']:
+                    if tmpFlag in ['','eventservice']:
                         continue
                     newSpecialHandling += tmpFlag
                     newSpecialHandling += ','
