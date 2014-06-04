@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * added setDebugMode.py
+  * added a protection against un-formatted destinationDBlock for HC	
   * using specialHandling=eventservice
   * changed Setupper to have a plugin structure
   * changed the brokerage to use CVMFS check for nightlies

@@ -332,7 +332,7 @@ class AdderAtlasPlugin (AdderPluginBase):
         self.logger.debug("subMap = %s" % subMap)
         self.logger.debug("dsDestMap = %s" % dsDestMap)
         self.logger.debug("extraInfo = %s" % str(self.extraInfo))
-        # check consistency 
+        # check consistency of destinationDBlock
         hasSub = False
         for destinationDBlock in idMap.keys():
             match = re.search('^(.+)_sub\d+$',destinationDBlock)
@@ -341,6 +341,14 @@ class AdderAtlasPlugin (AdderPluginBase):
                 break
         if idMap != {} and self.goToTransferring and not hasSub:
             errStr = 'no sub datasets for transferring. destinationDBlock may be wrong'
+            self.logger.error(errStr)
+            self.result.setFatal()
+            self.job.ddmErrorDiag = 'failed before adding files : ' + errStr
+            return 1
+        if idMap != {} and not hasSub and self.job.prodSourceLabel != 'panda' and \
+                (self.job.processingType.startswith('gangarobot') or \
+                     self.job.processingType.startswith('hammercloud')):
+            errStr = 'no sub datasets for HC. destinationDBlock may be wrong'
             self.logger.error(errStr)
             self.result.setFatal()
             self.job.ddmErrorDiag = 'failed before adding files : ' + errStr

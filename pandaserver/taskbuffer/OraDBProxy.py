@@ -1644,12 +1644,11 @@ class DBProxy:
                     ret = ''
                     commandToPilot,endTime,specialHandling,oldJobStatus,computingSite,cloud,prodSourceLabel,lockedby,jediTaskID = res
                     # debug mode
-                    """
                     if not specialHandling in [None,''] and 'debug' in specialHandling:
-                        ret += 'debugon,'
-                    else:
-                        ret += 'debugoff,'
-                    """    
+                        ret += 'debug,'
+                    # FIXME
+                    #else:
+                    #    ret += 'debugoff,'
                     # kill command    
                     if not commandToPilot in [None,'']:
                         ret += '%s,' % commandToPilot
@@ -3774,22 +3773,24 @@ class DBProxy:
                 res = self.cur.fetchone()
                 # not found
                 if res == None:
-                    retStr = 'Not found in active DB'
+                    retStr = 'PandaID={0} not found in active DB'.format(pandaID)
                     # commit
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
                     continue
                 prodUserName,jobStatus,specialHandling = res
                 # not active
-                if not jobStatus in ['defined','activated','running','sent','starting']:
-                    retStr = 'Not in one of active job status'
+                changeableState = ['defined','activated','running','sent','starting']
+                if not jobStatus in changeableState:
+                    retStr = 'The job status is {0} which is not in one of {1}'.format(jobStatus,
+                                                                                       str(changeableState))
                     # commit
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
                     break
                 # not owner
                 if not prodManager and prodUserName != compactDN:
-                    retStr = 'Permission denied. Not the owner'
+                    retStr = 'Permission denied. Not the owner or production manager'
                     # commit
                     if not self._commit():
                         raise RuntimeError, 'Commit error'

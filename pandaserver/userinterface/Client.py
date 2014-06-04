@@ -1440,7 +1440,7 @@ def changeTaskPriority(jediTaskID,newPriority):
                  0: communication succeeded to the panda server 
                  255: communication failure
            return code
-                 0: unkown task
+                 0: unknown task
                  1: succeeded
                  None: database error 
     """     
@@ -1459,4 +1459,29 @@ def changeTaskPriority(jediTaskID,newPriority):
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR changeTaskPriority : %s %s" % (errtype,errvalue)
         return EC_Failed,output+'\n'+errStr
+
+
+
+# set debug mode
+def setDebugMode(pandaID,modeOn):
+    """Turn debug mode on/off for a job 
+
+       args:
+           pandaID: PandaID of the job
+           modeOn: True to turn it on. Oppositely, False
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 another: communication failure
+           error message
+    """     
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+    # execute
+    url = baseURLSSL + '/setDebugMode'
+    data = {'pandaID':pandaID,
+            'modeOn':modeOn}
+    return curl.post(url,data)
 
