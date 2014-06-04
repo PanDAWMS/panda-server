@@ -345,7 +345,13 @@ class AdderAtlasPlugin (AdderPluginBase):
             self.result.setFatal()
             self.job.ddmErrorDiag = 'failed before adding files : ' + errStr
             return 1
-        if idMap != {} and not hasSub and self.job.prodSourceLabel != 'panda' and \
+        hasDestSub = False
+        for destinationDBlock in dsDestMap.keys():
+            match = re.search('^(.+)_sub\d+$',destinationDBlock)
+            if match != None:
+                hasDestSub = True
+                break
+        if dsDestMap != {} and not hasDestSub and not self.job.prodSourceLabel in ['panda','rc_test'] and \
                 (self.job.processingType.startswith('gangarobot') or \
                      self.job.processingType.startswith('hammercloud')):
             errStr = 'no sub datasets for HC. destinationDBlock may be wrong'
