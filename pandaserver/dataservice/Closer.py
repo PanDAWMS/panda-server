@@ -64,7 +64,7 @@ class Closer (threading.Thread):
                     continue
                 # ignore HC datasets
                 if re.search('^hc_test\.',destinationDBlock) != None or re.search('^user\.gangarbt\.',destinationDBlock) != None:
-                    if re.search('_sub\d+$',destinationDBlock) == None:
+                    if re.search('_sub\d+$',destinationDBlock) == None and re.search('\.lib$',destinationDBlock) == None:
                         _logger.debug('%s skip HC %s' % (self.pandaID,destinationDBlock))                
                         continue
                 # query dataset
