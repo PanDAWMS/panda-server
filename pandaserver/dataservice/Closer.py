@@ -62,6 +62,11 @@ class Closer (threading.Thread):
                 if re.search('_tid[\d_]+$',destinationDBlock):
                     _logger.debug('%s skip %s' % (self.pandaID,destinationDBlock))                
                     continue
+                # ignore HC datasets
+                if re.search('^hc_test\.',destinationDBlock) != None or re.search('^user\.gangarbt\.',destinationDBlock) != None:
+                    if re.search('_sub\d+$',destinationDBlock) == None:
+                        _logger.debug('%s skip HC %s' % (self.pandaID,destinationDBlock))                
+                        continue
                 # query dataset
                 if self.datasetMap.has_key(destinationDBlock):
                     dataset = self.datasetMap[destinationDBlock]

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed the protection for un-formatted HC destinationDBlock
   * added setDebugMode.py
   * added a protection against un-formatted destinationDBlock for HC	
   * using specialHandling=eventservice
