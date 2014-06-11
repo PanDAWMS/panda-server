@@ -204,8 +204,8 @@ class UserIF:
 
 
     # set debug mode
-    def setDebugMode(self,dn,pandaID,prodManager,modeOn):
-        ret = self.taskBuffer.setDebugMode(dn,pandaID,prodManager,modeOn)
+    def setDebugMode(self,dn,pandaID,prodManager,modeOn,workingGroup):
+        ret = self.taskBuffer.setDebugMode(dn,pandaID,prodManager,modeOn,workingGroup)
         # return
         return ret
 
@@ -973,7 +973,23 @@ def _isProdRoleATLAS(req):
     return False
 
 
+# get primary working group with prod role
+def _getWGwithPR(req):
+    try:
+        fqans = _getFQAN(req)
+        for fqan in fqans:
+            tmpMatch = re.search('/[^/]+/([^/]+)/Role=production',fqan)
+            if tmpMatch != None:
+                # ignore usatlas since it is used as atlas prod role
+                tmpWG = tmpMatch.group(1)
+                if not tmpWG in ['','usatlas']:
+                    return tmpWG.split('-')[-1].lower()
+    except:
+        pass
+    return None
 
+
+    
 """
 web service interface
 
@@ -1084,8 +1100,10 @@ def setDebugMode(req,pandaID,modeOn):
         modeOn = True
     else:
         modeOn = False
+    # get the primary working group with prod role
+    workingGroup = _getWGwithPR(req)
     # exec    
-    return userIF.setDebugMode(user,pandaID,prodManager,modeOn)
+    return userIF.setDebugMode(user,pandaID,prodManager,modeOn,workingGroup)
 
 
 # insert sandbox file info

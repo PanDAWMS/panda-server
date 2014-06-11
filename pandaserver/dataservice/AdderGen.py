@@ -87,61 +87,57 @@ class AdderGen:
                     self.job.jobStatus = self.jobStatus
                 addResult = None
                 adderPlugin = None
-                # skip DDM access for event service jobs
-                if self.job.isEventServiceJob() and self.job.jobStatus == 'finished':
-                    self.logger.debug('skip DDM access for event service')
-                else:
-                    # parse XML
-                    parseResult = self.parseXML()
-                    if parseResult < 2:
-                        # intraction with DDM
+                # parse XML
+                parseResult = self.parseXML()
+                if parseResult < 2:
+                    # intraction with DDM
+                    try:
+                        # set VO=local for DDM free
+                        if self.job.destinationSE == 'local':
+                            tmpVO = 'local'
+                        else:
+                            tmpVO = self.job.VO
+                        # instantiate concrete plugin
+                        adderPluginClass = panda_config.getPlugin('adder_plugins',tmpVO)
+                        if adderPluginClass == None:
+                            # use ATLAS plugin by default
+                            from AdderAtlasPlugin import AdderAtlasPlugin
+                            adderPluginClass = AdderAtlasPlugin
+                        self.logger.debug('plugin name {0}'.format(adderPluginClass.__name__))
+                        adderPlugin = adderPluginClass(self.job,
+                                                       taskBuffer=self.taskBuffer,
+                                                       siteMapper=self.siteMapper,
+                                                       extraInfo=self.extraInfo,
+                                                       logger=self.logger)
+                        # execute
+                        self.logger.debug('plugin is ready')
+                        adderPlugin.execute()
+                        addResult = adderPlugin.result
+                        self.logger.debug('plugin done with %s' % (addResult.statusCode))
+                    except:
+                        errtype,errvalue = sys.exc_info()[:2]
+                        self.logger.error("failed to execute AdderPlugin for VO={0} with {1}:{2}".format(tmpVO,
+                                                                                                         errtype,
+                                                                                                         errvalue)) 
+                        addResult = None
+                        self.job.ddmErrorCode = ErrorCode.EC_Adder
+                        self.job.ddmErrorDiag = "AdderPlugin failure"
+                    # ignore temporary errors
+                    if self.ignoreTmpError and addResult != None and addResult.isTemporary():
+                        self.logger.debug(': ignore %s ' % self.job.ddmErrorDiag)
+                        self.logger.debug('escape')
+                        # unlock XML
                         try:
-                            # set VO=local for DDM free
-                            if self.job.destinationSE == 'local':
-                                tmpVO = 'local'
-                            else:
-                                tmpVO = self.job.VO
-                            # instantiate concrete plugin
-                            adderPluginClass = panda_config.getPlugin('adder_plugins',tmpVO)
-                            if adderPluginClass == None:
-                                # use ATLAS plugin by default
-                                from AdderAtlasPlugin import AdderAtlasPlugin
-                                adderPluginClass = AdderAtlasPlugin
-                            self.logger.debug('plugin name {0}'.format(adderPluginClass.__name__))
-                            adderPlugin = adderPluginClass(self.job,
-                                                           taskBuffer=self.taskBuffer,
-                                                           siteMapper=self.siteMapper,
-                                                           extraInfo=self.extraInfo,
-                                                           logger=self.logger)
-                            # execute
-                            self.logger.debug('plugin is ready')
-                            adderPlugin.execute()
-                            addResult = adderPlugin.result
-                            self.logger.debug('plugin done with %s' % (addResult.statusCode))
+                            fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
+                            self.lockXML.close()
                         except:
-                            errtype,errvalue = sys.exc_info()[:2]
-                            self.logger.error("failed to execute AdderPlugin for VO={0} with {1}:{2}".format(tmpVO,
-                                                                                                             errtype,
-                                                                                                             errvalue)) 
-                            addResult = None
-                            self.job.ddmErrorCode = ErrorCode.EC_Adder
-                            self.job.ddmErrorDiag = "AdderPlugin failure"
-                        # ignore temporary errors
-                        if self.ignoreTmpError and addResult != None and addResult.isTemporary():
-                            self.logger.debug(': ignore %s ' % self.job.ddmErrorDiag)
-                            self.logger.debug('escape')
-                            # unlock XML
-                            try:
-                                fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
-                                self.lockXML.close()
-                            except:
-                                type, value, traceBack = sys.exc_info()
-                                self.logger.debug(": %s %s" % (type,value))
-                                self.logger.debug("cannot unlock XML")
-                            return
-                        # failed
-                        if addResult == None or not addResult.isSucceeded():
-                            self.job.jobStatus = 'failed'
+                            type, value, traceBack = sys.exc_info()
+                            self.logger.debug(": %s %s" % (type,value))
+                            self.logger.debug("cannot unlock XML")
+                        return
+                    # failed
+                    if addResult == None or not addResult.isSucceeded():
+                        self.job.jobStatus = 'failed'
                 # set file status for failed jobs or failed transferring jobs
                 if self.job.jobStatus == 'failed' or self.jobStatus == 'failed':
                     self.job.jobStatus = 'failed'
@@ -401,7 +397,11 @@ class AdderGen:
                     continue
                 # set failed if it is missing in XML
                 if not file.lfn in lfns:
-                    file.status = 'failed'
+                    if self.job.jobStatus == 'finished' and self.job.isEventServiceJob():
+                        # unset file status for ES jobs
+                        pass
+                    else:
+                        file.status = 'failed'
                     continue
                 # look for GUID with LFN
                 try:

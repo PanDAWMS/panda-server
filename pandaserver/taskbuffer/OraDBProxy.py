@@ -1129,18 +1129,22 @@ class DBProxy:
                     self.conn.begin()
                 # actions for event service 
                 if useJEDI and job.isEventServiceJob() and job.jobStatus == 'finished':
-                    retEvS = self.ppEventServiceJob(job.PandaID,job.attemptNr,False)
+                    retEvS,retNewPandaID = self.ppEventServiceJob(job.PandaID,job.attemptNr,False)
                     # DB error
                     if retEvS == None:
                         raise RuntimeError, 'Faied to retry for Event Service'
                     elif retEvS == 0:
                         job.jobStatus = 'cancelled'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceRetried
-                        job.taskBufferErrorDiag = 'to retry unprocessed even ranges'
+                        job.taskBufferErrorDiag = 'to retry unprocessed even ranges in PandaID={0}'.format(retNewPandaID)
                     elif retEvS == 2:
                         job.jobStatus = 'cancelled'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceMerge
-                        job.taskBufferErrorDiag = 'to merge'
+                        job.taskBufferErrorDiag = 'to merge pre-merged files in PandaID={0}'.format(retNewPandaID)
+                    elif retEvS == 3:
+                        job.jobStatus = 'failed'
+                        job.taskBufferErrorCode = ErrorCode.EC_EventServiceMaxAttempt
+                        job.taskBufferErrorDiag = 'maximum attempts reached for Event Service'
                 # delete to kill
                 varMap = {}
                 varMap[':PandaID'] = job.PandaID
@@ -3695,23 +3699,31 @@ class DBProxy:
 
 
     # get active debug jobs
-    def getActiveDebugJobs(self,dn):
+    def getActiveDebugJobs(self,dn=None,workingGroup=None,prodRole=False):
         comment = ' /* DBProxy.getActiveDebugJobs */'                        
-        _logger.debug("getActiveDebugJobs : %s" % dn)
+        _logger.debug("getActiveDebugJobs : DN={0} wg={1} prodRole={2}".format(dn,workingGroup,prodRole))
+        varMap = {}
         sqlX  = "SELECT PandaID,jobStatus,specialHandling FROM %s "
-        sqlX += "WHERE prodUserName=:prodUserName "
-        sqlX += "AND specialHandling IS NOT NULL "
-        try:
+        sqlX += "WHERE "
+        if prodRole:
+            pass
+        elif workingGroup != None:
+            sqlX += "UPPER(workingGroup) IN (:wg1,:wg2) AND "
+            varMap[':wg1'] = 'AP_{0}'.format(workingGroup.upper())
+            varMap[':wg2'] = 'GP_{0}'.format(workingGroup.upper())
+        else:
+            sqlX += "prodUserName=:prodUserName AND "
             # get compact DN
             compactDN = self.cleanUserID(dn)
             if compactDN in ['','NULL',None]:
                 compactDN = dn
+            varMap[':prodUserName'] = compactDN
+        sqlX += "specialHandling IS NOT NULL "
+        try:
             debugStr = 'debug'
             activeDebugJobs = []
             # loop over tables
             for table in ['ATLAS_PANDA.jobsDefined4','ATLAS_PANDA.jobsActive4']:
-                varMap = {}
-                varMap[':prodUserName'] = compactDN
                 sql = sqlX % table
                 # start transaction
                 self.conn.begin()
@@ -3734,7 +3746,7 @@ class DBProxy:
                         activeDebugJobs.append(pandaID)
             # return        
             activeDebugJobs.sort()
-            _logger.debug("getActiveDebugJobs : %s -> %s" % (dn,str(activeDebugJobs)))
+            _logger.debug("getActiveDebugJobs : DN=%s -> %s" % (dn,str(activeDebugJobs)))
             return activeDebugJobs
         except:
             # roll back
@@ -3745,10 +3757,10 @@ class DBProxy:
 
 
     # set debug mode
-    def setDebugMode(self,dn,pandaID,prodManager,modeOn):
+    def setDebugMode(self,dn,pandaID,prodManager,modeOn,workingGroup):
         comment = ' /* DBProxy.setDebugMode */'                        
-        _logger.debug("turnDebugModeOn : dn=%s id=%s prod=%s mode=%s" % (dn,pandaID,prodManager,modeOn))
-        sqlX  = "SELECT prodUserName,jobStatus,specialHandling FROM %s "
+        _logger.debug("turnDebugModeOn : dn=%s id=%s prod=%s wg=%s mode=%s" % (dn,pandaID,prodManager,workingGroup,modeOn))
+        sqlX  = "SELECT prodUserName,jobStatus,specialHandling,workingGroup FROM %s "
         sqlX += "WHERE PandaID=:PandaID "
         sqlU  = "UPDATE %s SET specialHandling=:specialHandling "
         sqlU += "WHERE PandaID=:PandaID "        
@@ -3778,23 +3790,38 @@ class DBProxy:
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
                     continue
-                prodUserName,jobStatus,specialHandling = res
+                prodUserName,jobStatus,specialHandling,wGroup = res
                 # not active
-                changeableState = ['defined','activated','running','sent','starting']
+                changeableState = ['defined','activated','running','sent','starting','assigned']
                 if not jobStatus in changeableState:
-                    retStr = 'The job status is {0} which is not in one of {1}'.format(jobStatus,
-                                                                                       str(changeableState))
+                    retStr = 'Cannot set debugMode since the job status is {0} which is not in one of {1}'.format(jobStatus,
+                                                                                                                  str(changeableState))
                     # commit
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
                     break
+                # extract workingGroup
+                try:
+                    wGroup = wGroup.split('_')[-1]
+                    wGroup = wGroup.lower()
+                except:
+                    pass
                 # not owner
-                if not prodManager and prodUserName != compactDN:
-                    retStr = 'Permission denied. Not the owner or production manager'
-                    # commit
-                    if not self._commit():
-                        raise RuntimeError, 'Commit error'
-                    break
+                notOwner = False
+                if not prodManager:
+                    if workingGroup != None:
+                        if workingGroup.lower() != wGroup:
+                            retStr = 'Permission denied. Not the production manager for workingGroup={0}'.format(wGroup)
+                            notOwner = True
+                    else:
+                        if prodUserName != compactDN:
+                            retStr = 'Permission denied. Not the owner or production manager'
+                            notOwner = True
+                    if notOwner:
+                        # commit
+                        if not self._commit():
+                            raise RuntimeError, 'Commit error'
+                        break
                 # set specialHandling
                 updateSH = True
                 if specialHandling in [None,'']:
@@ -11418,7 +11445,7 @@ class DBProxy:
         finishUnmerge = False
         hasInput = False
         for fileSpec in jobSpec.Files:
-            # slip if no JEDI
+            # skip if no JEDI
             if fileSpec.fileID == 'NULL':
                 continue
                         # do nothing for unmerged output/log files when merged job successfully finishes,
@@ -11652,6 +11679,9 @@ class DBProxy:
         sqlRH += "(jediTaskID,oldPandaID,newPandaID) "
         sqlRH += "VALUES(:jediTaskID,:oldPandaID,:newPandaID) "
         for tmpFile in job.Files:
+            # slip if no JEDI
+            if tmpFile.fileID == 'NULL':
+                continue
             # update JEDI contents
             varMap = {}
             varMap[':jediTaskID'] = tmpFile.jediTaskID
@@ -12626,8 +12656,9 @@ class DBProxy:
             # 0 : generated a retry job
             # 1 : not retried due to a harmless reason
             # 2 : generated a merge job
+            # 3 : max attempts reached
             # None : fatal error
-            retValue = 1
+            retValue = 1,None
             # read job
             varMap = {}
             varMap[':PandaID'] = pandaID
@@ -12700,6 +12731,7 @@ class DBProxy:
                 if useCommit:
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
+                retValue = 3,None
                 return retValue
             # reset job attributes
             jobSpec.jobStatus        = 'activated'
@@ -12721,6 +12753,11 @@ class DBProxy:
             self.cur.arraysize = 100000
             self.cur.execute(sqlFile+comment, varMap)
             resFs = self.cur.fetchall()
+            # SQL for file copy
+            sqlFCopy  = "INSERT INTO {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlFCopy += "(jediTaskID,datasetID,fileID,lfn,GUID,type,status) "
+            sqlFCopy += "SELECT jediTaskID,datasetID,{0}.JEDI_DATASET_CONT_FILEID_SEQ.nextval,:lfn,:GUID,:type,:status ".format(panda_config.schemaJEDI)
+            sqlFCopy += "FROM {0}.JEDI_Events WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID ".format(panda_config.schemaJEDI)
             # loop over all files            
             for resF in resFs:
                 # add
@@ -12734,6 +12771,18 @@ class DBProxy:
                     oldName = fileSpec.lfn
                     fileSpec.lfn = re.sub('\.\d+$','',fileSpec.lfn)
                     fileSpec.lfn = '{0}.{1}'.format(fileSpec.lfn,jobSpec.attemptNr)
+                    # insert new file record into JEDI table
+                    if fileSpec.fileID != 'NULL':
+                        varMap = {}
+                        varMap[':jediTaskID'] = fileSpec.jediTaskID
+                        varMap[':datasetID'] = fileSpec.datasetID
+                        varMap[':fileID'] = fileSpec.fileID
+                        varMap[':lfn'] = fileSpec.lfn
+                        varMap[':type'] = fileSpec.type
+                        varMap[':status'] = 'defined'
+                        varMap[':newFileID'] = self.cur.var(varNUMBER)
+                        self.cur.execute(sqlFCopy+comment, varMap)
+                        fileSpec.fileID = long(self.cur.getvalue(varMap[':newFileID']))
                 # reset file status
                 if fileSpec.type in ['output','log']:
                     fileSpec.status = 'unknown'
@@ -12785,12 +12834,12 @@ class DBProxy:
                 varMap[':newRowID'] = self.cur.var(varNUMBER)
                 self.cur.execute(sqlFile+comment, varMap)
                 fileSpec.row_ID = long(self.cur.getvalue(varMap[':newRowID']))
-                # update mod time for files
-                varMap = {}
-                varMap[':PandaID'] = jobSpec.PandaID
-                varMap[':modificationTime'] = jobSpec.modificationTime
-                sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
-                self.cur.execute(sqlFMod+comment,varMap)
+            # update mod time for files
+            varMap = {}
+            varMap[':PandaID'] = jobSpec.PandaID
+            varMap[':modificationTime'] = jobSpec.modificationTime
+            sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
+            self.cur.execute(sqlFMod+comment,varMap)
             # insert job parameters
             sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters,modificationTime) VALUES (:PandaID,:param,:modTime)"
             varMap = {}
@@ -12829,9 +12878,9 @@ class DBProxy:
                     raise RuntimeError, 'Commit error'
             # set return
             if not doMerging:
-                retValue = 0
+                retValue = 0,jobSpec.PandaID
             else:
-                retValue = 2
+                retValue = 2,jobSpec.PandaID
             # record status change
             try:
                 self.recordStatusChange(jobSpec.PandaID,jobSpec.jobStatus,jobInfo=jobSpec)
@@ -12845,7 +12894,7 @@ class DBProxy:
                 self._rollback()
             # error
             self.dumpErrorMessage(_logger,methodName)
-            return None
+            return None,None
 
 
 

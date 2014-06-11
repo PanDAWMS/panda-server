@@ -65,7 +65,7 @@ fi
 #
 # the URL to your server's mod_status status page.  If you do not
 # have one, then status and fullstatus will not work.
-STATUSURL="http://localhost:80/server-status"
+STATUSURL="http://localhost:25080/server-status"
 
 # Source /etc/sysconfig/httpd for $HTTPD setting, etc.
 if [ -r @@install_dir@@/etc/sysconfig/panda_server-sysconfig ]; then

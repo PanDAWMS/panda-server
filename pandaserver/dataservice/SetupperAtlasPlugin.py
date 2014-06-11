@@ -31,17 +31,6 @@ from SetupperPluginBase import SetupperPluginBase
 from config import panda_config
 
 
-# temporary
-PandaDDMSource = ['BNLPANDA','BNL-OSG2_MCDISK','BNL-OSG2_DATADISK','BNL-OSG2_MCTAPE','BNL-OSG2_DATATAPE']
-
-NoPandaMoverSites = ['Lucille_CE','Lucille_MCORE','AGLT2_MCORE','AGLT2_SL6',
-                     'BU_ATLAS_Tier2_LMEM','BU_ATLAS_Tier2_MCORE','BU_ATLAS_Tier2_SL6',
-                     'HU_ATLAS_Tier2','HU_ATLAS_Tier2_MCORE','MWT2_MCORE','MWT2_SL6',
-                     'OU_OCHEP_SWT2','OU_OSCER_ATLAS','OU_OSCER_ATLAS_MCORE','OU_OSCER_ATLAS_OPP',
-                     'SLACXRD','SLACXRD_LMEM','SLACXRD_MP8','SWT2_CPB','SWT2_CPB_MCORE',
-                     'UTA_SWT2','UTA_SWT2_MCORE','CONNECT']
-
-
 class SetupperAtlasPlugin (SetupperPluginBase):
     # constructor
     def __init__(self,taskBuffer,jobs,logger,**params):
@@ -316,10 +305,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             if len(fileList[dispatchDBlock]['lfns']) == 0:
                 continue
             # use DQ2
-            if (not self.pandaDDM) and (not dispSiteMap[dispatchDBlock]['src'] in PandaDDMSource or \
-                                            self.siteMapper.getSite(dispSiteMap[dispatchDBlock]['site']).cloud != 'US' or \
-                                            dispSiteMap[dispatchDBlock]['site'] in NoPandaMoverSites) \
-                   and (job.prodSourceLabel != 'ddm') and (not dispSiteMap[dispatchDBlock]['site'].endswith("_REPRO")):
+            if (not self.pandaDDM) and job.prodSourceLabel != 'ddm':
                 # register dispatch dataset
                 disFiles = fileList[dispatchDBlock]
                 self.logger.debug('registerNewDataset {ds} {lfns} {guids} {fsizes} {chksums}'.format(ds=dispatchDBlock,
@@ -765,9 +751,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 else:
                     dstDQ2ID = self.siteMapper.getSite(job.computingSite).ddm
                 # use DQ2
-                if (not self.pandaDDM) and \
-                        (not srcDQ2ID in PandaDDMSource or self.siteMapper.getSite(tmpDstID).cloud != 'US' or tmpDstID in NoPandaMoverSites) \
-                       and (job.prodSourceLabel != 'ddm') and (not job.computingSite.endswith("_REPRO")):
+                if (not self.pandaDDM) and job.prodSourceLabel != 'ddm':
                     # look for replica
                     dq2ID = srcDQ2ID
                     dq2IDList = []
@@ -1939,9 +1923,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             if tmpJob.jobStatus in ['failed','cancelled','waiting']:
                 continue
             # check cloud
-            if (tmpJob.cloud == 'ND' and self.siteMapper.getSite(tmpJob.computingSite).cloud == 'ND') or \
-                   (tmpJob.cloud == 'US' and self.siteMapper.getSite(tmpJob.computingSite).cloud == 'US' and \
-                        not tmpJob.computingSite in NoPandaMoverSites):
+            if (tmpJob.cloud == 'ND' and self.siteMapper.getSite(tmpJob.computingSite).cloud == 'ND'):
                 continue
             # check SE to use T2 only
             tmpSrcID = self.siteMapper.getCloud(tmpJob.cloud)['source']

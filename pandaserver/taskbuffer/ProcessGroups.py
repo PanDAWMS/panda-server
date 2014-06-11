@@ -15,6 +15,9 @@ maxDebugJobs   = 3
 # maximum number of debug jobs for prod role
 maxDebugProdJobs  = 30
 
+# maximum number of debug jobs for working group
+maxDebugWgJobs = 10
+
 # extension level for GP
 extensionLevel_1 = 1
 

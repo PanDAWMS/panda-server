@@ -381,6 +381,8 @@ def getHospitalQueues(siteMapper):
 
 # get prestage sites
 def getPrestageSites(siteMapper):
+    # disable PandaMover
+    return []
     retList = []
     # get cloud
     tmpCloudSpec = siteMapper.getCloud('US')

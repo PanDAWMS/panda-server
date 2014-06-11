@@ -118,6 +118,9 @@ class AdderAtlasPlugin (AdderPluginBase):
                 # failed jobs
                 if self.job.prodSourceLabel in ['managed','test']:
                     self.logTransferring = True
+            elif self.job.jobStatus == 'finished' and self.job.isEventServiceJob():
+                # transfer only log file for ES jobs 
+                self.logTransferring = True
             else:
                 self.goToTransferring = True
             self.logger.debug('goToTransferring=%s' % self.goToTransferring)
@@ -164,6 +167,9 @@ class AdderAtlasPlugin (AdderPluginBase):
                 fileList.append(file.lfn)
                 # add only log file for failed jobs
                 if self.jobStatus == 'failed' and file.type != 'log':
+                    continue
+                # add only log file for successful ES jobs
+                if self.job.jobStatus == 'finished' and self.job.isEventServiceJob() and file.type != 'log':
                     continue
                 try:
                     # fsize
@@ -537,6 +543,9 @@ class AdderAtlasPlugin (AdderPluginBase):
             for tmpFile in self.job.Files:
                 if tmpFile.type in ['log','output']:
                     if self.goToTransferring or (self.logTransferring and tmpFile.type == 'log'):
+                        # don't go to tranferring for successful ES jobs 
+                        if self.job.jobStatus == 'finished' and self.job.isEventServiceJob():
+                            continue
                         self.result.transferringFiles.append(tmpFile.lfn)
         elif not "--mergeOutput" in self.job.jobParameters:
             # send request to DaTRI unless files will be merged

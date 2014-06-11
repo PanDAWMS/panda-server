@@ -36,6 +36,9 @@ EC_EventServiceMerge = 112
 # merge job failed
 EC_MergeFailed = 113
 
+# max attempt reached for Event Service
+EC_EventServiceMaxAttempt = 114
+
 
 
 # file not found

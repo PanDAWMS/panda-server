@@ -561,29 +561,34 @@ class TaskBuffer:
 
 
     # set debug mode
-    def setDebugMode(self,dn,pandaID,prodManager,modeOn):
+    def setDebugMode(self,dn,pandaID,prodManager,modeOn,workingGroup):
         # get DB proxy
         proxy = self.proxyPool.getProxy()
         # check the number of debug jobs
+        hitLimit = False
         if modeOn == True:
-            jobList = proxy.getActiveDebugJobs(dn)
-        else:
-            jobList = []
-        if (not prodManager and len(jobList) >= ProcessGroups.maxDebugJobs) or \
-               (prodManager and len(jobList) >= ProcessGroups.maxDebugProdJobs): 
-            # exceeded
-            retStr  = 'You already hit the limit on the maximum number of debug subjobs per '
-            if not prodManager:
-                retStr += 'user (%s). ' % ProcessGroups.maxDebugJobs
+            limitNum = None
+            if prodManager:
+                jobList = proxy.getActiveDebugJobs(prodRole=True)
+                limitNum = ProcessGroups.maxDebugProdJobs
+            elif workingGroup != None:
+                jobList = proxy.getActiveDebugJobs(workingGroup=workingGroup)
+                limitNum = ProcessGroups.maxDebugWgJobs
             else:
-                retStr += 'prod user (%s). ' % ProcessGroups.maxDebugProdJobs
-            retStr += 'Please set the debug mode off for one of the following PandaIDs : '
-            for tmpID in jobList:
-                retStr += '%s,' % tmpID
-            retStr = retStr[:-1]
-        else:
+                jobList = proxy.getActiveDebugJobs(dn=dn)
+                limitNum = ProcessGroups.maxDebugJobs
+            if len(jobList) >= limitNum:
+                # exceeded
+                retStr  = 'You already hit the limit on the maximum number of debug subjobs '
+                retStr += '(%s jobs). ' % limitNum
+                retStr += 'Please set the debug mode off for one of the following PandaIDs : '
+                for tmpID in jobList:
+                    retStr += '%s,' % tmpID
+                retStr = retStr[:-1]
+                hitLimit = True
+        if not hitLimit:
             # execute
-            retStr = proxy.setDebugMode(dn,pandaID,prodManager,modeOn)
+            retStr = proxy.setDebugMode(dn,pandaID,prodManager,modeOn,workingGroup)
         # release proxy
         self.proxyPool.putProxy(proxy)
         return retStr

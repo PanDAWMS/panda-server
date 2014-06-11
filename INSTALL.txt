@@ -3,8 +3,8 @@ Installation
 
 1. Checkout panda-common and panda-server.
 
-$ svn co svn+ssh://svn.cern.ch/reps/panda/panda-common/tags/X.Y.Z panda-common
-$ svn co svn+ssh://svn.cern.ch/reps/panda/panda-server/tags/A.B.C panda-server
+$ git clone git://git@github.com/PanDAWMS/panda-common.git
+$ git clone git://git@github.com/PanDAWMS/panda-server.git
 
 * For tar-ball installation
 
