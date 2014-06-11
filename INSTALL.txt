@@ -1,17 +1,19 @@
 Installation
 --------------------
 
-1. Checkout panda-common and panda-server.
-
-$ git clone git://git@github.com/PanDAWMS/panda-common.git
-$ git clone git://git@github.com/PanDAWMS/panda-server.git
+1. install panda-common and panda-server.
 
 * For tar-ball installation
+  
+  1. Checkout packages from git
+     $ git clone git://git@github.com/PanDAWMS/panda-common.git
+     $ git clone git://git@github.com/PanDAWMS/panda-server.git
 
-$ cd panda-common
-$ python setup.py install --prefix=INSTALLDIR
-$ cd ../panda-server
-$ python setup.py install --prefix=INSTALLDIR
+  2. Build and install
+     $ cd panda-common
+     $ python setup.py install --prefix=INSTALLDIR
+     $ cd ../panda-server
+     $ python setup.py install --prefix=INSTALLDIR
 
 where INSTALLDIR is /data/atlpan/testsrv, for example.
 
@@ -149,7 +151,7 @@ $ sudo /sbin/service httpd-pandasrv start
 
 Stop the server.
 
-$ sudo /sbin/service httpd-pandasrv start
+$ sudo /sbin/service httpd-pandasrv stop
 
 
 

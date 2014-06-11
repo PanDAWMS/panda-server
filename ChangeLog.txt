@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * removed old TAPE check for BNL from brokerage
   * disabled PandaMover for US
   * changed Adder to register log files for ES
   * changed the protection for un-formatted HC destinationDBlock

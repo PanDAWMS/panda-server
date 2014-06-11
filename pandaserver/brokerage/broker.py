@@ -158,16 +158,7 @@ def _setReadyToFiles(tmpJob,okFiles,siteMapper,tmpLog):
                     for okPFN in okFiles[tmpFile.lfn]:
                         if re.search(tmpSiteSpec.seprodpath['ATLASDATATAPE'],okPFN) == None and \
                                re.search(tmpSiteSpec.seprodpath['ATLASMCTAPE'],okPFN) == None:
-                            # there is a disk copy
-                            if tmpJob.cloud == 'US':
-                                # check for BNLPANDA
-                                if (tmpSiteSpec.seprodpath.has_key('ATLASMCDISK') and \
-                                    re.search(tmpSiteSpec.seprodpath['ATLASMCDISK'],okPFN) != None) or \
-                                    (tmpSiteSpec.seprodpath.has_key('ATLASDATADISK') and
-                                       re.search(tmpSiteSpec.seprodpath['ATLASDATADISK'],okPFN) != None):
-                                    tapeOnly = False
-                            else:
-                                tapeOnly = False
+                            tapeOnly = False
                         else:
                             # there is a tape copy
                             tapeCopy = True
