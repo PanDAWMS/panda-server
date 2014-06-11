@@ -15,16 +15,31 @@ $ python setup.py install --prefix=INSTALLDIR
 
 where INSTALLDIR is /data/atlpan/testsrv, for example.
 
+
 * For RPM installation
 
-$ cd panda-common
-$ python setup.py bdist_rpm
-$ sudo rpm -Uvh dist/panda-common-*.noarch.rpm
-$ cd ../panda-server 
-$ python setup.py bdist_rpm
-$ sudo rpm -Uvh dist/panda-server-*.noarch.rpm
+First you need to install CERN_Grid_Certification_Authority.pem. If you use Scientific Linux it is just
 
-INSTALLDIR is set to /data/atlpan/srv automatically for RPMs
+$ yum install CERN-CA-certs
+
+Otherwise the installation has to be done manually:
+
+  1. Download the CERN Grid Certification Authority Certificate from https://gridca.cern.ch/gridca/
+     $ wget https://cafiles.cern.ch/cafiles/certificates/CERN%20Grid%20Certification%20Authority.crt
+
+  2. Copy to system location and rename. For example, 
+     $ sudo mv "CERN Grid Certification Authority.crt" /etc/pki/tls/certs/CERN_Grid_Certification_Authority.pem
+
+Next, configure PanDA yum repository
+
+$ sudo wget --directory-prefix /etc/yum.repos.d/ --no-check-certificate https://pandabuild.cern.ch:443/misc/pandabuild.repo
+
+Make sure that sslcacert in pandabuild.repo is consistent if you manully installed CERN_Grid_Certification_Authority.pem.
+Finally,
+
+$ sudo yum install panda-server
+
+INSTALLDIR is set to /data/atlpan/srv for RPMs
 
 
 2. Modify config files
@@ -32,7 +47,7 @@ INSTALLDIR is set to /data/atlpan/srv automatically for RPMs
 $ cd INSTALLDIR/etc/panda
 $ mv panda_common.cfg.rpmnew panda_common.cfg
 $ mv panda_server.cfg.rpmnew panda_server.cfg       
-$ mv panda_server-httpd.conf.rpmnew panda_server-httpd.conf        
+$ mv panda_server-httpd-FastCGI.conf.rpmnew panda_server-httpd.conf        
 $ emacs -nw panda_server.cfg
 
 fix FIXME
@@ -117,6 +132,12 @@ cp ~/devsrv/share/pandasrv.cron /etc/cron.d/
 Start the server
 --------------------
 
+Install service
+
+$ sudo ln -fs INSTALLDIR/etc/init.d/panda_server-ctl /etc/rc.d/init.d/httpd-pandasrv
+$ sudo /sbin/chkconfig --add httpd-pandasrv
+$ sudo /sbin/chkconfig httpd-pandasrv on
+
 Add the following to crontab.
 
 0-59/5 * * * * INSTALLDIR/usr/bin/panda_server-add.sh > /dev/null 2>&1
@@ -124,11 +145,11 @@ Add the following to crontab.
 
 Run the server.
 
-$ sudo INSTALLDIR/etc/init.d/panda_server-ctl start
+$ sudo /sbin/service httpd-pandasrv start
 
 Stop the server.
 
-$ sudo INSTALLDIR/etc/init.d/panda_server-ctl stop
+$ sudo /sbin/service httpd-pandasrv start
 
 
 
