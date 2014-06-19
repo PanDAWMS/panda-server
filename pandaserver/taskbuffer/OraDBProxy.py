@@ -2892,6 +2892,8 @@ class DBProxy:
                         job.transformation = tmpMatch.group(1)
                     except:
                         pass
+                    # pass in/out map for merging via metadata
+                    job.metadata = mergeInputOutputMap
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'

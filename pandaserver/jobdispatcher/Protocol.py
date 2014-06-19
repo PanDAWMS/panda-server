@@ -198,6 +198,22 @@ class Response:
             self.data['eventService'] = 'True'
             # prod DBlock space token for pre-merging output
             self.data['prodDBlockTokenForOutput'] = strProdTokenForOutput[:-1]
+        # event service merge
+        if job.isEventServiceMerge():
+            self.data['eventServiceMerge'] = 'True'
+            # write to file
+            writeToFileStr = ''
+            try:
+                for outputName,inputList in job.metadata.iteritems():
+                    writeToFileStr += 'inputFor_{0}:'.format(outputName)
+                    for tmpInput in inputList:
+                        writeToFileStr += '{0},'.format(tmpInput)
+                    writeToFileStr = writeToFileStr[:-1]
+                    writeToFileStr += '^'
+                writeToFileStr = writeToFileStr[:-1]
+            except:
+                pass
+            self.data['writeToFile'] = writeToFileStr
 
 
     # set proxy key

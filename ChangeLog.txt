@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed to send input/output map to the pilot for ES merge
   * removed old TAPE check for BNL from brokerage
   * disabled PandaMover for US
   * changed Adder to register log files for ES
