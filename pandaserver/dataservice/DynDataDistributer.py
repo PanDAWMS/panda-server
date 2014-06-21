@@ -1153,6 +1153,7 @@ class DynDataDistributer:
                     if dsFilters != []:
                         flagMatch = False
                         for tmpFilter in dsFilters:
+                            tmpFilter = tmpFilter.replace('*','.*')
                             if re.search(tmpFilter,tmpDsName) != None:
                                 flagMatch = True
                                 break
