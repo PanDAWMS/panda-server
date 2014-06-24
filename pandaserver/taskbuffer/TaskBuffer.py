@@ -4,6 +4,7 @@ import types
 import shlex
 import datetime
 import ProcessGroups
+import EventServiceUtils
 from threading import Lock
 from DBProxyPool import DBProxyPool
 from brokerage.SiteMapper import SiteMapper
@@ -268,6 +269,7 @@ class TaskBuffer:
             usePandaDDM = False
             firstLiveLog = True
             nRunJob = 0
+            esJobsetMap = {}
             for job in jobs:
                 # set JobID. keep original JobID when retry
                 if userJobID != -1 and job.prodSourceLabel in ['user','panda'] \
@@ -331,9 +333,18 @@ class TaskBuffer:
                 # set hostname
                 if hostname != '':
                     job.creationHost = hostname
+                # extract file info, chnage specialHandling for event service
+                eventServiceInfo,job.specialHandling,esIndex = EventServiceUtils.decodeFileInfo(job.specialHandling)
+                origEsJob = False
+                if eventServiceInfo != {}:
+                    # set jobsetID 
+                    if esJobsetMap.has_key(esIndex):
+                        job.jobsetID = esJobsetMap[esIndex]
+                    else:
+                        origEsJob = True
                 # insert job to DB
                 if not proxy.insertNewJob(job,user,serNum,weight,priorityOffset,userVO,groupJobSerialNum,
-                                          toPending):
+                                          toPending,origEsJob,eventServiceInfo):
                     # reset if failed
                     job.PandaID = None
                 else:
@@ -351,6 +362,9 @@ class TaskBuffer:
                             firstLiveLog = False
                     # append
                     newJobs.append(job)
+                    # mapping of jobsetID for event service
+                    if origEsJob:
+                        esJobsetMap[esIndex] = job.jobsetID
                 if job.prodSourceLabel in ['user','panda','ptest','rc_test']:                
                     ret.append((job.PandaID,job.jobDefinitionID,{'jobsetID':job.jobsetID}))
                 else:
@@ -2431,11 +2445,11 @@ class TaskBuffer:
 
 
     # get a list of even ranges for a PandaID
-    def getEventRanges(self,pandaID,nRanges):
+    def getEventRanges(self,pandaID,jobsetID,nRanges):
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.getEventRanges(pandaID,nRanges)
+        ret = proxy.getEventRanges(pandaID,jobsetID,nRanges)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

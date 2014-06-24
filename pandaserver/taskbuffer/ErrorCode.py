@@ -39,6 +39,12 @@ EC_MergeFailed = 113
 # max attempt reached for Event Service
 EC_EventServiceMaxAttempt = 114
 
+# do nothing since other consumers are still running
+EC_EventServiceWaitOthers = 115
+
+# killed since unused and unnecessary any more 
+EC_EventServiceUnused = 116
+
 
 
 # file not found

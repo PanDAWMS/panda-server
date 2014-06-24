@@ -23,6 +23,7 @@ import SiteSpec
 import CloudSpec
 import PrioUtil
 import ProcessGroups
+import EventServiceUtils
 from JobSpec  import JobSpec
 from FileSpec import FileSpec
 from DatasetSpec import DatasetSpec
@@ -211,7 +212,8 @@ class DBProxy:
 
 
     # insert job to jobsDefined
-    def insertNewJob(self,job,user,serNum,weight=0.0,priorityOffset=0,userVO=None,groupJobSN=0,toPending=False):
+    def insertNewJob(self,job,user,serNum,weight=0.0,priorityOffset=0,userVO=None,groupJobSN=0,toPending=False,
+                     origEsJob=False,eventServiceInfo=None):
         comment = ' /* DBProxy.insertNewJob */'
         if not toPending:
             sql1 = "INSERT INTO ATLAS_PANDA.jobsDefined4 (%s) " % JobSpec.columnNames()
@@ -277,38 +279,16 @@ class DBProxy:
                 # set maxAttempt to have server/pilot retries for retried jobs
                 if job.maxAttempt <= job.attemptNr:    
                     job.maxAttempt = job.attemptNr + 2    
-        # event service
-        eventServiceInfo = {}
-        esHeader = 'es:'
-        esToken  = 'eventservice'
-        newSpecialHandling = ''
-        try:
-            for tmpItem in job.specialHandling.split(','):
-                if tmpItem.startswith(esHeader):
-                    tmpItem = re.sub('^'+esHeader,'',tmpItem)
-                    for esItem in tmpItem.split('^'):
-                        if esItem == '':
-                            continue
-                        esItems = esItem.split('/')
-                        if len(esItems) == 3:
-                            esLFN,esEvents,esRange = esItems
-                            esStartEvent = 0
-                        else:
-                            esLFN,esStartEvent,esEndEvent,esRange = esItems
-                            esEvents = long(esEndEvent) - long(esStartEvent) + 1
-                        eventServiceInfo[esLFN] = {'nEvents':long(esEvents),
-                                                   'startEvent':long(esStartEvent),
-                                                   'nEventsPerRange':long(esRange)}
-                    newSpecialHandling += '{0},'.format(esToken)
-                else:
-                    newSpecialHandling += '{0},'.format(tmpItem)
-            job.specialHandling = newSpecialHandling[:-1]
-        except:
-            pass
         try:
             # begin transaction
             self.conn.begin()
-            # insert
+            # get jobsetID for event service
+            if origEsJob:
+                sqlESS = "SELECT ATLAS_PANDA.JOBSDEFINED4_PANDAID_SEQ.nextval FROM dual ";
+                self.cur.arraysize = 10
+                self.cur.execute(sqlESS+comment, {})
+                job.jobsetID, = self.cur.fetchone()
+            # insert job
             varMap = job.valuesMap(useSeq=True)
             varMap[':newPandaID'] = self.cur.var(varNUMBER)
             retI = self.cur.execute(sql1+comment, varMap)
@@ -374,7 +354,7 @@ class DBProxy:
                     sqlJediFile += "AND attemptNr=:attemptNr AND status IN (:oldStatusI,:oldStatusO) AND keepTrack=:keepTrack "
                     self.cur.execute(sqlJediFile+comment, varMap)
                     # insert event tables
-                    if file.lfn in eventServiceInfo:
+                    if origEsJob and eventServiceInfo != None and file.lfn in eventServiceInfo:
                         sqlJediEvent  = "INSERT INTO {0}.JEDI_Events ".format(panda_config.schemaJEDI)
                         sqlJediEvent += "(jediTaskID,datasetID,PandaID,fileID,attemptNr,status,"
                         sqlJediEvent += "job_processID,def_min_eventID,def_max_eventID,processed_upto_eventID) "
@@ -385,10 +365,10 @@ class DBProxy:
                             varMap = {}
                             varMap[':jediTaskID'] = file.jediTaskID
                             varMap[':datasetID'] = file.datasetID
-                            varMap[':pandaID'] = file.PandaID
+                            varMap[':pandaID'] = job.jobsetID
                             varMap[':fileID'] = file.fileID
-                            varMap[':attemptNr'] = 1
-                            varMap[':eventStatus'] = 0
+                            varMap[':attemptNr'] = 3
+                            varMap[':eventStatus'] = EventServiceUtils.ST_ready
                             varMap[':processedEvent'] = 0
                             varMap[':startEvent'] = eventServiceInfo[file.lfn]['startEvent'] + iEvent
                             iEvent += eventServiceInfo[file.lfn]['nEventsPerRange']
@@ -1127,25 +1107,39 @@ class DBProxy:
                 # main job
                 if useCommit:
                     self.conn.begin()
-                # actions for event service 
-                if useJEDI and job.isEventServiceJob() and job.jobStatus == 'finished':
-                    retEvS,retNewPandaID = self.ppEventServiceJob(job.PandaID,job.attemptNr,False)
+                # actions for successful event service 
+                if useJEDI and EventServiceUtils.isEventServiceJob(job) and job.jobStatus == 'finished':
+                    retEvS,retNewPandaID = self.ppEventServiceJob(job,False)
                     # DB error
                     if retEvS == None:
                         raise RuntimeError, 'Faied to retry for Event Service'
                     elif retEvS == 0:
+                        # retry event ranges
                         job.jobStatus = 'cancelled'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceRetried
-                        job.taskBufferErrorDiag = 'to retry unprocessed even ranges in PandaID={0}'.format(retNewPandaID)
+                        job.taskBufferErrorDiag = 'cancelled to retry unprocessed even ranges in PandaID={0}'.format(retNewPandaID)
                     elif retEvS == 2:
+                        # goes to merging
                         job.jobStatus = 'cancelled'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceMerge
-                        job.taskBufferErrorDiag = 'to merge pre-merged files in PandaID={0}'.format(retNewPandaID)
+                        job.taskBufferErrorDiag = 'cancelled to merge pre-merged files in PandaID={0}'.format(retNewPandaID)
+                        # kill unused event service consumers
+                        self.killUnusedEventServiceConsumers(job,False)
                     elif retEvS == 3:
+                        # maximum attempts reached
                         job.jobStatus = 'failed'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceMaxAttempt
                         job.taskBufferErrorDiag = 'maximum attempts reached for Event Service'
-                # delete to kill
+                    elif retEvS == 4:
+                        # other consumers are running
+                        job.jobStatus = 'cancelled'
+                        job.taskBufferErrorCode = ErrorCode.EC_EventServiceWaitOthers
+                        job.taskBufferErrorDiag = 'no further action since other Event ServiceEvent Service consumers were still running'
+                # kill associated consumers for event service
+                if useJEDI and EventServiceUtils.isEventServiceJob(job) and job.jobStatus == 'failed':
+                     self.killEventServiceConsumers(job,False,False)
+                     self.killUnusedEventServiceConsumers(job,False)
+                # delete from jobsDefined/Active
                 varMap = {}
                 varMap[':PandaID'] = job.PandaID
                 if fromJobsDefined:
@@ -1154,7 +1148,7 @@ class DBProxy:
                 self.cur.execute(sql1+comment, varMap)
                 n = self.cur.rowcount                
                 if n==0:
-                    # already killed
+                    # already deleted
                     _logger.debug("archiveJob : Not found %s" % job.PandaID)
                 else:
                     # insert
@@ -1214,8 +1208,8 @@ class DBProxy:
                                 myDisList.append(tmpFile.dispatchDBlock)
                     # collect to record state change
                     updatedJobList.append(job)
-                    # update JEDI tables
-                    if useJEDI:
+                    # update JEDI tables unless it is an ES consumer job which was successful but waits for merging or other running consumers
+                    if useJEDI and not (EventServiceUtils.isEventServiceJob(job) and job.jobStatus == 'cancelled'):
                         self.propagateResultToJEDI(job,self.cur,extraInfo=extraInfo)
                 # propagate successful result to unmerge job
                 if useJEDI and job.processingType == 'pmerge' and job.jobStatus == 'finished':
@@ -2799,6 +2793,13 @@ class DBProxy:
                 # instantiate Job
                 job = JobSpec()
                 job.pack(res)
+                # sql to read range
+                sqlRR  = "SELECT PandaID,job_processID,attemptNr "
+                sqlRR += "FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+                sqlRR += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND status=:eventStatus "
+                # read parent PandaID
+                sqlPP  = "SELECT oldPandaID FROM {0}.JEDI_Job_Retry_History ".format(panda_config.schemaJEDI)
+                sqlPP += "WHERE jediTaskID=:jediTaskID AND newPandaID=:pandaID " # FIXME 'to ignore normal retry chain by JEDI' AND type=:esRetry "
                 # read files
                 sqlFile = "SELECT %s FROM ATLAS_PANDA.filesTable4 " % FileSpec.columnNames()
                 sqlFile+= "WHERE PandaID=:PandaID"
@@ -2806,47 +2807,53 @@ class DBProxy:
                 self.cur.execute(sqlFile+comment, varMap)
                 resFs = self.cur.fetchall()
                 eventRangeIDs = {}
+                esDonePandaIDs = []
                 for resF in resFs:
                     file = FileSpec()
                     file.pack(resF)
                     # add files
-                    if not job.isEventServiceMerge() or file.type in ['output','log']: 
+                    if not EventServiceUtils.isEventServiceMerge(job) or file.type in ['output','log']: 
                         job.addFile(file)
                     # get event ragnes for event service
-                    if job.isEventServiceMerge():
+                    if EventServiceUtils.isEventServiceMerge(job):
                         # only for input
                         if not file.type in ['output','log']:
-                            # sql to read range
-                            sqlRR  = "SELECT fileID,job_processID,attemptNr "
-                            sqlRR += "FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
-                            sqlRR += "WHERE jediTaskID=:jediTaskID AND PandaID=:pandaID AND status=:eventStatus "
-                            # read parent PandaID
-                            sqlPP  = "SELECT oldPandaID FROM {0}.JEDI_Job_Retry_History ".format(panda_config.schemaJEDI)
-                            sqlPP += "WHERE jediTaskID=:jediTaskID AND newPandaID=:pandaID " # FIXME 'to ignore normal retry chain by JEDI' AND type=:esRetry "
-                            ppPandaID = job.PandaID
-                            while True:
-                                # get ranges
-                                varMap = {}
-                                varMap[':pandaID']     = ppPandaID
-                                varMap[':jediTaskID']  = job.jediTaskID
-                                varMap[':eventStatus'] = 3
-                                self.cur.execute(sqlRR+comment, varMap)
-                                resRR = self.cur.fetchall()
-                                for fileID,job_processID,attemptNr in resRR:
-                                    tmpEventRangeID = self.makeEventRangeID(job.jediTaskID,ppPandaID,fileID,job_processID,attemptNr)
-                                    if not eventRangeIDs.has_key(fileID):
-                                        eventRangeIDs[fileID] = {}
-                                    eventRangeIDs[fileID][job_processID] = tmpEventRangeID
-                                # get parent PandaID
-                                varMap = {}
-                                varMap[':pandaID']     = ppPandaID
-                                varMap[':jediTaskID']  = job.jediTaskID
-                                self.cur.execute(sqlPP+comment, varMap)
-                                resPP = self.cur.fetchone()
-                                if resPP == None:
-                                    break
-                                ppPandaID, = resPP
-                # make input for event service merging
+                            # get ranges
+                            varMap = {}
+                            varMap[':jediTaskID'] = file.jediTaskID
+                            varMap[':datasetID']  = file.datasetID
+                            varMap[':fileID']     = file.fileID
+                            varMap[':eventStatus'] = EventServiceUtils.ST_done
+                            self.cur.execute(sqlRR+comment, varMap)
+                            resRR = self.cur.fetchall()
+                            for esPandaID,job_processID,attemptNr in resRR:
+                                tmpEventRangeID = self.makeEventRangeID(file.jediTaskID,esPandaID,file.fileID,job_processID,attemptNr)
+                                if not eventRangeIDs.has_key(file.fileID):
+                                    eventRangeIDs[file.fileID] = {}
+                                eventRangeIDs[file.fileID][job_processID] = tmpEventRangeID
+                                if not esPandaID in esDonePandaIDs:
+                                    esDonePandaIDs.append(esPandaID)
+                # get parent PandaIDs for event service retry
+                esAllPandaIDs = []
+                for esPandaID in esDonePandaIDs:
+                    ppPandaID = esPandaID
+                    while True:
+                        # skip if duplicated
+                        if ppPandaID in esAllPandaIDs:
+                            break
+                        # collect all PandaIDs
+                        esAllPandaIDs.append(ppPandaID)
+                        # look for parent
+                        varMap = {}
+                        varMap[':pandaID']     = ppPandaID
+                        varMap[':jediTaskID']  = job.jediTaskID
+                        self.cur.execute(sqlPP+comment, varMap)
+                        resPP = self.cur.fetchone()
+                        # no more parent
+                        if resPP == None:
+                            break
+                        ppPandaID, = resPP
+                # make input for event service output merging
                 mergeInputOutputMap = {}
                 mergeInputFiles = []
                 for tmpFileID,tmpMapEventRangeID in eventRangeIDs.iteritems():
@@ -2869,6 +2876,25 @@ class DBProxy:
                             mergeInputOutputMap[tmpFileSpec.lfn].append(tmpInputFileSpec.lfn)
                 for tmpInputFileSpec in mergeInputFiles:
                     job.addFile(tmpInputFileSpec)
+                # make input for event service log merging
+                mergeLogFiles = []
+                for tmpFileSpec in job.Files:
+                    if not tmpFileSpec.type in ['log']:
+                        continue
+                    # make files
+                    for esPandaID in esAllPandaIDs:
+                        tmpInputFileSpec = copy.copy(tmpFileSpec)
+                        tmpInputFileSpec.type = 'input'
+                        # append PandaID as suffix
+                        tmpInputFileSpec.lfn  = tmpInputFileSpec.lfn + '.{0}'.format(esPandaID)
+                        # add file
+                        mergeLogFiles.append(tmpInputFileSpec)
+                        # make input/output map
+                        if not mergeInputOutputMap.has_key(tmpFileSpec.lfn):
+                            mergeInputOutputMap[tmpFileSpec.lfn] = []
+                        mergeInputOutputMap[tmpFileSpec.lfn].append(tmpInputFileSpec.lfn)
+                for tmpInputFileSpec in mergeLogFiles:
+                    job.addFile(tmpInputFileSpec)
                 # job parameters
                 sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
                 varMap = {}
@@ -2878,12 +2904,12 @@ class DBProxy:
                     job.jobParameters = clobJobP.read()
                     break
                 # remove or extract parameters for merge
-                if job.isEventServiceJob():
+                if EventServiceUtils.isEventServiceJob(job):
                     try:
                         job.jobParameters = re.sub('<PANDA_ESMERGE_.+>.*</PANDA_ESMERGE_.+>','',job.jobParameters)
                     except:
                         pass
-                elif job.isEventServiceMerge():
+                elif EventServiceUtils.isEventServiceMerge(job):
                     try:
                         origJobParameters = job.jobParameters
                         tmpMatch = re.search('<PANDA_ESMERGE_JOBP>(.*)</PANDA_ESMERGE_JOBP>',origJobParameters)
@@ -3200,7 +3226,7 @@ class DBProxy:
             if getUserInfo:
                 return False,{}                
             return False
-        sql0  = "SELECT prodUserID,prodSourceLabel,jobDefinitionID,jobsetID,workingGroup FROM %s WHERE PandaID=:PandaID"        
+        sql0  = "SELECT prodUserID,prodSourceLabel,jobDefinitionID,jobsetID,workingGroup,specialHandling FROM %s WHERE PandaID=:PandaID"        
         sql1  = "UPDATE %s SET commandToPilot=:commandToPilot,taskBufferErrorDiag=:taskBufferErrorDiag WHERE PandaID=:PandaID AND commandToPilot IS NULL"
         sql1F = "UPDATE %s SET commandToPilot=:commandToPilot,taskBufferErrorDiag=:taskBufferErrorDiag WHERE PandaID=:PandaID"
         sql2  = "SELECT %s " % JobSpec.columnNames()
@@ -3253,7 +3279,7 @@ class DBProxy:
                         distinguishedName = dn
                     return distinguishedName
                 # prevent prod proxy from killing analysis jobs
-                userProdUserID,userProdSourceLabel,userJobDefinitionID,userJobsetID,workingGroup = res
+                userProdUserID,userProdSourceLabel,userJobDefinitionID,userJobsetID,workingGroup,specialHandling = res
                 # check group prod role
                 validGroupProdRole = False
                 if res[1] in ['managed','test'] and workingGroup != '':
@@ -3279,6 +3305,8 @@ class DBProxy:
                     if cn1 != cn2:
                         _logger.debug("ignore killJob -> Owner != Requester")
                         break
+                # event service
+                useEventService =  EventServiceUtils.isEventServiceSH(specialHandling)
                 # update
                 varMap = {}
                 varMap[':PandaID'] = pandaID
@@ -3286,6 +3314,9 @@ class DBProxy:
                 varMap[':taskBufferErrorDiag'] = 'killed by %s' % user
                 if userProdSourceLabel in ['managed','test'] and code in ['9',]:
                     # ignore commandToPilot for force kill
+                    self.cur.execute((sql1F+comment) % table, varMap)
+                elif useEventService:
+                    # use force kill for event service
                     self.cur.execute((sql1F+comment) % table, varMap)
                 else:
                     self.cur.execute((sql1+comment) % table, varMap)
@@ -3300,6 +3331,9 @@ class DBProxy:
                 if (userProdSourceLabel in ['managed','test',None] or 'test' in userProdSourceLabel) and code in ['9',]:
                     # use dummy for force kill
                     varMap[':jobStatus'] = 'dummy'
+                elif useEventService:
+                    # use dummy for force kill
+                    varMap[':jobStatus'] = 'dummy'
                 else:
                     varMap[':jobStatus'] = 'running'
                 self.cur.arraysize = 10
@@ -3310,6 +3344,10 @@ class DBProxy:
                 # instantiate JobSpec
                 job = JobSpec()
                 job.pack(res[0])
+                # kill associated consumers for event service
+                if useEventService:
+                    self.killEventServiceConsumers(job,True,False)
+                    self.killUnusedEventServiceConsumers(job,False)
                 # delete
                 if table=='ATLAS_PANDA.jobsDefined4':
                     varMap = {}
@@ -11668,7 +11706,7 @@ class DBProxy:
 
 
     # update JEDI for pilot retry
-    def updateForPilotRetryJEDI(self,job,cur):
+    def updateForPilotRetryJEDI(self,job,cur,onlyHistory=False):
         comment = ' /* DBProxy.updateForPilotRetryJEDI */'
         # sql to update file
         sqlFJ  = "UPDATE {0}.JEDI_Dataset_Contents SET attemptNr=attemptNr+1,PandaID=:PandaID ".format(panda_config.schemaJEDI)
@@ -11676,31 +11714,32 @@ class DBProxy:
         sqlFJ += "AND attemptNr=:attemptNr AND keepTrack=:keepTrack "
         sqlFP  = "UPDATE ATLAS_PANDA.filesTable4 SET attemptNr=attemptNr+1 "
         sqlFP += "WHERE row_ID=:row_ID "
+        if not onlyHistory:
+            for tmpFile in job.Files:
+                # slip if no JEDI
+                if tmpFile.fileID == 'NULL':
+                    continue
+                # update JEDI contents
+                varMap = {}
+                varMap[':jediTaskID'] = tmpFile.jediTaskID
+                varMap[':datasetID']  = tmpFile.datasetID
+                varMap[':fileID']     = tmpFile.fileID
+                varMap[':attemptNr']  = tmpFile.attemptNr
+                varMap[':PandaID']    = tmpFile.PandaID
+                varMap[':keepTrack']  = 1
+                _logger.debug(sqlFJ+comment+str(varMap))
+                cur.execute(sqlFJ+comment,varMap)
+                nRow = cur.rowcount
+                if nRow == 1:
+                    # update fileTable if JEDI contents was updated
+                    varMap = {}
+                    varMap[':row_ID'] = tmpFile.row_ID
+                    _logger.debug(sqlFP+comment+str(varMap))
+                    cur.execute(sqlFP+comment,varMap)
         # sql to record retry history
         sqlRH  = "INSERT INTO {0}.JEDI_Job_Retry_History ".format(panda_config.schemaJEDI)
         sqlRH += "(jediTaskID,oldPandaID,newPandaID) "
         sqlRH += "VALUES(:jediTaskID,:oldPandaID,:newPandaID) "
-        for tmpFile in job.Files:
-            # slip if no JEDI
-            if tmpFile.fileID == 'NULL':
-                continue
-            # update JEDI contents
-            varMap = {}
-            varMap[':jediTaskID'] = tmpFile.jediTaskID
-            varMap[':datasetID']  = tmpFile.datasetID
-            varMap[':fileID']     = tmpFile.fileID
-            varMap[':attemptNr']  = tmpFile.attemptNr
-            varMap[':PandaID']    = tmpFile.PandaID
-            varMap[':keepTrack']  = 1
-            _logger.debug(sqlFJ+comment+str(varMap))
-            cur.execute(sqlFJ+comment,varMap)
-            nRow = cur.rowcount
-            if nRow == 1:
-                # update fileTable if JEDI contents was updated
-                varMap = {}
-                varMap[':row_ID'] = tmpFile.row_ID
-                _logger.debug(sqlFP+comment+str(varMap))
-                cur.execute(sqlFP+comment,varMap)
         # record retry history
         varMap = {}
         varMap[':jediTaskID'] = job.jediTaskID
@@ -12474,19 +12513,17 @@ class DBProxy:
                          
 
     # get a list of even ranges for a PandaID
-    def getEventRanges(self,pandaID,nRanges):
+    def getEventRanges(self,pandaID,jobsetID,nRanges):
         comment = ' /* DBProxy.getEventRanges */'
         methodName = comment.split(' ')[-2].split('.')[-1]
-        methodName += " <PandaID={0}>".format(pandaID)
+        methodName += " <PandaID={0} jobsetID={1}>".format(pandaID,jobsetID)
         _logger.debug("{0} : start".format(methodName))
         try:
-            # max number of retry
-            maxRetry = 3
             # sql to get ranges
             sql  = 'SELECT * FROM ('
-            sql += 'SELECT jediTaskID,datasetID,fileID,pandaID,attemptNr,job_processID,def_min_eventID,def_max_eventID '
+            sql += 'SELECT jediTaskID,datasetID,fileID,attemptNr,job_processID,def_min_eventID,def_max_eventID '
             sql += "FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
-            sql += "WHERE PandaID=:pandaID AND status=:eventStatus AND attemptNr<:maxAttemptNr "
+            sql += "WHERE PandaID=:jobsetID AND status=:eventStatus AND attemptNr>:minAttemptNr "
             sql += "ORDER BY def_min_eventID "
             sql += ") WHERE rownum<={0} ".format(nRanges)
             # sql to get file info
@@ -12494,14 +12531,14 @@ class DBProxy:
             sqlF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID " 
             # sql to lock range
             sqlU  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
-            sqlU += "SET status=:eventStatus "
-            sqlU += "WHERE jediTaskID=:jediTaskID AND fileID=:fileID AND PandaID=:pandaID "
+            sqlU += "SET PandaID=:pandaID,status=:eventStatus "
+            sqlU += "WHERE jediTaskID=:jediTaskID AND fileID=:fileID AND PandaID=:jobsetID "
             sqlU += "AND job_processID=:job_processID AND attemptNr=:attemptNr "
             sqlU += "AND status=:oldEventStatus "
             varMap = {}
-            varMap[':pandaID'] = pandaID
-            varMap[':eventStatus']  = 0 # 0=ready
-            varMap[':maxAttemptNr'] = maxRetry
+            varMap[':jobsetID'] = jobsetID
+            varMap[':eventStatus']  = EventServiceUtils.ST_ready
+            varMap[':minAttemptNr'] = 0
             # start transaction
             self.conn.begin()
             # select
@@ -12512,7 +12549,7 @@ class DBProxy:
             # make dict
             fileInfo = {}
             retRanges = []
-            for jediTaskID,datasetID,fileID,pandaID,attemptNr,job_processID,startEvent,lastEvent in resList:
+            for jediTaskID,datasetID,fileID,attemptNr,job_processID,startEvent,lastEvent in resList:
                 # get file info
                 if not fileID in fileInfo:
                     varMap = {}
@@ -12545,9 +12582,10 @@ class DBProxy:
                 varMap[':fileID'] = fileID
                 varMap[':job_processID'] = job_processID
                 varMap[':pandaID'] = pandaID
+                varMap[':jobsetID'] = jobsetID
                 varMap[':attemptNr'] = attemptNr
-                varMap[':eventStatus'] = 1 # 1=sent 
-                varMap[':oldEventStatus'] = 0 # 0=ready
+                varMap[':eventStatus'] = EventServiceUtils.ST_sent
+                varMap[':oldEventStatus'] = EventServiceUtils.ST_ready
                 _logger.debug(sqlU+comment+str(varMap))
                 self.cur.execute(sqlU+comment, varMap)
                 nRow = self.cur.rowcount
@@ -12583,8 +12621,6 @@ class DBProxy:
             # sql to update status
             sqlU  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sqlU += "SET status=:eventStatus"
-            if eventStatus == 'failed':
-                sqlU += ',attemptNr=attemptNr+1' 
             sqlU += " WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND fileID=:fileID "
             sqlU += "AND job_processID=:job_processID AND attemptNr=:attemptNr "
             sqlT  = "UPDATE ATLAS_PANDA.jobsActive4 "
@@ -12610,12 +12646,11 @@ class DBProxy:
             varMap[':attemptNr'] = attemptNr
             # map string status to int
             if eventStatus == 'running':
-                varMap[':eventStatus'] = 2
+                varMap[':eventStatus'] = EventServiceUtils.running
             elif eventStatus == 'finished':
-                varMap[':eventStatus'] = 3
+                varMap[':eventStatus'] = EventServiceUtils.ST_finished
             elif eventStatus == 'failed':
-                # back to ready for next attempt
-                varMap[':eventStatus'] = 0
+                varMap[':eventStatus'] = EventServiceUtils.ST_failed
             else:
                 _logger.error("{0} : unknown status")
                 return False
@@ -12648,8 +12683,10 @@ class DBProxy:
 
 
     # post-process for event service job
-    def ppEventServiceJob(self,pandaID,attemptNr=None,useCommit=True):
+    def ppEventServiceJob(self,job,useCommit=True):
         comment = ' /* DBProxy.ppEventServiceJob */'
+        pandaID = job.PandaID
+        attemptNr = job.attemptNr
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <PandaID={0}>".format(pandaID)
         _logger.debug("{0} : start attemptNr={1}".format(methodName,attemptNr))
@@ -12659,34 +12696,18 @@ class DBProxy:
             # 1 : not retried due to a harmless reason
             # 2 : generated a merge job
             # 3 : max attempts reached
+            # 4 : not generated a merge job since other consumers are still running
             # None : fatal error
             retValue = 1,None
-            # read job
-            varMap = {}
-            varMap[':PandaID'] = pandaID
-            sqlJ = "SELECT {0} FROM ATLAS_PANDA.jobsActive4 ".format(JobSpec.columnNames())
-            sqlJ+= "WHERE PandaID=:PandaID "
-            if attemptNr != None:
-                sqlJ+= "AND attemptNr=:attemptNr "
-                varMap[':attemptNr'] = attemptNr
             # begin transaction
             if useCommit:
                 self.conn.begin()
             self.cur.arraysize = 10                
-            self.cur.execute(sqlJ+comment, varMap)
-            resJ = self.cur.fetchone()
-            if resJ == None:
-                _logger.debug("{0} : job not found".format(methodName))
-                # commit
-                if useCommit:
-                    if not self._commit():
-                        raise RuntimeError, 'Commit error'
-                return retValue
-            # make job spec
-            jobSpec = JobSpec()
-            jobSpec.pack(resJ)
+            # make job spec to not change the original
+            jobSpec = copy.copy(job)
+            jobSpec.Files = []
             # check if event service job
-            if not jobSpec.isEventServiceJob():
+            if not EventServiceUtils.isEventServiceJob(jobSpec):
                 _logger.debug("{0} : no event service job".format(methodName))
                 # commit
                 if useCommit:
@@ -12712,28 +12733,88 @@ class DBProxy:
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
                 return retValue
-            # increment attempt number for unfinished ranges to disable updating
-            sqlEC  = "UPDATE {0}.JEDI_Events SET attemptNr=attemptNr+1 ".format(panda_config.schemaJEDI)
-            sqlEC += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND status<>:eventStatus "  
+            # release unprocessed event ranges
+            sqlEC  = "UPDATE {0}.JEDI_Events SET status=:esReady,attemptNr=attemptNr-1,pandaID=:jobsetID ".format(panda_config.schemaJEDI)
+            sqlEC += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND status<>:esFinished "
             varMap = {}
             varMap[':jediTaskID']  = jobSpec.jediTaskID
             varMap[':pandaID']     = pandaID
-            varMap[':eventStatus'] = 3
+            varMap[':jobsetID']    = jobSpec.jobsetID
+            varMap[':esFinished']  = EventServiceUtils.ST_finished
+            varMap[':esReady']     = EventServiceUtils.ST_ready
+            _logger.debug(sqlEC+comment+str(varMap))
             self.cur.execute(sqlEC+comment, varMap)
-            nRow = self.cur.rowcount
-            if nRow == 0:
-                # do merging since all ranges were done
-                doMerging = True
-            else:
-                doMerging = False
-            # check maxAttempt
-            if not doMerging and jobSpec.maxAttempt <= jobSpec.attemptNr:
-                _logger.debug("{0} : no more attempt maxAttempt={1} <= attemptNr={2} ".format(methodName,jobSpec.maxAttempt,jobSpec.attemptNr))
+            # chenge status to done
+            sqlED  = "UPDATE {0}.JEDI_Events SET status=:newStatus ".format(panda_config.schemaJEDI)
+            sqlED += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND status=:oldStatus "
+            varMap = {}
+            varMap[':jediTaskID'] = jobSpec.jediTaskID
+            varMap[':pandaID']    = pandaID
+            varMap[':oldStatus']  = EventServiceUtils.ST_finished
+            varMap[':newStatus']  = EventServiceUtils.ST_done
+            self.cur.execute(sqlED+comment, varMap)
+            # look for hopeless event ranges
+            sqlEU  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlEU += "WHERE jediTaskID=:jediTaskID AND pandaID=:jobsetID AND attemptNr=:minAttempt AND rownum=1 "
+            varMap = {}
+            varMap[':jediTaskID'] = jobSpec.jediTaskID
+            varMap[':jobsetID']   = jobSpec.jobsetID
+            varMap[':minAttempt'] = 0
+            self.cur.execute(sqlEU+comment, varMap)
+            resEU = self.cur.fetchone()
+            # fail immediately if there is hopeless event ranges
+            if resEU[0] != 0:
+                _logger.debug("{0} : no more retry since reached max number of reattempts for some event ranges".format(methodName))
                 # commit
                 if useCommit:
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
                 retValue = 3,None
+                return retValue
+            # look for event ranges to process
+            sqlERP  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlERP += "WHERE jediTaskID=:jediTaskID AND pandaID=:jobsetID AND rownum=1 "
+            varMap = {}
+            varMap[':jediTaskID']  = jobSpec.jediTaskID
+            varMap[':jobsetID']    = jobSpec.jobsetID
+            self.cur.execute(sqlERP+comment, varMap)
+            resERP = self.cur.fetchone()
+            nRow, = resERP
+            otherRunning = False
+            if nRow == 0:
+                # check if other consumers finished
+                sqlEOC  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+                sqlEOC += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+                sqlEOC += "AND NOT status IN (:esDone,:esDiscarded,:esCancelled) AND rownum=1"
+                for fileSpec in job.Files:
+                    if fileSpec.type == 'input':
+                        varMap = {}
+                        varMap[':jediTaskID']  = fileSpec.jediTaskID
+                        varMap[':datasetID']   = fileSpec.datasetID
+                        varMap[':fileID']      = fileSpec.fileID
+                        varMap[':esDone']      = EventServiceUtils.ST_done
+                        varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
+                        varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
+                        self.cur.execute(sqlEOC+comment, varMap)
+                        resEOC = self.cur.fetchone()
+                        nOCRow, = resEOC
+                        if nOCRow != 0:
+                            # there are unprocessed ranges
+                            otherRunning = True
+                            break
+                # do merging since all ranges were done
+                if not otherRunning:
+                    doMerging = True
+            else:
+                doMerging = False
+            # do nothing since other consumers are still running
+            if otherRunning:
+                _logger.debug("{0} : do nothing as other consumers are still running".format(methodName))
+                # commit
+                if useCommit:
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+                retValue = 4,None
                 return retValue
             # reset job attributes
             jobSpec.jobStatus        = 'activated'
@@ -12755,36 +12836,12 @@ class DBProxy:
             self.cur.arraysize = 100000
             self.cur.execute(sqlFile+comment, varMap)
             resFs = self.cur.fetchall()
-            # SQL for file copy
-            sqlFCopy  = "INSERT INTO {0}.JEDI_Events ".format(panda_config.schemaJEDI)
-            sqlFCopy += "(jediTaskID,datasetID,fileID,lfn,GUID,type,status) "
-            sqlFCopy += "SELECT jediTaskID,datasetID,{0}.JEDI_DATASET_CONT_FILEID_SEQ.nextval,:lfn,:GUID,:type,:status ".format(panda_config.schemaJEDI)
-            sqlFCopy += "FROM {0}.JEDI_Events WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID ".format(panda_config.schemaJEDI)
             # loop over all files            
             for resF in resFs:
                 # add
                 fileSpec = FileSpec()
                 fileSpec.pack(resF)
                 jobSpec.addFile(fileSpec)
-                # set new GUID and LFN to log
-                if fileSpec.type == 'log':
-                    fileSpec.GUID = commands.getoutput('uuidgen')
-                    # append attemptNr to LFN
-                    oldName = fileSpec.lfn
-                    fileSpec.lfn = re.sub('\.\d+$','',fileSpec.lfn)
-                    fileSpec.lfn = '{0}.{1}'.format(fileSpec.lfn,jobSpec.attemptNr)
-                    # insert new file record into JEDI table
-                    if fileSpec.fileID != 'NULL':
-                        varMap = {}
-                        varMap[':jediTaskID'] = fileSpec.jediTaskID
-                        varMap[':datasetID'] = fileSpec.datasetID
-                        varMap[':fileID'] = fileSpec.fileID
-                        varMap[':lfn'] = fileSpec.lfn
-                        varMap[':type'] = fileSpec.type
-                        varMap[':status'] = 'defined'
-                        varMap[':newFileID'] = self.cur.var(varNUMBER)
-                        self.cur.execute(sqlFCopy+comment, varMap)
-                        fileSpec.fileID = long(self.cur.getvalue(varMap[':newFileID']))
                 # reset file status
                 if fileSpec.type in ['output','log']:
                     fileSpec.status = 'unknown'
@@ -12805,7 +12862,7 @@ class DBProxy:
                 except:
                     pass
                 # change special handling
-                jobSpec.setEventServiceMerge()
+                EventServiceUtils.setEventServiceMerge(jobSpec)
             # insert job with new PandaID
             sql1  = "INSERT INTO ATLAS_PANDA.jobsActive4 ({0}) ".format(JobSpec.columnNames())
             sql1 += JobSpec.bindValuesExpression(useSeq=True)
@@ -12831,6 +12888,13 @@ class DBProxy:
             for fileSpec in jobSpec.Files:
                 # reset rowID
                 fileSpec.row_ID = None
+                # change GUID and LFN for log
+                if fileSpec.type == 'log':
+                    fileSpec.GUID = commands.getoutput('uuidgen')
+                    if doMerging:
+                        fileSpec.lfn = re.sub('\.{0}$'.format(pandaID),''.format(jobSpec.PandaID),fileSpec.lfn)
+                    else:
+                        fileSpec.lfn = re.sub('\.{0}$'.format(pandaID),'.{0}'.format(jobSpec.PandaID),fileSpec.lfn)
                 # insert
                 varMap = fileSpec.valuesMap(useSeq=True)
                 varMap[':newRowID'] = self.cur.var(varNUMBER)
@@ -12849,31 +12913,8 @@ class DBProxy:
             varMap[':param']   = jobSpec.jobParameters
             varMap[':modTime'] = jobSpec.modificationTime
             self.cur.execute(sqlJob+comment, varMap)
-            # set error code to original job to avoid being retried by another process
-            sqlE = "UPDATE ATLAS_PANDA.jobsActive4 SET taskBufferErrorCode=:errCode,taskBufferErrorDiag=:errDiag WHERE PandaID=:PandaID"
-            varMap = {}
-            varMap[':PandaID'] = jobSpec.parentID
-            varMap[':errCode'] = ErrorCode.EC_EventServiceRetried
-            varMap[':errDiag'] = 'retrying with event service. new PandaID={0}'.format(jobSpec.PandaID)
-            self.cur.execute(sqlE+comment, varMap)
-            # set new PandaID to unprocessed event ranges
-            nRow = -1
-            if not doMerging:
-                sqlEI  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
-                sqlEI += "SET PandaID=:newPandaID,attemptNr=:attemptNr,status=:newEventStatus "
-                sqlEI += "WHERE jediTaskID=:jediTaskID AND PandaID=:oldPandaID AND status<>:oldEventStatus "
-                varMap = {}
-                varMap[':jediTaskID']     = jobSpec.jediTaskID
-                varMap[':oldPandaID']     = pandaID
-                varMap[':newPandaID']     = jobSpec.PandaID
-                varMap[':oldEventStatus'] = 3
-                varMap[':newEventStatus'] = 0
-                varMap[':attemptNr']      = 1
-                self.cur.arraysize = 10000000
-                self.cur.execute(sqlEI+comment, varMap)
-                nRow = self.cur.rowcount
             # propagate change to JEDI
-            self.updateForPilotRetryJEDI(jobSpec,self.cur)
+            self.updateForPilotRetryJEDI(jobSpec,self.cur,onlyHistory=True)
             # commit
             if useCommit:
                 if not self._commit():
@@ -12888,7 +12929,7 @@ class DBProxy:
                 self.recordStatusChange(jobSpec.PandaID,jobSpec.jobStatus,jobInfo=jobSpec)
             except:
                 _logger.error('recordStatusChange in ppEventServiceJob')
-            _logger.debug('{0} done for doMergeing={1} with new {2} ranges'.format(methodName,doMerging,nRow))
+            _logger.debug('{0} done for doMergeing={1}'.format(methodName,doMerging))
             return retValue
         except:
             # roll back
@@ -13082,3 +13123,232 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return None
+
+
+
+    # kill active consumers related to an ES job
+    def killEventServiceConsumers(self,job,killedFlag,useCommit=True):
+        comment = ' /* DBProxy.killEventServiceConsumers */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <PandaID={0}>".format(job.PandaID)
+        _logger.debug("{0} : start".format(methodName))
+        try:
+            # begin transaction
+            if useCommit:
+                self.conn.begin()
+            # sql to get consumers
+            sqlCP  = "SELECT distinct PandaID FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlCP += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+            sqlCP += "AND NOT status IN (:esDiscarded,:esCancelled) "
+            # sql to discard or cancel event ranges
+            sqlDE  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlDE += "SET status=:status "
+            sqlDE += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+            sqlDE += "AND status IN (:esFinished,:esDone) "
+            sqlCE  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlCE += "SET status=:status "
+            sqlCE += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+            sqlCE += "AND NOT status IN (:esFinished,:esDone) "
+            # look for consumers for each input
+            killPandaIDs = []
+            for fileSpec in job.Files:
+                if fileSpec.type != 'input':
+                    continue
+                # get PandaIDs
+                varMap = {}
+                varMap[':jediTaskID']  = fileSpec.jediTaskID
+                varMap[':datasetID']   = fileSpec.datasetID
+                varMap[':fileID']      = fileSpec.fileID
+                varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
+                varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
+                self.cur.arraysize = 100000
+                self.cur.execute(sqlCP+comment, varMap)
+                resPs = self.cur.fetchall()
+                for esPandaID, in resPs:
+                    if not esPandaID in killPandaIDs:
+                        killPandaIDs.append(esPandaID)
+                # discard event ranges
+                if resPs != []:
+                    varMap = {}
+                    varMap[':jediTaskID'] = fileSpec.jediTaskID
+                    varMap[':datasetID']  = fileSpec.datasetID
+                    varMap[':fileID']     = fileSpec.fileID
+                    varMap[':status']     = EventServiceUtils.ST_discarded
+                    varMap[':esFinished'] = EventServiceUtils.ST_finished
+                    varMap[':esDone']     = EventServiceUtils.ST_done
+                    self.cur.execute(sqlDE+comment, varMap)
+                    varMap[':status']     = EventServiceUtils.ST_cancelled
+                    self.cur.execute(sqlCE+comment, varMap)
+            # kill consumers
+            sqlDJS = "SELECT %s " % JobSpec.columnNames()
+            sqlDJS+= "FROM ATLAS_PANDA.jobsAvtive4 WHERE PandaID=:PandaID"
+            sqlDJD = "DELETE FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID"
+            sqlDJI = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
+            sqlDJI+= JobSpec.bindValuesExpression()
+            sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
+            sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
+            sqlPMod = "UPDATE ATLAS_PANDA.jobParamsTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
+            nKilled = 0
+            for pandaID in killPandaIDs:
+                # ignore original PandaID since it will be killed by caller
+                if pandaID == job.PandaID:
+                    continue
+                # skip jobsetID
+                if pandaID == job.jobsetID:
+                    continue
+                _logger.debug("{0} : kill associated consumer {1}".format(methodName,pandaID))
+                # read job
+                varMap = {}
+                varMap[':PandaID'] = pandaID
+                self.cur.arraysize = 10
+                self.cur.execute(sqlDJS+comment, varMap)
+                resJob = self.cur.fetchall()
+                if len(resJob) == 0:
+                    continue
+                # instantiate JobSpec
+                dJob = JobSpec()
+                dJob.pack(resJob[0])
+                # delete
+                varMap = {}
+                varMap[':PandaID'] = pandaID
+                self.cur.execute(sqlDJD+comment, varMap)                            
+                retD = self.cur.rowcount
+                if retD == 0:
+                    continue
+                # set error code
+                dJob.jobStatus = 'cancelled'
+                dJob.endTime   = datetime.datetime.utcnow()
+                dJob.taskBufferErrorCode = ErrorCode.EC_Kill
+                if killedFalg:
+                    dJob.taskBufferErrorDiag = 'killed since an associated consumer PandaID={0} was killed'.format(job.PandaID)
+                else:
+                    dJob.taskBufferErrorDiag = 'killed since an associated consumer PandaID={0} failed'.format(job.PandaID)
+                dJob.modificationTime = dJob.endTime
+                dJob.stateChangeTime  = dJob.endTime
+                # insert
+                self.cur.execute(sqlDJI+comment, dJob.valuesMap())
+                # update files,metadata,parametes
+                varMap = {}
+                varMap[':PandaID'] = downID
+                varMap[':modificationTime'] = dJob.modificationTime
+                self.cur.execute(sqlFMod+comment,varMap)
+                self.cur.execute(sqlMMod+comment,varMap)
+                self.cur.execute(sqlPMod+comment,varMap)
+                nKilled += 1
+            # commit
+            if useCommit:
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+            _logger.debug('{0} killed {1} jobs'.format(methodName,nKilled))
+            return True
+        except:
+            # roll back
+            if useCommit:
+                self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return False
+
+
+
+    # kill unused consumers related to an ES job
+    def killUnusedEventServiceConsumers(self,job,useCommit=True):
+        comment = ' /* DBProxy.killUnusedEventServiceConsumers */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <PandaID={0}>".format(job.PandaID)
+        _logger.debug("{0} : start".format(methodName))
+        try:
+            # begin transaction
+            if useCommit:
+                self.conn.begin()
+            # sql to get PandaIDs of consumers
+            sqlCP  = "SELECT PandaID,specialHandling FROM ATLAS_PANDA.{0} "
+            sqlCP += "WHERE jediTaskID=:jediTaskID AND jobsetID=:jobsetID "
+            # get PandaIDs
+            varMap = {}
+            varMap[':jediTaskID'] = job.jediTaskID
+            varMap[':jobsetID']   = job.jobsetID
+            self.cur.arraysize = 100000
+            killPandaIDsMap = {}
+            for tableName in ['jobsActive4','jobsDefined4','jobsWaiting4']:
+                self.cur.execute(sqlCP.format(tableName)+comment, varMap)
+                resPs = self.cur.fetchall()
+                killPandaIDs = []
+                for esPandaID,specialHandling in resPs:
+                    # ignore original PandaID since it will be managed by caller
+                    if esPandaID == job.PandaID:
+                        continue
+                    # skip merge
+                    if EventServiceUtils.isEventServiceMergeSH(specialHandling):
+                        continue
+                    # append
+                    killPandaIDs.append(esPandaID)
+                if killPandaIDs != []:
+                    killPandaIDsMap[tableName] = killPandaIDs
+            # kill consumers
+            nKilled = 0
+            sqlDJS = "SELECT %s " % JobSpec.columnNames()
+            sqlDJS+= "FROM ATLAS_PANDA.{0} WHERE PandaID=:PandaID"
+            sqlDJD = "DELETE FROM ATLAS_PANDA.{0} WHERE PandaID=:PandaID"
+            sqlDJI = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
+            sqlDJI+= JobSpec.bindValuesExpression()
+            sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
+            sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
+            sqlPMod = "UPDATE ATLAS_PANDA.jobParamsTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
+            for tableName,killPandaIDs in killPandaIDsMap.iteritems():
+                for pandaID in killPandaIDs:
+                    _logger.debug("{0} : kill unused consumer {1}".format(methodName,pandaID))
+                    # read job
+                    varMap = {}
+                    varMap[':PandaID'] = pandaID
+                    self.cur.arraysize = 10
+                    deletedFlag = False
+                    for tableName in ['jobsActive4','jobsDefined4','jobsWaiting4']:
+                        self.cur.execute(sqlDJS.format(tableName)+comment, varMap)
+                        resJob = self.cur.fetchall()
+                        if len(resJob) == 0:
+                            continue
+                        # instantiate JobSpec
+                        dJob = JobSpec()
+                        dJob.pack(resJob[0])
+                        # delete
+                        varMap = {}
+                        varMap[':PandaID'] = pandaID
+                        self.cur.execute(sqlDJD.format(tableName)+comment, varMap)                            
+                        retD = self.cur.rowcount
+                        if retD != 0:
+                            deletedFlag = True
+                            break
+                    # not found
+                    if not deletedFlag:
+                        continue
+                    # set error code
+                    dJob.jobStatus = 'cancelled'
+                    dJob.endTime   = datetime.datetime.utcnow()
+                    dJob.taskBufferErrorCode = ErrorCode.EC_EventServiceUnused
+                    dJob.taskBufferErrorDiag = 'killed since all event ranges were processed by other consumers while waiting in the queue'
+                    dJob.modificationTime = dJob.endTime
+                    dJob.stateChangeTime  = dJob.endTime
+                    # insert
+                    self.cur.execute(sqlDJI+comment, dJob.valuesMap())
+                    # update files,metadata,parametes
+                    varMap = {}
+                    varMap[':PandaID'] = downID
+                    varMap[':modificationTime'] = dJob.modificationTime
+                    self.cur.execute(sqlFMod+comment,varMap)
+                    self.cur.execute(sqlMMod+comment,varMap)
+                    self.cur.execute(sqlPMod+comment,varMap)
+                    nKilled += 1
+            # commit
+            if useCommit:
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+            _logger.debug('{0} killed {1} jobs'.format(methodName,nKilled))
+            return True
+        except:
+            # roll back
+            if useCommit:
+                self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return False

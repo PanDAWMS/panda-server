@@ -19,6 +19,7 @@ import Closer
 from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
 from pandalogger.LogWrapper import LogWrapper
+from taskbuffer import EventServiceUtils
 
 # logger
 _logger = PandaLogger().getLogger('Adder')
@@ -208,39 +209,40 @@ class AdderGen:
                         self.logger.debug("cannot unlock XML")
                     return
                 # setup for closer
-                destDBList = []
-                guidList = []
-                for file in self.job.Files:
-                    # ignore inputs
-                    if file.type == 'input':
-                        continue
-                    # skip pseudo datasets
-                    if file.destinationDBlock in ['',None,'NULL']:
-                        continue
-                    # start closer for output/log datasets
-                    if not file.destinationDBlock in destDBList:
-                        destDBList.append(file.destinationDBlock)
-                    # collect GUIDs
-                    if (self.job.prodSourceLabel=='panda' or (self.job.prodSourceLabel in ['ptest','rc_test'] and \
-                                                              self.job.processingType in ['pathena','prun','gangarobot-rctest'])) \
-                                                              and file.type == 'output':
-                        # extract base LFN since LFN was changed to full LFN for CMS
-                        baseLFN = file.lfn.split('/')[-1]
-                        guidList.append({'lfn':baseLFN,'guid':file.GUID,'type':file.type,
-                                         'checksum':file.checksum,'md5sum':file.md5sum,
-                                         'fsize':file.fsize,'scope':file.scope})
-                if guidList != []:
-                    retG = self.taskBuffer.setGUIDs(guidList)
-                if destDBList != []:
-                    # start Closer
-                    if adderPlugin != None and hasattr(adderPlugin,'datasetMap') and adderPlugin.datasetMap != {}:
-                        cThr = Closer.Closer(self.taskBuffer,destDBList,self.job,datasetMap=adderPlugin.datasetMap)
-                    else:
-                        cThr = Closer.Closer(self.taskBuffer,destDBList,self.job)
-                    self.logger.debug("start Closer")
-                    cThr.start()
-                    cThr.join()
-                    self.logger.debug("end Closer")
+                if not (EventServiceUtils.isEventServiceJob(self.job) and self.job.jobStatus == 'cancelled'):
+                    destDBList = []
+                    guidList = []
+                    for file in self.job.Files:
+                        # ignore inputs
+                        if file.type == 'input':
+                            continue
+                        # skip pseudo datasets
+                        if file.destinationDBlock in ['',None,'NULL']:
+                            continue
+                        # start closer for output/log datasets
+                        if not file.destinationDBlock in destDBList:
+                            destDBList.append(file.destinationDBlock)
+                        # collect GUIDs
+                        if (self.job.prodSourceLabel=='panda' or (self.job.prodSourceLabel in ['ptest','rc_test'] and \
+                                                                  self.job.processingType in ['pathena','prun','gangarobot-rctest'])) \
+                                                                  and file.type == 'output':
+                            # extract base LFN since LFN was changed to full LFN for CMS
+                            baseLFN = file.lfn.split('/')[-1]
+                            guidList.append({'lfn':baseLFN,'guid':file.GUID,'type':file.type,
+                                             'checksum':file.checksum,'md5sum':file.md5sum,
+                                             'fsize':file.fsize,'scope':file.scope})
+                    if guidList != []:
+                        retG = self.taskBuffer.setGUIDs(guidList)
+                    if destDBList != []:
+                        # start Closer
+                        if adderPlugin != None and hasattr(adderPlugin,'datasetMap') and adderPlugin.datasetMap != {}:
+                            cThr = Closer.Closer(self.taskBuffer,destDBList,self.job,datasetMap=adderPlugin.datasetMap)
+                        else:
+                            cThr = Closer.Closer(self.taskBuffer,destDBList,self.job)
+                        self.logger.debug("start Closer")
+                        cThr.start()
+                        cThr.join()
+                        self.logger.debug("end Closer")
             self.logger.debug("end")
             try:
                 # remove Catalog
@@ -266,7 +268,7 @@ class AdderGen:
 
 
     # parse XML
-    # 0: succeeded, 1: harmless error to exit, 2: fatal error
+    # 0: succeeded, 1: harmless error to exit, 2: fatal error, 3: event service
     def parseXML(self):
         # get LFN and GUID
         self.logger.debug('XML filename : %s' % self.xmlFile)
@@ -397,7 +399,7 @@ class AdderGen:
                     continue
                 # set failed if it is missing in XML
                 if not file.lfn in lfns:
-                    if self.job.jobStatus == 'finished' and self.job.isEventServiceJob():
+                    if self.job.jobStatus == 'finished' and EventServiceUtils.isEventServiceJob(self.job):
                         # unset file status for ES jobs
                         pass
                     else:

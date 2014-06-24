@@ -276,10 +276,10 @@ class JobDipatcher:
 
 
     # get a list of even ranges for a PandaID
-    def getEventRanges(self,pandaID,nRanges,timeout):
+    def getEventRanges(self,pandaID,jobsetID,nRanges,timeout):
         # peek jobs
         tmpWrapper = _TimedMethod(self.taskBuffer.getEventRanges,timeout)
-        tmpWrapper.run(pandaID,nRanges)
+        tmpWrapper.run(pandaID,jobsetID,nRanges)
         # make response
         if tmpWrapper.result == Protocol.TimeOutToken:
             # timeout
@@ -636,9 +636,9 @@ def getStatus(req,ids,timeout=60):
 
 
 # get a list of even ranges for a PandaID
-def getEventRanges(req,pandaID,nRanges=10,timeout=60):
-    _logger.debug("getEventRanges(%s)" % pandaID)
-    return jobDispatcher.getEventRanges(pandaID,nRanges,int(timeout))
+def getEventRanges(req,pandaID,jobsetID,nRanges=10,timeout=60):
+    _logger.debug("getEventRanges(PandaID=%s jobsetID=%s)" % (pandaID,jobsetID))
+    return jobDispatcher.getEventRanges(pandaID,jobsetID,nRanges,int(timeout))
 
 
 # update an event range

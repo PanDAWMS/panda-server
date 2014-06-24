@@ -31,6 +31,7 @@ import brokerage.broker_util
 from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
 from AdderPluginBase import AdderPluginBase
+from taskbuffer import EventServiceUtils
 
    
 class AdderAtlasPlugin (AdderPluginBase):
@@ -118,7 +119,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                 # failed jobs
                 if self.job.prodSourceLabel in ['managed','test']:
                     self.logTransferring = True
-            elif self.job.jobStatus == 'finished' and self.job.isEventServiceJob():
+            elif self.job.jobStatus == 'finished' and EventServiceUtils.isEventServiceJob(self.job):
                 # transfer only log file for ES jobs 
                 self.logTransferring = True
             else:
@@ -169,7 +170,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                 if self.jobStatus == 'failed' and file.type != 'log':
                     continue
                 # add only log file for successful ES jobs
-                if self.job.jobStatus == 'finished' and self.job.isEventServiceJob() and file.type != 'log':
+                if self.job.jobStatus == 'finished' and EventServiceUtils.isEventServiceJob(self.job) and file.type != 'log':
                     continue
                 try:
                     # fsize
@@ -544,7 +545,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                 if tmpFile.type in ['log','output']:
                     if self.goToTransferring or (self.logTransferring and tmpFile.type == 'log'):
                         # don't go to tranferring for successful ES jobs 
-                        if self.job.jobStatus == 'finished' and self.job.isEventServiceJob():
+                        if self.job.jobStatus == 'finished' and EventServiceUtils.isEventServiceJob(self.job):
                             continue
                         self.result.transferringFiles.append(tmpFile.lfn)
         elif not "--mergeOutput" in self.job.jobParameters:

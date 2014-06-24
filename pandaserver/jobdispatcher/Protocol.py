@@ -2,6 +2,7 @@ import re
 import sys
 import urllib
 import ProxyCache
+from taskbuffer import EventServiceUtils
 
 
 # constants
@@ -190,16 +191,18 @@ class Response:
         self.data['taskID'] = job.taskID
         # core count
         self.data['coreCount'] = job.coreCount
+        # jobsetID
+        self.data['jobsetID'] = job.jobsetID
         # debug mode
         if job.specialHandling != None and 'debug' in job.specialHandling:
             self.data['debug'] = 'True'
         # event service
-        if job.isEventServiceJob():
+        if EventServiceUtils.isEventServiceJob(job):
             self.data['eventService'] = 'True'
             # prod DBlock space token for pre-merging output
             self.data['prodDBlockTokenForOutput'] = strProdTokenForOutput[:-1]
         # event service merge
-        if job.isEventServiceMerge():
+        if EventServiceUtils.isEventServiceMerge(job):
             self.data['eventServiceMerge'] = 'True'
             # write to file
             writeToFileStr = ''
