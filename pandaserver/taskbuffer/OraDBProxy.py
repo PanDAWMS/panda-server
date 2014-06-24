@@ -12912,6 +12912,8 @@ class DBProxy:
             # sql to update DEFT task table
             schemaDEFT = self.getSchemaDEFT()
             sqlD  = 'UPDATE {0}.T_TASK SET current_priority=:newPriority,timestamp=CURRENT_DATE WHERE taskid=:jediTaskID '.format(schemaDEFT)
+            # update job priorities
+            sqlJ  = 'UPDATE ATLAS_PANDA.{0} SET currentPriority=:newPriority WHERE jediTaskID=:jediTaskID '
             # start transaction
             self.conn.begin()
             # select
@@ -12922,6 +12924,11 @@ class DBProxy:
             # update JEDI
             self.cur.execute(sqlT+comment, varMap)
             nRow = self.cur.rowcount
+            if nRow == 1:
+                # update jobs
+                for tableName in ['jobsActive4','jobsDefined4','jobsWaiting4']:
+                    self.cur.execute(sqlJ.format(tableName)+comment, varMap)
+            # update DEFT
             self.cur.execute(sqlD+comment, varMap)
             # commit
             if not self._commit():

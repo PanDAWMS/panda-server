@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed changeTaskPriority to propagate changes to jobs too 
   * fixed dataset lookup by file GUID to allow wildcard search
   * changed to send input/output map to the pilot for ES merge
   * removed old TAPE check for BNL from brokerage
