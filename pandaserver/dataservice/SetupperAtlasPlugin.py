@@ -343,10 +343,14 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     if status != 0 or out.find("DQ2 internal server exception") != -1 \
                            or out.find("An error occurred on the central catalogs") != -1 \
                            or out.find("MySQL server has gone away") != -1:
+                        if out.find('DQFrozenDatasetException') != -1:
+                            break
                         time.sleep(60)
                     else:
                         break
-                if status != 0 or (out.find('Error') != -1 and out.find("is frozen") == -1):
+                if status != 0 and out.find('DQFrozenDatasetException') != -1:
+                    pass
+                elif status != 0 or (out.find('Error') != -1 and out.find("is frozen") == -1):
                     self.logger.error(out)
                     dispError[dispatchDBlock] = "Setupper._setupSource() could not freeze dispatchDBlock"
                     continue
