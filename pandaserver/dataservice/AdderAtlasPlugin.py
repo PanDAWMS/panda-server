@@ -248,8 +248,8 @@ class AdderAtlasPlugin (AdderPluginBase):
                                     # if src != dest or multi-token
                                     if (tmpSrcDDM != tmpDstDDM and tmpSrcSEs != tmpDstSEs) or \
                                        (tmpSrcDDM == tmpDstDDM and file.destinationDBlockToken.count(',') != 0):
-                                        optSub = {'DATASET_COMPLETE_EVENT' : ['https://%s:%s/server/panda/datasetCompleted' % \
-                                                                              (panda_config.pserverhost,panda_config.pserverport)]}
+                                        optSub = {'DATASET_COMPLETE_EVENT' : ['http://%s:%s/server/panda/datasetCompleted' % \
+                                                                              (panda_config.pserverhosthttp,panda_config.pserverporthttp)]}
                                         # append
                                         if not subMap.has_key(file.destinationDBlock):
                                             subMap[file.destinationDBlock] = []

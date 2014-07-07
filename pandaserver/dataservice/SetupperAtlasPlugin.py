@@ -848,16 +848,16 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     else:
                         # assign destination
                         time.sleep(1)
-                        optSub = {'DATASET_COMPLETE_EVENT' : ['https://%s:%s/server/panda/datasetCompleted' % \
-                                                              (panda_config.pserverhost,panda_config.pserverport)]}
+                        optSub = {'DATASET_COMPLETE_EVENT' : ['http://%s:%s/server/panda/datasetCompleted' % \
+                                                              (panda_config.pserverhosthttp,panda_config.pserverporthttp)]}
                         optSource = {}
                         optSrcPolicy = 001000 | 010000
                         dq2ID = dstDQ2ID
                         # prestaging
                         if srcDQ2ID == dstDQ2ID:
                             # stage-in callback
-                            optSub['DATASET_STAGED_EVENT'] = ['https://%s:%s/server/panda/datasetCompleted' % \
-                                                              (panda_config.pserverhost,panda_config.pserverport)]
+                            optSub['DATASET_STAGED_EVENT'] = ['http://%s:%s/server/panda/datasetCompleted' % \
+                                                              (panda_config.pserverhosthttp,panda_config.pserverporthttp)]
                             # use ATLAS*TAPE
                             seTokens = self.siteMapper.getSite(tmpDstID).setokens
                             if seTokens.has_key('ATLASDATATAPE') and seTokens.has_key('ATLASMCTAPE'):

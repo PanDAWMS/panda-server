@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * using HTTP instead of HTTPS for DDM callbacks 
   * fixed SetupperAtlas to ignore DQFrozenDatasetException when making _dis
   * added support for multiple ES consumer
   * changed changeTaskPriority to propagate changes to jobs too 
