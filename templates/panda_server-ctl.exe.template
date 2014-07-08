@@ -107,6 +107,19 @@ fi
 ERROR=$?
 }
 
+function check_pidfile () {
+    if [ -r @@install_dir@@/var/log/panda/panda_server_httpd.pid ]; then
+        COMSTR=`echo $HTTPD $OPTIONS -k $ARGV`
+        COMSTR=`echo $COMSTR | sed -e 's/ //g'`
+        PSOUT=`ps -f -p \`cat @@install_dir@@/var/log/panda/panda_server_httpd.pid\` | cat | tail -1`
+        PSOUT=`echo $PSOUT | sed -e 's/ //g'`
+        if [ ! `echo $PSOUT | grep $COMSTR` ]; then
+	    echo "deleting @@install_dir@@/var/log/panda/panda_server_httpd.pid"
+            rm -rf @@install_dir@@/var/log/panda/panda_server_httpd.pid
+        fi
+    fi
+}
+
 case $ARGV in
 restart|graceful)
     if $HTTPD -t >&/dev/null; then
@@ -119,6 +132,10 @@ restart|graceful)
     ;;
 start|stop)
     check13
+    case $ARGV in
+        start)
+            check_pidfile
+    esac
     $HTTPD $OPTIONS -k $ARGV
     ERROR=$?
     ;;
