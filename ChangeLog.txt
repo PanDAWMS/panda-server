@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added retryTask() to Client
   * added check_pidfile in apache-ctl	
   * using HTTP instead of HTTPS for DDM callbacks 
   * fixed SetupperAtlas to ignore DQFrozenDatasetException when making _dis
