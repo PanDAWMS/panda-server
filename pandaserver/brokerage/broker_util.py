@@ -8,6 +8,7 @@ import xml.dom.minidom
 
 
 from config import panda_config
+from pandalogger.LogWrapper import LogWrapper
 from pandalogger.PandaLogger import PandaLogger
 _log = PandaLogger().getLogger('broker_util')
 
@@ -218,16 +219,19 @@ def _getPFNFromMySQL(lfns,dq2url):
 
 # get files from LFC
 def _getPFNFromLFC(lfns,dq2url,guids,storageName,scopeList=[]):
-    _log.debug('_getPFNFromLFC %s %s %s %s' % (dq2url,str(storageName),
-                                               str(lfns),str(scopeList)))
+    tmpLog = LogWrapper(_log,None)
+    tmpLog.debug('_getPFNFromLFC %s %s / %s LFNs:%s %s' % (dq2url,str(storageName),
+                                                         len(lfns),str(lfns[:3]),str(scopeList[:3])))
     outStr = ''
     # check paramter
     if guids == [] or storageName == [] or (len(lfns) != len(guids)):
+        tmpLog.debug('done with empty list')
         return outStr
     # check scopeList
     if not scopeList in [None,[]] and len(lfns) != len(scopeList):
-        _log.warning('_getPFNFromLFC wrong scopeList %s %s %s %s' % (dq2url,str(storageName),
-                                                                     str(lfns),str(scopeList)))
+        tmpLog.warning('_getPFNFromLFC wrong scopeList %s %s %s %s' % (dq2url,str(storageName),
+                                                                       str(lfns),str(scopeList)))
+        tmpLog.error('failed')
         return outStr
     # loop over all LFNs
     iLFN = 0
@@ -263,7 +267,7 @@ def _getPFNFromLFC(lfns,dq2url,guids,storageName,scopeList=[]):
             if status == 0:
                 outStr += output
             else:
-                _log.error("_getPFNFromLFC : %s %s %s" % (dq2url,status,output))
+                tmpLog.error("_getPFNFromLFC : %s %s %s" % (dq2url,status,output))
                 # send message to logger
                 try:
                     # make message
@@ -279,9 +283,11 @@ def _getPFNFromLFC(lfns,dq2url,guids,storageName,scopeList=[]):
                     _pandaLogger.release()
                 except:
                     pass
+                tmpLog.error('failed')
                 return status
             # reset
             strFiles = ''
+    tmpLog.debug('done')
     # return
     return outStr
                             
