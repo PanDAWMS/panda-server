@@ -8,6 +8,7 @@ import types
 import threading
 import Protocol
 import time
+import socket
 import datetime
 import commands
 from threading import Lock
@@ -72,11 +73,7 @@ class CachedObject:
 
     # contains
     def __contains__(self,item):
-        try:
-            self.update()
-            return item in self.cachedObj
-        except:
-            return False
+        return item in self.cachedObj
 
     # get item
     def __getitem__(self,name):
@@ -100,8 +97,8 @@ class JobDipatcher:
         self.pilotOwners = None
         # hostnames for authorization at grid-free sites
         self.allowedNodes = None
-        # sites with glexec
-        self.glexecSites = None
+        # special dipatcher parameters
+        self.specialDispatchParams = None
         # lock
         self.lock = Lock()
 
@@ -122,9 +119,9 @@ class JobDipatcher:
         # get allowed nodes
         if self.allowedNodes == None:
             self.allowedNodes = self.taskBuffer.getAllowedNodes()
-        # sites with glexec
-        if self.glexecSites == None:
-            self.glexecSites = CachedObject(60*10,self.taskBuffer.getGlexecSites)
+        # special dipatcher parameters
+        if self.specialDispatchParams == None:
+            self.specialDispatchParams = CachedObject(60*30,self.taskBuffer.getSpecialDispatchParams)
         # release
         self.lock.release()
         
@@ -157,10 +154,15 @@ class JobDipatcher:
                 response.setProxyKey(proxyKey)
             # check if glexec is used
             if hasattr(panda_config,'useProxyCache') and panda_config.useProxyCache == True:
-                if siteName in self.glexecSites:
-                    if self.glexecSites[siteName] == 'True':
+                self.specialDispatchParams.update()
+                if not 'glexecSites' in self.specialDispatchParams:
+                    glexecSites = []
+                else:
+                    glexecSites = self.specialDispatchParams['glexecSites']
+                if siteName in glexecSites:
+                    if glexecSites[siteName] == 'True':
                         useGLEXEC = True
-                    elif self.glexecSites[siteName] == 'test' and \
+                    elif glexecSites[siteName] == 'test' and \
                             (prodSourceLabel in ['test','prod_test'] or \
                                  (jobs[0].processingType in ['gangarobot'])):
                         useGLEXEC = True
@@ -342,6 +344,60 @@ class JobDipatcher:
         if retVal == None:
             return "ERROR : failed to generate token"
         return "SUCCEEDED : " + retVal
+
+
+    # get key pair
+    def getKeyPair(self,realDN,publicKeyName,privateKeyName):
+        tmpMsg = "getKeyPair {0}/{1} : ".format(publicKeyName,privateKeyName)
+        if realDN == None:
+            # cannot extract DN
+            tmpMsg += "failed since DN cannot be extracted"
+            _logger.debug(tmpMsg)
+            response = Protocol.Response(Protocol.SC_Perms,'Cannot extract DN from proxy. not HTTPS?')
+        else:
+            # get compact DN
+            compactDN = self.taskBuffer.cleanUserID(realDN)
+            # check permission
+            self.specialDispatchParams.update()
+            if not 'allowKey' in self.specialDispatchParams:
+                allowKey = []
+            else:
+                allowKey = self.specialDispatchParams['allowKey']
+            if not compactDN in allowKey:
+                # permission denied
+                tmpMsg += "failed since '{0}' not in the authorized user list who have 'k' in {1}.USERS.GRIDPREF".format(compactDN,
+                                                                                                                        panda_config.schemaMETA)
+                _logger.debug(tmpMsg)
+                response = Protocol.Response(Protocol.SC_Perms,tmpMsg)
+            else:
+                # look for key pair
+                if not 'keyPair' in self.specialDispatchParams:
+                    keyPair = {}
+                else:
+                    keyPair = self.specialDispatchParams['keyPair']
+                notFound = False
+                if not publicKeyName in keyPair:
+                    # public key is missing
+                    notFound = True
+                    tmpMsg += "failed for '{2}' since {0} is missing on {1}".format(publicKeyName,socket.getfqdn(),compactDN)
+                elif not privateKeyName in keyPair: 
+                    # private key is missing
+                    notFound = True
+                    tmpMsg += "failed for '{2}' since {0} is missing on {1}".format(privateKeyName,socket.getfqdn(),compactDN)
+                if notFound:
+                    # private or public key is missing
+                    _logger.debug(tmpMsg)
+                    response = Protocol.Response(Protocol.SC_MissKey,tmpMsg)
+                else:
+                    # key pair is available
+                    response = Protocol.Response(Protocol.SC_Success)
+                    response.appendNode('publicKey',keyPair[publicKeyName])
+                    response.appendNode('privateKey',keyPair[privateKeyName])
+                    tmpMsg += "sent key-pair to '{0}'".format(compactDN)
+                    _logger.debug(tmpMsg)
+        # return
+        return response.encode()
+
     
         
 # Singleton
@@ -665,4 +721,13 @@ def genPilotToken(req,schedulerid,host=None):
         host = req.get_remote_host()
     # return
     return jobDispatcher.genPilotToken(host,realDN,schedulerid)
+
+
+
+# get key pair
+def getKeyPair(req,publicKeyName,privateKeyName):
+    # get DN
+    realDN = _getDN(req)
+    return jobDispatcher.getKeyPair(realDN,publicKeyName,privateKeyName)
+
         

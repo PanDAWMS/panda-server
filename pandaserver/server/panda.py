@@ -44,9 +44,9 @@ from dataservice.DataService     import datasetCompleted,updateFileStatusInDisp
 allowedMethods += ['datasetCompleted','updateFileStatusInDisp']
 
 from jobdispatcher.JobDispatcher import getJob,updateJob,getStatus,genPilotToken,\
-    getEventRanges,updateEventRange
+    getEventRanges,updateEventRange,getKeyPair
 allowedMethods += ['getJob','updateJob','getStatus','genPilotToken',
-                   'getEventRanges','updateEventRange']
+                   'getEventRanges','updateEventRange','getKeyPair']
 
 from userinterface.UserIF        import submitJobs,getJobStatus,queryPandaIDs,killJobs,reassignJobs,\
      getJobStatistics,getJobStatisticsPerSite,resubmitJobs,queryLastFilesInDataset,getPandaIDsSite,\

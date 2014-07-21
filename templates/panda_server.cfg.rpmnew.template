@@ -137,6 +137,9 @@ pserverportcache = 25085
 # alias
 pserveralias = pandaserver.cern.ch
 
+# space to keep key pairs
+keyDir = @@install_dir@@/var/keys
+
 
 
 ##########################

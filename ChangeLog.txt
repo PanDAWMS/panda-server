@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * added getKeyPair
+  * add timing info in broker_util
   * added retryTask() to Client
   * added check_pidfile in apache-ctl	
   * using HTTP instead of HTTPS for DDM callbacks 

@@ -3,6 +3,7 @@ import urllib
 import time
 import sys
 import types
+import datetime
 import commands
 import xml.dom.minidom
 
@@ -218,20 +219,21 @@ def _getPFNFromMySQL(lfns,dq2url):
 
 
 # get files from LFC
-def _getPFNFromLFC(lfns,dq2url,guids,storageName,scopeList=[]):
-    tmpLog = LogWrapper(_log,None)
+def _getPFNFromLFC(lfns,dq2url,guids,storageName,scopeList=[],tmpLog=None):
+    if tmpLog == None:
+        tmpLog = LogWrapper(_log,logPrefix)
     tmpLog.debug('_getPFNFromLFC %s %s / %s LFNs:%s %s' % (dq2url,str(storageName),
                                                          len(lfns),str(lfns[:3]),str(scopeList[:3])))
     outStr = ''
     # check paramter
     if guids == [] or storageName == [] or (len(lfns) != len(guids)):
-        tmpLog.debug('done with empty list')
+        tmpLog.debug('_getPFNFromLFC done with empty list')
         return outStr
     # check scopeList
     if not scopeList in [None,[]] and len(lfns) != len(scopeList):
         tmpLog.warning('_getPFNFromLFC wrong scopeList %s %s %s %s' % (dq2url,str(storageName),
                                                                        str(lfns),str(scopeList)))
-        tmpLog.error('failed')
+        tmpLog.error('_getPFNFromLFC failed')
         return outStr
     # loop over all LFNs
     iLFN = 0
@@ -260,10 +262,10 @@ def _getPFNFromLFC(lfns,dq2url,guids,storageName,scopeList=[]):
             com+= 'source %s; %s/python -Wignore %s/LFCclient.py -f %s -l %s -s %s' % \
                   (panda_config.glite_source,panda_config.native_python32,panda_config.lfcClient_dir,
                    inFileName,dq2url,strStorage)
-            _log.debug(com)
+            tmpLog.debug(com)
             # exeute
             status,output = commands.getstatusoutput(com)
-            _log.debug(status)
+            tmpLog.debug(status)
             if status == 0:
                 outStr += output
             else:
@@ -283,11 +285,11 @@ def _getPFNFromLFC(lfns,dq2url,guids,storageName,scopeList=[]):
                     _pandaLogger.release()
                 except:
                     pass
-                tmpLog.error('failed')
+                tmpLog.error('_getPFNFromLFC failed')
                 return status
             # reset
             strFiles = ''
-    tmpLog.debug('done')
+    tmpLog.debug('_getPFNFromLFC done')
     # return
     return outStr
                             
@@ -295,7 +297,8 @@ def _getPFNFromLFC(lfns,dq2url,guids,storageName,scopeList=[]):
 # get files from LRC
 def getFilesFromLRC(files,url,guids=[],storageName=[],terminateWhenFailed=False,getPFN=False,
                     scopeList=[]):
-    _log.debug('getFilesFromLRC "%s" %s' % (url,str(storageName)))    
+    tmpLog = LogWrapper(_log,None)
+    tmpLog.debug('getFilesFromLRC "%s" %s' % (url,str(storageName)))    
     # get PFC
     outSTR = ''
     if url.startswith('mysql://'):
@@ -305,7 +308,7 @@ def getFilesFromLRC(files,url,guids=[],storageName=[],terminateWhenFailed=False,
         if getPFN:
             outPFN = {}
             # FIXME
-            _log.debug('RetPFN:%s ' % str(outPFN))            
+            tmpLog.debug('RetPFN:%s ' % str(outPFN))            
             return outPFN
     elif url.startswith('http://'):
         # from HTTP I/F
@@ -332,13 +335,17 @@ def getFilesFromLRC(files,url,guids=[],storageName=[],terminateWhenFailed=False,
                         outPFN[lfn].append(pfn)
             except:
                 type, value, traceBack = sys.exc_info()
-                _log.error(outSTR)
-                _log.error("could not parse XML - %s %s" % (type, value))
-            _log.debug('RetPFN:%s ' % str(outPFN))                
+                tmpLog.error(outSTR)
+                tmpLog.error("could not parse XML - %s %s" % (type, value))
+            tmpLog.debug('RetPFN:%s ' % str(outPFN))                
             return outPFN
     elif url.startswith('lfc://') or url.startswith('rucio://'):
         # from LFC
-        outSTR = _getPFNFromLFC(files,url,guids,storageName,scopeList=scopeList)
+        timeStart = datetime.datetime.utcnow()
+        outSTR = _getPFNFromLFC(files,url,guids,storageName,scopeList=scopeList,tmpLog=tmpLog)
+        regTime = datetime.datetime.utcnow() - timeStart
+        tmpLog.debug('file lookup for %s LFNs from %s took %s.%03d sec' % (len(files),url,regTime.seconds,
+                                                                           regTime.microseconds/1000))
         # get PFN
         if getPFN:
             outPFN = {}
@@ -353,9 +360,9 @@ def getFilesFromLRC(files,url,guids=[],storageName=[],terminateWhenFailed=False,
                             outPFN[tmpLFN] = tmpPFN
             except:
                 type, value, traceBack = sys.exc_info()
-                _log.error(outSTR)
-                _log.error("could not parse LFC ret - %s %s" % (type, value))
-            _log.debug('RetPFN:%s ' % str(outPFN))
+                tmpLog.error(outSTR)
+                tmpLog.error("could not parse LFC ret - %s %s" % (type, value))
+            tmpLog.debug('RetPFN:%s files' % len(outPFN))
             return outPFN
     # check return
     if not isinstance(outSTR,types.StringType):
@@ -368,7 +375,7 @@ def getFilesFromLRC(files,url,guids=[],storageName=[],terminateWhenFailed=False,
     for file in files:
         if re.search(file,outSTR) != None:
             okFiles.append(file)
-    _log.debug('Ret:%s ' % str(okFiles))
+    tmpLog.debug('Ret:%s / %s files' % (str(okFiles[:3]),len(okFiles)))
     return okFiles
 
 

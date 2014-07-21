@@ -24,14 +24,20 @@ SC_NonSecure = 40
 SC_Invalid   = 50
 # invalid role
 SC_Role      = 60
+# permission denied
+SC_Perms     = 70
+# key missing
+SC_MissKey   = 80
 
 
 # response
 class Response:
     # constructor
-    def __init__(self,statusCode):
+    def __init__(self,statusCode,errorDialog=None):
         # create data object
         self.data = {'StatusCode':statusCode}
+        if errorDialog != None:
+            self.data['errorDialog'] = errorDialog
 
 
     # URL encode

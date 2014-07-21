@@ -9,6 +9,7 @@ import sys
 import json
 import time
 import copy
+import glob
 import fcntl
 import types
 import random
@@ -9873,15 +9874,16 @@ class DBProxy:
             return []
 
 
-    # get sites with glexec
-    def getGlexecSites(self):
-        comment = ' /* DBProxy.getGlexecSites */'
+    # get special dipatcher parameters
+    def getSpecialDispatchParams(self):
+        comment = ' /* DBProxy.getSpecialDispatchParams */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         _logger.debug("{0} start".format(methodName))
         try:
+            retMap = {}
             # set autocommit on
             self.conn.begin()
-            # select
+            # select for glexec
             sql  = "SELECT DISTINCT siteID,glexec FROM ATLAS_PANDAMETA.schedconfig WHERE glexec IN (:stat1,:stat2) "
             varMap = {}
             varMap[':stat1'] = 'True'
@@ -9892,17 +9894,61 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
-            ret = {}
+            tmpRet = {}
             for siteID,glexec in resList:
-                ret[siteID] = glexec
-            _logger.debug("{0} -> {1}".format(methodName,str(ret)))
-            return ret
+                tmpRet[siteID] = glexec
+            retMap['glexecSites'] = tmpRet[siteID]
+            _logger.debug("{0} got {1} glexec sites".format(methodName,len(retMap['glexecSites'])))
+            # set autocommit on
+            self.conn.begin()
+            # select to get the list of authorized users
+            allowKey = []
+            allowProxy = []
+            sql  = "SELECT DISTINCT dn,gridpref FROM ATLAS_PANDAMETA.users WHERE (status IS NULL OR status<>:ngStatus) AND gridpref IS NOT NULL "
+            varMap = {}
+            varMap[':ngStatus'] = 'disabled'
+            self.cur.arraysize = 100000
+            self.cur.execute(sql+comment,varMap)
+            resList = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            for tmpDN,gridpref in resList:
+                # compact format
+                compactDN = self.cleanUserID(tmpDN)
+                # users authorized for proxy retrieval
+                if 'p' in gridpref:
+                    if not compactDN in allowProxy:
+                        allowProxy.append(compactDN)
+                # users authorized for key-pair retrieval 
+                if 'k' in gridpref:
+                    if not compactDN in allowKey:
+                        allowKey.append(compactDN)
+            retMap['allowKey'] = allowKey
+            retMap['allowProxy'] = allowProxy
+            _logger.debug("{0} got {1} users for key {2} users for proxy".format(methodName,
+                                                                                 len(retMap['allowKey']),
+                                                                                 len(retMap['allowProxy'])))
+            # read key pairs
+            keyPair = {}
+            try:
+                keyFileNames = glob.glob(panda_config.keyDir+'/*')
+                for keyName in keyFileNames:
+                    tmpF = open(keyName)
+                    keyPair[os.path.basename(keyName)] = tmpF.read()
+                    tmpF.close()
+            except:
+                self.dumpErrorMessage(_logger,methodName)
+            retMap['keyPair'] = keyPair
+            _logger.debug("{0} got {1} key files".format(methodName,len(retMap['keyPair'])))
+            _logger.debug("{0} done".format(methodName))
+            return retMap
         except:
             # roll back
             self._rollback()
             # error
             self.dumpErrorMessage(_logger,methodName)
-            return []
+            return {}
 
 
     # get allowed nodes

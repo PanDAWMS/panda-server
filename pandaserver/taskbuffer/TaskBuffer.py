@@ -2044,12 +2044,12 @@ class TaskBuffer:
         return ret
 
 
-    # get sites with glexec
-    def getGlexecSites(self):
+    # get special dipatcher parameters
+    def getSpecialDispatchParams(self):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
-        # get sites with glexec
-        ret = proxy.getGlexecSites()
+        # exec
+        ret = proxy.getSpecialDispatchParams()
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
