@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * using bps in getWanDataFlowMaxtrix
   * using name instead of dn for specialDispatchParams
   * added avalage file lookup time in SLS
   * added getKeyPair

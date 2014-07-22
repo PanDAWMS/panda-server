@@ -13082,12 +13082,12 @@ class DBProxy:
                     # number of jobs
                     retMap[computingSite][sourceSite]['user'][prodUserName][jobStatus]['nJobs'] += 1
                 else:
-                    # calcurate total flow
+                    # calcurate total flow in bps
                     if maxCpuCount in [0,None]:
                         # use the default data flow
-                        dataFlow = 1024
+                        dataFlow = 1024*8
                     else:
-                        dataFlow = inputFileBytes/maxCpuCount
+                        dataFlow = inputFileBytes*8/maxCpuCount
                     retMap[computingSite][sourceSite]['flow'] += dataFlow
             _logger.debug("{0} done".format(methodName))
             return retMap
