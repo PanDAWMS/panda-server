@@ -3,6 +3,7 @@
 import SLSxml
 import socket
 import subprocess
+import datetime
 import re
 import sys
 import optparse
@@ -64,7 +65,8 @@ def make_server( host ) :
         data_used     = volume_use( 'data' )
 	var_used      = volume_use( 'var' )
 	ave_regtime   = registration_time()
-	ave_regtimeDQ2 = registration_time(onlyDQ2=True) 
+	ave_regtimeDQ2 = registration_time(onlyDQ2=True)
+	ave_filelookuptime = filelookup_time()
 
 	sls_xml = SLSxml.xml_doc()
 	sls_xml.set_id( 'PandaServer_%s' % ( host ) )
@@ -80,6 +82,8 @@ def make_server( host ) :
 			  str( ave_regtime ) )
 	sls_xml.add_data( "RegistrationTimeDQ2", "Average time for DQ2 registration in second",
 			  str( ave_regtimeDQ2 ) )
+	sls_xml.add_data( "FileLookupTime", "Average time for replica lookup per 100 files in second",
+			  str( ave_filelookuptime ) )
 	sls_xml.add_data( "DataVolumeUse", "Percent use of the local /data volume",
 		str( data_used ) )
 	sls_xml.add_data( "VarVolumeUse", "Percent use of the local /var volume",
@@ -302,12 +306,58 @@ def registration_time(timeSlice=False,onlyDQ2=False) :
 		print "ERROR : %s:%s in registration_time" % (errtype,ervalue)
 	return aveRegTime
 
+def filelookup_time(timeSlice=False) :
+	aveRegTime = '0.0'
+	timeNow = datetime.datetime.utcnow()
+	try:
+		com = "grep took /data/atlpan/srv/var/log/panda/panda-broker_util.log | grep file | grep -v 'for 1 LFNs' | grep -v 'for 2 LFNs'"
+		if not timeSlice:
+			com += ' | tail -1000'
+		output = subprocess.Popen(com,stdout=subprocess.PIPE,shell=True).communicate()[0]
+		regtimeMap = {}
+		for line in output.split('\n'):
+			try:
+				timeDelta = timeNow - datetime.datetime.strptime(line[:19],'%Y-%m-%d %H:%M:%S')
+				if timeDelta > datetime.timedelta(minutes=120):
+					continue
+				items = line.split()
+				timestamp = items[1][:2]
+				regtime   = float(items[-2])
+				tmpMatch = re.search(' (\d+) LFNs',line)
+				if tmpMatch == None:
+					continue
+				nFiles = int(tmpMatch.group(1))
+				if not regtimeMap.has_key(timestamp):
+					regtimeMap[timestamp] = {'totalTime':0.,'totalReg':0}
+				regtimeMap[timestamp]['totalTime'] += regtime
+				regtimeMap[timestamp]['totalReg'] += nFiles
+			except:
+				pass
+		timestamps = regtimeMap.keys()
+		if timeSlice:	
+			timestamps.sort()
+			for timestamp in timestamps:
+				print "%s %4.1fsec" % (timestamp,100*regtimeMap[timestamp]['totalTime']/float(regtimeMap[timestamp]['totalReg']))
+		else:
+			totalTime = 0.
+			totalReg  = 0
+			for timestamp in timestamps:
+				totalTime += regtimeMap[timestamp]['totalTime']
+				totalReg  += regtimeMap[timestamp]['totalReg']
+			if totalReg > 0:	
+				aveRegTime = '%4.1f' % (100*totalTime/float(totalReg))	
+        except:
+		errtype,ervalue = sys.exc_info()[:2]
+		print "ERROR : %s:%s in filelookup_time" % (errtype,ervalue)
+	return aveRegTime
+
+
 def volume_use( volume_name ) :
 	command = "df -Pkh /" + volume_name
 
 	tmp_array = command.split()
 	output = subprocess.Popen( tmp_array, stdout=subprocess.PIPE ).communicate()[0]
-	
+
 	for line in output.split( '\n' ) :
 		if( re.search( volume_name, line ) ) :
 			used_amount = re.search( r"(\d+)\%", line ).group(1)

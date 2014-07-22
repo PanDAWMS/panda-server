@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added avalage file lookup time in SLS
   * added getKeyPair
   * add timing info in broker_util
   * added retryTask() to Client
