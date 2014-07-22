@@ -3,7 +3,8 @@
 # Setup prog for Panda Server
 #
 #
-from version import __version__, __provides__
+release_version='0.0.5'
+#from version import __version__, __provides__
 prefix = '/data/atlpan/srv'
 # prefix = '/data/pansrv/srv'
 
@@ -147,7 +148,8 @@ class install_data_panda (install_data_org):
 setup(
 #    name="panda-server-mysql",
     name=__provides__,
-    version=__version__,
+#   version=__version__,
+    version=release_version,
     description='MySQL branch of the PanDA Server Package',
     long_description='''This package contains PanDA Server Components''',
     license='GPL',
