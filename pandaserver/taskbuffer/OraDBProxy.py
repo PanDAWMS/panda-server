@@ -9904,7 +9904,7 @@ class DBProxy:
             # select to get the list of authorized users
             allowKey = []
             allowProxy = []
-            sql  = "SELECT DISTINCT dn,gridpref FROM ATLAS_PANDAMETA.users WHERE (status IS NULL OR status<>:ngStatus) AND gridpref IS NOT NULL "
+            sql  = "SELECT DISTINCT name,gridpref FROM ATLAS_PANDAMETA.users WHERE (status IS NULL OR status<>:ngStatus) AND gridpref IS NOT NULL "
             varMap = {}
             varMap[':ngStatus'] = 'disabled'
             self.cur.arraysize = 100000
@@ -9913,9 +9913,7 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
-            for tmpDN,gridpref in resList:
-                # compact format
-                compactDN = self.cleanUserID(tmpDN)
+            for compactDN,gridpref in resList:
                 # users authorized for proxy retrieval
                 if 'p' in gridpref:
                     if not compactDN in allowProxy:
