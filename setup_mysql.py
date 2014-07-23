@@ -5,7 +5,7 @@
 #
 #from version import __version__, __provides__
 release_version='0.0.5'
-prefix = '/data/atlpan/srv'
+#prefix = '/data/atlpan/srv'
 # prefix = '/data/pansrv/srv'
 
 
@@ -53,7 +53,7 @@ class install_panda(install_org):
     def initialize_options (self):
         install_org.initialize_options(self)
 #        self.prefix = '/data/atlpan/srv'
-        self.prefix = prefix
+#        self.prefix = prefix
 
 
 # generates files using templates and install them
@@ -171,26 +171,26 @@ setup(
               ],
     data_files=[
                 # config files 
-                ('etc/panda', ['templates/panda_server-httpd.conf.rpmnew.template',
+                ('/etc/panda', ['templates/panda_server-httpd.conf.rpmnew.template',
                                'templates/panda_server-httpd-FastCGI.conf.rpmnew.template',
                                'templates/panda_server.cfg.rpmnew.template',
                                'templates/panda_server-grid-env.sh.template',
                                ]
                  ),
                 # sysconfig
-                ('etc/sysconfig', ['templates/panda_server-sysconfig.rpmnew.template',
+                ('/etc/sysconfig', ['templates/panda_server-sysconfig.rpmnew.template',
                                    ]
                  ),
                 # logrotate
-                ('etc/logrotate.d', ['templates/panda_server-logrotate.template',
+                ('/etc/logrotate.d', ['templates/panda_server-logrotate.template',
                                      ]
                  ),
                 # init script
-                ('etc/init.d', ['templates/panda_server-ctl.exe.template',
+                ('/etc/init.d', ['templates/panda_server-ctl.exe.template',
                                    ]
                  ),
                 # crons
-                ('usr/bin', ['templates/panda_server-add.sh.exe.template',
+                ('/usr/bin', ['templates/panda_server-add.sh.exe.template',
                              'templates/panda_server-priority.sh.exe.template',
                              'templates/panda_server-copyArchive.sh.exe.template',
                              'templates/panda_server-copyROOT.sh.exe.template',
