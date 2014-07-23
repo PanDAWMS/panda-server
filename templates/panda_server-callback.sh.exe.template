@@ -4,7 +4,7 @@
 source /etc/profile.d/grid-env.sh
 
 # import env vars from sysconfig
-source @@install_dir@@/etc/sysconfig/panda_server-sysconfig
+source /etc/sysconfig/panda_server-sysconfig
 
 # set PYTHONPATH for dashboard
 export PYTHONPATH=/opt/dashboard/lib/dashboard:/opt/dashboard/lib:$PYTHONPATH

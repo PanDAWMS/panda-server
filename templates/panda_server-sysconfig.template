@@ -1,9 +1,9 @@
 # Configuration file for the httpd service.
 
-OPTIONS="-f @@install_dir@@/etc/panda/panda_server-httpd.conf"
+OPTIONS="-f /etc/panda/panda_server-httpd.conf"
 
 # for FastCGI/WSGI
-#OPTIONS="-f @@install_dir@@/etc/panda/panda_server-httpd-FastCGI.conf"
+#OPTIONS="-f /etc/panda/panda_server-httpd-FastCGI.conf"
 #HTTPD='/usr/sbin/httpd'
 
 # reset PATH/LD_LIBRARY_PATH since atlpan's ones break grid-tools
