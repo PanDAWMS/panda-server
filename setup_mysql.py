@@ -171,14 +171,14 @@ setup(
               ],
     data_files=[
                 # config files 
-                ('/etc/panda', ['templates/panda_server-httpd.conf.rpmnew.template',
-                               'templates/panda_server-httpd-FastCGI.conf.rpmnew.template',
-                               'templates/panda_server.cfg.rpmnew.template',
+                ('/etc/panda', ['templates/panda_server-httpd.conf.template',
+                               'templates/panda_server-httpd-FastCGI.conf.template',
+                               'templates/panda_server.cfg.template',
                                'templates/panda_server-grid-env.sh.template',
                                ]
                  ),
                 # sysconfig
-                ('/etc/sysconfig', ['templates/panda_server-sysconfig.rpmnew.template',
+                ('/etc/sysconfig', ['templates/panda_server-sysconfig.template',
                                    ]
                  ),
                 # logrotate
