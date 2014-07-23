@@ -122,6 +122,9 @@ class install_data_panda (install_data_org):
                         raise RuntimeError,'unknown pattern %s in %s' % (item,srcFile)
                     # get pattern
                     patt = getattr(self,item)
+                    # remove install root, if any
+                    if self.root is not None and patt.startswith(self.root):
+                            patt = patt[len(self.root):]
                     # remove build/*/dump for bdist
                     patt = re.sub('build/[^/]+/dumb','',patt)
                     # remove /var/tmp/*-buildroot for bdist_rpm
