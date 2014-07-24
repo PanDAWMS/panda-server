@@ -4,8 +4,8 @@
 #
 #
 #from version import __version__, __provides__
-release_version='0.0.5'
-#prefix = '/data/atlpan/srv'
+release_version='0.0.2'
+# prefix = '/data/atlpan/srv'
 # prefix = '/data/pansrv/srv'
 
 
