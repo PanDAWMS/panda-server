@@ -108,6 +108,7 @@ class install_data_panda (install_data_org):
                     raise RuntimeError,"%s doesn't have the .template extension" % srcFile
                 # dest filename
                 destFile = re.sub('(\.exe)*\.template$','',srcFile)
+                destFile = re.sub('-(ctl|logrotate|sysconfig)$','',destFile)
                 destFile = destFile.split('/')[-1]
                 destFile = '%s/%s' % (tmpDir,destFile)
                 # open src
