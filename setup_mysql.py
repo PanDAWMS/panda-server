@@ -108,7 +108,6 @@ class install_data_panda (install_data_org):
                     raise RuntimeError,"%s doesn't have the .template extension" % srcFile
                 # dest filename
                 destFile = re.sub('(\.exe)*\.template$','',srcFile)
-                destFile = re.sub('-(ctl|logrotate|sysconfig)$','',destFile)
                 destFile = destFile.split('/')[-1]
                 destFile = '%s/%s' % (tmpDir,destFile)
                 # open src
@@ -179,15 +178,15 @@ setup(
                                ]
                  ),
                 # sysconfig
-                ('/etc/sysconfig', ['templates/panda_server-sysconfig.template',
+                ('/etc/sysconfig', ['templates/sysconfig/panda_server.template',
                                    ]
                  ),
                 # logrotate
-                ('/etc/logrotate.d', ['templates/panda_server-logrotate.template',
+                ('/etc/logrotate.d', ['templates/logrotate.d/panda_server.template',
                                      ]
                  ),
                 # init script
-                ('/etc/rc.d/init.d', ['templates/panda_server-ctl.exe.template',
+                ('/etc/rc.d/init.d', ['templates/init.d/panda_server.exe.template',
                                    ]
                  ),
                 # crons
