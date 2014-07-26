@@ -36,7 +36,6 @@ export PANDA_HTTP_PORT=25080
 export PANDA_CACHE_PORT=25085
 
 # panda server URLs
-export PANDA_URL='http://@@host_name@@:'${PANDA_HTTP_PORT}'/server/panda'
-export PANDA_URL_SSL='https://@@host_name@@:'${PANDA_HTTPS_PORT}'/server/panda'
-
+export PANDA_URL="http://${HOSTNAME}:${PANDA_HTTP_PORT}/server/panda"
+export PANDA_URL_SSL="https://${HOSTNAME}:${PANDA_HTTPS_PORT}/server/panda"
 
