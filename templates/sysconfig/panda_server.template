@@ -25,7 +25,7 @@ export TZ=UTC
 export PYTHONPATH=@@install_purelib@@/pandacommon:@@install_purelib@@/pandaserver
 
 # avoid to use AFS
-export HOME=/home/atlpan
+#export HOME=~@@panda_user@@
 
 # set user's proxy
 export X509_USER_PROXY=FIXME

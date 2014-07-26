@@ -58,60 +58,60 @@ def getEmailPhonebook(dn):
                  'email']:
         if sTry == 'full':
             # try full name
-            com = '~atlpan/phonebook --firstname "%s" --surname "%s" --all' \
+            com = '~pansrv/phonebook --firstname "%s" --surname "%s" --all' \
                   % (extractedDN.split()[0],extractedDN.split()[-1])
         if sTry == 'full_rev':
             # try full name
-            com = '~atlpan/phonebook --firstname "%s" --surname "%s" --all' \
+            com = '~pansrv/phonebook --firstname "%s" --surname "%s" --all' \
                   % (extractedDN.split()[-1],extractedDN.split()[0])
         elif sTry == 'fullwc':
             # try full name with wildcard
-            com = '~atlpan/phonebook --firstname "*%s*" --surname "*%s*" --all' \
+            com = '~pansrv/phonebook --firstname "*%s*" --surname "*%s*" --all' \
                   % (extractedDN.split()[0],extractedDN.split()[-1])
         elif sTry == 'fullwc_rev':
             # try full name with wildcard
-            com = '~atlpan/phonebook --firstname "*%s*" --surname "*%s*" --all' \
+            com = '~pansrv/phonebook --firstname "*%s*" --surname "*%s*" --all' \
                   % (extractedDN.split()[-1],extractedDN.split()[0])
         elif sTry == 'suronly':
             if len(extractedDN.split()) == 2:
                 # try surname only
-                com = '~atlpan/phonebook --surname "%s" --all' \
+                com = '~pansrv/phonebook --surname "%s" --all' \
                       % extractedDN.split()[-1]
             else:
                 # try surname with wildcard
-                com = '~atlpan/phonebook --surname "*%s*" --all' \
+                com = '~pansrv/phonebook --surname "*%s*" --all' \
                       % extractedDN.split()[-1]
         elif sTry == 'suronly_rev':
             if len(extractedDN.split()) == 2:            
                 # try surname only
-                com = '~atlpan/phonebook --surname "%s" --all' \
+                com = '~pansrv/phonebook --surname "%s" --all' \
                       % extractedDN.split()[0]
             else:
                 # try surname with wildcard
-                com = '~atlpan/phonebook --surname "*%s*" --all' \
+                com = '~pansrv/phonebook --surname "*%s*" --all' \
                       % extractedDN.split()[0]
         elif sTry == 'firstonly':
             if len(extractedDN.split()) == 2:
                 # try firstname only
-                com = '~atlpan/phonebook --firstname "%s" --all' \
+                com = '~pansrv/phonebook --firstname "%s" --all' \
                       % extractedDN.split()[0]
             else:
                 # try firstname with wildcard
-                com = '~atlpan/phonebook --firstname "*%s*" --all' \
+                com = '~pansrv/phonebook --firstname "*%s*" --all' \
                       % extractedDN.split()[0]
         elif sTry == 'firstonly_rev':
             if len(extractedDN.split()) == 2:
                 # try firstname only
-                com = '~atlpan/phonebook --firstname "%s" --all' \
+                com = '~pansrv/phonebook --firstname "%s" --all' \
                       % extractedDN.split()[-1]
             else:
                 # try firstname with wildcard
-                com = '~atlpan/phonebook --firstname "*%s*" --all' \
+                com = '~pansrv/phonebook --firstname "*%s*" --all' \
                       % extractedDN.split()[-1]
         elif sTry == 'email':
             # try email
             mailPatt = re.sub(' +','*',extractedDN)
-            com = '~atlpan/phonebook --email "*%s*" --all' \
+            com = '~pansrv/phonebook --email "*%s*" --all' \
                   % mailPatt
         _logger.debug(com)
         # execute

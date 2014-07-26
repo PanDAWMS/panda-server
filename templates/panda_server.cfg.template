@@ -7,7 +7,7 @@
 #
 
 # log directory
-logdir=@@install_dir@@/var/log/panda
+logdir=/var/log/panda
 
 # logger name
 loggername = prod
@@ -47,7 +47,7 @@ lockfile_getUU = %(logdir)s/getUU.lock
 #
 
 # cache space
-cache_dir = @@install_dir@@/var/cache/pandaserver
+cache_dir = /var/cache/pandaserver
 
 
 
@@ -81,7 +81,7 @@ pandaPython_dir = @@install_purelib@@/pandaserver
 lfcClient_dir = %(pandaPython_dir)s/brokerage
 
 # home dir to change CWD
-home_dir_cwd = /home/atlpan
+home_dir_cwd = /home/@@panda_user@@
 
 
 

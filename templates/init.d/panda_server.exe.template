@@ -4,7 +4,7 @@
 #
 # description: Panda server webserver
 # processname: httpd
-# config: /data/atlpan/srv/etc/panda/panda_server-httpd.conf
+# config: /etc/panda/panda_server-httpd.conf
 # config: /etc/sysconfig/httpd-pandasrv
 # pidfile: /var/run/httpd-pandasrv.pid
 #

@@ -7,6 +7,8 @@
 release_version='0.0.2'
 # prefix = '/data/atlpan/srv'
 # prefix = '/data/pansrv/srv'
+panda_user = 'pansrv'
+panda_group = 'pansrv'
 
 
 import os
@@ -63,6 +65,8 @@ class install_data_panda (install_data_org):
     def initialize_options (self):
         install_data_org.initialize_options (self)
         self.install_purelib = None
+        self.panda_user = panda_user
+        self.panda_group = panda_group
         self.python_exec_version = '%s.%s' % sys.version_info[:2]
         
     def finalize_options (self):
