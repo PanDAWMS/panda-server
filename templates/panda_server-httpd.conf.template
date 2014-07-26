@@ -1,4 +1,4 @@
-LoadModule access_module modules/mod_access.so
+LoadModule authz_host_module modules/mod_authz_host.so
 LoadModule alias_module modules/mod_alias.so
 LoadModule rewrite_module modules/mod_rewrite.so
 LoadModule mime_magic_module modules/mod_mime_magic.so
