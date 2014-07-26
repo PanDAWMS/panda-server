@@ -9,6 +9,7 @@ release_version='0.0.2'
 # prefix = '/data/pansrv/srv'
 
 
+import os
 import re
 import sys
 import socket
@@ -108,7 +109,7 @@ class install_data_panda (install_data_org):
                     raise RuntimeError,"%s doesn't have the .template extension" % srcFile
                 # dest filename
                 destFile = re.sub('(\.exe)*\.template$','',srcFile)
-                destFile = destFile.split('/')[-1]
+                destFile = re.sub(r'^templates/','',destFile)
                 destFile = '%s/%s' % (tmpDir,destFile)
                 # open src
                 inFile = open(srcFile)
@@ -132,6 +133,10 @@ class install_data_panda (install_data_org):
                     # replace
                     filedata = filedata.replace('@@%s@@' % item, patt)
                 # write to dest
+                if '/' in destFile:
+                    destSubDir = os.path.dirname(destFile)
+                    if not os.path.exists(destSubDir):
+                        os.makedirs(destSubDir)
                 oFile = open(destFile,'w')
                 oFile.write(filedata)
                 oFile.close()
