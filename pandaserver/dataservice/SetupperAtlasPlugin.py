@@ -187,7 +187,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             if job.prodDBlock != 'NULL' and (not self.pandaDDM) and (not job.prodSourceLabel in ['user','panda']):
                 # get VUID and record prodDBlock into DB
                 if not prodError.has_key(job.prodDBlock):
-                    time.sleep(1)
                     self.logger.debug('queryDatasetByName '+job.prodDBlock)
                     prodError[job.prodDBlock] = ''
                     for iDDMTry in range(3):
@@ -336,7 +335,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 self.logger.debug(out)
                 vuidStr = out
                 # freezeDataset dispatch dataset
-                time.sleep(1)            
                 self.logger.debug('freezeDataset '+dispatchDBlock)
                 for iDDMTry in range(3):            
                     status,out = ddm.DQ2.main('freezeDataset',dispatchDBlock)
@@ -474,7 +472,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                 vuidStr = 'vuid="%s"' % commands.getoutput('uuidgen')
                             else:
                                 # register dataset
-                                time.sleep(1)
                                 # set hidden flag for _sub
                                 tmpHiddenFlag = False
                                 if name != originalName and re.search('_sub\d+$',name) != None:
@@ -521,7 +518,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                        job.prodSourceLabel == 'panda' or (job.prodSourceLabel in ['ptest','rc_test'] and \
                                                                           job.processingType in ['pathena','prun','gangarobot-rctest']) \
                                        or len(tmpTokenList) > 1:
-                                    time.sleep(1)
                                     # register location
                                     usingT1asT2 = False
                                     if job.prodSourceLabel == 'user' and not self.siteMapper.siteSpecList.has_key(computingSite):
@@ -632,7 +628,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                     pass
                                 elif name == originalName and job.prodSourceLabel in ['managed','test','rc_test','ptest']:
                                     # set metadata
-                                    time.sleep(1)
                                     dq2ID = self.siteMapper.getSite(file.destinationSE).ddm
                                     # use another location when token is set
                                     if not file.destinationDBlockToken in ['NULL','']:
@@ -822,7 +817,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         if dq2IDList == []:
                             dq2IDList = [dq2ID]
                         for dq2ID in dq2IDList:
-                            time.sleep(1)
                             self.logger.debug('registerDatasetLocation {ds} {dq2ID} {lifeTime}'.format(ds=job.dispatchDBlock,
                                                                                                        dq2ID=dq2ID,
                                                                                                        lifeTime="7 days",
@@ -847,7 +841,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         dispError[disp] = "Setupper._subscribeDistpatchDB() could not register location"
                     else:
                         # assign destination
-                        time.sleep(1)
                         optSub = {'DATASET_COMPLETE_EVENT' : ['http://%s:%s/server/panda/datasetCompleted' % \
                                                               (panda_config.pserverhosthttp,panda_config.pserverporthttp)]}
                         optSource = {}
@@ -1155,7 +1148,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     prodError[dataset] = ''
                     lfnMap[dataset] = {}
                     # get LFNs
-                    time.sleep(1)
                     for iDDMTry in range(3):
                         self.logger.debug('listFilesInDataset '+dataset)
                         status,out = ddm.DQ2.main('listFilesInDataset',dataset)
