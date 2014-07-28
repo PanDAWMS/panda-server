@@ -4,6 +4,7 @@ dispatch jobs
 """
 
 import re
+import sys
 import types
 import threading
 import Protocol
@@ -128,7 +129,8 @@ class JobDipatcher:
 
     # get job
     def getJob(self,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-               atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry):
+               atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry,
+               realDN):
         jobs = []
         useGLEXEC = False
         # wrapper function for timeout
@@ -156,7 +158,7 @@ class JobDipatcher:
             if hasattr(panda_config,'useProxyCache') and panda_config.useProxyCache == True:
                 self.specialDispatchParams.update()
                 if not 'glexecSites' in self.specialDispatchParams:
-                    glexecSites = []
+                    glexecSites = {}
                 else:
                     glexecSites = self.specialDispatchParams['glexecSites']
                 if siteName in glexecSites:
@@ -168,10 +170,27 @@ class JobDipatcher:
                         useGLEXEC = True
             # set proxy
             if useGLEXEC:
-                tmpStat,tmpOut = response.setUserProxy()
-                if not tmpStat:
-                    _logger.warning("getJob : %s %s failed to get user proxy : %s" % (siteName,node,
-                                                                                      tmpOut))
+                try:
+                    #  get compact
+                    compactDN = self.taskBuffer.cleanUserID(realDN)
+                    # check permission
+                    self.specialDispatchParams.update()
+                    if not 'allowProxy' in self.specialDispatchParams:
+                        allowProxy = []
+                    else:
+                        allowProxy = self.specialDispatchParams['allowProxy']
+                    if not compactDN in allowProxy:
+                        _logger.warning("getJob : %s %s '%s' no permission to retrive user proxy" % (siteName,node,
+                                                                                                     prodUserID))
+                    else:
+                        tmpStat,tmpOut = response.setUserProxy()
+                        if not tmpStat:
+                            _logger.warning("getJob : %s %s failed to get user proxy : %s" % (siteName,node,
+                                                                                              tmpOut))
+                except:
+                    errtype,errvalue = sys.exc_info()[:2]
+                    _logger.warning("getJob : %s %s failed to get user proxy with %s:%s" % (siteName,node,
+                                                                                            errtype.__name__,errvalue))
         else:
             if tmpWrapper.result == Protocol.TimeOutToken:
                 # timeout
@@ -566,7 +585,7 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
     # invoke JD
     return jobDispatcher.getJob(siteName,prodSourceLabel,cpu,mem,diskSpace,node,int(timeout),
                                 computingElement,AtlasRelease,prodUserID,getProxyKey,countryGroup,
-                                workingGroup,allowOtherCountry)
+                                workingGroup,allowOtherCountry,realDN)
     
 
 # update job status

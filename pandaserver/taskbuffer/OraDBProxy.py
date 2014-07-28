@@ -9897,7 +9897,7 @@ class DBProxy:
             tmpRet = {}
             for siteID,glexec in resList:
                 tmpRet[siteID] = glexec
-            retMap['glexecSites'] = tmpRet[siteID]
+            retMap['glexecSites'] = tmpRet
             _logger.debug("{0} got {1} glexec sites".format(methodName,len(retMap['glexecSites'])))
             # set autocommit on
             self.conn.begin()

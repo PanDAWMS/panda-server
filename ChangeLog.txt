@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added proxyCache
   * added -m to reassignTask
   * including _\d+$ in hospital queues
   * using bps in getWanDataFlowMaxtrix

@@ -165,7 +165,8 @@ setup(
                'pandaserver.server',
                'pandaserver.taskbuffer',
                'pandaserver.test',
-               'pandaserver.userinterface',               
+               'pandaserver.userinterface',
+               'pandaserver.proxycache',
               ],
     data_files=[
                 # config files 
@@ -204,6 +205,7 @@ setup(
                              'templates/panda_server-makeSlsXml.exe.template',
                              'templates/panda_server-boostUser.sh.exe.template',
                              'templates/panda_server-runRebro.sh.exe.template',
+                             'templates/panda_server-proxyCache.sh.exe.template',
                              ]
                  ),
                 # var dirs

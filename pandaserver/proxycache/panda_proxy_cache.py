@@ -13,24 +13,22 @@ def execute(program):
 def cat(filename):
   """Given filename, print its text contents."""
   f = open(filename, 'r')
-  out = f.read()
   #for line in f:  
   #  print line,   
   f.close()
-  return out
 
 class MyProxyInterface(object):
     """Class to store and retrieve proxies from my proxies."""
     def __init__(self):
 	self.__target_path = '/tmp/proxies'
 	self.__cred_name = 'panda'
-	#if not os.path.exists(self.__target_path):
-	#    os.makedirs(self.__target_path)
+	if not os.path.exists(self.__target_path):
+	    os.makedirs(self.__target_path)
 
     def store(self, user_dn, cred_name, production=False, server_name='myproxy.cern.ch'):
         """Retrieve proxy from myproxy."""
 	proxy_path = os.path.join(self.__target_path, hashlib.sha1(user_dn + '.plain').hexdigest())
-        cmd = "myproxy-logon -s %s --no_passphrase --out %s -l '%s' -k %s -t 96" % (server_name, proxy_path, user_dn, cred_name)
+        cmd = "myproxy-logon -s %s --no_passphrase --out %s -l '%s' -k %s -t 0" % (server_name, proxy_path, user_dn, cred_name)
 	# if myproxy.cern.ch fails, try myproxy on bnl as well
         stdout, stderr, status = execute(cmd)
         if stdout:
@@ -38,7 +36,7 @@ class MyProxyInterface(object):
         if stderr:
             print 'stderr is %s ' % stderr
         print('test the status of plain... %s' %status)
-
+	#proxyValidity = checkValidity(proxy_path)
         if production:
 	    print 'production proxy needed - need to add voms attributes and store it in the cache'
 	    prodproxy_path = os.path.join(self.__target_path, str(hashlib.sha1(user_dn + '.prod').hexdigest()))
@@ -60,10 +58,10 @@ class MyProxyInterface(object):
             if stderr:
                 print 'stderr is %s ' % stderr
             print('test the status of atlas... %s' %status)
-
-        if os.path.exists(proxy_path):
-            print 'will now remove the plain proxy from the cache'
-            os.remove(proxy_path)
+	# will remove the proxy later on as I need to check the actual validity in order to send notification emails
+        #if os.path.exists(proxy_path):
+        #    print 'will now remove the plain proxy from the cache'
+        #    os.remove(proxy_path)
 
         return status
 
@@ -76,8 +74,7 @@ class MyProxyInterface(object):
 	if os.path.isfile(proxy_path):
         	return cat(proxy_path)
 	else:
-		#print 'proxy file does not exist'
-                return None
+		print 'proxy file does not exist'
 
     def checkProxy(self, user_dn, production=False):
 	"""Check the validity of a proxy."""
@@ -101,10 +98,28 @@ class MyProxyInterface(object):
         	                print 'Proxy retrieval failed'
 		else:
 			print 'Proxy is valid for more than 3 days'
+	
 	else:
 		print 'Proxy is not in the cache repo. Will try to get it from myproxy'
 		if self.store(user_dn, self.__cred_name, production) == 0:
 			print 'proxy stored successfully'
 		else:
 			print 'proxy retrieval failed'
+	plain_path = os.path.join(self.__target_path, hashlib.sha1(user_dn + '.plain').hexdigest())
+	if os.path.isfile(plain_path):
+		return self.checkValidity(plain_path)
+	else:
+		print 'plain proxy not there at the moment!'
 
+    def checkValidity(self, proxy_path):
+        print 'Need to check validity and expiry!'
+	datechecks = [24, 72, 168, 730.484]	
+	#datechecks = [1,2,3,4]
+	status = 0
+	for i in datechecks:
+	        cmd = "voms-proxy-info -exists -hours %s -file %s" % (i, proxy_path)
+	        stdout, stderr, status = execute(cmd)
+	        if status == 1:
+        	        print 'Proxy expires in %s hours. We need to send a notification!' %i
+			return i
+	return status

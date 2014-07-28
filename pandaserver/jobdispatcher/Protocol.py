@@ -1,7 +1,7 @@
 import re
 import sys
 import urllib
-import ProxyCache
+from proxycache import panda_proxy_cache
 from taskbuffer import EventServiceUtils
 
 
@@ -242,7 +242,7 @@ class Response:
             realDN = self.data['prodUserID']
             realDN = re.sub('/CN=limited proxy','',realDN)
             realDN = re.sub('(/CN=proxy)+','',realDN)
-            pIF = ProxyCache.MyProxyInterface()
+            pIF = panda_proxy_cache.MyProxyInterface()
             tmpOut = pIF.retrieve(realDN)
             # not found
             if tmpOut == None:
