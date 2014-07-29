@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * introduced 2h of timeout for transferring user jobs
   * added proxyCache
   * added -m to reassignTask
   * including _\d+$ in hospital queues

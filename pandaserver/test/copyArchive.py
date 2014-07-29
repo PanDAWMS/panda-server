@@ -305,6 +305,27 @@ else:
         thr.join()
         time.sleep(1)
 
+# check heartbeat for analysis jobs in transferring
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=2)
+varMap = {}
+varMap[':modificationTime'] = timeLimit
+varMap[':prodSourceLabel1'] = 'panda'
+varMap[':prodSourceLabel2'] = 'user'
+varMap[':jobStatus1'] = 'transferring'
+sql  = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
+sql += "AND jobStatus=:jobStatus1 AND modificationTime<:modificationTime"
+status,res = taskBuffer.querySQLS(sql,varMap)
+if res == None:
+    _logger.debug("# of Transferring Anal Watcher : %s" % res)
+else:
+    _logger.debug("# of Transferring Anal Watcher : %s" % len(res))    
+    for (id,) in res:
+        _logger.debug("Trans Anal Watcher %s" % id)    
+        thr = Watcher(taskBuffer,id,single=True,sleepTime=60,sitemapper=siteMapper)
+        thr.start()
+        thr.join()
+        time.sleep(1)
+
 # check heartbeat for sent jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
 varMap = {}

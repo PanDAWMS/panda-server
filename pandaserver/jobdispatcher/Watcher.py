@@ -41,10 +41,16 @@ class Watcher (threading.Thread):
                 job = self.taskBuffer.peekJobs([self.pandaID],fromDefined=False,
                                                fromArchived=False,fromWaiting=False)[0]
                 # check job status
-                if job == None or (not job.jobStatus in ['running','sent','starting','holding',
-                                                         'stagein','stageout']):
-                    _logger.debug('%s escape : %s' % (self.pandaID,job.jobStatus))
+                if job == None:
+                    _logger.debug('%s escape : not found' % self.pandaID)
                     return
+                if not job.jobStatus in ['running','sent','starting','holding',
+                                         'stagein','stageout']:
+                    if job.jobStatus == 'transferring' and job.prodSourceLabel in ['user','panda']:
+                        pass
+                    else:
+                        _logger.debug('%s escape : %s' % (self.pandaID,job.jobStatus))
+                        return
                 # time limit
                 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=self.sleepTime)
                 if job.modificationTime < timeLimit or (job.endTime != 'NULL' and job.endTime < timeLimit):
@@ -136,6 +142,8 @@ class Watcher (threading.Thread):
                                 else:
                                     # job recovery failed
                                     job.jobDispatcherErrorDiag = 'lost heartbeat : %s' % str(job.endTime)
+                                    if job.jobStatus == 'transferring':
+                                        job.jobDispatcherErrorDiag += ' in transferring'
                         else:
                             # job recovery failed
                             job.jobDispatcherErrorCode = ErrorCode.EC_Recovery
