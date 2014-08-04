@@ -67,10 +67,14 @@ class SetupperAtlasPlugin (SetupperPluginBase):
     def run(self):
         try:
             self.logger.debug('start run()')
+            bunchTag = ''
+            timeStart = datetime.datetime.utcnow()
             if self.jobs != None and len(self.jobs) > 0:
-                self.logger.debug('PandaID:%s type:%s taskID:%s' % (self.jobs[0].PandaID,
-                                                                    self.jobs[0].prodSourceLabel,
-                                                                    self.jobs[0].taskID))
+                bunchTag = 'PandaID:%s type:%s taskID:%s pType=%s' % (self.jobs[0].PandaID,
+                                                                      self.jobs[0].prodSourceLabel,
+                                                                      self.jobs[0].taskID,
+                                                                      self.jobs[0].processingType)
+                self.logger.debug(bunchTag)
             # instantiate site mapper
             self.siteMapper = SiteMapper(self.taskBuffer)
             # use native DQ2
@@ -143,6 +147,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     self._setupDestination()
                 # make dis datasets for existing files
                 self._makeDisDatasetsForExistingfiles()
+            regTime = datetime.datetime.utcnow() - timeStart
+            self.logger.debug('{0} took {1}sec'.format(bunchTag,regTime.seconds))
             self.logger.debug('end run()')
         except:
             errtype,errvalue = sys.exc_info()[:2]
