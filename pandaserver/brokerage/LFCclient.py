@@ -53,7 +53,9 @@ def _getFilesLFC(files,lfcHost,storages,verbose=False,scopes={}):
                             continue
                         # check host
                         host = match.group(1)
-                        if storages != [] and (not host in storages):
+                        if storages == ['any']:
+                            pass
+                        elif storages != [] and (not host in storages):
                             continue
                         # append
                         if not pfnMap.has_key(retGUID):

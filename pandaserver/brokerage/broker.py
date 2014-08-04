@@ -96,19 +96,39 @@ def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs,allOkFilesMap,tmpLog=None,
     tmpSE = broker_util.getSEfromSched(v_ce.se)
     if tmpLog != None:
         tmpLog.debug('getOkFiles for %s with dq2ID:%s,LFC:%s,SE:%s' % (v_ce.sitename,dq2ID,dq2URL,str(tmpSE)))
+    anyID = 'any'
     # use bulk lookup
     if allLFNs != []:
-        # get bulk lookup data
-        if not allOkFilesMap.has_key(dq2ID):
-            # get files from LRC
-            allOkFilesMap[dq2ID] = broker_util.getFilesFromLRC(allLFNs,dq2URL,guids=allGUIDs,
-                                                               storageName=tmpSE,getPFN=True,
-                                                               scopeList=allScopeList)
+        # get all replicas 
+        if not dq2URL in allOkFilesMap:
+            allOkFilesMap[dq2URL] = {}
+            allOkFilesMap[dq2URL][anyID] = broker_util.getFilesFromLRC(allLFNs,dq2URL,guids=allGUIDs,
+                                                                       storageName=[anyID],getPFN=True,
+                                                                       scopeList=allScopeList)
+        # get files for each dq2ID
+        if not dq2ID in allOkFilesMap[dq2URL]:
+            allOkFilesMap[dq2URL][dq2ID] = {}
+            # loop over all GUIDs 
+            for tmpLFN,tmpSURLs in allOkFilesMap[dq2URL][anyID].iteritems():
+                okSURLs = []
+                # loop over all SURLs
+                for tmpSURL in tmpSURLs:
+                    # get host
+                    match = re.search('^[^:]+://([^:/]+):*\d*/',tmpSURL)
+                    if match == None:
+                        continue
+                    # check host
+                    host = match.group(1)
+                    if host in tmpSE:
+                        okSURLs.append(tmpSURL)
+                # append
+                if okSURLs != []:
+                    allOkFilesMap[dq2URL][dq2ID][tmpLFN] = okSURLs
         # make return map
         retMap = {}
         for tmpLFN in v_files:
-            if allOkFilesMap[dq2ID].has_key(tmpLFN):
-                retMap[tmpLFN] = allOkFilesMap[dq2ID][tmpLFN]
+            if allOkFilesMap[dq2URL][dq2ID].has_key(tmpLFN):
+                retMap[tmpLFN] = allOkFilesMap[dq2URL][dq2ID][tmpLFN]
         tmpLog.debug('getOkFiles done')
         # return
         return retMap

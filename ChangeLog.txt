@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed the brokerage to get all file replicas first 
   * introduced 2h of timeout for transferring user jobs
   * added proxyCache
   * added -m to reassignTask
