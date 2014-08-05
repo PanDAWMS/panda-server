@@ -362,7 +362,7 @@ class DBProxy:
                         sqlJediEvent += "VALUES(:jediTaskID,:datasetID,:pandaID,:fileID,:attemptNr,:eventStatus,"
                         sqlJediEvent += ":startEvent,:startEvent,:lastEvent,:processedEvent) "
                         iEvent = 1
-                        while iEvent < eventServiceInfo[file.lfn]['nEvents']:
+                        while iEvent <= eventServiceInfo[file.lfn]['nEvents']:
                             varMap = {}
                             varMap[':jediTaskID'] = file.jediTaskID
                             varMap[':datasetID'] = file.datasetID
