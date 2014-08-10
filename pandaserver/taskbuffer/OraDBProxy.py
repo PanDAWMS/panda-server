@@ -1501,7 +1501,7 @@ class DBProxy:
                             tmpFile = FileSpec()
                             tmpFile.pack(resF)
                             job.addFile(tmpFile)
-                        self.propagateResultToJEDI(job,self.cur)
+                        self.propagateResultToJEDI(job,self.cur,finishPending=True)
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
@@ -11522,7 +11522,7 @@ class DBProxy:
 
 
     # propagate result to JEDI
-    def propagateResultToJEDI(self,jobSpec,cur,oldJobStatus=None,extraInfo=None):
+    def propagateResultToJEDI(self,jobSpec,cur,oldJobStatus=None,extraInfo=None,finishPending=False):
         comment = ' /* DBProxy.propagateResultToJEDI */'
         datasetContentsStat = {}
         # loop over all files
@@ -11532,7 +11532,7 @@ class DBProxy:
             # skip if no JEDI
             if fileSpec.fileID == 'NULL':
                 continue
-                        # do nothing for unmerged output/log files when merged job successfully finishes,
+            # do nothing for unmerged output/log files when merged job successfully finishes,
             # since they were already updated by merged job
             if jobSpec.jobStatus == 'finished' and fileSpec.isUnMergedOutput():
                 continue
@@ -11633,9 +11633,13 @@ class DBProxy:
                                 datasetContentsStat[datasetID]['nEvents'] += tmpNumEvents 
                             except:
                                 pass
-                # check attemptNr and maxAttempt when the file failed (ready = input failed)
-                # skip secondary datasets which have maxAttempt=None 
-                if fileStatus == 'ready':
+                # update file counts
+                if fileSpec.status == 'merging' and finishPending:
+                    # files to be merged for pending failed jobs
+                    datasetContentsStat[datasetID]['nFilesOnHold'] += 1
+                elif fileStatus == 'ready':
+                    # check attemptNr and maxAttempt when the file failed (ready = input failed)
+                    # skip secondary datasets which have maxAttempt=None 
                     sqlAttNr  = "SELECT attemptNr,maxAttempt FROM ATLAS_PANDA.JEDI_Dataset_Contents "
                     sqlAttNr += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                     varMap = {}
@@ -12286,7 +12290,7 @@ class DBProxy:
                 umFile.status = umJob.jobStatus
                 umJob.addFile(umFile)
             # finish
-            _logger.debug('updateUnmerged PandaID={0}'.format(umJob))
+            _logger.debug('updateUnmerged PandaID={0}'.format(umJob.PandaID))
             self.archiveJob(umJob,False,useCommit=False)
         return
 
