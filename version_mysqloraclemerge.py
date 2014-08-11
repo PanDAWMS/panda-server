@@ -11,7 +11,7 @@ def get_version_base__release_type__provides():
         get_version_base ... get version string base from the setup.cfg
     """
     config = ConfigParser.ConfigParser()
-    config.read(os.path.dirname(os.path.realpath(__file__)) + '/setup_mysql.cfg')
+    config.read(os.path.dirname(os.path.realpath(__file__)) + '/setup_mysqloraclemerge.cfg')
     version_base = config.get("global", "version")
     release_type = config.get("global", "release_type")
     provides = config.get("bdist_rpm", "provides")
