@@ -649,7 +649,7 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
     if cpuConsumptionUnit != None:
         param['cpuConsumptionUnit']=cpuConsumptionUnit
     if node != None:
-        param['modificationHost']=node
+        param['modificationHost']=node[:128]
     if transExitCode != None:
         param['transExitCode']=transExitCode
     if pilotErrorCode != None:
