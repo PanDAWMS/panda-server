@@ -11540,6 +11540,7 @@ class DBProxy:
             updateMetadata  = False
             updateAttemptNr = False
             updateNumEvents = False
+            updateFailedAttempt = False
             varMap = {}
             varMap[':fileID']     = fileSpec.fileID
             varMap[':datasetID']  = fileSpec.datasetID
@@ -11559,6 +11560,8 @@ class DBProxy:
                         # set ready for next attempt
                         varMap[':status'] = 'ready'
                     updateAttemptNr = True
+                    if jobSpec.jobStatus == 'failed':
+                        updateFailedAttempt = True
             else:
                 varMap[':status'] = jobSpec.jobStatus
                 if jobSpec.jobStatus == 'finished':
@@ -11577,6 +11580,9 @@ class DBProxy:
             if updateAttemptNr == True:
                 # increment attemptNr for next attempt
                 sqlFile += ",attemptNr=attemptNr+1"
+            # failed attempts
+            if updateFailedAttempt == True:
+                sqlFile += ",failedAttempt=failedAttempt+1"
             # metadata
             if updateMetadata:
                 # set file metadata
