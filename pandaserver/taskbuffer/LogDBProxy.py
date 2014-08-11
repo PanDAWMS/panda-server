@@ -1,6 +1,7 @@
 """
 proxy for log database connection
 
+obsolete 2013-08-14
 """
 
 import re

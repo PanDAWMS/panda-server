@@ -18,7 +18,7 @@ from pandalogger.PandaLogger import PandaLogger
 _logger = PandaLogger().getLogger('DBProxyPool')
 
 class DBProxyPool:
-    
+
     def __init__(self,dbhost,dbpasswd,nConnection,useTimeout=False):
         # crate lock for callers
         self.lock = Lock()
@@ -33,7 +33,7 @@ class DBProxyPool:
                 proxy = ConBridge()
             else:
                 proxy = DBProxy.DBProxy()
-            iTry = 0    
+            iTry = 0
             while True:
                 if proxy.connect(dbhost,dbpasswd,dbtimeout=60):
                     break
@@ -42,9 +42,9 @@ class DBProxyPool:
                 time.sleep(random.randint(60,90))
             self.proxyList.put(proxy)
             time.sleep(1)
-        # get PID    
-        self.pid = os.getpid()    
-        _logger.debug("ready")            
+        # get PID
+        self.pid = os.getpid()
+        _logger.debug("ready")
 
     # return a free proxy. this method blocks until a proxy is available
     def getProxy(self):
@@ -60,8 +60,8 @@ class DBProxyPool:
         self.lock.acquire()
         # append
         self.callers.append(caller)
-        # release    
-        self.lock.release()                            
+        # release 
+        self.lock.release()
         _logger.debug("PID=%s %s got proxy used by %s" % (self.pid,caller,str(self.callers)))
         """
         # wake up connection
@@ -82,7 +82,7 @@ class DBProxyPool:
         self.lock.acquire()
         # append
         self.callers.remove(caller)
-        # release    
-        self.lock.release()                            
+        # release 
+        self.lock.release()
         _logger.debug("PID=%s %s released. used by %s" % (self.pid,caller,str(self.callers)))
         """

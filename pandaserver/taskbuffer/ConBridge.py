@@ -44,7 +44,7 @@ class Terminator (threading.Thread):
             pass
         # get PID
         pid = os.getpid()
-        _logger.debug("child  %s received termination" % pid)
+        _logger.debug("child  %s received termination ...JARKA..." % pid)
         # kill 
         try:
             os.kill(pid,signal.SIGTERM)
@@ -84,7 +84,7 @@ class ConBridge (object):
         # kill old child process
         self.bridge_killChild()
 
-            
+
     # connect
     def connect(self,dbhost=panda_config.dbhost,dbpasswd=panda_config.dbpasswd,
                 dbuser=panda_config.dbuser,dbname=panda_config.dbname,
@@ -111,12 +111,12 @@ class ConBridge (object):
             datpair[0].close()
             conpair[0].close()
             # connect to database
-            _logger.debug('child  %s connecting to database' % self.pid)            
+            _logger.debug('child  %s connecting to database' % self.pid)
             self.proxy = DBProxy.DBProxy()
             if not self.proxy.connect(dbhost=dbhost,dbpasswd=dbpasswd,dbtimeout=60):
                 _logger.error('child  %s failed to connect' % self.pid)
                 # send error
-                self.bridge_sendError((RuntimeError,'child  %s connection failed' % self.pid))
+                self.bridge_sendError((RuntimeError, 'child  %s connection failed ...JARKA...' % self.pid))
                 # exit
                 self.bridge_childExit()
             # send OK just for ACK
@@ -151,9 +151,9 @@ class ConBridge (object):
                 self.bridge_killChild()
                 return False
 
-            
 
-    #######################        
+
+    #######################
     # communication methods
     
     # send packet
@@ -176,13 +176,13 @@ class ConBridge (object):
             if self.isMaster:
                 roleType = 'master'
             else:
-                roleType = 'child '                
+                roleType = 'child '
             _logger.error('%s %s send error : val=%s - %s %s' % \
                           (roleType,self.pid,str(val),errType,errValue))
             # terminate child
             if not self.isMaster:
                 self.bridge_childExit()
-            raise errType,errValue    
+            raise errType, errValue
             
 
     # receive packet
@@ -220,14 +220,14 @@ class ConBridge (object):
             # set timeout back
             if self.isMaster:
                 self.mysock.settimeout(None)
-            # deserialize
+            # de-serialize
             retVal = pickle.loads(strBody)
             return True,retVal
         except:
             if self.isMaster:
                 roleType = 'master'
             else:
-                roleType = 'child '                
+                roleType = 'child '
             errType,errValue = sys.exc_info()[:2]
             if errType == HarmlessEx:
                 _logger.debug('%s %s recv harmless ex : %s' % \
@@ -239,10 +239,10 @@ class ConBridge (object):
             if not self.isMaster:
                 self.bridge_childExit()
             raise errType,errValue
-                                    
-    
 
-    #######################        
+
+
+    #######################
     # child's methods
 
     # send error
@@ -281,7 +281,7 @@ class ConBridge (object):
             except:
                 pass
             # exit
-            _logger.debug("child  %s going to exit" % self.pid)            
+            _logger.debug("child  %s going to exit" % self.pid)
             os._exit(exitCode)
             
 
@@ -303,7 +303,7 @@ class ConBridge (object):
                 _logger.error('child  %s died : %s %s' % (self.pid,errType,errValue))
                 # exit
                 self.bridge_childExit()
-            if self.verbose:    
+            if self.verbose:
                 _logger.debug('child  %s method %s executing' % (self.pid,comStr))
             try:    
                 # execute
@@ -313,7 +313,7 @@ class ConBridge (object):
                 if comStr in ['querySQLS']:
                     newRes = [True]+res[1:]
                     res = newRes
-                if self.verbose:    
+                if self.verbose:
                     _logger.debug('child  %s method %s completed' % (self.pid,comStr))
                 # return    
                 self.bridge_sendResponse((res,variables[0],variables[1]))
@@ -326,10 +326,10 @@ class ConBridge (object):
                     self.bridge_childExit()
                 # send error
                 self.bridge_sendError((errType,errValue))
-                        
 
 
-    #######################        
+
+    #######################
     # master's methods
 
     # kill child
@@ -371,7 +371,7 @@ class ConBridge (object):
             _logger.debug('master %s killed child=%s' % (self.pid,self.child_pid))
 
             
-    # get responce
+    # get response
     def bridge_getResponse(self):
         # get status
         status,strStatus = self.bridge_recv()
@@ -425,7 +425,7 @@ class ConBridge (object):
             # copy Datasets
             return False
 
-        
+
         # copy changes in objects to master
         def copyChanges(self,oldPar,newPar):
             if isinstance(oldPar,types.ListType):
@@ -443,7 +443,7 @@ class ConBridge (object):
                 self.copyTbObjChanges(oldPar,newPar)
 
 
-        # method emulation    
+        # method emulation
         def __call__(self,*args,**keywords):
             while True:
                 try:
@@ -481,7 +481,7 @@ class ConBridge (object):
                     except:
                         _logger.error('master %s connect failed' % self.pid)
 
-                    
+
     # get atter for cursor attributes
     def __getattribute__(self,name):
         if object.__getattribute__(self,'isMaster'):

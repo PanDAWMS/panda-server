@@ -65,7 +65,7 @@ def cleanUserID(id):
 # insert with rety
 def insertWithRetryCassa(familyName,keyName,valMap,msgStr,nTry=3):
     for iTry in range(nTry):
-        try:    
+        try:
             familyName.insert(keyName,valMap)
         except pycassa.MaximumRetryException,tmpE:
             if iTry+1 < nTry:
@@ -75,7 +75,7 @@ def insertWithRetryCassa(familyName,keyName,valMap,msgStr,nTry=3):
                 raise pycassa.MaximumRetryException,tmpE.value
         else:
             break
-    
+
 
 # touch in Cassandra
 def touchFileCassa(filefamily,fileKeyName,timeNow):
@@ -106,7 +106,7 @@ def touchFileCassa(filefamily,fileKeyName,timeNow):
         errStr = "cannot touch %s due to %s %s" % (fileKeyName,errType,errValue) 
         _logger.error(errStr)
         return False
-    
+
 
 # upload file 
 def putFile(req,file):
@@ -140,7 +140,7 @@ def putFile(req,file):
         else:
             errStr += " Please remove redundant files from your workarea"
         _logger.error(errStr)
-        _logger.debug("putFile : end")            
+        _logger.debug("putFile : end")
         return errStr
     try:
         fileFullPath = '%s/%s' % (panda_config.cache_dir,file.filename.split('/')[-1])
@@ -181,7 +181,7 @@ def putFile(req,file):
     # file size
     fileSize = len(fileContent)
     # user name
-    username = cleanUserID(req.subprocess_env['SSL_CLIENT_S_DN'])    
+    username = cleanUserID(req.subprocess_env['SSL_CLIENT_S_DN'])
     _logger.debug("putFile : written dn=%s file=%s size=%s crc=%s" % \
                   (username,file.filename,fileSize,checkSum))
     # put file info to DB
@@ -266,7 +266,7 @@ def putFile(req,file):
                 nSplit,tmpMod = divmod(len(fileContent),splitSize)
                 if tmpMod != 0:
                     nSplit += 1
-                _logger.debug('Inserting %s with %s blocks' % (fileKeyName,nSplit))                    
+                _logger.debug('Inserting %s with %s blocks' % (fileKeyName, nSplit))
                 for splitIdx in range(nSplit): 
                     # split to small chunks since cassandra is not good at large files
                     tmpFileContent = fileContent[splitSize*splitIdx:splitSize*(splitIdx+1)]
@@ -326,7 +326,7 @@ def getFile(req,fileName):
                 fileFullPath = '%s%s' % (panda_config.cache_dir,fileInfo[hostKey])
                 # touch
                 os.utime(fileFullPath,None)
-                _logger.debug("getFile : %s end" % fileName)                
+                _logger.debug("getFile : %s end" % fileName)
                 # return
                 return ErrorCode.EC_Redirect('/cache%s' % fileInfo[hostKey])
             except:
@@ -426,7 +426,7 @@ def deleteFile(req,file):
         #os.remove('%s/%s' % (panda_config.cache_dir,file.split('/')[-1]))
         return 'True'
     except:
-        return 'False'        
+        return 'False'
 
 
 # touch file 
@@ -439,12 +439,14 @@ def touchFile(req,filename):
     except:
         errtype,errvalue = sys.exc_info()[:2]
         _logger.error("touchFile : %s %s" % (errtype,errvalue))
-        return 'False'        
-                        
+        return 'False'
+
 
 # get server name:port for SSL
 def getServer(req):
-    return "%s:%s" % (panda_config.pserverhost,panda_config.pserverport)
+    _logger.debug(req)
+#    return "%s:%s" % (panda_config.pserverhost,panda_config.pserverport)
+    return "%s:%s" % (panda_config.pserverhostssl, panda_config.pserverport)
 
 # get server name:port for HTTP
 def getServerHTTP(req):
@@ -540,7 +542,7 @@ def uploadLog(req,file):
     if contentLength > sizeLimit:
         errStr = "failed to upload log due to size limit"
         tmpLog.error(errStr)
-        tmpLog.debug("end")            
+        tmpLog.debug("end")
         return errStr
     jediLogDir = '/jedilog'
     retStr = ''

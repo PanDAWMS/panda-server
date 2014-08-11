@@ -12,7 +12,7 @@ def run(inFile,v_onlyTA):
         f.close()
     except:
         type, value, traceBack = sys.exc_info()
-        print("run() : %s %s" % (type,value))
+        print("run() : %s %s" % (type, value))
         return
     # password
     from config import panda_config

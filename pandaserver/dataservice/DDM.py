@@ -19,7 +19,9 @@ _env+= 'DQ2_HOME=%s/opt/dq2 ' % panda_config.dq2_dir
 _env+= 'http_proxy=%s '       % panda_config.httpProxy
 _env+= 'https_proxy=%s '      % panda_config.httpProxy
 
-_env+= 'PYTHONPATH=%s/usr/lib/python2.3/site-packages:$PYTHONPATH' \
+#_env+= 'PYTHONPATH=%s/usr/lib/python2.3/site-packages:$PYTHONPATH' \
+#       % panda_config.dq2_dir
+_env += 'PYTHONPATH=%s/opt/dq2/lib:$PYTHONPATH' \
        % panda_config.dq2_dir
 
 # method object wrapping DQ2 method

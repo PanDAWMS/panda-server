@@ -88,7 +88,7 @@ class TaskBuffer:
                 weight = 0.0
             if jobs[0].processingType in ['gangarobot','gangarobot-pft']:
                 priorityOffset = 3000
-            if jobs[0].processingType in ['hammercloud-fax']:    
+            if jobs[0].processingType in ['hammercloud-fax']:
                 priorityOffset = 1001
         # check quota
         if weight == None:
@@ -108,7 +108,7 @@ class TaskBuffer:
     
     # store Jobs into DB
     def storeJobs(self,jobs,user,joinThr=False,forkSetupper=False,fqans=[],hostname='',resetLocInSetupper=False,
-                  checkSpecialHandling=True,toPending=False):
+                  checkSpecialHandling=True, toPending=False, userVO='atlas'):
         try:
             _logger.debug("storeJobs : start for %s nJobs=%s" % (user,len(jobs)))
             # check quota for priority calculation
@@ -117,7 +117,8 @@ class TaskBuffer:
             userJobsetID   = -1
             userStatus     = True
             priorityOffset = 0
-            userVO         = 'atlas'
+#            userVO         = 'atlas'
+            userVO = userVO
             userCountry    = None
             useExpress     = False
             nExpressJobs   = 0
@@ -221,7 +222,7 @@ class TaskBuffer:
                             break
             # return if DN is blocked
             if not userStatus:
-                _logger.debug("storeJobs : end for %s DN is blocked 2" % user)                
+                _logger.debug("storeJobs : end for %s DN is blocked 2" % user)
                 return []
             # extract VO
             for tmpFQAN in fqans:
@@ -365,10 +366,10 @@ class TaskBuffer:
                     # mapping of jobsetID for event service
                     if origEsJob:
                         esJobsetMap[esIndex] = job.jobsetID
-                if job.prodSourceLabel in ['user','panda','ptest','rc_test']:                
+                if job.prodSourceLabel in ['user','panda','ptest','rc_test']:
                     ret.append((job.PandaID,job.jobDefinitionID,{'jobsetID':job.jobsetID}))
                 else:
-                    ret.append((job.PandaID,job.jobDefinitionID,job.jobName))                
+                    ret.append((job.PandaID, job.jobDefinitionID, job.jobName))
                 serNum += 1
             # release DB proxy
             self.proxyPool.putProxy(proxy)
@@ -382,13 +383,13 @@ class TaskBuffer:
                     # cannot use 'thr =' because it may trigger garbage collector
                     Setupper(self,newJobs,pandaDDM=usePandaDDM,forkRun=forkSetupper,resetLocation=resetLocInSetupper).start()
             # return jobIDs
-            _logger.debug("storeJobs : end for %s succeeded" % user)            
+            _logger.debug("storeJobs : end for %s succeeded" % user)
             return ret
         except:
             errType,errValue = sys.exc_info()[:2]
             _logger.error("storeJobs : %s %s" % (errType,errValue))
             return "ERROR: ServerError with storeJobs"
-           
+
 
     # lock jobs for reassign
     def lockJobsForReassign(self,tableName,timeLimit,statList,labels,processTypes,sites,clouds,useJEDI=False):
@@ -443,12 +444,12 @@ class TaskBuffer:
             Setupper(self,jobs).start()
         # return jobIDs
         return True
-    
+
 
     # update overall job information
     def updateJobs(self,jobs,inJobsDefined,oldJobStatusList=None,extraInfo=None):
         # get DB proxy
-        proxy = self.proxyPool.getProxy()        
+        proxy = self.proxyPool.getProxy()
         # loop over all jobs
         returns    = []
         ddmIDs     = []
@@ -487,7 +488,7 @@ class TaskBuffer:
     # update job jobStatus only
     def updateJobStatus(self,jobID,jobStatus,param,updateStateChange=False,attemptNr=None):
         # get DB proxy
-        proxy = self.proxyPool.getProxy()        
+        proxy = self.proxyPool.getProxy()
         # update DB and buffer
         if re.match('^finished$',jobStatus,re.I) or re.match('^failed$',jobStatus,re.I):
             ret = proxy.archiveJobLite(jobID,jobStatus,param)
@@ -520,7 +521,7 @@ class TaskBuffer:
         # release proxy
         self.proxyPool.putProxy(proxy)
         return ret
-    
+
 
     # retry failed analysis jobs in Active4
     def retryJobsInActive(self,prodUserName,jobDefinitionID):
@@ -532,11 +533,11 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         return ret
 
-    
+
     # activate jobs
     def activateJobs(self,jobs):
         # get DB proxy
-        proxy = self.proxyPool.getProxy()        
+        proxy = self.proxyPool.getProxy()
         # loop over all jobs
         returns = []
         for job in jobs:
@@ -551,7 +552,7 @@ class TaskBuffer:
     # send jobs to jobsWaiting
     def keepJobs(self,jobs):
         # get DB proxy
-        proxy = self.proxyPool.getProxy()        
+        proxy = self.proxyPool.getProxy()
         # loop over all jobs
         returns = []
         for job in jobs:
@@ -566,7 +567,7 @@ class TaskBuffer:
     # delete stalled jobs
     def deleteStalledJobs(self,libFileName):
         # get DB proxy
-        proxy = self.proxyPool.getProxy()        
+        proxy = self.proxyPool.getProxy()
         # execute
         ret = proxy.deleteStalledJobs(libFileName)
         # release proxy
@@ -606,8 +607,8 @@ class TaskBuffer:
         # release proxy
         self.proxyPool.putProxy(proxy)
         return retStr
-        
-    
+
+
     # get jobs
     def getJobs(self,nJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
                 atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry):
@@ -629,7 +630,7 @@ class TaskBuffer:
             self.proxyPool.putProxy(proxy)
         # return
         return jobs+[nSent,proxyKey]
-        
+
 
     # run task assignment
     def runTaskAssignment(self,jobs):
@@ -648,7 +649,7 @@ class TaskBuffer:
             if ret == None:
                 # append for TA
                 newJobs.append(job)
-            retList.append(ret)    
+            retList.append(ret)
         # release DB proxy
         self.proxyPool.putProxy(proxy)
         # run setupper
@@ -692,7 +693,7 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         # return
         return res
-        
+
 
     # check merge job generation status
     def checkMergeGenerationStatus(self,dn,jobID):
@@ -751,7 +752,7 @@ class TaskBuffer:
         except:
             return retNA
 
-    
+
     # get job status
     def getJobStatus(self,jobIDs,fromDefined=True,fromActive=True,fromArchived=True,fromWaiting=True):
         # get DBproxy
@@ -889,7 +890,7 @@ class TaskBuffer:
         # get ArchiveDBproxy
         proxy = self.proxyPool.getProxy()
         # get IDs
-        idStatus = proxy.getPandIDsWithJobIDLog(dn,jobID,idStatus,nJobs,buildJobID)        
+        idStatus = proxy.getPandIDsWithJobIDLog(dn, jobID, idStatus, nJobs, buildJobID)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -920,7 +921,7 @@ class TaskBuffer:
         # return
         return proxy.beyondPledgeRatio
 
-        
+
     # get the number of waiting jobs with a dataset
     def getNumWaitingJobsForPD2P(self,datasetName):
         # get DBproxy
@@ -991,7 +992,7 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         # return
         return ret
-    
+
 
     # get outDSs with userName/jobID
     def getOutDSsForReBrokerage(self,userName,jobID):
@@ -1060,14 +1061,14 @@ class TaskBuffer:
                 if tmpFile.type=='input':
                     if not dsFileMap.has_key(tmpFile.dataset):
                         dsFileMap[tmpFile.dataset] = []
-                    if not tmpFile.lfn in dsFileMap[tmpFile.dataset]:    
+                    if not tmpFile.lfn in dsFileMap[tmpFile.dataset]:
                         dsFileMap[tmpFile.dataset].append(tmpFile.lfn)
-            # dq2            
+            # dq2
             for tmpDS,tmpFileList in dsFileMap.iteritems():
                 scrStr += "dq2-get --files "
                 for tmpLFN in tmpFileList:
                     scrStr += "%s," % tmpLFN
-                scrStr = scrStr[:-1]    
+                scrStr = scrStr[:-1]
                 scrStr += " %s\n" % tmpDS
                 # ln
                 for tmpLFN in tmpFileList:
@@ -1102,8 +1103,8 @@ class TaskBuffer:
             errType,errValue = sys.exc_info()[:2]
             _logger.error("getScriptOfflineRunning : %s %s" % (errType,errValue))
             return "ERROR: ServerError with getScriptOfflineRunning"
-                                
-            
+
+
     # kill jobs
     def killJobs(self,ids,user,code,prodManager,wgProdRole=[]):
         # get DBproxy
@@ -1133,7 +1134,7 @@ class TaskBuffer:
                             if tmpFile.type in ['output','log']:
                                 if not tmpFile.destinationDBlock in tmpDestDBlocks:
                                     tmpDestDBlocks.append(tmpFile.destinationDBlock)
-                        # run            
+                        # run
                         cThr = Closer(self,tmpDestDBlocks,tmpJob)
                         cThr.start()
                         cThr.join()
@@ -1260,7 +1261,7 @@ class TaskBuffer:
         # return
         return ret
 
-    
+
     # get PandaIDs to be updated in prodDB
     def getPandaIDsForProdDB(self,limit,lockedby):
         # get DBproxy
@@ -1423,7 +1424,19 @@ class TaskBuffer:
         # return
         return ret
 
-    
+
+    # check duplicated sandbox file
+    def checkSandboxFileEC2(self, userName, fileSize, checkSum):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.checkSandboxFileEC2(userName, fileSize, checkSum)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
     # insert datasets
     def insertDatasets(self,datasets):
         # get DBproxy
@@ -1462,7 +1475,7 @@ class TaskBuffer:
         # return
         return ret
 
-    
+
     # set GUIDs
     def setGUIDs(self,files):
         # get DBproxy
@@ -1474,7 +1487,7 @@ class TaskBuffer:
         # return
         return ret
 
-    
+
     # query PandaID with dataset
     def queryPandaIDwithDataset(self,datasets):
         # get DBproxy
@@ -1486,7 +1499,7 @@ class TaskBuffer:
         # return
         return ret
 
-    
+
     # query PandaID with filenames
     def queryPandaIDwithLFN(self,lfns):
         # get DBproxy
@@ -1509,7 +1522,7 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         # return
         return retList
-    
+
 
     # delete dataset
     def deleteDatasets(self,datasets):
@@ -1662,7 +1675,7 @@ class TaskBuffer:
         # return
         return ret
 
-    
+
     # get destinationSE for a dataset
     def getDestSE(self,dsname,fromArch=False):
         # get DBproxy
@@ -1674,7 +1687,7 @@ class TaskBuffer:
         # return
         return ret
 
-    
+
     # get job statistics
     def getJobStatistics(self,archived=False,predefined=False,workingGroup='',countryGroup='',jobType='',forAnal=None,minPriority=None):
         # get DBproxy
@@ -1738,7 +1751,7 @@ class TaskBuffer:
         # return
         return ret
 
-    
+
     # get highest prio jobs
     def getHighestPrioJobStat(self,perPG=False,useMorePG=False):
         # get DBproxy
@@ -1814,7 +1827,7 @@ class TaskBuffer:
         # return
         return ret
 
-    
+
     # get number of activated analysis jobs
     def getNAnalysisJobs(self,nProcesses):
         # get DBproxy
@@ -1838,7 +1851,7 @@ class TaskBuffer:
         # return
         return ret
 
-    
+
     # get CloudTask
     def getCloudTask(self,tid):
         # get DBproxy
@@ -2163,7 +2176,7 @@ class TaskBuffer:
         # return
         return ret
 
-    
+
     # generate pilot token
     def genPilotToken(self,schedulerhost,scheduleruser,schedulerid):
         # get DBproxy
@@ -2187,7 +2200,7 @@ class TaskBuffer:
         # return
         return ret
 
-    
+
     # delete files from memcached
     def deleteFilesFromMemcached(self,site,node,files):
         # get DBproxy
@@ -2233,7 +2246,7 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         # return
         return ret
-    
+
 
     # query an SQL return Status  
     def querySQLS(self,sql,varMap,arraySize=1000):
@@ -2400,7 +2413,6 @@ class TaskBuffer:
         return ret
 
 
-
     # get active JediTasks in a time range
     def getJediTasksInTimeRange(self,dn,timeRangeStr):
         # check DN
@@ -2533,6 +2545,186 @@ class TaskBuffer:
         # return
         return ret
 
+#    ### PanDA - HTCondor API ... disabled in server, done in BigPanDAmon
+#    # store HTCondor Jobs into DB
+#    def storeHTCondorJobs(self, jobs, user, fqans=[]):
+#        """
+#            storeHTCondorJobs
+#            args:
+#                jobs: list of dict with HTCondor Jobs properties
+#                user: DN of the user adding HTCondor job via this API
+#                fquans: list of FQANs of the user's proxy
+#            returns:
+#                pickle of list of tuples (GlobalJobID, WmsID) of added jobs
+#        """
+#        try:
+#            _logger.debug("storeHTCondorJobs : start for %s nJobs=%s" % (user, len(jobs)))
+#            userStatus = True
+#            # check ban user except internally generated jobs
+#            if len(jobs) > 0:
+#                # get DB proxy
+#                proxy = self.proxyPool.getProxy()
+#                # check user status
+#                tmpStatus = proxy.checkBanUser(dn=user, sourceLabel='htcondor')
+#                # release proxy
+#                self.proxyPool.putProxy(proxy)
+#                # return if DN is blocked
+#                if not tmpStatus:
+#                    _logger.debug("storeHTCondorJobs : end for %s DN is blocked 1" % user)
+#                    return []
+#            # return if DN is blocked
+#            if not userStatus:
+#                _logger.debug("storeHTCondorJobs : end for %s DN is blocked 2" % user)
+#                return []
+#            # extract VO
+#            for tmpFQAN in fqans:
+#                match = re.search('^/([^/]+)/', tmpFQAN)
+#                if match != None:
+#                    userVO = match.group(1)
+#                    break
+#            # get DB proxy
+#            proxy = self.proxyPool.getProxy()
+#            # loop over all jobs
+#            ret = []
+#            for job in jobs:
+#                # insert job to DB
+#                if not proxy.insertNewHTCondorJob(job):
+#                    continue
+#                else:
+#                    # append
+#                    ret.append((job['GlobalJobID'], job['WmsID'],))
+#            # release DB proxy
+#            self.proxyPool.putProxy(proxy)
+#            # return jobIDs
+#            _logger.debug("storeHTCondorJobs : end for %s succeeded" % user)
+#            return ret
+#        except:
+#            errType, errValue = sys.exc_info()[:2]
+#            _logger.error("storeHTCondorJobs : %s %s" % (errType, errValue))
+#            return "ERROR: ServerError with storeHTCondorJobs"
+#
+#
+#    # update HTCondor Jobs in DB
+#    def updateHTCondorJobs(self, jobs, user, fqans=[]):
+#        """
+#            updateHTCondorJobs
+#            args:
+#                jobs: the list of dictionaries with HTCondorJobSpecs properties 
+#                    to be updated. 
+#                    GlobalJobID key has to be present in every dictionary.
+#                user: DN of the user adding HTCondor job via this API
+#                fquans: list of FQANs of the user's proxy
+#            returns:
+#                pickle of list of tuples (GlobalJobID, WmsID) of updated jobs
+#        """
+#        try:
+#            _logger.debug("updateHTCondorJobs : start for %s nJobs=%s" % (user, len(jobs)))
+#            userStatus = True
+#            # check ban user except internally generated jobs
+#            if len(jobs) > 0:
+#                # get DB proxy
+#                proxy = self.proxyPool.getProxy()
+#                # check user status
+#                tmpStatus = proxy.checkBanUser(dn=user, sourceLabel='htcondor')
+#                # release proxy
+#                self.proxyPool.putProxy(proxy)
+#                # return if DN is blocked
+#                if not tmpStatus:
+#                    _logger.debug("updateHTCondorJobs : end for %s DN is blocked 1" % user)
+#                    return []
+#            # return if DN is blocked
+#            if not userStatus:
+#                _logger.debug("updateHTCondorJobs : end for %s DN is blocked 2" % user)
+#                return []
+#            # extract VO
+#            for tmpFQAN in fqans:
+#                match = re.search('^/([^/]+)/', tmpFQAN)
+#                if match != None:
+#                    userVO = match.group(1)
+#                    break
+#            # get DB proxy
+#            proxy = self.proxyPool.getProxy()
+#            # loop over all jobs
+#            ret = []
+#            for job in jobs:
+#                # update job in DB
+#                if not proxy.updateHTCondorJob(job):
+#                    continue
+#                else:
+#                    # append
+#                    ret.append((job['GlobalJobID'],))
+#            # release DB proxy
+#            self.proxyPool.putProxy(proxy)
+#            # return jobIDs
+#            _logger.debug("updateHTCondorJobs : end for %s succeeded" % user)
+#            return ret
+#        except:
+#            errType, errValue = sys.exc_info()[:2]
+#            _logger.error("updateHTCondorJobs : %s %s" % (errType, errValue))
+#            return "ERROR: ServerError with updateHTCondorJobs"
+#
+#
+#    # remove HTCondor Jobs in DB
+#    def removeHTCondorJobs(self, jobs, user, fqans=[]):
+#        """
+#            removeHTCondorJobs
+#            args:
+#                jobs: the list of dict with GlobalJobIDs of HTCondor jobs to be removed
+#                user: DN of the user adding HTCondor job via this API
+#                fquans: list of FQANs of the user's proxy
+#            returns:
+#                pickle of list of tuples (GlobalJobID, WmsID) of updated jobs
+#        """
+#        try:
+#            _logger.debug("removeHTCondorJobs : start for %s nJobs=%s" % (user, len(jobs)))
+#            userStatus = True
+#            # check ban user except internally generated jobs
+#            if len(jobs) > 0:
+#                # get DB proxy
+#                proxy = self.proxyPool.getProxy()
+#                # check user status
+#                tmpStatus = proxy.checkBanUser(dn=user, sourceLabel='htcondor')
+#                # release proxy
+#                self.proxyPool.putProxy(proxy)
+#                # return if DN is blocked
+#                if not tmpStatus:
+#                    _logger.debug("removeHTCondorJobs : end for %s DN is blocked 1" % user)
+#                    return []
+#            # return if DN is blocked
+#            if not userStatus:
+#                _logger.debug("removeHTCondorJobs : end for %s DN is blocked 2" % user)
+#                return []
+#            # extract VO
+#            for tmpFQAN in fqans:
+#                match = re.search('^/([^/]+)/', tmpFQAN)
+#                if match != None:
+#                    userVO = match.group(1)
+#                    break
+#            # get DB proxy
+#            proxy = self.proxyPool.getProxy()
+#            # loop over all jobs
+#            ret = []
+#            for job in jobs:
+#                try:
+#                    GlobalJobID = job['GlobalJobID']
+#                except KeyError:
+#                    GlobalJobID = None
+#                    _logger.error('Cannot find GlobalJobID in %s' % (job))
+#                # update job in DB
+#                if not proxy.removeHTCondorJob(GlobalJobID):
+#                    continue
+#                else:
+#                    # append
+#                    ret.append((GlobalJobID,))
+#            # release DB proxy
+#            self.proxyPool.putProxy(proxy)
+#            # return jobIDs
+#            _logger.debug("removeHTCondorJobs : end for %s succeeded" % user)
+#            return ret
+#        except:
+#            errType, errValue = sys.exc_info()[:2]
+#            _logger.error("removeHTCondorJobs : %s %s" % (errType, errValue))
+#            return "ERROR: ServerError with removeHTCondorJobs"
 
 
 # Singleton

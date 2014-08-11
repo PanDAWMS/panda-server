@@ -3,8 +3,12 @@ setup dataset
 
 '''
 
+import os
 import re
 import sys
+import time
+import types
+import urllib
 import datetime
 import commands
 import threading
@@ -16,6 +20,15 @@ from pandalogger.PandaLogger import PandaLogger
 # logger
 _logger = PandaLogger().getLogger('Setupper')
 
+# temporary
+### TODO FIXME RFC: check whether we need PandaDDMSource at all in mysql clone
+PandaDDMSource = ['BNLPANDA','BNL-OSG2_MCDISK','BNL-OSG2_DATADISK','BNL-OSG2_MCTAPE','BNL-OSG2_DATATAPE']
+
+# default siteID
+#_defaultSiteID = 'BNL_ATLAS_1'
+#_defaultAnalySiteID = 'ANALY_BNL_ATLAS_1'
+_defaultSiteID = 'BNL-LSST'
+_defaultAnalySiteID = 'ANALY_BNL-LSST'
 
 
 # message class
@@ -34,7 +47,6 @@ class MsgWrapper:
 
     def warning(self,msg):
         _logger.warning(self.timestamp + ' ' + msg)
-
 
 
 # main class
@@ -127,8 +139,8 @@ class Setupper (threading.Thread):
                 # run main procedure in another process because python doesn't release memory
                 com =  'cd %s > /dev/null 2>&1; export HOME=%s; ' % (panda_config.home_dir_cwd,panda_config.home_dir_cwd)
                 com += 'source %s; ' % panda_config.glite_source
-                com += 'env PYTHONPATH=%s:%s %s/python -Wignore %s/dataservice/forkSetupper.py -i %s' % \
-                       (panda_config.pandaCommon_dir,panda_config.pandaPython_dir,panda_config.native_python,
+                com += 'env PYTHONPATH=%s:%s:%s %s/python -Wignore %s/dataservice/forkSetupper.py -i %s' % \
+                       (panda_config.pandaCommon_dir, panda_config.pandaPython_dir, panda_config.dq2_dir + '/opt/dq2/lib', panda_config.native_python,
                         panda_config.pandaPython_dir,outFileName)
                 if self.onlyTA:
                     com += " -t"
@@ -140,7 +152,6 @@ class Setupper (threading.Thread):
         except:
             errtype,errvalue = sys.exc_info()[:2]
             tmpLog.error('master failed with {0}:{1}'.format(errtype,errvalue))
-
 
 
     #  update jobs
@@ -179,3 +190,5 @@ class Setupper (threading.Thread):
         del failedJobs
         del activateJobs
         del waitingJobs
+
+

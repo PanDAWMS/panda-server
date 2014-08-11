@@ -21,7 +21,7 @@ class LogDBProxyPool:
         _logger.debug("init")
         self.proxyList = Queue.Queue(nConnection)
         for i in range(nConnection): 
-            _logger.debug("connect -> %s " % i)            
+            _logger.debug("connect -> %s " % i)
             proxy = LogDBProxy.LogDBProxy()
             nTry = 10
             for iTry in range(nTry):
@@ -33,7 +33,7 @@ class LogDBProxyPool:
                 time.sleep(random.randint(10,20))
             self.proxyList.put(proxy)
             time.sleep(1)
-        _logger.debug("ready")            
+        _logger.debug("ready")
 
     # return a free proxy. this method blocks until a proxy is available
     def getProxy(self):

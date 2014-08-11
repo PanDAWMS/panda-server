@@ -42,6 +42,6 @@ class Activator (threading.Thread):
                 self.taskBuffer.activateJobs(acJobs)
             # update dataset in DB
             if self.dataset.type == 'dispatch':
-                self.dataset.status = 'completed'        
+                self.dataset.status = 'completed'
                 self.taskBuffer.updateDatasets([self.dataset])
         _logger.debug("end: %s" % self.dataset.name)

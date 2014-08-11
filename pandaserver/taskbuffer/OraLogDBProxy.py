@@ -7,9 +7,23 @@ import re
 import sys
 import time
 
-import cx_Oracle
-
+# logger
 from pandalogger.PandaLogger import PandaLogger
+_logger = PandaLogger().getLogger('LogDBProxy')
+
+try:
+    import cx_Oracle
+except ImportError:
+    cx_Oracle = None
+    _logger.error('Cannot import cx_Oracle')
+try:
+    import MySQLdb
+except ImportError:
+    MySQLdb = None
+    _logger.error('Cannot import MySQLdb')
+from WrappedCursor import WrappedCursor
+from WrappedConnection import WrappedConnection
+
 from config import panda_config
 
 import SiteSpec
@@ -18,8 +32,6 @@ import CloudSpec
 from JobSpec  import JobSpec
 from FileSpec import FileSpec
 
-# logger
-_logger = PandaLogger().getLogger('LogDBProxy')
 
 # proxy
 class LogDBProxy:
@@ -30,21 +42,125 @@ class LogDBProxy:
         self.conn = None
         # cursor object
         self.cur = None
-        
+        # backend
+        self.backend = 'oracle'
+        # schema name, PANDA
+        self.schemanamebase = 'ATLAS_PANDA'
+        # schema name, PANDAMETA
+        self.schemanamemeta = 'ATLAS_PANDAMETA'
+        # schema name, GRISLI
+        self.schemanamegris = 'ATLAS_GRISLI'
+        # schema name, PANDAARCH
+        self.schemanamearch = 'ATLAS_PANDAARCH'
+        # imported cx_Oracle, MySQLdb?
+        _logger.info('cx_Oracle=%s' % str(cx_Oracle))
+        _logger.info('MySQLdb=%s' % str(MySQLdb))
+
+
     # connect to DB
-    def connect(self,dbhost=panda_config.logdbhost,dbpasswd=panda_config.logdbpasswd,
-                dbuser=panda_config.logdbuser,dbname=panda_config.logdbname,reconnect=False):
+    def connect(self, dbhost=panda_config.logdbhost, dbpasswd=panda_config.logdbpasswd,
+                dbuser=panda_config.logdbuser, dbname=panda_config.logdbname,
+                dbtimeout=None, reconnect=False,
+                dbengine=panda_config.logdbengine, dbport=panda_config.logdbport):
+        _logger.debug("connect : re=%s" % reconnect)
         # keep parameters for reconnect
+        # backend
+        self.backend = dbengine
+        _logger.debug("connect : backend = %s" % self.backend)
         if not reconnect:
-            self.dbhost    = dbhost
-            self.dbpasswd  = dbpasswd
-            self.dbuser    = dbuser
-            self.dbname    = dbname
-        # connect    
+            # configure connection and backend-related properties
+            if str(self.backend) == str('mysql'):
+                self._connectConfigMySQL()
+            else:  # oracle
+                self._connectConfigOracle(dbhost, dbpasswd, dbuser, dbname, dbtimeout)
+        # close old connection
+        if reconnect:
+            _logger.debug("closing old connection")
+            try:
+                self.conn.close()
+            except:
+                _logger.debug("failed to close old connection")
+        # connect
+        connectBackend = { \
+            'oracle': self._connectOracle, \
+            'mysql': self._connectMySQL \
+        }
+        if self.backend in connectBackend.keys():
+            return connectBackend[self.backend](self.dbhost, self.dbpasswd, self.dbuser, self.dbname, self.dbtimeout, reconnect, self.backend, self.dbport)
+        else:
+            return connectBackend['oracle'](self.dbhost, self.dbpasswd, self.dbuser, self.dbname, self.dbtimeout, reconnect, self.backend, self.dbport)
+
+
+    def _connectConfigOracle(self, dbhost=panda_config.logdbhost, dbpasswd=panda_config.logdbpasswd,
+                dbuser=panda_config.logdbuser, dbname=panda_config.logdbname,
+                dbtimeout=None, reconnect=False):
+        self.dbhost = dbhost
+        self.dbpasswd = dbpasswd
+        self.dbuser = dbuser
+        self.dbname = dbname
+        self.dbtimeout = dbtimeout
+        self.dbport = None
+
+        if hasattr(panda_config, 'schemanamebase'):
+            self.schemanamebase = panda_config.schemanamebase
+        if hasattr(panda_config, 'schemanamemeta'):
+            self.schemanamemeta = panda_config.schemanamemeta
+        if hasattr(panda_config, 'schemanamegris'):
+            self.schemanamegris = panda_config.schemanamegris
+        if hasattr(panda_config, 'schemanamearch'):
+            self.schemanamearch = panda_config.schemanamearch
+
+
+    def _connectConfigMySQL(self):
+        if hasattr(panda_config, 'dbtimeout'):
+            self.dbtimeout = panda_config.dbtimeout
+
+        if hasattr(panda_config, 'logdbhost'):
+            self.dbhost = panda_config.logdbhost
+        if hasattr(panda_config, 'logdbpasswd'):
+            self.dbpasswd = panda_config.logdbpasswd
+        if hasattr(panda_config, 'logdbuser'):
+            self.dbuser = panda_config.logdbuser
+        if hasattr(panda_config, 'logdbname'):
+            self.dbname = panda_config.logdbname
+            self.schemanamebase = panda_config.logdbname
+            self.schemanamemeta = panda_config.logdbname
+            self.schemanamegris = panda_config.logdbname
+            self.schemanamearch = panda_config.logdbname
+        if hasattr(panda_config, 'logdbport'):
+            self.dbport = panda_config.logdbport
+
+
+    # connect to Oracle dbengine
+    def _connectOracle(self, dbhost=panda_config.dbhost, dbpasswd=panda_config.dbpasswd,
+                dbuser=panda_config.dbuser, dbname=panda_config.dbname,
+                dbtimeout=None, reconnect=False,
+                dbengine=None, dbport=None):
+        _logger.debug("_connectOracle : re=%s" % reconnect)
+        # connect
         try:
-            self.conn = cx_Oracle.connect(dsn=self.dbhost,user=self.dbuser,
-                                          password=self.dbpasswd,threaded=True)
-            self.cur=self.conn.cursor()
+            _logger.debug("mark")
+#            self.conn = cx_Oracle.connect(dsn=self.dbhost, user=self.dbuser,
+#                                          password=self.dbpasswd, threaded=True)
+            self.conn = WrappedConnection(backend=self.backend, reconnect=reconnect,
+                                          dbhost=self.dbhost, dbuser=self.dbuser,
+                                          dbpasswd=self.dbpasswd, threaded=True)
+            _logger.debug("mark")
+            _logger.debug("conn=" + str(self.conn))
+            _logger.debug("mark")
+#            self.cur = self.conn.cursor()
+            self.cur = WrappedCursor(self.conn, \
+                        useOtherError=False, \
+                        backend=self.backend, \
+                        schemanamebase=self.schemanamebase, \
+                        schemanamemeta=self.schemanamemeta, \
+                        schemanamegris=self.schemanamegris, \
+                        schemanamearch=self.schemanamearch \
+                        )
+            self.conn.setCursor(self.cur)
+            _logger.debug("mark")
+            _logger.debug("cur=" + str(self.cur))
+            _logger.debug("mark")
             # set TZ
             self.cur.execute("ALTER SESSION SET TIME_ZONE='UTC'")
             # set DATE format
@@ -52,18 +168,67 @@ class LogDBProxy:
             return True
         except:
             type, value, traceBack = sys.exc_info()
-            _logger.error("connect : %s %s" % (type,value))
-            # roll back
-            self._rollback()
+            _logger.error("_connectOracle : %s %s" % (type, value))
             return False
 
 
-    # query an SQL   
+    # connect to MySQL dbengine
+    def _connectMySQL(self, dbhost=panda_config.logdbhost, dbpasswd=panda_config.logdbpasswd,
+                dbuser=panda_config.logdbuser, dbname=panda_config.logdbname,
+                dbtimeout=None, reconnect=False,
+                dbengine=panda_config.logdbengine, dbport=panda_config.logdbport):
+        """ MySQLmigrateD: connect """
+        _logger.debug("_connectMySQL : re=%s" % reconnect)
+
+        # connect
+        try:
+#            self.conn = MySQLdb.connect(host=self.dbhost, db=self.dbname, \
+#                                   port=self.dbport, connect_timeout=self.dbtimeout, \
+#                                   user=self.dbuser, passwd=self.dbpasswd
+#                                   )
+            _logger.debug("mark")
+            self.conn = WrappedConnection(backend=self.backend, dbname=self.dbname,
+                                          dbhost=self.dbhost, dbuser=self.dbuser,
+                                          dbport=self.dbport, dbtimeout=self.dbtimeout,
+                                          dbpasswd=self.dbpasswd, reconnect=reconnect)
+            _logger.debug("mark")
+            _logger.debug("conn=" + str(self.conn))
+            _logger.debug("mark")
+#            self.cur = self.conn.cursor()
+            self.cur = WrappedCursor(self.conn, \
+                        useOtherError=False, \
+                        backend=self.backend, \
+                        schemanamebase=self.schemanamebase, \
+                        schemanamemeta=self.schemanamemeta, \
+                        schemanamegris=self.schemanamegris, \
+                        schemanamearch=self.schemanamearch \
+                        )
+            self.conn.setCursor(self.cur)
+            _logger.debug("mark")
+            _logger.debug("cur=" + str(self.cur))
+            _logger.debug("mark")
+            # set TZ
+            self.cur.execute("SET @@SESSION.TIME_ZONE = '+00:00'")
+
+            # set DATE format
+            self.cur.execute("SET @@SESSION.DATETIME_FORMAT='%%Y/%%m/%%d %%H:%%i:%%s'")
+
+            # disable autocommit
+            self.cur.execute("SET autocommit=0")
+
+            return True
+        except:
+            type, value, traceBack = sys.exc_info()
+            _logger.error("_connectMySQL : %s %s" % (type, value))
+            return False
+
+
+    # query an SQL
     def querySQL(self,sql,arraySize=1000):
         try:
             # begin transaction
             self.conn.begin()
-            self.cur.arraysize = arraySize            
+            self.cur.arraysize = arraySize
             self.cur.execute(sql)
             res = self.cur.fetchall()
             # commit
@@ -111,7 +276,7 @@ class LogDBProxy:
             self.conn.begin()
             # select
             sql = "SELECT siteid,nickname FROM schedconfig WHERE siteid IS NOT NULL"
-            self.cur.arraysize = 10000            
+            self.cur.arraysize = 10000
             self.cur.execute(sql)
             res = self.cur.fetchall()
             # commit
@@ -120,7 +285,7 @@ class LogDBProxy:
             retMap = {}
             if res != None and len(res) != 0:
                 for siteid,nickname in res:
-                    # skip invalid siteid                    
+                    # skip invalid siteid
                     if siteid in [None,'']:
                         continue
                     # append
@@ -128,7 +293,7 @@ class LogDBProxy:
                         retMap[siteid] = []
                     retMap[siteid].append(nickname)
             _logger.debug(retMap)
-            _logger.debug("getSiteList done")            
+            _logger.debug("getSiteList done")
             return retMap
         except:
             type, value, traceBack = sys.exc_info()
@@ -147,9 +312,9 @@ class LogDBProxy:
             # select
             sql = "SELECT nickname,dq2url,cloud,ddm,lfchost,se,gatekeeper,releases,memory,"
             sql+= "maxtime,status,space,retry,cmtconfig,setokens,seprodpath,glexec,"
-            sql+= "priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue "            
+            sql += "priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue "
             sql+= "FROM schedconfig WHERE siteid IS NOT NULL"
-            self.cur.arraysize = 10000            
+            self.cur.arraysize = 10000
             self.cur.execute(sql)
             resList = self.cur.fetchall()
             # commit
@@ -242,7 +407,7 @@ class LogDBProxy:
 
     # get cloud list
     def getCloudList(self):
-        _logger.debug("getCloudList start")        
+        _logger.debug("getCloudList start")
         try:
             # set autocommit on
             self.conn.begin()
@@ -250,7 +415,7 @@ class LogDBProxy:
             sql  = "SELECT name,tier1,tier1SE,relocation,weight,server,status,transtimelo,"
             sql += "transtimehi,waittime,validation,mcshare,countries,fasttrack "
             sql+= "FROM cloudconfig"
-            self.cur.arraysize = 10000            
+            self.cur.arraysize = 10000
             self.cur.execute(sql)
             resList = self.cur.fetchall()
             # commit
@@ -327,7 +492,7 @@ class LogDBProxy:
         except:
             return id
 
-    
+
     # check quota
     def checkQuota(self,dn):
         _logger.debug("checkQuota %s" % dn)
@@ -339,7 +504,7 @@ class LogDBProxy:
             sql = "SELECT cpua1,cpua7,cpua30,quotaa1,quotaa7,quotaa30 FROM users WHERE name = :name"
             varMap = {}
             varMap[':name'] = name
-            self.cur.arraysize = 10            
+            self.cur.arraysize = 10
             self.cur.execute(sql,varMap)
             res = self.cur.fetchall()
             # commit
@@ -387,7 +552,7 @@ class LogDBProxy:
             varMap = {}
             varMap[':name'] = name
             self.cur.execute(sql,varMap)
-            self.cur.arraysize = 10            
+            self.cur.arraysize = 10
             res = self.cur.fetchall()
             # commit
             if not self._commit():
@@ -416,7 +581,7 @@ class LogDBProxy:
             self._rollback()
             return jobID,True
 
-        
+
     # get email address for a user
     def getEmailAddr(self,name):
         _logger.debug("get email for %s" % name) 
@@ -428,7 +593,7 @@ class LogDBProxy:
             varMap = {}
             varMap[':name'] = name
             self.cur.execute(sql,varMap)
-            self.cur.arraysize = 10            
+            self.cur.arraysize = 10
             res = self.cur.fetchall()
             # commit
             if not self._commit():
@@ -444,7 +609,7 @@ class LogDBProxy:
             self._rollback()
             return ""
 
-        
+
     # register proxy key
     def registerProxyKey(self,params):
         _logger.debug("register ProxyKey %s" % str(params))
@@ -460,7 +625,7 @@ class LogDBProxy:
                 sql1 += ':%s,' % key
                 vals[':%s' % key] = val
             sql0 = sql0[:-1]
-            sql1 = sql1[:-1]            
+            sql1 = sql1[:-1]
             sql = sql0 + ') ' + sql1 + ') '
             # insert
             self.cur.execute(sql,vals)
@@ -489,7 +654,7 @@ class LogDBProxy:
             varMap[':dn'] = dn
             # select
             self.cur.execute(sql,varMap)
-            res = self.cur.fetchall()            
+            res = self.cur.fetchall()
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -510,7 +675,7 @@ class LogDBProxy:
             self._rollback()
             return {}
 
-        
+
     # get list of archived tables
     def getArchiveTables(self):
         tables = []
@@ -531,11 +696,11 @@ class LogDBProxy:
                 cdate = cdate.replace(year = (cdate.year-1), month = 12)
         # return
         return tables
-    
+
 
     # get JobIDs in a time range
     def getJobIDsInTimeRange(self,dn,timeRange,retJobIDs):
-        comment = ' /* LogDBProxy.getJobIDsInTimeRange */'                        
+        comment = ' /* LogDBProxy.getJobIDsInTimeRange */'
         _logger.debug("getJobIDsInTimeRange : %s %s" % (dn,timeRange.strftime('%Y-%m-%d %H:%M:%S')))
         try:
             # get list of archived tables
@@ -552,7 +717,7 @@ class LogDBProxy:
                 # start transaction
                 self.conn.begin()
                 # select
-                self.cur.arraysize = 10000                
+                self.cur.arraysize = 10000
                 _logger.debug(sql+comment+str(varMap))
                 self.cur.execute(sql+comment, varMap)
                 resList = self.cur.fetchall()
@@ -573,10 +738,10 @@ class LogDBProxy:
             # return empty list
             return retJobIDs
 
-        
+
     # get PandaIDs for a JobID
     def getPandIDsWithJobID(self,dn,jobID,idStatus,nJobs):
-        comment = ' /* LogProxy.getPandIDsWithJobID */'                        
+        comment = ' /* LogProxy.getPandIDsWithJobID */'
         _logger.debug("getPandIDsWithJobID : %s %s" % (dn,jobID))
         try:
             # get list of archived tables
@@ -587,9 +752,9 @@ class LogDBProxy:
                 if nJobs > 0 and len(idStatus) >= nJobs:
                     continue
                 # make sql
-                sql  = "SELECT PandaID,jobStatus,commandToPilot FROM %s " % table                
+                sql = "SELECT PandaID,jobStatus,commandToPilot FROM %s " % table
                 sql += "WHERE prodUserID=:prodUserID AND jobDefinitionID=:jobDefinitionID "
-                sql += "AND prodSourceLabel in ('user','panda') "                
+                sql += "AND prodSourceLabel in ('user','panda') "
                 varMap = {}
                 varMap[':prodUserID'] = dn
                 varMap[':jobDefinitionID'] = jobID
@@ -618,10 +783,10 @@ class LogDBProxy:
             # return empty list
             return {}
 
-        
+
     # peek at job 
     def peekJob(self,pandaID):
-        comment = ' /* LogDBProxy.peekJob */'                        
+        comment = ' /* LogDBProxy.peekJob */'
         _logger.debug("peekJob : %s" % pandaID)
         # return None for NULL PandaID
         if pandaID in ['NULL','','None',None]:
@@ -640,7 +805,7 @@ class LogDBProxy:
                 self.conn.begin()
                 # select
                 sql = sql1_0 % (JobSpec.columnNames(),table) + sql1_1
-                self.cur.arraysize = 10                                        
+                self.cur.arraysize = 10
                 self.cur.execute(sql+comment, varMap)
                 res = self.cur.fetchall()
                 # commit
@@ -680,7 +845,7 @@ class LogDBProxy:
             # return None
             return None
 
-        
+
     # wake up connection
     def wakeUp(self):
         for iTry in range(5):
@@ -694,7 +859,7 @@ class LogDBProxy:
                 # wait for reconnection
                 time.sleep(1)
                 self.connect(reconnect=True)
-                
+
 
     # close 
     def close(self):
@@ -724,4 +889,4 @@ class LogDBProxy:
         except:
             _logger.error("rollback error")
             return False
-                
+

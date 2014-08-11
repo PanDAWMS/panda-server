@@ -6,9 +6,36 @@ WrappedCursor for a generic database connection proxy
 import re
 import os
 import sys
+# import time
+# import fcntl
+# import types
+# import random
+# import urllib
+import socket
+# import datetime
+# import commands
+import traceback
 import warnings
+try:
+    import cx_Oracle
+except ImportError:
+    cx_Oracle = None
+try:
+    import MySQLdb
+except ImportError:
+    MySQLdb = None
+# import ErrorCode
+# import SiteSpec
+# import CloudSpec
+# import PrioUtil
+# import ProcessGroups
+# from JobSpec  import JobSpec
+# from FileSpec import FileSpec
+# from DatasetSpec import DatasetSpec
+# from CloudTaskSpec import CloudTaskSpec
 from pandalogger.PandaLogger import PandaLogger
 from config import panda_config
+# from brokerage.PandaSiteIDs import PandaSiteIDs
 
 warnings.filterwarnings('ignore')
 
@@ -17,6 +44,23 @@ _logger = PandaLogger().getLogger('WrappedCursor')
 
 # proxy
 class WrappedCursor(object):
+    # connection object
+    conn = None
+    # cursor object
+    cur = None
+    # use special error codes for reconnection in querySQL
+    useOtherError = False
+    # backend
+    backend = 'oracle'
+    # schema name, PANDA
+    schemanamebase = 'ATLAS_PANDA'
+    # schema name, PANDAMETA
+    schemanamemeta = 'ATLAS_PANDAMETA'
+    # schema name, GRISLI
+    schemanamegris = 'ATLAS_GRISLI'
+    # schema name, PANDAARCH
+    schemanamearch = 'ATLAS_PANDAARCH'
+
 
     # constructor
     def __init__(self, connection):
@@ -29,6 +73,13 @@ class WrappedCursor(object):
         # statement
         self.statement = None
 
+#    # __setattr__
+#    def __setattr__(self, name, value):
+#        super(WrappedCursor, self).__setattr__(name, value)
+#
+#    # __getattr__
+#    def __getattr__(self, name):
+#        return super(WrappedCursor, self).__getattr__(name)
 
     # __iter__
     def __iter__(self):
@@ -45,6 +96,7 @@ class WrappedCursor(object):
                 ):
         if varDict is None:
             varDict = {}
+        # returningInto is None or is in [{'returning': 'PandaID', 'into': ':newPandaID'}, {'returning': 'row_ID', 'into': ':newRowID'}]
         if cur is None:
             cur = self.cur
         ret = None
@@ -61,16 +113,27 @@ class WrappedCursor(object):
             print "DEBUG execute : original SQL     %s " % sql
             print "DEBUG execute : original varDict %s " % varDict
             # CURRENT_DATE interval
+#            sql = re.sub("CURRENT_DATE\s*-\s*(\d+|:[^\s\)]+)", "DATE_SUB(CURDATE(),INTERVAL \g<1> DAYS)", sql)
             sql = re.sub("CURRENT_DATE\s*-\s*(\d+|:[^\s\)]+)", "DATE_SUB(CURRENT_DATE,INTERVAL \g<1> DAY)", sql)
+
+            # CURRENT_DATE
+            # replace Oracle's CURRENT_DATE by MySQL's CURRENT_TIMESTAMP,
+            # because default date string format in Oracle differs from that in MySQL
+            sql = re.sub('CURRENT_DATE', 'CURRENT_TIMESTAMP', sql)
+
             # SYSDATE interval
             sql = re.sub("SYSDATE\s*-\s*(\d+|:[^\s\)]+)", "DATE_SUB(SYSDATE,INTERVAL \g<1> DAY)", sql)
+
             # SYSDATE
             sql = re.sub('SYSDATE', 'SYSDATE()', sql)
+
             # EMPTY_CLOB()
             sql = re.sub('EMPTY_CLOB\(\)', "''", sql)
+
             # ROWNUM
             sql = re.sub("(?i)(AND)*\s*ROWNUM\s*<=\s*(\d+)", " LIMIT \g<2>", sql)
             sql = re.sub("(?i)(WHERE)\s*LIMIT\s*(\d+)", " LIMIT \g<2>" , sql)
+
             # RETURNING INTO
             returningInto = None
             m = re.search("RETURNING ([^\s]+) INTO ([^\s]+)", sql, re.I)
@@ -106,7 +169,7 @@ class WrappedCursor(object):
             except:
                 pass
             _logger.debug("execute : SQL     %s " % sql)
-            _logger.debug("execute : varDict %s " % newVarDict)
+            _logger.debug("execute : varDict %s " % str(newVarDict))
             print "DEBUG execute : SQL     %s " % sql
             print "DEBUG execute : varDict %s " % newVarDict
             ret = cur.execute(sql, newVarDict)
@@ -179,6 +242,7 @@ class WrappedCursor(object):
 
     # fetchmany
     def fetchmany(self, arraysize=1000):
+        self.arraysize = arraysize
         self.cur.arraysize = arraysize
         return self.cur.fetchmany()
 

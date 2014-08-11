@@ -7,6 +7,9 @@ source /etc/profile.d/grid-env.sh
 source @@install_dir@@/etc/sysconfig/panda_server-sysconfig
 
 # set PYTHONPATH for LFC.py
-export PYTHONPATH=/usr/lib64/python@@python_exec_version@@/site-packages:$PYTHONPATH
+### there is no /usr/lib64/python@@python_exec_version@@/site-packages
+### on EC2 instance of BigPanDA
+### export PYTHONPATH=/usr/lib64/python@@python_exec_version@@/site-packages:$PYTHONPATH
 
 python@@python_exec_version@@ @@install_purelib@@/pandaserver/test/add.py
+

@@ -11,7 +11,7 @@ class DatasetSpec(object):
     # attributes which have 0 by default
     _zeroAttrs = ('MoverID','transferStatus')
 
-    
+
 
     # constructor
     def __init__(self):
@@ -77,18 +77,18 @@ class DatasetSpec(object):
             ret += "%s"
             if attr != cls._attributes[len(cls._attributes)-1]:
                 ret += ","
-        ret += ")"            
+        ret += ")"
         return ret
     valuesExpression = classmethod(valuesExpression)
 
 
     # return expression of bind values for INSERT
-    def bindValuesExpression(cls):
+    def bindValuesExpression(cls, backend='oracle'):
         ret = "VALUES("
         for attr in cls._attributes:
             ret += ":%s," % attr
         ret = ret[:-1]
-        ret += ")"            
+        ret += ")"
         return ret
     bindValuesExpression = classmethod(bindValuesExpression)
 
@@ -113,6 +113,6 @@ class DatasetSpec(object):
         return ret
     bindUpdateExpression = classmethod(bindUpdateExpression)
 
-        
 
-                       
+
+

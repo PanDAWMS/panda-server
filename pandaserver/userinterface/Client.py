@@ -21,11 +21,13 @@ except:
 try:
     baseURL = os.environ['PANDA_URL']
 except:
-    baseURL = 'http://pandaserver.cern.ch:25080/server/panda'
+#    baseURL = 'http://pandaserver.cern.ch:25080/server/panda'
+    baseURL = 'http://pandawms.org:25080/server/panda'
 try:
     baseURLSSL = os.environ['PANDA_URL_SSL']
 except:
-    baseURLSSL = 'https://pandaserver.cern.ch:25443/server/panda'
+#    baseURLSSL = 'https://pandaserver.cern.ch:25443/server/panda'
+    baseURLSSL = 'https://pandawms.org:25443/server/panda'
 
 
 # exit code
@@ -52,10 +54,16 @@ else:
                                'URLSSL' : baseURLSSL},
                   'CERN'    : {'URL'    : 'http://pandaserver.cern.ch:25080/server/panda',
                                'URLSSL' : 'https://pandaserver.cern.ch:25443/server/panda'},
+                  'OSG'     : {'URL'    : 'http://pandawms.org:25080/server/panda',
+                              'URLSSL'  : 'https://pandawms.org:25443/server/panda'},
                   }
 
 # bamboo
 baseURLBAMBOO = 'http://pandabamboo.cern.ch:25070/bamboo/bamboo'
+
+#from pandalogger.PandaLogger import PandaLogger
+#from config import panda_config
+#_logger = PandaLogger().getLogger('Client')
 
 
 # get URL
@@ -110,12 +118,14 @@ class _Curl:
         self.sslKey  = ''
         # verbose
         self.verbose = False
+#        self.verbose = True
 
 
     # GET method
     def get(self,url,data):
         # make command
         com = '%s --silent --get' % self.path
+#        com = '%s --verbose --get' % self.path
         if not self.verifyHost:
             com += ' --insecure'
         elif os.environ.has_key('X509_CERT_DIR'):
@@ -164,6 +174,7 @@ class _Curl:
     def post(self,url,data):
         # make command
         com = '%s --silent' % self.path
+#        com = '%s --verbose' % self.path
         if not self.verifyHost:
             com += ' --insecure'
         elif os.environ.has_key('X509_CERT_DIR'):
@@ -172,10 +183,17 @@ class _Curl:
             com += ' --capath /etc/grid-security/certificates'
         if self.compress:
             com += ' --compressed'
-        if self.sslCert != '':
-            com += ' --cert %s' % self.sslCert
+        if os.environ.has_key('CURL_CA_BUNDLE'):
+            com += ' --cacert %s' % os.environ['CURL_CA_BUNDLE']
+        else:
             com += ' --cacert %s' % self.sslCert
-        if self.sslKey != '':
+        if os.environ.has_key('CURL_SSLCERT'):
+            com += ' --cert %s' % os.environ['CURL_SSLCERT']
+        elif self.sslCert != '':
+            com += ' --cert %s' % self.sslCert
+        if os.environ.has_key('CURL_SSLCERT'):
+            com += ' --key %s' % os.environ['CURL_SSLKEY']
+        elif self.sslKey != '':
             com += ' --key %s' % self.sslKey
         # timeout
         com += ' -m 600' 
@@ -196,6 +214,8 @@ class _Curl:
         com += ' %s' % url
         # execute
         if self.verbose:
+#            print 'com=', com
+#            print 'commands:', commands.getoutput('cat %s' % tmpName)
             print com
             print commands.getoutput('cat %s' % tmpName)
         ret = commands.getstatusoutput(com)
@@ -204,6 +224,7 @@ class _Curl:
         if ret[0] != 0:
             ret = (ret[0]%255,ret[1])
         if self.verbose:
+#            print 'Curl.post', 'ret=', ret
             print ret
         return ret
 
@@ -212,6 +233,7 @@ class _Curl:
     def put(self,url,data):
         # make command
         com = '%s --silent' % self.path
+#        com = '%s --verbose' % self.path
         if not self.verifyHost:
             com += ' --insecure'
         elif os.environ.has_key('X509_CERT_DIR'):
@@ -252,9 +274,9 @@ def useWebCache():
 
        args:
        returns:
-    """     
+    """
     global baseURL
-    baseURL = re.sub('25080','25085',baseURL)
+#    baseURL = re.sub('25080','25085',baseURL) #FIXME: no cache on pandawms.org!
     global serverURLs
     for tmpKey,tmpVal in serverURLs.iteritems():
         tmpVal['URL'] = baseURL
@@ -293,7 +315,8 @@ def submitJobs(jobs,srvID=None,toPending=False):
     if toPending:
         data['toPending'] = True
     status,output = curl.post(url,data)
-    if status!=0:
+#    print 'submitJobs:307', 'status=', status
+    if status != 0:
         print output
         return status,output
     try:

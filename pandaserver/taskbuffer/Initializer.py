@@ -24,6 +24,8 @@ class Initializer:
             self.first = False
             try:
                 _logger.debug("connect")
+                if hasattr(panda_config, 'dbengine'):
+                    _logger.debug("panda_config.dbengine: " + panda_config.dbengine)
                 # connect
                 if panda_config.backend == 'oracle':
                     import cx_Oracle
@@ -36,15 +38,15 @@ class Initializer:
                                            user=panda_config.dbuser, passwd=panda_config.dbpasswd)
                 # close
                 conn.close()
-                _logger.debug("done")                
+                _logger.debug("done")
             except:
-                self.lock.release()                
+                self.lock.release()
                 type, value, traceBack = sys.exc_info()
-                _logger.error("connect : %s %s" % (type,value))
+                _logger.error("connect : %s %s" % (type, value))
                 return False
         # release    
-        self.lock.release()                            
-        return True        
+        self.lock.release()
+        return True
 
 
 # singleton

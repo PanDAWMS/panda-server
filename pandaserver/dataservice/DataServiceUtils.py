@@ -20,6 +20,9 @@ def isCachedFile(datasetName,siteSpec):
     # using CVMFS
     if siteSpec.iscvmfs != True:
         return False
+    # FIXME
+    if not siteSpec.cloud in ['IT']:
+        return False
     # look for DBR
     if not datasetName.startswith('ddo.'):
         return False

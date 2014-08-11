@@ -3,7 +3,7 @@ processGroups = [('others',       []),
                  ('reprocessing', ['reprocessing']),
                  ('test',         ['prod_test','rc_test','validation']),
                  ('mcore',        ['mcore']),
-                 ('group',        ['group']),                 
+                 ('group', ['group']),
                  ]
 
 # source labels used for panda internal purpose

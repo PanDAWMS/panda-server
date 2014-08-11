@@ -1,7 +1,7 @@
 The core package for the PanDA server 
+=======
 
-
-** Ducumentation
+** Documentation
 
 https://twiki.cern.ch/twiki/bin/view/PanDA/PanDA
 
@@ -11,6 +11,7 @@ https://twiki.cern.ch/twiki/bin/view/PanDA/PanDA
 See INSTALL.txt
 
 
-** Release Note
+** Release Notes
 
 See ChangeLog.txt
+

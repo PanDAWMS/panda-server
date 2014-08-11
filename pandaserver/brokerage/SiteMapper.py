@@ -11,8 +11,10 @@ from PandaSiteIDs import PandaSiteIDs
 # default site
 from taskbuffer.SiteSpec import SiteSpec
 defSite = SiteSpec()
-defSite.sitename   = 'BNL_ATLAS_1'
-defSite.nickname   = 'BNL_ATLAS_1-condor'
+#defSite.sitename   = 'BNL_ATLAS_1'
+defSite.sitename = 'BNL-LSST-default'
+#defSite.nickname   = 'BNL_ATLAS_1-condor'
+defSite.nickname = 'BNL-LSST-default'
 defSite.dq2url     = 'http://dms02.usatlas.bnl.gov:8000/dq2/'
 defSite.ddm        = 'PANDA_UNDEFINED'
 defSite.type       = 'production'
@@ -27,6 +29,10 @@ class SiteMapper:
     
     # constructor
     def __init__(self,taskBuffer,verbose=False):
+        ### DEBUG ###
+        verbose = True
+        ### DEBUG ###
+
         _logger.debug('__init__ SiteMapper')
         try:
             # site list
@@ -40,6 +46,8 @@ class SiteMapper:
             
             # create CloudSpec list 
             tmpCloudListDB = taskBuffer.getCloudList()
+            _logger.debug('tmpCloudListDB=%s' % str(tmpCloudListDB))
+
             for tmpName,tmpCloudSpec in tmpCloudListDB.iteritems():
                 self.cloudSpec[tmpName] = {}
                 # copy attributes from CloudSepc
@@ -53,19 +61,29 @@ class SiteMapper:
                 self.cloudSpec[tmpName]['dest']   = self.cloudSpec[tmpName]['tier1']
                 self.cloudSpec[tmpName]['sites']  = []
                 _logger.debug('Cloud->%s %s' % (tmpName,str(self.cloudSpec[tmpName])))
+            _logger.debug('cloudSpec=%s' % str(self.cloudSpec))
             # get list of PandaIDs
             siteIDsList = taskBuffer.getSiteList()
+            _logger.debug('siteIDsList=%s' % str(siteIDsList))
             firstDefault = True
             # read full list from DB
             siteFullList = taskBuffer.getSiteInfo()
+            _logger.debug('siteFullList=%s' % str(siteFullList))
             # read DB to produce paramters in siteinfo dynamically
             for tmpID,tmpNicknameList in siteIDsList.iteritems():
+                _logger.debug('mark' + 'tmpID=' + str(tmpID))
+                _logger.debug('mark' + 'tmpNicknameList=' + str(tmpNicknameList))
                 for tmpNickname in tmpNicknameList:
+                    _logger.debug('mark' + 'tmpNickname=' + str(tmpNickname))
                     # invalid nickname
                     if not siteFullList.has_key(tmpNickname):
+                        _logger.debug('mark' + 'tmpNickname=' + str(tmpNickname))
                         continue
+                    _logger.debug('mark' + 'tmpNickname=' + str(tmpNickname))
                     # get full spec
                     ret = siteFullList[tmpNickname]
+                    _logger.debug('mark' + 'ret=' + str(ret))
+                    _logger.debug('mark' + 'self.siteSpecList=' + str(self.siteSpecList))
                     # append
                     if ret == None:
                         _logger.error('Could not read site info for %s:%s' % (tmpID,tmpNickname))
@@ -73,7 +91,11 @@ class SiteMapper:
                              or (self.siteSpecList.has_key(tmpID) and self.siteSpecList[tmpID].status in ['offline','']):
                         # overwrite default or remove existing offline 
                         if firstDefault and tmpID == defSite.sitename:
-                            del self.siteSpecList[tmpID]
+#                            del self.siteSpecList[tmpID]
+                            try:
+                                del self.siteSpecList[tmpID]
+                            except KeyError:
+                                _logger.error('Could not remove tmpID %s from self.siteSpecList' % (tmpID))
                             firstDefault = False
                         elif self.siteSpecList.has_key(tmpID) and self.siteSpecList[tmpID].status in ['offline','']:
                             del self.siteSpecList[tmpID]

@@ -93,7 +93,7 @@ class MemProxy:
                 if retD == 1:
                     retMap[True] += 1
                 else:
-                    retMap[False] += 1                     
+                    retMap[False] += 1
             # failed
             if retMap[False] != 0:
                 _logger.error("deleteFiles failed %s/%s" % (retMap[False],
@@ -163,7 +163,7 @@ class MemProxy:
             if serNum > 1024:
                 serNum = 0
             # set    
-            retS = self.mclient.set(keyPrefix,serNum,time=panda_config.memcached_exptime)                
+            retS = self.mclient.set(keyPrefix, serNum, time=panda_config.memcached_exptime)
             if retS == 0:
                 # failed
                 _logger.error("flushFiles failed to set new SN") 

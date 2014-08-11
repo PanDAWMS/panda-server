@@ -57,7 +57,7 @@ class CloudTaskSpec(object):
             if i+1 < len(state):
                 setattr(self,self._attributes[i],state[i])
             else:
-                setattr(self,self._attributes[i],'NULL')                
+                setattr(self, self._attributes[i], 'NULL')
         
         
     # return column names for INSERT
@@ -78,7 +78,7 @@ class CloudTaskSpec(object):
             ret += "%s"
             if attr != cls._attributes[len(cls._attributes)-1]:
                 ret += ","
-        ret += ")"            
+        ret += ")"
         return ret
     valuesExpression = classmethod(valuesExpression)
 
@@ -94,6 +94,5 @@ class CloudTaskSpec(object):
     updateExpression = classmethod(updateExpression)
 
 
-        
 
-                       
+

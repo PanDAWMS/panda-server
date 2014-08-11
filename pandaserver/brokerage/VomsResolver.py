@@ -34,7 +34,7 @@ class VomsResolver:
         except:
             type, value, traceBack = sys.exc_info()
             _logger.error("init : %s %s" % (type,value))
-            
+
 
     # check the user is on VO
     def checkUser(self,voms,dn):
@@ -45,9 +45,9 @@ class VomsResolver:
         # look for DN
         for tmpDN in self.vomsUserMap[voms]:
             if dn.startswith(tmpDN):
-                _logger.debug(' OK' % dn)                            
+                _logger.debug(' OK' % dn)
                 return True
-        _logger.debug(' NG - DN:%s is not found' % dn)            
+        _logger.debug(' NG - DN:%s is not found' % dn)
         return False
 
 

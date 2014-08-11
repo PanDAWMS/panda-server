@@ -12,6 +12,9 @@ logdir=@@install_dir@@/var/log/panda
 # logger name
 loggername = prod
 
+#### tmp, added by Jarka
+serverhost = localhost
+serverhostssl = pandawms.org
 
 
 ##########################
@@ -118,7 +121,43 @@ dbbridgeverbose = False
 # SQL dumper
 dump_sql = False
 
+### MySQL specific/generic backend
+dbport = 4444
+schemanamebase = 'ATLAS_PANDA'
+schemanamemeta = 'ATLAS_PANDAMETA'
+schemanamegris = 'ATLAS_GRISLI'
+schemanamearch = 'ATLAS_PANDAARCH'
 
+# DB engine
+#dbengine = oracle
+dbengine = mysql
+
+# DB port
+dbhostmysql = 107.22.166.93
+dbportmysql = 23306
+dbnamemysql = pandadb1
+dbusermysql = pansrusr1
+dbpasswdmysql = FIXME
+
+# LogDB
+#logdbengine = oracle
+logdbengine = mysql
+logdbhost = 107.22.166.93
+logdbport = 23306
+logdbname = pandadb1
+logdbuser = pansrusr1
+logdbpasswd = FIXME
+nLogDBConnection = 5
+
+# ArchiveDB
+#archivedbengine = oracle
+archivedbengine = mysql
+archivedbhost = 107.22.166.93
+archivedbport = 23306
+archivedbname = pandadb1
+archivedbuser = pansrusr1
+archivedbpasswd = FIXME
+nArchiveDBConnection = 5
 
 ##########################
 #

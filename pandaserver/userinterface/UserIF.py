@@ -74,9 +74,32 @@ class UserIF:
         # reject injection for bad prodSourceLabel
         if not goodProdSourceLabel:
             return "ERROR: production role is required for production jobs"
+        job0 = None
+        # get user VO
+        userVO = 'atlas'
+        if len(jobs):
+            try:
+                job0 = jobs[0]
+            except:
+                errType, errValue = sys.exc_info()[:2]
+                _logger.error("submitJobs : checking userVO: jobs[0] does not exist... %s %s" % (errType, errValue))
+                job0 = None
+            try:
+                userVO = job0.VO
+            except:
+                errType, errValue = sys.exc_info()[:2]
+                _logger.error("submitJobs : checking userVO: userVO not found, defaulting to %s. %s %s" % (errType, errValue, userVO))
+        # get LSST pipeline username
+        if userVO.lower() == 'lsst' and job0 is not None \
+            and job0.prodUserName is not None and len(job0.prodUserName) \
+            and job0.prodUserName.lower() != 'none':
+            try:
+                user = job0.prodUserName
+            except:
+                _logger.error("submitJobs : checking username for userVO[%s]: username not found, defaulting to %s. %s %s" % (userVO, user))
         # store jobs
         ret = self.taskBuffer.storeJobs(jobs,user,forkSetupper=True,fqans=userFQANs,
-                                        hostname=host,toPending=toPending)
+                                        hostname=host, toPending=toPending, userVO=userVO)
         _logger.debug("submitJobs %s ->:%s" % (user,len(ret)))
         # serialize 
         return pickle.dumps(ret)
@@ -220,6 +243,13 @@ class UserIF:
     # check duplicated sandbox file
     def checkSandboxFile(self,userName,fileSize,checkSum):
         ret = self.taskBuffer.checkSandboxFile(userName,fileSize,checkSum)
+        # return
+        return ret
+
+
+    # check duplicated sandbox file
+    def checkSandboxFileEC2(self, userName, fileSize, checkSum):
+        ret = self.taskBuffer.checkSandboxFileEC2(userName, fileSize, checkSum)
         # return
         return ret
 
@@ -956,7 +986,7 @@ def _getDN(req):
         realDN = re.sub('/CN=limited proxy','',realDN)
         realDN = re.sub('/CN=proxy(/CN=proxy)+','/CN=proxy',realDN)
     return realDN
-                                        
+
 
 # check role
 def _isProdRoleATLAS(req):
@@ -1027,7 +1057,7 @@ def submitJobs(req,jobs,toPending=None):
         toPending = True
     else:
         toPending = False
-    return userIF.submitJobs(jobs,user,host,fqans,prodRole,toPending)
+    return userIF.submitJobs(jobs, user, host, fqans, prodRole, toPending)
 
 
 # run task assignment
@@ -1130,6 +1160,15 @@ def checkSandboxFile(req,fileSize,checkSum):
     user = _getDN(req)
     # exec    
     return userIF.checkSandboxFile(user,fileSize,checkSum)
+
+# check duplicated sandbox file
+def checkSandboxFileEC2(req, fileSize, checkSum):
+    # get DN
+    if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        return "ERROR: SSL connection is required"
+    user = _getDN(req)
+    # exec
+    return userIF.checkSandboxFileEC2(user, fileSize, checkSum)
 
 
 # add files to memcached
@@ -1647,7 +1686,7 @@ def getNUserJobs(req,siteName):
         # check production role
         for rolePat in ['/atlas/usatlas/Role=production',
                         '/atlas/Role=production',
-                        '/atlas/usatlas/Role=pilot',                        
+                        '/atlas/usatlas/Role=pilot',
                         '/atlas/Role=pilot',
                         ]:
             if fqan.startswith(rolePat):
