@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * setting maxattempt when JEDI files are produced
   * added protection against too long modification host
   * using failedAttempt
   * fixed file counting to merge failed jobs

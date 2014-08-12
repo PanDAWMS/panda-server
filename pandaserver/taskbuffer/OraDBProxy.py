@@ -1847,7 +1847,7 @@ class DBProxy:
                             varMap[':jediTaskID'] = file.jediTaskID
                             varMap[':status']     = 'ready'
                             varMap[':boundaryID'] = job.PandaID
-                            varMap[':maxAttempt'] = 3
+                            varMap[':maxAttempt'] = file.attemptNr + 3
                             sqlJFile =  "UPDATE ATLAS_PANDA.JEDI_Dataset_Contents "
                             sqlJFile += "SET status=:status,boundaryID=:boundaryID,maxAttempt=:maxAttempt"
                             for tmpKey in ['lfn','GUID','fsize','checksum']:
@@ -11609,6 +11609,8 @@ class DBProxy:
                     # set boundaryID for merging
                     sqlFile += ",boundaryID=:boundaryID"
                     varMap[':boundaryID'] = jobSpec.PandaID
+                    # set max attempt
+                    sqlFile += ",maxAttempt=attemptNr+3"
             sqlFile += " WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
             sqlFile += "AND attemptNr=:attemptNr AND keepTrack=:keepTrack "
             _logger.debug(sqlFile+comment+str(varMap))
