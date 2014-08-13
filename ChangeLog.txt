@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed runRebro for JEDI analysis
   * added jediTaskID and datasetID in the where clause of updateUnmergedJobs
   * setting maxattempt when JEDI files are produced
   * added protection against too long modification host
