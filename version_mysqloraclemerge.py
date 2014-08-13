@@ -41,12 +41,10 @@ def get_git_version():
         nrevs = commands.getoutput('git reflog | wc -l')
     except:
         pass
-
-#    return str('.dev-' + ncommits + '-' + last_rev_id + '-' + nrevs)
     if ncommits < 19000:
         retstr = str('.dev-' + ncommits + '-' + last_rev_id + '-' + nrevs)
     else:
-        retstr = str('.dev-' + nrevs + '-' + last_rev_id + '-' ncommits + nrevs)
+        retstr = str('.dev-' + nrevs + '-' + last_rev_id + '-' + ncommits + nrevs)
     return retstr
 
 
