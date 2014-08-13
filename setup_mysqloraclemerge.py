@@ -163,6 +163,7 @@ setup(
                'pandaserver.taskbuffer',
                'pandaserver.test',
                'pandaserver.userinterface',
+               'pandaserver.proxycache',
               ],
     data_files=[
                 # config files 
