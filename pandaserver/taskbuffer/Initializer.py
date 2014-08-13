@@ -27,7 +27,7 @@ class Initializer:
                 if hasattr(panda_config, 'dbengine'):
                     _logger.debug("panda_config.dbengine: " + panda_config.dbengine)
                 # connect
-                if panda_config.backend == 'oracle':
+                if panda_config.dbengine == 'oracle':
                     import cx_Oracle
                     conn = cx_Oracle.connect(dsn=panda_config.dbhost,user=panda_config.dbuser,
                                              password=panda_config.dbpasswd,threaded=True)
