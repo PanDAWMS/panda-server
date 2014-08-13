@@ -35,7 +35,7 @@ from pandalogger.PandaLogger import PandaLogger
 from config import panda_config
 from brokerage.PandaSiteIDs import PandaSiteIDs
 
-if panda_config.backend == 'oracle':
+if panda_config.dbengine == 'oracle':
     import cx_Oracle
     varNUMBER = cx_Oracle.NUMBER
 else:
@@ -83,7 +83,8 @@ class DBProxy:
         # hostname
         self.myHostName = socket.getfqdn()
         # backend
-        self.backend = 'oracle'
+#        self.backend = 'oracle'
+        self.backend = panda_config.dbengine
         # schema name, PANDA
         self.schemanamebase = 'ATLAS_PANDA'
         # schema name, PANDAMETA
@@ -93,8 +94,14 @@ class DBProxy:
         # schema name, PANDAARCH
         self.schemanamearch = 'ATLAS_PANDAARCH'
         # imported cx_Oracle, MySQLdb?
-        _logger.info('cx_Oracle=%s' % str(cx_Oracle))
-        _logger.info('MySQLdb=%s' % str(MySQLdb))
+        try:
+            _logger.info('cx_Oracle=%s' % str(cx_Oracle))
+        except:
+            pass
+        try:
+            _logger.info('MySQLdb=%s' % str(MySQLdb))
+        except:
+            pass
 
 
 
