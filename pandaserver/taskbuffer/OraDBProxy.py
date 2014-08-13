@@ -12238,14 +12238,17 @@ class DBProxy:
         umCheckedIDs = []
         # sql to get PandaIDs
         sqlUMP  = "SELECT PandaID,attemptNr FROM ATLAS_PANDA.filesTable4 "
-        sqlUMP += "WHERE fileID=:fileID AND type IN (:type1,:type2) ORDER BY attemptNr DESC "
+        sqlUMP += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+        sqlUMP += "AND type IN (:type1,:type2) ORDER BY attemptNr DESC "
         # sql to check job status
         sqlUMS  = "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
         # look for unmerged files
         for tmpFile in job.Files:
             if tmpFile.isUnMergedInput():
                 varMap = {}
-                varMap[':fileID'] = tmpFile.fileID
+                varMap[':jediTaskID'] = tmpFile.jediTaskID
+                varMap[':datasetID']  = tmpFile.datasetID
+                varMap[':fileID']     = tmpFile.fileID
                 varMap[':type1']  = 'output'
                 varMap[':type2']  = 'log'
                 self.cur.arraysize = 100
