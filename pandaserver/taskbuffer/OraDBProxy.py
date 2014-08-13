@@ -87,12 +87,20 @@ class DBProxy:
         self.backend = panda_config.dbengine
         # schema name, PANDA
         self.schemanamebase = 'ATLAS_PANDA'
+        if panda_config.schemanamebase:
+            self.schemanamebase = panda_config.schemanamebase
         # schema name, PANDAMETA
         self.schemanamemeta = 'ATLAS_PANDAMETA'
+        if panda_config.schemanamemeta:
+            self.schemanamemeta = panda_config.schemanamemeta
         # schema name, GRISLI
         self.schemanamegris = 'ATLAS_GRISLI'
+        if panda_config.schemanamegris:
+            self.schemanamegris = panda_config.schemanamegris
         # schema name, PANDAARCH
         self.schemanamearch = 'ATLAS_PANDAARCH'
+        if panda_config.schemanamearch:
+            self.schemanamearch = panda_config.schemanamearch
         # imported cx_Oracle, MySQLdb?
         try:
             _logger.info('cx_Oracle=%s' % str(cx_Oracle))
