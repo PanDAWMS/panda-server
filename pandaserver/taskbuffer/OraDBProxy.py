@@ -3227,7 +3227,7 @@ class DBProxy:
             if getUserInfo:
                 return False,{}                
             return False
-        sql0  = "SELECT prodUserID,prodSourceLabel,jobDefinitionID,jobsetID,workingGroup,specialHandling FROM %s WHERE PandaID=:PandaID"        
+        sql0  = "SELECT prodUserID,prodSourceLabel,jobDefinitionID,jobsetID,workingGroup,specialHandling,jobStatus FROM %s WHERE PandaID=:PandaID"        
         sql1  = "UPDATE %s SET commandToPilot=:commandToPilot,taskBufferErrorDiag=:taskBufferErrorDiag WHERE PandaID=:PandaID AND commandToPilot IS NULL"
         sql1F = "UPDATE %s SET commandToPilot=:commandToPilot,taskBufferErrorDiag=:taskBufferErrorDiag WHERE PandaID=:PandaID"
         sql2  = "SELECT %s " % JobSpec.columnNames()
@@ -3280,7 +3280,7 @@ class DBProxy:
                         distinguishedName = dn
                     return distinguishedName
                 # prevent prod proxy from killing analysis jobs
-                userProdUserID,userProdSourceLabel,userJobDefinitionID,userJobsetID,workingGroup,specialHandling = res
+                userProdUserID,userProdSourceLabel,userJobDefinitionID,userJobsetID,workingGroup,specialHandling,jobStatusInDB = res
                 # check group prod role
                 validGroupProdRole = False
                 if res[1] in ['managed','test'] and workingGroup != '':
@@ -3316,8 +3316,8 @@ class DBProxy:
                 if userProdSourceLabel in ['managed','test'] and code in ['9',]:
                     # ignore commandToPilot for force kill
                     self.cur.execute((sql1F+comment) % table, varMap)
-                elif useEventService:
-                    # use force kill for event service
+                elif useEventService or jobStatusInDB in ['merging']:
+                    # use force kill for event service or merging
                     self.cur.execute((sql1F+comment) % table, varMap)
                 else:
                     self.cur.execute((sql1+comment) % table, varMap)
@@ -3332,7 +3332,7 @@ class DBProxy:
                 if (userProdSourceLabel in ['managed','test',None] or 'test' in userProdSourceLabel) and code in ['9',]:
                     # use dummy for force kill
                     varMap[':jobStatus'] = 'dummy'
-                elif useEventService:
+                elif useEventService or jobStatusInDB in ['merging']:
                     # use dummy for force kill
                     varMap[':jobStatus'] = 'dummy'
                 else:
