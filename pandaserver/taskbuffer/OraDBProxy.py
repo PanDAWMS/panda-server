@@ -789,7 +789,7 @@ class DBProxy:
         sql2 = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
         sql2+= JobSpec.bindValuesExpression()
         updatedJobList = []
-        nTry=3
+        nTry=1
         for iTry in range(nTry):
             try:
                 # begin transaction
@@ -11524,6 +11524,8 @@ class DBProxy:
     # propagate result to JEDI
     def propagateResultToJEDI(self,jobSpec,cur,oldJobStatus=None,extraInfo=None,finishPending=False):
         comment = ' /* DBProxy.propagateResultToJEDI */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <PandaID={0}>".format(jobSpec.PandaID)
         datasetContentsStat = {}
         # loop over all files
         finishUnmerge = False
@@ -11613,7 +11615,7 @@ class DBProxy:
                     sqlFile += ",maxAttempt=attemptNr+3"
             sqlFile += " WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
             sqlFile += "AND attemptNr=:attemptNr AND keepTrack=:keepTrack "
-            _logger.debug(sqlFile+comment+str(varMap))
+            _logger.debug(methodName+' '+sqlFile+comment+str(varMap))
             cur.execute(sqlFile+comment,varMap)
             nRow = cur.rowcount
             if nRow == 1:
@@ -11631,7 +11633,7 @@ class DBProxy:
                     varMap[':fileID']     = fileSpec.fileID
                     varMap[':datasetID']  = fileSpec.datasetID
                     varMap[':jediTaskID'] = jobSpec.jediTaskID
-                    _logger.debug(sqlEVT+comment+str(varMap))
+                    _logger.debug(methodName+' '+sqlEVT+comment+str(varMap))
                     cur.execute(sqlEVT+comment,varMap)
                     resEVT = self.cur.fetchone()
                     if resEVT != None:
@@ -11654,7 +11656,7 @@ class DBProxy:
                     varMap[':fileID']     = fileSpec.fileID
                     varMap[':datasetID']  = fileSpec.datasetID
                     varMap[':jediTaskID'] = jobSpec.jediTaskID
-                    _logger.debug(sqlAttNr+comment+str(varMap))
+                    _logger.debug(methodName+' '+sqlAttNr+comment+str(varMap))
                     cur.execute(sqlAttNr+comment,varMap)
                     resAttNr = self.cur.fetchone()
                     if resAttNr != None:
@@ -11680,7 +11682,7 @@ class DBProxy:
                                     varMap[':datasetID']  = fileSpec.datasetID
                                     varMap[':jediTaskID'] = jobSpec.jediTaskID
                                     varMap[':status']     = 'notmerged'
-                                    _logger.debug(sqlUmFile+comment+str(varMap))
+                                    _logger.debug(methodName+' '+sqlUmFile+comment+str(varMap))
                                     cur.execute(sqlUmFile+comment,varMap)
                                     # set flag to update unmerged jobs
                                     finishUnmerge = True
@@ -11698,6 +11700,13 @@ class DBProxy:
         nOutEvents = 0
         if datasetContentsStat != {}:
             for tmpDatasetID,tmpContentsStat in datasetContentsStat.iteritems():
+                sqlJediDL = "SELECT nFilesUsed,nFilesFailed,nFilesTobeUsed,nFilesFinished,nFilesOnHold FROM ATLAS_PANDA.JEDI_Datasets "
+                sqlJediDL += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID FOR UPDATE NOWAIT "
+                varMap = {}
+                varMap[':jediTaskID'] = jobSpec.jediTaskID
+                varMap[':datasetID']  = tmpDatasetID
+                _logger.debug(methodName+' '+sqlJediDL+comment+str(varMap))
+                cur.execute(sqlJediDL+comment,varMap)
                 # sql to update nFiles info
                 toUpdateFlag = False
                 eventsToRead = False
@@ -11719,7 +11728,7 @@ class DBProxy:
                 varMap[':datasetID']  = tmpDatasetID
                 # update
                 if toUpdateFlag:
-                    _logger.debug(sqlJediDS+comment+str(varMap))                            
+                    _logger.debug(methodName+' '+sqlJediDS+comment+str(varMap))                            
                     cur.execute(sqlJediDS+comment,varMap)
         # update t_task
         if jobSpec.jobStatus == 'finished' and not jobSpec.prodSourceLabel in ['panda'] and jobSpec.processingType != 'pmerge':
@@ -11732,7 +11741,7 @@ class DBProxy:
             sqlTtask  = "UPDATE {0}.T_TASK ".format(schemaDEFT)
             sqlTtask += "SET total_done_jobs=total_done_jobs+1,timestamp=CURRENT_DATE,total_events=total_events+:noutevents "
             sqlTtask += "WHERE taskid=:jediTaskID AND status IN (:status1,:status2) "
-            _logger.debug(sqlTtask+comment+str(varMap))
+            _logger.debug(methodName+' '+sqlTtask+comment+str(varMap))
             cur.execute(sqlTtask+comment,varMap)
         # propagate failed result to unmerge job
         if finishUnmerge:

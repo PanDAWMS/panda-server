@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed propagateResultToJEDI to avoid row contention
   * fixed to kill jobs in merging
   * fixed runRebro for JEDI analysis
   * added jediTaskID and datasetID in the where clause of updateUnmergedJobs
