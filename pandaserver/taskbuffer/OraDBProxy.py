@@ -11763,7 +11763,8 @@ class DBProxy:
             res = cur.fetchone()
             if res != None:
                 if res[0] in ['ready','running','scouting','pending',
-                              'topreprocess','preprocessing']:
+                              'topreprocess','preprocessing','aborting',
+                              'finishing']:
                     retVal = True
         _logger.debug('checkTaskStatusJEDI jediTaskID=%s with %s' % (jediTaskID,retVal))            
         return retVal
@@ -11976,7 +11977,7 @@ class DBProxy:
 
 
     # insert TaskParams
-    def insertTaskParamsPanda(self,taskParams,dn,prodRole,fqans,parent_tid):
+    def insertTaskParamsPanda(self,taskParams,dn,prodRole,fqans,parent_tid,properErrorCode=False):
         comment = ' /* JediDBProxy.insertTaskParamsPanda */'
         try:
             methodName = "insertTaskParamsPanda"
@@ -12030,7 +12031,9 @@ class DBProxy:
             self.conn.begin()
             # check duplication
             goForward = True
+            retFlag = False
             retVal = None
+            errorCode = 0
             if taskParamsJson['taskType'] == 'anal' and \
                     (taskParamsJson.has_key('uniqueTaskName') and taskParamsJson['uniqueTaskName'] == True):
                 varMap = {}
@@ -12059,13 +12062,14 @@ class DBProxy:
                                                                                             taskParamsJson['taskName'])
                         retVal += 'You cannot submit duplicated tasks. '
                         _logger.debug('{0} skip since old task is already queued in DEFT'.format(methodName))
+                        errorCode = 1
                 else:
                     # task is already in JEDI table
                     jediTaskID,taskStatus = resDT
                     _logger.debug('{0} old jediTaskID={1} with taskName={2} in status={3}'.format(methodName,jediTaskID,
                                                                                                   varMap[':taskName'],taskStatus))
                     # check task status
-                    if not taskStatus in ['finished','failed','partial','done']:
+                    if not taskStatus in ['finished','failed','aborted','done']:
                         # still active
                         goForward = False
                         retVal  = 'jediTaskID={0} is in the {1} state for outDS={2}. '.format(jediTaskID,
@@ -12073,6 +12077,7 @@ class DBProxy:
                                                                                               taskParamsJson['taskName'])
                         retVal += 'You can re-execute the task with the same or another input once it goes into finished/failed/done'
                         _logger.debug('{0} skip since old task is not yet finalized'.format(methodName))
+                        errorCode = 2
                     else:
                         # extract several params for incremental execution
                         newTaskParams = {}
@@ -12094,8 +12099,11 @@ class DBProxy:
                         self.cur.execute(sqlIC+comment,varMap)
                         _logger.debug('{0} {1} jediTaskID={2} with {3}'.format(methodName,varMap[':comm_cmd'],
                                                                                    jediTaskID,str(newTaskParams)))
-                        retVal = 'jediTaskID={0} will be reactivated with new input'.format(jediTaskID) 
+                        retVal = '{0} (currently in {1} state) will be reactivated with new input'.format(jediTaskID,
+                                                                                                          taskStatus) 
                         goForward = False
+                        retFlag = True
+                        errorCode = 3
             if goForward:
                 # insert task parameters
                 taskParams = json.dumps(taskParamsJson)    
@@ -12118,17 +12126,24 @@ class DBProxy:
                 jediTaskID = long(self.cur.getvalue(varMap[':jediTaskID']))
                 retVal = jediTaskID
                 _logger.debug('{0} inserted new jediTaskID={1}'.format(methodName,jediTaskID))
+                retFlag = True
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
             _logger.debug('{0} done'.format(methodName))
-            return goForward,retVal
+            if properErrorCode:
+                return errorCode,retVal
+            return retFlag,retVal
         except:
             # roll back
             self._rollback()
             # error
             self.dumpErrorMessage(_logger,methodName)
-            return False,'failed to register task'
+            errorCode = 4
+            retVal = 'failed to register task'
+            if properErrorCode:
+                return errorCode,retVal
+            return False,retVal
 
 
 
@@ -12186,10 +12201,10 @@ class DBProxy:
                     if taskStatus in ['finished','done','prepared','broken','aborted','aborted','toabort','aborting','failed','finishing']:
                         goForward = False
                 if comStr == 'retry':
-                    if not taskStatus in ['finished','failed']:
+                    if not taskStatus in ['finished','failed','aborted']:
                         goForward = False
                 if comStr == 'incexec':
-                    if not taskStatus in ['finished','failed','done']:
+                    if not taskStatus in ['finished','failed','done','aborted']:
                         goForward = False
                 if comStr == 'reassign':
                     if not taskStatus in ['registered','defined','ready','running','scouting','scouted','pending','assigning']:
@@ -12213,12 +12228,12 @@ class DBProxy:
                 else:
                     varMap[':comm_comment'] = comComment
                 self.cur.execute(sqlC+comment,varMap)
-                # commit
-                if useCommit:
-                    if not self._commit():
-                        raise RuntimeError, 'Commit error'
                 _logger.debug('{0} done'.format(methodName))
                 retStr = 'command is registered. will be executed in a few minutes'
+            # commit
+            if useCommit:
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
             if properErrorCode:
                 return retCode,retStr
             else:

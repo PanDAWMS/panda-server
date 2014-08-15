@@ -861,9 +861,9 @@ class UserIF:
 
 
     # insert task params
-    def insertTaskParams(self,taskParams,user,prodRole,fqans):
+    def insertTaskParams(self,taskParams,user,prodRole,fqans,properErrorCode):
         # register
-        ret = self.taskBuffer.insertTaskParamsPanda(taskParams,user,prodRole,fqans)
+        ret = self.taskBuffer.insertTaskParamsPanda(taskParams,user,prodRole,fqans,properErrorCode=properErrorCode)
         # return
         return ret
 
@@ -1710,7 +1710,11 @@ def updateSiteAccess(req,method,siteid,userName,attrValue=''):
 
 
 # insert task params
-def insertTaskParams(req,taskParams=None):
+def insertTaskParams(req,taskParams=None,properErrorCode=None):
+    if properErrorCode == 'True':
+        properErrorCode = True
+    else:
+        properErrorCode = False
     # check security
     if not isSecure(req):
         return pickle.dumps((False,'secure connection is required'))
@@ -1727,7 +1731,7 @@ def insertTaskParams(req,taskParams=None):
     prodRole = _isProdRoleATLAS(req)
     # get FQANs
     fqans = _getFQAN(req)
-    ret = userIF.insertTaskParams(taskParams,user,prodRole,fqans)
+    ret = userIF.insertTaskParams(taskParams,user,prodRole,fqans,properErrorCode)
     return pickle.dumps(ret)
 
 

@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * changed to allow reactivation of aborted tasks
+  * fixed insertTaskParamsPanda
   * changed propagateResultToJEDI to avoid row contention
   * fixed to kill jobs in merging
   * fixed runRebro for JEDI analysis
