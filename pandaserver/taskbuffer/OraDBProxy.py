@@ -12025,8 +12025,8 @@ class DBProxy:
             sqlDC  = "DELETE FROM {0}.PRODSYS_COMM ".format(schemaDEFT)
             sqlDC += "WHERE COMM_TASK=:jediTaskID "
             # sql to insert command
-            sqlIC  = "INSERT INTO {0}.PRODSYS_COMM (COMM_TASK,COMM_OWNER,COMM_CMD,COMM_COMMENT) ".format(schemaDEFT)
-            sqlIC += "VALUES (:jediTaskID,:comm_owner,:comm_cmd,:comm_comment) "
+            sqlIC  = "INSERT INTO {0}.PRODSYS_COMM (COMM_TASK,COMM_OWNER,COMM_CMD,COMM_PARAMETERS) ".format(schemaDEFT)
+            sqlIC += "VALUES (:jediTaskID,:comm_owner,:comm_cmd,:comm_parameters) "
             # begin transaction
             self.conn.begin()
             # check duplication
@@ -12095,12 +12095,13 @@ class DBProxy:
                         varMap[':jediTaskID'] = jediTaskID
                         varMap[':comm_cmd']  = 'incexec'
                         varMap[':comm_owner']  = 'DEFT'
-                        varMap[':comm_comment'] = json.dumps(newTaskParams)
+                        varMap[':comm_parameters'] = json.dumps(newTaskParams)
                         self.cur.execute(sqlIC+comment,varMap)
                         _logger.debug('{0} {1} jediTaskID={2} with {3}'.format(methodName,varMap[':comm_cmd'],
                                                                                    jediTaskID,str(newTaskParams)))
-                        retVal = '{0} (currently in {1} state) will be reactivated with new input'.format(jediTaskID,
-                                                                                                          taskStatus) 
+                        retVal  = 'reactivation accepted. '
+                        retVal += 'jediTaskID={0} (currently in {1} state) will be re-executed with old and/or new input'.format(jediTaskID,
+                                                                                                                                taskStatus) 
                         goForward = False
                         retFlag = True
                         errorCode = 3
@@ -12124,7 +12125,10 @@ class DBProxy:
                 varMap[':current_priority'] = varMap[':priority']
                 self.cur.execute(sqlT+comment,varMap)
                 jediTaskID = long(self.cur.getvalue(varMap[':jediTaskID']))
-                retVal = jediTaskID
+                if properErrorCode:
+                    retVal = "succeeded. new jediTaskID={0}".format(jediTaskID)
+                else:
+                    retVal = jediTaskID
                 _logger.debug('{0} inserted new jediTaskID={1}'.format(methodName,jediTaskID))
                 retFlag = True
             # commit

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed to use comm_parameters
   * changed to allow reactivation of aborted tasks
   * fixed insertTaskParamsPanda
   * changed propagateResultToJEDI to avoid row contention
