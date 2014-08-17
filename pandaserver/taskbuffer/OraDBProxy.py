@@ -11804,13 +11804,14 @@ class DBProxy:
                     cur.execute(sqlFP+comment,varMap)
         # sql to record retry history
         sqlRH  = "INSERT INTO {0}.JEDI_Job_Retry_History ".format(panda_config.schemaJEDI)
-        sqlRH += "(jediTaskID,oldPandaID,newPandaID) "
-        sqlRH += "VALUES(:jediTaskID,:oldPandaID,:newPandaID) "
+        sqlRH += "(jediTaskID,oldPandaID,newPandaID,relationType) "
+        sqlRH += "VALUES(:jediTaskID,:oldPandaID,:newPandaID,:relationType) "
         # record retry history
         varMap = {}
         varMap[':jediTaskID'] = job.jediTaskID
         varMap[':oldPandaID'] = job.parentID
         varMap[':newPandaID'] = job.PandaID
+        varMap[':relationType'] = 'retry'
         _logger.debug(sqlRH+comment+str(varMap))
         cur.execute(sqlRH+comment,varMap)
         return
