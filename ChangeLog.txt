@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed retryJob to check attemptNr in JEDI
   * setting retry in retry history
   * changed to use comm_parameters
   * changed to allow reactivation of aborted tasks
