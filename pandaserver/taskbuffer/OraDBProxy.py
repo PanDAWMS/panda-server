@@ -12478,12 +12478,19 @@ class DBProxy:
             # sql to get task status
             sqlT  = 'SELECT status FROM {0}.JEDI_Tasks WHERE jediTaskID=:jediTaskID '.format(panda_config.schemaJEDI)
             # sql to get datasets
-            sqlD  = 'SELECT datasetID,datasetName,containerName,type,nFiles,nFilesTobeUsed,nFilesFinished,nFilesFailed,masterID '
+            sqlD  = 'SELECT datasetID,datasetName,containerName,type,nFiles,nFilesTobeUsed,nFilesFinished,nFilesFailed,masterID,nFilesUsed,nFilesOnHold '
             sqlD += 'FROM {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
             sqlD += "WHERE jediTaskID=:jediTaskID "
             # sql to get PandaIDs
-            sqlP  = "SELECT distinct PandaID FROM {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
+            sqlP  = "SELECT PandaID,COUNT(*) FROM {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
             sqlP += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND PandaID IS NOT NULL "
+            sqlP += "GROUP BY PandaID "
+            # sql to get job status
+            sqlJS  = "SELECT PandaID,jobStatus,processingType FROM ATLAS_PANDA.jobsDefined4 "
+            sqlJS += "WHERE jediTaskID=:jediTaskID AND prodSourceLabel=:prodSourceLabel "
+            sqlJS += "UNION "
+            sqlJS  = "SELECT PandaID,jobStatus,processingType FROM ATLAS_PANDA.jobsActive4 "
+            sqlJS += "WHERE jediTaskID=:jediTaskID AND prodSourceLabel=:prodSourceLabel "
             varMap = {}
             varMap[':jediTaskID'] = jediTaskID
             # start transaction
@@ -12500,13 +12507,31 @@ class DBProxy:
             # get datasets
             self.cur.execute(sqlD+comment, varMap)
             resList = self.cur.fetchall()
+            # get job status
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            varMap[':prodSourceLabel'] = 'user'
+            self.cur.execute(sqlJS+comment, varMap)
+            resJS = self.cur.fetchall()
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
+            # make jobstatus map
+            jobStatPandaIDs = {}
+            for tmpPandaID,tmpJobStatus,tmpProcessingType in resJS:
+                # ignore merge jobs
+                if tmpProcessingType == 'pmerge':
+                    continue
+                jobStatPandaIDs[tmpPandaID] = tmpJobStatus
             # append
             inDSs = []
             outDSs = []
-            for datasetID,datasetName,containerName,datasetType,nFiles,nFilesTobeUsed,nFilesFinished,nFilesFailed,masterID in resList:
+            totalNumFiles = 0
+            totalTobeDone = 0
+            totalFinished = 0
+            totalFailed = 0
+            totalStatMap = {}
+            for datasetID,datasetName,containerName,datasetType,nFiles,nFilesTobeUsed,nFilesFinished,nFilesFailed,masterID,nFilesUsed,nFilesOnHold in resList:
                 # primay input
                 if datasetType in ['input','pseudo_input','trn_log'] and masterID == None:
                     # unmerge dataset
@@ -12525,34 +12550,35 @@ class DBProxy:
                             inDSs.append(targetName)
                             retDict['inDS'] += '{0},'.format(targetName)
                     # statistics
-                    statStr = ''
-                    nFilesActive = nFiles-nFilesFinished-nFilesFailed
-                    if nFilesActive > 0:
-                        if not unmergeFlag:
-                            statStr += 'tobedone*{0},'.format(nFilesActive)
-                        else:
-                            statStr += 'tobemerged*{0},'.format(nFilesActive)
-                            retDict['mergeStatus'] = 'merging'
-                    if nFilesFinished != 0:
-                        if not unmergeFlag:
-                            statStr += 'finished*{0},'.format(nFilesFinished)
-                    if nFilesFailed != 0:
-                        if not unmergeFlag:
-                            statStr += 'failed*{0},'.format(nFilesFailed)
-                    retDict['statistics'] = statStr[:-1]
+                    if datasetType in ['input','pseudo_input']:
+                        totalNumFiles += nFiles
+                        totalFinished += nFilesFinished
+                        totalFailed   += nFilesFailed
+                        totalTobeDone += (nFiles-nFilesUsed)
                     # collect PandaIDs
+                    self.conn.begin()
                     varMap = {}
                     varMap[':jediTaskID'] = jediTaskID
                     varMap[':datasetID'] = datasetID
                     self.cur.execute(sqlP+comment, varMap)
                     resP = self.cur.fetchall()
-                    for tmpPandaID, in resP:
+                    # commit
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+                    for tmpPandaID,tmpNumFiles in resP:
                         if not unmergeFlag:
                             if not tmpPandaID in retDict['PandaID']:
                                 retDict['PandaID'].append(tmpPandaID)
                         else:
                             if not tmpPandaID in retDict['mergePandaID']:
                                 retDict['mergePandaID'].append(tmpPandaID)
+                        # map to job status
+                        if datasetType in ['input','pseudo_input']:
+                            if tmpPandaID in jobStatPandaIDs:
+                                tmpJobStatus = jobStatPandaIDs[tmpPandaID]
+                                if not tmpJobStatus in totalStatMap:
+                                    totalStatMap[tmpJobStatus] = 0 
+                                totalStatMap[tmpJobStatus] += tmpNumFiles
                 # output
                 if datasetType.endswith('output') or datasetType.endswith('log'):
                     # ignore transient datasets
@@ -12568,6 +12594,27 @@ class DBProxy:
                         retDict['outDS'] += '{0},'.format(targetName)
             retDict['inDS'] = retDict['inDS'][:-1]
             retDict['outDS'] = retDict['outDS'][:-1]
+            # statistics
+            statStr = ''
+            nPicked = totalNumFiles
+            if totalTobeDone > 0:
+                statStr += 'tobedone*{0},'.format(totalTobeDone)
+                nPicked -= totalTobeDone
+            if totalFinished > 0:
+                statStr += 'finished*{0},'.format(totalFinished)
+                nPicked -= totalFinished
+            if totalFailed > 0:
+                statStr += 'failed*{0},'.format(totalFailed)
+                nPicked -= totalFailed
+            for tmpJobStatus,tmpNumFiles in totalStatMap.iteritems():
+                # skip active failed
+                if tmpJobStatus == 'failed':
+                    continue
+                statStr += '{0}*{1},'.format(tmpJobStatus,tmpNumFiles)
+                nPicked -= tmpNumFiles
+            if nPicked > 0:
+                statStr += 'picked*{0},'.format(nPicked)
+            retDict['statistics'] = statStr[:-1]
             # command line parameters
             if fullFlag:
                 # sql to read task params
