@@ -12094,7 +12094,11 @@ class DBProxy:
                         newTaskParams = {}
                         for tmpKey,tmpVal in taskParamsJson.iteritems():
                             # dataset names
-                            if tmpKey.startswith('dsFor'):
+                            # site limitation
+                            # command line parameters
+                            if tmpKey.startswith('dsFor') \
+                                    or tmpKey in ['site','cloud','includedSite','excludedSite'] \
+                                    or tmpKey == 'cliParams':
                                 newTaskParams[tmpKey] = tmpVal
                                 continue
                         # delete command just in case

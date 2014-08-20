@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * extracting more params for incexec
   * fixed getJediTaskDetails
   * fixed retryJob to check attemptNr in JEDI
   * setting retry in retry history
