@@ -12096,9 +12096,11 @@ class DBProxy:
                             # dataset names
                             # site limitation
                             # command line parameters
+                            # splitting hints
                             if tmpKey.startswith('dsFor') \
                                     or tmpKey in ['site','cloud','includedSite','excludedSite'] \
-                                    or tmpKey == 'cliParams':
+                                    or tmpKey == 'cliParams' \
+                                    or tmpKey in ['nFilesPerJob']:
                                 newTaskParams[tmpKey] = tmpVal
                                 continue
                         # delete command just in case
