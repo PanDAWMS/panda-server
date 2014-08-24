@@ -9,5 +9,6 @@ source @@install_dir@@/etc/sysconfig/panda_server-sysconfig
 # set PYTHONPATH for dashboard
 export PYTHONPATH=/opt/dashboard/lib/dashboard:/opt/dashboard/lib:$PYTHONPATH
 
-python@@python_exec_version@@ @@install_purelib@@/pandaserver/test/fileCallbackListener.py
+#python@@python_exec_version@@ @@install_purelib@@/pandaserver/test/fileCallbackListener.py
+python@@python_exec_version@@ @@install_purelib@@/pandaserver/test/datasetCallbackListener.py
 #python@@python_exec_version@@ @@install_purelib@@/pandaserver/test/genCallbackConsumer.py

@@ -364,3 +364,19 @@ def getAssociatedTapeEndPoints(endPoint,toa,replicaMap):
                 repEndPoints.append(assEndPoint)
     return repEndPoints
 
+
+# change output of listDatasets to include dataset info
+def changeListDatasetsOut(out):
+    try:
+        exec 'origMap = '+out.split('\n')[0]
+        newMap = {}
+        for tmpkey,tmpval in origMap.iteritems():
+            newMap[tmpkey] = tmpval
+            if ':' in tmpkey:
+                newMap[tmpkey.split(':')[-1]] = tmpval
+        return str(newMap)
+    except:
+        pass
+    return out
+    
+

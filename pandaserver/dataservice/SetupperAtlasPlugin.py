@@ -25,6 +25,7 @@ from brokerage.PandaSiteIDs import PandaMoverIDs
 import brokerage.broker
 import brokerage.broker_util
 import DataServiceUtils
+from rucio.client import Client as RucioClient
 
 from SetupperPluginBase import SetupperPluginBase
 
@@ -184,6 +185,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         prodError   = {}
         dispSiteMap = {}
         dispError   = {}
+        backEndMap  = {}
         # extract prodDBlock
         for job in self.jobs:
             # ignore failed jobs
@@ -193,10 +195,10 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             if job.prodDBlock != 'NULL' and (not self.pandaDDM) and (not job.prodSourceLabel in ['user','panda']):
                 # get VUID and record prodDBlock into DB
                 if not prodError.has_key(job.prodDBlock):
-                    self.logger.debug('queryDatasetByName '+job.prodDBlock)
+                    self.logger.debug('listDatasets '+job.prodDBlock)
                     prodError[job.prodDBlock] = ''
                     for iDDMTry in range(3):
-                        status,out = ddm.repositoryClient.main('queryDatasetByName',job.prodDBlock)
+                        status,out = ddm.DQ2.main('listDatasets',job.prodDBlock)
                         if status != 0 or out.find("DQ2 internal server exception") != -1 \
                                or out.find("An error occurred on the central catalogs") != -1 \
                                or out.find("MySQL server has gone away") != -1:
@@ -208,8 +210,9 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         self.logger.error(out)                                            
                     else:
                         self.logger.debug(out)
+                        newOut = DataServiceUtils.changeListDatasetsOut(out)
                         try:
-                            exec "vuids = %s['%s']['vuids']" % (out.split('\n')[0],job.prodDBlock)
+                            exec "vuids = %s['%s']['vuids']" % (newOut.split('\n')[0],job.prodDBlock)
                             nfiles = 0
                             # dataset spec
                             ds = DatasetSpec()
@@ -248,12 +251,24 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 dispSiteMap[job.dispatchDBlock] = {'src':srcDQ2ID,'dst':dstDQ2ID,'site':job.computingSite}
                 # filelist
                 if not fileList.has_key(job.dispatchDBlock):
-                    fileList[job.dispatchDBlock] = {'lfns':[],'guids':[],'fsizes':[],'md5sums':[],'chksums':[]}
+                    fileList[job.dispatchDBlock] = {'lfns':[],'guids':[],'fsizes':[],'md5sums':[],
+                                                    'chksums':[]}
+                # DDM backend
+                if not job.dispatchDBlock in backEndMap:
+                    # check if rucio dataset
+                    if job.getDdmBackEnd() == 'rucio' and not self.checkRucioDataset(job.prodDBlock):
+                        backEndMap[job.dispatchDBlock] = None
+                    else:
+                        backEndMap[job.dispatchDBlock] = job.getDdmBackEnd()
                 # collect LFN and GUID
                 for file in job.Files:
                     if file.type == 'input' and file.status == 'pending':
-                        if not file.lfn in fileList[job.dispatchDBlock]['lfns']:
-                            fileList[job.dispatchDBlock]['lfns'].append(file.lfn)
+                        if backEndMap[job.dispatchDBlock] != 'rucio':
+                            tmpLFN = file.lfn
+                        else:
+                            tmpLFN = '{0}:{1}'.format(file.scope,file.lfn)
+                        if not tmpLFN in fileList[job.dispatchDBlock]['lfns']:
+                            fileList[job.dispatchDBlock]['lfns'].append(tmpLFN)
                             fileList[job.dispatchDBlock]['guids'].append(file.GUID)
                             if file.fsize in ['NULL',0]:
                                 fileList[job.dispatchDBlock]['fsizes'].append(None)
@@ -313,15 +328,21 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             if (not self.pandaDDM) and job.prodSourceLabel != 'ddm':
                 # register dispatch dataset
                 disFiles = fileList[dispatchDBlock]
-                self.logger.debug('registerNewDataset {ds} {lfns} {guids} {fsizes} {chksums}'.format(ds=dispatchDBlock,
-                                                                                                     lfns=str(disFiles['lfns']),
-                                                                                                     guids=str(disFiles['guids']),
-                                                                                                     fsizes=str(disFiles['fsizes']),
-                                                                                                     chksums=str(disFiles['chksums']),
-                                                                                                     ))
+                ddmBackEnd = backEndMap[dispatchDBlock]
+                tmpMsg = 'registerNewDataset {ds} {lfns} {guids} {fsizes} {chksums} rse={rse} backend={backend}'
+                self.logger.debug(tmpMsg.format(ds=dispatchDBlock,
+                                                lfns=str(disFiles['lfns']),
+                                                guids=str(disFiles['guids']),
+                                                fsizes=str(disFiles['fsizes']),
+                                                chksums=str(disFiles['chksums']),
+                                                backend=ddmBackEnd,
+                                                rse=dispSiteMap[dispatchDBlock]['src'],
+                                                ))
                 for iDDMTry in range(3):
                     status,out = ddm.DQ2.main('registerNewDataset',dispatchDBlock,disFiles['lfns'],disFiles['guids'],
-                              disFiles['fsizes'],disFiles['chksums'],None,None,None,True)
+                                              disFiles['fsizes'],disFiles['chksums'],None,None,None,True,
+                                              rse=dispSiteMap[dispatchDBlock]['src'],
+                                              force_backend=ddmBackEnd)
                     if status != 0 and out.find('DQDatasetExistsException') != -1:
                         break
                     elif status != 0 or out.find("DQ2 internal server exception") != -1 \
@@ -480,16 +501,59 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                 # create a fake vuidStr
                                 vuidStr = 'vuid="%s"' % commands.getoutput('uuidgen')
                             else:
-                                # register dataset
+                                # get list of tokens    
+                                tmpTokenList = file.destinationDBlockToken.split(',')
+                                # get locations
+                                usingT1asT2 = False
+                                if job.prodSourceLabel == 'user' and not self.siteMapper.siteSpecList.has_key(computingSite):
+                                    dq2IDList = [self.siteMapper.getSite(job.computingSite).ddm]
+                                else:
+                                    if self.siteMapper.getSite(computingSite).cloud != job.cloud and \
+                                            re.search('_sub\d+$',name) != None and \
+                                            (not job.prodSourceLabel in ['user','panda']) and \
+                                            (not self.siteMapper.getSite(computingSite).ddm.endswith('PRODDISK')):
+                                        # T1 used as T2. Use both DATADISK and PRODDISK as locations while T1 PRODDISK is phasing out
+                                        dq2IDList = [self.siteMapper.getSite(computingSite).ddm]
+                                        if self.siteMapper.getSite(computingSite).setokens.has_key('ATLASPRODDISK'):
+                                            dq2IDList += [self.siteMapper.getSite(computingSite).setokens['ATLASPRODDISK']]
+                                        usingT1asT2 = True
+                                    else:
+                                        dq2IDList = [self.siteMapper.getSite(computingSite).ddm]
+                                # use another location when token is set
+                                if re.search('_sub\d+$',name) == None and DataServiceUtils.getDestinationSE(file.destinationDBlockToken) != None:
+                                    # destination is specified
+                                    dq2IDList = [DataServiceUtils.getDestinationSE(file.destinationDBlockToken)]
+                                elif (not usingT1asT2) and (not file.destinationDBlockToken in ['NULL','']):
+                                    dq2IDList = []
+                                    for tmpToken in tmpTokenList:
+                                        # set default
+                                        dq2ID = self.siteMapper.getSite(computingSite).ddm
+                                        # convert token to DQ2ID
+                                        if self.siteMapper.getSite(computingSite).setokens.has_key(tmpToken):
+                                            dq2ID = self.siteMapper.getSite(computingSite).setokens[tmpToken]
+                                        # replace or append    
+                                        if len(tmpTokenList) <= 1 or name != originalName:
+                                            # use location consistent with token
+                                            dq2IDList = [dq2ID]
+                                            break
+                                        else:
+                                            # use multiple locations for _tid
+                                            if not dq2ID in dq2IDList:
+                                                dq2IDList.append(dq2ID)
                                 # set hidden flag for _sub
                                 tmpHiddenFlag = False
                                 if name != originalName and re.search('_sub\d+$',name) != None:
                                     tmpHiddenFlag = True
-                                self.logger.debug('registerNewDataset '+name)
+                                # register dataset
+                                self.logger.debug('registerNewDataset {name} force_backend={force_backend} rse={rse}'.format(name=name,
+                                                                                                                             rse=dq2IDList[0],
+                                                                                                                             force_backend=job.getDdmBackEnd()))
                                 atFailed = 0
                                 for iDDMTry in range(3):
                                     status,out = ddm.DQ2.main('registerNewDataset',name,[],[],[],[],
-                                                              None,None,None,tmpHiddenFlag)
+                                                              None,None,None,tmpHiddenFlag,
+                                                              rse=dq2IDList[0],
+                                                              force_backend=job.getDdmBackEnd())
                                     if status != 0 and out.find('DQDatasetExistsException') != -1:
                                         atFailed = iDDMTry
                                         break
@@ -520,62 +584,28 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                 else:
                                     self.logger.debug(out)
                                     vuidStr = "vuid = %s['vuid']" % out
-                                # get list of tokens    
-                                tmpTokenList = file.destinationDBlockToken.split(',')
-                                # register datasetsets
-                                if name == originalName or tmpSrcDDM != tmpDstDDM or \
+                                # register dataset locations
+                                if job.lockedby == 'jedi' and job.getDdmBackEnd() == 'rucio' and job.prodSourceLabel in ['panda','user']:
+                                    # skip registerDatasetLocations
+                                    status,out = 0,''
+                                elif name == originalName or tmpSrcDDM != tmpDstDDM or \
                                        job.prodSourceLabel == 'panda' or (job.prodSourceLabel in ['ptest','rc_test'] and \
                                                                           job.processingType in ['pathena','prun','gangarobot-rctest']) \
                                        or len(tmpTokenList) > 1:
                                     # register location
-                                    usingT1asT2 = False
-                                    if job.prodSourceLabel == 'user' and not self.siteMapper.siteSpecList.has_key(computingSite):
-                                        dq2IDList = [self.siteMapper.getSite(job.computingSite).ddm]
-                                    else:
-                                        if self.siteMapper.getSite(computingSite).cloud != job.cloud and \
-                                           re.search('_sub\d+$',name) != None and \
-                                           (not job.prodSourceLabel in ['user','panda']) and \
-                                           (not self.siteMapper.getSite(computingSite).ddm.endswith('PRODDISK')):
-                                            # T1 used as T2. Use both DATADISK and PRODDISK as locations while T1 PRODDISK is phasing out
-                                            dq2IDList = [self.siteMapper.getSite(computingSite).ddm]
-                                            if self.siteMapper.getSite(computingSite).setokens.has_key('ATLASPRODDISK'):
-                                                dq2IDList += [self.siteMapper.getSite(computingSite).setokens['ATLASPRODDISK']]
-                                            usingT1asT2 = True
-                                        else:
-                                            dq2IDList = [self.siteMapper.getSite(computingSite).ddm]
-                                    # use another location when token is set
-                                    if re.search('_sub\d+$',name) == None and DataServiceUtils.getDestinationSE(file.destinationDBlockToken) != None:
-                                        # destination is specified
-                                        dq2IDList = [DataServiceUtils.getDestinationSE(file.destinationDBlockToken)]
-                                    elif (not usingT1asT2) and (not file.destinationDBlockToken in ['NULL','']):
-                                        # token is specified
-                                        dq2IDList = []
-                                        for tmpToken in tmpTokenList:
-                                            # set default
-                                            dq2ID = self.siteMapper.getSite(computingSite).ddm
-                                            # convert token to DQ2ID
-                                            if self.siteMapper.getSite(computingSite).setokens.has_key(tmpToken):
-                                                dq2ID = self.siteMapper.getSite(computingSite).setokens[tmpToken]
-                                            # replace or append    
-                                            if len(tmpTokenList) <= 1 or name != originalName:
-                                                # use location consistent with token
-                                                dq2IDList = [dq2ID]
-                                                break
-                                            else:
-                                                # use multiple locations for _tid
-                                                if not dq2ID in dq2IDList:
-                                                    dq2IDList.append(dq2ID)
                                     # loop over all locations
                                     repLifeTime = None
                                     if name != originalName and re.search('_sub\d+$',name) != None:
                                         repLifeTime = "14 days"
                                     for dq2ID in dq2IDList:
-                                        self.logger.debug('registerDatasetLocation {name} {dq2ID} {repLifeTime}'.format(name=name,
-                                                                                                                        dq2ID=dq2ID,
-                                                                                                                        repLifeTime=repLifeTime,
-                                                                                                                        ))
+                                        self.logger.debug('registerDatasetLocation {name} {dq2ID} {repLifeTime} backend={backend}'.format(name=name,
+                                                                                                                                          dq2ID=dq2ID,
+                                                                                                                                          repLifeTime=repLifeTime,
+                                                                                                                                          backend=job.getDdmBackEnd(),
+                                                                                                                                          ))
                                         for iDDMTry in range(3):                            
-                                            status,out = ddm.DQ2.main('registerDatasetLocation',name,dq2ID,0,0,None,None,None,repLifeTime)
+                                            status,out = ddm.DQ2.main('registerDatasetLocation',name,dq2ID,0,0,None,None,None,repLifeTime,
+                                                                      force_backend=job.getDdmBackEnd())
                                             if status != 0 and out.find('DQLocationExistsException') != -1:
                                                 break
                                             elif status != 0 or out.find("DQ2 internal server exception") != -1 \
@@ -639,7 +669,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                                                         job.processingType in ['pathena','prun','gangarobot-rctest']):
                                     # do nothing for "panda" job
                                     pass
-                                elif name == originalName and job.prodSourceLabel in ['managed','test','rc_test','ptest']:
+                                elif name == originalName and job.prodSourceLabel in ['managed','test','rc_test','ptest'] \
+                                        and job.getDdmBackEnd() != 'rucio':
                                     # set metadata
                                     if DataServiceUtils.getDestinationSE(file.destinationDBlockToken) != None:
                                         dq2ID = DataServiceUtils.getDestinationSE(file.destinationDBlockToken)
@@ -677,9 +708,9 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                             break
                         # get vuid
                         if vuidStr == '':
-                            self.logger.debug('queryDatasetByName '+name)
+                            self.logger.debug('listDatasets '+name)
                             for iDDMTry in range(3):                    
-                                status,out = ddm.repositoryClient.main('queryDatasetByName',name)
+                                status,out = ddm.DQ2.main('listDatasets',name)
                                 if status != 0 or out.find("DQ2 internal server exception") != -1 \
                                        or out.find("An error occurred on the central catalogs") != -1 \
                                        or out.find("MySQL server has gone away") != -1:
@@ -690,7 +721,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                 self.logger.error(out)
                             else:
                                 self.logger.debug(out)
-                            vuidStr = "vuid = %s['%s']['vuids'][0]" % (out.split('\n')[0],name)
+                            newOut = DataServiceUtils.changeListDatasetsOut(out)
+                            vuidStr = "vuid = %s['%s']['vuids'][0]" % (newOut.split('\n')[0],name)
                         try:
                             exec vuidStr
                             # dataset spec
@@ -835,12 +867,14 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         if dq2IDList == []:
                             dq2IDList = [dq2ID]
                         for dq2ID in dq2IDList:
-                            self.logger.debug('registerDatasetLocation {ds} {dq2ID} {lifeTime}'.format(ds=job.dispatchDBlock,
-                                                                                                       dq2ID=dq2ID,
-                                                                                                       lifeTime="7 days",
-                                                                                                       ))
+                            self.logger.debug('registerDatasetLocation {ds} {dq2ID} {lifeTime} backend={backend}'.format(ds=job.dispatchDBlock,
+                                                                                                                         dq2ID=dq2ID,
+                                                                                                                         lifeTime="7 days",
+                                                                                                                         backend=job.getDdmBackEnd(),
+                                                                                                                         ))
                             for iDDMTry in range(3):                                            
-                                status,out = ddm.DQ2.main('registerDatasetLocation',job.dispatchDBlock,dq2ID,0,1,None,None,None,"7 days")
+                                status,out = ddm.DQ2.main('registerDatasetLocation',job.dispatchDBlock,dq2ID,0,1,None,None,None,"7 days",
+                                                          force_backend=job.getDdmBackEnd())
                                 if status != 0 or out.find("DQ2 internal server exception") != -1 \
                                        or out.find("An error occurred on the central catalogs") != -1 \
                                        or out.find("MySQL server has gone away") != -1:
@@ -930,12 +964,13 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                                         (job.dispatchDBlock,dq2ID),
                                                         {'version':0,'archived':0,'callbacks':optSub,'sources':optSource,'sources_policy':optSrcPolicy,
                                                          'wait_for_sources':0,'destination':None,'query_more_sources':0,'sshare':optShare,'group':None,
-                                                         'activity':optActivity,'acl_alias':None,'replica_lifetime':"7 days"}))
+                                                         'activity':"Production",'acl_alias':None,'replica_lifetime':"7 days",
+                                                         'force_backend':job.getDdmBackEnd()}))
                         for iDDMTry in range(3):                                                                
                             status,out = ddm.DQ2.main('registerDatasetSubscription',job.dispatchDBlock,dq2ID,version=0,archived=0,callbacks=optSub,
                                                       sources=optSource,sources_policy=optSrcPolicy,wait_for_sources=0,destination=None,
                                                       query_more_sources=0,sshare=optShare,group=None,activity=optActivity,
-                                                      acl_alias=None,replica_lifetime="7 days")
+                                                      acl_alias=None,replica_lifetime="7 days",force_backend=job.getDdmBackEnd())
                             if status != 0 or out.find("DQ2 internal server exception") != -1 \
                                    or out.find("An error occurred on the central catalogs") != -1 \
                                    or out.find("MySQL server has gone away") != -1:
@@ -1980,11 +2015,12 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 tmpSeTokens = self.siteMapper.getSite(tmpJob.computingSite).setokens
                 if tmpSeTokens.has_key('ATLASPRODDISK'):
                     destDQ2ID = tmpSeTokens['ATLASPRODDISK']
+            ddmBackEnd = tmpJob.getDdmBackEnd()
             mapKeyJob = (destDQ2ID,logSubDsName)
             # increment the number of jobs per key
             if not nJobsMap.has_key(mapKeyJob):
                 nJobsMap[mapKeyJob] = 0
-            mapKey = (destDQ2ID,logSubDsName,nJobsMap[mapKeyJob]/nMaxJobs)
+            mapKey = (destDQ2ID,logSubDsName,nJobsMap[mapKeyJob]/nMaxJobs,ddmBackEnd)
             nJobsMap[mapKeyJob] += 1
             if not dsFileMap.has_key(mapKey):
                 dsFileMap[mapKey] = {}
@@ -2009,7 +2045,12 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                                         'PandaID':tmpJob.PandaID,
                                                         'files':{}}
                 if not dsFileMap[mapKey][realDestDQ2ID]['files'].has_key(tmpFile.lfn):
-                    dsFileMap[mapKey][realDestDQ2ID]['files'][tmpFile.lfn] = {'lfn' :tmpFile.lfn,
+                    # add scope
+                    if ddmBackEnd != 'rucio':
+                        tmpLFN = tmpFile.lfn
+                    else:
+                        tmpLFN = '{0}:{1}'.format(tmpFile.scope,tmpFile.lfn)
+                    dsFileMap[mapKey][realDestDQ2ID]['files'][tmpFile.lfn] = {'lfn' :tmpLFN,
                                                                               'guid':tmpFile.GUID,
                                                                               'fileSpecs':[]}
                 # add file spec
@@ -2017,7 +2058,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         # loop over all locations
         dispList = []
         for tmpMapKey,tmpDumVal in dsFileMap.iteritems():
-            tmpDumLocation,tmpLogSubDsName,tmpBunchIdx = tmpMapKey
+            tmpDumLocation,tmpLogSubDsName,tmpBunchIdx,tmpDdmBackEnd = tmpMapKey
             for tmpLocationList,tmpVal in tmpDumVal.iteritems():
                 for tmpLocation in tmpLocationList:
                     tmpFileList = tmpVal['files']
@@ -2050,15 +2091,18 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                     tmpFileSpec.dispatchDBlock = disDBlock
                         # register datasets
                         iLoop += 1
-                        self.logger.debug('ext registerNewDataset {ds} {lfns} {guids} {fsizes} {chksums}'.format(ds=disDBlock,
-                                                                                                                 lfns=str(lfns),
-                                                                                                                 guids=str(guids),
-                                                                                                                 fsizes=str(fsizes),
-                                                                                                                 chksums=str(chksums),
-                                                                                                                 ))
+                        tmpMsg = 'ext registerNewDataset {ds} {lfns} {guids} {fsizes} {chksums} rse={rse} backend={backend}'
+                        self.logger.debug(tmpMsg.format(ds=disDBlock,
+                                                        lfns=str(lfns),
+                                                        guids=str(guids),
+                                                        fsizes=str(fsizes),
+                                                        chksums=str(chksums),
+                                                        backend=tmpDdmBackEnd,
+                                                        rse=tmpLocation,
+                                                        ))
                         for iDDMTry in range(3):
                             status,out = ddm.DQ2.main('registerNewDataset',disDBlock,lfns,guids,fsizes,chksums,
-                                                      None,None,None,True)
+                                                      None,None,None,True,rse=tmpLocation,force_backend=tmpDdmBackEnd)
                             if status != 0 and out.find('DQDatasetExistsException') != -1:
                                 break
                             elif status != 0 or out.find("DQ2 internal server exception") != -1 \
@@ -2404,4 +2448,23 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         except:
             pass
         time.sleep(1)
-                            
+
+
+    # check if rucio dataset
+    def checkRucioDataset(self,datasetName,scope=None):
+        try:
+            # use the first part as scope
+            if scope == None:
+                if ':' in datasetName:
+                    scope = datasetName.split(':')[0]
+                else:
+                    scope = datasetName.split('.')[0]
+            # remove :
+            datasetName = datasetName.split(':')[-1]
+            # check with rucio
+            rucioapi = RucioClient()
+            x = rucioapi.get_metadata(scope,datasetName)
+        except:
+            self.logger.debug('{0}:{1} is not found in rucio'.format(scope,datasetName))
+            return False
+        return True

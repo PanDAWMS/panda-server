@@ -12,29 +12,10 @@ import threading
 
 from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
+from pandalogger.LogWrapper import LogWrapper
 
 # logger
 _logger = PandaLogger().getLogger('Setupper')
-
-
-
-# message class
-class MsgWrapper:
-    def __init__(self):
-        self.timestamp = datetime.datetime.utcnow().isoformat('/')
-
-    def info(self,msg):
-        _logger.info(self.timestamp + ' ' + str(msg))
-
-    def debug(self,msg):
-        _logger.debug(self.timestamp + ' ' + str(msg))
-
-    def error(self,msg):
-        _logger.error(self.timestamp + ' ' + str(msg))
-
-    def warning(self,msg):
-        _logger.warning(self.timestamp + ' ' + str(msg))
-
 
 
 # main class
@@ -66,7 +47,7 @@ class Setupper (threading.Thread):
     def run(self):
         try:
             # make a message instance
-            tmpLog = MsgWrapper()
+            tmpLog = LogWrapper(_logger,None)
             # run main procedure in the same process
             if not self.forkRun:
                 tmpLog.debug('main start')

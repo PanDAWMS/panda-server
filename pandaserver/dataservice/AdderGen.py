@@ -231,8 +231,8 @@ class AdderGen:
                         if not file.destinationDBlock in destDBList:
                             destDBList.append(file.destinationDBlock)
                         # collect GUIDs
-                        if (self.job.prodSourceLabel=='panda' or (self.job.prodSourceLabel in ['ptest','rc_test'] and \
-                                                                  self.job.processingType in ['pathena','prun','gangarobot-rctest'])) \
+                        if (self.job.prodSourceLabel=='panda' or (self.job.prodSourceLabel in ['ptest','rc_test','rucio_test'] and \
+                                                                  self.job.processingType in ['pathena','prun','gangarobot-rctest','hammercloud'])) \
                                                                   and file.type == 'output':
                             # extract base LFN since LFN was changed to full LFN for CMS
                             baseLFN = file.lfn.split('/')[-1]

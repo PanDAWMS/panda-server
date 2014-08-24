@@ -5,6 +5,8 @@ job specification
 
 reserveChangedState = False
 
+import re
+
 
 class JobSpec(object):
     # attributes
@@ -275,6 +277,19 @@ class JobSpec(object):
 
 
 
+    # set DDM backend
+    def setDdmBackEnd(self,backEnd):
+        if self.specialHandling == None:
+            self.specialHandling = 'ddm:'+backEnd
+        else:
+            if 'ddm:' in self.specialHandling:
+                self.specialHandling = re.sub('ddm:[,]+','ddm:'+backEnd,
+                                              self.specialHandling)
+            else:
+                self.specialHandling = self.specialHandling+','+ \
+                    'ddm:'+backEnd
+
+            
     # set LB number
     def setLumiBlockNr(self,lumiBlockNr):
         if self.specialHandling in ['',None,'NULL']:
@@ -290,4 +305,15 @@ class JobSpec(object):
             for tmpItem in self.specialHandling.split(','):
                 if tmpItem.startswith('lb:'):
                     return int(tmpItem.split(':')[-1])
+        return None
+
+
+
+    # get DDM backend
+    def getDdmBackEnd(self):
+        if self.specialHandling == None:
+            return None
+        for tmpItem in self.specialHandling.split(','):
+            if tmpItem.startswith('ddm:'):
+                return tmpItem.split(':')[-1]
         return None

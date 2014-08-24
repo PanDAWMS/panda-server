@@ -11,6 +11,7 @@ from Finisher  import Finisher
 from Activator import Activator
 
 from pandalogger.PandaLogger import PandaLogger
+from pandalogger.LogWrapper import LogWrapper
 
 # logger
 _logger = PandaLogger().getLogger('DDMHandler')
@@ -18,23 +19,32 @@ _logger = PandaLogger().getLogger('DDMHandler')
 
 class DDMHandler (threading.Thread):
     # constructor
-    def __init__(self,taskBuffer,vuid,site=None):
+    def __init__(self,taskBuffer,vuid,site=None,dataset=None,scope=None):
         threading.Thread.__init__(self)
         self.vuid       = vuid
         self.taskBuffer = taskBuffer
         self.site       = site
+        self.scope      = scope
+        self.dataset    = dataset
 
 
     # main
     def run(self):
+        # get logger
+        tmpLog = LogWrapper(_logger,'<vuid={0} site={1} name={2}>'.format(self.vuid,
+                                                                          self.site,
+                                                                          self.dataset))
         # query dataset
-        _logger.debug("start: %s %s" % (self.vuid,self.site))
-        dataset = self.taskBuffer.queryDatasetWithMap({'vuid':self.vuid})
+        tmpLog.debug("start")
+        if self.vuid != None:
+            dataset = self.taskBuffer.queryDatasetWithMap({'vuid':self.vuid})
+        else:
+            dataset = self.taskBuffer.queryDatasetWithMap({'name':self.dataset})
         if dataset == None:
-            _logger.error("Not found : %s" % self.vuid)
-            _logger.debug("end: %s" % self.vuid)            
+            tmpLog.error("Not found")
+            tmpLog.debug("end")
             return
-        _logger.debug("vuid:%s type:%s name:%s" % (self.vuid,dataset.type,dataset.name))
+        tmpLog.debug("type:%s name:%s" % (dataset.type,dataset.name))
         if dataset.type == 'dispatch':
             # activate jobs in jobsDefined
             Activator(self.taskBuffer,dataset).start()
@@ -45,4 +55,4 @@ class DDMHandler (threading.Thread):
             else:
                 # finish transferring jobs
                 Finisher(self.taskBuffer,dataset,site=self.site).start()
-        _logger.debug("end: %s" % self.vuid)
+        tmpLog.debug("end")

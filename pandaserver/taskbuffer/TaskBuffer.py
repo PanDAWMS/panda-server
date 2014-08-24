@@ -292,9 +292,14 @@ class TaskBuffer:
                         # express mode    
                         if useExpress and (nRunJob < nExpressJobs or job.prodSourceLabel == 'panda'):
                             specialHandling += 'express,'
+                        # get DDM backend
+                        ddmBackEnd = job.getDdmBackEnd()
                         # reset specialHandling
                         specialHandling = specialHandling[:-1]
                         job.specialHandling = specialHandling
+                        # set DDM backend
+                        if ddmBackEnd != None:
+                            job.setDdmBackEnd(ddmBackEnd)
                     if job.prodSourceLabel != 'panda':
                         nRunJob += 1
                 # set relocation flag

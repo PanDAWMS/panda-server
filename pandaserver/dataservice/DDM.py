@@ -37,9 +37,15 @@ class _DQMethod:
             self.methodName = args[0]
             args.pop(0)
         # build command
-        com  = 'import dq2.clientapi.cli.cliutil; '
-        #com += 'import sys; sys.tracebacklimit=0; '
-        com += 'dq2api = dq2.clientapi.cli.cliutil.getDQ2(None); '
+        com  = 'from dq2.clientapi import DQ2; '
+        if 'force_backend' in kwargs and kwargs['force_backend'] != None:
+            com += 'dq2api = DQ2(force_backend="{0}"); '.format(kwargs['force_backend'])
+        else:
+            com += 'dq2api = DQ2(); '
+        try:
+            del kwargs['force_backend']
+        except:
+            pass
         if self.moduleName == 'DQ2':
             # DQ2 is top-level module
             com += 'print dq2api.%s(' % self.methodName
@@ -98,8 +104,15 @@ class NativeDQ2Method:
     def __call__(self,*args,**kwargs):
         try:
             # make dq2api locally since global dq2 object is not thread-safe
-            import dq2.clientapi.cli.cliutil
-            dq2api = dq2.clientapi.cli.cliutil.getDQ2(None)
+            from dq2.clientapi import DQ2
+            if 'force_backend' in kwargs and kwargs['force_backend'] != None:
+                dq2api = DQ2.DQ2(force_backend=kwargs['force_backend'])
+            else:
+                dq2api = DQ2.DQ2()
+            try:
+                del kwargs['force_backend']
+            except:
+                pass
             # main method has disappeared since 0.3
             args = list(args)
             if self.methodName == 'main':
