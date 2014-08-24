@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * added DataServiceUtils.getSitesShareDDM
+  * added firstSubmission to Setupper
   * extracting more params for incexec
   * fixed getJediTaskDetails
   * fixed retryJob to check attemptNr in JEDI

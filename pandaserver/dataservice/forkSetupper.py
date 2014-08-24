@@ -3,7 +3,7 @@ import sys
 import commands
 
 # exec
-def run(inFile,v_onlyTA):
+def run(inFile,v_onlyTA,v_firstSubmission):
     import cPickle as pickle
     try:
         # read Jobs from file
@@ -25,7 +25,7 @@ def run(inFile,v_onlyTA):
     taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
     # run Setupper
     from dataservice.Setupper import Setupper
-    thr = Setupper(taskBuffer,jobs,onlyTA=v_onlyTA)
+    thr = Setupper(taskBuffer,jobs,onlyTA=v_onlyTA,firstSubmission=v_firstSubmission)
     thr.start()
     thr.join()
     return
@@ -50,9 +50,10 @@ def main():
     # set default values
     options.inFile  = ""
     options.onlyTA  = False
+    options.firstSubmission = True
     # get command-line parameters
     try:
-        opts, args = getopt.getopt(sys.argv[1:],"i:t")
+        opts, args = getopt.getopt(sys.argv[1:],"i:tf")
     except:
         print("ERROR : Invalid options")
         sys.exit(1)    
@@ -62,10 +63,12 @@ def main():
             options.inFile = a
         if o in ("-t",):
             options.onlyTA = True
+        if o == "-f":
+            options.firstSubmission = False
     # exit action
     atexit.register(_onExit,options.inFile)
     # run
-    run(options.inFile,options.onlyTA)
+    run(options.inFile,options.onlyTA,options.firstSubmission)
     # return
     sys.exit(0)
 

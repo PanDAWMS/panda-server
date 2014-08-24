@@ -41,7 +41,7 @@ class MsgWrapper:
 class Setupper (threading.Thread):
     # constructor
     def __init__(self,taskBuffer,jobs,resubmit=False,pandaDDM=False,ddmAttempt=0,forkRun=False,onlyTA=False,
-                 resetLocation=False):
+                 resetLocation=False,firstSubmission=True):
         threading.Thread.__init__(self)
         self.jobs       = jobs
         self.taskBuffer = taskBuffer
@@ -57,6 +57,8 @@ class Setupper (threading.Thread):
         self.onlyTA = onlyTA
         # reset locations
         self.resetLocation = resetLocation
+        # first submission
+        self.firstSubmission = firstSubmission
 
         
         
@@ -68,6 +70,7 @@ class Setupper (threading.Thread):
             # run main procedure in the same process
             if not self.forkRun:
                 tmpLog.debug('main start')
+                tmpLog.debug('firstSubmission={0}'.format(self.firstSubmission))
                 # group jobs per VO
                 voJobsMap = {}
                 ddmFreeJobs = []
@@ -98,7 +101,8 @@ class Setupper (threading.Thread):
                                                              resubmit=self.resubmit,
                                                              pandaDDM=self.pandaDDM,
                                                              ddmAttempt=self.ddmAttempt,
-                                                             onlyTA=self.onlyTA)
+                                                             onlyTA=self.onlyTA,
+                                                             firstSubmission=self.firstSubmission)
                         # run plugin
                         tmpLog.debug('run plugin')
                         setupperPlugin.run()
@@ -132,6 +136,8 @@ class Setupper (threading.Thread):
                         panda_config.pandaPython_dir,outFileName)
                 if self.onlyTA:
                     com += " -t"
+                if not self.firstSubmission:
+                    com += " -f"
                 tmpLog.debug(com)
                 # exeute
                 status,output = self.taskBuffer.processLimiter.getstatusoutput(com)

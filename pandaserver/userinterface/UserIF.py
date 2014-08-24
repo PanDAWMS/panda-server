@@ -551,11 +551,12 @@ class UserIF:
 
 
     # reassign jobs
-    def reassignJobs(self,idsStr,user,host,forPending):
+    def reassignJobs(self,idsStr,user,host,forPending,firstSubmission):
         # deserialize IDs
         ids = WrappedPickle.loads(idsStr)
         # reassign jobs
-        ret = self.taskBuffer.reassignJobs(ids,forkSetupper=True,forPending=forPending)
+        ret = self.taskBuffer.reassignJobs(ids,forkSetupper=True,forPending=forPending,
+                                           firstSubmission=firstSubmission)
         # logging
         try:
             # make message
@@ -1313,7 +1314,7 @@ def killJobs(req,ids,code=None,useMailAsID=None):
 
 
 # reassign jobs
-def reassignJobs(req,ids,forPending=None):
+def reassignJobs(req,ids,forPending=None,firstSubmission=None):
     # check security
     if not isSecure(req):
         return False
@@ -1327,8 +1328,13 @@ def reassignJobs(req,ids,forPending=None):
     if forPending == 'True':
         forPending = True
     else:
-        forPending = False        
-    return userIF.reassignJobs(ids,user,host,forPending)
+        forPending = False
+    # first submission
+    if firstSubmission == 'False':
+        firstSubmission = False
+    else:
+        firstSubmission = True
+    return userIF.reassignJobs(ids,user,host,forPending,firstSubmission)
 
 
 # resubmit jobs

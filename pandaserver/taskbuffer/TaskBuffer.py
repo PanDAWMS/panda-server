@@ -1144,7 +1144,8 @@ class TaskBuffer:
 
 
     # reassign jobs
-    def reassignJobs(self,ids,attempt=0,joinThr=False,forkSetupper=False,forPending=False):
+    def reassignJobs(self,ids,attempt=0,joinThr=False,forkSetupper=False,forPending=False,
+                     firstSubmission=True):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         jobs = []
@@ -1205,12 +1206,14 @@ class TaskBuffer:
         # setup dataset
         if jobs != []:
             if joinThr:
-                thr = Setupper(self,jobs,resubmit=True,ddmAttempt=attempt,forkRun=forkSetupper)
+                thr = Setupper(self,jobs,resubmit=True,ddmAttempt=attempt,forkRun=forkSetupper,
+                               firstSubmission=firstSubmission)
                 thr.start()
                 thr.join()
             else:
                 # cannot use 'thr =' because it may trigger garbage collector
-                Setupper(self,jobs,resubmit=True,ddmAttempt=attempt,forkRun=forkSetupper).start()
+                Setupper(self,jobs,resubmit=True,ddmAttempt=attempt,forkRun=forkSetupper,
+                         firstSubmission=firstSubmission).start()
         # return
         return True
 
