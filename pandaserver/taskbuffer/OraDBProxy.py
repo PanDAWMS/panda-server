@@ -12100,7 +12100,7 @@ class DBProxy:
                             if tmpKey.startswith('dsFor') \
                                     or tmpKey in ['site','cloud','includedSite','excludedSite'] \
                                     or tmpKey == 'cliParams' \
-                                    or tmpKey in ['nFilesPerJob']:
+                                    or tmpKey in ['nFilesPerJob','nFiles','nEvents']:
                                 newTaskParams[tmpKey] = tmpVal
                                 continue
                         # delete command just in case

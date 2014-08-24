@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * extracting nFiles and nEvents for incexec
   * added DataServiceUtils.getSitesShareDDM
   * added firstSubmission to Setupper
   * extracting more params for incexec
