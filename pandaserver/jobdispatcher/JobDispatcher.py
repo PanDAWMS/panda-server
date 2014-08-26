@@ -181,7 +181,7 @@ class JobDipatcher:
                         allowProxy = self.specialDispatchParams['allowProxy']
                     if not compactDN in allowProxy:
                         _logger.warning("getJob : %s %s '%s' no permission to retrive user proxy" % (siteName,node,
-                                                                                                     prodUserID))
+                                                                                                     compactDN))
                     else:
                         tmpStat,tmpOut = response.setUserProxy()
                         if not tmpStat:

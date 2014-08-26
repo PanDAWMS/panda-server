@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * fixed panda_proxy_cache.py
+  * removed NOWAIT from finalizePendingJobs
   * added protection when NOWAIT error happens in finalizePending
   * extracting nFiles and nEvents for incexec
   * added DataServiceUtils.getSitesShareDDM

@@ -499,11 +499,11 @@ class TaskBuffer:
 
 
     # finalize pending analysis jobs
-    def finalizePendingJobs(self,prodUserName,jobDefinitionID):
+    def finalizePendingJobs(self,prodUserName,jobDefinitionID,waitLock=False):
         # get DB proxy
         proxy = self.proxyPool.getProxy()
         # update DB
-        ret = proxy.finalizePendingJobs(prodUserName,jobDefinitionID)
+        ret = proxy.finalizePendingJobs(prodUserName,jobDefinitionID,waitLock)
         # release proxy
         self.proxyPool.putProxy(proxy)
         return ret

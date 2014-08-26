@@ -1391,7 +1391,7 @@ class DBProxy:
 
 
     # finalize pending jobs
-    def finalizePendingJobs(self,prodUserName,jobDefinitionID):
+    def finalizePendingJobs(self,prodUserName,jobDefinitionID,waitLock=False):
         comment = ' /* DBProxy.finalizePendingJobs */'                        
         _logger.debug("finalizePendingJobs : %s %s" % (prodUserName,jobDefinitionID))
         sql0 = "SELECT PandaID,lockedBy,jediTaskID FROM ATLAS_PANDA.jobsActive4 "
@@ -1476,6 +1476,7 @@ class DBProxy:
                     # already killed
                     _logger.debug("finalizePendingJobs : Not found %s" % pandaID)        
                 else:        
+                    _logger.debug("finalizePendingJobs : finalizing %s" % pandaID)        
                     # insert
                     self.cur.execute(sql3+comment,job.valuesMap())
                     # update files,metadata,parametes
@@ -1499,7 +1500,7 @@ class DBProxy:
                             tmpFile = FileSpec()
                             tmpFile.pack(resF)
                             job.addFile(tmpFile)
-                        self.propagateResultToJEDI(job,self.cur,finishPending=True)
+                        self.propagateResultToJEDI(job,self.cur,finishPending=True,waitLock=waitLock)
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
@@ -11530,7 +11531,7 @@ class DBProxy:
 
 
     # propagate result to JEDI
-    def propagateResultToJEDI(self,jobSpec,cur,oldJobStatus=None,extraInfo=None,finishPending=False):
+    def propagateResultToJEDI(self,jobSpec,cur,oldJobStatus=None,extraInfo=None,finishPending=False,waitLock=False):
         comment = ' /* DBProxy.propagateResultToJEDI */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <PandaID={0}>".format(jobSpec.PandaID)
@@ -11709,7 +11710,9 @@ class DBProxy:
         if datasetContentsStat != {}:
             for tmpDatasetID,tmpContentsStat in datasetContentsStat.iteritems():
                 sqlJediDL = "SELECT nFilesUsed,nFilesFailed,nFilesTobeUsed,nFilesFinished,nFilesOnHold FROM ATLAS_PANDA.JEDI_Datasets "
-                sqlJediDL += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID FOR UPDATE NOWAIT "
+                sqlJediDL += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID FOR UPDATE "
+                if not waitLock:
+                    sqlJediDL += "NOWAIT "
                 varMap = {}
                 varMap[':jediTaskID'] = jobSpec.jediTaskID
                 varMap[':datasetID']  = tmpDatasetID

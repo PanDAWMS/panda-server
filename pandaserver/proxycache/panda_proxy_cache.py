@@ -13,8 +13,8 @@ def execute(program):
 def cat(filename):
   """Given filename, print its text contents."""
   f = open(filename, 'r')
-  #for line in f:  
-  #  print line,   
+  for line in f:  
+      print line,   
   f.close()
 
 class MyProxyInterface(object):
