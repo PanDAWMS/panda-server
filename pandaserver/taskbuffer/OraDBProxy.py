@@ -1431,20 +1431,7 @@ class DBProxy:
                     lockedBy = tmpLockedBy
                 if jediTaskID == None:
                     jediTaskID = tmpJediTaskID
-                # begin transaction                
-                self.conn.begin()
-                # update
-                varMap = {}
-                varMap[':jobStatus']    = 'failed'
-                varMap[':newJobStatus'] = 'holding'
-                varMap[':PandaID']      = pandaID
-                self.cur.execute(sqlU+comment,varMap)
-                # commit
-                if not self._commit():
-                    raise RuntimeError, 'Commit error'
-                retU = self.cur.rowcount
-                if retU != 0:
-                    pPandaIDs.append(pandaID)
+                pPandaIDs.append(pandaID)
             # check if JEDI is used
             useJEDI = False
             if hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and \
@@ -1454,6 +1441,17 @@ class DBProxy:
             for pandaID in pPandaIDs:
                 # begin transaction
                 self.conn.begin()
+                # lock
+                varMap = {}
+                varMap[':jobStatus']    = 'failed'
+                varMap[':newJobStatus'] = 'holding'
+                varMap[':PandaID']      = pandaID
+                self.cur.execute(sqlU+comment,varMap)
+                retU = self.cur.rowcount
+                if retU == 0:
+                    # commit
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
                 # get job
                 varMap = {}
                 varMap[':PandaID']   = pandaID

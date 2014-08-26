@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added protection when NOWAIT error happens in finalizePending
   * extracting nFiles and nEvents for incexec
   * added DataServiceUtils.getSitesShareDDM
   * added firstSubmission to Setupper
