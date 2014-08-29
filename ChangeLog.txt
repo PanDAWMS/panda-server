@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added fixedSandbox
   * fixed panda_proxy_cache.py
   * removed NOWAIT from finalizePendingJobs
   * added protection when NOWAIT error happens in finalizePending

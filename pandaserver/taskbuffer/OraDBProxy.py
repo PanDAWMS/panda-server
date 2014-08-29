@@ -323,6 +323,10 @@ class DBProxy:
                 if not job.prodSourceLabel in ['managed']:
                     file.lfn = re.sub('\$JOBSETID', jobsetID, file.lfn)
                     file.lfn = re.sub('\$GROUPJOBSN', groupJobSN, file.lfn)
+                    try:
+                        file.lfn = re.sub('\$JEDITASKID', '%07d' % job.jediTaskID, file.lfn)
+                    except:
+                        pass
                 # set scope
                 if file.type in ['output','log'] and job.VO in ['atlas']:
                     file.scope = self.extractScope(file.dataset)
@@ -12098,10 +12102,12 @@ class DBProxy:
                             # site limitation
                             # command line parameters
                             # splitting hints
+                            # fixed source code
                             if tmpKey.startswith('dsFor') \
                                     or tmpKey in ['site','cloud','includedSite','excludedSite'] \
                                     or tmpKey == 'cliParams' \
-                                    or tmpKey in ['nFilesPerJob','nFiles','nEvents']:
+                                    or tmpKey in ['nFilesPerJob','nFiles','nEvents'] \
+                                    or tmpKey == 'fixedSandbox':
                                 newTaskParams[tmpKey] = tmpVal
                                 continue
                         # delete command just in case
