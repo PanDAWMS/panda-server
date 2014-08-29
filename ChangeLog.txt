@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed pilot retry for pmerge
   * replacing $JEDITASKID
   * extracting sourceURL when fixedSandbox
   * added fixedSandbox
