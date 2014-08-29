@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * extracting sourceURL when fixedSandbox
   * added fixedSandbox
   * fixed panda_proxy_cache.py
   * removed NOWAIT from finalizePendingJobs

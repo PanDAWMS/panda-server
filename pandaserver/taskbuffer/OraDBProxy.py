@@ -12109,6 +12109,8 @@ class DBProxy:
                                     or tmpKey in ['nFilesPerJob','nFiles','nEvents'] \
                                     or tmpKey == 'fixedSandbox':
                                 newTaskParams[tmpKey] = tmpVal
+                                if tmpKey == 'fixedSandbox' and 'sourceURL' in taskParamsJson:
+                                    newTaskParams['sourceURL'] = taskParamsJson['sourceURL']
                                 continue
                         # delete command just in case
                         varMap = {}
