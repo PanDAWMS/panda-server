@@ -301,6 +301,10 @@ class DBProxy:
             else:
                 jobsetID = job.jobsetID
             jobsetID = '%06d' % jobsetID
+            try:
+                strJediTaskID = str(job.jediTaskID)
+            except:
+                strJediTaskID = ''
             # reset changed attribute list
             job.resetChangedList()
             # insert files
@@ -324,7 +328,7 @@ class DBProxy:
                     file.lfn = re.sub('\$JOBSETID', jobsetID, file.lfn)
                     file.lfn = re.sub('\$GROUPJOBSN', groupJobSN, file.lfn)
                     try:
-                        file.lfn = re.sub('\$JEDITASKID', '%07d' % job.jediTaskID, file.lfn)
+                        file.lfn = re.sub('\$JEDITASKID', strJediTaskID, file.lfn)
                     except:
                         pass
                 # set scope
@@ -402,7 +406,11 @@ class DBProxy:
             # job parameters
             if not job.prodSourceLabel in ['managed']:
                 job.jobParameters = re.sub('\$JOBSETID', jobsetID, job.jobParameters)
-                job.jobParameters = re.sub('\$GROUPJOBSN', groupJobSN, job.jobParameters)                
+                job.jobParameters = re.sub('\$GROUPJOBSN', groupJobSN, job.jobParameters)
+                try:
+                    job.jobParameters = re.sub('\$JEDITASKID', strJediTaskID, job.jobParameters)
+                except:
+                    pass
             sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters) VALUES (:PandaID,:param)"
             varMap = {}
             varMap[':PandaID'] = job.PandaID

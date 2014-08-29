@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * replacing $JEDITASKID
   * extracting sourceURL when fixedSandbox
   * added fixedSandbox
   * fixed panda_proxy_cache.py
