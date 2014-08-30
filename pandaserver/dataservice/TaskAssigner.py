@@ -40,6 +40,9 @@ taskTypesMcShare = ['evgen']
 # task types for subscriptions
 taskTypesSub = ['simul']
 
+# task types for aggregation
+taskTypesAgg = ['evgen','simul']
+
 # dataset type to ignore file availability check
 datasetTypeToSkipCheck = ['log']
 
@@ -364,6 +367,19 @@ class TaskAssigner:
                     _logger.info('%s makeSubscription start' % self.taskID)                    
                     retSub = self.makeSubscription(removedDQ2Map,RWs,fullRWs,expRWs)
                     _logger.info('%s makeSubscription end with %s' % (self.taskID,retSub))
+                # make subscription for aggregation
+                if taskType in taskTypesAgg:
+                    # check if input is container
+                    inputIsContainer = False
+                    for tmpDS in removedDQ2Map.keys():
+                        if tmpDS.endswith('/'):
+                            inputIsContainer = True
+                            break
+                    # only for container
+                    if inputIsContainer:
+                        _logger.info('%s Aggregation start' % self.taskID)
+                        retSub = self.makeSubscription(removedDQ2Map,RWs,fullRWs,expRWs,aggregation=True)
+                        _logger.info('%s Aggregation end with %s' % (self.taskID,retSub))
                 message = '%s no input data locations' % self.taskID
                 self.sendMesg(message,msgType='warning')
                 raise RuntimeError, '%s cloud list is empty after DQ2 filter' % self.taskID
@@ -709,7 +725,8 @@ class TaskAssigner:
 
 
     # make subscription
-    def makeSubscription(self,dsCloudMap,RWs,fullRWs,expRWs,noEmptyCheck=False,acceptInProcess=False):
+    def makeSubscription(self,dsCloudMap,RWs,fullRWs,expRWs,noEmptyCheck=False,acceptInProcess=False,
+                         aggregation=False):
         nDDMtry = 3
         cloudList = []
         # collect clouds which don't hold datasets
@@ -719,6 +736,8 @@ class TaskAssigner:
             for tmpCloud in tmpClouds:
                 if (not tmpCloud in cloudList) and tmpCloud in self.cloudForSubs:
                     cloudList.append(tmpCloud)
+        if aggregation:
+            cloudList = self.cloudForSubs
         message = '%s candidates for subscription : %s' % (self.taskID,str(cloudList))
         _logger.info(message)
         self.sendMesg(message)
@@ -749,70 +768,79 @@ class TaskAssigner:
             DN = out
             # loop over all datasets
             runningSub = {}
-            for tmpDS,tmpClouds in dsCloudMap.iteritems():
-                # get running subscriptions
-                runningSub[tmpDS] = []
-                _logger.info('%s listSubscriptions(%s)' % (self.taskID,tmpDS))
-                iTry = 0
-                while True:
-                    status,outLoc = ddm.DQ2.listSubscriptions(tmpDS)
-                    # succeed
-                    if status == 0:
-                        break
-                    # failed
-                    iTry += 1
-                    if iTry < nDDMtry:
-                        time.sleep(30)
-                    else:
-                        _logger.error('%s %s' % (self.taskID,outLoc))
-                        return False
-                _logger.info('%s %s %s' % (self.taskID,status,outLoc))                
-                time.sleep(1)
-                # get subscription metadata
-                exec "outLoc = %s" % outLoc
-                for tmpLocation in outLoc:
-                    t1Flag = False
-                    # check T1 or not
-                    for tmpCloudName4T1 in self.siteMapper.getCloudList():
-                        if tmpLocation in self.siteMapper.getCloud(tmpCloudName4T1)['tier1SE']:
-                            t1Flag = True
-                            break
-                    # skip non-T1
-                    if not t1Flag:
-                        continue
-                    _logger.info('%s listSubscriptionInfo(%s,%s)' % (self.taskID,tmpDS,tmpLocation))
+            for datasetName,tmpClouds in dsCloudMap.iteritems():
+                if datasetName.endswith('/'):
+                    tmpStat,repMap = self.getListDatasetReplicasInContainer(datasetName)
+                else:
+                    tmpStat,repMap = True,{datasetName:[]}
+                if not tmpStat:
+                    _logger.info('%s failed to get datasets in %s ' % (self.taskID,tmpDsName))
+                    continue
+                # loop over all constituents
+                for tmpDS in repMap.keys():
+                    # get running subscriptions
+                    runningSub[tmpDS] = []
+                    _logger.info('%s listSubscriptions(%s)' % (self.taskID,tmpDS))
                     iTry = 0
                     while True:
-                        status,outMeta = ddm.DQ2.listSubscriptionInfo(tmpDS,tmpLocation,0)
+                        status,outLoc = ddm.DQ2.listSubscriptions(tmpDS)
                         # succeed
                         if status == 0:
-                            break
-                        # skip non-existing ID
-                        if re.search('not a Tiers of Atlas Destination',outMeta) != None:
-                            _logger.info('%s ignore %s' % (self.taskID,outMeta.split('\n')[-1]))
-                            status = 0
-                            outMeta = "()"
                             break
                         # failed
                         iTry += 1
                         if iTry < nDDMtry:
                             time.sleep(30)
                         else:
-                            _logger.error('%s %s' % (self.taskID,outMeta))
+                            _logger.error('%s %s' % (self.taskID,outLoc))
                             return False
-                    _logger.info('%s %s %s' % (self.taskID,status,outMeta))
-                    time.sleep(1)                
-                    # look for DN in metadata
-                    exec "outMeta = %s" % outMeta
-                    if DN in outMeta:
-                        # get corrosponding cloud
-                        for tmpCloudName in self.siteMapper.getCloudList():
-                            tmpCloudSpec = self.siteMapper.getCloud(tmpCloudName)
-                            if tmpLocation in tmpCloudSpec['tier1SE']:
-                                # append
-                                if not tmpCloudName in runningSub[tmpDS]:
-                                    runningSub[tmpDS].append(tmpCloudName)
+                    _logger.info('%s %s %s' % (self.taskID,status,outLoc))                
+                    time.sleep(1)
+                    # get subscription metadata
+                    exec "outLoc = %s" % outLoc
+                    for tmpLocation in outLoc:
+                        t1Flag = False
+                        # check T1 or not
+                        for tmpCloudName4T1 in self.siteMapper.getCloudList():
+                            if tmpLocation in self.siteMapper.getCloud(tmpCloudName4T1)['tier1SE']:
+                                t1Flag = True
                                 break
+                        # skip non-T1
+                        if not t1Flag:
+                            continue
+                        _logger.info('%s listSubscriptionInfo(%s,%s)' % (self.taskID,tmpDS,tmpLocation))
+                        iTry = 0
+                        while True:
+                            status,outMeta = ddm.DQ2.listSubscriptionInfo(tmpDS,tmpLocation,0)
+                            # succeed
+                            if status == 0:
+                                break
+                            # skip non-existing ID
+                            if re.search('not a Tiers of Atlas Destination',outMeta) != None:
+                                _logger.info('%s ignore %s' % (self.taskID,outMeta.split('\n')[-1]))
+                                status = 0
+                                outMeta = "()"
+                                break
+                            # failed
+                            iTry += 1
+                            if iTry < nDDMtry:
+                                time.sleep(30)
+                            else:
+                                _logger.error('%s %s' % (self.taskID,outMeta))
+                                return False
+                        _logger.info('%s %s %s' % (self.taskID,status,outMeta))
+                        time.sleep(1)                
+                        # look for DN in metadata
+                        exec "outMeta = %s" % outMeta
+                        if DN in outMeta:
+                            # get corrosponding cloud
+                            for tmpCloudName in self.siteMapper.getCloudList():
+                                tmpCloudSpec = self.siteMapper.getCloud(tmpCloudName)
+                                if tmpLocation in tmpCloudSpec['tier1SE']:
+                                    # append
+                                    if not tmpCloudName in runningSub[tmpDS]:
+                                        runningSub[tmpDS].append(tmpCloudName)
+                                    break
             _logger.info('%s runningSub=%s' % (self.taskID,runningSub))
             # doesn't make subscriptions when another subscriptions is in process
             subThr = 1
@@ -904,7 +932,7 @@ class TaskAssigner:
         # get cloud spec
         tmpCloudSpec = self.siteMapper.getCloud(minCloud)
         # check threshold
-        if minRW > 1.0 and not noEmptyCheck:
+        if minRW > 1.0 and not noEmptyCheck and not aggregation:
             message = '%s no empty cloud : %s minRW==%s>%s' % \
                       (self.taskID,minCloud,RWs[minCloud],thr_RW_sub*tmpCloudSpec['mcshare'])
             _logger.info(message)
@@ -922,7 +950,7 @@ class TaskAssigner:
         # make subscription
         for tmpDsName,tmpClouds in dsCloudMap.iteritems():
             # skip if the dataset already exists in the cloud
-            if not minCloud in tmpClouds:
+            if not aggregation and not minCloud in tmpClouds:
                 _logger.info('%s %s already exists in %s' % (self.taskID,tmpDS,minCloud))
                 continue
             # get constituents

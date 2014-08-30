@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * improved TA to aggregate container
   * fixed pilot retry for pmerge
   * replacing $JEDITASKID
   * extracting sourceURL when fixedSandbox
