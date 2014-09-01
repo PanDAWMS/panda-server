@@ -84,9 +84,16 @@ class DatasetSpec(object):
 
     # return expression of bind values for INSERT
     def bindValuesExpression(cls, backend='oracle'):
+        from config import panda_config
         ret = "VALUES("
         for attr in cls._attributes:
-            ret += ":%s," % attr
+#            ret += ":%s," % attr
+#            if panda_config.backend == 'mysql':
+            if panda_config.dbengine == 'mysql':
+                # mysql
+                ret += "%s," % attr
+            else:
+                ret += ":%s," % attr
         ret = ret[:-1]
         ret += ")"
         return ret

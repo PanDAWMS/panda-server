@@ -331,7 +331,8 @@ class DBProxy:
             sql1 = "INSERT INTO ATLAS_PANDA.jobsDefined4 (%s) " % JobSpec.columnNames()
         else:
             sql1 = "INSERT INTO ATLAS_PANDA.jobsWaiting4 (%s) " % JobSpec.columnNames()
-        sql1 += JobSpec.bindValuesExpression(useSeq=True, backend=self.backend)
+#        sql1 += JobSpec.bindValuesExpression(useSeq=True, backend=self.backend)
+        sql1 += JobSpec.bindValuesExpression(useSeq=True)
         sql1+= " RETURNING PandaID INTO :newPandaID"
         # make sure PandaID is NULL
         job.PandaID = None
@@ -418,7 +419,8 @@ class DBProxy:
             _logger.debug("insertNewJob : %s Label:%s prio:%s" % (job.PandaID,job.prodSourceLabel,
                                                                       job.currentPriority))
             sqlFile = "INSERT INTO ATLAS_PANDA.filesTable4 (%s) " % FileSpec.columnNames()
-            sqlFile += FileSpec.bindValuesExpression(useSeq=True, backend=self.backend)
+#            sqlFile += FileSpec.bindValuesExpression(useSeq=True, backend=self.backend)
+            sqlFile += FileSpec.bindValuesExpression(useSeq=True)
             sqlFile+= " RETURNING row_ID INTO :newRowID"
             useJEDI = False
             if hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and \
@@ -538,7 +540,8 @@ class DBProxy:
         comment = ' /* DBProxy.insertJobSimple */'
         _logger.debug("insertJobSimple : %s" % job.PandaID)
         sql1 = "INSERT INTO %s (%s) " % (table,JobSpec.columnNames())
-        sql1 += JobSpec.bindValuesExpression(backend=self.backend)
+#        sql1 += JobSpec.bindValuesExpression(backend=self.backend)
+        sql1 += JobSpec.bindValuesExpression()
         try:
             # begin transaction
             self.conn.begin()
@@ -547,7 +550,8 @@ class DBProxy:
             # files
             sqlFile = "INSERT INTO %s " % fileTable
             sqlFile+= "(%s) " % FileSpec.columnNames(withMod=True)
-            sqlFile += FileSpec.bindValuesExpression(withMod=True, backend=self.backend)
+#            sqlFile += FileSpec.bindValuesExpression(withMod=True, backend=self.backend)
+            sqlFile += FileSpec.bindValuesExpression(withMod=True)
             for file in job.Files:
                 varMap = file.valuesMap()
                 varMap[':modificationTime'] = job.modificationTime
@@ -710,7 +714,8 @@ class DBProxy:
         sql1 = "DELETE FROM ATLAS_PANDA.jobsDefined4 "
         sql1+= "WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2) AND commandToPilot IS NULL"
         sql2 = "INSERT INTO ATLAS_PANDA.jobsActive4 (%s) " % JobSpec.columnNames()
-        sql2 += JobSpec.bindValuesExpression(backend=self.backend)
+#        sql2 += JobSpec.bindValuesExpression(backend=self.backend)
+        sql2 += JobSpec.bindValuesExpression()
         # host and time information
         job.modificationTime = datetime.datetime.utcnow()
         # set stateChangeTime for defined->activated but not for assigned->activated
@@ -827,7 +832,8 @@ class DBProxy:
         sql1 = "DELETE FROM ATLAS_PANDA.jobsDefined4 "
         sql1+= "WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2) AND commandToPilot IS NULL"
         sql2 = "INSERT INTO ATLAS_PANDA.jobsWaiting4 (%s) " % JobSpec.columnNames()
-        sql2 += JobSpec.bindValuesExpression(backend=self.backend)
+#        sql2 += JobSpec.bindValuesExpression(backend=self.backend)
+        sql2 += JobSpec.bindValuesExpression()
         # time information
         job.modificationTime = datetime.datetime.utcnow()
         job.stateChangeTime  = job.modificationTime
@@ -898,7 +904,8 @@ class DBProxy:
         else:
             sql1 = "DELETE FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID"
         sql2 = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
-        sql2 += JobSpec.bindValuesExpression(backend=self.backend)
+#        sql2 += JobSpec.bindValuesExpression(backend=self.backend)
+        sql2 += JobSpec.bindValuesExpression()
         updatedJobList = []
         nTry=3
         for iTry in range(nTry):
@@ -932,7 +939,8 @@ class DBProxy:
                     sqlDJS+= "FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
                     sqlDJD = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
                     sqlDJI = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
-                    sqlDJI += JobSpec.bindValuesExpression(backend=self.backend)
+#                    sqlDJI += JobSpec.bindValuesExpression(backend=self.backend)
+                    sqlDJI += JobSpec.bindValuesExpression()
                     sqlDFup = "UPDATE ATLAS_PANDA.filesTable4 SET status=:status WHERE PandaID=:PandaID AND type IN (:type1,:type2)"
                     sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
                     sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
@@ -1127,7 +1135,8 @@ class DBProxy:
                                 sqlDJS+= "FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
                                 sqlDJD = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
                                 sqlDJI = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
-                                sqlDJI += JobSpec.bindValuesExpression(backend=self.backend)
+#                                sqlDJI += JobSpec.bindValuesExpression(backend=self.backend)
+                                sqlDJI += JobSpec.bindValuesExpression()
                                 sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
                                 sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
                                 sqlPMod = "UPDATE ATLAS_PANDA.jobParamsTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
@@ -1362,7 +1371,8 @@ class DBProxy:
         sql1+= "WHERE PandaID=:PandaID"
         sql2 = "DELETE FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID"
         sql3 = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
-        sql3 += JobSpec.bindValuesExpression(backend=self.backend)
+#        sql3 += JobSpec.bindValuesExpression(backend=self.backend)
+        sql3 += JobSpec.bindValuesExpression()
         sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
         sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
         sqlPMod = "UPDATE ATLAS_PANDA.jobParamsTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
@@ -1439,7 +1449,8 @@ class DBProxy:
                     sqlDJS+= "FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
                     sqlDJD = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
                     sqlDJI = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
-                    sqlDJI += JobSpec.bindValuesExpression(backend=self.backend)
+#                    sqlDJI += JobSpec.bindValuesExpression(backend=self.backend)
+                    sqlDJI += JobSpec.bindValuesExpression()
                     for upFile in upOutputs:
                         _logger.debug("look for downstream jobs for %s" % upFile)
                         # select PandaID
@@ -1514,7 +1525,8 @@ class DBProxy:
         sql1+= "WHERE PandaID=:PandaID AND jobStatus=:jobStatus "
         sql2 = "DELETE FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID AND jobStatus=:jobStatus "
         sql3 = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
-        sql3 += JobSpec.bindValuesExpression(backend=self.backend)
+#        sql3 += JobSpec.bindValuesExpression(backend=self.backend)
+        sql3 += JobSpec.bindValuesExpression()
         sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
         sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
         sqlPMod = "UPDATE ATLAS_PANDA.jobParamsTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
@@ -1631,7 +1643,8 @@ class DBProxy:
         comment = ' /* DBProxy.deleteStalledJobs */'
         _logger.debug("deleteStalledJobs : %s" % libFileName)
         sql2 = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
-        sql2 += JobSpec.bindValuesExpression(backend=self.backend)
+#        sql2 += JobSpec.bindValuesExpression(backend=self.backend)
+        sql2 += JobSpec.bindValuesExpression()
         nTry=3
         try:
             # begin transaction
@@ -1642,7 +1655,8 @@ class DBProxy:
             sqlDJS+= "FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
             sqlDJD = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
             sqlDJI = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
-            sqlDJI += JobSpec.bindValuesExpression(backend=self.backend)
+#            sqlDJI += JobSpec.bindValuesExpression(backend=self.backend)
+            sqlDJI += JobSpec.bindValuesExpression()
             sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
             sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
             sqlPMod = "UPDATE ATLAS_PANDA.jobParamsTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
@@ -2274,7 +2288,8 @@ class DBProxy:
                                 break
                             # insert job with new PandaID
                             sql1 = "INSERT INTO ATLAS_PANDA.jobsActive4 (%s) " % JobSpec.columnNames()
-                            sql1 += JobSpec.bindValuesExpression(useSeq=True, backend=self.backend)
+#                            sql1 += JobSpec.bindValuesExpression(useSeq=True, backend=self.backend)
+                            sql1 += JobSpec.bindValuesExpression(useSeq=True)
                             sql1+= " RETURNING PandaID INTO :newPandaID"
                             # set parentID
                             job.parentID = job.PandaID
@@ -2287,7 +2302,8 @@ class DBProxy:
                             _logger.debug('Generate new PandaID %s -> %s #%s' % (job.parentID,job.PandaID,job.attemptNr))
                             # insert files
                             sqlFile = "INSERT INTO ATLAS_PANDA.filesTable4 (%s) " % FileSpec.columnNames()
-                            sqlFile += FileSpec.bindValuesExpression(useSeq=True, backend=self.backend)
+#                            sqlFile += FileSpec.bindValuesExpression(useSeq=True, backend=self.backend)
+                            sqlFile += FileSpec.bindValuesExpression(useSeq=True)
                             sqlFile+= " RETURNING row_ID INTO :newRowID"
                             for file in job.Files:
                                 # reset rowID
@@ -3079,7 +3095,8 @@ class DBProxy:
         sql2 = "DELETE FROM %s " % table
         sql2+= "WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2)"
         sql3 = "INSERT INTO ATLAS_PANDA.jobsDefined4 (%s) " % JobSpec.columnNames()
-        sql3 += JobSpec.bindValuesExpression(backend=self.backend)
+#        sql3 += JobSpec.bindValuesExpression(backend=self.backend)
+        sql3 += JobSpec.bindValuesExpression()
         try:
             # transaction causes Request ndbd time-out in ATLAS_PANDA.jobsActive4
             self.conn.begin()
@@ -3361,7 +3378,8 @@ class DBProxy:
         sql3  = "DELETE FROM %s WHERE PandaID=:PandaID"
         sqlU  = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2)"
         sql4  = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
-        sql4 += JobSpec.bindValuesExpression(backend=self.backend)
+#        sql4 += JobSpec.bindValuesExpression(backend=self.backend)
+        sql4 += JobSpec.bindValuesExpression()
         sqlF  = "UPDATE ATLAS_PANDA.filesTable4 SET status=:status WHERE PandaID=:PandaID AND type IN (:type1,:type2)"
         sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
         sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
@@ -4965,7 +4983,8 @@ class DBProxy:
             sql1 = "SELECT %s FROM ATLAS_PANDA.jobsActive4 " % JobSpec.columnNames()
             sql1+= "WHERE PandaID=:PandaID AND jobStatus=:jobStatus1"
             sql3 = "INSERT INTO ATLAS_PANDA.jobsDefined4 (%s) " % JobSpec.columnNames()
-            sql3 += JobSpec.bindValuesExpression(backend=self.backend)
+#            sql3 += JobSpec.bindValuesExpression(backend=self.backend)
+            sql3 += JobSpec.bindValuesExpression()
             # start transaction
             self.conn.begin()
             # select
@@ -5652,7 +5671,8 @@ class DBProxy:
         sql0 = "SELECT COUNT(*) FROM %s WHERE vuid=:vuid" % tablename
         sql1 = "INSERT INTO %s " % tablename
         sql1+= "(%s) " % DatasetSpec.columnNames()
-        sql1 += DatasetSpec.bindValuesExpression(backend=self.backend)
+#        sql1 += DatasetSpec.bindValuesExpression(backend=self.backend)
+        sql1 += DatasetSpec.bindValuesExpression()
         # time information
         dataset.creationdate = datetime.datetime.utcnow()
         dataset.modificationdate = dataset.creationdate

@@ -164,7 +164,8 @@ class FileSpec(object):
         ret = "VALUES("
         for attr in cls._attributes:
             if useSeq and cls._seqAttrMap.has_key(attr):
-                if panda_config.backend == 'mysql':
+#                if panda_config.backend == 'mysql':
+                if panda_config.dbengine == 'mysql':
                     # mysql
                     ret += "%s," % "NULL"
                 else:
@@ -176,7 +177,7 @@ class FileSpec(object):
         # add modificationTime
         if withMod:
             ret += ",:modificationTime"
-        ret += ")"            
+        ret += ")"
         return ret
     bindValuesExpression = classmethod(bindValuesExpression)
 
