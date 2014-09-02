@@ -128,8 +128,8 @@ schemanamegris = 'ATLAS_GRISLI'
 schemanamearch = 'ATLAS_PANDAARCH'
 
 # DB engine
-#dbengine = oracle
-dbengine = mysql
+#backend = oracle
+backend = mysql
 
 # DB port
 dbhostmysql = 107.22.166.93

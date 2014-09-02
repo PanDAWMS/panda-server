@@ -24,10 +24,10 @@ class Initializer:
             self.first = False
             try:
                 _logger.debug("connect")
-                if hasattr(panda_config, 'dbengine'):
-                    _logger.debug("panda_config.dbengine: " + panda_config.dbengine)
+                if hasattr(panda_config, 'backend'):
+                    _logger.debug("panda_config.backend: " + panda_config.backend)
                 # connect
-                if panda_config.dbengine == 'oracle':
+                if panda_config.backend == 'oracle':
                     import cx_Oracle
                     conn = cx_Oracle.connect(dsn=panda_config.dbhost,user=panda_config.dbuser,
                                              password=panda_config.dbpasswd,threaded=True)

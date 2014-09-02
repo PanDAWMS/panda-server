@@ -182,8 +182,7 @@ class JobSpec(object):
         ret = "VALUES("
         for attr in cls._attributes:
             if useSeq and cls._seqAttrMap.has_key(attr):
-#                if panda_config.backend == 'mysql':
-                if panda_config.dbengine == 'mysql':
+                if panda_config.backend == 'mysql':
                     # mysql
                     ret += "%s," % "NULL"
                 else:

@@ -35,7 +35,7 @@ from pandalogger.PandaLogger import PandaLogger
 from config import panda_config
 from brokerage.PandaSiteIDs import PandaSiteIDs
 
-if panda_config.dbengine == 'oracle':
+if panda_config.backend == 'oracle':
     import cx_Oracle
     varNUMBER = cx_Oracle.NUMBER
 else:
@@ -84,7 +84,7 @@ class DBProxy:
         self.myHostName = socket.getfqdn()
         # backend
 #        self.backend = 'oracle'
-        self.backend = panda_config.dbengine
+        self.backend = panda_config.backend
         # schema name, PANDA
         self.schemanamebase = 'ATLAS_PANDA'
         if panda_config.schemanamebase:
@@ -120,7 +120,7 @@ class DBProxy:
         _logger.debug("connect : re=%s" % reconnect)
         # keep parameters for reconnect
         # backend
-        self.backend = panda_config.dbengine
+        self.backend = panda_config.backend
         _logger.debug("connect : backend = %s" % self.backend)
         if not reconnect:
             self.dbhost    = dbhost
@@ -138,7 +138,7 @@ class DBProxy:
                 _logger.debug("failed to close old connection")
         # connect    
         try:
-            if panda_config.dbengine == 'oracle':
+            if panda_config.backend == 'oracle':
                 self.conn = cx_Oracle.connect(dsn=self.dbhost,user=self.dbuser,
                                               password=self.dbpasswd,threaded=True)
             else:
@@ -153,7 +153,7 @@ class DBProxy:
                     self.cur = SQLDumper.SQLDumper(self.cur)
             except:
                 pass
-            if panda_config.dbengine == 'oracle':
+            if panda_config.backend == 'oracle':
                 # get hostname
                 self.cur.execute("SELECT SYS_CONTEXT('USERENV','HOST') FROM dual")
                 res = self.cur.fetchone()
@@ -187,7 +187,7 @@ class DBProxy:
 #    def _connectMySQL(self, dbhost=panda_config.dbhostmysql, dbpasswd=panda_config.dbpasswdmysql,
 #                dbuser=panda_config.dbusermysql, dbname=panda_config.dbnamemysql,
 #                dbtimeout=None, reconnect=False,
-#                dbengine=panda_config.dbengine, dbport=panda_config.dbport):
+#                dbengine=panda_config.backend, dbport=panda_config.dbport):
 #        """ MySQLmigrateD: connect """
 #        _logger.debug("_connectMySQL : re=%s" % reconnect)
 #
@@ -5923,7 +5923,7 @@ class DBProxy:
                 # use predefined flag
                 freshFlag = definedFreshFlag
             # get serial number
-            if panda_config.dbengine == 'mysql':
+            if panda_config.backend == 'mysql':
                 ### fake sequence
                 sql = " INSERT INTO ATLAS_PANDA.SUBCOUNTER_SUBID_SEQ (col) VALUES (NULL) "
                 self.cur.arraysize = 100
@@ -5931,7 +5931,7 @@ class DBProxy:
                 sql2 = """ SELECT LAST_INSERT_ID() """
                 self.cur.execute(sql2 + comment, {})
                 sn, = self.cur.fetchone()
-            else:  # panda_config.dbengine == 'oracle':
+            else:  # panda_config.backend == 'oracle':
                 sql = "SELECT ATLAS_PANDA.SUBCOUNTER_SUBID_SEQ.nextval FROM dual";
                 self.cur.arraysize = 100
                 self.cur.execute(sql + comment, {})
@@ -5960,7 +5960,7 @@ class DBProxy:
             # start transaction
             self.conn.begin()
             # get serial number
-            if panda_config.dbengine == 'mysql':
+            if panda_config.backend == 'mysql':
                 ### fake sequence
                 sql = " INSERT INTO ATLAS_PANDA.GROUP_JOBID_SEQ (col) VALUES (NULL) "
                 self.cur.arraysize = 100
@@ -5968,7 +5968,7 @@ class DBProxy:
                 sql2 = """ SELECT LAST_INSERT_ID() """
                 self.cur.execute(sql2 + comment, {})
                 sn, = self.cur.fetchone()
-            else:  # panda_config.dbengine == 'oracle':
+            else:  # panda_config.backend == 'oracle':
                 sql = "SELECT ATLAS_PANDA.GROUP_JOBID_SEQ.nextval FROM dual";
                 self.cur.execute(sql + comment, {})
                 sn, = self.cur.fetchone()
@@ -6107,10 +6107,10 @@ class DBProxy:
             cloudTask = CloudTaskSpec()
             cloudTask.taskid = tid
             cloudTask.status = 'defined'
-            if panda_config.dbengine == 'mysql':
+            if panda_config.backend == 'mysql':
                 ### fake sequence
                 sql = "INSERT INTO ATLAS_PANDA.cloudtasks (id,taskid,status,tmod,tenter) VALUES(NULL,:taskid,:status,CURRENT_DATE,CURRENT_DATE)"
-            else:  # panda_config.dbengine == 'oracle':
+            else:  # panda_config.backend == 'oracle':
                 sql = "INSERT INTO ATLAS_PANDA.cloudtasks (id,taskid,status,tmod,tenter) VALUES(ATLAS_PANDA.CLOUDTASKS_ID_SEQ.nextval,:taskid,:status,CURRENT_DATE,CURRENT_DATE)"
             sql += " RETURNING id INTO :newID"
             varMap = {}
@@ -6331,10 +6331,10 @@ class DBProxy:
                     raise RuntimeError, 'Commit error'
                 return "SUCCEEDED"
             # insert new CloudTask
-            if panda_config.dbengine == 'mysql':
+            if panda_config.backend == 'mysql':
                 ### fake sequence
                 sql = "INSERT INTO ATLAS_PANDA.cloudtasks (id,taskid,status,tmod,tenter) VALUES(NULL,:taskid,:status,CURRENT_DATE,CURRENT_DATE)"
-            else:  # panda_config.dbengine == 'oracle':
+            else:  # panda_config.backend == 'oracle':
                 sql = "INSERT INTO ATLAS_PANDA.cloudtasks (id,taskid,status,tmod,tenter) VALUES(ATLAS_PANDA.CLOUDTASKS_ID_SEQ.nextval,:taskid,:status,CURRENT_DATE,CURRENT_DATE)"
             varMap = {}
             varMap[':taskid'] = tid
@@ -10783,7 +10783,7 @@ class DBProxy:
             self.conn.begin()
             # construct SQL
             vals = {}
-            if panda_config.dbengine == 'mysql':
+            if panda_config.backend == 'mysql':
                 ### fake sequence
                 sql = " INSERT INTO ATLAS_PANDA.PROXYKEY_ID_SEQ (col) VALUES (NULL) "
                 self.cur.arraysize = 100
@@ -10794,7 +10794,7 @@ class DBProxy:
                 sql0 = 'INSERT INTO ATLAS_PANDAMETA.proxykey (id,'
                 sql1 = 'VALUES (:nextval,'
                 vals[':nextval'] = nextval
-            else:  # panda_config.dbengine == 'oracle':
+            else:  # panda_config.backend == 'oracle':
                 sql0 = 'INSERT INTO ATLAS_PANDAMETA.proxykey (id,'
                 sql1 = 'VALUES (ATLAS_PANDAMETA.PROXYKEY_ID_SEQ.nextval,'
             for key,val in params.iteritems():
@@ -10921,9 +10921,9 @@ class DBProxy:
                     raise RuntimeError, 'Commit error'
                 return res[0]
             # add
-            if panda_config.dbengine == 'mysql':
+            if panda_config.backend == 'mysql':
                 sql = 'INSERT INTO ATLAS_PANDAMETA.siteaccess (id,dn,pandasite,status,created) VALUES (NULL,:dn,:pandasite,:status,CURRENT_DATE)'
-            else:  # panda_config.dbengine == 'oracle':
+            else:  # panda_config.backend == 'oracle':
                 sql = 'INSERT INTO ATLAS_PANDAMETA.siteaccess (id,dn,pandasite,status,created) VALUES (ATLAS_PANDAMETA.SITEACCESS_ID_SEQ.nextval,:dn,:pandasite,:status,CURRENT_DATE)'
             varMap = {}
             varMap[':dn'] = dn

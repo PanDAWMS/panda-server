@@ -75,7 +75,7 @@ class WrappedConnection(object):
                         dbuser=panda_config.dbuser, dbname=panda_config.dbname,
 #                        dbtimeout=None, reconnect=False,
                         dbtimeout=60, reconnect=False,
-                        dbengine=panda_config.dbengine, dbport=panda_config.dbport,
+                        dbengine=panda_config.backend, dbport=panda_config.dbport,
                         threaded=False
                     ):
         # connection object
