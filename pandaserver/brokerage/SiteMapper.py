@@ -11,10 +11,10 @@ from PandaSiteIDs import PandaSiteIDs
 # default site
 from taskbuffer.SiteSpec import SiteSpec
 defSite = SiteSpec()
-#defSite.sitename   = 'BNL_ATLAS_1'
-defSite.sitename = 'BNL-LSST-default'
-#defSite.nickname   = 'BNL_ATLAS_1-condor'
-defSite.nickname = 'BNL-LSST-default'
+defSite.sitename = 'BNL_ATLAS_1'
+#defSite.sitename = 'BNL-LSST-default'
+defSite.nickname = 'BNL_ATLAS_1-condor'
+#defSite.nickname = 'BNL-LSST-default'
 defSite.dq2url     = 'http://dms02.usatlas.bnl.gov:8000/dq2/'
 defSite.ddm        = 'PANDA_UNDEFINED'
 defSite.type       = 'production'
