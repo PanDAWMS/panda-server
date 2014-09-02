@@ -21,13 +21,14 @@ except:
 try:
     baseURL = os.environ['PANDA_URL']
 except:
-#    baseURL = 'http://pandaserver.cern.ch:25080/server/panda'
-    baseURL = 'http://pandawms.org:25080/server/panda'
+    baseURL = 'http://pandaserver.cern.ch:25080/server/panda'
+#    baseURL = 'http://pandawms.org:25080/server/panda'
 try:
     baseURLSSL = os.environ['PANDA_URL_SSL']
 except:
-#    baseURLSSL = 'https://pandaserver.cern.ch:25443/server/panda'
-    baseURLSSL = 'https://pandawms.org:25443/server/panda'
+    baseURLSSL = 'https://pandaserver.cern.ch:25443/server/panda'
+#    baseURLSSL = 'https://pandawms.org:25443/server/panda'
+
 
 
 # exit code
@@ -60,10 +61,6 @@ else:
 
 # bamboo
 baseURLBAMBOO = 'http://pandabamboo.cern.ch:25070/bamboo/bamboo'
-
-#from pandalogger.PandaLogger import PandaLogger
-#from config import panda_config
-#_logger = PandaLogger().getLogger('Client')
 
 
 # get URL
@@ -276,7 +273,7 @@ def useWebCache():
        returns:
     """
     global baseURL
-#    baseURL = re.sub('25080','25085',baseURL) #FIXME: no cache on pandawms.org!
+    baseURL = re.sub('25080', '25085', baseURL)  #FIXME: no cache on pandawms.org!
     global serverURLs
     for tmpKey,tmpVal in serverURLs.iteritems():
         tmpVal['URL'] = baseURL
