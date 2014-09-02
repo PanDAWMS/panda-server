@@ -122,10 +122,12 @@ dump_sql = False
 
 ### MySQL specific/generic backend
 dbport = 4444
-schemanamebase = 'ATLAS_PANDA'
-schemanamemeta = 'ATLAS_PANDAMETA'
-schemanamegris = 'ATLAS_GRISLI'
-schemanamearch = 'ATLAS_PANDAARCH'
+schemaPANDA = ATLAS_PANDA
+schemaMETA = ATLAS_PANDAMETA
+schemaGRISLI = ATLAS_GRISLI
+schemaPANDAARCH = ATLAS_PANDAARCH
+schemaJEDI = ATLAS_PANDA
+schemaDEFT = ATLAS_DEFT
 
 # DB engine
 #backend = oracle

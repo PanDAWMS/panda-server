@@ -86,21 +86,29 @@ class DBProxy:
 #        self.backend = 'oracle'
         self.backend = panda_config.backend
         # schema name, PANDA
-        self.schemanamebase = 'ATLAS_PANDA'
-        if panda_config.schemanamebase:
-            self.schemanamebase = panda_config.schemanamebase
+        self.schemaPANDA = 'ATLAS_PANDA'
+        if panda_config.schemaPANDA:
+            self.schemaPANDA = panda_config.schemaPANDA
         # schema name, PANDAMETA
-        self.schemanamemeta = 'ATLAS_PANDAMETA'
-        if panda_config.schemanamemeta:
-            self.schemanamemeta = panda_config.schemanamemeta
+        self.schemaMETA = 'ATLAS_PANDAMETA'
+        if panda_config.schemaMETA:
+            self.schemaMETA = panda_config.schemaMETA
         # schema name, GRISLI
-        self.schemanamegris = 'ATLAS_GRISLI'
-        if panda_config.schemanamegris:
-            self.schemanamegris = panda_config.schemanamegris
+        self.schemaGRISLI = 'ATLAS_GRISLI'
+        if panda_config.schemaGRISLI:
+            self.schemaGRISLI = panda_config.schemaGRISLI
         # schema name, PANDAARCH
-        self.schemanamearch = 'ATLAS_PANDAARCH'
-        if panda_config.schemanamearch:
-            self.schemanamearch = panda_config.schemanamearch
+        self.schemaPANDAARCH = 'ATLAS_PANDAARCH'
+        if panda_config.schemaPANDAARCH:
+            self.schemaPANDAARCH = panda_config.schemaPANDAARCH
+        # schema name, JEDI
+        schemaJEDI = 'ATLAS_PANDA'
+        if panda_config.schemaJEDI:
+            self.schemaJEDI = panda_config.schemaJEDI
+        # schema name, DEFT
+        schemaDEFT = 'ATLAS_DEFT'
+        if panda_config.schemaDEFT:
+            self.schemaDEFT = panda_config.schemaDEFT
         # imported cx_Oracle, MySQLdb?
         try:
             _logger.info('cx_Oracle=%s' % str(cx_Oracle))
@@ -181,64 +189,6 @@ class DBProxy:
             type, value, traceBack = sys.exc_info()
             _logger.error("connect : %s %s" % (type, value))
             return False
-
-
-#    # connect to MySQL dbengine
-#    def _connectMySQL(self, dbhost=panda_config.dbhostmysql, dbpasswd=panda_config.dbpasswdmysql,
-#                dbuser=panda_config.dbusermysql, dbname=panda_config.dbnamemysql,
-#                dbtimeout=None, reconnect=False,
-#                dbengine=panda_config.backend, dbport=panda_config.dbport):
-#        """ MySQLmigrateD: connect """
-#        _logger.debug("_connectMySQL : re=%s" % reconnect)
-#
-#        # connect
-#        try:
-##            self.conn = MySQLdb.connect(host=self.dbhost, db=self.dbname, \
-##                                   port=self.dbport, connect_timeout=self.dbtimeout, \
-##                                   user=self.dbuser, passwd=self.dbpasswd
-##                                   )
-#            self.conn = WrappedConnection(backend=self.backend, dbname=self.dbname,
-#                                          dbhost=self.dbhost, dbuser=self.dbuser,
-#                                          dbport=self.dbport, dbtimeout=self.dbtimeout,
-#                                          dbpasswd=self.dbpasswd, reconnect=reconnect)
-#            _logger.debug("conn=" + str(self.conn))
-##            self.cur = self.conn.cursor()
-#            self.cur = WrappedCursor(self.conn, \
-#                        useOtherError=False, \
-#                        backend=self.backend, \
-#                        schemanamebase=self.schemanamebase, \
-#                        schemanamemeta=self.schemanamemeta, \
-#                        schemanamegris=self.schemanamegris, \
-#                        schemanamearch=self.schemanamearch \
-#                        )
-#            self.conn.setCursor(self.cur)
-#            _logger.debug("cur=" + str(self.cur))
-#            try:
-#                # use SQL dumper
-#                if panda_config.dump_sql:
-#                    import SQLDumper
-#                    self.cur = SQLDumper.SQLDumper(self.cur)
-#            except:
-#                pass
-#            # get hostname
-#            self.cur.execute("SELECT SUBSTRING_INDEX(USER(),'@',-1)")
-#            res = self.cur.fetchone()
-#            if res != None:
-#                self.hostname = res[0]
-#            # set TZ
-#            self.cur.execute("SET @@SESSION.TIME_ZONE = '+00:00'")
-#
-#            # set DATE format
-#            self.cur.execute("SET @@SESSION.DATETIME_FORMAT='%%Y/%%m/%%d %%H:%%i:%%s'")
-#
-#            # disable autocommit
-#            self.cur.execute("SET autocommit=0")
-#
-#            return True
-#        except:
-#            type, value, traceBack = sys.exc_info()
-#            _logger.error("_connectMySQL : %s %s" % (type, value))
-#            return False
 
 
     # query an SQL

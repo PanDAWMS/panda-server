@@ -45,13 +45,17 @@ class LogDBProxy:
         # backend
         self.backend = 'oracle'
         # schema name, PANDA
-        self.schemanamebase = 'ATLAS_PANDA'
+        self.schemaPANDA = 'ATLAS_PANDA'
         # schema name, PANDAMETA
-        self.schemanamemeta = 'ATLAS_PANDAMETA'
+        self.schemaMETA = 'ATLAS_PANDAMETA'
         # schema name, GRISLI
-        self.schemanamegris = 'ATLAS_GRISLI'
+        self.schemaGRISLI = 'ATLAS_GRISLI'
         # schema name, PANDAARCH
-        self.schemanamearch = 'ATLAS_PANDAARCH'
+        self.schemaPANDAARCH = 'ATLAS_PANDAARCH'
+        # schema name, JEDI
+        schemaJEDI = 'ATLAS_PANDA'
+        # schema name, DEFT
+        schemaDEFT = 'ATLAS_DEFT'
         # imported cx_Oracle, MySQLdb?
         _logger.info('cx_Oracle=%s' % str(cx_Oracle))
         _logger.info('MySQLdb=%s' % str(MySQLdb))
@@ -101,14 +105,14 @@ class LogDBProxy:
         self.dbtimeout = dbtimeout
         self.dbport = None
 
-        if hasattr(panda_config, 'schemanamebase'):
-            self.schemanamebase = panda_config.schemanamebase
-        if hasattr(panda_config, 'schemanamemeta'):
-            self.schemanamemeta = panda_config.schemanamemeta
-        if hasattr(panda_config, 'schemanamegris'):
-            self.schemanamegris = panda_config.schemanamegris
-        if hasattr(panda_config, 'schemanamearch'):
-            self.schemanamearch = panda_config.schemanamearch
+        if hasattr(panda_config, 'schemaPANDA'):
+            self.schemaPANDA = panda_config.schemaPANDA
+        if hasattr(panda_config, 'schemaMETA'):
+            self.schemaMETA = panda_config.schemaMETA
+        if hasattr(panda_config, 'schemaGRISLI'):
+            self.schemaGRISLI = panda_config.schemaGRISLI
+        if hasattr(panda_config, 'schemaPANDAARCH'):
+            self.schemaPANDAARCH = panda_config.schemaPANDAARCH
 
 
     def _connectConfigMySQL(self):
@@ -123,10 +127,10 @@ class LogDBProxy:
             self.dbuser = panda_config.logdbuser
         if hasattr(panda_config, 'logdbname'):
             self.dbname = panda_config.logdbname
-            self.schemanamebase = panda_config.logdbname
-            self.schemanamemeta = panda_config.logdbname
-            self.schemanamegris = panda_config.logdbname
-            self.schemanamearch = panda_config.logdbname
+            self.schemaPANDA = panda_config.logdbname
+            self.schemaMETA = panda_config.logdbname
+            self.schemaGRISLI = panda_config.logdbname
+            self.schemaPANDAARCH = panda_config.logdbname
         if hasattr(panda_config, 'logdbport'):
             self.dbport = panda_config.logdbport
 
@@ -149,14 +153,7 @@ class LogDBProxy:
             _logger.debug("conn=" + str(self.conn))
             _logger.debug("mark")
 #            self.cur = self.conn.cursor()
-            self.cur = WrappedCursor(self.conn, \
-                        useOtherError=False, \
-                        backend=self.backend, \
-                        schemanamebase=self.schemanamebase, \
-                        schemanamemeta=self.schemanamemeta, \
-                        schemanamegris=self.schemanamegris, \
-                        schemanamearch=self.schemanamearch \
-                        )
+            self.cur = WrappedCursor(self.conn)
             self.conn.setCursor(self.cur)
             _logger.debug("mark")
             _logger.debug("cur=" + str(self.cur))
@@ -195,14 +192,7 @@ class LogDBProxy:
             _logger.debug("conn=" + str(self.conn))
             _logger.debug("mark")
 #            self.cur = self.conn.cursor()
-            self.cur = WrappedCursor(self.conn, \
-                        useOtherError=False, \
-                        backend=self.backend, \
-                        schemanamebase=self.schemanamebase, \
-                        schemanamemeta=self.schemanamemeta, \
-                        schemanamegris=self.schemanamegris, \
-                        schemanamearch=self.schemanamearch \
-                        )
+            self.cur = WrappedCursor(self.conn)
             self.conn.setCursor(self.cur)
             _logger.debug("mark")
             _logger.debug("cur=" + str(self.cur))

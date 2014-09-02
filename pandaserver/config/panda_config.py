@@ -69,9 +69,8 @@ if not tmpSelf.__dict__.has_key('schemaGRISLI'):
     tmpSelf.__dict__['schemaGRISLI'] = 'ATLAS_GRISLI'
 
 
-
 # dict for plugins
-g_pluginMap = {}    
+g_pluginMap = {}
 
 # parser for plugin setup
 def parsePluginConf(modConfigName):

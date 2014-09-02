@@ -53,13 +53,17 @@ class WrappedCursor(object):
     # backend
     backend = 'oracle'
     # schema name, PANDA
-    schemanamebase = 'ATLAS_PANDA'
+    schemaPANDA = 'ATLAS_PANDA'
     # schema name, PANDAMETA
-    schemanamemeta = 'ATLAS_PANDAMETA'
+    schemaMETA = 'ATLAS_PANDAMETA'
     # schema name, GRISLI
-    schemanamegris = 'ATLAS_GRISLI'
+    schemaGRISLI = 'ATLAS_GRISLI'
     # schema name, PANDAARCH
-    schemanamearch = 'ATLAS_PANDAARCH'
+    schemaPANDAARCH = 'ATLAS_PANDAARCH'
+    # schema name, JEDI
+    schemaJEDI = 'ATLAS_PANDA'
+    # schema name, DEFT
+    schemaDEFT = 'ATLAS_DEFT'
 
 
     # constructor
@@ -102,14 +106,11 @@ class WrappedCursor(object):
         ret = None
         if self.backend == 'oracle':
             # schema names
-#            sql = re.sub('ATLAS_PANDA\.',     panda_config.schemaPANDA + '.',     sql)
-#            sql = re.sub('ATLAS_PANDAMETA\.', panda_config.schemaMETA + '.',      sql)
-#            sql = re.sub('ATLAS_GRISLI\.',    panda_config.schemaGRISLI + '.',    sql)
-#            sql = re.sub('ATLAS_PANDAARCH\.', panda_config.schemaPANDAARCH + '.', sql)
-            sql = re.sub('ATLAS_PANDA\.', panda_config.schemanamebase + '.', sql)
-            sql = re.sub('ATLAS_PANDAMETA\.', panda_config.schemanamemeta + '.', sql)
-            sql = re.sub('ATLAS_GRISLI\.', panda_config.schemanamegris + '.', sql)
-            sql = re.sub('ATLAS_PANDAARCH\.', panda_config.schemanamearch + '.', sql)
+            sql = re.sub('ATLAS_PANDA\.', panda_config.schemaPANDA + '.', sql)
+            sql = re.sub('ATLAS_PANDAMETA\.', panda_config.schemaMETA + '.', sql)
+            sql = re.sub('ATLAS_GRISLI\.', panda_config.schemaGRISLI + '.', sql)
+            sql = re.sub('ATLAS_PANDAARCH\.', panda_config.schemaPANDAARCH + '.', sql)
+            sql = re.sub('ATLAS_DEFT\.', panda_config.schemaJEDI + '.', sql)
             # remove `
             sql = re.sub('`','',sql)
             ret = cur.execute(sql, varDict)
@@ -146,14 +147,11 @@ class WrappedCursor(object):
                 self._returningIntoMySQLpre(returningInto, varDict, cur)
                 sql = re.sub(m.group(0), '', sql)
             # schema names
-#            sql = re.sub('ATLAS_PANDA\.',     panda_config.schemaPANDA + '.',     sql)
-#            sql = re.sub('ATLAS_PANDAMETA\.', panda_config.schemaMETA + '.',      sql)
-#            sql = re.sub('ATLAS_GRISLI\.',    panda_config.schemaGRISLI + '.',    sql)
-#            sql = re.sub('ATLAS_PANDAARCH\.', panda_config.schemaPANDAARCH + '.', sql)
-            sql = re.sub('ATLAS_PANDA\.', panda_config.schemanamebase + '.', sql)
-            sql = re.sub('ATLAS_PANDAMETA\.', panda_config.schemanamemeta + '.', sql)
-            sql = re.sub('ATLAS_GRISLI\.', panda_config.schemanamegris + '.', sql)
-            sql = re.sub('ATLAS_PANDAARCH\.', panda_config.schemanamearch + '.', sql)
+            sql = re.sub('ATLAS_PANDA\.', panda_config.schemaPANDA + '.', sql)
+            sql = re.sub('ATLAS_PANDAMETA\.', panda_config.schemaMETA + '.', sql)
+            sql = re.sub('ATLAS_GRISLI\.', panda_config.schemaGRISLI + '.', sql)
+            sql = re.sub('ATLAS_PANDAARCH\.', panda_config.schemaPANDAARCH + '.', sql)
+            sql = re.sub('ATLAS_DEFT\.', panda_config.schemaDEFT + '.', sql)
             # bind variables
             newVarDict = {}
             # make sure that :prodDBlockToken will not be replaced by %(prodDBlock)sToken
