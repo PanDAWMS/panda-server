@@ -28,6 +28,14 @@ try:
 except:
     baseURLSSL = 'https://pandaserver.cern.ch:25443/server/panda'
 #    baseURLSSL = 'https://pandawms.org:25443/server/panda'
+try:
+    httpPORT = os.environ['PANDA_HTTP_PORT']
+except:
+    httpPORT = '25080'
+try:
+    cachePORT = os.environ['PANDA_CACHE_PORT']
+except:
+    cachePORT = '25085'
 
 
 
@@ -272,8 +280,8 @@ def useWebCache():
        args:
        returns:
     """
-    global baseURL
-    baseURL = re.sub('25080', '25085', baseURL)  #FIXME: no cache on pandawms.org!
+    global baseURL, cachePORT, httpPORT
+    baseURL = re.sub(httpPORT, cachePORT, baseURL)
     global serverURLs
     for tmpKey,tmpVal in serverURLs.iteritems():
         tmpVal['URL'] = baseURL

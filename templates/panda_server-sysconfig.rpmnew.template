@@ -30,6 +30,13 @@ export HOME=/home/atlpan
 # set user's proxy
 export X509_USER_PROXY=FIXME
 
+# panda server ports
+export PANDA_HTTPS_PORT=25443
+export PANDA_HTTP_PORT=25080
+export PANDA_CACHE_PORT=25085
+
 # panda server URLs
-export PANDA_URL='http://@@host_name@@:25080/server/panda'
-export PANDA_URL_SSL='https://@@host_name@@:25443/server/panda'
+export PANDA_URL='http://@@host_name@@:'${PANDA_HTTP_PORT}'/server/panda'
+export PANDA_URL_SSL='https://@@host_name@@:'${PANDA_HTTPS_PORT}'/server/panda'
+
+
