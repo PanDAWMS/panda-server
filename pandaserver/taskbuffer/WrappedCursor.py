@@ -69,7 +69,8 @@ class WrappedCursor(object):
         # cursor object
         self.cur = self.conn.cursor()
         # backend
-        self.backend = panda_config.backend
+#        self.backend = panda_config.backend
+        self.backend = panda_config.dbengine
         # statement
         self.statement = None
 
