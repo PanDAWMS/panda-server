@@ -179,7 +179,7 @@ class DBProxy:
                 return True
         except:
             type, value, traceBack = sys.exc_info()
-            _logger.error("_connectOracle : %s %s" % (type, value))
+            _logger.error("connect : %s %s" % (type, value))
             return False
 
 
