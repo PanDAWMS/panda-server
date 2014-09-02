@@ -12,9 +12,8 @@ logdir=@@install_dir@@/var/log/panda
 # logger name
 loggername = prod
 
-#### tmp, added by Jarka
-serverhost = localhost
-serverhostssl = pandawms.org
+pserverhost = localhost
+pserverhostssl = pandawms.org
 
 
 ##########################
