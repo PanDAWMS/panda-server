@@ -87,7 +87,6 @@ class DatasetSpec(object):
         from config import panda_config
         ret = "VALUES("
         for attr in cls._attributes:
-#            ret += ":%s," % attr
             if panda_config.backend == 'mysql':
                 # mysql
                 ret += "%s," % attr
