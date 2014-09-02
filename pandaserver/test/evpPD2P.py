@@ -18,7 +18,7 @@ _logger = PandaLogger().getLogger('evpPD2P')
 _logger.debug("===================== start =====================")
 
 # overall timeout value
-overallTimeout = 60
+overallTimeout = 300
 # prefix of evp files
 prefixEVP = 'evp.'
 # file pattern of evp files
