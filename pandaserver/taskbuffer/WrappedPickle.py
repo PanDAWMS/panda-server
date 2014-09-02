@@ -11,7 +11,6 @@ class WrappedPickle(object):
         'datetime'            : ['datetime'],
         'taskbuffer.JobSpec'  : ['JobSpec'],
         'taskbuffer.FileSpec' : ['FileSpec'],
-        'taskbuffer.JobSpecHTCondor'  : ['JobSpecHTCondor'],
         }
 
     # check module and class 
