@@ -1,6 +1,9 @@
 """
 WrappedConnection for a generic database connection proxy
 
+    WrappedConnection may be obsolete, due to obsoleted OraLogDBProxy.
+        As of 2014-09-01 the OraLogDBProxy is obsolete according to Tadashi.
+
 """
 
 import re

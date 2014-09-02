@@ -20,7 +20,6 @@ import commands
 import traceback
 import warnings
 from WrappedCursor import WrappedCursor
-from WrappedConnection import WrappedConnection
 import ErrorCode
 import SiteSpec
 import CloudSpec

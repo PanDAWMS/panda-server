@@ -1,6 +1,9 @@
 """
 proxy for log database connection
 
+
+    As of 2014-09-01 the OraLogDBProxy is obsolete according to Tadashi.
+    
 """
 
 import re
