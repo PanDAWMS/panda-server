@@ -413,6 +413,10 @@ class DBProxy:
             else:
                 jobsetID = job.jobsetID
             jobsetID = '%06d' % jobsetID
+            try:
+                strJediTaskID = str(job.jediTaskID)
+            except:
+                strJediTaskID = ''
             # reset changed attribute list
             job.resetChangedList()
             # insert files
@@ -436,6 +440,10 @@ class DBProxy:
                 if not job.prodSourceLabel in ['managed']:
                     file.lfn = re.sub('\$JOBSETID', jobsetID, file.lfn)
                     file.lfn = re.sub('\$GROUPJOBSN', groupJobSN, file.lfn)
+                    try:
+                        file.lfn = re.sub('\$JEDITASKID', strJediTaskID, file.lfn)
+                    except:
+                        pass
                 # set scope
                 if file.type in ['output','log'] and job.VO in ['atlas']:
                     file.scope = self.extractScope(file.dataset)
@@ -512,6 +520,10 @@ class DBProxy:
             if not job.prodSourceLabel in ['managed']:
                 job.jobParameters = re.sub('\$JOBSETID', jobsetID, job.jobParameters)
                 job.jobParameters = re.sub('\$GROUPJOBSN', groupJobSN, job.jobParameters)
+                try:
+                    job.jobParameters = re.sub('\$JEDITASKID', strJediTaskID, job.jobParameters)
+                except:
+                    pass
             sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters) VALUES (:PandaID,:param)"
             varMap = {}
             varMap[':PandaID'] = job.PandaID
@@ -907,7 +919,7 @@ class DBProxy:
 #        sql2 += JobSpec.bindValuesExpression(backend=self.backend)
         sql2 += JobSpec.bindValuesExpression()
         updatedJobList = []
-        nTry=3
+        nTry=1
         for iTry in range(nTry):
             try:
                 # begin transaction
@@ -1513,7 +1525,7 @@ class DBProxy:
 
 
     # finalize pending jobs
-    def finalizePendingJobs(self,prodUserName,jobDefinitionID):
+    def finalizePendingJobs(self,prodUserName,jobDefinitionID,waitLock=False):
         comment = ' /* DBProxy.finalizePendingJobs */'
         _logger.debug("finalizePendingJobs : %s %s" % (prodUserName,jobDefinitionID))
         sql0 = "SELECT PandaID,lockedBy,jediTaskID FROM ATLAS_PANDA.jobsActive4 "
@@ -1554,20 +1566,7 @@ class DBProxy:
                     lockedBy = tmpLockedBy
                 if jediTaskID == None:
                     jediTaskID = tmpJediTaskID
-                # begin transaction                
-                self.conn.begin()
-                # update
-                varMap = {}
-                varMap[':jobStatus']    = 'failed'
-                varMap[':newJobStatus'] = 'holding'
-                varMap[':PandaID']      = pandaID
-                self.cur.execute(sqlU+comment,varMap)
-                # commit
-                if not self._commit():
-                    raise RuntimeError, 'Commit error'
-                retU = self.cur.rowcount
-                if retU != 0:
-                    pPandaIDs.append(pandaID)
+                pPandaIDs.append(pandaID)
             # check if JEDI is used
             useJEDI = False
             if hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and \
@@ -1577,6 +1576,17 @@ class DBProxy:
             for pandaID in pPandaIDs:
                 # begin transaction
                 self.conn.begin()
+                # lock
+                varMap = {}
+                varMap[':jobStatus']    = 'failed'
+                varMap[':newJobStatus'] = 'holding'
+                varMap[':PandaID']      = pandaID
+                self.cur.execute(sqlU+comment,varMap)
+                retU = self.cur.rowcount
+                if retU == 0:
+                    # commit
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
                 # get job
                 varMap = {}
                 varMap[':PandaID']   = pandaID
@@ -1600,7 +1610,8 @@ class DBProxy:
                 if n==0:
                     # already killed
                     _logger.debug("finalizePendingJobs : Not found %s" % pandaID)
-                else:
+                else:        
+                    _logger.debug("finalizePendingJobs : finalizing %s" % pandaID)
                     # insert
                     self.cur.execute(sql3+comment,job.valuesMap())
                     # update files,metadata,parametes
@@ -1624,7 +1635,7 @@ class DBProxy:
                             tmpFile = FileSpec()
                             tmpFile.pack(resF)
                             job.addFile(tmpFile)
-                        self.propagateResultToJEDI(job,self.cur,finishPending=True)
+                        self.propagateResultToJEDI(job,self.cur,finishPending=True,waitLock=waitLock)
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
@@ -1972,7 +1983,7 @@ class DBProxy:
                             varMap[':jediTaskID'] = file.jediTaskID
                             varMap[':status']     = 'ready'
                             varMap[':boundaryID'] = job.PandaID
-                            varMap[':maxAttempt'] = 3
+                            varMap[':maxAttempt'] = file.attemptNr + 3
                             sqlJFile =  "UPDATE ATLAS_PANDA.JEDI_Dataset_Contents "
                             sqlJFile += "SET status=:status,boundaryID=:boundaryID,maxAttempt=:maxAttempt"
                             for tmpKey in ['lfn','GUID','fsize','checksum']:
@@ -2114,6 +2125,11 @@ class DBProxy:
                             raise RuntimeError, 'Commit error'
                     # return
                     return retValue
+                # use JEDI
+                useJEDI = False
+                if hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and \
+                        job.lockedby == 'jedi' and self.checkTaskStatusJEDI(job.jediTaskID,self.cur):
+                    useJEDI = True
                 # check pilot retry
                 usePilotRetry = False
                 if job.prodSourceLabel in ['user','panda','ptest','rc_test'] and \
@@ -2131,223 +2147,220 @@ class DBProxy:
                      and job.attemptNr < 2) or (job.prodSourceLabel == 'ddm' and job.cloud == 'CA' and job.attemptNr <= 10) \
                      or failedInActive or usePilotRetry) \
                      and job.commandToPilot != 'tobekilled':
-                    _logger.debug('reset PandaID:%s #%s' % (job.PandaID,job.attemptNr))
-                    if not changeJobInMem:
-                        # job parameters
-                        sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
-                        varMap = {}
-                        varMap[':PandaID'] = job.PandaID
-                        self.cur.execute(sqlJobP+comment, varMap)
-                        for clobJobP, in self.cur:
-                            try:
-                                job.jobParameters = clobJobP.read()
-                            except AttributeError:
-                                job.jobParameters = str(clobJobP)
-                            break
-                    # reset job
-                    job.jobStatus = 'activated'
-                    job.startTime = None
-                    job.modificationTime = datetime.datetime.utcnow()
-                    job.attemptNr = job.attemptNr + 1
-                    if usePilotRetry:
-                        job.currentPriority -= 10
-                    if failedInActive:
-                        job.endTime             = None
-                        job.transExitCode       = None
-                        for attr in job._attributes:
-                            if attr.endswith('ErrorCode') or attr.endswith('ErrorDiag'):
-                                setattr(job,attr,None)
-                    # remove flag regarding to pledge-resource handling
-                    if not job.specialHandling in [None,'NULL','']:
-                        newSpecialHandling = re.sub(',*localpool','',job.specialHandling)
-                        if newSpecialHandling == '':
-                            job.specialHandling = None
-                        else:
-                            job.specialHandling = newSpecialHandling
-                    # send it to long queue for analysis jobs
-                    oldComputingSite = job.computingSite
-                    if not changeJobInMem:
-                        if job.computingSite.startswith('ANALY'):
-                            longSite = None
-                            tmpLongSiteList = []
-                            tmpLongSite = re.sub('^ANALY_','ANALY_LONG_',job.computingSite)
-                            tmpLongSite = re.sub('_\d+$','',tmpLongSite)
-                            tmpLongSiteList.append(tmpLongSite)
-                            tmpLongSite = job.computingSite + '_LONG'
-                            tmpLongSiteList.append(tmpLongSite)
-                            tmpLongSite = re.sub('SHORT','LONG',job.computingSite)
-                            if tmpLongSite != job.computingSite:
-                                tmpLongSiteList.append(tmpLongSite)
-                            # loop over all possible long sitenames
-                            for tmpLongSite in tmpLongSiteList:
-                                varMap = {}
-                                varMap[':siteID'] = tmpLongSite
-                                varMap[':status'] = 'online'
-                                sqlSite = "SELECT COUNT(*) FROM ATLAS_PANDAMETA.schedconfig WHERE siteID=:siteID AND status=:status"
-                                self.cur.execute(sqlSite+comment, varMap)
-                                resSite = self.cur.fetchone()
-                                if resSite != None and resSite[0] > 0:
-                                    longSite = tmpLongSite
-                                    break
-                            # use long site if exists
-                            if longSite != None:
-                                _logger.debug('sending PandaID:%s to %s' % (job.PandaID,longSite))
-                                job.computingSite = longSite
-                                # set destinationSE if queue is changed
-                                if oldComputingSite == job.destinationSE:
-                                    job.destinationSE = job.computingSite
-                    if not changeJobInMem:
-                        # select files
-                        varMap = {}
-                        varMap[':PandaID'] = job.PandaID
-                        if not getNewPandaID:
-                            varMap[':type1'] = 'log'
-                            varMap[':type2'] = 'output'
-                        sqlFile = "SELECT %s FROM ATLAS_PANDA.filesTable4 " % FileSpec.columnNames()
-                        if not getNewPandaID:
-                            sqlFile+= "WHERE PandaID=:PandaID AND (type=:type1 OR type=:type2)"
-                        else:
-                            sqlFile+= "WHERE PandaID=:PandaID"
-                        self.cur.arraysize = 100
-                        self.cur.execute(sqlFile+comment, varMap)
-                        resFs = self.cur.fetchall()
-                    else:
-                        # get log or output files only
-                        resFs = []
-                        for tmpFile in job.Files:
-                            if tmpFile.type in ['log','output']:
-                                resFs.append(tmpFile)
-                    # loop over all files
-                    for resF in resFs:
+                    # check attemptNr for JEDI
+                    moreRetryForJEDI = True
+                    if useJEDI:
+                        moreRetryForJEDI = self.checkMoreRetryJEDI(job)
+                    # OK in JEDI
+                    if moreRetryForJEDI:
+                        _logger.debug('reset PandaID:%s #%s' % (job.PandaID,job.attemptNr))
                         if not changeJobInMem:
-                            # set PandaID
-                            file = FileSpec()
-                            file.pack(resF)
-                            job.addFile(file)
-                        else:
-                            file = resF
-                        # set new GUID
-                        if file.type == 'log':
-                            file.GUID = commands.getoutput('uuidgen')
-                        # don't change input and lib.tgz
-                        if file.type == 'input' or (file.type == 'output' and job.prodSourceLabel == 'panda') or \
-                               (file.type == 'output' and file.lfn.endswith('.lib.tgz') and job.prodSourceLabel in ['rc_test','ptest']):
-                            continue
-                        # append attemptNr to LFN
-                        oldName = file.lfn
-                        file.lfn = re.sub('\.\d+$','',file.lfn)
-                        file.lfn = '%s.%s' % (file.lfn,job.attemptNr)
-                        newName = file.lfn
-                        # set destinationSE
-                        if oldComputingSite == file.destinationSE:
-                            file.destinationSE = job.computingSite
-                        # modify jobParameters
-                        sepPatt = "(\'|\"|%20)" + oldName + "(\'|\"|%20)"
-                        matches = re.findall(sepPatt,job.jobParameters)
-                        for match in matches:
-                            oldPatt = match[0]+oldName+match[-1]
-                            newPatt = match[0]+newName+match[-1]
-                            job.jobParameters = re.sub(oldPatt,newPatt,job.jobParameters)
-                        if not changeJobInMem and not getNewPandaID:
-                            # reset file status
-                            if file.type in ['output','log']:
-                                file.status = 'unknown'
-                            # update files
-                            sqlFup = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % file.bindUpdateChangesExpression()) + "WHERE row_ID=:row_ID"
-                            varMap = file.valuesMap(onlyChanged=True)
-                            if varMap != {}:
-                                varMap[':row_ID'] = file.row_ID
-                                self.cur.execute(sqlFup+comment, varMap)
-                    if not changeJobInMem:
-                        # reuse original PandaID
-                        if not getNewPandaID:
-                            # update job
-                            sql2 = "UPDATE ATLAS_PANDA.jobsActive4 SET %s " % job.bindUpdateChangesExpression()
-                            sql2+= "WHERE PandaID=:PandaID "
-                            varMap = job.valuesMap(onlyChanged=True)
-                            varMap[':PandaID'] = job.PandaID
-                            self.cur.execute(sql2+comment, varMap)
-                            # update job parameters
-                            sqlJobP = "UPDATE ATLAS_PANDA.jobParamsTable SET jobParameters=:param WHERE PandaID=:PandaID"
-                            varMap = {}
-                            varMap[':PandaID'] = job.PandaID
-                            varMap[':param']   = job.jobParameters
-                            self.cur.execute(sqlJobP+comment, varMap)
-                            updatedFlag = True
-                        else:
-                            # read metadata
-                            sqlMeta = "SELECT metaData FROM ATLAS_PANDA.metaTable WHERE PandaID=:PandaID"
-                            varMap = {}
-                            varMap[':PandaID'] = job.PandaID
-                            self.cur.execute(sqlMeta+comment, varMap)
-                            for clobJobP, in self.cur:
-                                try:
-                                    job.metadata = clobJobP.read()
-                                except AttributeError:
-                                    job.metadata = str(clobJobP)
-                                break
-                            # insert job with new PandaID
-                            sql1 = "INSERT INTO ATLAS_PANDA.jobsActive4 (%s) " % JobSpec.columnNames()
-#                            sql1 += JobSpec.bindValuesExpression(useSeq=True, backend=self.backend)
-                            sql1 += JobSpec.bindValuesExpression(useSeq=True)
-                            sql1+= " RETURNING PandaID INTO :newPandaID"
-                            # set parentID
-                            job.parentID = job.PandaID
-                            varMap = job.valuesMap(useSeq=True)
-                            varMap[':newPandaID'] = self.cur.var(varNUMBER)
-                            # insert
-                            retI = self.cur.execute(sql1+comment, varMap)
-                            # set PandaID
-                            job.PandaID = long(self.cur.getvalue(varMap[':newPandaID']))
-                            _logger.debug('Generate new PandaID %s -> %s #%s' % (job.parentID,job.PandaID,job.attemptNr))
-                            # insert files
-                            sqlFile = "INSERT INTO ATLAS_PANDA.filesTable4 (%s) " % FileSpec.columnNames()
-#                            sqlFile += FileSpec.bindValuesExpression(useSeq=True, backend=self.backend)
-                            sqlFile += FileSpec.bindValuesExpression(useSeq=True)
-                            sqlFile+= " RETURNING row_ID INTO :newRowID"
-                            for file in job.Files:
-                                # reset rowID
-                                file.row_ID = None
-                                # insert
-                                varMap = file.valuesMap(useSeq=True)
-                                varMap[':newRowID'] = self.cur.var(varNUMBER)
-                                self.cur.execute(sqlFile+comment, varMap)
-                                file.row_ID = long(self.cur.getvalue(varMap[':newRowID']))
-                            # update mod time for files
-                            varMap = {}
-                            varMap[':PandaID'] = job.PandaID
-                            varMap[':modificationTime'] = job.modificationTime
-                            sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
-                            self.cur.execute(sqlFMod+comment,varMap)
-                            # metadata
-                            if job.VO != 'cms':
-                                sqlMeta = "INSERT INTO ATLAS_PANDA.metaTable (PandaID,metaData,modificationTime) VALUES (:PandaID,:metaData,:modTime)"
-                                varMap = {}
-                                varMap[':PandaID']  = job.PandaID
-                                varMap[':metaData'] = job.metadata
-                                varMap[':modTime'] = job.modificationTime
-                                self.cur.execute(sqlMeta+comment, varMap)
                             # job parameters
-                            sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters,modificationTime) VALUES (:PandaID,:param,:modTime)"
+                            sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
                             varMap = {}
                             varMap[':PandaID'] = job.PandaID
-                            varMap[':param']   = job.jobParameters
-                            varMap[':modTime'] = job.modificationTime
-                            self.cur.execute(sqlJob+comment, varMap)
-                            # set error code to original job to avoid being retried by another process
-                            sqlE = "UPDATE ATLAS_PANDA.jobsActive4 SET taskBufferErrorCode=:errCode,taskBufferErrorDiag=:errDiag WHERE PandaID=:PandaID"
+                            self.cur.execute(sqlJobP+comment, varMap)
+                            for clobJobP, in self.cur:
+                                job.jobParameters = clobJobP.read()
+                                break
+                        # reset job
+                        job.jobStatus = 'activated'
+                        job.startTime = None
+                        job.modificationTime = datetime.datetime.utcnow()
+                        job.attemptNr = job.attemptNr + 1
+                        if usePilotRetry:
+                            job.currentPriority -= 10
+                        if failedInActive:
+                            job.endTime             = None
+                            job.transExitCode       = None
+                            for attr in job._attributes:
+                                if attr.endswith('ErrorCode') or attr.endswith('ErrorDiag'):
+                                    setattr(job,attr,None)
+                        # remove flag regarding to pledge-resource handling
+                        if not job.specialHandling in [None,'NULL','']:
+                            newSpecialHandling = re.sub(',*localpool','',job.specialHandling)
+                            if newSpecialHandling == '':
+                                job.specialHandling = None
+                            else:
+                                job.specialHandling = newSpecialHandling
+                        # send it to long queue for analysis jobs
+                        oldComputingSite = job.computingSite
+                        if not changeJobInMem:
+                            if job.computingSite.startswith('ANALY'):
+                                longSite = None
+                                tmpLongSiteList = []
+                                tmpLongSite = re.sub('^ANALY_','ANALY_LONG_',job.computingSite)
+                                tmpLongSite = re.sub('_\d+$','',tmpLongSite)
+                                tmpLongSiteList.append(tmpLongSite)
+                                tmpLongSite = job.computingSite + '_LONG'
+                                tmpLongSiteList.append(tmpLongSite)
+                                tmpLongSite = re.sub('SHORT','LONG',job.computingSite)
+                                if tmpLongSite != job.computingSite:
+                                    tmpLongSiteList.append(tmpLongSite)
+                                # loop over all possible long sitenames
+                                for tmpLongSite in tmpLongSiteList:
+                                    varMap = {}
+                                    varMap[':siteID'] = tmpLongSite
+                                    varMap[':status'] = 'online'
+                                    sqlSite = "SELECT COUNT(*) FROM ATLAS_PANDAMETA.schedconfig WHERE siteID=:siteID AND status=:status"
+                                    self.cur.execute(sqlSite+comment, varMap)
+                                    resSite = self.cur.fetchone()
+                                    if resSite != None and resSite[0] > 0:
+                                        longSite = tmpLongSite
+                                        break
+                                # use long site if exists
+                                if longSite != None:
+                                    _logger.debug('sending PandaID:%s to %s' % (job.PandaID,longSite))
+                                    job.computingSite = longSite
+                                    # set destinationSE if queue is changed
+                                    if oldComputingSite == job.destinationSE:
+                                        job.destinationSE = job.computingSite
+                        if not changeJobInMem:
+                            # select files
                             varMap = {}
-                            varMap[':PandaID'] = job.parentID
-                            varMap[':errCode'] = ErrorCode.EC_PilotRetried
-                            varMap[':errDiag'] = 'retrying at the same site. new PandaID=%s' % job.PandaID
-                            self.cur.execute(sqlE+comment, varMap)
-                            # propagate change to JEDI
-                            if hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and \
-                                    job.lockedby == 'jedi' and self.checkTaskStatusJEDI(job.jediTaskID,self.cur):
-                                self.updateForPilotRetryJEDI(job,self.cur)
-                    # set return
-                    if not getNewPandaID:
-                        retValue = True
+                            varMap[':PandaID'] = job.PandaID
+                            if not getNewPandaID:
+                                varMap[':type1'] = 'log'
+                                varMap[':type2'] = 'output'
+                            sqlFile = "SELECT %s FROM ATLAS_PANDA.filesTable4 " % FileSpec.columnNames()
+                            if not getNewPandaID:
+                                sqlFile+= "WHERE PandaID=:PandaID AND (type=:type1 OR type=:type2)"
+                            else:
+                                sqlFile+= "WHERE PandaID=:PandaID"
+                            self.cur.arraysize = 100
+                            self.cur.execute(sqlFile+comment, varMap)
+                            resFs = self.cur.fetchall()
+                        else:
+                            # get log or output files only
+                            resFs = []
+                            for tmpFile in job.Files:
+                                if tmpFile.type in ['log','output']:
+                                    resFs.append(tmpFile)
+                        # loop over all files            
+                        for resF in resFs:
+                            if not changeJobInMem:
+                                # set PandaID
+                                file = FileSpec()
+                                file.pack(resF)
+                                job.addFile(file)
+                            else:
+                                file = resF
+                            # set new GUID
+                            if file.type == 'log':
+                                file.GUID = commands.getoutput('uuidgen')
+                            # don't change input and lib.tgz    
+                            if file.type == 'input' or (file.type == 'output' and job.prodSourceLabel == 'panda') or \
+                                   (file.type == 'output' and file.lfn.endswith('.lib.tgz') and job.prodSourceLabel in ['rc_test','ptest']):
+                                continue
+                            # append attemptNr to LFN
+                            oldName = file.lfn
+                            file.lfn = re.sub('\.\d+$','',file.lfn)
+                            file.lfn = '%s.%s' % (file.lfn,job.attemptNr)
+                            newName = file.lfn
+                            # set destinationSE
+                            if oldComputingSite == file.destinationSE:
+                                file.destinationSE = job.computingSite
+                            # modify jobParameters
+                            sepPatt = "(\'|\"|%20|:)" + oldName + "(\'|\"|%20| )"
+                            matches = re.findall(sepPatt,job.jobParameters)
+                            for match in matches:
+                                oldPatt = match[0]+oldName+match[-1]
+                                newPatt = match[0]+newName+match[-1]
+                                job.jobParameters = re.sub(oldPatt,newPatt,job.jobParameters)
+                            if not changeJobInMem and not getNewPandaID:
+                                # reset file status
+                                if file.type in ['output','log']:
+                                    file.status = 'unknown'
+                                # update files
+                                sqlFup = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % file.bindUpdateChangesExpression()) + "WHERE row_ID=:row_ID"
+                                varMap = file.valuesMap(onlyChanged=True)
+                                if varMap != {}:
+                                    varMap[':row_ID'] = file.row_ID
+                                    self.cur.execute(sqlFup+comment, varMap)
+                        if not changeJobInMem:
+                            # reuse original PandaID
+                            if not getNewPandaID:
+                                # update job
+                                sql2 = "UPDATE ATLAS_PANDA.jobsActive4 SET %s " % job.bindUpdateChangesExpression()            
+                                sql2+= "WHERE PandaID=:PandaID "
+                                varMap = job.valuesMap(onlyChanged=True)
+                                varMap[':PandaID'] = job.PandaID
+                                self.cur.execute(sql2+comment, varMap)
+                                # update job parameters
+                                sqlJobP = "UPDATE ATLAS_PANDA.jobParamsTable SET jobParameters=:param WHERE PandaID=:PandaID"
+                                varMap = {}
+                                varMap[':PandaID'] = job.PandaID
+                                varMap[':param']   = job.jobParameters
+                                self.cur.execute(sqlJobP+comment, varMap)
+                                updatedFlag = True
+                            else:
+                                # read metadata
+                                sqlMeta = "SELECT metaData FROM ATLAS_PANDA.metaTable WHERE PandaID=:PandaID"
+                                varMap = {}
+                                varMap[':PandaID'] = job.PandaID
+                                self.cur.execute(sqlMeta+comment, varMap)
+                                for clobJobP, in self.cur:
+                                    job.metadata = clobJobP.read()
+                                    break
+                                # insert job with new PandaID
+                                sql1 = "INSERT INTO ATLAS_PANDA.jobsActive4 (%s) " % JobSpec.columnNames()
+                                sql1+= JobSpec.bindValuesExpression(useSeq=True)
+                                sql1+= " RETURNING PandaID INTO :newPandaID"
+                                # set parentID
+                                job.parentID = job.PandaID
+                                varMap = job.valuesMap(useSeq=True)
+                                varMap[':newPandaID'] = self.cur.var(varNUMBER)
+                                # insert
+                                retI = self.cur.execute(sql1+comment, varMap)
+                                # set PandaID
+                                job.PandaID = long(self.cur.getvalue(varMap[':newPandaID']))
+                                _logger.debug('Generate new PandaID %s -> %s #%s' % (job.parentID,job.PandaID,job.attemptNr))
+                                # insert files
+                                sqlFile = "INSERT INTO ATLAS_PANDA.filesTable4 (%s) " % FileSpec.columnNames()
+                                sqlFile+= FileSpec.bindValuesExpression(useSeq=True)
+                                sqlFile+= " RETURNING row_ID INTO :newRowID"
+                                for file in job.Files:
+                                    # reset rowID
+                                    file.row_ID = None
+                                    # insert
+                                    varMap = file.valuesMap(useSeq=True)
+                                    varMap[':newRowID'] = self.cur.var(varNUMBER)
+                                    self.cur.execute(sqlFile+comment, varMap)
+                                    file.row_ID = long(self.cur.getvalue(varMap[':newRowID']))
+                                # update mod time for files
+                                varMap = {}
+                                varMap[':PandaID'] = job.PandaID
+                                varMap[':modificationTime'] = job.modificationTime
+                                sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
+                                self.cur.execute(sqlFMod+comment,varMap)
+                                # metadata
+                                if job.VO != 'cms':
+                                    sqlMeta = "INSERT INTO ATLAS_PANDA.metaTable (PandaID,metaData,modificationTime) VALUES (:PandaID,:metaData,:modTime)"
+                                    varMap = {}
+                                    varMap[':PandaID']  = job.PandaID
+                                    varMap[':metaData'] = job.metadata
+                                    varMap[':modTime']  = job.modificationTime                            
+                                    self.cur.execute(sqlMeta+comment, varMap)
+                                # job parameters
+                                sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters,modificationTime) VALUES (:PandaID,:param,:modTime)"
+                                varMap = {}
+                                varMap[':PandaID'] = job.PandaID
+                                varMap[':param']   = job.jobParameters
+                                varMap[':modTime'] = job.modificationTime
+                                self.cur.execute(sqlJob+comment, varMap)
+                                # set error code to original job to avoid being retried by another process
+                                sqlE = "UPDATE ATLAS_PANDA.jobsActive4 SET taskBufferErrorCode=:errCode,taskBufferErrorDiag=:errDiag WHERE PandaID=:PandaID"
+                                varMap = {}
+                                varMap[':PandaID'] = job.parentID
+                                varMap[':errCode'] = ErrorCode.EC_PilotRetried
+                                varMap[':errDiag'] = 'retrying at the same site. new PandaID=%s' % job.PandaID
+                                self.cur.execute(sqlE+comment, varMap)
+                                # propagate change to JEDI
+                                if useJEDI:
+                                    self.updateForPilotRetryJEDI(job,self.cur)
+                        # set return
+                        if not getNewPandaID:
+                            retValue = True
                 if not changeJobInMem:
                     # commit
                     if not self._commit():
@@ -3370,7 +3383,7 @@ class DBProxy:
             if getUserInfo:
                 return False, {}
             return False
-        sql0  = "SELECT prodUserID,prodSourceLabel,jobDefinitionID,jobsetID,workingGroup,specialHandling FROM %s WHERE PandaID=:PandaID"
+        sql0  = "SELECT prodUserID,prodSourceLabel,jobDefinitionID,jobsetID,workingGroup,specialHandling,jobStatus FROM %s WHERE PandaID=:PandaID"        
         sql1  = "UPDATE %s SET commandToPilot=:commandToPilot,taskBufferErrorDiag=:taskBufferErrorDiag WHERE PandaID=:PandaID AND commandToPilot IS NULL"
         sql1F = "UPDATE %s SET commandToPilot=:commandToPilot,taskBufferErrorDiag=:taskBufferErrorDiag WHERE PandaID=:PandaID"
         sql2  = "SELECT %s " % JobSpec.columnNames()
@@ -3424,7 +3437,7 @@ class DBProxy:
                         distinguishedName = dn
                     return distinguishedName
                 # prevent prod proxy from killing analysis jobs
-                userProdUserID,userProdSourceLabel,userJobDefinitionID,userJobsetID,workingGroup,specialHandling = res
+                userProdUserID,userProdSourceLabel,userJobDefinitionID,userJobsetID,workingGroup,specialHandling,jobStatusInDB = res
                 # check group prod role
                 validGroupProdRole = False
                 if res[1] in ['managed','test'] and workingGroup != '':
@@ -3460,8 +3473,8 @@ class DBProxy:
                 if userProdSourceLabel in ['managed','test'] and code in ['9',]:
                     # ignore commandToPilot for force kill
                     self.cur.execute((sql1F+comment) % table, varMap)
-                elif useEventService:
-                    # use force kill for event service
+                elif useEventService or jobStatusInDB in ['merging']:
+                    # use force kill for event service or merging
                     self.cur.execute((sql1F+comment) % table, varMap)
                 else:
                     self.cur.execute((sql1+comment) % table, varMap)
@@ -3476,7 +3489,7 @@ class DBProxy:
                 if (userProdSourceLabel in ['managed','test',None] or 'test' in userProdSourceLabel) and code in ['9',]:
                     # use dummy for force kill
                     varMap[':jobStatus'] = 'dummy'
-                elif useEventService:
+                elif useEventService or jobStatusInDB in ['merging']:
                     # use dummy for force kill
                     varMap[':jobStatus'] = 'dummy'
                 else:
@@ -11789,8 +11802,10 @@ class DBProxy:
 
 
     # propagate result to JEDI
-    def propagateResultToJEDI(self,jobSpec,cur,oldJobStatus=None,extraInfo=None,finishPending=False):
+    def propagateResultToJEDI(self,jobSpec,cur,oldJobStatus=None,extraInfo=None,finishPending=False,waitLock=False):
         comment = ' /* DBProxy.propagateResultToJEDI */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <PandaID={0}>".format(jobSpec.PandaID)
         datasetContentsStat = {}
         # loop over all files
         finishUnmerge = False
@@ -11876,14 +11891,12 @@ class DBProxy:
                     # set boundaryID for merging
                     sqlFile += ",boundaryID=:boundaryID"
                     varMap[':boundaryID'] = jobSpec.PandaID
+                    # set max attempt
+                    sqlFile += ",maxAttempt=attemptNr+3"
             sqlFile += " WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
             sqlFile += "AND attemptNr=:attemptNr AND keepTrack=:keepTrack "
-###            sqlFile += "RETURNING attemptNr,maxAttempt INTO :newAttemptNr,:maxAttempt "
-
-            if cur is None:
-                cur = self.cur
-            _logger.debug(sqlFile+comment+str(varMap))
-            cur.execute(sql=sqlFile + comment, varDict=varMap, cur=cur)
+            _logger.debug(methodName+' '+sqlFile+comment+str(varMap))
+            cur.execute(sqlFile+comment,varMap)
             nRow = cur.rowcount
             if nRow == 1:
                 datasetID = fileSpec.datasetID
@@ -11900,7 +11913,7 @@ class DBProxy:
                     varMap[':fileID']     = fileSpec.fileID
                     varMap[':datasetID']  = fileSpec.datasetID
                     varMap[':jediTaskID'] = jobSpec.jediTaskID
-                    _logger.debug(sqlEVT+comment+str(varMap))
+                    _logger.debug(methodName+' '+sqlEVT+comment+str(varMap))
                     cur.execute(sqlEVT+comment,varMap)
                     resEVT = self.cur.fetchone()
                     if resEVT != None:
@@ -11923,8 +11936,8 @@ class DBProxy:
                     varMap[':fileID'] = fileSpec.fileID
                     varMap[':datasetID'] = fileSpec.datasetID
                     varMap[':jediTaskID'] = jobSpec.jediTaskID
-                    _logger.debug(sqlAttNr + comment + str(varMap))
-                    cur.execute(sqlAttNr + comment, varMap)
+                    _logger.debug(methodName+' '+sqlAttNr+comment+str(varMap))
+                    cur.execute(sqlAttNr+comment,varMap)
                     resAttNr = self.cur.fetchone()
                     if resAttNr != None:
                         newAttemptNr, maxAttempt = resAttNr
@@ -11949,7 +11962,7 @@ class DBProxy:
                                     varMap[':datasetID']  = fileSpec.datasetID
                                     varMap[':jediTaskID'] = jobSpec.jediTaskID
                                     varMap[':status']     = 'notmerged'
-                                    _logger.debug(sqlUmFile+comment+str(varMap))
+                                    _logger.debug(methodName+' '+sqlUmFile+comment+str(varMap))
                                     cur.execute(sqlUmFile+comment,varMap)
                                     # set flag to update unmerged jobs
                                     finishUnmerge = True
@@ -11967,6 +11980,15 @@ class DBProxy:
         nOutEvents = 0
         if datasetContentsStat != {}:
             for tmpDatasetID,tmpContentsStat in datasetContentsStat.iteritems():
+                sqlJediDL = "SELECT nFilesUsed,nFilesFailed,nFilesTobeUsed,nFilesFinished,nFilesOnHold FROM ATLAS_PANDA.JEDI_Datasets "
+                sqlJediDL += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID FOR UPDATE "
+                if not waitLock:
+                    sqlJediDL += "NOWAIT "
+                varMap = {}
+                varMap[':jediTaskID'] = jobSpec.jediTaskID
+                varMap[':datasetID']  = tmpDatasetID
+                _logger.debug(methodName+' '+sqlJediDL+comment+str(varMap))
+                cur.execute(sqlJediDL+comment,varMap)
                 # sql to update nFiles info
                 toUpdateFlag = False
                 eventsToRead = False
@@ -11988,7 +12010,7 @@ class DBProxy:
                 varMap[':datasetID']  = tmpDatasetID
                 # update
                 if toUpdateFlag:
-                    _logger.debug(sqlJediDS + comment + str(varMap))
+                    _logger.debug(methodName + ' ' + sqlJediDS + comment + str(varMap))
                     cur.execute(sqlJediDS+comment,varMap)
         # update t_task
         if jobSpec.jobStatus == 'finished' and not jobSpec.prodSourceLabel in ['panda'] and jobSpec.processingType != 'pmerge':
@@ -12001,7 +12023,7 @@ class DBProxy:
             sqlTtask  = "UPDATE {0}.T_TASK ".format(schemaDEFT)
             sqlTtask += "SET total_done_jobs=total_done_jobs+1,timestamp=CURRENT_DATE,total_events=total_events+:noutevents "
             sqlTtask += "WHERE taskid=:jediTaskID AND status IN (:status1,:status2) "
-            _logger.debug(sqlTtask+comment+str(varMap))
+            _logger.debug(methodName+' '+sqlTtask+comment+str(varMap))
             cur.execute(sqlTtask+comment,varMap)
         # propagate failed result to unmerge job
         if finishUnmerge:
@@ -12023,7 +12045,8 @@ class DBProxy:
             res = cur.fetchone()
             if res != None:
                 if res[0] in ['ready','running','scouting','pending',
-                              'topreprocess','preprocessing']:
+                              'topreprocess','preprocessing','aborting',
+                              'finishing']:
                     retVal = True
         _logger.debug('checkTaskStatusJEDI jediTaskID=%s with %s' % (jediTaskID, retVal))
         return retVal
@@ -12063,13 +12086,14 @@ class DBProxy:
                     cur.execute(sqlFP+comment,varMap)
         # sql to record retry history
         sqlRH  = "INSERT INTO {0}.JEDI_Job_Retry_History ".format(panda_config.schemaJEDI)
-        sqlRH += "(jediTaskID,oldPandaID,newPandaID) "
-        sqlRH += "VALUES(:jediTaskID,:oldPandaID,:newPandaID) "
+        sqlRH += "(jediTaskID,oldPandaID,newPandaID,relationType) "
+        sqlRH += "VALUES(:jediTaskID,:oldPandaID,:newPandaID,:relationType) "
         # record retry history
         varMap = {}
         varMap[':jediTaskID'] = job.jediTaskID
         varMap[':oldPandaID'] = job.parentID
         varMap[':newPandaID'] = job.PandaID
+        varMap[':relationType'] = 'retry'
         _logger.debug(sqlRH+comment+str(varMap))
         cur.execute(sqlRH+comment,varMap)
         return
@@ -12234,7 +12258,7 @@ class DBProxy:
 
 
     # insert TaskParams
-    def insertTaskParamsPanda(self,taskParams,dn,prodRole,fqans,parent_tid):
+    def insertTaskParamsPanda(self,taskParams,dn,prodRole,fqans,parent_tid,properErrorCode=False):
         comment = ' /* JediDBProxy.insertTaskParamsPanda */'
         try:
             methodName = "insertTaskParamsPanda"
@@ -12282,13 +12306,15 @@ class DBProxy:
             sqlDC  = "DELETE FROM {0}.PRODSYS_COMM ".format(schemaDEFT)
             sqlDC += "WHERE COMM_TASK=:jediTaskID "
             # sql to insert command
-            sqlIC  = "INSERT INTO {0}.PRODSYS_COMM (COMM_TASK,COMM_OWNER,COMM_CMD,COMM_COMMENT) ".format(schemaDEFT)
-            sqlIC += "VALUES (:jediTaskID,:comm_owner,:comm_cmd,:comm_comment) "
+            sqlIC  = "INSERT INTO {0}.PRODSYS_COMM (COMM_TASK,COMM_OWNER,COMM_CMD,COMM_PARAMETERS) ".format(schemaDEFT)
+            sqlIC += "VALUES (:jediTaskID,:comm_owner,:comm_cmd,:comm_parameters) "
             # begin transaction
             self.conn.begin()
             # check duplication
             goForward = True
+            retFlag = False
             retVal = None
+            errorCode = 0
             if taskParamsJson['taskType'] == 'anal' and \
                     (taskParamsJson.has_key('uniqueTaskName') and taskParamsJson['uniqueTaskName'] == True):
                 varMap = {}
@@ -12317,13 +12343,14 @@ class DBProxy:
                                                                                             taskParamsJson['taskName'])
                         retVal += 'You cannot submit duplicated tasks. '
                         _logger.debug('{0} skip since old task is already queued in DEFT'.format(methodName))
+                        errorCode = 1
                 else:
                     # task is already in JEDI table
                     jediTaskID,taskStatus = resDT
                     _logger.debug('{0} old jediTaskID={1} with taskName={2} in status={3}'.format(methodName,jediTaskID,
                                                                                                   varMap[':taskName'],taskStatus))
                     # check task status
-                    if not taskStatus in ['finished','failed','partial','done']:
+                    if not taskStatus in ['finished','failed','aborted','done']:
                         # still active
                         goForward = False
                         retVal  = 'jediTaskID={0} is in the {1} state for outDS={2}. '.format(jediTaskID,
@@ -12331,13 +12358,24 @@ class DBProxy:
                                                                                               taskParamsJson['taskName'])
                         retVal += 'You can re-execute the task with the same or another input once it goes into finished/failed/done'
                         _logger.debug('{0} skip since old task is not yet finalized'.format(methodName))
+                        errorCode = 2
                     else:
                         # extract several params for incremental execution
                         newTaskParams = {}
                         for tmpKey,tmpVal in taskParamsJson.iteritems():
                             # dataset names
-                            if tmpKey.startswith('dsFor'):
+                            # site limitation
+                            # command line parameters
+                            # splitting hints
+                            # fixed source code
+                            if tmpKey.startswith('dsFor') \
+                                    or tmpKey in ['site','cloud','includedSite','excludedSite'] \
+                                    or tmpKey == 'cliParams' \
+                                    or tmpKey in ['nFilesPerJob','nFiles','nEvents'] \
+                                    or tmpKey == 'fixedSandbox':
                                 newTaskParams[tmpKey] = tmpVal
+                                if tmpKey == 'fixedSandbox' and 'sourceURL' in taskParamsJson:
+                                    newTaskParams['sourceURL'] = taskParamsJson['sourceURL']
                                 continue
                         # delete command just in case
                         varMap = {}
@@ -12348,12 +12386,16 @@ class DBProxy:
                         varMap[':jediTaskID'] = jediTaskID
                         varMap[':comm_cmd']  = 'incexec'
                         varMap[':comm_owner']  = 'DEFT'
-                        varMap[':comm_comment'] = json.dumps(newTaskParams)
+                        varMap[':comm_parameters'] = json.dumps(newTaskParams)
                         self.cur.execute(sqlIC+comment,varMap)
                         _logger.debug('{0} {1} jediTaskID={2} with {3}'.format(methodName,varMap[':comm_cmd'],
                                                                                    jediTaskID,str(newTaskParams)))
-                        retVal = 'jediTaskID={0} will be reactivated with new input'.format(jediTaskID) 
+                        retVal  = 'reactivation accepted. '
+                        retVal += 'jediTaskID={0} (currently in {1} state) will be re-executed with old and/or new input'.format(jediTaskID,
+                                                                                                                                taskStatus) 
                         goForward = False
+                        retFlag = True
+                        errorCode = 3
             if goForward:
                 # insert task parameters
                 taskParams = json.dumps(taskParamsJson)    
@@ -12374,19 +12416,29 @@ class DBProxy:
                 varMap[':current_priority'] = varMap[':priority']
                 self.cur.execute(sqlT+comment,varMap)
                 jediTaskID = long(self.cur.getvalue(varMap[':jediTaskID']))
-                retVal = jediTaskID
+                if properErrorCode:
+                    retVal = "succeeded. new jediTaskID={0}".format(jediTaskID)
+                else:
+                    retVal = jediTaskID
                 _logger.debug('{0} inserted new jediTaskID={1}'.format(methodName,jediTaskID))
+                retFlag = True
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
             _logger.debug('{0} done'.format(methodName))
-            return goForward,retVal
+            if properErrorCode:
+                return errorCode,retVal
+            return retFlag,retVal
         except:
             # roll back
             self._rollback()
             # error
             self.dumpErrorMessage(_logger,methodName)
-            return False,'failed to register task'
+            errorCode = 4
+            retVal = 'failed to register task'
+            if properErrorCode:
+                return errorCode,retVal
+            return False,retVal
 
 
 
@@ -12444,10 +12496,10 @@ class DBProxy:
                     if taskStatus in ['finished','done','prepared','broken','aborted','aborted','toabort','aborting','failed','finishing']:
                         goForward = False
                 if comStr == 'retry':
-                    if not taskStatus in ['finished','failed']:
+                    if not taskStatus in ['finished','failed','aborted']:
                         goForward = False
                 if comStr == 'incexec':
-                    if not taskStatus in ['finished','failed','done']:
+                    if not taskStatus in ['finished','failed','done','aborted']:
                         goForward = False
                 if comStr == 'reassign':
                     if not taskStatus in ['registered','defined','ready','running','scouting','scouted','pending','assigning']:
@@ -12471,12 +12523,12 @@ class DBProxy:
                 else:
                     varMap[':comm_comment'] = comComment
                 self.cur.execute(sqlC+comment,varMap)
-                # commit
-                if useCommit:
-                    if not self._commit():
-                        raise RuntimeError, 'Commit error'
                 _logger.debug('{0} done'.format(methodName))
                 retStr = 'command is registered. will be executed in a few minutes'
+            # commit
+            if useCommit:
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
             if properErrorCode:
                 return retCode,retStr
             else:
@@ -12505,14 +12557,17 @@ class DBProxy:
         umCheckedIDs = []
         # sql to get PandaIDs
         sqlUMP  = "SELECT PandaID,attemptNr FROM ATLAS_PANDA.filesTable4 "
-        sqlUMP += "WHERE fileID=:fileID AND type IN (:type1,:type2) ORDER BY attemptNr DESC "
+        sqlUMP += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+        sqlUMP += "AND type IN (:type1,:type2) ORDER BY attemptNr DESC "
         # sql to check job status
         sqlUMS  = "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
         # look for unmerged files
         for tmpFile in job.Files:
             if tmpFile.isUnMergedInput():
                 varMap = {}
-                varMap[':fileID'] = tmpFile.fileID
+                varMap[':jediTaskID'] = tmpFile.jediTaskID
+                varMap[':datasetID']  = tmpFile.datasetID
+                varMap[':fileID']     = tmpFile.fileID
                 varMap[':type1']  = 'output'
                 varMap[':type2']  = 'log'
                 self.cur.arraysize = 100
@@ -12894,12 +12949,19 @@ class DBProxy:
             # sql to get task status
             sqlT  = 'SELECT status FROM {0}.JEDI_Tasks WHERE jediTaskID=:jediTaskID '.format(panda_config.schemaJEDI)
             # sql to get datasets
-            sqlD  = 'SELECT datasetID,datasetName,containerName,type,nFiles,nFilesTobeUsed,nFilesFinished,nFilesFailed,masterID '
+            sqlD  = 'SELECT datasetID,datasetName,containerName,type,nFiles,nFilesTobeUsed,nFilesFinished,nFilesFailed,masterID,nFilesUsed,nFilesOnHold '
             sqlD += 'FROM {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
             sqlD += "WHERE jediTaskID=:jediTaskID "
             # sql to get PandaIDs
-            sqlP  = "SELECT distinct PandaID FROM {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
+            sqlP  = "SELECT PandaID,COUNT(*) FROM {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
             sqlP += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND PandaID IS NOT NULL "
+            sqlP += "GROUP BY PandaID "
+            # sql to get job status
+            sqlJS  = "SELECT PandaID,jobStatus,processingType FROM ATLAS_PANDA.jobsDefined4 "
+            sqlJS += "WHERE jediTaskID=:jediTaskID AND prodSourceLabel=:prodSourceLabel "
+            sqlJS += "UNION "
+            sqlJS  = "SELECT PandaID,jobStatus,processingType FROM ATLAS_PANDA.jobsActive4 "
+            sqlJS += "WHERE jediTaskID=:jediTaskID AND prodSourceLabel=:prodSourceLabel "
             varMap = {}
             varMap[':jediTaskID'] = jediTaskID
             # start transaction
@@ -12916,13 +12978,31 @@ class DBProxy:
             # get datasets
             self.cur.execute(sqlD+comment, varMap)
             resList = self.cur.fetchall()
+            # get job status
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            varMap[':prodSourceLabel'] = 'user'
+            self.cur.execute(sqlJS+comment, varMap)
+            resJS = self.cur.fetchall()
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
+            # make jobstatus map
+            jobStatPandaIDs = {}
+            for tmpPandaID,tmpJobStatus,tmpProcessingType in resJS:
+                # ignore merge jobs
+                if tmpProcessingType == 'pmerge':
+                    continue
+                jobStatPandaIDs[tmpPandaID] = tmpJobStatus
             # append
             inDSs = []
             outDSs = []
-            for datasetID,datasetName,containerName,datasetType,nFiles,nFilesTobeUsed,nFilesFinished,nFilesFailed,masterID in resList:
+            totalNumFiles = 0
+            totalTobeDone = 0
+            totalFinished = 0
+            totalFailed = 0
+            totalStatMap = {}
+            for datasetID,datasetName,containerName,datasetType,nFiles,nFilesTobeUsed,nFilesFinished,nFilesFailed,masterID,nFilesUsed,nFilesOnHold in resList:
                 # primay input
                 if datasetType in ['input','pseudo_input','trn_log'] and masterID == None:
                     # unmerge dataset
@@ -12941,34 +13021,35 @@ class DBProxy:
                             inDSs.append(targetName)
                             retDict['inDS'] += '{0},'.format(targetName)
                     # statistics
-                    statStr = ''
-                    nFilesActive = nFiles-nFilesFinished-nFilesFailed
-                    if nFilesActive > 0:
-                        if not unmergeFlag:
-                            statStr += 'tobedone*{0},'.format(nFilesActive)
-                        else:
-                            statStr += 'tobemerged*{0},'.format(nFilesActive)
-                            retDict['mergeStatus'] = 'merging'
-                    if nFilesFinished != 0:
-                        if not unmergeFlag:
-                            statStr += 'finished*{0},'.format(nFilesFinished)
-                    if nFilesFailed != 0:
-                        if not unmergeFlag:
-                            statStr += 'failed*{0},'.format(nFilesFailed)
-                    retDict['statistics'] = statStr[:-1]
+                    if datasetType in ['input','pseudo_input']:
+                        totalNumFiles += nFiles
+                        totalFinished += nFilesFinished
+                        totalFailed   += nFilesFailed
+                        totalTobeDone += (nFiles-nFilesUsed)
                     # collect PandaIDs
+                    self.conn.begin()
                     varMap = {}
                     varMap[':jediTaskID'] = jediTaskID
                     varMap[':datasetID'] = datasetID
                     self.cur.execute(sqlP+comment, varMap)
                     resP = self.cur.fetchall()
-                    for tmpPandaID, in resP:
+                    # commit
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+                    for tmpPandaID,tmpNumFiles in resP:
                         if not unmergeFlag:
                             if not tmpPandaID in retDict['PandaID']:
                                 retDict['PandaID'].append(tmpPandaID)
                         else:
                             if not tmpPandaID in retDict['mergePandaID']:
                                 retDict['mergePandaID'].append(tmpPandaID)
+                        # map to job status
+                        if datasetType in ['input','pseudo_input']:
+                            if tmpPandaID in jobStatPandaIDs:
+                                tmpJobStatus = jobStatPandaIDs[tmpPandaID]
+                                if not tmpJobStatus in totalStatMap:
+                                    totalStatMap[tmpJobStatus] = 0 
+                                totalStatMap[tmpJobStatus] += tmpNumFiles
                 # output
                 if datasetType.endswith('output') or datasetType.endswith('log'):
                     # ignore transient datasets
@@ -12984,6 +13065,27 @@ class DBProxy:
                         retDict['outDS'] += '{0},'.format(targetName)
             retDict['inDS'] = retDict['inDS'][:-1]
             retDict['outDS'] = retDict['outDS'][:-1]
+            # statistics
+            statStr = ''
+            nPicked = totalNumFiles
+            if totalTobeDone > 0:
+                statStr += 'tobedone*{0},'.format(totalTobeDone)
+                nPicked -= totalTobeDone
+            if totalFinished > 0:
+                statStr += 'finished*{0},'.format(totalFinished)
+                nPicked -= totalFinished
+            if totalFailed > 0:
+                statStr += 'failed*{0},'.format(totalFailed)
+                nPicked -= totalFailed
+            for tmpJobStatus,tmpNumFiles in totalStatMap.iteritems():
+                # skip active failed
+                if tmpJobStatus == 'failed':
+                    continue
+                statStr += '{0}*{1},'.format(tmpJobStatus,tmpNumFiles)
+                nPicked -= tmpNumFiles
+            if nPicked > 0:
+                statStr += 'picked*{0},'.format(nPicked)
+            retDict['statistics'] = statStr[:-1]
             # command line parameters
             if fullFlag:
                 # sql to read task params
@@ -13866,3 +13968,51 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return False
+
+
+
+    # check attemptNr for more retry
+    def checkMoreRetryJEDI(self,job):
+        comment = ' /* DBProxy.self.checkMoreRetryJEDI */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <PandaID={0}>".format(job.PandaID)
+        _logger.debug("{0} : start".format(methodName))
+        # dql to get files
+        sqlGF  = "SELECT datasetID,fileID,attemptNr FROM ATLAS_PANDA.filesTable4 "
+        sqlGF += "WHERE PandaID=:PandaID AND type IN (:type1,:type2) "
+        # sql to check file
+        sqlFJ  = "SELECT attemptNr,maxAttempt FROM {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
+        sqlFJ += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+        sqlFJ += "AND attemptNr=:attemptNr AND keepTrack=:keepTrack AND PandaID=:PandaID "
+        # get files
+        varMap = {}
+        varMap[':PandaID'] = job.PandaID
+        varMap[':type1'] = 'input'
+        varMap[':type2'] = 'pseudo_input'
+        self.cur.execute(sqlGF+comment,varMap)
+        resGF = self.cur.fetchall()
+        for datasetID,fileID,attemptNr in resGF:
+            # check JEDI contents
+            varMap = {}
+            varMap[':jediTaskID'] = job.jediTaskID
+            varMap[':datasetID']  = datasetID
+            varMap[':fileID']     = fileID
+            varMap[':attemptNr']  = attemptNr
+            varMap[':PandaID']    = job.PandaID
+            varMap[':keepTrack']  = 1
+            self.cur.execute(sqlFJ+comment,varMap)
+            resFJ = self.cur.fetchone()
+            if resFJ == None:
+                continue
+            attemptNr,maxAttempt = resFJ
+            if maxAttempt == None:
+                continue
+            if attemptNr+1 >= maxAttempt:
+                # hit the limit
+                _logger.debug("{0} : NG - fileID={1} no more attempt attemptNr({2})+1>=maxAttempt({3})".format(methodName,
+                                                                                                               fileID,
+                                                                                                               attemptNr,
+                                                                                                               maxAttempt))
+                return False
+        _logger.debug("{0} : OK".format(methodName))
+        return True

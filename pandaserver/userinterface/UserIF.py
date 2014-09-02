@@ -581,11 +581,12 @@ class UserIF:
 
 
     # reassign jobs
-    def reassignJobs(self,idsStr,user,host,forPending):
+    def reassignJobs(self,idsStr,user,host,forPending,firstSubmission):
         # deserialize IDs
         ids = WrappedPickle.loads(idsStr)
         # reassign jobs
-        ret = self.taskBuffer.reassignJobs(ids,forkSetupper=True,forPending=forPending)
+        ret = self.taskBuffer.reassignJobs(ids,forkSetupper=True,forPending=forPending,
+                                           firstSubmission=firstSubmission)
         # logging
         try:
             # make message
@@ -891,9 +892,9 @@ class UserIF:
 
 
     # insert task params
-    def insertTaskParams(self,taskParams,user,prodRole,fqans):
+    def insertTaskParams(self,taskParams,user,prodRole,fqans,properErrorCode):
         # register
-        ret = self.taskBuffer.insertTaskParamsPanda(taskParams,user,prodRole,fqans)
+        ret = self.taskBuffer.insertTaskParamsPanda(taskParams,user,prodRole,fqans,properErrorCode=properErrorCode)
         # return
         return ret
 
@@ -1352,7 +1353,7 @@ def killJobs(req,ids,code=None,useMailAsID=None):
 
 
 # reassign jobs
-def reassignJobs(req,ids,forPending=None):
+def reassignJobs(req,ids,forPending=None,firstSubmission=None):
     # check security
     if not isSecure(req):
         return False
@@ -1366,8 +1367,13 @@ def reassignJobs(req,ids,forPending=None):
     if forPending == 'True':
         forPending = True
     else:
-        forPending = False        
-    return userIF.reassignJobs(ids,user,host,forPending)
+        forPending = False
+    # first submission
+    if firstSubmission == 'False':
+        firstSubmission = False
+    else:
+        firstSubmission = True
+    return userIF.reassignJobs(ids,user,host,forPending,firstSubmission)
 
 
 # resubmit jobs
@@ -1749,7 +1755,11 @@ def updateSiteAccess(req,method,siteid,userName,attrValue=''):
 
 
 # insert task params
-def insertTaskParams(req,taskParams=None):
+def insertTaskParams(req,taskParams=None,properErrorCode=None):
+    if properErrorCode == 'True':
+        properErrorCode = True
+    else:
+        properErrorCode = False
     # check security
     if not isSecure(req):
         return pickle.dumps((False,'secure connection is required'))
@@ -1766,7 +1776,7 @@ def insertTaskParams(req,taskParams=None):
     prodRole = _isProdRoleATLAS(req)
     # get FQANs
     fqans = _getFQAN(req)
-    ret = userIF.insertTaskParams(taskParams,user,prodRole,fqans)
+    ret = userIF.insertTaskParams(taskParams,user,prodRole,fqans,properErrorCode)
     return pickle.dumps(ret)
 
 

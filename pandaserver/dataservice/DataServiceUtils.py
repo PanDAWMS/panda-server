@@ -298,4 +298,30 @@ def checkCertificate(certName):
         return False,'{0}:{1}'.format(errtype.__name__,errvalue)
 
 
-    
+# get sites which share DDM endpoint
+def getSitesShareDDM(siteMapper,siteName):
+    # nonexistent site
+    if not siteMapper.checkSite(siteName):
+        return []
+    # get siteSpec
+    siteSpec = siteMapper.getSite(siteName)
+    # loop over all sites
+    retSites = []
+    for tmpSiteName,tmpSiteSpec in siteMapper.siteSpecList.iteritems():
+        # only same type
+        if siteSpec.type != tmpSiteSpec.type:
+            continue
+        # only online sites
+        if tmpSiteSpec.status != 'online':
+            continue
+        # same endpoint
+        if siteSpec.ddm != tmpSiteSpec.ddm:
+            continue
+        # skip itself
+        if siteName == tmpSiteSpec.sitename:
+            continue
+        # append
+        if not tmpSiteSpec.sitename in retSites:
+            retSites.append(tmpSiteSpec.sitename)
+    # return
+    return retSites

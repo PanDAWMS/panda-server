@@ -13,9 +13,9 @@ def execute(program):
 def cat(filename):
   """Given filename, print its text contents."""
   f = open(filename, 'r')
-  #for line in f:  
-  #  print line,   
+  out = f.read()
   f.close()
+  return out
 
 class MyProxyInterface(object):
     """Class to store and retrieve proxies from my proxies."""

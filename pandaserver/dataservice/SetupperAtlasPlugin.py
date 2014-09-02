@@ -1895,6 +1895,9 @@ class SetupperAtlasPlugin (SetupperPluginBase):
 
     # dynamic data placement for analysis jobs
     def _dynamicDataPlacement(self):
+        # only first submission
+        if not self.firstSubmission:
+            return
         # no jobs
         if len(self.jobs) == 0:
             return

@@ -258,9 +258,11 @@ try:
             _logger.debug("check finalization for %s %s" % (prodUserName,jobDefinitionID))
             sqlC  = "SELECT COUNT(*) FROM ATLAS_PANDA.jobsActive4 "
             sqlC += "WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName "
-            sqlC += "AND jobDefinitionID=:jobDefinitionID AND jobStatus<>:jobStatus "
+            sqlC += "AND jobDefinitionID=:jobDefinitionID "
+            sqlC += "AND NOT jobStatus IN (:jobStatus1,:jobStatus2) "
             varMap = {}
-            varMap[':jobStatus']       = 'failed'
+            varMap[':jobStatus1']       = 'failed'
+            varMap[':jobStatus2']       = 'merging'
             varMap[':prodSourceLabel'] = 'user'
             varMap[':jobDefinitionID'] = jobDefinitionID
             varMap[':prodUserName']    = prodUserName
@@ -269,8 +271,14 @@ try:
             if resC != None:
                 _logger.debug("n of non-failed jobs : %s" % resC[0][0])
                 if resC[0][0] == 0:
+                    jobSpecs = taskBuffer.peekJobs([pandaID],fromDefined=False,fromArchived=False,fromWaiting=False)
+                    jobSpec = jobSpecs[0]
                     _logger.debug("finalize %s %s" % (prodUserName,jobDefinitionID)) 
-                    taskBuffer.finalizePendingJobs(prodUserName,jobDefinitionID)
+                    finalizedFlag = taskBuffer.finalizePendingJobs(prodUserName,jobDefinitionID,waitLock=True)
+                    _logger.debug("finalized with %s" % finalizedFlag)
+                    if finalizedFlag and jobSpec.produceUnMerge():
+                        _logger.debug("update unmerged datasets")
+                        taskBuffer.updateUnmergedDatasets(jobSpec)
             else:
                 _logger.debug("n of non-failed jobs : None")
 except:

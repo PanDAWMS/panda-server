@@ -1,6 +1,29 @@
 Release Note
 
 * current
+  * improved TA to aggregate container
+  * fixed pilot retry for pmerge
+  * replacing $JEDITASKID
+  * extracting sourceURL when fixedSandbox
+  * added fixedSandbox
+  * fixed panda_proxy_cache.py
+  * removed NOWAIT from finalizePendingJobs
+  * added protection when NOWAIT error happens in finalizePending
+  * extracting nFiles and nEvents for incexec
+  * added DataServiceUtils.getSitesShareDDM
+  * added firstSubmission to Setupper
+  * extracting more params for incexec
+  * fixed getJediTaskDetails
+  * fixed retryJob to check attemptNr in JEDI
+  * setting retry in retry history
+  * changed to use comm_parameters
+  * changed to allow reactivation of aborted tasks
+  * fixed insertTaskParamsPanda
+  * changed propagateResultToJEDI to avoid row contention
+  * fixed to kill jobs in merging
+  * fixed runRebro for JEDI analysis
+  * added jediTaskID and datasetID in the where clause of updateUnmergedJobs
+  * setting maxattempt when JEDI files are produced
   * added protection against too long modification host
   * using failedAttempt
   * fixed file counting to merge failed jobs

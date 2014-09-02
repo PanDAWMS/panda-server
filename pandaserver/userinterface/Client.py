@@ -533,12 +533,13 @@ def killJobs(ids,code=None,verbose=False,srvID=None,useMailAsID=False):
 
 
 # reassign jobs
-def reassignJobs(ids,forPending=False):
+def reassignJobs(ids,forPending=False,firstSubmission=None):
     """Triggers reassignment of jobs. This is not effective if jobs were preassigned to sites before being submitted. 
 
        args:
            ids: the list of taskIDs
            forPending: set True if pending jobs are reassigned
+           firstSubmission: set True if first jobs are submitted for a task, or False if not 
        returns:
            status code
                  0: communication succeeded to the panda server 
@@ -559,6 +560,8 @@ def reassignJobs(ids,forPending=False):
     data = {'ids':strIDs}
     if forPending:
         data['forPending'] = True
+    if firstSubmission != None:
+        data['firstSubmission'] = firstSubmission
     status,output = curl.post(url,data)
     try:
         return status,pickle.loads(output)

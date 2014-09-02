@@ -500,11 +500,11 @@ class TaskBuffer:
 
 
     # finalize pending analysis jobs
-    def finalizePendingJobs(self,prodUserName,jobDefinitionID):
+    def finalizePendingJobs(self,prodUserName,jobDefinitionID,waitLock=False):
         # get DB proxy
         proxy = self.proxyPool.getProxy()
         # update DB
-        ret = proxy.finalizePendingJobs(prodUserName,jobDefinitionID)
+        ret = proxy.finalizePendingJobs(prodUserName,jobDefinitionID,waitLock)
         # release proxy
         self.proxyPool.putProxy(proxy)
         return ret
@@ -1145,7 +1145,8 @@ class TaskBuffer:
 
 
     # reassign jobs
-    def reassignJobs(self,ids,attempt=0,joinThr=False,forkSetupper=False,forPending=False):
+    def reassignJobs(self,ids,attempt=0,joinThr=False,forkSetupper=False,forPending=False,
+                     firstSubmission=True):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         jobs = []
@@ -1206,12 +1207,14 @@ class TaskBuffer:
         # setup dataset
         if jobs != []:
             if joinThr:
-                thr = Setupper(self,jobs,resubmit=True,ddmAttempt=attempt,forkRun=forkSetupper)
+                thr = Setupper(self,jobs,resubmit=True,ddmAttempt=attempt,forkRun=forkSetupper,
+                               firstSubmission=firstSubmission)
                 thr.start()
                 thr.join()
             else:
                 # cannot use 'thr =' because it may trigger garbage collector
-                Setupper(self,jobs,resubmit=True,ddmAttempt=attempt,forkRun=forkSetupper).start()
+                Setupper(self,jobs,resubmit=True,ddmAttempt=attempt,forkRun=forkSetupper,
+                         firstSubmission=firstSubmission).start()
         # return
         return True
 
@@ -2369,14 +2372,14 @@ class TaskBuffer:
 
 
     # insert TaskParams
-    def insertTaskParamsPanda(self,taskParams,user,prodRole,fqans=[],parent_tid=None):
+    def insertTaskParamsPanda(self,taskParams,user,prodRole,fqans=[],parent_tid=None,properErrorCode=False):
         # query an SQL return Status  
         proxy = self.proxyPool.getProxy()
         # check user status
         tmpStatus = proxy.checkBanUser(user,None,True)
         if tmpStatus == True:
             # exec
-            ret = proxy.insertTaskParamsPanda(taskParams,user,prodRole,fqans,parent_tid)
+            ret = proxy.insertTaskParamsPanda(taskParams,user,prodRole,fqans,parent_tid,properErrorCode)
         elif tmpStatus == 1:
             ret = False,"Failed to update DN in PandaDB"
         elif tmpStatus == 2:
