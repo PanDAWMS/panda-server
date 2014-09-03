@@ -24,16 +24,16 @@ class MsgWrapper:
         self.timestamp = datetime.datetime.utcnow().isoformat('/')
 
     def info(self,msg):
-        _logger.info(self.timestamp + ' ' + msg)
+        _logger.info(self.timestamp + ' ' + str(msg))
 
     def debug(self,msg):
-        _logger.debug(self.timestamp + ' ' + msg)
+        _logger.debug(self.timestamp + ' ' + str(msg))
 
     def error(self,msg):
-        _logger.error(self.timestamp + ' ' + msg)
+        _logger.error(self.timestamp + ' ' + str(msg))
 
     def warning(self,msg):
-        _logger.warning(self.timestamp + ' ' + msg)
+        _logger.warning(self.timestamp + ' ' + str(msg))
 
 
 

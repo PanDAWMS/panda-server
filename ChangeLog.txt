@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added protection to MsgWrapper
   * increased timeout value for EP
   * improved TA to aggregate container
   * fixed pilot retry for pmerge
