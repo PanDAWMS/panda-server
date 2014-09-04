@@ -5542,49 +5542,6 @@ class DBProxy:
             return "ERROR: DB failure"
 
 
-    # check duplicated sandbox file
-    def checkSandboxFileEC2(self, dn, fileSize, checkSum):
-        comment = ' /* DBProxy.checkSandboxFileEC2 */'
-        _logger.debug("checkSandboxFileEC2 : %s %s %s" % (dn, fileSize, checkSum))
-        sqlC = "SELECT hostName,fileName FROM ATLAS_PANDAMETA.userCacheUsage "
-#        sqlC += "WHERE userName=:userName AND fileSize=:fileSize AND checkSum=:checkSum "
-        sqlC += "WHERE fileSize=:fileSize AND checkSum=:checkSum "
-        sqlC += "AND hostName<>:ngHostName AND creationTime>CURRENT_DATE-3 "
-        sqlC += "AND creationTime>CURRENT_DATE-3 "
-        try:
-            retStr = 'NOTFOUND'
-            # get compact DN
-            compactDN = self.cleanUserID(dn)
-            if compactDN in ['', 'NULL', None]:
-                compactDN = dn
-            # begin transaction
-            self.conn.begin()
-            # check if it already exists
-            varMap = {}
-#            varMap[':userName'] = compactDN
-            varMap[':fileSize'] = fileSize
-            varMap[':checkSum'] = checkSum
-            varMap[':ngHostName'] = 'localhost.localdomain'
-            self.cur.arraysize = 10
-            self.cur.execute(sqlC + comment, varMap)
-            res = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError, 'Commit error'
-            if len(res) != 0:
-                hostName, fileName = res[0]
-                retStr = "FOUND:%s:%s" % (hostName, fileName)
-            _logger.debug("checkSandboxFile -> %s" % retStr)
-            return retStr
-        except:
-            # roll back
-            self._rollback()
-            # error
-            type, value, traceBack = sys.exc_info()
-            _logger.error("checkSandboxFile : %s %s" % (type, value))
-            return "ERROR: DB failure"
-
-
     # insert dataset
     def insertDataset(self,dataset,tablename="ATLAS_PANDA.Datasets"):
         comment = ' /* DBProxy.insertDataset */'
