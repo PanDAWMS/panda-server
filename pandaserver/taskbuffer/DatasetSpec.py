@@ -83,7 +83,7 @@ class DatasetSpec(object):
 
 
     # return expression of bind values for INSERT
-    def bindValuesExpression(cls, backend='oracle'):
+    def bindValuesExpression(cls):
         from config import panda_config
         ret = "VALUES("
         for attr in cls._attributes:
