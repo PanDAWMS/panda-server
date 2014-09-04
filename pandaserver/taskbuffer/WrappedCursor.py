@@ -34,18 +34,6 @@ class WrappedCursor(object):
     useOtherError = False
     # backend
     backend = 'oracle'
-    # schema name, PANDA
-    schemaPANDA = 'ATLAS_PANDA'
-    # schema name, PANDAMETA
-    schemaMETA = 'ATLAS_PANDAMETA'
-    # schema name, GRISLI
-    schemaGRISLI = 'ATLAS_GRISLI'
-    # schema name, PANDAARCH
-    schemaPANDAARCH = 'ATLAS_PANDAARCH'
-    # schema name, JEDI
-    schemaJEDI = 'ATLAS_PANDA'
-    # schema name, DEFT
-    schemaDEFT = 'ATLAS_DEFT'
 
 
     # constructor
