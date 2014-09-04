@@ -44,7 +44,7 @@ class Terminator (threading.Thread):
             pass
         # get PID
         pid = os.getpid()
-        _logger.debug("child  %s received termination ...JARKA..." % pid)
+        _logger.debug("child  %s received termination" % pid)
         # kill 
         try:
             os.kill(pid,signal.SIGTERM)
@@ -116,7 +116,7 @@ class ConBridge (object):
             if not self.proxy.connect(dbhost=dbhost,dbpasswd=dbpasswd,dbtimeout=60):
                 _logger.error('child  %s failed to connect' % self.pid)
                 # send error
-                self.bridge_sendError((RuntimeError, 'child  %s connection failed ...JARKA...' % self.pid))
+                self.bridge_sendError((RuntimeError, 'child  %s connection failed' % self.pid))
                 # exit
                 self.bridge_childExit()
             # send OK just for ACK
