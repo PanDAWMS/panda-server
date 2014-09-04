@@ -82,7 +82,6 @@ class DBProxy:
         # hostname
         self.myHostName = socket.getfqdn()
         # backend
-#        self.backend = 'oracle'
         self.backend = panda_config.backend
         # imported cx_Oracle, MySQLdb?
         try:
@@ -270,7 +269,10 @@ class DBProxy:
         job.creationTime     = datetime.datetime.utcnow()
         job.modificationTime = job.creationTime
         job.stateChangeTime  = job.creationTime
-        job.prodDBUpdateTime = datetime.datetime(1970, 1, 1)
+        if self.backend == 'mysql':
+            job.prodDBUpdateTime = datetime.datetime(1970, 1, 1)
+        else:
+            job.prodDBUpdateTime = datetime.datetime(1, 1, 1)
         # DN
         if job.prodUserID == "NULL" or job.prodSourceLabel in ['user','panda']:
             job.prodUserID = user
