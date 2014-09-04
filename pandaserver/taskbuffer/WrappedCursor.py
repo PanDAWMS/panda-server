@@ -6,15 +6,7 @@ WrappedCursor for a generic database connection proxy
 import re
 import os
 import sys
-# import time
-# import fcntl
-# import types
-# import random
-# import urllib
-import socket
-# import datetime
-# import commands
-import traceback
+import time
 import warnings
 try:
     import cx_Oracle
@@ -24,18 +16,8 @@ try:
     import MySQLdb
 except ImportError:
     MySQLdb = None
-# import ErrorCode
-# import SiteSpec
-# import CloudSpec
-# import PrioUtil
-# import ProcessGroups
-# from JobSpec  import JobSpec
-# from FileSpec import FileSpec
-# from DatasetSpec import DatasetSpec
-# from CloudTaskSpec import CloudTaskSpec
 from pandalogger.PandaLogger import PandaLogger
 from config import panda_config
-# from brokerage.PandaSiteIDs import PandaSiteIDs
 
 warnings.filterwarnings('ignore')
 
@@ -167,7 +149,6 @@ class WrappedCursor(object):
                 newVarDict[newKey] = val
             try:
                 # from PanDA monitor it is hard to log queries sometimes, so let's debug with hardcoded query dumps
-                import time
                 if os.path.exists('/data/atlpan/oracle/panda/monitor/logs/write_queries.txt'):
                     f = open('/data/atlpan/oracle/panda/monitor/logs/mysql_queries_WrappedCursor.txt', 'a')
                     f.write('mysql|%s|%s|%s\n' % (str(time.time()), str(sql), str(newVarDict)))
@@ -287,6 +268,7 @@ class WrappedCursor(object):
     def prepare(self, statement):
         self.statement = statement
 
+
     # executemany
     def executemany(self, sql, params):
         if sql is None:
@@ -294,25 +276,27 @@ class WrappedCursor(object):
         for paramsItem in params:
             self.execute(sql, paramsItem)
 
+
     # get_description
     @property
     def description(self):
         return self.cur.description
+
 
     # rowcount
     @property
     def rowcount(self):
         return self.cur.rowcount
 
+
     # arraysize
     @property
     def arraysize(self):
         return self.cur.arraysize
 
+
     @arraysize.setter
     def arraysize(self,val):
         self.cur.arraysize = val
-
-
 
 
