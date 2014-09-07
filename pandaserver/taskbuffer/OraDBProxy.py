@@ -9501,10 +9501,8 @@ class DBProxy:
             cloudTier1Map = {}
             sqlD = "SELECT name,fairshare,tier1 FROM ATLAS_PANDAMETA.cloudconfig"
             self.cur.arraysize = 100000
-            _logger.debug('sql=' + sqlD)
             self.cur.execute(sqlD+comment)
             res = self.cur.fetchall()
-            _logger.debug('res=' + str(res))
             for cloudName,cloudShare,cloudTier1 in res:
                 try:
                     cloudTier1Map[cloudName] = cloudTier1.split(',')
