@@ -9174,7 +9174,7 @@ class DBProxy:
                 # get share, removing % 
                 tmpShareValue = tmpShareDef['policy']['share'][:-1]
                 tmpShareValue = int(tmpShareValue)
-                # get the number of runnig
+                # get the number of running
                 if not tmpNumMap.has_key('running'):
                     tmpNumRunning = 0
                 else:
