@@ -8848,9 +8848,7 @@ class DBProxy:
                         ret.wansinklimit = wansinklimit
                     # append
                     retList[ret.nickname] = ret
-                    _logger.debug('retList[%s]=%s' % (ret.nickname, str(ret)))
             _logger.debug("getSiteInfo done")
-            _logger.debug('retList=%s' % str(retList))
             return retList
         except:
             type, value, traceBack = sys.exc_info()
