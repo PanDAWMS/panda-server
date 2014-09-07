@@ -8627,7 +8627,6 @@ class DBProxy:
             self.cur.arraysize = 10000
             self.cur.execute(sql+comment)
             resList = self.cur.fetchall()
-            _logger.debug('resList=%s' % str(resList))
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
