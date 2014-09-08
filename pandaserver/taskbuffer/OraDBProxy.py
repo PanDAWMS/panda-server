@@ -9632,12 +9632,8 @@ class DBProxy:
             _logger.debug("getFaresharePolicy -> %s" % str(faresharePolicy))
             if not getNewMap:
                 self.faresharePolicy = faresharePolicy
-                _logger.debug('marking exit')
-                _logger.debug('faresharePolicy=' + str(faresharePolicy))
                 return
             else:
-                _logger.debug('marking exit')
-                _logger.debug('faresharePolicy=' + str(faresharePolicy))
                 return faresharePolicy
         except:
             errtype,errvalue = sys.exc_info()[:2]
@@ -9645,10 +9641,8 @@ class DBProxy:
             # roll back
             self._rollback()
             if not getNewMap:
-                _logger.debug('marking exit')
                 return
             else:
-                _logger.debug('marking exit')
                 return {}
 
 
