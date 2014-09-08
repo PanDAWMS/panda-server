@@ -9516,10 +9516,8 @@ class DBProxy:
                 sql += "FROM ATLAS_PANDAMETA.schedconfig WHERE siteid NOT LIKE 'ANALY_%%' GROUP BY siteid,fairsharePolicy,cloud"
             else:
                 sql += "FROM ATLAS_PANDAMETA.schedconfig WHERE NOT siteid LIKE 'ANALY_%' GROUP BY siteid,fairsharePolicy,cloud"
-            _logger.debug('sql=' + sql + comment)
             self.cur.execute(sql+comment)
             res = self.cur.fetchall()
-            _logger.debug('res=' + str(res))
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
