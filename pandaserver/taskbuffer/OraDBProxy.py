@@ -10056,7 +10056,6 @@ class DBProxy:
     # get allowed nodes
     def getAllowedNodes(self):
         comment = ' /* DBProxy.getAllowedNodes */'
-        _logger.debug("getAllowedNodes")
         try:
             # set autocommit on
             self.conn.begin()
