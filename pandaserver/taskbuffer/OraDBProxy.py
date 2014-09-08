@@ -9951,7 +9951,6 @@ class DBProxy:
     # get pilot owners
     def getPilotOwners(self):
         comment = ' /* DBProxy.getPilotOwners */'
-        _logger.debug("getPilotOwners")
         try:
             # set autocommit on
             self.conn.begin()
