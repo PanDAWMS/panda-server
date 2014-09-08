@@ -9649,7 +9649,6 @@ class DBProxy:
     # get cloud list
     def getCloudList(self):
         comment = ' /* DBProxy.getCloudList */'
-        _logger.debug("getCloudList start")
         try:
             # set autocommit on
             self.conn.begin()
