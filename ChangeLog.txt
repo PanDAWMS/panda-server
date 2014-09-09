@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed insertTaskParams to work with duplicated task names
   * added protection to MsgWrapper
   * increased timeout value for EP
   * improved TA to aggregate container
