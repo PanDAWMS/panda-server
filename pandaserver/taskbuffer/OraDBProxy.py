@@ -12144,10 +12144,31 @@ class DBProxy:
             # sql to insert task parameters
             sqlT  = "INSERT INTO {0}.T_TASK ".format(schemaDEFT)
             sqlT += "(taskid,status,submit_time,vo,prodSourceLabel,userName,taskName,jedi_task_parameters,priority,current_priority,parent_tid) VALUES "
-            sqlT += "({0}.PRODSYS2_TASK_ID_SEQ.nextval,".format(schemaDEFT)
+            varMap = {}
+            if panda_config.backend == 'mysql':
+                ### fake sequence
+                sql = " INSERT INTO PRODSYS2_TASK_ID_SEQ (col) VALUES (NULL) "
+                self.cur.arraysize = 100
+                self.cur.execute(sql + comment, {})
+                sql2 = """ SELECT LAST_INSERT_ID() """
+                self.cur.execute(sql2 + comment, {})
+                nextval, = self.cur.fetchone()
+                sqlT += "( :nextval ,".format(schemaDEFT)
+                varMap[':nextval'] = nextval
+            else:  # panda_config.backend == 'oracle':
+                sqlT += "({0}.PRODSYS2_TASK_ID_SEQ.nextval,".format(schemaDEFT)
             sqlT += ":status,CURRENT_DATE,:vo,:prodSourceLabel,:userName,:taskName,:param,:priority,:current_priority,"
             if parent_tid == None:
-                sqlT += "{0}.PRODSYS2_TASK_ID_SEQ.currval) ".format(schemaDEFT)
+                if panda_config.backend == 'mysql':
+                    ### fake sequence
+                    sql = " SELECT MAX(COL) FROM PRODSYS2_TASK_ID_SEQ "
+                    self.cur.arraysize = 100
+                    self.cur.execute(sql + comment, {})
+                    currval, = self.cur.fetchone()
+                    sqlT += " :currval ) "
+                    varMap[':currval'] = currval
+                else:  # panda_config.backend == 'oracle':
+                    sqlT += "{0}.PRODSYS2_TASK_ID_SEQ.currval) ".format(schemaDEFT)
             else:
                 sqlT += ":parent_tid) "
             sqlT += "RETURNING TASKID INTO :jediTaskID"
@@ -12166,7 +12187,6 @@ class DBProxy:
             errorCode = 0
             if taskParamsJson['taskType'] == 'anal' and \
                     (taskParamsJson.has_key('uniqueTaskName') and taskParamsJson['uniqueTaskName'] == True):
-                varMap = {}
                 varMap[':vo']       = taskParamsJson['vo']
                 varMap[':userName'] = taskParamsJson['userName']
                 varMap[':taskName'] = taskParamsJson['taskName']
