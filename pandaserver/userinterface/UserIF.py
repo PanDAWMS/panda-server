@@ -895,7 +895,9 @@ class UserIF:
             cUID = self.taskBuffer.cleanUserID(user)
             for jobID in jobdefList:
                 self.taskBuffer.retryJobsInActive(cUID,jobID,True)
-            ret = 0,'retry has been triggered for failed jobs with attemptNr<maxAttempt'
+            retStr  = 'retry has been triggered for failed jobs with attemptNr<maxAttempt '
+            retStr += 'while the task is still {0}'.format(ret[1])
+            ret = 0,retStr
         # return
         return ret
 

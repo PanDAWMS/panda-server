@@ -12256,8 +12256,9 @@ class DBProxy:
                     _logger.debug("{0} : {1}".format(methodName,retStr))
                     retCode = 4
             # retry for failed analysis jobs
-            if taskStatus in ['running','scouting'] and prodSourceLabel in ['user']:
+            if properErrorCode and taskStatus in ['running','scouting','pending'] and prodSourceLabel in ['user']:
                 retCode = 5
+                retStr = taskStatus
             if goForward:
                 # delete command just in case
                 varMap = {}
@@ -13356,7 +13357,7 @@ class DBProxy:
                     self.cur.execute(sqlCE+comment, varMap)
             # kill consumers
             sqlDJS = "SELECT %s " % JobSpec.columnNames()
-            sqlDJS+= "FROM ATLAS_PANDA.jobsAvtive4 WHERE PandaID=:PandaID"
+            sqlDJS+= "FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID"
             sqlDJD = "DELETE FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID"
             sqlDJI = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
             sqlDJI+= JobSpec.bindValuesExpression()
@@ -13394,7 +13395,7 @@ class DBProxy:
                 dJob.jobStatus = 'cancelled'
                 dJob.endTime   = datetime.datetime.utcnow()
                 dJob.taskBufferErrorCode = ErrorCode.EC_Kill
-                if killedFalg:
+                if killedFlag:
                     dJob.taskBufferErrorDiag = 'killed since an associated consumer PandaID={0} was killed'.format(job.PandaID)
                 else:
                     dJob.taskBufferErrorDiag = 'killed since an associated consumer PandaID={0} failed'.format(job.PandaID)
@@ -13404,7 +13405,7 @@ class DBProxy:
                 self.cur.execute(sqlDJI+comment, dJob.valuesMap())
                 # update files,metadata,parametes
                 varMap = {}
-                varMap[':PandaID'] = downID
+                varMap[':PandaID'] = pandaID
                 varMap[':modificationTime'] = dJob.modificationTime
                 self.cur.execute(sqlFMod+comment,varMap)
                 self.cur.execute(sqlMMod+comment,varMap)
@@ -13508,7 +13509,7 @@ class DBProxy:
                     self.cur.execute(sqlDJI+comment, dJob.valuesMap())
                     # update files,metadata,parametes
                     varMap = {}
-                    varMap[':PandaID'] = downID
+                    varMap[':PandaID'] = pandaID
                     varMap[':modificationTime'] = dJob.modificationTime
                     self.cur.execute(sqlFMod+comment,varMap)
                     self.cur.execute(sqlMMod+comment,varMap)
