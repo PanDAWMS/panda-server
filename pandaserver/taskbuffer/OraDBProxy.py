@@ -13327,7 +13327,7 @@ class DBProxy:
                 if jobStatus in ['activated','throttled']:
                     # collect PandaIDs
                     if not retMap[computingSite][sourceSite]['user'][prodUserName][jobStatus]['jobList'].has_key(currentPriority):
-                       retMap[computingSite][sourceSite]['user'][prodUserName][jobStatus]['jobList'][currentPriority] = []
+                        retMap[computingSite][sourceSite]['user'][prodUserName][jobStatus]['jobList'][currentPriority] = []
                     retMap[computingSite][sourceSite]['user'][prodUserName][jobStatus]['jobList'][currentPriority].append(pandaID)
                     # number of jobs
                     retMap[computingSite][sourceSite]['user'][prodUserName][jobStatus]['nJobs'] += 1
