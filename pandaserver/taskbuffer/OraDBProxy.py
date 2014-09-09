@@ -13475,7 +13475,7 @@ class DBProxy:
                     self.cur.execute(sqlCE+comment, varMap)
             # kill consumers
             sqlDJS = "SELECT %s " % JobSpec.columnNames()
-            sqlDJS+= "FROM ATLAS_PANDA.jobsAvtive4 WHERE PandaID=:PandaID"
+            sqlDJS += "FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID"
             sqlDJD = "DELETE FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID"
             sqlDJI = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
             sqlDJI+= JobSpec.bindValuesExpression()
