@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed to allow retry of failed analysis jobs while the task is still running
   * changed insertTaskParams to work with duplicated task names
   * added protection to MsgWrapper
   * increased timeout value for EP

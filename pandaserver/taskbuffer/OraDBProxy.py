@@ -2261,7 +2261,7 @@ class DBProxy:
 
 
     # retry failed analysis jobs in Active4
-    def retryJobsInActive(self,prodUserName,jobDefinitionID):
+    def retryJobsInActive(self,prodUserName,jobDefinitionID,isJEDI=False):
         comment = ' /* DBProxy.retryJobsInActive */'                
         _logger.debug("retryJobsInActive : start - %s %s" % (prodUserName,jobDefinitionID))
         try:
@@ -2292,6 +2292,8 @@ class DBProxy:
             sql0 = "SELECT PandaID,jobStatus,taskBufferErrorCode,attemptNr FROM ATLAS_PANDA.jobsActive4 "
             sql0+= "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
             sql0+= "AND prodSourceLabel=:prodSourceLabel "
+            if isJEDI:
+                sql0+= "AND attemptNr<maxAttempt " 
             varMap = {}
             varMap[':prodUserName']    = prodUserName
             varMap[':jobDefinitionID'] = jobDefinitionID
@@ -12200,7 +12202,7 @@ class DBProxy:
             _logger.debug("{0} start com={1} DN={2} prod={3} comment={4}".format(methodName,comStr,compactDN,
                                                                                  prodRole,comComment))
             # sql to check status and owner
-            sqlTC  = "SELECT status,userName FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+            sqlTC  = "SELECT status,userName,prodSourceLabel FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
             sqlTC += "WHERE jediTaskID=:jediTaskID FOR UPDATE "
             # sql to delete command
             schemaDEFT = self.getSchemaDEFT()
@@ -12227,7 +12229,7 @@ class DBProxy:
                 goForward = False
                 retCode = 2
             else:
-                taskStatus,userName = resTC
+                taskStatus,userName,prodSourceLabel = resTC
             # check owner
             if goForward:
                 if not prodRole and compactDN != userName:
@@ -12253,6 +12255,9 @@ class DBProxy:
                     retStr = 'Command rejected: the {0} command is not accepted if the task is in {1} status'.format(comStr,taskStatus)
                     _logger.debug("{0} : {1}".format(methodName,retStr))
                     retCode = 4
+            # retry for failed analysis jobs
+            if taskStatus in ['running','scouting'] and prodSourceLabel in ['user']:
+                retCode = 5
             if goForward:
                 # delete command just in case
                 varMap = {}
@@ -13570,3 +13575,39 @@ class DBProxy:
                 return False
         _logger.debug("{0} : OK".format(methodName))
         return True
+
+
+
+    # get the list of jobdefIDs for failed jobs in a task
+    def getJobdefIDsForFailedJob(self,jediTaskID):
+        comment = ' /* DBProxy.getJobdefIDsForFailedJob */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <jediTaskID={0}>".format(jediTaskID)
+        _logger.debug("{0} : start".format(methodName))
+        try:
+            # begin transaction
+            self.conn.begin()
+            # dql to get jobDefIDs
+            sqlGF  = "SELECT distinct jobDefinitionID FROM ATLAS_PANDA.jobsActive4 "
+            sqlGF += "WHERE jediTaskID=:jediTaskID AND jobStatus=:jobStatus "
+            sqlGF += "AND attemptNr<maxAttempt " 
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            varMap[':jobStatus']  = 'failed'
+            self.cur.execute(sqlGF+comment,varMap)
+            resGF = self.cur.fetchall()
+            retList = []
+            for jobDefinitionID, in resGF:
+                retList.append(jobDefinitionID)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            _logger.debug("{0} : {1}".format(methodName,str(retList)))
+            return retList
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return []
+            
