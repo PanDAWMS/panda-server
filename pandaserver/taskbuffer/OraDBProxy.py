@@ -10355,8 +10355,12 @@ class DBProxy:
                 if jediCheck:
                     name = self.cleanUserID(dn)
                     sqlAdd  = "INSERT INTO ATLAS_PANDAMETA.users "
-                    sqlAdd += "(ID,NAME,DN,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
-                    sqlAdd += "VALUES(ATLAS_PANDAMETA.USERS_ID_SEQ.nextval,:name,:dn,"
+                    if self.backend == 'mysql':
+                        sqlAdd += "(NAME,DN,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
+                        sqlAdd += "VALUES(:name,:dn,"
+                    else:  # self.backend == 'oracle':
+                        sqlAdd += "(ID,NAME,DN,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
+                        sqlAdd += "VALUES(ATLAS_PANDAMETA.USERS_ID_SEQ.nextval,:name,:dn,"
                     sqlAdd += "CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,0,1) "
                     varMap = {}
                     varMap[':name'] = name
