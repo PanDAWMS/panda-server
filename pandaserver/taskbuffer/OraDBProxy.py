@@ -13513,7 +13513,7 @@ class DBProxy:
                 dJob.jobStatus = 'cancelled'
                 dJob.endTime   = datetime.datetime.utcnow()
                 dJob.taskBufferErrorCode = ErrorCode.EC_Kill
-                if killedFalg:
+                if killedFlag:
                     dJob.taskBufferErrorDiag = 'killed since an associated consumer PandaID={0} was killed'.format(job.PandaID)
                 else:
                     dJob.taskBufferErrorDiag = 'killed since an associated consumer PandaID={0} failed'.format(job.PandaID)
