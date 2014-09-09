@@ -349,4 +349,15 @@ adder_plugins = local:dataservice.AdderDummyPlugin:AdderDummyPlugin
 setupper_plugins = local:dataservice.SetupperDummyPlugin:SetupperDummyPlugin
 
 
+##########################
+#
+# Default siteIDs
+#
+
+### for ATLAS
+defaultSiteID = BNL_ATLAS_1
+defaultAnalySiteID = ANALY_BNL_ATLAS_1
+### for LSST
+# defaultSiteID = BNL-LSST
+# defaultAnalySiteID = ANALY_BNL-LSST
 

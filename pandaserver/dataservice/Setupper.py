@@ -25,10 +25,8 @@ _logger = PandaLogger().getLogger('Setupper')
 PandaDDMSource = ['BNLPANDA','BNL-OSG2_MCDISK','BNL-OSG2_DATADISK','BNL-OSG2_MCTAPE','BNL-OSG2_DATATAPE']
 
 # default siteID
-_defaultSiteID = 'BNL_ATLAS_1'
-_defaultAnalySiteID = 'ANALY_BNL_ATLAS_1'
-#_defaultSiteID = 'BNL-LSST'
-#_defaultAnalySiteID = 'ANALY_BNL-LSST'
+_defaultSiteID = panda_config.defaultSiteID
+_defaultAnalySiteID = panda_config.defaultAnalySiteID
 
 
 # message class

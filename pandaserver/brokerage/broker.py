@@ -40,10 +40,8 @@ shortLongMap = {'ANALY_BNL_ATLAS_1':'ANALY_LONG_BNL_ATLAS',
 skipBrokerageProTypes = ['prod_test']
 
 # default siteID
-_defaultSiteID = 'BNL_ATLAS_1'
-_defaultAnalySiteID = 'ANALY_BNL_ATLAS_1'
-#_defaultSiteID = 'BNL-LSST'
-#_defaultAnalySiteID = 'ANALY_BNL-LSST'
+_defaultSiteID = panda_config.defaultSiteID
+_defaultAnalySiteID = panda_config.defaultAnalySiteID
 
 # comparison function for sort
 def _compFunc(jobA,jobB):

@@ -69,6 +69,15 @@ if not tmpSelf.__dict__.has_key('schemaGRISLI'):
     tmpSelf.__dict__['schemaGRISLI'] = 'ATLAS_GRISLI'
 
 
+# default siteIDs
+# defailt siteID for production
+if not tmpSelf.__dict__.has_key('defaultSiteID'):
+    tmpSelf.__dict__['defaultSiteID'] = 'BNL_ATLAS_1'
+# defailt siteID for analysis
+if not tmpSelf.__dict__.has_key('defaultAnalySiteID'):
+    tmpSelf.__dict__['defaultAnalySiteID'] = 'ANALY_BNL_ATLAS_1'
+
+
 # dict for plugins
 g_pluginMap = {}
 
