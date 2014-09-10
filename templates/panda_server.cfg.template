@@ -12,8 +12,6 @@ logdir=/var/log/panda
 # logger name
 loggername = prod
 
-pserverhost = localhost
-pserverhostssl = pandawms.org
 
 
 ##########################
@@ -120,8 +118,7 @@ dbbridgeverbose = False
 # SQL dumper
 dump_sql = False
 
-### MySQL specific/generic backend
-dbport = 4444
+# DB schema names
 schemaPANDA = ATLAS_PANDA
 schemaMETA = ATLAS_PANDAMETA
 schemaGRISLI = ATLAS_GRISLI
@@ -129,12 +126,14 @@ schemaPANDAARCH = ATLAS_PANDAARCH
 schemaJEDI = ATLAS_PANDA
 schemaDEFT = ATLAS_DEFT
 
-# DB engine
-#backend = oracle
-backend = mysql
+# DB backend
+backend = oracle
+#backend = mysql
 
 # DB port
-dbhostmysql = 107.22.166.93
+dbport = 4444
+
+dbhostmysql = pandawms.org
 dbportmysql = 23306
 dbnamemysql = pandadb1
 dbusermysql = pansrusr1
@@ -143,7 +142,7 @@ dbpasswdmysql = FIXME
 # LogDB
 #logdbengine = oracle
 logdbengine = mysql
-logdbhost = 107.22.166.93
+logdbhost = pandawms.org
 logdbport = 23306
 logdbname = pandadb1
 logdbuser = pansrusr1
@@ -153,7 +152,7 @@ nLogDBConnection = 5
 # ArchiveDB
 #archivedbengine = oracle
 archivedbengine = mysql
-archivedbhost = 107.22.166.93
+archivedbhost = pandawms.org
 archivedbport = 23306
 archivedbname = pandadb1
 archivedbuser = pansrusr1
@@ -176,6 +175,13 @@ pserverportcache = 25085
 
 # alias
 pserveralias = pandaserver.cern.ch
+
+# host
+pserverhost = localhost
+pserverhostssl = pandaserver.cern.ch
+#pserverhost = localhost
+#pserverhostssl = pandawms.org
+
 
 # space to keep key pairs
 keyDir = @@install_dir@@/var/keys
@@ -341,3 +347,17 @@ adder_plugins = local:dataservice.AdderDummyPlugin:AdderDummyPlugin
 
 # plugins for Setupper. format=vo1(|vo2(vo3...):moduleName:className(,vo4...) 
 setupper_plugins = local:dataservice.SetupperDummyPlugin:SetupperDummyPlugin
+
+
+##########################
+#
+# Default siteIDs
+#
+
+### for ATLAS
+defaultSiteID = BNL_ATLAS_1
+defaultAnalySiteID = ANALY_BNL_ATLAS_1
+### for LSST
+# defaultSiteID = BNL-LSST
+# defaultAnalySiteID = ANALY_BNL-LSST
+

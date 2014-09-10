@@ -123,14 +123,12 @@ class _Curl:
         self.sslKey  = ''
         # verbose
         self.verbose = False
-#        self.verbose = True
 
 
     # GET method
     def get(self,url,data):
         # make command
         com = '%s --silent --get' % self.path
-#        com = '%s --verbose --get' % self.path
         if not self.verifyHost:
             com += ' --insecure'
         elif os.environ.has_key('X509_CERT_DIR'):
@@ -179,7 +177,6 @@ class _Curl:
     def post(self,url,data):
         # make command
         com = '%s --silent' % self.path
-#        com = '%s --verbose' % self.path
         if not self.verifyHost:
             com += ' --insecure'
         elif os.environ.has_key('X509_CERT_DIR'):
@@ -219,8 +216,6 @@ class _Curl:
         com += ' %s' % url
         # execute
         if self.verbose:
-#            print 'com=', com
-#            print 'commands:', commands.getoutput('cat %s' % tmpName)
             print com
             print commands.getoutput('cat %s' % tmpName)
         ret = commands.getstatusoutput(com)
@@ -229,7 +224,6 @@ class _Curl:
         if ret[0] != 0:
             ret = (ret[0]%255,ret[1])
         if self.verbose:
-#            print 'Curl.post', 'ret=', ret
             print ret
         return ret
 
@@ -238,7 +232,6 @@ class _Curl:
     def put(self,url,data):
         # make command
         com = '%s --silent' % self.path
-#        com = '%s --verbose' % self.path
         if not self.verifyHost:
             com += ' --insecure'
         elif os.environ.has_key('X509_CERT_DIR'):
@@ -320,7 +313,6 @@ def submitJobs(jobs,srvID=None,toPending=False):
     if toPending:
         data['toPending'] = True
     status,output = curl.post(url,data)
-#    print 'submitJobs:307', 'status=', status
     if status != 0:
         print output
         return status,output

@@ -247,13 +247,6 @@ class UserIF:
         return ret
 
 
-    # check duplicated sandbox file
-    def checkSandboxFileEC2(self, userName, fileSize, checkSum):
-        ret = self.taskBuffer.checkSandboxFileEC2(userName, fileSize, checkSum)
-        # return
-        return ret
-
-
     # get job status
     def getJobStatus(self,idsStr):
         try:
@@ -1161,16 +1154,6 @@ def checkSandboxFile(req,fileSize,checkSum):
     user = _getDN(req)
     # exec    
     return userIF.checkSandboxFile(user,fileSize,checkSum)
-
-# check duplicated sandbox file
-def checkSandboxFileEC2(req, fileSize, checkSum):
-    # get DN
-    if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
-        return "ERROR: SSL connection is required"
-    user = _getDN(req)
-    # exec
-    return userIF.checkSandboxFileEC2(user, fileSize, checkSum)
-
 
 # add files to memcached
 def addFilesToCacheDB(req,site,node,guids='',lfns=''):

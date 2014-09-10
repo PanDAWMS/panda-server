@@ -1428,18 +1428,6 @@ class TaskBuffer:
         return ret
 
 
-    # check duplicated sandbox file
-    def checkSandboxFileEC2(self, userName, fileSize, checkSum):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # exec
-        ret = proxy.checkSandboxFileEC2(userName, fileSize, checkSum)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
-
     # insert datasets
     def insertDatasets(self,datasets):
         # get DBproxy
