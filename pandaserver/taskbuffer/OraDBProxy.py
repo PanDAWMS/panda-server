@@ -12017,7 +12017,7 @@ class DBProxy:
             taskParamsJson = PrioUtil.decodeJSON(taskParams)
             # set user name and task type
             taskParamsJson['userName'] = compactDN
-            if not prodRole:
+            if not prodRole or not 'taskType' in taskParamsJson:
                 taskParamsJson['taskType']   = 'anal'
                 taskParamsJson['taskPriority'] = 1000
                 # extract working group
