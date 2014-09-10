@@ -109,6 +109,9 @@ class WrappedCursor(object):
             sql = re.sub("(?i)(AND)*\s*ROWNUM\s*<=\s*(\d+)", " LIMIT \g<2>", sql)
             sql = re.sub("(?i)(WHERE)\s*LIMIT\s*(\d+)", " LIMIT \g<2>" , sql)
 
+            # NOWAIT
+            sql = re.sub('NOWAIT', "", sql)
+
             # RETURNING INTO
             returningInto = None
             m = re.search("RETURNING ([^\s]+) INTO ([^\s]+)", sql, re.I)
