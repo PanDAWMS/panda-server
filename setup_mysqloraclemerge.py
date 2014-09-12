@@ -3,8 +3,7 @@
 # Setup prog for Panda Server
 #
 #
-#from version_mysqloraclemerge import __version__, __provides__
-release_version='0.0.2'
+from version_mysqloraclemerge import __version__, __provides__
 # prefix = '/data/pansrvtest/srv'
 # prefix = '/data/pansrv/srv'
 panda_user = 'pansrv'
@@ -156,10 +155,9 @@ class install_data_panda (install_data_org):
         
 # setup for distutils
 setup(
-    name="panda-server-mysqloraclemerge",
-#   name=__provides__,
-#   version=__version__,
-    version=release_version,
+#    name="panda-server-mysql",
+    name=__provides__,
+    version=__version__,
     description='MySQL+Oracle+Merged branch of the PanDA Server Package',
     long_description='''This package contains PanDA Server Components''',
     license='GPL',
