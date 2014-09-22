@@ -41,6 +41,8 @@ class EventPicker:
         self.params          = ''
         self.lockedBy        = ''
         self.evpFile         = None
+        self.userTaskName    = ''
+
 
     # main
     def run(self):
@@ -61,6 +63,7 @@ class EventPicker:
             eventPickStreamName = ''
             eventPickDS         = []
             eventPickAmiTag     = ''
+            eventPickNumSites   = 1
             inputFileList       = []
             tagDsList           = []
             tagQuery            = ''
@@ -89,10 +92,19 @@ class EventPicker:
                 elif tmpItems[0] == 'eventPickAmiTag':
                     # AMI tag
                     eventPickAmiTag = tmpItems[1]
+                elif tmpItems[0] == 'eventPickNumSites':
+                    # the number of sites where datasets are distributed
+                    try:
+                        eventPickNumSites = int(tmpItems[1])
+                    except:
+                        pass
                 elif tmpItems[0] == 'userName':
                     # user name
                     self.userDN = tmpItems[1]
                     self.putLog("user=%s" % self.userDN)
+                elif tmpItems[0] == 'userTaskName':
+                    # user task name
+                    self.userTaskName = tmpItems[1]
                 elif tmpItems[0] == 'userDatasetName':
                     # user dataset name
                     self.userDatasetName = tmpItems[1]

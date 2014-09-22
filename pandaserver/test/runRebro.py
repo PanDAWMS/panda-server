@@ -118,7 +118,8 @@ try:
     sql += "AND modificationTime<:modificationTime "
     sql += "AND jobsetID IS NOT NULL "    
     sql += "AND (processingType IN (:processingType1,:processingType2) "
-    sql += "OR (processingType LIKE :processingType3 AND lockedBy=:lockedBy) ) "
+    sql += "OR (processingType LIKE :processingType3 AND lockedBy=:lockedBy) "
+    sql += "OR (processingType LIKE :processingType4 AND lockedBy=:lockedBy) ) "
     sql += "GROUP BY jobDefinitionID,prodUserName,prodUserID,computingSite,jediTaskID,processingType " 
     varMap = {}
     varMap[':prodSourceLabel1'] = 'user'
@@ -127,6 +128,7 @@ try:
     varMap[':processingType1']  = 'pathena'
     varMap[':processingType2']  = 'prun'
     varMap[':processingType3']  = 'panda-client%'
+    varMap[':processingType4']  = 'ganga-%-jedi-%'
     varMap[':lockedBy']         = 'jedi'
     varMap[':jobStatus1']       = 'activated'
     varMap[':jobStatus2']       = 'throttled'

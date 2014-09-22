@@ -11667,7 +11667,8 @@ class DBProxy:
                             except:
                                 pass
                 # update file counts
-                if fileSpec.status == 'merging' and finishPending:
+                if fileSpec.status == 'merging' and \
+                        (finishPending or not jobSpec.prodSourceLabel in ['user','panda']):
                     # files to be merged for pending failed jobs
                     datasetContentsStat[datasetID]['nFilesOnHold'] += 1
                 elif fileStatus == 'ready':
@@ -12380,6 +12381,8 @@ class DBProxy:
     # update unmerged datasets to trigger merging
     def updateUnmergedDatasets(self,job):
         comment = ' /* JediDBProxy.updateUnmergedDatasets */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <PandaID={0}>".format(job.PandaID)
         # get PandaID which produced unmerged files
         umPandaIDs = []
         umCheckedIDs = []
@@ -12388,6 +12391,7 @@ class DBProxy:
         sqlUNF += "SET nFilesOnHold=0,nFiles=nFilesFinished+nFilesFailed+nFilesOnHold,"
         sqlUNF += "nFilesUsed=nFilesFinished+nFilesFailed,nFilesTobeUsed=nFilesFinished+nFilesFailed+nFilesOnHold "
         sqlUNF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        sqlUNF += "AND NOT status IN (:statusR,:statusD) "
         # sql to check nFiles
         sqlUCF  = "SELECT nFilesTobeUsed,nFilesUsed FROM ATLAS_PANDA.JEDI_Datasets "
         sqlUCF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
@@ -12396,8 +12400,7 @@ class DBProxy:
         sqlUDS += "SET status=:status "
         sqlUDS += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
         try:
-            methodName = "updateUnmergedDatasets"
-            _logger.debug('{0} start PandaID={1}'.format(methodName,job.PandaID))
+            _logger.debug('{0} start'.format(methodName))
             # begin transaction
             self.conn.begin()
             # look for unmerged files
@@ -12411,6 +12414,8 @@ class DBProxy:
                     varMap = {}
                     varMap[':jediTaskID'] = tmpFile.jediTaskID
                     varMap[':datasetID']  = tmpFile.datasetID
+                    varMap[':statusR']    = 'ready'
+                    varMap[':statusD']    = 'done'
                     self.cur.arraysize = 10
                     _logger.debug(sqlUNF+comment+str(varMap))
                     self.cur.execute(sqlUNF+comment, varMap)
@@ -12432,12 +12437,16 @@ class DBProxy:
                             else:
                                 varMap[':status'] = 'done'
                             # update dataset status
-                            _logger.debug(sqlUDS+comment+str(varMap))
+                            _logger.debug(methodName+' '+sqlUDS+comment+str(varMap))
                             self.cur.execute(sqlUDS+comment, varMap)
+                    else:
+                        _logger.debug('{0} skip jediTaskID={1} datasetID={2}'.format(methodName,
+                                                                                     tmpFile.jediTaskID,
+                                                                                     tmpFile.datasetID))
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
-            _logger.debug('{0} done PandaID={1}'.format(methodName,job.PandaID))
+            _logger.debug('{0} done'.format(methodName))
             return True
         except:
             # roll back

@@ -1635,7 +1635,10 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 # use cloud dest for non-exsiting sites
                 if job.prodSourceLabel != 'user' and (not job.destinationSE in siteMapper.siteSpecList.keys()) \
                        and job.destinationSE != 'local':
-                    destSE = siteMapper.getCloud(job.cloud)['dest'] 
+                    if DataServiceUtils.checkJobDestinationSE(job) != None:
+                        destSE = DataServiceUtils.checkJobDestinationSE(job)
+                    else:
+                        destSE = siteMapper.getCloud(job.cloud)['dest'] 
                     job.destinationSE = destSE
             # use CERN-PROD_EOSDATADISK for CERN-EOS jobs
             if job.computingSite in ['CERN-EOS']:
