@@ -11790,7 +11790,7 @@ class DBProxy:
             if res != None:
                 if res[0] in ['ready','running','scouting','pending',
                               'topreprocess','preprocessing','aborting',
-                              'finishing']:
+                              'finishing','scouted']:
                     retVal = True
         _logger.debug('checkTaskStatusJEDI jediTaskID=%s with %s' % (jediTaskID,retVal))            
         return retVal

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added eventPickNumSites
   * added protection against multiple updateUnmergeDataset calls
   * allowing to use non-T1 SE as destination
   * enabled the rebrokerage for ganga jobs

@@ -7,6 +7,7 @@ import os
 import re
 import sys
 import time
+import copy
 import fcntl
 import datetime
 import commands
@@ -159,8 +160,15 @@ class EventPicker:
                     if tmpFile['lfn'] in inputFileList:
                         tmpAllFiles.append(tmpFile)
                 allFiles = tmpAllFiles        
+            # remove redundant CN from DN
+            tmpDN = self.userDN
+            tmpDN = re.sub('/CN=limited proxy','',tmpDN)
+            tmpDN = re.sub('(/CN=proxy)+$','',tmpDN)
             # make dataset container
-            tmpRet = self.pd2p.registerDatasetContainerWithDatasets(self.userDatasetName,allFiles,locationMap)
+            tmpRet = self.pd2p.registerDatasetContainerWithDatasets(self.userDatasetName,allFiles,
+                                                                    locationMap,
+                                                                    nSites=eventPickNumSites,
+                                                                    owner=tmpDN)
             if not tmpRet:
                 self.endWithError('Failed to make a dataset container %s' % self.userDatasetName)
                 return False
@@ -180,52 +188,73 @@ class EventPicker:
             if allCandidates == []:
                 self.endWithError('No candidate for destination')
                 return False
-            # get size of dataset container
-            tmpRet,totalInputSize = self.pd2p.getDatasetSize(self.userDatasetName)
-            if not tmpRet:
-                self.endWithError('Failed to get the size of %s' % self.userDatasetName)
-                return False
-            # run brokerage
-            tmpJob = JobSpec()
-            tmpJob.AtlasRelease = ''
-            self.putLog("run brokerage for %s" % tmpDS)
-            brokerage.broker.schedule([tmpJob],self.taskBuffer,self.siteMapper,True,allCandidates,
-                                      True,datasetSize=totalInputSize)
-            if tmpJob.computingSite.startswith('ERROR'):
-                self.endWithError('brokerage failed with %s' % tmpJob.computingSite)
-                return False
-            self.putLog("site -> %s" % tmpJob.computingSite)
-            # send request to DaTRI
-            if self.lockedBy.startswith('ganga'):
-                tmpHandler = datriHandler(type='ganga')
-            else:
-                tmpHandler = datriHandler(type='pathena')
-            # remove redundant CN from DN
-            tmpDN = self.userDN
-            tmpDN = re.sub('/CN=limited proxy','',tmpDN)
-            tmpDN = re.sub('(/CN=proxy)+$','',tmpDN)
-            tmpMsg = "%s ds=%s site=%s id=%s" % ('datriHandler.sendRequest',
-                                                 self.userDatasetName,
-                                                 self.siteMapper.getSite(tmpJob.computingSite).ddm,
-                                                 tmpDN)
-            self.putLog(tmpMsg)
-            tmpHandler.setParameters(data_pattern=self.userDatasetName,
-                                     site=self.siteMapper.getSite(tmpJob.computingSite).ddm,
-                                     userid=tmpDN)
-            nTry = 3
-            for iTry in range(nTry):
-                dhStatus,dhOut = tmpHandler.sendRequest()
-                # succeeded
-                if dhStatus == 0 or "such request is exist" in dhOut:
-                    self.putLog("%s %s" % (dhStatus,dhOut))
-                    break
-                if iTry+1 < nTry:
-                    # sleep
-                    time.sleep(60)
-                else:
-                    # final attempt failed
-                    self.endWithError('Failed to send request to DaTRI : %s %s' % (dhStatus,dhOut))
+            # get list of dataset (container) names
+            if eventPickNumSites > 1:
+                # decompose container to transfer datasets separately
+                tmpRet,tmpOut = self.pd2p.getListDatasetReplicasInContainer(self.userDatasetName) 
+                if not tmpRet:
+                    self.endWithError('Failed to get the size of %s' % self.userDatasetName)
                     return False
+                userDatasetNameList = tmpOut.keys()
+            else:
+                # transfer container at once
+                userDatasetNameList = [self.userDatasetName]
+            # loop over all datasets
+            sitesUsed = []
+            for tmpUserDatasetName in userDatasetNameList:
+                # get size of dataset container
+                tmpRet,totalInputSize = self.pd2p.getDatasetSize(tmpUserDatasetName)
+                if not tmpRet:
+                    self.endWithError('Failed to get the size of %s' % tmpUserDatasetName)
+                    return False
+                # run brokerage
+                tmpJob = JobSpec()
+                tmpJob.AtlasRelease = ''
+                self.putLog("run brokerage for %s" % tmpDS)
+                brokerage.broker.schedule([tmpJob],self.taskBuffer,self.siteMapper,True,allCandidates,
+                                          True,datasetSize=totalInputSize)
+                if tmpJob.computingSite.startswith('ERROR'):
+                    self.endWithError('brokerage failed with %s' % tmpJob.computingSite)
+                    return False
+                self.putLog("site -> %s" % tmpJob.computingSite)
+                # send request to DaTRI
+                if self.lockedBy.startswith('ganga'):
+                    tmpHandler = datriHandler(type='ganga')
+                else:
+                    tmpHandler = datriHandler(type='pathena')
+                tmpMsg = "%s ds=%s site=%s id=%s" % ('datriHandler.sendRequest',
+                                                     tmpUserDatasetName,
+                                                     self.siteMapper.getSite(tmpJob.computingSite).ddm,
+                                                     tmpDN)
+                self.putLog(tmpMsg)
+                tmpHandler.setParameters(data_pattern=tmpUserDatasetName,
+                                         site=self.siteMapper.getSite(tmpJob.computingSite).ddm,
+                                         userid=tmpDN)
+                nTry = 3
+                for iTry in range(nTry):
+                    dhStatus,dhOut = tmpHandler.sendRequest()
+                    # succeeded
+                    if dhStatus == 0 or "such request is exist" in dhOut:
+                        self.putLog("%s %s" % (dhStatus,dhOut))
+                        break
+                    if iTry+1 < nTry:
+                        # sleep
+                        time.sleep(60)
+                    else:
+                        # final attempt failed
+                        self.endWithError('Failed to send request to DaTRI : %s %s' % (dhStatus,dhOut))
+                        return False
+                # list of sites already used
+                sitesUsed.append(tmpJob.computingSite)
+                self.putLog("used %s sites" % len(sitesUsed))
+                # set candidates
+                if len(sitesUsed) >= eventPickNumSites:
+                    # reset candidates to limit the number of sites
+                    allCandidates = sitesUsed
+                    sitesUsed = []
+                else:
+                    # remove site
+                    allCandidates.remove(tmpJob.computingSite)
             # send email notification for success
             tmpMsg =  'A transfer request was successfully sent to DaTRI.\n'
             tmpMsg += 'You will receive a notification from DaTRI when it completed.'

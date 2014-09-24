@@ -1006,7 +1006,7 @@ class DynDataDistributer:
 
 
     # register new dataset container with datasets
-    def registerDatasetContainerWithDatasets(self,containerName,files,replicaMap):
+    def registerDatasetContainerWithDatasets(self,containerName,files,replicaMap,nSites=1,owner=None):
         # sort by locations
         filesMap = {}
         for tmpFile in files:
@@ -1017,19 +1017,27 @@ class DynDataDistributer:
                 filesMap[tmpKey] = []
             # append file
             filesMap[tmpKey].append(tmpFile)
+        # get nfiles per dataset
+        nFilesPerDataset,tmpR = divmod(len(files),nSites)
+        if nFilesPerDataset == 0:
+            nFilesPerDataset = 1
         # register new datasets
         datasetNames = []
         tmpIndex = 1
         for tmpLocations,tmpFiles in filesMap.iteritems():
-            tmpDsName = containerName[:-1] + '_%04d' % tmpIndex
-            tmpRet = self.registerDatasetWithLocation(tmpDsName,tmpFiles,tmpLocations)
-            # failed
-            if not tmpRet:
-                self.putLog('failed to register %s' % tmpDsName, 'error')
-                return False
-            # append dataset
-            datasetNames.append(tmpDsName)
-            tmpIndex += 1
+            tmpSubIndex = 0
+            while tmpSubIndex < len(tmpFiles):
+                tmpDsName = containerName[:-1] + '_%04d' % tmpIndex
+                tmpRet = self.registerDatasetWithLocation(tmpDsName,tmpFiles[tmpSubIndex:tmpSubIndex+nFilesPerDataset],
+                                                          tmpLocations,owner=owner)
+                # failed
+                if not tmpRet:
+                    self.putLog('failed to register %s' % tmpDsName, 'error')
+                    return False
+                # append dataset
+                datasetNames.append(tmpDsName)
+                tmpIndex += 1
+                tmpSubIndex += nFilesPerDataset
         # register container
         nTry = 3
         for iDDMTry in range(nTry):
@@ -1045,13 +1053,24 @@ class DynDataDistributer:
             self.putLog(out,'error')
             self.putLog('bad DQ2 response to register %s' % containerName, 'error')
             return False
+        # set owner
+        nTry = 3
+        for iDDMTry in range(nTry):
+            self.putLog('%s/%s setMetaDataAttribute %s owner=%s' % (iDDMTry,nTry,containerName,owner))
+            status,out = ddm.DQ2.main('setMetaDataAttribute',containerName,'owner',owner)
+            if status != 0:
+                time.sleep(60)
+            else:
+                break
+        if status != 0:
+            self.putLog(out,'error')
         # return
         return True
         
             
 
     # register new dataset with locations
-    def registerDatasetWithLocation(self,datasetName,files,locations):
+    def registerDatasetWithLocation(self,datasetName,files,locations,owner=None):
         resForFailure = False
         # get file info
         guids   = []
@@ -1094,6 +1113,17 @@ class DynDataDistributer:
             self.putLog(out,'error')
             self.putLog('bad DQ2 response to freeze %s' % datasetName, 'error')
             return resForFailure
+        # set owner
+        nTry = 3
+        for iDDMTry in range(nTry):
+            self.putLog('%s/%s setMetaDataAttribute %s owner=%s' % (iDDMTry,nTry,datasetName,owner))
+            status,out = ddm.DQ2.main('setMetaDataAttribute',datasetName,'owner',owner)
+            if status != 0:
+                time.sleep(60)
+            else:
+                break
+        if status != 0:
+            self.putLog(out,'error')
         # register locations
         for tmpLocation in locations:
             nTry = 3
@@ -1103,6 +1133,16 @@ class DynDataDistributer:
                 if status != 0 and out.find('DQLocationExistsException') == -1:
                     time.sleep(60)
                 else:
+                    for iDDMTry in range(nTry):
+                        self.putLog('%s/%s setReplicaMetaDataAttribute %s %s owner=%s' % \
+                                        (iDDMTry,nTry,datasetName,tmpLocation,owner))
+                        status,out = ddm.DQ2.main('setReplicaMetaDataAttribute',datasetName,tmpLocation,'owner',owner)
+                        if status != 0:
+                            time.sleep(60)
+                        else:
+                            break
+                    if status != 0:
+                        self.putLog(out,'error')
                     break
             if out.find('DQLocationExistsException') != -1:
                 pass
