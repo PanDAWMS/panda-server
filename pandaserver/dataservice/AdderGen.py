@@ -68,6 +68,15 @@ class AdderGen:
                     except:
                         pass
                 return
+            # check if file exists
+            if not os.path.exists(self.xmlFile):
+                self.logger.debug("not exist : %s" % self.xmlFile)
+                try:
+                    fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
+                    self.lockXML.close()
+                except:
+                    pass
+                return
             # query job
             self.job = self.taskBuffer.peekJobs([self.jobID],fromDefined=False,
                                                 fromArchived=False,
@@ -76,7 +85,7 @@ class AdderGen:
             # check if job has finished
             if self.job == None:
                 self.logger.debug(': job not found in DB')
-            elif self.job.jobStatus in ['finished','failed','unknown','cancelled']:
+            elif self.job.jobStatus in ['finished','failed','unknown','cancelled','merging']:
                 self.logger.error(': invalid state -> %s' % self.job.jobStatus)
             elif self.attemptNr != None and self.job.attemptNr != self.attemptNr:
                 self.logger.error('wrong attemptNr -> job=%s <> %s' % (self.job.attemptNr,self.attemptNr))

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added protection to AdderGen against immediate XML reading
   * added eventPickNumSites
   * added protection against multiple updateUnmergeDataset calls
   * allowing to use non-T1 SE as destination
