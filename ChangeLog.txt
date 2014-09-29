@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * fixed pilot retry to reset endTime error dialog
+  * fixed nFilesOnHold for killed merging jobs
   * added protection to AdderGen against immediate XML reading
   * added eventPickNumSites
   * added protection against multiple updateUnmergeDataset calls

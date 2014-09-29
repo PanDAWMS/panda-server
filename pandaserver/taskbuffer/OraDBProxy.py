@@ -2045,12 +2045,11 @@ class DBProxy:
                         job.attemptNr = job.attemptNr + 1
                         if usePilotRetry:
                             job.currentPriority -= 10
-                        if failedInActive:
-                            job.endTime             = None
-                            job.transExitCode       = None
-                            for attr in job._attributes:
-                                if attr.endswith('ErrorCode') or attr.endswith('ErrorDiag'):
-                                    setattr(job,attr,None)
+                        job.endTime             = None
+                        job.transExitCode       = None
+                        for attr in job._attributes:
+                            if attr.endswith('ErrorCode') or attr.endswith('ErrorDiag'):
+                                setattr(job,attr,None)
                         # remove flag regarding to pledge-resource handling
                         if not job.specialHandling in [None,'NULL','']:
                             newSpecialHandling = re.sub(',*localpool','',job.specialHandling)
@@ -11720,6 +11719,9 @@ class DBProxy:
                 if fileSpec.type in ['input','pseudo_input']:
                     if oldJobStatus == 'transferring':
                         datasetContentsStat[datasetID]['nFilesOnHold'] -= 1
+                # killed dring merging
+                if jobSpec.jobStatus == 'cancelled' and oldJobStatus == 'merging' and fileSpec.isUnMergedOutput():
+                    datasetContentsStat[datasetID]['nFilesOnHold'] -= 1
         # update JEDI_Datasets table
         nOutEvents = 0
         if datasetContentsStat != {}:
