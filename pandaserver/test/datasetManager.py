@@ -21,6 +21,7 @@ from brokerage.SiteMapper import SiteMapper
 from dataservice.Adder import Adder
 from dataservice.Finisher import Finisher
 from dataservice.MailUtils import MailUtils
+from dataservice import DataServiceUtils
 from taskbuffer import ProcessGroups
 import brokerage.broker_util
 import brokerage.broker
@@ -783,7 +784,10 @@ class FinisherThr (threading.Thread):
                         continue
                 elif siteMapper.checkCloud(job.cloud):
                     # normal production jobs
-                    tmpDstID   = siteMapper.getCloud(job.cloud)['dest']
+                    if DataServiceUtils.checkJobDestinationSE(job) == None:
+                        tmpDstID = siteMapper.getCloud(job.cloud)['dest']
+                    else:
+                        tmpDstID = job.destinationSE
                     tmpDstSite = siteMapper.getSite(tmpDstID)
                     # get catalog URL
                     tmpStat,dq2URL = dataservice.DDM.toa.getLocalCatalog(tmpDstSite.ddm)

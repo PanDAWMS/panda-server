@@ -2092,12 +2092,11 @@ class DBProxy:
                         job.attemptNr = job.attemptNr + 1
                         if usePilotRetry:
                             job.currentPriority -= 10
-                        if failedInActive:
-                            job.endTime             = None
-                            job.transExitCode       = None
-                            for attr in job._attributes:
-                                if attr.endswith('ErrorCode') or attr.endswith('ErrorDiag'):
-                                    setattr(job,attr,None)
+                        job.endTime             = None
+                        job.transExitCode       = None
+                        for attr in job._attributes:
+                            if attr.endswith('ErrorCode') or attr.endswith('ErrorDiag'):
+                                setattr(job,attr,None)
                         # remove flag regarding to pledge-resource handling
                         if not job.specialHandling in [None,'NULL','']:
                             newSpecialHandling = re.sub(',*localpool','',job.specialHandling)
@@ -2308,8 +2307,8 @@ class DBProxy:
 
 
     # retry failed analysis jobs in Active4
-    def retryJobsInActive(self,prodUserName,jobDefinitionID):
-        comment = ' /* DBProxy.retryJobsInActive */'
+    def retryJobsInActive(self,prodUserName,jobDefinitionID,isJEDI=False):
+        comment = ' /* DBProxy.retryJobsInActive */'                
         _logger.debug("retryJobsInActive : start - %s %s" % (prodUserName,jobDefinitionID))
         try:
             # begin transaction
@@ -2339,6 +2338,8 @@ class DBProxy:
             sql0 = "SELECT PandaID,jobStatus,taskBufferErrorCode,attemptNr FROM ATLAS_PANDA.jobsActive4 "
             sql0+= "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
             sql0+= "AND prodSourceLabel=:prodSourceLabel "
+            if isJEDI:
+                sql0+= "AND attemptNr<maxAttempt " 
             varMap = {}
             varMap[':prodUserName']    = prodUserName
             varMap[':jobDefinitionID'] = jobDefinitionID
@@ -11785,7 +11786,8 @@ class DBProxy:
                             except:
                                 pass
                 # update file counts
-                if fileSpec.status == 'merging' and finishPending:
+                if fileSpec.status == 'merging' and \
+                        (finishPending or not jobSpec.prodSourceLabel in ['user','panda']):
                     # files to be merged for pending failed jobs
                     datasetContentsStat[datasetID]['nFilesOnHold'] += 1
                 elif fileStatus == 'ready':
@@ -11837,6 +11839,9 @@ class DBProxy:
                 if fileSpec.type in ['input','pseudo_input']:
                     if oldJobStatus == 'transferring':
                         datasetContentsStat[datasetID]['nFilesOnHold'] -= 1
+                # killed dring merging
+                if jobSpec.jobStatus == 'cancelled' and oldJobStatus == 'merging' and fileSpec.isUnMergedOutput():
+                    datasetContentsStat[datasetID]['nFilesOnHold'] -= 1
         # update JEDI_Datasets table
         nOutEvents = 0
         if datasetContentsStat != {}:
@@ -11907,7 +11912,7 @@ class DBProxy:
             if res != None:
                 if res[0] in ['ready','running','scouting','pending',
                               'topreprocess','preprocessing','aborting',
-                              'finishing']:
+                              'finishing','scouted']:
                     retVal = True
         _logger.debug('checkTaskStatusJEDI jediTaskID=%s with %s' % (jediTaskID, retVal))
         return retVal
@@ -12134,7 +12139,7 @@ class DBProxy:
             taskParamsJson = PrioUtil.decodeJSON(taskParams)
             # set user name and task type
             taskParamsJson['userName'] = compactDN
-            if not prodRole:
+            if not prodRole or not 'taskType' in taskParamsJson:
                 taskParamsJson['taskType']   = 'anal'
                 taskParamsJson['taskPriority'] = 1000
                 # extract working group
@@ -12150,10 +12155,12 @@ class DBProxy:
             schemaDEFT = self.getSchemaDEFT()
             # sql to check task duplication
             sqlTD  = "SELECT jediTaskID,status FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
-            sqlTD += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND userName=:userName AND taskName=:taskName FOR UPDATE "
+            sqlTD += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND userName=:userName AND taskName=:taskName "
+            sqlTD += "ORDER BY jediTaskID DESC FOR UPDATE "
             # sql to check DEFT table
             sqlCD  = "SELECT taskid FROM {0}.T_TASK ".format(schemaDEFT)
-            sqlCD += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND userName=:userName AND taskName=:taskName FOR UPDATE " 
+            sqlCD += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND userName=:userName AND taskName=:taskName "
+            sqlCD += "ORDER BY taskid DESC FOR UPDATE " 
             # sql to insert task parameters
             sqlT  = "INSERT INTO {0}.T_TASK ".format(schemaDEFT)
             sqlT += "(taskid,status,submit_time,vo,prodSourceLabel,userName,taskName,jedi_task_parameters,priority,current_priority,parent_tid) VALUES "
@@ -12337,7 +12344,7 @@ class DBProxy:
             _logger.debug("{0} start com={1} DN={2} prod={3} comment={4}".format(methodName,comStr,compactDN,
                                                                                  prodRole,comComment))
             # sql to check status and owner
-            sqlTC  = "SELECT status,userName FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+            sqlTC  = "SELECT status,userName,prodSourceLabel FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
             sqlTC += "WHERE jediTaskID=:jediTaskID FOR UPDATE "
             # sql to delete command
             schemaDEFT = self.getSchemaDEFT()
@@ -12364,7 +12371,7 @@ class DBProxy:
                 goForward = False
                 retCode = 2
             else:
-                taskStatus,userName = resTC
+                taskStatus,userName,prodSourceLabel = resTC
             # check owner
             if goForward:
                 if not prodRole and compactDN != userName:
@@ -12390,6 +12397,10 @@ class DBProxy:
                     retStr = 'Command rejected: the {0} command is not accepted if the task is in {1} status'.format(comStr,taskStatus)
                     _logger.debug("{0} : {1}".format(methodName,retStr))
                     retCode = 4
+            # retry for failed analysis jobs
+            if properErrorCode and taskStatus in ['running','scouting','pending'] and prodSourceLabel in ['user']:
+                retCode = 5
+                retStr = taskStatus
             if goForward:
                 # delete command just in case
                 varMap = {}
@@ -12511,6 +12522,8 @@ class DBProxy:
     # update unmerged datasets to trigger merging
     def updateUnmergedDatasets(self,job):
         comment = ' /* JediDBProxy.updateUnmergedDatasets */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <PandaID={0}>".format(job.PandaID)
         # get PandaID which produced unmerged files
         umPandaIDs = []
         umCheckedIDs = []
@@ -12519,6 +12532,7 @@ class DBProxy:
         sqlUNF += "SET nFilesOnHold=0,nFiles=nFilesFinished+nFilesFailed+nFilesOnHold,"
         sqlUNF += "nFilesUsed=nFilesFinished+nFilesFailed,nFilesTobeUsed=nFilesFinished+nFilesFailed+nFilesOnHold "
         sqlUNF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        sqlUNF += "AND NOT status IN (:statusR,:statusD) "
         # sql to check nFiles
         sqlUCF  = "SELECT nFilesTobeUsed,nFilesUsed FROM ATLAS_PANDA.JEDI_Datasets "
         sqlUCF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
@@ -12527,8 +12541,7 @@ class DBProxy:
         sqlUDS += "SET status=:status "
         sqlUDS += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
         try:
-            methodName = "updateUnmergedDatasets"
-            _logger.debug('{0} start PandaID={1}'.format(methodName,job.PandaID))
+            _logger.debug('{0} start'.format(methodName))
             # begin transaction
             self.conn.begin()
             # look for unmerged files
@@ -12542,6 +12555,8 @@ class DBProxy:
                     varMap = {}
                     varMap[':jediTaskID'] = tmpFile.jediTaskID
                     varMap[':datasetID']  = tmpFile.datasetID
+                    varMap[':statusR']    = 'ready'
+                    varMap[':statusD']    = 'done'
                     self.cur.arraysize = 10
                     _logger.debug(sqlUNF+comment+str(varMap))
                     self.cur.execute(sqlUNF+comment, varMap)
@@ -12563,12 +12578,16 @@ class DBProxy:
                             else:
                                 varMap[':status'] = 'done'
                             # update dataset status
-                            _logger.debug(sqlUDS+comment+str(varMap))
+                            _logger.debug(methodName+' '+sqlUDS+comment+str(varMap))
                             self.cur.execute(sqlUDS+comment, varMap)
+                    else:
+                        _logger.debug('{0} skip jediTaskID={1} datasetID={2}'.format(methodName,
+                                                                                     tmpFile.jediTaskID,
+                                                                                     tmpFile.datasetID))
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
-            _logger.debug('{0} done PandaID={1}'.format(methodName,job.PandaID))
+            _logger.debug('{0} done'.format(methodName))
             return True
         except:
             # roll back
@@ -13536,7 +13555,7 @@ class DBProxy:
                 self.cur.execute(sqlDJI+comment, dJob.valuesMap())
                 # update files,metadata,parametes
                 varMap = {}
-                varMap[':PandaID'] = downID
+                varMap[':PandaID'] = pandaID
                 varMap[':modificationTime'] = dJob.modificationTime
                 self.cur.execute(sqlFMod+comment,varMap)
                 self.cur.execute(sqlMMod+comment,varMap)
@@ -13640,7 +13659,7 @@ class DBProxy:
                     self.cur.execute(sqlDJI+comment, dJob.valuesMap())
                     # update files,metadata,parametes
                     varMap = {}
-                    varMap[':PandaID'] = downID
+                    varMap[':PandaID'] = pandaID
                     varMap[':modificationTime'] = dJob.modificationTime
                     self.cur.execute(sqlFMod+comment,varMap)
                     self.cur.execute(sqlMMod+comment,varMap)
@@ -13707,3 +13726,39 @@ class DBProxy:
                 return False
         _logger.debug("{0} : OK".format(methodName))
         return True
+
+
+
+    # get the list of jobdefIDs for failed jobs in a task
+    def getJobdefIDsForFailedJob(self,jediTaskID):
+        comment = ' /* DBProxy.getJobdefIDsForFailedJob */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <jediTaskID={0}>".format(jediTaskID)
+        _logger.debug("{0} : start".format(methodName))
+        try:
+            # begin transaction
+            self.conn.begin()
+            # dql to get jobDefIDs
+            sqlGF  = "SELECT distinct jobDefinitionID FROM ATLAS_PANDA.jobsActive4 "
+            sqlGF += "WHERE jediTaskID=:jediTaskID AND jobStatus=:jobStatus "
+            sqlGF += "AND attemptNr<maxAttempt " 
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            varMap[':jobStatus']  = 'failed'
+            self.cur.execute(sqlGF+comment,varMap)
+            resGF = self.cur.fetchall()
+            retList = []
+            for jobDefinitionID, in resGF:
+                retList.append(jobDefinitionID)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            _logger.debug("{0} : {1}".format(methodName,str(retList)))
+            return retList
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return []
+            

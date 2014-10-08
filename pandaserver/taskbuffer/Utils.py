@@ -364,7 +364,7 @@ def getFile(req,fileName):
 # get event picking request
 def putEventPickingRequest(req,runEventList='',eventPickDataType='',eventPickStreamName='',
                            eventPickDS='',eventPickAmiTag='',userDatasetName='',lockedBy='',
-                           params='',inputFileList=''):
+                           params='',inputFileList='',eventPickNumSites='',userTaskName=''):
     if not Protocol.isSecure(req):
         return "ERROR : no HTTPS"
     userName = req.subprocess_env['SSL_CLIENT_S_DN']
@@ -398,6 +398,8 @@ def putEventPickingRequest(req,runEventList='',eventPickDataType='',eventPickStr
         fo.write("eventPickStreamName=%s\n" % eventPickStreamName)
         fo.write("eventPickDS=%s\n" % eventPickDS)
         fo.write("eventPickAmiTag=%s\n" % eventPickAmiTag)
+        fo.write("eventPickNumSites=%s\n" % eventPickNumSites)
+        fo.write("userTaskName=%s\n" % userTaskName)
         fo.write("userDatasetName=%s\n" % userDatasetName)
         fo.write("lockedBy=%s\n" % lockedBy)
         fo.write("params=%s\n" % params)

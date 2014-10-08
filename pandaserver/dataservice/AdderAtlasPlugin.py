@@ -32,6 +32,7 @@ from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
 from AdderPluginBase import AdderPluginBase
 from taskbuffer import EventServiceUtils
+import DataServiceUtils
 
    
 class AdderAtlasPlugin (AdderPluginBase):
@@ -243,7 +244,10 @@ class AdderAtlasPlugin (AdderPluginBase):
                                         tmpDstDDM = file.destinationSE
                                         tmpDstSEs = file.destinationSE
                                     else:
-                                        tmpDstDDM = self.siteMapper.getSite(file.destinationSE).ddm
+                                        if DataServiceUtils.getDestinationSE(file.destinationDBlockToken) != None:
+                                            tmpDstDDM = DataServiceUtils.getDestinationSE(file.destinationDBlockToken)
+                                        else:
+                                            tmpDstDDM = self.siteMapper.getSite(file.destinationSE).ddm
                                         tmpDstSEs = brokerage.broker_util.getSEfromSched(self.siteMapper.getSite(file.destinationSE).se)
                                     # if src != dest or multi-token
                                     if (tmpSrcDDM != tmpDstDDM and tmpSrcSEs != tmpDstSEs) or \

@@ -912,6 +912,15 @@ class UserIF:
     def retryTask(self,jediTaskID,user,prodRole,properErrorCode):
         # retry
         ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'retry',properErrorCode=properErrorCode)
+        if properErrorCode == True and ret[0] == 5:
+            # retry failed analysis jobs
+            jobdefList = self.taskBuffer.getJobdefIDsForFailedJob(jediTaskID)
+            cUID = self.taskBuffer.cleanUserID(user)
+            for jobID in jobdefList:
+                self.taskBuffer.retryJobsInActive(cUID,jobID,True)
+            retStr  = 'retry has been triggered for failed jobs with attemptNr<maxAttempt '
+            retStr += 'while the task is still {0}'.format(ret[1])
+            ret = 0,retStr
         # return
         return ret
 

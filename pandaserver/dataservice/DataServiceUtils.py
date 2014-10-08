@@ -322,3 +322,21 @@ def getSitesShareDDM(siteMapper,siteName):
             retSites.append(tmpSiteSpec.sitename)
     # return
     return retSites
+
+
+# check if destination is specified
+def getDestinationSE(destinationDBlockToken):
+    if destinationDBlockToken != None:
+        for tmpToken in destinationDBlockToken.split(','):
+            tmpMatch = re.search('^dst:(.*)$',tmpToken)
+            if tmpMatch != None:
+                return tmpMatch.group(1)
+    return None
+
+
+# check if job sets destination
+def checkJobDestinationSE(tmpJob):
+    for tmpFile in tmpJob.Files:
+        if getDestinationSE(tmpFile.destinationDBlockToken) != None:
+            return tmpFile.destinationSE
+    return None

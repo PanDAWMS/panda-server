@@ -470,6 +470,9 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                             if job.prodSourceLabel == 'user' and not self.siteMapper.siteSpecList.has_key(file.destinationSE):
                                 # DQ2 ID was set by using --destSE for analysis job to transfer output 
                                 tmpDstDDM = tmpSrcDDM
+                            elif DataServiceUtils.getDestinationSE(file.destinationDBlockToken) != None:
+                                # destination is specified
+                                tmpDstDDM = DataServiceUtils.getDestinationSE(file.destinationDBlockToken)
                             else:
                                 tmpDstDDM = self.siteMapper.getSite(file.destinationSE).ddm
                             # skip registration for _sub when src=dest
@@ -541,7 +544,11 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                         else:
                                             dq2IDList = [self.siteMapper.getSite(computingSite).ddm]
                                     # use another location when token is set
-                                    if (not usingT1asT2) and (not file.destinationDBlockToken in ['NULL','']):
+                                    if DataServiceUtils.getDestinationSE(file.destinationDBlockToken) != None:
+                                        # destination is specified
+                                        dq2IDList = [DataServiceUtils.getDestinationSE(file.destinationDBlockToken)]
+                                    elif (not usingT1asT2) and (not file.destinationDBlockToken in ['NULL','']):
+                                        # token is specified
                                         dq2IDList = []
                                         for tmpToken in tmpTokenList:
                                             # set default
@@ -634,7 +641,10 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                     pass
                                 elif name == originalName and job.prodSourceLabel in ['managed','test','rc_test','ptest']:
                                     # set metadata
-                                    dq2ID = self.siteMapper.getSite(file.destinationSE).ddm
+                                    if DataServiceUtils.getDestinationSE(file.destinationDBlockToken) != None:
+                                        dq2ID = DataServiceUtils.getDestinationSE(file.destinationDBlockToken)
+                                    else:
+                                        dq2ID = self.siteMapper.getSite(file.destinationSE).ddm
                                     # use another location when token is set
                                     if not file.destinationDBlockToken in ['NULL','']:
                                         # register only the first token becasue it is used as the location

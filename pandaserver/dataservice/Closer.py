@@ -254,7 +254,8 @@ class Closer (threading.Thread):
                                     aThr.join()
                     else:
                         # unset flag since another thread already updated 
-                        flagComplete = False
+                        #flagComplete = False
+                        pass
                 else:
                     # update dataset in DB
                     self.taskBuffer.updateDatasets(dsList,withLock=True,withCriteria="status<>:crStatus AND status<>:lockStatus ",

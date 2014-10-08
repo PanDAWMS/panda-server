@@ -524,11 +524,11 @@ class TaskBuffer:
 
 
     # retry failed analysis jobs in Active4
-    def retryJobsInActive(self,prodUserName,jobDefinitionID):
+    def retryJobsInActive(self,prodUserName,jobDefinitionID,isJEDI=False):
         # get DB proxy
         proxy = self.proxyPool.getProxy()
         # update DB
-        ret = proxy.retryJobsInActive(prodUserName,jobDefinitionID)
+        ret = proxy.retryJobsInActive(prodUserName,jobDefinitionID,isJEDI)
         # release proxy
         self.proxyPool.putProxy(proxy)
         return ret
@@ -2531,6 +2531,19 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # exec
         ret = proxy.unThrottleJob(pandaID)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
+    # get the list of jobdefIDs for failed jobs in a task
+    def getJobdefIDsForFailedJob(self,jediTaskID):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getJobdefIDsForFailedJob(jediTaskID)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

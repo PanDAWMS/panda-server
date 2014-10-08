@@ -1,6 +1,19 @@
 Release Note
 
 * current
+  * fixed pilot retry to reset endTime error dialog
+  * fixed nFilesOnHold for killed merging jobs
+  * added protection to AdderGen against immediate XML reading
+  * added eventPickNumSites
+  * added protection against multiple updateUnmergeDataset calls
+  * allowing to use non-T1 SE as destination
+  * enabled the rebrokerage for ganga jobs
+  * fixed insertTaskParamsPanda for analysis submission with prod role
+  * fixed typo in killEventServiceConsumers and killUnusedEventServiceConsumers
+  * changed to allow retry of failed analysis jobs while the task is still running
+  * changed insertTaskParams to work with duplicated task names
+  * added protection to MsgWrapper
+  * increased timeout value for EP
   * improved TA to aggregate container
   * fixed pilot retry for pmerge
   * replacing $JEDITASKID
