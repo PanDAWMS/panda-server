@@ -4,7 +4,7 @@
 source /etc/profile.d/grid-env.sh
 
 # import env vars from sysconfig
-source @@install_dir@@/etc/sysconfig/panda_server-sysconfig
+source /etc/sysconfig/panda_server
 
 # set PYTHONPATH for LFC.py
 ### there is no /usr/lib64/python@@python_exec_version@@/site-packages

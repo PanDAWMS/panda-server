@@ -3,7 +3,7 @@
 source /etc/profile.d/grid-env.sh
 
 # import env vars from sysconfig
-source @@install_dir@@/etc/sysconfig/panda_server-sysconfig
+source /etc/sysconfig/panda_server
 
 NOVOMS=${X509_USER_PROXY}_novoms
 

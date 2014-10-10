@@ -41,7 +41,7 @@ try:
     for line in out.split('\n'):
         items = line.split()
         # owned process
-        if not items[0] in ['sm','atlpan','root']: # ['os.getlogin()']: doesn't work in cron
+        if not items[0] in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
             continue
         # look for python
         if re.search('python',line) == None:
@@ -229,7 +229,7 @@ class ForkThr (threading.Thread):
 
     def run(self):
         setupStr  = 'source %s; ' % panda_config.glite_source
-        setupStr += 'source /data/atlpan/srv/etc/sysconfig/panda_server-sysconfig; '
+        setupStr += 'source /data/atlpan/srv/etc/sysconfig/panda_server; '
         runStr  = '%s/python -Wignore ' % panda_config.native_python
         runStr += panda_config.pandaPython_dir + '/dataservice/forkSetupper.py -i '
         runStr += self.fileName

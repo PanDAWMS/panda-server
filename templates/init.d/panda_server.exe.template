@@ -4,7 +4,7 @@
 #
 # description: Panda server webserver
 # processname: httpd
-# config: /data/atlpan/srv/etc/panda/panda_server-httpd.conf
+# config: /etc/panda/panda_server-httpd.conf
 # config: /etc/sysconfig/httpd-pandasrv
 # pidfile: /var/run/httpd-pandasrv.pid
 #
@@ -68,8 +68,8 @@ fi
 STATUSURL="http://localhost:25080/server-status"
 
 # Source /etc/sysconfig/httpd for $HTTPD setting, etc.
-if [ -r @@install_dir@@/etc/sysconfig/panda_server-sysconfig ]; then
-   . @@install_dir@@/etc/sysconfig/panda_server-sysconfig
+if [ -r /etc/sysconfig/panda_server ]; then
+   . /etc/sysconfig/panda_server
 fi
 
 ERROR=0

@@ -18,8 +18,8 @@ LoadModule status_module modules/mod_status.so
 LoadModule wsgi_module modules/mod_wsgi.so
 
 
-User  atlpan
-Group zp
+User  @@panda_user@@
+Group @@panda_group@@
 
 <IfModule prefork.c>
 StartServers         25
@@ -50,7 +50,7 @@ RedirectMatch 403 "/panda.py$"
 </Directory>
 
 Alias /trf/ "@@install_dir@@/var/trf/"
-Alias /cache/ "@@install_dir@@/var/cache/pandaserver/"
+Alias /cache/ "/var/cache/pandaserver/"
 Alias /appdir/ "@@install_dir@@/var/appdir/"
 
 <Location /server-status>
@@ -60,7 +60,7 @@ Alias /appdir/ "@@install_dir@@/var/appdir/"
     Allow from localhost
 </Location>
 
-<Directory "@@install_dir@@/var/cache/pandaserver">
+<Directory "/var/cache/pandaserver">
     Options FollowSymLinks
     AllowOverride None
     Order allow,deny
@@ -68,7 +68,7 @@ Alias /appdir/ "@@install_dir@@/var/appdir/"
     Deny from 192.203.218.14
 </Directory>
 
-<Directory "@@install_dir@@/var/cache/pandaserver/jedilog">
+<Directory "/var/cache/pandaserver/jedilog">
     Options FollowSymLinks
     AllowOverride None
     Order allow,deny
@@ -77,7 +77,7 @@ Alias /appdir/ "@@install_dir@@/var/appdir/"
 </Directory>
 
 <IfModule mod_fastcgi.c>
-    FastCgiIpcDir @@install_dir@@/var/log/panda/fastsocks
+    FastCgiIpcDir /var/log/panda/fastsocks
     FastCgiServer @@install_purelib@@/pandaserver/server/panda.py \
 	-processes 25 -idle-timeout 300 -listen-queue-depth 1 -flush \
 	-initial-env PYTHONPATH \
@@ -92,11 +92,11 @@ Alias /appdir/ "@@install_dir@@/var/appdir/"
 </IfModule>
 
 <IfModule mod_wsgi.c>
-   WSGIDaemonProcess pandasrv_daemon processes=25 threads=2 home=/home/atlpan
+   WSGIDaemonProcess pandasrv_daemon processes=25 threads=2 home=~@@panda_user@@
    WSGIProcessGroup pandasrv_daemon
    WSGIApplicationGroup %{GLOBAL}
    WSGIScriptAliasMatch ^/server/panda/(.+)$ @@install_purelib@@/pandaserver/server/panda.py
-   WSGISocketPrefix @@install_dir@@/var/log/panda/wsgisocks/wsgi
+   WSGISocketPrefix /var/log/panda/wsgisocks/wsgi
 </IfModule>
 
 
@@ -184,9 +184,9 @@ LogFormat "%t %h \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
 LogFormat "%t %h \"%r\" %>s %b" common
 LogFormat "%{Referer}i -> %U" referer
 LogFormat "%{User-agent}i" agent
-CustomLog @@install_dir@@/var/log/panda/panda_server_access_log common
-ErrorLog @@install_dir@@/var/log/panda/panda_server_error_log
+CustomLog /var/log/panda/panda_server_access_log common
+ErrorLog /var/log/panda/panda_server_error_log
 
-PidFile @@install_dir@@/var/log/panda/panda_server_httpd.pid
+PidFile /var/log/panda/panda_server_httpd.pid
 
 TypesConfig /etc/mime.types

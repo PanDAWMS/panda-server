@@ -80,7 +80,7 @@ try:
             continue
         items = line.split()
         # owned process
-        if not items[0] in ['sm','atlpan','root']: # ['os.getlogin()']: doesn't work in cron
+        if not items[0] in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
             continue
         # look for python
         if re.search('python',line) == None:

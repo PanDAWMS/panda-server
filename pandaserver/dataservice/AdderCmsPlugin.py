@@ -24,7 +24,7 @@ class AdderCmsPlugin(AdderPluginBase):
 
         # Define the logger attribute
         self.logger = logging.getLogger('ASOPlugin')
-        hdlr = logging.FileHandler('/data/atlpan/srv/var/log/panda/ASOPlugin.log')
+        hdlr = logging.FileHandler('/var/log/panda/ASOPlugin.log')
         formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
         hdlr.setFormatter(formatter)
         self.logger.addHandler(hdlr)
