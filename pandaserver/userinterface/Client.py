@@ -1525,3 +1525,73 @@ def retryTask(jediTaskID,verbose=False):
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR retryTask : %s %s" % (errtype,errvalue)
         return EC_Failed,output+'\n'+errStr
+
+
+
+# change task walltime
+def changeTaskWalltime(jediTaskID,wallTime):
+    """Change task priority
+
+       args:
+           jediTaskID: jediTaskID of the task to change the priority
+           wallTime: new walltime for the task
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           return code
+                 0: unknown task
+                 1: succeeded
+                 None: database error 
+    """     
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+    # execute
+    url = baseURLSSL + '/changeTaskAttributePanda'
+    data = {'jediTaskID':jediTaskID,
+            'attrName':'wallTime',
+            'attrValue':wallTime}
+    status,output = curl.post(url,data)
+    try:
+        return status,pickle.loads(output)
+    except:
+        errtype,errvalue = sys.exc_info()[:2]
+        errStr = "ERROR changeTaskWalltime : %s %s" % (errtype,errvalue)
+        return EC_Failed,output+'\n'+errStr
+
+
+
+# change task RAM count
+def changeTaskRamCount(jediTaskID,ramCount):
+    """Change task priority
+
+       args:
+           jediTaskID: jediTaskID of the task to change the priority
+           ramCount: new walltime for the task
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           return code
+                 0: unknown task
+                 1: succeeded
+                 None: database error 
+    """     
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+    # execute
+    url = baseURLSSL + '/changeTaskAttributePanda'
+    data = {'jediTaskID':jediTaskID,
+            'attrName':'ramCount',
+            'attrValue':ramCount}
+    status,output = curl.post(url,data)
+    try:
+        return status,pickle.loads(output)
+    except:
+        errtype,errvalue = sys.exc_info()[:2]
+        errStr = "ERROR changeTaskRamCount : %s %s" % (errtype,errvalue)
+        return EC_Failed,output+'\n'+errStr

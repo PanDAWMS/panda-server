@@ -2551,6 +2551,19 @@ class TaskBuffer:
 
 
 
+    # change task attribute
+    def changeTaskAttributePanda(self,jediTaskID,attrName,attrValue):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.changeTaskAttributePanda(jediTaskID,attrName,attrValue)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 

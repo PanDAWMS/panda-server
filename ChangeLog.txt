@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added changeTaskRamCount and changeTaskWalltime
   * fixed pilot retry to reset endTime error dialog
   * fixed nFilesOnHold for killed merging jobs
   * added protection to AdderGen against immediate XML reading

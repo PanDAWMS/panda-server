@@ -13622,4 +13622,39 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return []
+
+
+
+    # change task attribute
+    def changeTaskAttributePanda(self,jediTaskID,attrName,attrValue):
+        comment = ' /* DBProxy.changeTaskAttributePanda */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <jediTaskID={0}>".format(jediTaskID)
+        _logger.debug("{0} name={1} value={2}".format(methodName,attrName,attrValue))
+        try:
+            # sql to update JEDI task table
+            sqlT  = 'UPDATE {0}.JEDI_Tasks SET '.format(panda_config.schemaJEDI)
+            sqlT += '{0}=:{0} WHERE jediTaskID=:jediTaskID '.format(attrName) 
+            # start transaction
+            self.conn.begin()
+            # select
+            self.cur.arraysize = 10
+            varMap = {}
+            varMap[':jediTaskID']  = jediTaskID
+            keyName = ':{0}'.format(attrName)
+            varMap[keyName] = attrValue
+            # update JEDI
+            self.cur.execute(sqlT+comment, varMap)
+            nRow = self.cur.rowcount
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            _logger.debug("{0} done with {1}".format(methodName,nRow))
+            return nRow
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return None
             
