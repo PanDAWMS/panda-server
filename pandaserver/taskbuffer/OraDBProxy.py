@@ -9923,6 +9923,37 @@ class DBProxy:
             _logger.debug("{0} got {1} glexec sites".format(methodName,len(retMap['glexecSites'])))
             # set autocommit on
             self.conn.begin()
+            # select for proxy cache
+            sql  = "SELECT DISTINCT siteID,catchAll FROM ATLAS_PANDAMETA.schedconfig WHERE catchAll IS NOT NULL AND catchAll LIKE :patt "
+            varMap = {}
+            varMap[':patt'] = '%proxyCache=%'
+            self.cur.arraysize = 10000
+            self.cur.execute(sql+comment,varMap)
+            resList = self.cur.fetchall()
+            tmpRet = {}
+            sql = "SELECT dn FROM ATLAS_PANDAMETA.users WHERE name=:name "
+            for siteID,catchAll in resList:
+                # extract username
+                tmpMatch = re.search('proxyCache=([^,]+)',catchAll)
+                if tmpMatch != None:
+                    userName,role = tmpMatch.group(1).split(':')
+                    # get DN
+                    varMap = {}
+                    varMap[':name'] = userName
+                    self.cur.execute(sql+comment,varMap)
+                    res = self.cur.fetchone()
+                    if res != None:
+                        userDN, = res
+                        userDN = re.sub('/CN=limited proxy','',userDN)
+                        userDN = re.sub('(/CN=proxy)+','',userDN)
+                        tmpRet[siteID] = {'dn':userDN,'role':role}
+            retMap['proxyCacheSites'] = tmpRet
+            _logger.debug("{0} got {1} proxyCache sites".format(methodName,len(retMap['proxyCacheSites'])))
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # set autocommit on
+            self.conn.begin()
             # select to get the list of authorized users
             allowKey = []
             allowProxy = []

@@ -2,6 +2,7 @@ from DBMSql import DBMSql
 import panda_proxy_cache
 import os
 import datetime
+from config import panda_config
 
 db = None
 
@@ -56,7 +57,17 @@ if __name__ == '__main__' :
 		#	print 'user email is ... %s ' % userEmail
 		#else:
 		#	print 'user email is not in the db table...'
-
+    # get list of users who need proxy with roles
+    dbquery = 'SELECT dn,queuePref FROM {0}.users WHERE queuePref IS NOT NULL'.format(panda_config.schemaMETA)
+    userData = makeMemoryCache(dbquery)
+    if userData != []:
+        print 'We need to get %s certs with roles'% len(userData)
+        for i in userData:
+            userName = str(i['DN']).replace('/CN=proxy','')
+            roles = str(i['QUEUEPREF']).split(',')
+            for role in roles:
+                print 'check for %s with %s' % (userName, role)
+                my_proxy_interface_instance.checkProxy(userName, role=role)	
 #    my_proxy_interface_instance.checkProxy('/DC=ch/DC=cern/OU=Organic Units/OU=Users/CN=scampana/CN=531497/CN=Simone Campana')
 #    my_proxy_interface_instance.checkProxy('/DC=ch/DC=cern/OU=Organic Units/OU=Users/CN=scampana/CN=531497/CN=Simone Campana', production=True)	
 #    my_proxy_interface_instance.checkProxy('/DC=ch/DC=cern/OU=Organic Units/OU=Users/CN=girolamo/CN=614260/CN=Alessandro Di Girolamo')

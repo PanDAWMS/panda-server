@@ -25,7 +25,7 @@ class MyProxyInterface(object):
 	if not os.path.exists(self.__target_path):
 	    os.makedirs(self.__target_path)
 
-    def store(self, user_dn, cred_name, production=False, server_name='myproxy.cern.ch'):
+    def store(self, user_dn, cred_name, production=False, server_name='myproxy.cern.ch',role=None):
         """Retrieve proxy from myproxy."""
 	proxy_path = os.path.join(self.__target_path, hashlib.sha1(user_dn + '.plain').hexdigest())
         cmd = "myproxy-logon -s %s --no_passphrase --out %s -l '%s' -k %s -t 0" % (server_name, proxy_path, user_dn, cred_name)
@@ -37,7 +37,20 @@ class MyProxyInterface(object):
             print 'stderr is %s ' % stderr
         print('test the status of plain... %s' %status)
 	#proxyValidity = checkValidity(proxy_path)
-        if production:
+        if role != None:
+            print 'proxy needs {0} - need to add voms attributes and store it in the cache'.format(role)
+            tmpExtension = self.getExtension(role)
+            prodproxy_path = os.path.join(self.__target_path, str(hashlib.sha1(user_dn + tmpExtension).hexdigest()))
+            print prodproxy_path
+            prodcmd = "voms-proxy-init -valid 96:00 -cert %s -key %s -out %s -voms %s" % (proxy_path,proxy_path,
+                                                                                          prodproxy_path,role)
+            stdout, stderr, status = execute(prodcmd)
+            if stdout:
+                print 'stdout is %s ' % stdout
+            if stderr:
+                print 'stderr is %s ' % stderr
+            print('test the status of production... %s' %status)
+        elif production:
 	    print 'production proxy needed - need to add voms attributes and store it in the cache'
 	    prodproxy_path = os.path.join(self.__target_path, str(hashlib.sha1(user_dn + '.prod').hexdigest()))
 	    print prodproxy_path
@@ -65,20 +78,27 @@ class MyProxyInterface(object):
 
         return status
 
-    def retrieve(self, user_dn, production=False):
+    def retrieve(self, user_dn, production=False, role=None):
         """Retrieve proxy from proxy cache."""
-	if production:
-		proxy_path = os.path.join(self.__target_path, str(hashlib.sha1(user_dn + '.prod').hexdigest()))
+        if role != None:
+            tmpExtension = self.getExtension(role)
+            proxy_path = os.path.join(self.__target_path, str(hashlib.sha1(user_dn + tmpExtension).hexdigest()))
+	elif production:
+            proxy_path = os.path.join(self.__target_path, str(hashlib.sha1(user_dn + '.prod').hexdigest()))
 	else:
-        	proxy_path = os.path.join(self.__target_path, hashlib.sha1(user_dn).hexdigest())
+            proxy_path = os.path.join(self.__target_path, hashlib.sha1(user_dn).hexdigest())
 	if os.path.isfile(proxy_path):
-        	return cat(proxy_path)
+            return cat(proxy_path)
 	else:
-		print 'proxy file does not exist'
+            print 'proxy file does not exist'
 
-    def checkProxy(self, user_dn, production=False):
+
+    def checkProxy(self, user_dn, production=False, role=None):
 	"""Check the validity of a proxy."""
-        if production:
+        if role != None:
+           tmpExtension = self.getExtension(role)
+           proxy_path = os.path.join(self.__target_path, str(hashlib.sha1(user_dn + tmpExtension).hexdigest()))
+        elif production:
            proxy_path = os.path.join(self.__target_path, str(hashlib.sha1(user_dn + '.prod').hexdigest()))
 	else:
            proxy_path = os.path.join(self.__target_path, hashlib.sha1(user_dn).hexdigest())
@@ -92,7 +112,7 @@ class MyProxyInterface(object):
 			print 'stderr is %s ' %stderr
 		if status == 1:
 			print 'Proxy expires in 3 days or less. We need to renew proxy!'	
-	                if self.store(user_dn, self.__cred_name, production) == 0:
+	                if self.store(user_dn, self.__cred_name, production, role=role) == 0:
         	                print 'Proxy stored successfully'
 	                else:
         	                print 'Proxy retrieval failed'
@@ -101,7 +121,7 @@ class MyProxyInterface(object):
 	
 	else:
 		print 'Proxy is not in the cache repo. Will try to get it from myproxy'
-		if self.store(user_dn, self.__cred_name, production) == 0:
+		if self.store(user_dn, self.__cred_name, production, role=role) == 0:
 			print 'proxy stored successfully'
 		else:
 			print 'proxy retrieval failed'
@@ -123,3 +143,10 @@ class MyProxyInterface(object):
         	        print 'Proxy expires in %s hours. We need to send a notification!' %i
 			return i
 	return status
+
+
+    # get extension
+    def getExtension(self, role):
+        if role != None:
+            return '.' + role.split('=')[-1]
+        return None

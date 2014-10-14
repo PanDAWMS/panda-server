@@ -133,6 +133,7 @@ class JobDipatcher:
                realDN):
         jobs = []
         useGLEXEC = False
+        useProxyCache = False
         # wrapper function for timeout
         tmpWrapper = _TimedMethod(self.taskBuffer.getJobs,timeout)
         tmpWrapper.run(1,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
@@ -154,7 +155,7 @@ class JobDipatcher:
             # set proxy key
             if getProxyKey:
                 response.setProxyKey(proxyKey)
-            # check if glexec is used
+            # check if glexec or proxy cache is used
             if hasattr(panda_config,'useProxyCache') and panda_config.useProxyCache == True:
                 self.specialDispatchParams.update()
                 if not 'glexecSites' in self.specialDispatchParams:
@@ -168,8 +169,14 @@ class JobDipatcher:
                             (prodSourceLabel in ['test','prod_test'] or \
                                  (jobs[0].processingType in ['gangarobot'])):
                         useGLEXEC = True
+                if not 'proxyCacheSites' in self.specialDispatchParams:
+                    proxyCacheSites = {}
+                else:
+                    proxyCacheSites = self.specialDispatchParams['proxyCacheSites']
+                if siteName in proxyCacheSites:
+                    useProxyCache = True
             # set proxy
-            if useGLEXEC:
+            if useGLEXEC or useProxyCache:
                 try:
                     #  get compact
                     compactDN = self.taskBuffer.cleanUserID(realDN)
@@ -183,7 +190,11 @@ class JobDipatcher:
                         _logger.warning("getJob : %s %s '%s' no permission to retrive user proxy" % (siteName,node,
                                                                                                      compactDN))
                     else:
-                        tmpStat,tmpOut = response.setUserProxy()
+                        if useProxyCache:
+                            tmpStat,tmpOut = response.setUserProxy(proxyCacheSites[siteName]['dn'],
+                                                                   proxyCacheSites[siteName]['role'])
+                        else:
+                            tmpStat,tmpOut = response.setUserProxy()
                         if not tmpStat:
                             _logger.warning("getJob : %s %s failed to get user proxy : %s" % (siteName,node,
                                                                                               tmpOut))

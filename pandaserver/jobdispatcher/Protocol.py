@@ -236,14 +236,15 @@ class Response:
 
 
     # set user proxy
-    def setUserProxy(self):
+    def setUserProxy(self,realDN=None,role=None):
         try:
-            # remove redundant extensions
-            realDN = self.data['prodUserID']
-            realDN = re.sub('/CN=limited proxy','',realDN)
-            realDN = re.sub('(/CN=proxy)+','',realDN)
+            if realDN == None:
+                # remove redundant extensions
+                realDN = self.data['prodUserID']
+                realDN = re.sub('/CN=limited proxy','',realDN)
+                realDN = re.sub('(/CN=proxy)+','',realDN)
             pIF = panda_proxy_cache.MyProxyInterface()
-            tmpOut = pIF.retrieve(realDN)
+            tmpOut = pIF.retrieve(realDN,role=role)
             # not found
             if tmpOut == None:
                 return False,'proxy not found for {0}'.format(realDN)

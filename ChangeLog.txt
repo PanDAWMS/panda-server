@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * extended proxy cache for HPC
   * added changeTaskRamCount and changeTaskWalltime
   * fixed pilot retry to reset endTime error dialog
   * fixed nFilesOnHold for killed merging jobs
