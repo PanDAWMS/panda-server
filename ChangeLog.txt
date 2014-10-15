@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added updateFailedJobs in SetupperPluginBase
   * extended proxy cache for HPC
   * added changeTaskRamCount and changeTaskWalltime
   * fixed pilot retry to reset endTime error dialog
