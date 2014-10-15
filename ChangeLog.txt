@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed location registration for _sub + dst:
   * added updateFailedJobs in SetupperPluginBase
   * extended proxy cache for HPC
   * added changeTaskRamCount and changeTaskWalltime

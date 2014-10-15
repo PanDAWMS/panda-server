@@ -544,7 +544,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                         else:
                                             dq2IDList = [self.siteMapper.getSite(computingSite).ddm]
                                     # use another location when token is set
-                                    if DataServiceUtils.getDestinationSE(file.destinationDBlockToken) != None:
+                                    if re.search('_sub\d+$',name) == None and DataServiceUtils.getDestinationSE(file.destinationDBlockToken) != None:
                                         # destination is specified
                                         dq2IDList = [DataServiceUtils.getDestinationSE(file.destinationDBlockToken)]
                                     elif (not usingT1asT2) and (not file.destinationDBlockToken in ['NULL','']):
