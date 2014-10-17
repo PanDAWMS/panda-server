@@ -508,7 +508,7 @@ class T2Cleaner (threading.Thread):
                         # check cloud
                         self.proxyLock.acquire()
                         proxyS = taskBuffer.proxyPool.getProxy()
-                        destSE = proxyS.getDestSEwithDestDBlock(name)
+                        destSE,destDBlockToken = proxyS.getDestSEwithDestDBlock(name)
                         taskBuffer.proxyPool.putProxy(proxyS)
                         self.proxyLock.release()
                         cloudName = None
@@ -520,6 +520,9 @@ class T2Cleaner (threading.Thread):
                         else:
                             _logger.debug('cloud=%s for %s' % (cloudName,name))
                             t1SiteDDMs  = siteMapper.getSite(destSE).setokens.values()
+                            specifiedDest = DataServiceUtils.getDestinationSE(destDBlockToken)
+                            if specifiedDest != None:
+                                t1SiteDDMs.append(specifiedDest)
                             # look for T2 IDs
                             t2DDMs = []
                             for tmpDDM in tmpRepSites.keys():

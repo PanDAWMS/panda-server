@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed datasetMgr not to delete _sub at dst:
   * fixed location registration for _sub + dst:
   * added updateFailedJobs in SetupperPluginBase
   * extended proxy cache for HPC

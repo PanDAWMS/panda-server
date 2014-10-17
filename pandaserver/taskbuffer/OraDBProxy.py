@@ -3984,7 +3984,7 @@ class DBProxy:
         comment = ' /* DBProxy.getDestSEwithDestDBlock */'                        
         _logger.debug("getDestSEwithDestDBlock : %s" % destinationDBlock)
         try:
-            sqlP  = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ destinationSE FROM ATLAS_PANDA.filesTable4 tab "
+            sqlP  = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ destinationSE,destinationDBlockToken FROM ATLAS_PANDA.filesTable4 tab "
             sqlP += "WHERE type IN (:type1,:type2) AND destinationDBlock=:destinationDBlock AND rownum<=1"
             # start transaction
             self.conn.begin()
@@ -3997,21 +3997,22 @@ class DBProxy:
             self.cur.execute(sqlP+comment, varMap)
             res = self.cur.fetchone()
             # append
-            destinationSE = None            
+            destinationSE = None
+            destinationDBlockToken = None
             if res != None:
-                destinationSE, = res
+                destinationSE,destinationDBlockToken = res
             # commit to release tables
             if not self._commit():
                 raise RuntimeError, 'Commit error'
             # return
-            return destinationSE
+            return destinationSE,destinationDBlockToken
         except:
             # roll back
             self._rollback()
             errType,errValue = sys.exc_info()[:2]
             _logger.error("getDestSEwithDestDBlock : %s %s" % (errType,errValue))
             # return empty list
-            return None
+            return None,None
             
 
     # get number of activated/defined jobs with output datasets
@@ -12290,7 +12291,7 @@ class DBProxy:
                     _logger.debug("{0} : {1}".format(methodName,retStr))
                     retCode = 4
             # retry for failed analysis jobs
-            if properErrorCode and taskStatus in ['running','scouting','pending'] and prodSourceLabel in ['user']:
+            if goForward and properErrorCode and taskStatus in ['running','scouting','pending'] and prodSourceLabel in ['user']:
                 retCode = 5
                 retStr = taskStatus
             if goForward:
