@@ -380,7 +380,6 @@ class AdderAtlasPlugin (AdderPluginBase):
                  if idMap == {}:
                      break
                  # add data to datasets
-                 time.sleep(1)
                  isFailed = False
                  isFatal  = False
                  setErrorDiag = False
@@ -445,7 +444,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                          return 1
                      self.logger.error("Try:%s" % iTry)
                      # sleep
-                     time.sleep(120)                    
+                     time.sleep(10)                    
                  else:
                      self.logger.debug('%s' % str(out))
                      break
@@ -487,7 +486,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                                     self.job.ddmErrorCode = ErrorCode.EC_Subscription
                                 else:
                                     # retry for temporary errors
-                                    time.sleep(60)
+                                    time.sleep(10)
                             else:
                                 break
                         if isFailed:
@@ -524,7 +523,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                                     out = '%s : %s' % (errType,errValue)
                                     isFailed = True
                                     # retry for temporary errors
-                                    time.sleep(60)
+                                    time.sleep(10)
                                 else:
                                     break
                             if isFailed:
@@ -605,7 +604,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                                 # retry
                                 if iTry+1 < nTry:
                                     # sleep
-                                    time.sleep(60)
+                                    time.sleep(10)
                                 else:
                                     # final attempt failed
                                     tmpMsg = "datriHandler failed with %s %s" % (dhStatus,dhOut)
@@ -724,7 +723,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                     return False
                 self.logger.error("removeUnmerged Try:%s" % iTry)
                 # sleep
-                time.sleep(120)                    
+                time.sleep(10)                    
             else:
                 self.logger.debug('%s' % str(out))
                 break
