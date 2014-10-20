@@ -2564,6 +2564,45 @@ class TaskBuffer:
 
 
 
+    # get jediTaskID from taskName
+    def getTaskIDwithTaskNameJEDI(self,userName,taskName):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getTaskIDwithTaskNameJEDI(userName,taskName)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
+    # update error dialog for a jediTaskID
+    def updateTaskErrorDialogJEDI(self,jediTaskID,msg):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.updateTaskErrorDialogJEDI(jediTaskID,msg)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
+    # update modificationtime for a jediTaskID to trigger subsequent process
+    def updateTaskModTimeJEDI(self,jediTaskID,newStatus=None):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.updateTaskModTimeJEDI(jediTaskID,newStatus)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 

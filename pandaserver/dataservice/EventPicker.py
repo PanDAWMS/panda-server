@@ -16,15 +16,16 @@ from dataservice import DynDataDistributer
 from dataservice.MailUtils import MailUtils
 from dataservice.Notifier import Notifier
 from taskbuffer.JobSpec import JobSpec
+from userinterface import Client
 from dataservice.datriHandler import datriHandler
 
 
 from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
+from pandalogger.LogWrapper import LogWrapper
 
 # logger
 _logger = PandaLogger().getLogger('EventPicker')
-DynDataDistributer.initLogger(_logger)
 
 
 class EventPicker:
@@ -35,14 +36,21 @@ class EventPicker:
         self.ignoreError     = ignoreError
         self.evpFileName     = evpFileName
         self.token           = datetime.datetime.utcnow().isoformat(' ')        
+        # logger
+        self.logger = LogWrapper(_logger,self.token)
         self.pd2p            = DynDataDistributer.DynDataDistributer([],self.taskBuffer,self.siteMapper,
-                                                                     token=self.token)
+                                                                     token=' ',logger=self.logger)
         self.userDatasetName = ''
         self.creationTime    = ''
         self.params          = ''
         self.lockedBy        = ''
         self.evpFile         = None
         self.userTaskName    = ''
+        # message buffer
+        self.msgBuffer       = []
+        self.lineLimit       = 100
+        # JEDI
+        self.jediTaskID      = None
 
 
     # main
@@ -69,6 +77,7 @@ class EventPicker:
             tagDsList           = []
             tagQuery            = ''
             tagStreamRef        = ''
+            skipDaTRI           = False
             # read evp file
             for tmpLine in self.evpFile:
                 tmpMatch = re.search('^([^=]+)=(.+)$',tmpLine)
@@ -136,6 +145,24 @@ class EventPicker:
                     tagStreamRef = tmpItems[1]
                     if not tagStreamRef.endswith('_ref'):
                         tagStreamRef += '_ref'
+            # extract task name
+            if self.userTaskName == '' and self.params != '':
+                try:
+                    tmpMatch = re.search('--outDS(=| ) *([^ ]+)',self.params)
+                    if tmpMatch != None:
+                        self.userTaskName = tmpMatch.group(2)
+                        if not self.userTaskName.endswith('/'):
+                            self.userTaskName += '/'
+                except:
+                    pass
+            # suppress DaTRI
+            if self.params != '':
+                if '--eventPickSkipDaTRI' in self.params:
+                    skipDaTRI = True
+            # get compact user name
+            compactDN = self.taskBuffer.cleanUserID(self.userDN)
+            # get jediTaskID
+            self.jediTaskID = self.taskBuffer.getTaskIDwithTaskNameJEDI(compactDN,self.userTaskName)
             # convert 
             if tagDsList == [] or tagQuery == '':
                 # convert run/event list to dataset/file list
@@ -172,6 +199,14 @@ class EventPicker:
             if not tmpRet:
                 self.endWithError('Failed to make a dataset container %s' % self.userDatasetName)
                 return False
+            # skip DaTRI
+            if skipDaTRI:
+                # successfully terminated
+                self.putLog("skip DaTRI")
+                # update task
+                self.taskBuffer.updateTaskModTimeJEDI(self.jediTaskID)
+                self.putLog("end %s" % self.evpFileName)
+                return True
             # get candidates
             tmpRet,candidateMaps = self.pd2p.getCandidates(self.userDatasetName,checkUsedFile=False,
                                                            useHidden=True)
@@ -289,16 +324,24 @@ class EventPicker:
                 self.sendEmail(False,message)
         except:
             pass
+        # upload log
+        if self.jediTaskID != None:
+            outLog = self.uploadLog()
+            self.taskBuffer.updateTaskErrorDialogJEDI(self.jediTaskID,'event picking failed. '+outLog)
+            # update task
+            if not self.ignoreError:
+                self.taskBuffer.updateTaskModTimeJEDI(self.jediTaskID,'tobroken')
+            self.putLog(outLog)
         self.putLog('end %s' % self.evpFileName)
         
 
     # put log
     def putLog(self,msg,type='debug'):
-        tmpMsg = self.token+' '+msg
+        tmpMsg = msg
         if type == 'error':
-            _logger.error(tmpMsg)
+            self.logger.error(tmpMsg)
         else:
-            _logger.debug(tmpMsg)
+            self.logger.debug(tmpMsg)
 
 
     # send email notification
@@ -327,3 +370,18 @@ class EventPicker:
         retVal = MailUtils().send(toAdder,mailSubject,mailBody)
         # return
         return
+
+    
+    # upload log
+    def uploadLog(self):
+        if self.jediTaskID == None:
+            return 'cannot find jediTaskID'
+        strMsg = self.logger.dumpToString()
+        s,o = Client.uploadLog(strMsg,self.jediTaskID)
+        if s != 0:
+            return "failed to upload log with {0}.".format(s)
+        if o.startswith('http'):
+            return '<a href="{0}">log</a>'.format(o)
+        return o
+
+

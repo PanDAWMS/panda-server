@@ -13,6 +13,7 @@ import datetime
 
 from dataservice.DDM import ddm
 from dataservice.DDM import toa
+from dataservice.DDM import dq2Common
 from taskbuffer.JobSpec import JobSpec
 import brokerage.broker
 
@@ -53,7 +54,7 @@ g_filesInDsMap = {}
 class DynDataDistributer:
 
     # constructor
-    def __init__(self,jobs,taskBuffer,siteMapper,simul=False,token=None):
+    def __init__(self,jobs,taskBuffer,siteMapper,simul=False,token=None,logger=None):
         self.jobs = jobs
         self.taskBuffer = taskBuffer
         self.siteMapper = siteMapper
@@ -70,6 +71,7 @@ class DynDataDistributer:
         self.mapTAGandParentGUIDs = {}
         self.tagParentInfo = {}
         self.parentLfnToTagMap = {}
+        self.logger = logger
 
 
     # main
@@ -1007,6 +1009,14 @@ class DynDataDistributer:
 
     # register new dataset container with datasets
     def registerDatasetContainerWithDatasets(self,containerName,files,replicaMap,nSites=1,owner=None):
+        # parse DN
+        if owner != None:
+            status,out = dq2Common.parse_dn(owner)
+            if status != 0:
+                self.putLog('failed to parse DN={0}'.format(owner))
+            else:
+                owner = out
+                self.putLog('parsed DN={0}'.format(owner))
         # sort by locations
         filesMap = {}
         for tmpFile in files:
@@ -1490,13 +1500,22 @@ class DynDataDistributer:
         
     # put log
     def putLog(self,msg,type='debug',sendLog=False,actionTag='',tagsMap={}):
-        tmpMsg = self.token+' '+msg
+        if self.logger == None:
+            tmpMsg = self.token+' '+str(msg)
+        else:
+            tmpMsg = str(msg)
         if type == 'error':
-            _logger.error(tmpMsg)
+            if self.logger == None:
+                _logger.error(tmpMsg)
+            else:
+                self.logger.error(tmpMsg)
             # keep last error message
             self.lastMessage = tmpMsg   
         else:
-            _logger.debug(tmpMsg)
+            if self.logger == None:
+                _logger.debug(tmpMsg)
+            else:
+                self.logger.debug(tmpMsg)
         # send to logger
         if sendLog:
             tmpMsg = self.token + ' - '

@@ -13689,4 +13689,113 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return None
+
+
+    # get jediTaskID from taskName
+    def getTaskIDwithTaskNameJEDI(self,userName,taskName):
+        comment = ' /* DBProxy.getTaskIDwithTaskNameJEDI */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <userName={0} taskName={1}>".format(userName,taskName)
+        _logger.debug("{0} : start".format(methodName))
+        try:
+            # begin transaction
+            self.conn.begin()
+            # sql to get jediTaskID
+            sqlGF  = "SELECT MAX(jediTaskID) FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+            sqlGF += "WHERE userName=:userName AND taskName=:taskName "
+            varMap = {}
+            varMap[':userName'] = userName
+            varMap[':taskName'] = taskName
+            self.cur.execute(sqlGF+comment,varMap)
+            resFJ = self.cur.fetchone()
+            if resFJ != None:
+                jediTaskID, = resFJ
+            else:
+                jediTaskID = None
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            _logger.debug("{0} : jediTaskID={1}".format(methodName,jediTaskID))
+            return jediTaskID
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return None
+
+
+
+    # update error dialog for a jediTaskID
+    def updateTaskErrorDialogJEDI(self,jediTaskID,msg):
+        comment = ' /* DBProxy.updateTaskErrorDialogJEDI */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <jediTaskID={0}>".format(jediTaskID)
+        _logger.debug("{0} : start".format(methodName))
+        try:
+            # begin transaction
+            self.conn.begin()
+            # get existing dialog
+            sqlGF  = "SELECT errorDialog FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+            sqlGF += "WHERE jediTaskID=:jediTaskID "
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            self.cur.execute(sqlGF+comment,varMap)
+            resFJ = self.cur.fetchone()
+            if resFJ != None:
+                # update existing dialog
+                errorDialog, = resFJ
+                errorDialog = msg
+                varMap = {}
+                varMap[':jediTaskID'] = jediTaskID
+                varMap[':errorDialog'] = errorDialog
+                sqlUE  = "UPDATE {0}.JEDI_Tasks SET errorDialog=:errorDialog,modificationTime=CURRENT_DATE ".format(panda_config.schemaJEDI)
+                sqlUE += "WHERE jediTaskID=:jediTaskID "
+                self.cur.execute(sqlUE+comment,varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            _logger.debug("{0} : done".format(methodName))
+            return True
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return False
+
+
+
+    # update modificationtime for a jediTaskID to trigger subsequent process
+    def updateTaskModTimeJEDI(self,jediTaskID,newStatus):
+        comment = ' /* DBProxy.updateTaskErrorDialogJEDI */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <jediTaskID={0}>".format(jediTaskID)
+        _logger.debug("{0} : start".format(methodName))
+        try:
+            # begin transaction
+            self.conn.begin()
+            # update mod time
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            if newStatus != None:
+                varMap[':newStatus'] = newStatus
+            sqlUE  = "UPDATE {0}.JEDI_Tasks SET ".format(panda_config.schemaJEDI)
+            sqlUE += "modificationTime=CURRENT_DATE-1,"
+            if newStatus != None:
+                sqlUE += "status=:newStatus,oldStatus=NULL,"
+            sqlUE = sqlUE[:-1]
+            sqlUE += " WHERE jediTaskID=:jediTaskID "
+            self.cur.execute(sqlUE+comment,varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            _logger.debug("{0} : done".format(methodName))
+            return True
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return False
             
