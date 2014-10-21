@@ -1166,6 +1166,7 @@ class DynDataDistributer:
     # list datasets by file GUIDs
     def listDatasetsByGUIDs(self,guids,dsFilters):
         resForFailure = (False,{})
+        resForFatal = (False,{'isFatal':True})
         # get size of datasets
         nTry = 3
         for iDDMTry in range(nTry):
@@ -1189,7 +1190,7 @@ class DynDataDistributer:
                 # GUID not found
                 if not outMap.has_key(guid):
                     self.putLog('GUID=%s not found' % guid,'error')
-                    return resForFailure
+                    return resForFatal
                 # ignore junk datasets
                 for tmpDsName in outMap[guid]:
                     if tmpDsName.startswith('panda') or \
@@ -1219,7 +1220,7 @@ class DynDataDistributer:
                 # duplicated
                 if len(tmpDsNames) != 1:
                     self.putLog('there are multiple datasets %s for GUID:%s' % (str(tmpDsNames),guid),'error')
-                    return resForFailure
+                    return resForFatal
                 # append
                 retMap[guid] = tmpDsNames[0]
         except:
@@ -1234,6 +1235,7 @@ class DynDataDistributer:
                     (dsType,streamName,str(dsFilters),amiTag))
         # check data type
         failedRet = False,{},[]
+        fatalRet  = False,{'isFatal':True},[]
         if dsType == 'AOD':
             streamRef = 'StreamAOD_ref'
         elif dsType == 'ESD':
@@ -1299,7 +1301,7 @@ class DynDataDistributer:
                 if tmpguids == []:
                     errStr = "no GUIDs were found in Event Lookup service for %s" % paramStr
                     self.putLog(errStr,type='error')
-                    return failedRet                    
+                    return fatalRet
                 # append
                 runEvtGuidMap[(runNr,evtNr)] = tmpguids
         # convert to datasets
@@ -1312,15 +1314,17 @@ class DynDataDistributer:
             # failed
             if not tmpDsRet:
                 self.putLog("failed to convert GUIDs to datasets",type='error')
+                if 'isFatal' in tmpDsMap and tmpDsMap['isFatal'] == True:
+                    return fatalRet
                 return failedRet
             # empty
             if tmpDsMap == {}:
                 self.putLog("there is no dataset for Run:%s Evt:%s" % (runNr,evtNr),type='error')
-                return failedRet
+                return fatalRet
             if len(tmpDsMap) != 1:
                 self.putLog("there are multiple datasets %s for Run:%s Evt:%s" % (str(tmpDsMap),runNr,evtNr),
                             type='error')
-                return failedRet
+                return fatalRet
             # append
             for tmpGUID,tmpDsName in tmpDsMap.iteritems():
                 # collect dataset names

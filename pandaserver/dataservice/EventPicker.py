@@ -172,6 +172,8 @@ class EventPicker:
                                                                                 eventPickDS,
                                                                                 eventPickAmiTag)
                 if not tmpRet:
+                    if 'isFatal' in locationMap and locationMap['isFatal'] == True:
+                        self.ignoreError = False
                     self.endWithError('Failed to convert the run/event list to a dataset/file list')
                     return False
             else:

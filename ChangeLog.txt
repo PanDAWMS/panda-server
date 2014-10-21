@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed EventPicker for fatal errors
   * fixed ES retry for failed jobs
   * reduced interval for catalog check to 4h  
   * introduced --eventPickSkipDaTRI
