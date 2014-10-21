@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * sending jediTaskID to the pilot for anal jobs
+  * changed array limit in getEventRanges
   * added FinishedJobsByCallback/Catalog to SLS 
   * fixed EventPicker for fatal errors
   * fixed ES retry for failed jobs

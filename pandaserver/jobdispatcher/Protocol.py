@@ -194,7 +194,10 @@ class Response:
         # current priority
         self.data['currentPriority'] = job.currentPriority
         # taskID
-        self.data['taskID'] = job.taskID
+        if job.lockedby == 'jedi':
+            self.data['taskID'] = job.jediTaskID
+        else:
+            self.data['taskID'] = job.taskID
         # core count
         self.data['coreCount'] = job.coreCount
         # jobsetID

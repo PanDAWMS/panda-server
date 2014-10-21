@@ -12737,7 +12737,7 @@ class DBProxy:
         comment = ' /* DBProxy.getEventRanges */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <PandaID={0} jobsetID={1}>".format(pandaID,jobsetID)
-        _logger.debug("{0} : start".format(methodName))
+        _logger.debug("{0} : start nRanges={1}".format(methodName,nRanges))
         try:
             # sql to get ranges
             sql  = 'SELECT * FROM ('
@@ -12762,7 +12762,7 @@ class DBProxy:
             # start transaction
             self.conn.begin()
             # select
-            self.cur.arraysize = 10000
+            self.cur.arraysize = 100000
             _logger.debug(sql+comment+str(varMap))                
             self.cur.execute(sql+comment, varMap)
             resList = self.cur.fetchall()
