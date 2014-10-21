@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed ES retry for failed jobs
   * reduced interval for catalog check to 4h  
   * introduced --eventPickSkipDaTRI
   * updating task status when EventPicker failed

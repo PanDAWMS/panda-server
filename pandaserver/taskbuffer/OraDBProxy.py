@@ -1121,7 +1121,7 @@ class DBProxy:
                 if useCommit:
                     self.conn.begin()
                 # actions for successful event service 
-                if useJEDI and EventServiceUtils.isEventServiceJob(job) and job.jobStatus == 'finished':
+                if useJEDI and EventServiceUtils.isEventServiceJob(job):
                     retEvS,retNewPandaID = self.ppEventServiceJob(job,False)
                     # DB error
                     if retEvS == None:
@@ -1143,15 +1143,16 @@ class DBProxy:
                         job.jobStatus = 'failed'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceMaxAttempt
                         job.taskBufferErrorDiag = 'maximum attempts reached for Event Service'
+                        # kill other consumers
+                        self.killEventServiceConsumers(job,False,False)
+                        self.killUnusedEventServiceConsumers(job,False)
                     elif retEvS == 4:
                         # other consumers are running
                         job.jobStatus = 'cancelled'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceWaitOthers
                         job.taskBufferErrorDiag = 'no further action since other Event ServiceEvent Service consumers were still running'
-                # kill associated consumers for event service
-                if useJEDI and EventServiceUtils.isEventServiceJob(job) and job.jobStatus == 'failed':
-                     self.killEventServiceConsumers(job,False,False)
-                     self.killUnusedEventServiceConsumers(job,False)
+                        # kill unused
+                        self.killUnusedEventServiceConsumers(job,False)
                 # delete from jobsDefined/Active
                 varMap = {}
                 varMap[':PandaID'] = job.PandaID
