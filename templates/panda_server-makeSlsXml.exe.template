@@ -393,12 +393,18 @@ def count_finished_callback() :
 					  stdout=subprocess.PIPE,shell=True).communicate()[0]
 		pandaIDs = []
 		for line in output.split( '\n' ):
-			timeDelta = timeNow - datetime.datetime.strptime(line[:19],'%Y-%m-%d %H:%M:%S')
-			if timeDelta > datetime.timedelta(minutes=60):
-				continue
-			pandaID = line.split()[-4]
-			if not pandaID in pandaIDs:
-				pandaIDs.append(pandaID)
+			try:
+				line = line.strip()
+				if line == '':
+					continue
+				timeDelta = timeNow - datetime.datetime.strptime(line[:19],'%Y-%m-%d %H:%M:%S')
+				if timeDelta > datetime.timedelta(minutes=60):
+					continue
+				pandaID = line.split()[-4]
+				if not pandaID in pandaIDs:
+					pandaIDs.append(pandaID)
+			except:
+				pass
 		nJobs = len(pandaIDs)
 	except:
 		pass
@@ -414,12 +420,18 @@ def count_finished_catalogcheck() :
 					  stdout=subprocess.PIPE,shell=True).communicate()[0]
 		pandaIDs = []
 		for line in output.split( '\n' ):
-			timeDelta = timeNow - datetime.datetime.strptime(line[:19],'%Y-%m-%d %H:%M:%S')
-			if timeDelta > datetime.timedelta(minutes=60):
-				continue
-			pandaID = line.split()[-4]
-			if not pandaID in pandaIDs:
-				pandaIDs.append(pandaID)
+			try:
+				line = line.strip()
+				if line == '':
+					continue
+				timeDelta = timeNow - datetime.datetime.strptime(line[:19],'%Y-%m-%d %H:%M:%S')
+				if timeDelta > datetime.timedelta(minutes=60):
+					continue
+				pandaID = line.split()[-4]
+				if not pandaID in pandaIDs:
+					pandaIDs.append(pandaID)
+			except:
+				pass
 		nJobs = len(pandaIDs)
 	except:
 		pass
