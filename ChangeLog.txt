@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * reduced interval for catalog check to 4h  
   * introduced --eventPickSkipDaTRI
   * updating task status when EventPicker failed
   * making EventPicker log available to users
