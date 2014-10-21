@@ -67,6 +67,8 @@ def make_server( host ) :
 	ave_regtime   = registration_time()
 	ave_regtimeDQ2 = registration_time(onlyDQ2=True)
 	ave_filelookuptime = filelookup_time()
+	num_finished_call = count_finished_callback()
+	num_finished_check = count_finished_catalogcheck()
 
 	sls_xml = SLSxml.xml_doc()
 	sls_xml.set_id( 'PandaServer_%s' % ( host ) )
@@ -88,7 +90,10 @@ def make_server( host ) :
 		str( data_used ) )
 	sls_xml.add_data( "VarVolumeUse", "Percent use of the local /var volume",
 		str( var_used ) )
-
+	sls_xml.add_data( "FinishedJobsByCallback", "Number of finished jobs by callbacks",
+			  str( num_finished_call ) )
+	sls_xml.add_data( "FinishedJobsByCatalog", "Number of finished jobs by catalog check",
+			  str( num_finished_check ) )
 	return sls_xml.print_xml()
 
 def make_bamboo( host ) :
@@ -354,7 +359,7 @@ def filelookup_time(timeSlice=False) :
 
 def volume_use( volume_name ) :
 	command = "df -Pkh /" + volume_name
-
+	used_amount = 0
 	tmp_array = command.split()
 	output = subprocess.Popen( tmp_array, stdout=subprocess.PIPE ).communicate()[0]
 
@@ -378,6 +383,48 @@ def error_mail( host, message ) :
 	p = subprocess.Popen( mail_cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE )
 	p.stdin.write( text )
 	p.stdin.close()
+
+
+def count_finished_callback() :
+	nJobs = 0
+	try:
+		timeNow = datetime.datetime.utcnow()
+		output = subprocess.Popen("grep 'all files ready' /data/atlpan/srv/var/log/panda/panda-Finisher.log",
+					  stdout=subprocess.PIPE,shell=True).communicate()[0]
+		pandaIDs = []
+		for line in output.split( '\n' ):
+			timeDelta = timeNow - datetime.datetime.strptime(line[:19],'%Y-%m-%d %H:%M:%S')
+			if timeDelta > datetime.timedelta(minutes=60):
+				continue
+			pandaID = line.split()[-4]
+			if not pandaID in pandaIDs:
+				pandaIDs.append(pandaID)
+		nJobs = len(pandaIDs)
+	except:
+		pass
+	return nJobs
+
+
+
+def count_finished_catalogcheck() :
+	nJobs = 0
+	try:
+		timeNow = datetime.datetime.utcnow()
+		output = subprocess.Popen("grep Finish /data/atlpan/srv/var/log/panda/panda-datasetManager.log | grep -v Wait",
+					  stdout=subprocess.PIPE,shell=True).communicate()[0]
+		pandaIDs = []
+		for line in output.split( '\n' ):
+			timeDelta = timeNow - datetime.datetime.strptime(line[:19],'%Y-%m-%d %H:%M:%S')
+			if timeDelta > datetime.timedelta(minutes=60):
+				continue
+			pandaID = line.split()[-4]
+			if not pandaID in pandaIDs:
+				pandaIDs.append(pandaID)
+		nJobs = len(pandaIDs)
+	except:
+		pass
+	return nJobs
+
 
 
 #run program
