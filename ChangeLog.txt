@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * kill instead of reassign in copyArchive
   * sending jediTaskID to the pilot for anal jobs
   * changed array limit in getEventRanges
   * added FinishedJobsByCallback/Catalog to SLS 
