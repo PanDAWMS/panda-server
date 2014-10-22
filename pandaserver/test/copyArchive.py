@@ -613,11 +613,16 @@ if len(jobs):
 # reassign defined jobs in defined table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=4)
 # get PandaIDs
-status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsDefined4",timeLimit,['defined'],['managed'],[],[],[])
-jobs=[]
+status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsDefined4",timeLimit,['defined'],['managed'],[],[],[],
+                                            True)
+jobs = []
+jediJobs = []
 if res != None:
-    for (id,) in res:
-        jobs.append(id)
+    for (id,lockedby) in res:
+        if lockedby == 'jedi':
+            jediJobs.append(id)
+        else:
+            jobs.append(id)
 # reassign
 _logger.debug('reassignJobs for defined jobs -> #%s' % len(jobs))
 if len(jobs) > 0:
@@ -626,173 +631,28 @@ if len(jobs) > 0:
     while iJob < len(jobs):
         _logger.debug('reassignJobs for defined jobs (%s)' % jobs[iJob:iJob+nJob])
         taskBuffer.reassignJobs(jobs[iJob:iJob+nJob],joinThr=True)
-        _logger.debug('reassignJobs for defined jobs done %s' % jobs[iJob])
         iJob += nJob
-        
-                        
-# reassign when ratio of running/notrunning is too unbalanced
-"""
-_logger.debug("reassign Unbalanced")
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=4)
-jobStat = {}
-rangeValues = ['all','limit']
-for rangeVal in rangeValues:
-    for jobStatus in ['running','activated','assigned']:
-        table = 'ATLAS_PANDA.jobsDefined4'
-        if jobStatus in ['running','activated']:
-            table = 'ATLAS_PANDA.jobsActive4'
-        varMap = {}    
-        varMap[':prodSourceLabel'] = 'managed'
-        varMap[':jobStatus'] = jobStatus
-        if rangeVal == 'all':
-            sql = "SELECT computingSite,cloud,processingType,count(*) FROM %s WHERE prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus GROUP BY computingSite,cloud,processingType" \
-                  % table
-        else:
-            sql = "SELECT computingSite,cloud,processingType,count(*) FROM %s WHERE prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus AND modificationTime<:modificationTime GROUP BY computingSite,cloud,processingType" \
-                  % table
-            varMap[':modificationTime'] = timeLimit
-        # execute
-        status,res = taskBuffer.querySQLS(sql,varMap)
-        if res != None:
-            for computingSite,cloud,processingType,nJobs in res:
-                # add cloud
-                if not jobStat.has_key(cloud):
-                    jobStat[cloud] = {}
-                # add site
-                if not jobStat[cloud].has_key(computingSite):
-                    jobStat[cloud][computingSite] = {}
-                # add range
-                if not jobStat[cloud][computingSite].has_key(rangeVal):
-                    jobStat[cloud][computingSite][rangeVal] = {}
-                # add process group
-                tmpProGroup = ProcessGroups.getProcessGroup(processingType)
-                if not jobStat[cloud][computingSite][rangeVal].has_key(tmpProGroup):
-                    jobStat[cloud][computingSite][rangeVal][tmpProGroup] = {}
-                # set status
-                tmpStatus = jobStatus
-                if jobStatus != 'running':
-                    tmpStatus = 'notrunning'
-                # add status
-                if not jobStat[cloud][computingSite][rangeVal][tmpProGroup].has_key(tmpStatus):
-                    jobStat[cloud][computingSite][rangeVal][tmpProGroup][tmpStatus] = 0
-                # add
-                jobStat[cloud][computingSite][rangeVal][tmpProGroup][tmpStatus] += nJobs
-# look for unbalanced site
-for cloud,siteVal in jobStat.iteritems():
-    jobsCloud = {}
-    ngSites   = {}
-    t1Site = siteMapper.getCloud(cloud)['source']
-    _logger.debug("Cloud:%s" % cloud)
-    for computingSite,jobVal in siteVal.iteritems():
-        # set 0
-        for rangeVal in rangeValues:
-            for pgType,pgList in ProcessGroups.processGroups:
-                # add range
-                if not jobVal.has_key(rangeVal):
-                    jobVal[rangeVal] = {}
-                # add process group
-                if not jobVal[rangeVal].has_key(pgType):
-                    jobVal[rangeVal][pgType] = {}
-                # number of jobs
-                if not jobVal[rangeVal][pgType].has_key('running'):
-                    jobVal[rangeVal][pgType]['running'] = 0
-                if not jobVal[rangeVal][pgType].has_key('notrunning'):
-                    jobVal[rangeVal][pgType]['notrunning'] = 0            
-        # check ratio
-        for pgType,pgList in ProcessGroups.processGroups:
-            # add process group to map
-            if not jobsCloud.has_key(pgType):
-                jobsCloud[pgType] = {'notrunning':0,'running':0,'notfull':False}
-            if not ngSites.has_key(pgType):
-                ngSites[pgType] = []
-            # get ratio
-            checkRatio = jobVal['limit'][pgType]['notrunning'] > jobVal['all'][pgType]['running']*4
-            jobsCloud[pgType]['running']    += jobVal['all'][pgType]['running']            
-            jobsCloud[pgType]['notrunning'] += jobVal['all'][pgType]['notrunning']
-            # check ratio
-            if computingSite in [t1Site,'NULL']:
-                # skip T1
-                statStr = '--'
-            else:
-                if checkRatio:
-                    statStr = 'NG'
-                    ngSites[pgType].append(computingSite)
-                else:
-                    statStr = '--'
-                    # not full
-                    if jobVal['all'][pgType]['notrunning'] < jobVal['all'][pgType]['running']*2:
-                        jobsCloud[pgType]['notfull'] = True
-            _logger.debug("%20s : %14s %s n:%-5s r:%-5s" % (computingSite,pgType,statStr,jobVal['limit'][pgType]['notrunning'],
-                                                            jobVal['all'][pgType]['running']))
-    #  reassign
-    for pgType,pgList in ProcessGroups.processGroups:
-        _logger.debug("  %14s : n:%-5s r:%-5s %s" % (pgType,jobsCloud[pgType]['notrunning'],
-                                                     jobsCloud[pgType]['running'],jobsCloud[pgType]['notfull']))
-        if jobsCloud[pgType]['notrunning'] > jobsCloud[pgType]['running']*2 and ngSites[pgType] != [] and jobsCloud[pgType]['notfull']:
-            # reassign except reprocessing
-            if pgType in ['reprocessing']:
-                continue
-            # get PandaIDs
-            jobs = []
-            for table in ['ATLAS_PANDA.jobsDefined4','ATLAS_PANDA.jobsActive4']:
-                varMap = {}
-                varMap[':prodSourceLabel'] = 'managed'
-                varMap[':jobStatus1'] = 'activated'
-                varMap[':jobStatus2'] = 'assigned'
-                sql  = "SELECT PandaID FROM %s WHERE prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) AND computingSite IN (" % table
-                idxSite = 1
-                for ngSite in ngSites[pgType]:
-                    tmpSiteKey = ':computingSite%s' % idxSite
-                    sql += "%s," % tmpSiteKey
-                    varMap[tmpSiteKey] = ngSite
-                    idxSite += 1
-                sql = sql[:-1]
-                if pgList != []:
-                    sql += ") AND processingType IN ("
-                    tmpPgList = pgList
-                else:
-                    sql += ") AND processingType NOT IN ("
-                    # get types to be excluded
-                    tmpPgList = []
-                    for tmpExPgType,tmpExPgList in ProcessGroups.processGroups:
-                        if tmpExPgType != pgType:
-                            tmpPgList += tmpExPgList
-                idxPro = 1
-                for pgItem in tmpPgList:
-                    tmpProKey = ':processingType%s' % idxPro
-                    sql += "%s," % tmpProKey
-                    varMap[tmpProKey] = pgItem
-                    idxPro += 1
-                sql = sql[:-1]
-                sql += ") AND modificationTime<:modificationTime ORDER BY PandaID"
-                varMap[':modificationTime'] = timeLimit
-                # execute
-                _logger.debug(sql+str(varMap))
-                status,res = taskBuffer.querySQLS(sql,varMap)
-                if res != None:
-                    # get IDs
-                    for id, in res:
-                        jobs.append(id)
-            # reassign
-            if jobs != []:
-                if len(jobs):
-                    nJob = 100
-                    iJob = 0
-                    while iJob < len(jobs):
-                        #_logger.debug('reassignJobs for Unbalanced (%s)' % jobs[iJob:iJob+nJob])
-                        #Client.reassignJobs(jobs[iJob:iJob+nJob])
-                        iJob += nJob
-                        #time.sleep(60)
-"""
-
+_logger.debug('reassignJobs for JEDI defined jobs -> #%s' % len(jediJobs))
+if len(jediJobs) != 0:
+    nJob = 100
+    iJob = 0
+    while iJob < len(jediJobs):
+        _logger.debug('reassignJobs for JEDI defined jobs (%s)' % jediJobs[iJob:iJob+nJob])
+        Client.killJobs(jediJobs[iJob:iJob+nJob],51)
+        iJob += nJob
 
 # reassign long-waiting jobs in defined table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
-status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsDefined4",timeLimit,[],['managed'],[],[],[])
-jobs=[]
+status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsDefined4",timeLimit,[],['managed'],[],[],[],
+                                            True)
+jobs = []
+jediJobs = []
 if res != None:
-    for (id,) in res:
-        jobs.append(id)
+    for (id,lockedby) in res:
+        if lockedby == 'jedi':
+            jediJobs.append(id)
+        else:
+            jobs.append(id)
 # reassign
 _logger.debug('reassignJobs for long in defined table -> #%s' % len(jobs))
 if len(jobs) > 0:
@@ -801,6 +661,14 @@ if len(jobs) > 0:
     while iJob < len(jobs):
         _logger.debug('reassignJobs for long in defined table (%s)' % jobs[iJob:iJob+nJob])
         taskBuffer.reassignJobs(jobs[iJob:iJob+nJob],joinThr=True)
+        iJob += nJob
+_logger.debug('reassignJobs for long JEDI in defined table -> #%s' % len(jediJobs))
+if len(jediJobs) != 0:
+    nJob = 100
+    iJob = 0
+    while iJob < len(jediJobs):
+        _logger.debug('reassignJobs for long JEDI in defined table (%s)' % jediJobs[iJob:iJob+nJob])
+        Client.killJobs(jediJobs[iJob:iJob+nJob],51)
         iJob += nJob
 
 
@@ -983,11 +851,15 @@ if len(jobs):
 
 # reassign long waiting jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
-status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsWaiting4",timeLimit,['waiting'],['managed'],[],[],[])
+status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsWaiting4",timeLimit,['waiting'],['managed'],[],[],[],True)
 jobs = []
+jediJobs = []
 if res != None:
-    for (id,) in res:
-        jobs.append(id)
+    for (id,lockedby) in res:
+        if lockedby == 'jedi':
+            jediJobs.append(id)
+        else:
+            jobs.append(id)
 _logger.debug('reassignJobs for Waiting -> #%s' % len(jobs))
 if len(jobs):
     nJob = 100
@@ -995,6 +867,14 @@ if len(jobs):
     while iJob < len(jobs):
         _logger.debug('reassignJobs for Waiting (%s)' % jobs[iJob:iJob+nJob])
         taskBuffer.reassignJobs(jobs[iJob:iJob+nJob],joinThr=True)
+        iJob += nJob
+_logger.debug('reassignJobs for JEDI Waiting -> #%s' % len(jediJobs))
+if len(jediJobs) != 0:
+    nJob = 100
+    iJob = 0
+    while iJob < len(jediJobs):
+        _logger.debug('reassignJobs for JEDI Waiting (%s)' % jediJobs[iJob:iJob+nJob])
+        Client.killJobs(jediJobs[iJob:iJob+nJob],51)
         iJob += nJob
 
 # kill too long running jobs
