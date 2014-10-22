@@ -1,5 +1,3 @@
-import lfcthr
-lfcthr.init()
 import os
 import re
 import sys
@@ -10,9 +8,10 @@ import random
 import datetime
 import commands
 import threading
+import multiprocessing
 from taskbuffer.TaskBuffer import taskBuffer
+import pandalogger.PandaLogger
 from pandalogger.PandaLogger import PandaLogger
-from dataservice.AdderGen import AdderGen
 from brokerage.SiteMapper import SiteMapper
 from pandautils import PandaUtils
 
@@ -27,6 +26,12 @@ _logger.debug("===================== start =====================")
 
 # overall timeout value
 overallTimeout = 20
+
+# grace period
+try:
+    gracePeriod = int(sys.argv[1])
+except:
+    gracePeriod = 3
 
 # current minute
 currentMinute = datetime.datetime.utcnow().minute
@@ -295,83 +300,21 @@ class ThreadPool:
         for thr in thrlist:
             thr.join()
 
-# thread to adder
-class AdderThr (threading.Thread):
-    def __init__(self,lock,pool,taskBuffer,aSiteMapper,pandaID,jobStatus,fileName,ignoreError=True):
-        threading.Thread.__init__(self)
-        self.lock       = lock
-        self.pool       = pool
-        self.pool.add(self)
-        self.adder = AdderGen(taskBuffer,pandaID,jobStatus,fileName,
-                              ignoreTmpError=ignoreError,
-                              siteMapper=aSiteMapper)
-                                        
-    def run(self):
-        self.lock.acquire()
-        self.adder.run()
-        self.pool.remove(self)
-        self.lock.release()
-
-
-# get buildJobs in the holding state
-holdingAna = []
-varMap = {}
-varMap[':prodSourceLabel'] = 'panda'
-varMap[':jobStatus'] = 'holding'
-status,res = taskBuffer.querySQLS("SELECT PandaID from ATLAS_PANDA.jobsActive4 WHERE prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus",varMap)
-if res != None:
-    for id, in res:
-        holdingAna.append(id)
-_logger.debug("holding Ana %s " % holdingAna)
-    
-# add files
-_logger.debug("Adder session")
-timeNow = datetime.datetime.utcnow()
-timeInt = datetime.datetime.utcnow()
-dirName = panda_config.logdir
-fileList = os.listdir(dirName)
-fileList.sort() 
-# remove duplicated files
-tmpList = []
-uMap = {}
-for file in fileList:
-    match = re.search('^(\d+)_([^_]+)_.{36}(_\d+)*$',file)
-    if match != None:
-        fileName = '%s/%s' % (dirName,file)
-        id = match.group(1)
-        if uMap.has_key(id):
-            try:
-                os.remove(fileName)
-            except:
-                pass
-        else:
-            uMap[id] = fileName
-            if long(id) in holdingAna:
-                # give a priority to buildJobs
-                tmpList.insert(0,file)
-            else:
-                tmpList.append(file)
-nFixed = 50
-randTmp = tmpList[nFixed:]
-random.shuffle(randTmp)
-fileList = tmpList[:nFixed] + randTmp
-
-# create thread pool and semaphore
-adderLock = threading.Semaphore(1)
-adderThreadPool = ThreadPool()
-
-# add
-while len(fileList) != 0:
-    # time limit to aviod too many copyArchve running at the sametime
-    if (datetime.datetime.utcnow() - timeNow) > datetime.timedelta(minutes=overallTimeout):
-        _logger.debug("time over in Adder session")
-        break
-    # try to get Semaphore
-    adderLock.acquire()
-    # get fileList
-    if (datetime.datetime.utcnow() - timeInt) > datetime.timedelta(minutes=15):
+# process for adder
+class AdderProcess:
+    def __init__(self):
+        pass
+            
+    # main loop
+    def run(self,taskBuffer,aSiteMapper,holdingAna):
+        # import 
+        from dataservice.AdderGen import AdderGen
+        # get logger
+        _logger = PandaLogger().getLogger('add_process')
+        # get file list
+        timeNow = datetime.datetime.utcnow()
         timeInt = datetime.datetime.utcnow()
-        # get file
+        dirName = panda_config.logdir
         fileList = os.listdir(dirName)
         fileList.sort() 
         # remove duplicated files
@@ -390,45 +333,121 @@ while len(fileList) != 0:
                 else:
                     uMap[id] = fileName
                     if long(id) in holdingAna:
-                        # give a priority to buildJob
+                        # give a priority to buildJobs
                         tmpList.insert(0,file)
                     else:
                         tmpList.append(file)
-        fileList = tmpList
-    # check if 
-    if PandaUtils.isLogRotating(5,5):    
-        _logger.debug("terminate since close to log-rotate time")
-        break
-    # choose a file
-    file = fileList.pop(0)
-    # release lock
-    adderLock.release()
-    # check format
-    match = re.search('^(\d+)_([^_]+)_.{36}(_\d+)*$',file)
-    if match != None:
-        fileName = '%s/%s' % (dirName,file)
-        if not os.path.exists(fileName):
-            continue
-        try:
-            modTime = datetime.datetime(*(time.gmtime(os.path.getmtime(fileName))[:7]))
-            if (timeNow - modTime) > datetime.timedelta(hours=24):
-                # last chance
-                _logger.debug("Last Add File : %s" % fileName)
-                thr = AdderThr(adderLock,adderThreadPool,taskBuffer,aSiteMapper,match.group(1),
-                               match.group(2),fileName,False)
-                thr.start()
-            elif (timeInt - modTime) > datetime.timedelta(minutes=3):
-                # add
-                _logger.debug("Add File : %s" % fileName)            
-                thr = AdderThr(adderLock,adderThreadPool,taskBuffer,aSiteMapper,match.group(1),
-                               match.group(2),fileName)
-                thr.start()
-        except:
-            type, value, traceBack = sys.exc_info()
-            _logger.error("%s %s" % (type,value))
+        nFixed = 50
+        randTmp = tmpList[nFixed:]
+        random.shuffle(randTmp)
+        fileList = tmpList[:nFixed] + randTmp
+        # add
+        while len(fileList) != 0:
+            # time limit to aviod too many copyArchve running at the sametime
+            if (datetime.datetime.utcnow() - timeNow) > datetime.timedelta(minutes=overallTimeout):
+                _logger.debug("time over in Adder session")
+                break
+            # get fileList
+            if (datetime.datetime.utcnow() - timeInt) > datetime.timedelta(minutes=15):
+                timeInt = datetime.datetime.utcnow()
+                # get file
+                fileList = os.listdir(dirName)
+                fileList.sort() 
+                # remove duplicated files
+                tmpList = []
+                uMap = {}
+                for file in fileList:
+                    match = re.search('^(\d+)_([^_]+)_.{36}(_\d+)*$',file)
+                    if match != None:
+                        fileName = '%s/%s' % (dirName,file)
+                        id = match.group(1)
+                        if uMap.has_key(id):
+                            try:
+                                os.remove(fileName)
+                            except:
+                                pass
+                        else:
+                            uMap[id] = fileName
+                            if long(id) in holdingAna:
+                                # give a priority to buildJob
+                                tmpList.insert(0,file)
+                            else:
+                                tmpList.append(file)
+                fileList = tmpList
+            # check if 
+            if PandaUtils.isLogRotating(5,5):    
+                _logger.debug("terminate since close to log-rotate time")
+                break
+            # choose a file
+            file = fileList.pop(0)
+            # check format
+            match = re.search('^(\d+)_([^_]+)_.{36}(_\d+)*$',file)
+            if match != None:
+                fileName = '%s/%s' % (dirName,file)
+                if not os.path.exists(fileName):
+                    continue
+                try:
+                    modTime = datetime.datetime(*(time.gmtime(os.path.getmtime(fileName))[:7]))
+                    thr = None
+                    if (timeNow - modTime) > datetime.timedelta(hours=24):
+                        # last chance
+                        _logger.debug("Last Add File {0} : {1}".format(os.getpid(),fileName))
+                        thr = AdderGen(taskBuffer,match.group(1),match.group(2),fileName,
+                                       ignoreTmpError=False,siteMapper=aSiteMapper)
+                    elif (timeInt - modTime) > datetime.timedelta(minutes=gracePeriod):
+                        # add
+                        _logger.debug("Add File {0} : {1}".format(os.getpid(),fileName))
+                        thr = AdderGen(taskBuffer,match.group(1),match.group(2),fileName,
+                                       ignoreTmpError=True,siteMapper=aSiteMapper)
+                    if thr != None:
+                        thr.run()
+                except:
+                    type, value, traceBack = sys.exc_info()
+                    _logger.error("%s %s" % (type,value))
+
+
+    # launcher
+    def launch(self,taskBuffer,aSiteMapper,holdingAna):
+        # run
+        self.process = multiprocessing.Process(target=self.run,
+                                               args=(taskBuffer,aSiteMapper,holdingAna))
+        self.process.start()
+
+
+    # join
+    def join(self):
+        self.process.join()
+
+
+
+# get buildJobs in the holding state
+holdingAna = []
+varMap = {}
+varMap[':prodSourceLabel'] = 'panda'
+varMap[':jobStatus'] = 'holding'
+status,res = taskBuffer.querySQLS("SELECT PandaID from ATLAS_PANDA.jobsActive4 WHERE prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus",varMap)
+if res != None:
+    for id, in res:
+        holdingAna.append(id)
+_logger.debug("holding Ana %s " % holdingAna)
+    
+# add files
+_logger.debug("Adder session")
+
+# make TaskBuffer IF
+from taskbuffer.TaskBufferInterface import TaskBufferInterface
+taskBufferIF = TaskBufferInterface()
+taskBufferIF.launch(taskBuffer)
+
+adderThrList = []
+for i in range(3):
+    p = AdderProcess()
+    p.launch(taskBufferIF.getInterface(),aSiteMapper,holdingAna)
+    adderThrList.append(p)
 
 # join all threads
-adderThreadPool.join()
+for thr in adderThrList:
+    thr.join()
 
 # join sender
 mailSender.join()
@@ -436,5 +455,8 @@ mailSender.join()
 # join fork threads
 for thr in forkThrList:
     thr.join()
+
+# terminate TaskBuffer IF
+taskBufferIF.terminate()
 
 _logger.debug("===================== end =====================")

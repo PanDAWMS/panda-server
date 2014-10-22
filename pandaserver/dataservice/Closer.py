@@ -8,7 +8,6 @@ import sys
 import time
 import urllib
 import commands
-import threading
 from DDM import ddm
 import Notifier
 import RetryMaker
@@ -32,10 +31,9 @@ def initLogger(pLogger):
     RetryMaker.initLogger(_logger)
     
 
-class Closer (threading.Thread):
+class Closer:
     # constructor
     def __init__(self,taskBuffer,destinationDBlocks,job,pandaDDM=False,datasetMap={}):
-        threading.Thread.__init__(self)
         self.taskBuffer = taskBuffer
         self.destinationDBlocks = destinationDBlocks
         self.job = job
@@ -43,7 +41,12 @@ class Closer (threading.Thread):
         self.pandaDDM = pandaDDM
         self.siteMapper = None
         self.datasetMap = datasetMap
-
+        
+    # to keep backward compatibility
+    def start(self):
+        self.run()
+    def join(self):
+        pass
 
     # main
     def run(self):

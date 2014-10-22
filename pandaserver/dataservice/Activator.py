@@ -3,21 +3,25 @@ activate job
 
 '''
 
-import threading
-
 from pandalogger.PandaLogger import PandaLogger
 
 # logger
 _logger = PandaLogger().getLogger('Activator')
 
 
-class Activator (threading.Thread):
+class Activator:
     # constructor
     def __init__(self,taskBuffer,dataset,enforce=False):
-        threading.Thread.__init__(self)
         self.dataset = dataset
         self.taskBuffer = taskBuffer
         self.enforce = enforce
+
+
+    # to keep backward compatibility
+    def start(self):
+        self.run()
+    def join(self):
+        pass
 
 
     # main

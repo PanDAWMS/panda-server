@@ -7,7 +7,6 @@ import re
 import sys
 import fcntl
 import commands
-import threading
 import urllib
 import shelve
 import smtplib

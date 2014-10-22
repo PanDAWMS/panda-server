@@ -3,6 +3,9 @@ job specification
 
 """
 
+reserveChangedState = False
+
+
 class JobSpec(object):
     # attributes
     _attributes = ('PandaID','jobDefinitionID','schedulerID','pilotID','creationTime','creationHost',
@@ -136,6 +139,8 @@ class JobSpec(object):
         for attr in self._attributes:
             val = getattr(self,attr)
             state.append(val)
+        if reserveChangedState:
+            state.append(self._changedAttrs)
         # append File info
         state.append(self.Files)
         return state
@@ -150,8 +155,11 @@ class JobSpec(object):
             else:
                 object.__setattr__(self,self._attributes[i],'NULL')                
         object.__setattr__(self,'Files',state[-1])
-        object.__setattr__(self,'_changedAttrs',{})
-        
+        if reserveChangedState:
+            object.__setattr__(self,'_changedAttrs',state[-2])
+        else:
+            object.__setattr__(self,'_changedAttrs',{})
+
         
     # return column names for INSERT or full SELECT
     def columnNames(cls):

@@ -3,6 +3,8 @@ file specification
 
 """
 
+reserveChangedState = False
+
 
 class FileSpec(object):
     # attributes
@@ -112,6 +114,8 @@ class FileSpec(object):
         for attr in self._attributes:
             val = getattr(self,attr)
             state.append(val)
+        if reserveChangedState:
+            state.append(self._changedAttrs)
         # append owner info
         state.append(self._owner)
         return state
@@ -128,8 +132,11 @@ class FileSpec(object):
             if self._attributes[i] == 'PandaID':
                 pandaID = state[i]
         object.__setattr__(self,'_owner',state[-1])
-        object.__setattr__(self,'_changedAttrs',{})
         object.__setattr__(self,'_oldPandaID',pandaID)
+        if reserveChangedState:
+            object.__setattr__(self,'_changedAttrs',state[-2])
+        else:
+            object.__setattr__(self,'_changedAttrs',{})
 
         
     # return column names for INSERT

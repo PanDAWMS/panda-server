@@ -10,7 +10,6 @@ import time
 import fcntl
 import datetime
 import commands
-import threading
 import xml.dom.minidom
 import ErrorCode
 from dq2.clientapi import DQ2
