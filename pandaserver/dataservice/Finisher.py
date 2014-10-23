@@ -32,7 +32,9 @@ class Finisher (threading.Thread):
     def run(self):
         # start
         try:
+            byCallback = False
             if self.job == None:
+                byCallback = True
                 _logger.debug("start: %s" % self.dataset.name)
                 _logger.debug("callback from %s" % self.site)
                 # FIXME when callback from BNLPANDA disappeared
@@ -124,7 +126,10 @@ class Finisher (threading.Thread):
                                     break
                         # finish job
                         if jobReady:
-                            _logger.debug("Job: %s all files ready" % job.PandaID)
+                            if byCallback:
+                                _logger.debug("Job: %s all files ready" % job.PandaID)
+                            else:
+                                _logger.debug("Job: %s all files checked with catalog" % job.PandaID)
                             # create XML
                             try:
                                 import xml.dom.minidom

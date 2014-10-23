@@ -250,7 +250,7 @@ def count_processes() :
 	return count
 
 def count_add_processes() :
-	output = subprocess.Popen( "pgrep -f add.py",
+	output = subprocess.Popen( "ps -eo pgid,args | grep add.py | grep -v grep | uniq",
 				   stdout=subprocess.PIPE,shell=True).communicate()[0]
 	count = 0
 	for line in output.split( '\n' ) :
