@@ -1,7 +1,9 @@
 Release Note
 
 * current
-  * added a protection to AdderGen against es merge xml
+  * fixed getJob for esmerge to send only successful logs
+  * added a protection to reassign JEDI jobs in defined
+  * added a protection to AdderGen against esmerge xml
   * fixed es merge job generation
   * changed messages for finished by callback or catalog check
   * introducing multiporcesssing in add.py

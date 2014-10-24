@@ -2857,26 +2857,6 @@ class DBProxy:
                                 eventRangeIDs[file.fileID][job_processID] = tmpEventRangeID
                                 if not esPandaID in esDonePandaIDs:
                                     esDonePandaIDs.append(esPandaID)
-                # get parent PandaIDs for event service retry
-                esAllPandaIDs = []
-                for esPandaID in esDonePandaIDs:
-                    ppPandaID = esPandaID
-                    while True:
-                        # skip if duplicated
-                        if ppPandaID in esAllPandaIDs:
-                            break
-                        # collect all PandaIDs
-                        esAllPandaIDs.append(ppPandaID)
-                        # look for parent
-                        varMap = {}
-                        varMap[':pandaID']     = ppPandaID
-                        varMap[':jediTaskID']  = job.jediTaskID
-                        self.cur.execute(sqlPP+comment, varMap)
-                        resPP = self.cur.fetchone()
-                        # no more parent
-                        if resPP == None:
-                            break
-                        ppPandaID, = resPP
                 # make input for event service output merging
                 mergeInputOutputMap = {}
                 mergeInputFiles = []
@@ -2906,7 +2886,7 @@ class DBProxy:
                     if not tmpFileSpec.type in ['log']:
                         continue
                     # make files
-                    for esPandaID in esAllPandaIDs:
+                    for esPandaID in esDonePandaIDs:
                         tmpInputFileSpec = copy.copy(tmpFileSpec)
                         tmpInputFileSpec.type = 'input'
                         # append PandaID as suffix
@@ -3194,7 +3174,8 @@ class DBProxy:
                         if not file.destinationDBlock in oldSubList:
                             oldSubList.append(file.destinationDBlock)
                     # reset status, destinationDBlock and dispatchDBlock
-                    file.status         ='unknown'
+                    if job.lockedby != 'jedi':
+                        file.status         ='unknown'
                     file.dispatchDBlock = None
                     file.destinationDBlock = re.sub('_sub\d+$','',file.destinationDBlock)
                     # add file
