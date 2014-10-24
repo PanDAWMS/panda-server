@@ -13146,7 +13146,7 @@ class DBProxy:
                 retValue = 2,jobSpec.PandaID
             # record status change
             try:
-                self.recordStatusChange(jobSpec.PandaID,jobSpec.jobStatus,jobInfo=jobSpec)
+                self.recordStatusChange(jobSpec.PandaID,jobSpec.jobStatus,jobInfo=jobSpec,useCommit=useCommit)
             except:
                 _logger.error('recordStatusChange in ppEventServiceJob')
             _logger.debug('{0} done for doMergeing={1}'.format(methodName,doMerging))

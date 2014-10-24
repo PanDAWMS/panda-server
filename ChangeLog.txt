@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * added a protection to AdderGen against es merge xml
+  * fixed es merge job generation
   * changed messages for finished by callback or catalog check
   * introducing multiporcesssing in add.py
   * kill instead of reassign in copyArchive

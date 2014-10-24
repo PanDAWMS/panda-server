@@ -334,7 +334,10 @@ class AdderGen:
                         fullLFN = str(meta.getAttribute('att_value'))
                 # error check
                 if (not lfn in inputLFNs) and (fsize == None or (md5sum == None and adler32 == None)):
-                    raise RuntimeError, 'fsize/md5sum/adler32/surl=None'
+                    if EventServiceUtils.isEventServiceMerge(self.job):
+                        continue
+                    else:
+                        raise RuntimeError, 'fsize/md5sum/adler32/surl=None'
                 # append
                 lfns.append(lfn)
                 guids.append(guid)
