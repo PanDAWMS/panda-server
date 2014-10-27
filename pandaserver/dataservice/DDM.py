@@ -185,7 +185,7 @@ class _TOAMethod:
             if isinstance(arg,types.StringType):
                 com += "'%s'," % arg
             else:
-                com = '%s,' % arg
+                com += '%s,' % arg
         com = com[:-1]        
         com += ")"
         # execute

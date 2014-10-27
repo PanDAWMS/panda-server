@@ -747,7 +747,9 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 dispError[disp] = ''
                 # DQ2 IDs
                 tmpSrcID = 'BNL_ATLAS_1'
-                if self.siteMapper.checkCloud(job.cloud):
+                if job.prodSourceLabel in ['user','panda']:
+                    tmpSrcID = job.computingSite
+                elif self.siteMapper.checkCloud(job.cloud):
                     # use cloud's source
                     tmpSrcID = self.siteMapper.getCloud(job.cloud)['source']
                 srcDQ2ID = self.siteMapper.getSite(tmpSrcID).ddm
@@ -867,35 +869,42 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                             # stage-in callback
                             optSub['DATASET_STAGED_EVENT'] = ['http://%s:%s/server/panda/datasetCompleted' % \
                                                               (panda_config.pserverhosthttp,panda_config.pserverporthttp)]
-                            # use ATLAS*TAPE
-                            seTokens = self.siteMapper.getSite(tmpDstID).setokens
-                            if seTokens.has_key('ATLASDATATAPE') and seTokens.has_key('ATLASMCTAPE'):
-                                dq2ID = seTokens['ATLASDATATAPE']
-                                # use MCDISK if needed
-                                for tmpDataset,tmpRepMap in self.replicaMap[job.dispatchDBlock].iteritems():
-                                    if (not tmpRepMap.has_key(dq2ID)) and tmpRepMap.has_key(seTokens['ATLASMCTAPE']):
-                                        dq2ID = seTokens['ATLASMCTAPE']
-                                        break
-                                # for CERN and BNL
-                                if job.cloud in ['CERN','US'] and self.replicaMap.has_key(job.dispatchDBlock):
-                                    setNewIDflag = False
-                                    if job.cloud == 'CERN':
-                                        otherIDs = ['CERN-PROD_DAQ','CERN-PROD_TZERO','CERN-PROD_TMPDISK']
-                                    else:
-                                        otherIDs = ['BNLPANDA']
+                            # look for associated tape endpoints for analysis
+                            if job.prodSourceLabel in ['user','panda']:
+                                tmpEndPoints = DataServiceUtils.getAssociatedTapeEndPoints(srcDQ2ID,toa,self.replicaMap[job.dispatchDBlock])
+                                for tmpEndPoint in tmpEndPoints:
+                                    dq2ID = tmpEndPoint
+                                    optSource[tmpEndPoint] = {'policy' : 0}
+                            else:    
+                                # use ATLAS*TAPE
+                                seTokens = self.siteMapper.getSite(tmpDstID).setokens
+                                if seTokens.has_key('ATLASDATATAPE') and seTokens.has_key('ATLASMCTAPE'):
+                                    dq2ID = seTokens['ATLASDATATAPE']
+                                    # use MCDISK if needed
                                     for tmpDataset,tmpRepMap in self.replicaMap[job.dispatchDBlock].iteritems():
-                                        if not tmpRepMap.has_key(dq2ID):
-                                            # look for another id
-                                            for cernID in otherIDs:
-                                                if tmpRepMap.has_key(cernID):
-                                                    dq2ID = cernID
-                                                    setNewIDflag = True
+                                        if (not tmpRepMap.has_key(dq2ID)) and tmpRepMap.has_key(seTokens['ATLASMCTAPE']):
+                                            dq2ID = seTokens['ATLASMCTAPE']
+                                            break
+                                    # for CERN and BNL
+                                    if job.cloud in ['CERN','US'] and self.replicaMap.has_key(job.dispatchDBlock):
+                                        setNewIDflag = False
+                                        if job.cloud == 'CERN':
+                                            otherIDs = ['CERN-PROD_DAQ','CERN-PROD_TZERO','CERN-PROD_TMPDISK']
+                                        else:
+                                            otherIDs = ['BNLPANDA']
+                                        for tmpDataset,tmpRepMap in self.replicaMap[job.dispatchDBlock].iteritems():
+                                            if not tmpRepMap.has_key(dq2ID):
+                                                # look for another id
+                                                for cernID in otherIDs:
+                                                    if tmpRepMap.has_key(cernID):
+                                                        dq2ID = cernID
+                                                        setNewIDflag = True
+                                                        break
+                                                # break
+                                                if setNewIDflag:
                                                     break
-                                            # break
-                                            if setNewIDflag:
-                                                break
+                                optSource[dq2ID] = {'policy' : 0}
                             optSrcPolicy = 000010
-                            optSource[dq2ID] = {'policy' : 0}
                         else:
                             # set sources to handle T2s in another cloud and to transfer dis datasets being split in multiple sites 
                             for tmpDQ2ID in dq2IDList:
@@ -909,16 +918,23 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                 # use T1_PRODDISK
                                 if seTokens.has_key('ATLASPRODDISK'):
                                     dq2ID = seTokens['ATLASPRODDISK']
-                        # register subscription        
+                        # set share and activity
+                        if job.prodSourceLabel in ['user','panda']:
+                            optShare = "production"
+                            optActivity = "Staging"
+                        else:
+                            optShare = "production"
+                            optActivity = "Production"
+                        # register subscription
                         self.logger.debug('%s %s %s' % ('registerDatasetSubscription',
                                                         (job.dispatchDBlock,dq2ID),
                                                         {'version':0,'archived':0,'callbacks':optSub,'sources':optSource,'sources_policy':optSrcPolicy,
-                                                         'wait_for_sources':0,'destination':None,'query_more_sources':0,'sshare':"production",'group':None,
-                                                         'activity':"Production",'acl_alias':None,'replica_lifetime':"7 days"}))
+                                                         'wait_for_sources':0,'destination':None,'query_more_sources':0,'sshare':optShare,'group':None,
+                                                         'activity':optActivity,'acl_alias':None,'replica_lifetime':"7 days"}))
                         for iDDMTry in range(3):                                                                
                             status,out = ddm.DQ2.main('registerDatasetSubscription',job.dispatchDBlock,dq2ID,version=0,archived=0,callbacks=optSub,
                                                       sources=optSource,sources_policy=optSrcPolicy,wait_for_sources=0,destination=None,
-                                                      query_more_sources=0,sshare="production",group=None,activity="Production",
+                                                      query_more_sources=0,sshare=optShare,group=None,activity=optActivity,
                                                       acl_alias=None,replica_lifetime="7 days")
                             if status != 0 or out.find("DQ2 internal server exception") != -1 \
                                    or out.find("An error occurred on the central catalogs") != -1 \
