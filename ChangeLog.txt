@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed ActiveMQ broker
   * changed to allow users to send prestaging requests to DDM
   * fixed getJob for esmerge to send only successful logs
   * added a protection to reassign JEDI jobs in defined

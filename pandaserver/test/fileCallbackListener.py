@@ -207,13 +207,13 @@ def main(backGround=False):
                     'ssl_cert_file' : certName,
                     'ssl_key_file'  : '/data/atlpan/pandasv1_userkey.pem'}
         # resolve multiple brokers
-        brokerList = socket.gethostbyname_ex('atlasddm-mb.cern.ch')[-1]
+        brokerList = socket.gethostbyname_ex('atlas-mb.cern.ch')[-1]
         # set listener
         for tmpBroker in brokerList:
             try:
                 clientid = 'PANDA-' + socket.getfqdn() + '-' + tmpBroker
                 _logger.debug('setting listener %s' % clientid)
-                conn = stomp.Connection(host_and_ports = [(tmpBroker, 6162)], **ssl_opts)
+                conn = stomp.Connection(host_and_ports = [(tmpBroker, 61023)], **ssl_opts)
                 conn.set_listener('FileCallbackListener', FileCallbackListener(conn,taskBuffer,siteMapper))
                 conn.start()
                 conn.connect(headers = {'client-id': clientid})
