@@ -1617,7 +1617,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         for tmpJob in self.jobs:
             try:
                 # set only for production/analysis/test
-                if not tmpJob.prodSourceLabel in ['managed','test','rc_test','ptest','user']:
+                if not tmpJob.prodSourceLabel in ['managed','test','rc_test','ptest','user','prod_test']:
                     continue
                 # loop over all files
                 tmpJob.nInputDataFiles = 0

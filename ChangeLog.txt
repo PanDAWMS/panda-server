@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * filling job summary fields for prod_test
   * changed ActiveMQ broker
   * changed to allow users to send prestaging requests to DDM
   * fixed getJob for esmerge to send only successful logs
