@@ -5,6 +5,8 @@ entry point
 
 """
 
+import datetime
+
 # config file
 from config import panda_config
 
@@ -120,6 +122,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
             methodName = environ['SCRIPT_NAME'].split('/')[-1]
         if panda_config.entryVerbose:
             _logger.debug("PID=%s %s in" % (os.getpid(),methodName))
+        regStart = datetime.datetime.utcnow()
         # check method name    
         if not methodName in allowedMethods:
             _logger.error("PID=%s %s is forbidden" % (os.getpid(),methodName))
@@ -170,6 +173,10 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                     return ["%s %s" % (errType,errValue)]
         if panda_config.entryVerbose:
             _logger.debug("PID=%s %s out" % (os.getpid(),methodName))
+        regTime = datetime.datetime.utcnow() - regStart
+        _logger.debug("%s exec time: %s.%03d sec, return len: %s B" % (methodName,regTime.seconds,
+                                                                       regTime.microseconds/1000,
+                                                                       len(str(exeRes))))
         # return
         if exeRes == taskbuffer.ErrorCode.EC_NotFound:
             start_response('404 Not Found', [('Content-Type', 'text/plain')])

@@ -1930,6 +1930,9 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         # only successful analysis
         if self.jobs[0].jobStatus in ['failed','cancelled'] or (not self.jobs[0].prodSourceLabel in ['user','panda']):
             return
+        # disable for JEDI
+        if self.jobs[0].lockedby == 'jedi':
+            return
         # execute
         self.logger.debug('execute PD2P')
         from DynDataDistributer import DynDataDistributer

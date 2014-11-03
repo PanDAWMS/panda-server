@@ -14,6 +14,8 @@ import xml.dom.minidom
 import ErrorCode
 from dq2.clientapi import DQ2
 from dq2.filecatalog.FileCatalogUnknownFactory import FileCatalogUnknownFactory
+from dq2.filecatalog.FileCatalogException import FileCatalogException
+
 try:
     from dq2.clientapi.cli import Register2
 except:
@@ -406,6 +408,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                          DQ2.DQDatasetExistsException,
                          DQ2.DQFileMetaDataMismatchException,
                          FileCatalogUnknownFactory,
+                         FileCatalogException,
                          RucioFileCatalogException):
                      # fatal errors
                      errType,errValue = sys.exc_info()[:2]

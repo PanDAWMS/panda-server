@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * changed panda.py to measure execution time for each call
+  * using FileCatalogException as a fatal error for now
   * filling job summary fields for prod_test
   * changed ActiveMQ broker
   * changed to allow users to send prestaging requests to DDM
