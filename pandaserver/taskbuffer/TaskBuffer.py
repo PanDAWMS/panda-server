@@ -467,7 +467,7 @@ class TaskBuffer:
             elif job.jobStatus in ['finished','failed','cancelled']:
                 ret,tmpddmIDs,ddmAttempt,newMover = proxy.archiveJob(job,inJobsDefined,extraInfo=extraInfo)
             else:
-                ret = proxy.updateJob(job,inJobsDefined,oldJobStatus=oldJobStatus)
+                ret = proxy.updateJob(job,inJobsDefined,oldJobStatus=oldJobStatus,extraInfo=extraInfo)
             returns.append(ret)
             # collect IDs for reassign
             if ret:

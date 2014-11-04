@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * extracting LB Nr
   * changed panda.py to measure execution time for each call
   * using FileCatalogException as a fatal error for now
   * filling job summary fields for prod_test

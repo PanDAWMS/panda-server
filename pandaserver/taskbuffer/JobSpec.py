@@ -272,3 +272,22 @@ class JobSpec(object):
             return val
         return val[:cls._limitLength[attr]]
     truncateStringAttr = classmethod(truncateStringAttr)
+
+
+
+    # set LB number
+    def setLumiBlockNr(self,lumiBlockNr):
+        if self.specialHandling in ['',None,'NULL']:
+            self.specialHandling = 'lb:{0}'.format(lumiBlockNr)
+        else:
+            self.specialHandling += ',lb:{0}'.format(lumiBlockNr)
+
+
+
+    # get LB number
+    def getLumiBlockNr(self):
+        if self.specialHandling != None:
+            for tmpItem in self.specialHandling.split(','):
+                if tmpItem.startswith('lb:'):
+                    return int(tmpItem.split(':')[-1])
+        return None

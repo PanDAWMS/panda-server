@@ -1773,7 +1773,7 @@ class DBProxy:
 
 
     # update job information in jobsActive or jobsDefined
-    def updateJob(self,job,inJobsDefined,oldJobStatus=None):
+    def updateJob(self,job,inJobsDefined,oldJobStatus=None,extraInfo=None):
         comment = ' /* DBProxy.updateJob */'        
         _logger.debug("updateJob : %s" % job.PandaID)
         updatedFlag = False
@@ -1865,7 +1865,7 @@ class DBProxy:
                             for tmpKey in ['lfn','GUID','fsize','checksum']:
                                 tmpVal = getattr(file,tmpKey)
                                 if tmpVal == 'NULL':
-                                    if tmpKey in fileSpec._zeroAttrs:
+                                    if tmpKey in file._zeroAttrs:
                                         tmpVal = 0
                                     else:
                                         tmpVal = None
@@ -1882,6 +1882,34 @@ class DBProxy:
                                 if not datasetContentsStat.has_key(file.datasetID):
                                     datasetContentsStat[file.datasetID] = {'diff':0,'cType':'hold'}
                                 datasetContentsStat[file.datasetID]['diff'] += 1
+                        # update metadata in JEDI
+                        if useJEDI and file.type in ['output'] and extraInfo != None:
+                            varMap = {}
+                            sqlFileMeta = ''
+                            if extraInfo.has_key('nevents') and file.lfn in extraInfo['nevents']:
+                                tmpKey = 'nEvents'
+                                tmpMapKey = ':%s' % tmpKey
+                                sqlFileMeta += "%s=%s," % (tmpKey,tmpMapKey)
+                                varMap[tmpMapKey] = extraInfo['nevents'][file.lfn]
+                            if extraInfo.has_key('lbnr') and file.lfn in extraInfo['lbnr']:
+                                tmpKey = 'lumiBlockNr'
+                                tmpMapKey = ':%s' % tmpKey
+                                sqlFileMeta += "%s=%s," % (tmpKey,tmpMapKey)
+                                varMap[tmpMapKey] = extraInfo['lbnr'][file.lfn]
+                            if varMap != {}:
+                                # update
+                                varMap[':fileID']     = file.fileID
+                                varMap[':attemptNr']  = file.attemptNr
+                                varMap[':datasetID']  = file.datasetID
+                                varMap[':jediTaskID'] = file.jediTaskID
+                                varMap[':keepTrack']  = 1
+                                sqlFileMeta = "UPDATE ATLAS_PANDA.JEDI_Dataset_Contents SET " + sqlFileMeta
+                                sqlFileMeta = sqlFileMeta[:-1]
+                                sqlFileMeta += " "
+                                sqlFileMeta += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+                                sqlFileMeta += "AND attemptNr=:attemptNr AND keepTrack=:keepTrack "
+                                _logger.debug(sqlFileMeta+comment+str(varMap))
+                                self.cur.execute(sqlFileMeta+comment,varMap)
                     # loop over all JEDI datasets
                     for tmpDatasetID,valMap in datasetContentsStat.iteritems():
                         diffNum = valMap['diff']
@@ -11634,12 +11662,20 @@ class DBProxy:
                     tmpMapKey = ':%s' % tmpKey        
                     sqlFile += ",%s=%s" % (tmpKey,tmpMapKey)
                     varMap[tmpMapKey] = tmpVal
-                # nevents
-                if extraInfo != None and extraInfo.has_key('nevents') and extraInfo['nevents'].has_key(fileSpec.lfn):
-                    tmpKey = 'nEvents'
-                    tmpMapKey = ':%s' % tmpKey
-                    sqlFile += ",%s=%s" % (tmpKey,tmpMapKey)
-                    varMap[tmpMapKey] = extraInfo['nevents'][fileSpec.lfn]
+                # extra metadata
+                if extraInfo != None:
+                    # nevents
+                    if extraInfo.has_key('nevents') and extraInfo['nevents'].has_key(fileSpec.lfn):
+                        tmpKey = 'nEvents'
+                        tmpMapKey = ':%s' % tmpKey
+                        sqlFile += ",%s=%s" % (tmpKey,tmpMapKey)
+                        varMap[tmpMapKey] = extraInfo['nevents'][fileSpec.lfn]
+                    # LB number
+                    if extraInfo.has_key('lbnr') and extraInfo['lbnr'].has_key(fileSpec.lfn):
+                        tmpKey = 'lumiBlockNr'
+                        tmpMapKey = ':%s' % tmpKey
+                        sqlFile += ",%s=%s" % (tmpKey,tmpMapKey)
+                        varMap[tmpMapKey] = extraInfo['lbnr'][fileSpec.lfn]
                 # reset keepTrack unless merging
                 if fileSpec.status != 'merging':
                     sqlFile += ",keepTrack=NULL"
