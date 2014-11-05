@@ -1,6 +1,7 @@
 import os
 import re
 import sys
+import ssl
 import time
 import signal
 import socket
@@ -8,14 +9,16 @@ import commands
 import optparse
 import datetime
 import cPickle as pickle
+import stomp
 
 from dq2.common import log as logging
-from dq2.common import stomp
 from config import panda_config
 from brokerage.SiteMapper import SiteMapper
 from dataservice.Finisher import Finisher
 from dataservice import DataServiceUtils
 
+import logging
+logging.basicConfig(level = logging.DEBUG)
 
 # logger
 from pandalogger.PandaLogger import PandaLogger
@@ -47,13 +50,15 @@ def catch_sig(sig, frame):
 # callback listener
 class FileCallbackListener(stomp.ConnectionListener):
 
-    def __init__(self,conn,tb,sm):
+    def __init__(self,conn,tb,sm,subscription_id):
         # connection
         self.conn = conn
         # task buffer
         self.taskBuffer = tb
         # site mapper
         self.siteMapper = sm
+        # subscription ID
+        self.subscription_id = subscription_id
 
         
     def on_error(self,headers,body):
@@ -69,7 +74,7 @@ class FileCallbackListener(stomp.ConnectionListener):
             lfn = 'UNKNOWN'
             # send ack
             id = headers['message-id']
-            self.conn.ack({'message-id':id})
+            self.conn.ack(id,self.subscription_id)
             # check message type
             messageType = headers['cbtype']
             if not messageType in ['FileDoneMessage']:
@@ -204,29 +209,41 @@ def main(backGround=False):
         # ActiveMQ params
         queue = '/queue/Consumer.PANDA.atlas.ddm.siteservices'
         ssl_opts = {'use_ssl' : True,
+                    'ssl_version' : ssl.PROTOCOL_TLSv1,
                     'ssl_cert_file' : certName,
                     'ssl_key_file'  : '/data/atlpan/pandasv1_userkey.pem'}
         # resolve multiple brokers
         brokerList = socket.gethostbyname_ex('atlas-mb.cern.ch')[-1]
         # set listener
+        connList = []
         for tmpBroker in brokerList:
             try:
                 clientid = 'PANDA-' + socket.getfqdn() + '-' + tmpBroker
+                subscription_id = 'panda-server-consumer-' +  socket.getfqdn()
                 _logger.debug('setting listener %s' % clientid)
                 conn = stomp.Connection(host_and_ports = [(tmpBroker, 61023)], **ssl_opts)
-                conn.set_listener('FileCallbackListener', FileCallbackListener(conn,taskBuffer,siteMapper))
-                conn.start()
-                conn.connect(headers = {'client-id': clientid})
-                conn.subscribe(destination=queue, ack='client-individual')
-                               #,headers = {'selector':"cbtype='FileDoneMessage'"})
-                if not conn.is_connected():
-                    _logger.error("connection failure to %s" % tmpBroker)
-                _logger.debug('listener %s is up and running' % clientid)
+                connList.append(conn)
             except:     
                 errtype,errvalue = sys.exc_info()[:2]
-                _logger.error("failed to set listener on %s : %s %s" % (tmpBroker,errtype,errvalue))
+                _logger.error("failed to connect to %s : %s %s" % (tmpBroker,errtype,errvalue))
                 catch_sig(None,None)
-            
+        while True:
+            for conn in connList:
+                try:
+                    if not conn.is_connected():
+                        conn.set_listener('FileCallbackListener',
+                                          FileCallbackListener(conn,taskBuffer,siteMapper,subscription_id))
+                        conn.start()
+                        conn.connect(headers = {'client-id': clientid})
+                        conn.subscribe(destination=queue, id=subscription_id, ack='client-individual')
+                        _logger.debug('listener %s is up and running' % clientid)
+                except:     
+                    errtype,errvalue = sys.exc_info()[:2]
+                    _logger.error("failed to set listener on %s : %s %s" % (tmpBroker,errtype,errvalue))
+                    catch_sig(None,None)
+            time.sleep(5)
+
+
 # entry
 if __name__ == "__main__":
     optP = optparse.OptionParser(conflict_handler="resolve")

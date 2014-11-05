@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed fileCallbackListener to use TSL instead of sslv3
   * extracting LB Nr
   * changed panda.py to measure execution time for each call
   * using FileCatalogException as a fatal error for now
