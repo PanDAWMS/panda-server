@@ -17,6 +17,9 @@ optP.add_option('--noRunning',action='store_const',const=True,dest='noRunning',
                 default=True,help='kill jobs if they are not in running or transferring (ON by default)')
 optP.add_option('--killAny',action='store_const',const=True,dest='killAny',
                 default=False,help='kill jobs in any status')
+optP.add_option('--prodSourceLabel', action='store',dest='prodSourceLabel', default='managed',
+                help='prodSourceLabel')
+
 options,args = optP.parse_args()
 
 proxyS = DBProxy()
@@ -25,7 +28,7 @@ proxyS.connect(panda_config.dbhost,panda_config.dbpasswd,panda_config.dbuser,pan
 jobs = []
 
 varMap = {}
-varMap[':prodSourceLabel']  = 'managed'
+varMap[':prodSourceLabel'] = options.prodSourceLabel
 varMap[':taskID'] = args[0]
 if not options.noRunning or options.killAny:
     sql = "SELECT PandaID FROM %s WHERE prodSourceLabel=:prodSourceLabel AND taskID=:taskID ORDER BY PandaID"
@@ -40,7 +43,9 @@ for table in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4','ATLAS_PANDA.
             if not id in jobs:
                 jobs.append(id)
 
-print 'The number of jobs to be killed : %s' % len(jobs)            
+print 'The number of jobs to be killed for prodSourceLabel={0} taskID={1}: {2}'.format(options.prodSourceLabel,
+                                                                                       args[0],
+                                                                                       len(jobs))
 if len(jobs):
     nJob = 100
     iJob = 0
