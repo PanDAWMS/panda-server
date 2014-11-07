@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added toreassign to the list of active task status
   * added --prodSourceLabel to killTask
   * fixed fileCallbackListener to use TSL instead of sslv3
   * extracting LB Nr
