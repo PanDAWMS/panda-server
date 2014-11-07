@@ -4416,10 +4416,11 @@ class DBProxy:
             varMap = {}
             varMap[':jobStatus'] = 'transferring'
             varMap[':currentPriority'] = 800
-            varMap[':prodSourceLabel'] = 'managed'
+            varMap[':pLabel1'] = 'managed'
+            varMap[':pLabel2'] = 'rucio_test'
             # make sql
             sql  = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
-            sql += "WHERE jobStatus=:jobStatus AND modificationTime<:modificationTime AND prodSourceLabel=:prodSourceLabel "
+            sql += "WHERE jobStatus=:jobStatus AND modificationTime<:modificationTime AND prodSourceLabel IN (:pLabel1,:pLabel2) "
             if highPrio:
                 varMap[':modificationTime'] = timeNow - datetime.timedelta(hours=1)
                 sql += "AND currentPriority>=:currentPriority AND rownum<=%s " % rownum
