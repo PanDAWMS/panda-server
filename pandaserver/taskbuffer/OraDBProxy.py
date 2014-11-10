@@ -2867,7 +2867,9 @@ class DBProxy:
                     if not EventServiceUtils.isEventServiceMerge(job) or file.type in ['output','log']: 
                         job.addFile(file)
                     # get event ragnes for event service
-                    if EventServiceUtils.isEventServiceMerge(job):
+                    # FIXME for SC14
+                    #if EventServiceUtils.isEventServiceMerge(job):
+                    if EventServiceUtils.isEventServiceMerge(job) and not siteName in ['BNL_PROD']:
                         # only for input
                         if not file.type in ['output','log']:
                             # get ranges
@@ -13101,6 +13103,12 @@ class DBProxy:
                     pass
                 # change special handling
                 EventServiceUtils.setEventServiceMerge(jobSpec)
+                # FIXME patch for SC14
+                if jobSpec.computingSite.startswith('NERSC_'):
+                    jobSpec.computingSite = jobSpec.destinationSE
+                    jobSpec.AtlasRelease = 'Atlas-19.1.4'
+                    jobSpec.homepackage = 'AtlasProduction/19.1.4.1'
+                    jobSpec.coreCount = 1
             # insert job with new PandaID
             sql1  = "INSERT INTO ATLAS_PANDA.jobsActive4 ({0}) ".format(JobSpec.columnNames())
             sql1 += JobSpec.bindValuesExpression(useSeq=True)
@@ -13502,10 +13510,14 @@ class DBProxy:
             # sql to get PandaIDs of consumers
             sqlCP  = "SELECT PandaID,specialHandling FROM ATLAS_PANDA.{0} "
             sqlCP += "WHERE jediTaskID=:jediTaskID AND jobsetID=:jobsetID "
+            sqlCP += "AND jobStatus IN (:st1,:st2,:st3) "
             # get PandaIDs
             varMap = {}
             varMap[':jediTaskID'] = job.jediTaskID
             varMap[':jobsetID']   = job.jobsetID
+            varMap[':st1'] = 'activated'
+            varMap[':st2'] = 'assigned'
+            varMap[':st3'] = 'waiting'
             self.cur.arraysize = 100000
             killPandaIDsMap = {}
             for tableName in ['jobsActive4','jobsDefined4','jobsWaiting4']:

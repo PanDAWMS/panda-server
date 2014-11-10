@@ -723,7 +723,7 @@ def getStatus(req,ids,timeout=60):
 
 # get a list of even ranges for a PandaID
 def getEventRanges(req,pandaID,jobsetID,nRanges=10,timeout=60):
-    _logger.debug("getEventRanges(PandaID=%s jobsetID=%s)" % (pandaID,jobsetID))
+    _logger.debug("getEventRanges(PandaID=%s jobsetID=%s nRanges=%s)" % (pandaID,jobsetID,nRanges))
     return jobDispatcher.getEventRanges(pandaID,jobsetID,nRanges,int(timeout))
 
 
