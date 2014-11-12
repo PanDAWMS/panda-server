@@ -22,6 +22,7 @@ from dataservice.Adder import Adder
 from dataservice.Finisher import Finisher
 from dataservice.MailUtils import MailUtils
 from dataservice import DataServiceUtils
+from dataservice.Closer import Closer
 from taskbuffer import ProcessGroups
 import brokerage.broker_util
 import brokerage.broker
@@ -275,10 +276,11 @@ class CloserThr (threading.Thread):
                     setTobeDeletedToDis(name)
                     # count # of files
                     status,out = ddm.DQ2.main('getNumberOfFiles',name)
-                    _logger.debug(out)                                            
                     if status != 0:
-                        _logger.error(out)                            
+                        if not "DQUnknownDatasetException" in out:
+                            _logger.error(out)
                     else:
+                        _logger.debug(out)                                            
                         try:
                             nFile = int(out)
                             _logger.debug(nFile)
@@ -355,8 +357,9 @@ class Freezer (threading.Thread):
             for vuid,name,modDate in self.datasets:
                 _logger.debug("start %s %s" % (modDate,name))
                 self.proxyLock.acquire()
-                retF,resF = taskBuffer.querySQLS("SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ lfn FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock AND NOT status IN (:status1,:status2,:status3)",
-                                             {':destinationDBlock':name,':status1':'ready',':status2':'failed',':status3':'skipped'})
+                retF,resF = taskBuffer.querySQLS("SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ lfn FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock AND NOT status IN (:status1,:status2,:status3,:status4)",
+                                             {':destinationDBlock':name,':status1':'ready',':status2':'failed',
+                                              ':status3':'skipped',':status4':'merging'})
                 self.proxyLock.release()
                 if retF<0:
                     _logger.error("SQL error")
@@ -364,7 +367,40 @@ class Freezer (threading.Thread):
                     # no files in filesTable
                     if len(resF) == 0:
                         _logger.debug("freeze %s " % name)
-                        if not name.startswith('pandaddm_'):
+                        if name.startswith('panda.um.'):
+                            self.proxyLock.acquire()
+                            retMer,resMer = taskBuffer.querySQLS("SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock AND status=:statusM ",
+                                                                 {':destinationDBlock':name,':statusM':'merging'})
+                            self.proxyLock.release()
+                            if resMer != None and len(resMer)>0:
+                                mergeID = resMer[0][0]
+                                # get merging jobs
+                                self.proxyLock.acquire()
+                                mergingJobs = taskBuffer.peekJobs([mergeID],fromDefined=False,fromArchived=False,fromWaiting=False)
+                                self.proxyLock.release()    
+                                mergeJob = mergingJobs[0]
+                                if mergeJob != None:
+                                    tmpDestDBlocks = []
+                                    # get destDBlock
+                                    for tmpFile in mergeJob.Files:
+                                        if tmpFile.type in ['output','log']:
+                                            if not tmpFile.destinationDBlock in tmpDestDBlocks:
+                                                tmpDestDBlocks.append(tmpFile.destinationDBlock)
+                                    # run
+                                    _logger.debug("start JEDI closer for %s " % name)
+                                    self.proxyLock.acquire()
+                                    cThr = Closer(taskBuffer,tmpDestDBlocks,mergeJob)
+                                    cThr.start()
+                                    cThr.join()
+                                    self.proxyLock.release()
+                                    _logger.debug("end JEDI closer for %s " % name)
+                                    continue
+                                else:
+                                    _logger.debug("failed to get merging job for %s " % name)
+                            else:
+                                _logger.debug("failed to get merging file for %s " % name)
+                            status,out = 0,''
+                        elif not name.startswith('pandaddm_'):
                             status,out = ddm.DQ2.main('freezeDataset',name)
                         else:
                             status,out = 0,''
@@ -380,16 +416,17 @@ class Freezer (threading.Thread):
                             taskBuffer.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status=:status,modificationdate=CURRENT_DATE WHERE vuid=:vuid",
                                              varMap)
                             self.proxyLock.release()                            
-                            if name.startswith('pandaddm_'):
+                            if name.startswith('pandaddm_') or name.startswith('panda.um.'):
                                 continue
                             # set tobedeleted to dis
                             setTobeDeletedToDis(name)
                             # count # of files
                             status,out = ddm.DQ2.main('getNumberOfFiles',name)
-                            _logger.debug(out)                                            
                             if status != 0:
-                                _logger.error(out)                            
+                                if not 'DQUnknownDatasetException' in out:
+                                    _logger.error(out)
                             else:
+                                _logger.debug(out)                                            
                                 try:
                                     nFile = int(out)
                                     _logger.debug(nFile)
@@ -413,7 +450,7 @@ class Freezer (threading.Thread):
                             
 # freeze dataset
 _logger.debug("==== freeze datasets ====")
-timeLimitU = datetime.datetime.utcnow() - datetime.timedelta(days=4)
+timeLimitU = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
 timeLimitL = datetime.datetime.utcnow() - datetime.timedelta(days=14)
 freezeLock = threading.Semaphore(5)
 freezeProxyLock = threading.Lock()

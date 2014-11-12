@@ -2869,7 +2869,7 @@ class DBProxy:
                     # get event ragnes for event service
                     # FIXME for SC14
                     #if EventServiceUtils.isEventServiceMerge(job):
-                    if EventServiceUtils.isEventServiceMerge(job) and not siteName in ['BNL_PROD']:
+                    if EventServiceUtils.isEventServiceMerge(job) and not siteName in ['BNL_PROD','BNL_CLOUD_MCORE']:
                         # only for input
                         if not file.type in ['output','log']:
                             # get ranges
@@ -12984,7 +12984,9 @@ class DBProxy:
             varMap[':esReady']     = EventServiceUtils.ST_ready
             _logger.debug(sqlEC+comment+str(varMap))
             self.cur.execute(sqlEC+comment, varMap)
-            # chenge status to done
+            nRowEC = self.cur.rowcount
+            _logger.debug("{0} : released {1} event ranges".format(methodName,nRowEC))
+            # change status to done
             sqlED  = "UPDATE {0}.JEDI_Events SET status=:newStatus ".format(panda_config.schemaJEDI)
             sqlED += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND status=:oldStatus "
             varMap = {}
@@ -12993,6 +12995,8 @@ class DBProxy:
             varMap[':oldStatus']  = EventServiceUtils.ST_finished
             varMap[':newStatus']  = EventServiceUtils.ST_done
             self.cur.execute(sqlED+comment, varMap)
+            nRowED = self.cur.rowcount
+            _logger.debug("{0} : set done to {1} event ranges".format(methodName,nRowED))
             # look for hopeless event ranges
             sqlEU  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sqlEU += "WHERE jediTaskID=:jediTaskID AND pandaID=:jobsetID AND attemptNr=:minAttempt AND rownum=1 "
@@ -13017,9 +13021,11 @@ class DBProxy:
             varMap = {}
             varMap[':jediTaskID']  = jobSpec.jediTaskID
             varMap[':jobsetID']    = jobSpec.jobsetID
+            _logger.debug(sqlERP+comment+str(varMap))
             self.cur.execute(sqlERP+comment, varMap)
             resERP = self.cur.fetchone()
             nRow, = resERP
+            _logger.debug("{0} : {1} unprocessed event ranges".format(methodName,nRow))
             otherRunning = False
             if nRow == 0:
                 # check if other consumers finished
@@ -13035,12 +13041,14 @@ class DBProxy:
                         varMap[':esDone']      = EventServiceUtils.ST_done
                         varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
                         varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
+                        _logger.debug(sqlEOC+comment+str(varMap))
                         self.cur.execute(sqlEOC+comment, varMap)
                         resEOC = self.cur.fetchone()
                         nOCRow, = resEOC
                         if nOCRow != 0:
                             # there are unprocessed ranges
                             otherRunning = True
+                            _logger.debug("{0} : {1} event ranges still running".format(methodName,nOCRow))
                             break
                 # do merging since all ranges were done
                 if not otherRunning:
@@ -13062,7 +13070,8 @@ class DBProxy:
             jobSpec.modificationTime = datetime.datetime.utcnow()
             jobSpec.attemptNr       += 1
             if not doMerging:
-                jobSpec.currentPriority -= 10
+                #jobSpec.currentPriority -= 10
+                pass
             jobSpec.endTime          = None
             jobSpec.transExitCode    = None
             for attr in jobSpec._attributes:

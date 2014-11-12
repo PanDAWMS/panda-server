@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * removed priority reduction for ES retry
+  * changed datasetManager to kick stalled merging jobs
   * fixed killUnusedEventServiceConsumers not to kill running consumers
   * added toreassign to the list of active task status
   * added --prodSourceLabel to killTask
