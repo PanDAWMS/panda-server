@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed Closer to update dataset status after unmerge datasets are updated
   * removed priority reduction for ES retry
   * changed datasetManager to kick stalled merging jobs
   * fixed killUnusedEventServiceConsumers not to kill running consumers

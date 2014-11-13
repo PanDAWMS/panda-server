@@ -12434,7 +12434,7 @@ class DBProxy:
 
 
     # update unmerged datasets to trigger merging
-    def updateUnmergedDatasets(self,job):
+    def updateUnmergedDatasets(self,job,finalStatusDS):
         comment = ' /* JediDBProxy.updateUnmergedDatasets */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <PandaID={0}>".format(job.PandaID)
@@ -12454,6 +12454,10 @@ class DBProxy:
         sqlUDS  = "UPDATE ATLAS_PANDA.JEDI_Datasets "
         sqlUDS += "SET status=:status "
         sqlUDS += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        # sql to update dataset status in panda
+        sqlUDP  = "UPDATE ATLAS_PANDA.Datasets "
+        sqlUDP += "SET status=:status "
+        sqlUDP += "WHERE vuid=:vuid "
         try:
             _logger.debug('{0} start'.format(methodName))
             # begin transaction
@@ -12498,6 +12502,13 @@ class DBProxy:
                         _logger.debug('{0} skip jediTaskID={1} datasetID={2}'.format(methodName,
                                                                                      tmpFile.jediTaskID,
                                                                                      tmpFile.datasetID))
+            # update dataset in panda
+            for datasetSpec in finalStatusDS:
+                varMap = {}
+                varMap[':vuid'] = datasetSpec.vuid 
+                varMap[':status'] = 'tobeclosed'
+                _logger.debug(methodName+' '+sqlUDP+comment+str(varMap))
+                self.cur.execute(sqlUDP+comment, varMap)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'

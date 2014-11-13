@@ -369,8 +369,10 @@ class Freezer (threading.Thread):
                         _logger.debug("freeze %s " % name)
                         if name.startswith('panda.um.'):
                             self.proxyLock.acquire()
-                            retMer,resMer = taskBuffer.querySQLS("SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock AND status=:statusM ",
-                                                                 {':destinationDBlock':name,':statusM':'merging'})
+                            retMer,resMer = taskBuffer.querySQLS("SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock AND status IN (:statusM,:statusF) ",
+                                                                 {':destinationDBlock':name,
+                                                                  ':statusM':'merging',
+                                                                  ':statusF':'failed'})
                             self.proxyLock.release()
                             if resMer != None and len(resMer)>0:
                                 mergeID = resMer[0][0]
@@ -460,7 +462,7 @@ while True:
     # lock
     freezeLock.acquire()
     # get datasets
-    sqlQuery = "type=:type AND status IN (:status1,:status2,:status3,:status4) " + \
+    sqlQuery = "type=:type AND status IN (:status1,:status2,:status3,:status4,:status5) " + \
                "AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND subType=:subType AND rownum <= %s" % maxRows
     varMap = {}
     varMap[':modificationdateU'] = timeLimitU
@@ -470,6 +472,7 @@ while True:
     varMap[':status2'] = 'created'
     varMap[':status3'] = 'defined'
     varMap[':status4'] = 'locked'    
+    varMap[':status5'] = 'doing'
     varMap[':subType'] = 'sub'
     freezeProxyLock.acquire()
     proxyS = taskBuffer.proxyPool.getProxy()
