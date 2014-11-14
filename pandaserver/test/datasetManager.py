@@ -357,9 +357,10 @@ class Freezer (threading.Thread):
             for vuid,name,modDate in self.datasets:
                 _logger.debug("start %s %s" % (modDate,name))
                 self.proxyLock.acquire()
-                retF,resF = taskBuffer.querySQLS("SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ lfn FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock AND NOT status IN (:status1,:status2,:status3,:status4)",
+                retF,resF = taskBuffer.querySQLS("SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ lfn FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock AND NOT status IN (:status1,:status2,:status3,:status4,:status5)",
                                              {':destinationDBlock':name,':status1':'ready',':status2':'failed',
-                                              ':status3':'skipped',':status4':'merging'})
+                                              ':status3':'skipped',':status4':'merging',
+                                              ':status5':'finished'})
                 self.proxyLock.release()
                 if retF<0:
                     _logger.error("SQL error")

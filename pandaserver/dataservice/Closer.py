@@ -281,7 +281,7 @@ class Closer:
                 finalizedFlag = self.taskBuffer.finalizePendingJobs(self.job.prodUserName,self.job.jobDefinitionID,waitLock=True)
                 _logger.debug('%s finalized with %s' % (self.pandaID,finalizedFlag))
             # update unmerged datasets in JEDI to trigger merging
-            if flagComplete and self.job.produceUnMerge():
+            if flagComplete and self.job.produceUnMerge() and finalStatusDS != []:
                 if finalizedFlag:
                     self.taskBuffer.updateUnmergedDatasets(self.job,finalStatusDS)
             # start notifier
