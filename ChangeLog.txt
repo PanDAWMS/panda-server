@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * disabled updating nFilesOnHold in updateJob by transferring pmerge
   * using new eventlookup client
   * check sub to reduce nFilesOnHold when merging is killed
   * added protection to updateUmergeDataset to avoid concurrent update

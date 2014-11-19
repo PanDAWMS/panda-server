@@ -1832,7 +1832,7 @@ class DBProxy:
                             self.cur.execute(sqlF+comment, varMap)
                         # actions for JEDI
                         if useJEDI and (job.jobStatus == 'transferring' or oldJobStatus == 'transferring') and \
-                                file.type in ['input','pseudo_input']:
+                                file.type in ['input','pseudo_input'] and job.processingType != 'pmerge':
                             # check file in JEDI
                             varMap = {}
                             varMap[':jediTaskID'] = file.jediTaskID
@@ -11871,7 +11871,7 @@ class DBProxy:
             if res != None:
                 if res[0] in ['ready','running','scouting','pending',
                               'topreprocess','preprocessing','aborting',
-                              'finishing','scouted','toreassign']:
+                              'finishing','scouted','toreassign','paused']:
                     retVal = True
         _logger.debug('checkTaskStatusJEDI jediTaskID=%s with %s' % (jediTaskID,retVal))            
         return retVal
