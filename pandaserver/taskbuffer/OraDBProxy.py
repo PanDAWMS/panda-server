@@ -13117,6 +13117,8 @@ class DBProxy:
                 pass
             jobSpec.endTime          = None
             jobSpec.transExitCode    = None
+            jobSpec.jobMetrics       = None
+            jobSpec.jobSubStatus     = None
             for attr in jobSpec._attributes:
                 if attr.endswith('ErrorCode') or attr.endswith('ErrorDiag'):
                     setattr(jobSpec,attr,None)
