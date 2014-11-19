@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * using new eventlookup client
   * check sub to reduce nFilesOnHold when merging is killed
   * added protection to updateUmergeDataset to avoid concurrent update
   * disabled updating nFilesOnHold by transferring for trn_*

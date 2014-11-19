@@ -376,7 +376,7 @@ class DBProxy:
                             varMap[':datasetID'] = file.datasetID
                             varMap[':pandaID'] = job.jobsetID
                             varMap[':fileID'] = file.fileID
-                            varMap[':attemptNr'] = 3
+                            varMap[':attemptNr'] = 10
                             varMap[':eventStatus'] = EventServiceUtils.ST_ready
                             varMap[':processedEvent'] = 0
                             varMap[':startEvent'] = eventServiceInfo[file.lfn]['startEvent'] + iEvent

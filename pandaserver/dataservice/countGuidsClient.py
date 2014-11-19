@@ -8,13 +8,27 @@ from eventLookupClient import eventLookupClient
 class countGuidsClient(eventLookupClient):
 
    #serverURL = "http://j2eeps.cern.ch/test-Athenaeum/"
-   serverURL = "http://j2eeps.cern.ch/atlas-project-Athenaeum/"
+   #serverURL = "http://j2eeps.cern.ch/atlas-project-Athenaeum/"
    #serverURL = "http://j2eeps.cern.ch/test-eventPicking/"
    servicePage = "CountGuids.jsp"
    getPage = "EventLookupGet.jsp"
 
    def __init__(self):
       eventLookupClient.__init__(self)
+
+
+   def countGuidsSSL(self, datasetName, query='', tokens=''):
+      """ contact the server and return GUIDs count
+      tokens - token names
+      """
+      args = " --form-string 'dataset=" + datasetName + "'"
+      if tokens != "": args = args + ' --form-string "tokens=' + tokens +'"'
+      if query != "" : args = args + ' --form-string "query=' + query + '"'
+
+      if self.talkToServerSSL("countGuids", args):
+         return None
+      return self.scanOutputForGuids()
+   
    
    def countGuids(self, datasetName, query='', tokens=''):
       """ contact the server and return GUIDs count

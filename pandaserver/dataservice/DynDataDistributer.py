@@ -1256,11 +1256,11 @@ class DynDataDistributer:
             tmpRunEvtList = runEvtList[iEventsTotal:iEventsTotal+nEventsPerLoop]
             iEventsTotal += nEventsPerLoop
             if streamName == '':
-                guidListELSSI = elssiIF.doLookup(tmpRunEvtList,tokens=streamRef,
-                                                 amitag=amiTag,extract=True)
+                guidListELSSI = elssiIF.doLookupSSL(tmpRunEvtList,tokens=streamRef,
+                                                    amitag=amiTag,extract=True)
             else:
-                guidListELSSI = elssiIF.doLookup(tmpRunEvtList,stream=streamName,tokens=streamRef,
-                                                 amitag=amiTag,extract=True)
+                guidListELSSI = elssiIF.doLookupSSL(tmpRunEvtList,stream=streamName,tokens=streamRef,
+                                                    amitag=amiTag,extract=True)
             # failed
             if guidListELSSI == None or len(guidListELSSI) == 0:
                 errStr = ''
@@ -1365,7 +1365,7 @@ class DynDataDistributer:
         # set
         from countGuidsClient import countGuidsClient
         tagIF = countGuidsClient()
-        tagResults = tagIF.countGuids(dsNameForLookUp,tagQuery,streamRef+',StreamTAG_ref')
+        tagResults = tagIF.countGuidsSSL(dsNameForLookUp,tagQuery,streamRef+',StreamTAG_ref')
         if tagResults == None:
             errStr = ''    
             for tmpLine in tagIF.output:
