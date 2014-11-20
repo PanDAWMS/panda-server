@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * updating nEvents when updateEventRange
   * reset jobSubStatus and jobMetrics in retried ES jobs
   * disabled updating nFilesOnHold in updateJob by transferring pmerge
   * using new eventlookup client

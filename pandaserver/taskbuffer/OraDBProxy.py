@@ -12906,6 +12906,18 @@ class DBProxy:
             sqlU += "SET status=:eventStatus"
             sqlU += " WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND fileID=:fileID "
             sqlU += "AND job_processID=:job_processID AND attemptNr=:attemptNr "
+            # sql to get event range
+            sqlC  = "SELECT def_min_eventID,def_max_eventID FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlC += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND fileID=:fileID "
+            sqlC += "AND job_processID=:job_processID "
+            # sql to get nvents
+            sqlE  = "SELECT nEvents FROM ATLAS_PANDA.jobsActive4 "
+            sqlE += "WHERE PandaID=:pandaID "
+            # sql to set nEvents
+            sqlS  = "UPDATE ATLAS_PANDA.jobsActive4 "
+            sqlS += "SET nEvents=:nEvents "
+            sqlS += "WHERE PandaID=:pandaID "
+            # sql to set CPU consumption
             sqlT  = "UPDATE ATLAS_PANDA.jobsActive4 "
             sqlT += "SET cpuConsumptionTime=cpuConsumptionTime+:actualCpuTime "
             sqlT += "WHERE PandaID=:PandaID "
@@ -12942,6 +12954,32 @@ class DBProxy:
             # update
             self.cur.execute(sqlU+comment, varMap)
             nRow = self.cur.rowcount
+            if nRow == 1 and eventStatus in ['finished']:
+                # get event range
+                varMap = {}
+                varMap[':jediTaskID'] = jediTaskID
+                varMap[':pandaID'] = pandaID
+                varMap[':fileID'] = fileID
+                varMap[':job_processID'] = job_processID
+                self.cur.execute(sqlC+comment, varMap)
+                resC = self.cur.fetchone()
+                if resC != None:
+                    minEventID,maxEventID = resC
+                    nEvents = maxEventID-minEventID+1
+                    # get nevents
+                    varMap = {}
+                    varMap[':pandaID'] = pandaID
+                    self.cur.execute(sqlE+comment, varMap)
+                    resE = self.cur.fetchone()
+                    if resE != None:
+                        nEventsOld, = resE
+                        if nEventsOld != None:
+                            nEvents += nEventsOld
+                        # update nevents
+                        varMap = {}
+                        varMap[':pandaID'] = pandaID
+                        varMap[':nEvents'] = nEvents
+                        self.cur.execute(sqlS+comment, varMap)
             # update cpuConsumptionTime
             if cpuConsumptionTime != None and eventStatus in ['finished','failed']:
                 varMap = {}
