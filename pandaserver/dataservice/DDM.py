@@ -37,7 +37,7 @@ class _DQMethod:
             self.methodName = args[0]
             args.pop(0)
         # build command
-        com  = 'from dq2.clientapi import DQ2; '
+        com  = 'from dq2.clientapi.DQ2 import DQ2; '
         if 'force_backend' in kwargs and kwargs['force_backend'] != None:
             com += 'dq2api = DQ2(force_backend="{0}"); '.format(kwargs['force_backend'])
         else:

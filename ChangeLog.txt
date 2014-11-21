@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed updateUnmergedDatasets to count nFiles in Contents
   * fixed AdderAtlas to take groupdisk into into account for registerFiles
   * added pauseTask and resumeTask
   * making GEN dis when input is in DQ2 even if ddm:rucio

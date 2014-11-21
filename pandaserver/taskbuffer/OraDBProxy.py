@@ -12473,10 +12473,13 @@ class DBProxy:
         # get PandaID which produced unmerged files
         umPandaIDs = []
         umCheckedIDs = []
+        # sql to get file counts
+        sqlGFC  = "SELECT status,COUNT(*) FROM ATLAS_PANDA.JEDI_Dataset_Contents "
+        sqlGFC += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID GROUP BY status "
         # sql to update nFiles in JEDI datasets
         sqlUNF  = "UPDATE ATLAS_PANDA.JEDI_Datasets "
-        sqlUNF += "SET nFilesOnHold=0,nFiles=nFilesFinished+nFilesFailed+nFilesOnHold,"
-        sqlUNF += "nFilesUsed=nFilesFinished+nFilesFailed,nFilesTobeUsed=nFilesFinished+nFilesFailed+nFilesOnHold "
+        sqlUNF += "SET nFilesOnHold=0,nFiles=:nFiles,"
+        sqlUNF += "nFilesUsed=:nFilesUsed,nFilesTobeUsed=:nFilesTobeUsed "
         sqlUNF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
         # sql to check nFiles
         sqlUCF  = "SELECT nFilesTobeUsed,nFilesUsed FROM ATLAS_PANDA.JEDI_Datasets "
@@ -12516,10 +12519,30 @@ class DBProxy:
                         if tmpFile.datasetID in updatedDS:
                             continue
                         updatedDS.append(tmpFile.datasetID)
+                        # get file counts
+                        varMap = {}
+                        varMap[':jediTaskID'] = tmpFile.jediTaskID
+                        varMap[':datasetID']  = tmpFile.datasetID
+                        self.cur.arraysize = 100
+                        _logger.debug(sqlGFC+comment+str(varMap))
+                        self.cur.execute(sqlGFC+comment, varMap)
+                        resListGFC = self.cur.fetchall()
+                        varMap = {}
+                        tmpNumFiles = 0
+                        tmpNumReady = 0
+                        for tmpFileStatus,tmpFileCount in resListGFC:
+                            if tmpFileStatus in ['finished','failed','cancelled','notmerged',
+                                                 'ready','lost','broken']:
+                                tmpNumFiles += tmpFileCount
+                                if tmpFileStatus in ['ready']:
+                                    tmpNumReady += tmpFileCount
                         # update nFiles
                         varMap = {}
                         varMap[':jediTaskID'] = tmpFile.jediTaskID
                         varMap[':datasetID']  = tmpFile.datasetID
+                        varMap[':nFiles'] = tmpNumFiles
+                        varMap[':nFilesTobeUsed'] = tmpNumFiles
+                        varMap[':nFilesUsed'] = tmpNumFiles-tmpNumReady
                         self.cur.arraysize = 10
                         _logger.debug(sqlUNF+comment+str(varMap))
                         self.cur.execute(sqlUNF+comment, varMap)
