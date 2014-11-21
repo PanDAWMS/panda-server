@@ -12333,6 +12333,12 @@ class DBProxy:
                 if comStr == 'reassign':
                     if not taskStatus in ['registered','defined','ready','running','scouting','scouted','pending','assigning']:
                         goForward = False
+                if comStr == 'pause':
+                    if taskStatus in ['finished','failed','done','aborted','broken','paused']:
+                        goForward = False
+                if comStr == 'resume':
+                    if not taskStatus in ['paused']:
+                        goForward = False
                 if not goForward:
                     retStr = 'Command rejected: the {0} command is not accepted if the task is in {1} status'.format(comStr,taskStatus)
                     _logger.debug("{0} : {1}".format(methodName,retStr))

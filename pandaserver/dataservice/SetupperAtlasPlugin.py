@@ -256,7 +256,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 # DDM backend
                 if not job.dispatchDBlock in backEndMap:
                     # check if rucio dataset
-                    if job.getDdmBackEnd() == 'rucio' and not self.checkRucioDataset(job.prodDBlock):
+                    if not self.checkRucioDataset(job.prodDBlock):
                         backEndMap[job.dispatchDBlock] = None
                     else:
                         backEndMap[job.dispatchDBlock] = job.getDdmBackEnd()
@@ -2015,7 +2015,10 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 tmpSeTokens = self.siteMapper.getSite(tmpJob.computingSite).setokens
                 if tmpSeTokens.has_key('ATLASPRODDISK'):
                     destDQ2ID = tmpSeTokens['ATLASPRODDISK']
-            ddmBackEnd = tmpJob.getDdmBackEnd()
+            if not self.checkRucioDataset(tmpJob.prodDBlock):
+                ddmBackEnd = None
+            else:
+                ddmBackEnd = tmpJob.getDdmBackEnd()
             mapKeyJob = (destDQ2ID,logSubDsName)
             # increment the number of jobs per key
             if not nJobsMap.has_key(mapKeyJob):
@@ -2083,8 +2086,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         for tmpSubFileName in subFileNames:
                             lfns.append(tmpFileList[tmpSubFileName]['lfn'])
                             guids.append(tmpFileList[tmpSubFileName]['guid'])
-                            fsizes.append(None)
-                            chksums.append(None)
+                            fsizes.append(long(tmpFileList[tmpSubFileName]['fileSpecs'][0].fsize))
+                            chksums.append(tmpFileList[tmpSubFileName]['fileSpecs'][0].checksum)
                             # set dis name
                             for tmpFileSpec in tmpFileList[tmpSubFileName]['fileSpecs']:
                                 if tmpFileSpec.status in ['ready'] and tmpFileSpec.dispatchDBlock == 'NULL':

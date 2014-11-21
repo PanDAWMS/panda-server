@@ -203,6 +203,9 @@ class AdderAtlasPlugin (AdderPluginBase):
                         if not dsDestMap.has_key(file.destinationDBlock):
                             if file.destinationDBlockToken in ['',None,'NULL']:
                                 tmpDestList = [self.siteMapper.getSite(self.job.computingSite).ddm]
+                            elif DataServiceUtils.getDestinationSE(file.destinationDBlockToken) != None and \
+                                    self.siteMapper.getSite(self.job.computingSite).ddm == self.siteMapper.getSite(file.destinationSE).ddm:
+                                tmpDestList = [DataServiceUtils.getDestinationSE(file.destinationDBlockToken)]
                             elif self.siteMapper.getSite(self.job.computingSite).cloud != self.job.cloud and \
                                     (not self.siteMapper.getSite(self.job.computingSite).ddm.endswith('PRODDISK')) and  \
                                     (not self.job.prodSourceLabel in ['user','panda']):

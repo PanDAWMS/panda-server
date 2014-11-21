@@ -1,6 +1,9 @@
 Release Note
 
 * current
+  * fixed AdderAtlas to take groupdisk into into account for registerFiles
+  * added pauseTask and resumeTask
+  * making GEN dis when input is in DQ2 even if ddm:rucio
   * updating nEvents when updateEventRange
   * reset jobSubStatus and jobMetrics in retried ES jobs
   * disabled updating nFilesOnHold in updateJob by transferring pmerge

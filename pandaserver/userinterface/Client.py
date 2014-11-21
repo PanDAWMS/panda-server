@@ -1595,3 +1595,79 @@ def changeTaskRamCount(jediTaskID,ramCount):
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR changeTaskRamCount : %s %s" % (errtype,errvalue)
         return EC_Failed,output+'\n'+errStr
+
+
+
+# pause task
+def pauseTask(jediTaskID,verbose=False):
+    """Pause task
+
+       args:
+           jediTaskID: jediTaskID of the task to pause
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           tuple of return code and diagnostic message
+                 0: request is registered
+                 1: server error
+                 2: task not found
+                 3: permission denied
+                 4: irrelevant task status
+               100: non SSL connection
+               101: irrelevant taskID 
+    """     
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+    curl.verbose = verbose    
+    # execute
+    url = baseURLSSL + '/pauseTask'
+    data = {'jediTaskID':jediTaskID}
+    data['properErrorCode'] = True
+    status,output = curl.post(url,data)
+    try:
+        return status,pickle.loads(output)
+    except:
+        errtype,errvalue = sys.exc_info()[:2]
+        errStr = "ERROR pauseTask : %s %s" % (errtype,errvalue)
+        return EC_Failed,output+'\n'+errStr
+
+
+
+# resume task
+def resumeTask(jediTaskID,verbose=False):
+    """Resume task
+
+       args:
+           jediTaskID: jediTaskID of the task to pause
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           tuple of return code and diagnostic message
+                 0: request is registered
+                 1: server error
+                 2: task not found
+                 3: permission denied
+                 4: irrelevant task status
+               100: non SSL connection
+               101: irrelevant taskID 
+    """     
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+    curl.verbose = verbose    
+    # execute
+    url = baseURLSSL + '/resumeTask'
+    data = {'jediTaskID':jediTaskID}
+    data['properErrorCode'] = True
+    status,output = curl.post(url,data)
+    try:
+        return status,pickle.loads(output)
+    except:
+        errtype,errvalue = sys.exc_info()[:2]
+        errStr = "ERROR resumeTask : %s %s" % (errtype,errvalue)
+        return EC_Failed,output+'\n'+errStr

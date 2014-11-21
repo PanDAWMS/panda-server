@@ -279,7 +279,7 @@ class JobSpec(object):
 
     # set DDM backend
     def setDdmBackEnd(self,backEnd):
-        if self.specialHandling == None:
+        if self.specialHandling in [None,'']:
             self.specialHandling = 'ddm:'+backEnd
         else:
             if 'ddm:' in self.specialHandling:

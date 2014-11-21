@@ -911,6 +911,22 @@ class UserIF:
         return ret
 
 
+    # pause task
+    def pauseTask(self,jediTaskID,user,prodRole):
+        # exec
+        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'pause',properErrorCode=True)
+        # return
+        return ret
+
+
+    # resume task
+    def resumeTask(self,jediTaskID,user,prodRole):
+        # exec
+        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'resume',properErrorCode=True)
+        # return
+        return ret
+
+
     # get retry history
     def getRetryHistory(self,jediTaskID,user):
         # get
@@ -1948,4 +1964,58 @@ def changeTaskAttributePanda(req,jediTaskID,attrName,attrValue):
     if not attrName in ['ramCount','wallTime']:
         return "Failed : disallowed to update {0}".format(attrName)
     ret = userIF.changeTaskAttributePanda(jediTaskID,attrName,attrValue)
+    return pickle.dumps(ret)
+
+
+
+# pause task
+def pauseTask(req,jediTaskID):
+    # check security
+    if not isSecure(req):
+        if properErrorCode:
+            return pickle.dumps((100,'secure connection is required'))
+        else:
+            return pickle.dumps((False,'secure connection is required'))
+    # get DN
+    user = None
+    if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        user = _getDN(req)        
+    # check role
+    prodRole = _isProdRoleATLAS(req)
+    # check jediTaskID
+    try:
+        jediTaskID = long(jediTaskID)
+    except:
+        if properErrorCode:
+            return pickle.dumps((101,'jediTaskID must be an integer'))        
+        else:
+            return pickle.dumps((False,'jediTaskID must be an integer'))
+    ret = userIF.pauseTask(jediTaskID,user,prodRole)
+    return pickle.dumps(ret)
+
+
+
+# resume task
+def resumeTask(req,jediTaskID):
+    # check security
+    if not isSecure(req):
+        if properErrorCode:
+            return pickle.dumps((100,'secure connection is required'))
+        else:
+            return pickle.dumps((False,'secure connection is required'))
+    # get DN
+    user = None
+    if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        user = _getDN(req)        
+    # check role
+    prodRole = _isProdRoleATLAS(req)
+    # check jediTaskID
+    try:
+        jediTaskID = long(jediTaskID)
+    except:
+        if properErrorCode:
+            return pickle.dumps((101,'jediTaskID must be an integer'))        
+        else:
+            return pickle.dumps((False,'jediTaskID must be an integer'))
+    ret = userIF.resumeTask(jediTaskID,user,prodRole)
     return pickle.dumps(ret)
