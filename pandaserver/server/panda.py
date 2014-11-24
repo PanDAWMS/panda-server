@@ -64,7 +64,8 @@ from userinterface.UserIF        import submitJobs,getJobStatus,queryPandaIDs,ki
      getDisInUseForAnal,getLFNsInUseForAnal,getScriptOfflineRunning,setDebugMode,\
      insertSandboxFileInfo,checkSandboxFile,changeJobPriorities,insertTaskParams,\
      killTask,finishTask,getCmtConfigList,getJediTasksInTimeRange,getJediTaskDetails,\
-     retryTask,getRetryHistory,changeTaskPriority,reassignTask,changeTaskAttributePanda
+     retryTask,getRetryHistory,changeTaskPriority,reassignTask,changeTaskAttributePanda,\
+     pauseTask,resumeTask
 allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reassignJobs',
                    'getJobStatistics','getJobStatisticsPerSite','resubmitJobs','queryLastFilesInDataset','getPandaIDsSite',
                    'getJobsToBeUpdated','updateProdDBUpdateTimes','runTaskAssignment','getAssigningTask','getSiteSpecs',
@@ -79,7 +80,8 @@ allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reass
                    'getDisInUseForAnal','getLFNsInUseForAnal','getScriptOfflineRunning','setDebugMode',
                    'insertSandboxFileInfo','checkSandboxFile','changeJobPriorities','insertTaskParams',
                    'killTask','finishTask','getCmtConfigList','getJediTasksInTimeRange','getJediTaskDetails',
-                   'retryTask','getRetryHistory','changeTaskPriority','reassignTask','changeTaskAttributePanda']
+                   'retryTask','getRetryHistory','changeTaskPriority','reassignTask','changeTaskAttributePanda',
+                   'pauseTask','resumeTask']
 
 # import error
 import taskbuffer.ErrorCode

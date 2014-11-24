@@ -1625,7 +1625,6 @@ def pauseTask(jediTaskID,verbose=False):
     # execute
     url = baseURLSSL + '/pauseTask'
     data = {'jediTaskID':jediTaskID}
-    data['properErrorCode'] = True
     status,output = curl.post(url,data)
     try:
         return status,pickle.loads(output)
@@ -1663,7 +1662,6 @@ def resumeTask(jediTaskID,verbose=False):
     # execute
     url = baseURLSSL + '/resumeTask'
     data = {'jediTaskID':jediTaskID}
-    data['properErrorCode'] = True
     status,output = curl.post(url,data)
     try:
         return status,pickle.loads(output)
