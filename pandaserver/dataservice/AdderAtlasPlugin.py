@@ -56,12 +56,16 @@ class AdderAtlasPlugin (AdderPluginBase):
     def execute(self):
         try:
             self.logger.debug("start plugin : %s" % self.jobStatus)
+            # backend
+            self.ddmBackEnd = self.job.getDdmBackEnd()
+            if self.ddmBackEnd == None:
+                self.ddmBackEnd = 'dq2'
             # instantiate DQ2
-            if self.job.getDdmBackEnd() == 'rucio':
-                self.dq2api = DQ2.DQ2(force_backend='rucio')
+            if self.ddmBackEnd != None:
+                self.dq2api = DQ2.DQ2(force_backend=self.ddmBackEnd)
             else:
                 self.dq2api = DQ2.DQ2()
-            self.logger.debug("ddm backend = {0}".format(self.job.getDdmBackEnd()))
+            self.logger.debug("ddm backend = {0}".format(self.ddmBackEnd))
             # add files only to top-level datasets for transferring jobs
             if self.job.jobStatus == 'transferring':
                 self.addToTopOnly = True
@@ -223,7 +227,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                                         tmpDestList.append(tmpDest)
                             dsDestMap[file.destinationDBlock] = tmpDestList
                     # extra meta data
-                    if self.job.getDdmBackEnd() == 'rucio':
+                    if self.ddmBackEnd == 'rucio':
                         if file.lfn in self.extraInfo['lbnr']:
                             fileAttrs['lumiblocknr'] = self.extraInfo['lbnr'][file.lfn]
                         if file.lfn in self.extraInfo['nevents']:
@@ -410,11 +414,11 @@ class AdderAtlasPlugin (AdderPluginBase):
                          self.logger.debug('%s %s' % ('registerFilesInDatasets',str(tmpIdMap)))
                          self.dq2api.registerFilesInDatasets(tmpIdMap)
                      else:
-                         regMsgStr = "LFC+DQ2 registraion with backend={0} for {1} files ".format(self.job.getDdmBackEnd(),
+                         regMsgStr = "LFC+DQ2 registraion with backend={0} for {1} files ".format(self.ddmBackEnd,
                                                                                                   regNumFiles)
                          self.logger.debug('%s %s %s' % ('Register.registerFilesInDatasets',tmpDest,str(tmpIdMap)))
-                         if self.job.getDdmBackEnd() == 'rucio':
-                             registerAPI = Register2.Register(tmpDest,force_backend='rucio')
+                         if self.ddmBackEnd != None:
+                             registerAPI = Register2.Register(tmpDest,force_backend=self.ddmBackEnd)
                          else:    
                              registerAPI = Register2.Register(tmpDest)
                          out = registerAPI.registerFilesInDatasets(tmpIdMap)

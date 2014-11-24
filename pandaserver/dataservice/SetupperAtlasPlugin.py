@@ -329,6 +329,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 # register dispatch dataset
                 disFiles = fileList[dispatchDBlock]
                 ddmBackEnd = backEndMap[dispatchDBlock]
+                if ddmBackEnd == None:
+                    ddmBackEnd = 'dq2'
                 tmpMsg = 'registerNewDataset {ds} {lfns} {guids} {fsizes} {chksums} rse={rse} backend={backend}'
                 self.logger.debug(tmpMsg.format(ds=dispatchDBlock,
                                                 lfns=str(disFiles['lfns']),
@@ -544,16 +546,20 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                 tmpHiddenFlag = False
                                 if name != originalName and re.search('_sub\d+$',name) != None:
                                     tmpHiddenFlag = True
+                                # backend
+                                ddmBackEnd = job.getDdmBackEnd()
+                                if ddmBackEnd == None:
+                                    ddmBackEnd = 'dq2'
                                 # register dataset
                                 self.logger.debug('registerNewDataset {name} force_backend={force_backend} rse={rse}'.format(name=name,
                                                                                                                              rse=dq2IDList[0],
-                                                                                                                             force_backend=job.getDdmBackEnd()))
+                                                                                                                             force_backend=ddmBackEnd))
                                 atFailed = 0
                                 for iDDMTry in range(3):
                                     status,out = ddm.DQ2.main('registerNewDataset',name,[],[],[],[],
                                                               None,None,None,tmpHiddenFlag,
                                                               rse=dq2IDList[0],
-                                                              force_backend=job.getDdmBackEnd())
+                                                              force_backend=ddmBackEnd)
                                     if status != 0 and out.find('DQDatasetExistsException') != -1:
                                         atFailed = iDDMTry
                                         break
@@ -601,11 +607,11 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                         self.logger.debug('registerDatasetLocation {name} {dq2ID} {repLifeTime} backend={backend}'.format(name=name,
                                                                                                                                           dq2ID=dq2ID,
                                                                                                                                           repLifeTime=repLifeTime,
-                                                                                                                                          backend=job.getDdmBackEnd(),
+                                                                                                                                          backend=ddmBackEnd,
                                                                                                                                           ))
                                         for iDDMTry in range(3):                            
                                             status,out = ddm.DQ2.main('registerDatasetLocation',name,dq2ID,0,0,None,None,None,repLifeTime,
-                                                                      force_backend=job.getDdmBackEnd())
+                                                                      force_backend=ddmBackEnd)
                                             if status != 0 and out.find('DQLocationExistsException') != -1:
                                                 break
                                             elif status != 0 or out.find("DQ2 internal server exception") != -1 \
@@ -773,6 +779,10 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             # ignore no dispatch jobs
             if job.dispatchDBlock=='NULL' or job.computingSite=='NULL':
                 continue
+            # backend                                                                                                                                                         
+            ddmBackEnd = job.getDdmBackEnd()
+            if ddmBackEnd == None:
+                ddmBackEnd = 'dq2'
             # extract dispatchDBlock and computingSite
             disp = (job.dispatchDBlock,job.computingSite)
             if dispError.has_key(disp) == 0:
@@ -870,11 +880,11 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                             self.logger.debug('registerDatasetLocation {ds} {dq2ID} {lifeTime} backend={backend}'.format(ds=job.dispatchDBlock,
                                                                                                                          dq2ID=dq2ID,
                                                                                                                          lifeTime="7 days",
-                                                                                                                         backend=job.getDdmBackEnd(),
+                                                                                                                         backend=ddmBackEnd,
                                                                                                                          ))
                             for iDDMTry in range(3):                                            
                                 status,out = ddm.DQ2.main('registerDatasetLocation',job.dispatchDBlock,dq2ID,0,1,None,None,None,"7 days",
-                                                          force_backend=job.getDdmBackEnd())
+                                                          force_backend=ddmBackEnd)
                                 if status != 0 or out.find("DQ2 internal server exception") != -1 \
                                        or out.find("An error occurred on the central catalogs") != -1 \
                                        or out.find("MySQL server has gone away") != -1:
@@ -965,12 +975,12 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                                         {'version':0,'archived':0,'callbacks':optSub,'sources':optSource,'sources_policy':optSrcPolicy,
                                                          'wait_for_sources':0,'destination':None,'query_more_sources':0,'sshare':optShare,'group':None,
                                                          'activity':"Production",'acl_alias':None,'replica_lifetime':"7 days",
-                                                         'force_backend':job.getDdmBackEnd()}))
+                                                         'force_backend':ddmBackEnd}))
                         for iDDMTry in range(3):                                                                
                             status,out = ddm.DQ2.main('registerDatasetSubscription',job.dispatchDBlock,dq2ID,version=0,archived=0,callbacks=optSub,
                                                       sources=optSource,sources_policy=optSrcPolicy,wait_for_sources=0,destination=None,
                                                       query_more_sources=0,sshare=optShare,group=None,activity=optActivity,
-                                                      acl_alias=None,replica_lifetime="7 days",force_backend=job.getDdmBackEnd())
+                                                      acl_alias=None,replica_lifetime="7 days",force_backend=ddmBackEnd)
                             if status != 0 or out.find("DQ2 internal server exception") != -1 \
                                    or out.find("An error occurred on the central catalogs") != -1 \
                                    or out.find("MySQL server has gone away") != -1:
@@ -2015,10 +2025,13 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 tmpSeTokens = self.siteMapper.getSite(tmpJob.computingSite).setokens
                 if tmpSeTokens.has_key('ATLASPRODDISK'):
                     destDQ2ID = tmpSeTokens['ATLASPRODDISK']
+            # backend
             if not self.checkRucioDataset(tmpJob.prodDBlock):
                 ddmBackEnd = None
             else:
                 ddmBackEnd = tmpJob.getDdmBackEnd()
+            if ddmBackEnd == None:
+                ddmBackEnd = 'dq2'
             mapKeyJob = (destDQ2ID,logSubDsName)
             # increment the number of jobs per key
             if not nJobsMap.has_key(mapKeyJob):

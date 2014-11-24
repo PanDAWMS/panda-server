@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * using force_backend=dq2 when backend is unspecified
   * fixed for pauseTask and resumeTask
   * fixed updateUnmergedDatasets to count nFiles in Contents
   * fixed AdderAtlas to take groupdisk into into account for registerFiles
