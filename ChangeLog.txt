@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * enabled ES merging
   * using force_backend=dq2 when backend is unspecified
   * fixed for pauseTask and resumeTask
   * fixed updateUnmergedDatasets to count nFiles in Contents

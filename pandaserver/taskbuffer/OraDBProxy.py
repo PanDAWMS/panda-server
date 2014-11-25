@@ -2870,9 +2870,7 @@ class DBProxy:
                     if not EventServiceUtils.isEventServiceMerge(job) or file.type in ['output','log']: 
                         job.addFile(file)
                     # get event ragnes for event service
-                    # FIXME for SC14
-                    #if EventServiceUtils.isEventServiceMerge(job):
-                    if EventServiceUtils.isEventServiceMerge(job) and not siteName in ['BNL_PROD','BNL_CLOUD_MCORE']:
+                    if EventServiceUtils.isEventServiceMerge(job):
                         # only for input
                         if not file.type in ['output','log']:
                             # get ranges
@@ -13224,12 +13222,9 @@ class DBProxy:
                     pass
                 # change special handling
                 EventServiceUtils.setEventServiceMerge(jobSpec)
-                # FIXME patch for SC14
-                if jobSpec.computingSite.startswith('NERSC_'):
-                    jobSpec.computingSite = jobSpec.destinationSE
-                    jobSpec.AtlasRelease = 'Atlas-19.1.4'
-                    jobSpec.homepackage = 'AtlasProduction/19.1.4.1'
-                    jobSpec.coreCount = 1
+                # run merge jobs at destination 
+                jobSpec.computingSite = jobSpec.destinationSE
+                jobSpec.coreCount = None
             # insert job with new PandaID
             sql1  = "INSERT INTO ATLAS_PANDA.jobsActive4 ({0}) ".format(JobSpec.columnNames())
             sql1 += JobSpec.bindValuesExpression(useSeq=True)
