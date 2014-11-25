@@ -20,8 +20,11 @@ esMergeToken = 'esmerge'
 
 
 # encode file info
-def encodeFileInfo(lfn,startEvent,endEvent,nEventsPerWorker):
-    return '{0}/{1}/{2}/{3}^'.format(lfn,startEvent,endEvent,nEventsPerWorker)
+def encodeFileInfo(lfn,startEvent,endEvent,nEventsPerWorker,maxAttempt=None):
+    if maxAttempt == None:
+        return '{0}/{1}/{2}/{3}^'.format(lfn,startEvent,endEvent,nEventsPerWorker)
+    else:
+        return '{0}/{1}/{2}/{3}/{4}^'.format(lfn,startEvent,endEvent,nEventsPerWorker,maxAttempt)
 
 
 
@@ -49,15 +52,20 @@ def decodeFileInfo(specialHandling):
                     if esItem == '':
                         continue
                     esItems = esItem.split('/')
+                    maxAttempt = 10
                     if len(esItems) == 3:
                         esLFN,esEvents,esRange = esItems
                         esStartEvent = 0
+                    elif len(esItems) == 5:
+                        esLFN,esStartEvent,esEndEvent,esRange,maxAttempt = esItems
+                        esEvents = long(esEndEvent) - long(esStartEvent) + 1
                     else:
                         esLFN,esStartEvent,esEndEvent,esRange = esItems
                         esEvents = long(esEndEvent) - long(esStartEvent) + 1
                     eventServiceInfo[esLFN] = {'nEvents':long(esEvents),
                                                'startEvent':long(esStartEvent),
-                                               'nEventsPerRange':long(esRange)}
+                                               'nEventsPerRange':long(esRange),
+                                               'maxAttempt':long(maxAttempt)}
                 newSpecialHandling += '{0},'.format(esToken)
             else:
                 newSpecialHandling += '{0},'.format(tmpItem)

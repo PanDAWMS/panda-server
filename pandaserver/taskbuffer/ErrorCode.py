@@ -45,6 +45,9 @@ EC_EventServiceWaitOthers = 115
 # killed since unused and unnecessary any more 
 EC_EventServiceUnused = 116
 
+# didn't process any events on WN
+EC_EventServiceUnprocessed = 117
+
 
 
 # file not found

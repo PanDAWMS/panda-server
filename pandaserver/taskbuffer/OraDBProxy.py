@@ -376,7 +376,7 @@ class DBProxy:
                             varMap[':datasetID'] = file.datasetID
                             varMap[':pandaID'] = job.jobsetID
                             varMap[':fileID'] = file.fileID
-                            varMap[':attemptNr'] = 10
+                            varMap[':attemptNr'] = eventServiceInfo[file.lfn]['maxAttempt']
                             varMap[':eventStatus'] = EventServiceUtils.ST_ready
                             varMap[':processedEvent'] = 0
                             varMap[':startEvent'] = eventServiceInfo[file.lfn]['startEvent'] + iEvent
@@ -1153,6 +1153,11 @@ class DBProxy:
                         job.taskBufferErrorDiag = 'no further action since other Event ServiceEvent Service consumers were still running'
                         # kill unused
                         self.killUnusedEventServiceConsumers(job,False)
+                    elif retEvS == 5:
+                        # didn't process any event ranges
+                        job.jobStatus = 'cancelled'
+                        job.taskBufferErrorCode = ErrorCode.EC_EventServiceUnprocessed
+                        job.taskBufferErrorDiag = "didn't process any events on WN for Event Service"
                 # delete from jobsDefined/Active
                 varMap = {}
                 varMap[':PandaID'] = job.PandaID
@@ -13045,6 +13050,7 @@ class DBProxy:
             # 2 : generated a merge job
             # 3 : max attempts reached
             # 4 : not generated a merge job since other consumers are still running
+            # 5 : didn't process any events on WN
             # None : fatal error
             retValue = 1,None
             # begin transaction
@@ -13105,6 +13111,15 @@ class DBProxy:
             self.cur.execute(sqlED+comment, varMap)
             nRowED = self.cur.rowcount
             _logger.debug("{0} : set done to {1} event ranges".format(methodName,nRowED))
+            # fail immediately if didn't process any event ranges
+            if nRowED == 0:
+                _logger.debug("{0} : no more retry since did't process any event ranges on WN".format(methodName))
+                # commit
+                if useCommit:
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+                retValue = 5,None
+                return retValue
             # look for hopeless event ranges
             sqlEU  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sqlEU += "WHERE jediTaskID=:jediTaskID AND pandaID=:jobsetID AND attemptNr=:minAttempt AND rownum=1 "
