@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed copyArchive to kick assigned analysis jobs if they are not activated in 12h
   * changed for maxAttemptES
   * enabled ES merging
   * using force_backend=dq2 when backend is unspecified
