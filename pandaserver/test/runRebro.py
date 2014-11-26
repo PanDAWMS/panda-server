@@ -134,18 +134,42 @@ try:
     varMap[':jobStatus2']       = 'throttled'
     # get jobs older than threshold
     ret,res = taskBuffer.querySQLS(sql, varMap)
+    resList = []
+    if res != None:
+        for tmpItem in res:
+            resList.append(tmpItem)
+    # get stalled assigned job 
+    sqlA  = "SELECT jobDefinitionID,prodUserName,prodUserID,computingSite,MAX(creationTime),jediTaskID,processingType "
+    sqlA += "FROM ATLAS_PANDA.jobsDefined4 "
+    sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND jobStatus IN (:jobStatus1,:jobStatus2) "
+    sqlA += "AND creationTime<:modificationTime AND lockedBy=:lockedBy "
+    sqlA += "GROUP BY jobDefinitionID,prodUserName,prodUserID,computingSite,jediTaskID,processingType "
+    varMap = {}
+    varMap[':prodSourceLabel1'] = 'user'
+    varMap[':prodSourceLabel2'] = 'panda'
+    varMap[':modificationTime'] = sortTimeLimit
+    varMap[':lockedBy']         = 'jedi'
+    varMap[':jobStatus1']       = 'assigned'
+    #varMap[':jobStatus2']       = 'defined'
+    varMap[':jobStatus2']       = 'dummy'
+    retA,resA = taskBuffer.querySQLS(sqlA, varMap)
+    if resA != None:
+        for tmpItem in resA:
+            if not tmpItem in resList:
+                resList.append(tmpItem)
+    # sql to check recent activity
     sql  = "SELECT PandaID,modificationTime FROM %s WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
     sql += "AND modificationTime>:modificationTime AND rownum <= 1"
     # sql to get associated jobs with jediTaskID
     sqlJJ = "SELECT PandaID FROM %s WHERE jediTaskID=:jediTaskID AND jobStatus IN (:jobS1,:jobS2,:jobS3,:jobS4) AND jobDefinitionID=:jobDefID "
-    if res != None:
+    if resList != []:
         from userinterface.ReBroker import ReBroker
         recentRuntimeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
         # loop over all user/jobID combinations
         iComb = 0
-        nComb = len(res)
+        nComb = len(resList)
         _logger.debug("total combinations = %s" % nComb)
-        for jobDefinitionID,prodUserName,prodUserID,computingSite,maxModificationTime,jediTaskID,processingType in res:
+        for jobDefinitionID,prodUserName,prodUserID,computingSite,maxModificationTime,jediTaskID,processingType in resList:
             # check time if it is closed to log-rotate
             timeNow  = datetime.datetime.now(pytz.timezone('Europe/Zurich'))
             timeCron = timeNow.replace(hour=4,minute=0,second=0,microsecond=0)

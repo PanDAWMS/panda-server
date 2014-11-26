@@ -672,29 +672,6 @@ if len(jediJobs) != 0:
         iJob += nJob
 
 
-# reassign long-waiting assigned analysis jobs
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
-status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsDefined4",timeLimit,['assigned'],['user'],[],[],[],
-                                            True)
-jobs = []
-jediJobs = []
-if res != None:
-    for (id,lockedby) in res:
-        if lockedby == 'jedi':
-            jediJobs.append(id)
-        else:
-            jobs.append(id)
-# reassign
-_logger.debug('reassignJobs for long assigned analysis JEDI -> #%s' % len(jediJobs))
-if len(jediJobs) != 0:
-    nJob = 100
-    iJob = 0
-    while iJob < len(jediJobs):
-        _logger.debug('reassignJobs for long assigned analysis JEDI (%s)' % jediJobs[iJob:iJob+nJob])
-        Client.killJobs(jediJobs[iJob:iJob+nJob],51)
-        iJob += nJob
-
-
 # reassign too long-standing evgen/simul jobs with active state at T1
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
 for tmpCloud in siteMapper.getCloudList():
