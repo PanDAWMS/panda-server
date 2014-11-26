@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * fixed typo in copyArchive
+  * considering high prio before mcore in the brokerage
   * forcing ddmBackEnd=rucio for anal tasks
   * changed copyArchive to kick assigned analysis jobs if they are not activated in 12h
   * changed for maxAttemptES

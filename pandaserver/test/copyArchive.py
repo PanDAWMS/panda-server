@@ -685,7 +685,7 @@ if res != None:
         else:
             jobs.append(id)
 # reassign
-_logger.debug('reassignJobs for long assigned analysis JEDI' % len(jediJobs))
+_logger.debug('reassignJobs for long assigned analysis JEDI -> #%s' % len(jediJobs))
 if len(jediJobs) != 0:
     nJob = 100
     iJob = 0

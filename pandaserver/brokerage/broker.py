@@ -648,6 +648,15 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     specialBrokergageSiteList = currentT2CandList
                     tmpLog.debug('PandaID:%s -> set SiteList=%s to use T2 for missing files at T1' % (job.PandaID,specialBrokergageSiteList))
                     brokerageNote = 'useT2'
+            # set computingSite to T1 for high priority jobs
+            if job != None and job.currentPriority >= 950 and job.computingSite == 'NULL' \
+                   and job.prodSourceLabel in ('test','managed') and specialBrokergageSiteList == []:
+                specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source']]
+                # set site list to use T1 and T1_VL
+                if hospitalQueueMap.has_key(job.cloud):
+                    specialBrokergageSiteList += hospitalQueueMap[job.cloud]
+                tmpLog.debug('PandaID:%s -> set SiteList=%s for high prio' % (job.PandaID,specialBrokergageSiteList))
+                brokerageNote = 'highPrio'
             # use limited sites for MP jobs
             if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
                    and not job.coreCount in [None,'NULL'] and job.coreCount > 1 and specialBrokergageSiteList == []:
@@ -658,15 +667,6 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             specialBrokergageSiteList.append(tmpSiteName)
                 tmpLog.debug('PandaID:%s -> set SiteList=%s for MP=%scores' % (job.PandaID,specialBrokergageSiteList,job.coreCount))
                 brokerageNote = 'MP=%score' % job.coreCount
-            # set computingSite to T1 for high priority jobs
-            if job != None and job.currentPriority >= 950 and job.computingSite == 'NULL' \
-                   and job.prodSourceLabel in ('test','managed') and specialBrokergageSiteList == []:
-                specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source']]
-                # set site list to use T1 and T1_VL
-                if hospitalQueueMap.has_key(job.cloud):
-                    specialBrokergageSiteList += hospitalQueueMap[job.cloud]
-                tmpLog.debug('PandaID:%s -> set SiteList=%s for high prio' % (job.PandaID,specialBrokergageSiteList))
-                brokerageNote = 'highPrio'
             # set computingSite to T1 when too many inputs are required
             """    
             if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
