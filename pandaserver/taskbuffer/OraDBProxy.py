@@ -2890,9 +2890,20 @@ class DBProxy:
                                 tmpEventRangeID = self.makeEventRangeID(file.jediTaskID,esPandaID,file.fileID,job_processID,attemptNr)
                                 if not eventRangeIDs.has_key(file.fileID):
                                     eventRangeIDs[file.fileID] = {}
-                                eventRangeIDs[file.fileID][job_processID] = tmpEventRangeID
-                                if not esPandaID in esDonePandaIDs:
-                                    esDonePandaIDs.append(esPandaID)
+                                addFlag = False
+                                if not job_processID in eventRangeIDs[file.fileID]:
+                                    addFlag= True
+                                else:
+                                    oldEsPandaID = eventRangeIDs[file.fileID][job_processID]['pandaID']
+                                    if esPandaID > oldEsPandaID:
+                                        addFlag= True
+                                        if oldEsPandaID in esDonePandaIDs:
+                                            esDonePandaIDs.remove(oldEsPandaID)
+                                if addFlag:
+                                    eventRangeIDs[file.fileID][job_processID] = {'pandaID':esPandaID,
+                                                                                 'eventRangeID':tmpEventRangeID}
+                                    if not esPandaID in esDonePandaIDs:
+                                        esDonePandaIDs.append(esPandaID)
                 # make input for event service output merging
                 mergeInputOutputMap = {}
                 mergeInputFiles = []
@@ -2907,7 +2918,8 @@ class DBProxy:
                             tmpInputFileSpec = copy.copy(tmpFileSpec)
                             tmpInputFileSpec.type = 'input'
                             # append eventRangeID as suffix
-                            tmpInputFileSpec.lfn  = tmpInputFileSpec.lfn + '.' + tmpMapEventRangeID[jobProcessID]
+                            tmpInputFileSpec.lfn  = tmpInputFileSpec.lfn + \
+                                '.' + tmpMapEventRangeID[jobProcessID]['eventRangeID']
                             # add file
                             mergeInputFiles.append(tmpInputFileSpec)
                             # make input/output map
