@@ -10,11 +10,13 @@ import time
 import fcntl
 import datetime
 import commands
+import exceptions
 import xml.dom.minidom
 import ErrorCode
 from dq2.clientapi import DQ2
 from dq2.filecatalog.FileCatalogUnknownFactory import FileCatalogUnknownFactory
 from dq2.filecatalog.FileCatalogException import FileCatalogException
+from rucio.common.exception import FileConsistencyMismatch
 
 try:
     from dq2.clientapi.cli import Register2
@@ -406,7 +408,9 @@ class AdderAtlasPlugin (AdderPluginBase):
                  setErrorDiag = False
                  out = 'OK'
                  fatalErrStrs = ['[ORA-00001] unique constraint (ATLAS_DQ2.UQ_01_FILES_GUID) violated',
-                                 '[USER][OTHER] Parameter value [None] is not a valid uid!']
+                                 '[USER][OTHER] Parameter value [None] is not a valid uid!',
+                                 'FileConsistencyMismatch',
+                                 'Problem validating attachment']
                  regStart = datetime.datetime.utcnow()
                  try:
                      if not self.useCentralLFC():
@@ -433,7 +437,9 @@ class AdderAtlasPlugin (AdderPluginBase):
                          DQ2.DQFileMetaDataMismatchException,
                          FileCatalogUnknownFactory,
                          FileCatalogException,
-                         RucioFileCatalogException):
+                         RucioFileCatalogException,
+                         FileConsistencyMismatch,
+                         exceptions.KeyError):
                      # fatal errors
                      errType,errValue = sys.exc_info()[:2]
                      out = '%s : %s' % (errType,errValue)
@@ -507,7 +513,8 @@ class AdderAtlasPlugin (AdderPluginBase):
                                 out = '%s : %s' % (errType,errValue)
                                 isFailed = True
                                 if 'is not a Tiers of Atlas Destination' in str(errValue) or \
-                                        'is not in Tiers of Atlas' in str(errValue):
+                                        'is not in Tiers of Atlas' in str(errValue) or \
+                                        'used/quota' in str(errValue):
                                     # fatal error
                                     self.job.ddmErrorCode = ErrorCode.EC_Subscription
                                 else:
