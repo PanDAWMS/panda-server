@@ -2395,6 +2395,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             self.logger.debug('%s/%s listMetaDataReplica %s %s' % (iDDMTry,nTry,datasetName,locationName))
             status,out = ddm.DQ2.main('listMetaDataReplica',locationName,datasetName)
             if status != 0 or (not self.isDQ2ok(out)):
+                if 'ReplicaNotFound' in out:
+                    break
                 time.sleep(60)
             else:
                 break

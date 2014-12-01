@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * ReplicaNotFound as a fatal error
   * using rucio when backEnd is None
   * added protection to AdderAtlas for uncatchable exceptions
   * fixed getJob for input log files of ES merge
