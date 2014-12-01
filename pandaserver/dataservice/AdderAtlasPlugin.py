@@ -61,7 +61,7 @@ class AdderAtlasPlugin (AdderPluginBase):
             # backend
             self.ddmBackEnd = self.job.getDdmBackEnd()
             if self.ddmBackEnd == None:
-                self.ddmBackEnd = 'dq2'
+                self.ddmBackEnd = 'rucio'
             # instantiate DQ2
             if self.ddmBackEnd != None:
                 self.dq2api = DQ2.DQ2(force_backend=self.ddmBackEnd)

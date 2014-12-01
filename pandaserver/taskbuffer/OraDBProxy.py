@@ -12126,12 +12126,6 @@ class DBProxy:
                 countryGroup = self.getCountryGroup(fqans)
                 if countryGroup != None:
                     taskParamsJson['countryGroup'] = countryGroup
-            # set backend
-            try:
-                if taskParamsJson['vo'] == 'atlas' and taskParamsJson['taskType'] == 'anal':
-                    taskParamsJson['ddmBackEnd'] = 'rucio'
-            except:
-                pass
             _logger.debug('{0} taskName={1}'.format(methodName,taskParamsJson['taskName']))
             schemaDEFT = self.getSchemaDEFT()
             # sql to check task duplication

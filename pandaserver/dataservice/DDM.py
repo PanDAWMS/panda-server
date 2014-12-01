@@ -41,7 +41,7 @@ class _DQMethod:
         if 'force_backend' in kwargs and kwargs['force_backend'] != None:
             com += 'dq2api = DQ2(force_backend="{0}"); '.format(kwargs['force_backend'])
         else:
-            com += 'dq2api = DQ2(); '
+            com += 'dq2api = DQ2(force_backend="{0}"); '.format('rucio')
         try:
             del kwargs['force_backend']
         except:
@@ -108,7 +108,7 @@ class NativeDQ2Method:
             if 'force_backend' in kwargs and kwargs['force_backend'] != None:
                 dq2api = DQ2.DQ2(force_backend=kwargs['force_backend'])
             else:
-                dq2api = DQ2.DQ2()
+                dq2api = DQ2.DQ2(force_backend='rucio')
             try:
                 del kwargs['force_backend']
             except:

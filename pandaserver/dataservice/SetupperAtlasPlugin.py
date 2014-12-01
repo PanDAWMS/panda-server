@@ -330,7 +330,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 disFiles = fileList[dispatchDBlock]
                 ddmBackEnd = backEndMap[dispatchDBlock]
                 if ddmBackEnd == None:
-                    ddmBackEnd = 'dq2'
+                    ddmBackEnd = 'rucio'
                 tmpMsg = 'registerNewDataset {ds} {lfns} {guids} {fsizes} {chksums} rse={rse} backend={backend}'
                 self.logger.debug(tmpMsg.format(ds=dispatchDBlock,
                                                 lfns=str(disFiles['lfns']),
@@ -549,7 +549,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                 # backend
                                 ddmBackEnd = job.getDdmBackEnd()
                                 if ddmBackEnd == None:
-                                    ddmBackEnd = 'dq2'
+                                    ddmBackEnd = 'rucio'
                                 # register dataset
                                 self.logger.debug('registerNewDataset {name} force_backend={force_backend} rse={rse}'.format(name=name,
                                                                                                                              rse=dq2IDList[0],
@@ -782,7 +782,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             # backend                                                                                                                                                         
             ddmBackEnd = job.getDdmBackEnd()
             if ddmBackEnd == None:
-                ddmBackEnd = 'dq2'
+                ddmBackEnd = 'rucio'
             # extract dispatchDBlock and computingSite
             disp = (job.dispatchDBlock,job.computingSite)
             if dispError.has_key(disp) == 0:
@@ -2031,7 +2031,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             else:
                 ddmBackEnd = tmpJob.getDdmBackEnd()
             if ddmBackEnd == None:
-                ddmBackEnd = 'dq2'
+                ddmBackEnd = 'rucio'
             mapKeyJob = (destDQ2ID,logSubDsName)
             # increment the number of jobs per key
             if not nJobsMap.has_key(mapKeyJob):

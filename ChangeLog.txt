@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * using rucio when backEnd is None
   * added protection to AdderAtlas for uncatchable exceptions
   * fixed getJob for input log files of ES merge
   * moved analysis tape rebro from copyArchive to runRebro
