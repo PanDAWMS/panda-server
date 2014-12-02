@@ -234,6 +234,8 @@ class AdderAtlasPlugin (AdderPluginBase):
                             fileAttrs['lumiblocknr'] = self.extraInfo['lbnr'][file.lfn]
                         if file.lfn in self.extraInfo['nevents']:
                             fileAttrs['events'] = self.extraInfo['nevents'][file.lfn]
+                        elif self.extraInfo['nevents'] != {}:
+                            fileAttrs['events'] = None
                         #if not file.jediTaskID in [0,None,'NULL']:
                         #    fileAttrs['task_id'] = file.jediTaskID
                         #fileAttrs['panda_id'] = file.PandaID
@@ -410,7 +412,8 @@ class AdderAtlasPlugin (AdderPluginBase):
                  fatalErrStrs = ['[ORA-00001] unique constraint (ATLAS_DQ2.UQ_01_FILES_GUID) violated',
                                  '[USER][OTHER] Parameter value [None] is not a valid uid!',
                                  'FileConsistencyMismatch',
-                                 'Problem validating attachment']
+                                 'Problem validating attachment',
+                                 'Apache Server at atlddmcat-writer.cern.ch Port 443']
                  regStart = datetime.datetime.utcnow()
                  try:
                      if not self.useCentralLFC():
@@ -514,6 +517,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                                 isFailed = True
                                 if 'is not a Tiers of Atlas Destination' in str(errValue) or \
                                         'is not in Tiers of Atlas' in str(errValue) or \
+                                        'RSE Expression resulted in an empty set' in str(errValue) or \
                                         'used/quota' in str(errValue):
                                     # fatal error
                                     self.job.ddmErrorCode = ErrorCode.EC_Subscription
