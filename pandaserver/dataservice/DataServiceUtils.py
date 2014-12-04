@@ -21,7 +21,7 @@ def isCachedFile(datasetName,siteSpec):
     if siteSpec.iscvmfs != True:
         return False
     # look for DBR
-    if not datasetName.startswith('ddo.'):
+    if not datasetName.startswith('ddo'):
         return False
     # look for three digits
     if re.search('v\d{6}$',datasetName) == None:

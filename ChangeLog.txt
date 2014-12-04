@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * cleanup to work without specialHandling=ddm:rucio
   * added protection against empty RSE Expression
   * using nevents=null for log files
   * ReplicaNotFound as a fatal error

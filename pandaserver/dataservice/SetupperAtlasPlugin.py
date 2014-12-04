@@ -260,6 +260,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         backEndMap[job.dispatchDBlock] = None
                     else:
                         backEndMap[job.dispatchDBlock] = job.getDdmBackEnd()
+                        if backEndMap[job.dispatchDBlock] == None:
+                            backEndMap[job.dispatchDBlock] = 'rucio'
                 # collect LFN and GUID
                 for file in job.Files:
                     if file.type == 'input' and file.status == 'pending':
@@ -291,16 +293,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                             if file.dataset.endswith('/'):
                                 status,out = self.getListDatasetReplicasInContainer(file.dataset)
                             else:
-                                for iDDMTry in range(3):
-                                    self.logger.debug('listDatasetReplicas '+file.dataset)
-                                    status,out = ddm.DQ2.main('listDatasetReplicas',file.dataset,0,None,False)
-                                    if status != 0 or out.find("DQ2 internal server exception") != -1 \
-                                           or out.find("An error occurred on the central catalogs") != -1 \
-                                           or out.find("MySQL server has gone away") != -1 \
-                                           or out == '()':
-                                        time.sleep(60)
-                                    else:
-                                        break
+                                status,out = self.getListDatasetReplicas(dataset,False)
                             if status != 0 or out.startswith('Error'):
                                 self.logger.error(out)
                                 dispError[job.dispatchDBlock] = 'could not get locations for %s' % file.dataset
@@ -626,42 +619,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                             status,out = 0,''
                                         else:
                                             self.logger.debug(out)
-                                            if status == 0 and out.find('Error') == -1:
-                                                # change replica ownership for user datasets
-                                                if self.resetLocation and ((name == originalName and job.prodSourceLabel == 'user') or \
-                                                                           job.prodSourceLabel=='panda'):
-                                                    # remove /CN=proxy and /CN=limited from DN
-                                                    tmpRealDN = job.prodUserID
-                                                    tmpRealDN = re.sub('/CN=limited proxy','',tmpRealDN)
-                                                    tmpRealDN = re.sub('/CN=proxy','',tmpRealDN)
-                                                    status,out = dq2Common.parse_dn(tmpRealDN)
-                                                    if status != 0:
-                                                        self.logger.error(out)
-                                                        status,out = 1,'failed to truncate DN:%s' % job.prodUserID
-                                                    else:
-                                                        tmpRealDN = out
-                                                        self.logger.debug('setReplicaMetaDataAttribute {name} {dq2ID} {attr} {val}'.format(name=name,
-                                                                                                                                           dq2ID=dq2ID,
-                                                                                                                                           attr='owner',
-                                                                                                                                           val=tmpRealDN,
-                                                                                                                                           ))
-                                                        for iDDMTry in range(3):
-                                                            status,out = ddm.DQ2.main('setReplicaMetaDataAttribute',name,dq2ID,'owner',tmpRealDN)
-                                                            if status != 0 or out.find("DQ2 internal server exception") != -1 \
-                                                                   or out.find("An error occurred on the central catalogs") != -1 \
-                                                                   or out.find("MySQL server has gone away") != -1:
-                                                                time.sleep(60)
-                                                            else:
-                                                                break
-                                                        # failed
-                                                        if status != 0 or out.find('Error') != -1:
-                                                            self.logger.error(out)
-                                                            break
-                                                        # delete old replicas
-                                                        tmpDelStat = self.deleteDatasetReplicas([name],[dq2ID])
-                                                        if not tmpDelStat:
-                                                            status,out = 1,'failed to delete old replicas for %s' % name
-                                                            break
                                         # failed
                                         if status != 0 or out.find('Error') != -1:
                                             self.logger.error(out)
@@ -671,40 +628,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                     status,out = 0,''
                                 if status != 0 or out.find('Error') != -1:
                                     destError[dest] = "Could not register location : %s %s" % (name,out.split('\n')[-1])
-                                elif job.prodSourceLabel == 'panda' or (job.prodSourceLabel in ['ptest','rc_test'] and \
-                                                                        job.processingType in ['pathena','prun','gangarobot-rctest']):
-                                    # do nothing for "panda" job
-                                    pass
-                                elif name == originalName and job.prodSourceLabel in ['managed','test','rc_test','ptest'] \
-                                        and job.getDdmBackEnd() != 'rucio':
-                                    # set metadata
-                                    if DataServiceUtils.getDestinationSE(file.destinationDBlockToken) != None:
-                                        dq2ID = DataServiceUtils.getDestinationSE(file.destinationDBlockToken)
-                                    else:
-                                        dq2ID = self.siteMapper.getSite(file.destinationSE).ddm
-                                    # use another location when token is set
-                                    if not file.destinationDBlockToken in ['NULL','']:
-                                        # register only the first token becasue it is used as the location
-                                        tmpFirstToken = file.destinationDBlockToken.split(',')[0] 
-                                        if self.siteMapper.getSite(file.destinationSE).setokens.has_key(tmpFirstToken):
-                                            dq2ID = self.siteMapper.getSite(file.destinationSE).setokens[tmpFirstToken]
-                                    self.logger.debug('setMetaDataAttribute {name} {attr} {dq2ID}'.format(name=name,
-                                                                                                          attr='origin',
-                                                                                                          dq2ID=dq2ID,
-                                                                                                          ))
-                                    for iDDMTry in range(3):
-                                        status,out = ddm.DQ2.main('setMetaDataAttribute',name,'origin',dq2ID)
-                                        if status != 0 or out.find("DQ2 internal server exception") != -1 \
-                                               or out.find("An error occurred on the central catalogs") != -1 \
-                                               or out.find("MySQL server has gone away") != -1:
-                                            time.sleep(60)
-                                        else:
-                                            break
-                                    if status != 0 or (out != 'None' and out.find('already exists') == -1):
-                                        self.logger.error(out)
-                                        destError[dest] = "Setupper._setupDestination() could not set metadata : %s" % name
-                                    else:
-                                        self.logger.debug(out)
                         # use PandaDDM or non-DQ2
                         else:
                             # create a fake vuidStr
@@ -1289,17 +1212,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                            and prodError[dataset] == '' and (not replicaMap.has_key(dataset)):
                         if dataset.endswith('/'):
                             status,out = self.getListDatasetReplicasInContainer(dataset)
-                        else:                
-                            for iDDMTry in range(3):
-                                self.logger.debug('listDatasetReplicas '+dataset)
-                                status,out = ddm.DQ2.main('listDatasetReplicas',dataset,0,None,False)
-                                if status != 0 or out.find("DQ2 internal server exception") != -1 \
-                                       or out.find("An error occurred on the central catalogs") != -1 \
-                                       or out.find("MySQL server has gone away") != -1 \
-                                       or out == '()':
-                                    time.sleep(60)
-                                else:
-                                    break
+                        else:
+                            status,out = self.getListDatasetReplicas(dataset,False)
                         if status != 0 or out.startswith('Error'):
                             prodError[dataset] = 'could not get locations for %s' % dataset
                             self.logger.error(prodError[dataset])
@@ -1852,15 +1766,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         allRepMap = {}
         for dataset in datasets:
             self.logger.debug('listDatasetReplicas '+dataset)
-            for iDDMTry in range(3):
-                status,out = ddm.DQ2.main('listDatasetReplicas',dataset,0,None,False)
-                if status != 0 or out.find("DQ2 internal server exception") != -1 \
-                       or out.find("An error occurred on the central catalogs") != -1 \
-                       or out.find("MySQL server has gone away") != -1 \
-                       or out == '()':
-                    time.sleep(60)
-                else:
-                    break
+            status,out = self.getListDatasetReplicas(dataset,False)
             self.logger.debug(out)
             if status != 0 or out.startswith('Error'):
                 return status,out
@@ -1901,11 +1807,18 @@ class SetupperAtlasPlugin (SetupperPluginBase):
 
 
     # get list of replicas for a dataset
-    def getListDatasetReplicas(self,dataset):
+    def getListDatasetReplicas(self,dataset,getMap=True):
+        # get files
+        status,allFileList = self.getListFilesInDataset(dataset)
+        if not status:
+            if getMap:
+                return False,{}
+            else:
+                return 1,str({})
         nTry = 3
         for iDDMTry in range(nTry):
             self.logger.debug("%s/%s listDatasetReplicas %s" % (iDDMTry,nTry,dataset))
-            status,out = ddm.DQ2.main('listDatasetReplicas',dataset,0,None,False)
+            status,out = ddm.DQ2.main('listDatasetReplicas',dataset,0,None,True)
             if status != 0 or (not self.isDQ2ok(out)):
                 time.sleep(60)
             else:
@@ -1914,16 +1827,33 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         if status != 0 or out.startswith('Error'):
             self.logger.error(out)
             self.logger.error('bad DQ2 response for %s' % dataset)
-            return False,{}
+            if getMap:
+                return False,{}
+            else:
+                return 1,str({})
         try:
             # convert res to map
-            exec "tmpRepSites = %s" % out
-            self.logger.debug('getListDatasetReplicas->%s' % str(tmpRepSites))
-            return True,tmpRepSites
+            exec "oldOut = %s" % out
+            tmpVal = oldOut.values()[0]
+            # incomplete
+            retMap = {}
+            for tmpEP in tmpVal[0]:
+                retMap[tmpEP] = [{'total':len(allFileList), 'found':0}]
+            # complete
+            for tmpEP in tmpVal[1]:
+                retMap[tmpEP] = [{'total':len(allFileList), 'found':len(allFileList)}]
+            self.logger.debug('getListDatasetReplicas->%s' % str(retMap))
+            if getMap:
+                return True,retMap
+            else:
+                return 0,str(retMap)
         except:
             self.logger.error(out)            
             self.logger.error('could not convert HTTP-res to replica map for %s' % dataset)
-            return False,{}
+            if getMap:
+                return False,{}
+            else:
+                return 1,str({})
 
 
     # delete original locations
