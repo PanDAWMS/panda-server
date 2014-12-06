@@ -1069,6 +1069,8 @@ class TaskAssigner:
             _logger.debug('%s %s/%s listMetaDataReplica %s %s' % (self.taskID,iDDMTry,nTry,datasetName,locationName))
             status,out = ddm.DQ2.main('listMetaDataReplica',locationName,datasetName)
             if status != 0 or (not DataServiceUtils.isDQ2ok(out)):
+                if 'rucio.common.exception.ReplicaNotFound' in out:
+                    break
                 time.sleep(60)
             else:
                 break

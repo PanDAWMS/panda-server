@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed to work with rucio containers 
   * cleanup to work without specialHandling=ddm:rucio
   * added protection against empty RSE Expression
   * using nevents=null for log files

@@ -366,14 +366,26 @@ def getAssociatedTapeEndPoints(endPoint,toa,replicaMap):
 
 
 # change output of listDatasets to include dataset info
-def changeListDatasetsOut(out):
+def changeListDatasetsOut(out,datasetName=None):
     try:
         exec 'origMap = '+out.split('\n')[0]
         newMap = {}
         for tmpkey,tmpval in origMap.iteritems():
+            # rucio doesn't put / for container
+            rucioConvention = False
+            if datasetName != None and datasetName.endswith('/') and not tmpkey.endswith('/'):
+                rucioConvention = True
+            # original key-value
             newMap[tmpkey] = tmpval
+            if rucioConvention:
+                # add /
+                newMap[tmpkey+'/'] = tmpval
+            # remove scope
             if ':' in tmpkey:
                 newMap[tmpkey.split(':')[-1]] = tmpval
+                if rucioConvention:
+                    # add /
+                    newMap[tmpkey.split(':')[-1]+'/'] = tmpval
         return str(newMap)
     except:
         pass

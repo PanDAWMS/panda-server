@@ -210,7 +210,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         self.logger.error(out)                                            
                     else:
                         self.logger.debug(out)
-                        newOut = DataServiceUtils.changeListDatasetsOut(out)
+                        newOut = DataServiceUtils.changeListDatasetsOut(out,job.prodDBlock)
                         try:
                             exec "vuids = %s['%s']['vuids']" % (newOut.split('\n')[0],job.prodDBlock)
                             nfiles = 0
@@ -293,7 +293,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                             if file.dataset.endswith('/'):
                                 status,out = self.getListDatasetReplicasInContainer(file.dataset)
                             else:
-                                status,out = self.getListDatasetReplicas(dataset,False)
+                                status,out = self.getListDatasetReplicas(file.dataset,False)
                             if status != 0 or out.startswith('Error'):
                                 self.logger.error(out)
                                 dispError[job.dispatchDBlock] = 'could not get locations for %s' % file.dataset
@@ -650,7 +650,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                 self.logger.error(out)
                             else:
                                 self.logger.debug(out)
-                            newOut = DataServiceUtils.changeListDatasetsOut(out)
+                            newOut = DataServiceUtils.changeListDatasetsOut(out,name)
                             vuidStr = "vuid = %s['%s']['vuids'][0]" % (newOut.split('\n')[0],name)
                         try:
                             exec vuidStr
@@ -1838,10 +1838,10 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             # incomplete
             retMap = {}
             for tmpEP in tmpVal[0]:
-                retMap[tmpEP] = [{'total':len(allFileList), 'found':0}]
+                retMap[tmpEP] = [{'total':len(allFileList), 'found':0, 'immutable':1}]
             # complete
             for tmpEP in tmpVal[1]:
-                retMap[tmpEP] = [{'total':len(allFileList), 'found':len(allFileList)}]
+                retMap[tmpEP] = [{'total':len(allFileList), 'found':len(allFileList), 'immutable':1}]
             self.logger.debug('getListDatasetReplicas->%s' % str(retMap))
             if getMap:
                 return True,retMap
