@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * fixed checkRucioDataset
+  * fixed method emulator in DDM
   * changed to work with rucio containers 
   * cleanup to work without specialHandling=ddm:rucio
   * added protection against empty RSE Expression

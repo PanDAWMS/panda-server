@@ -39,9 +39,9 @@ class _DQMethod:
         # build command
         com  = 'from dq2.clientapi.DQ2 import DQ2; '
         if 'force_backend' in kwargs and kwargs['force_backend'] != None:
-            com += 'dq2api = DQ2(force_backend="{0}"); '.format(kwargs['force_backend'])
+            com += "dq2api = DQ2(force_backend='{0}'); ".format(kwargs['force_backend'])
         else:
-            com += 'dq2api = DQ2(force_backend="{0}"); '.format('rucio')
+            com += "dq2api = DQ2(force_backend='{0}'); ".format('rucio')
         try:
             del kwargs['force_backend']
         except:

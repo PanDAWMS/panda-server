@@ -2400,19 +2400,4 @@ class SetupperAtlasPlugin (SetupperPluginBase):
 
     # check if rucio dataset
     def checkRucioDataset(self,datasetName,scope=None):
-        try:
-            # use the first part as scope
-            if scope == None:
-                if ':' in datasetName:
-                    scope = datasetName.split(':')[0]
-                else:
-                    scope = datasetName.split('.')[0]
-            # remove :
-            datasetName = datasetName.split(':')[-1]
-            # check with rucio
-            rucioapi = RucioClient()
-            x = rucioapi.get_metadata(scope,datasetName)
-        except:
-            self.logger.debug('{0}:{1} is not found in rucio'.format(scope,datasetName))
-            return False
         return True
