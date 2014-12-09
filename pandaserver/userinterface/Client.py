@@ -1669,3 +1669,40 @@ def resumeTask(jediTaskID,verbose=False):
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR resumeTask : %s %s" % (errtype,errvalue)
         return EC_Failed,output+'\n'+errStr
+
+
+
+# increase attempt number for unprocessed files
+def increaseAttemptNr(jediTaskID,increase):
+    """Change task priority
+
+       args:
+           jediTaskID: jediTaskID of the task to increase attempt numbers
+           increase: increase for attempt numbers
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           return code
+                 0: succeeded
+                 1: unknown task
+                 2: invalid task status
+                 3: permission denied
+                 4: wrong parameter
+                 None: database error 
+    """     
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+    # execute
+    url = baseURLSSL + '/increaseAttemptNrPanda'
+    data = {'jediTaskID':jediTaskID,
+            'increasedNr':increase}
+    status,output = curl.post(url,data)
+    try:
+        return status,pickle.loads(output)
+    except:
+        errtype,errvalue = sys.exc_info()[:2]
+        errStr = "ERROR increaseAttemptNr : %s %s" % (errtype,errvalue)
+        return EC_Failed,output+'\n'+errStr

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added increaseAttemptNr
   * fixed checkRucioDataset
   * fixed method emulator in DDM
   * changed to work with rucio containers 

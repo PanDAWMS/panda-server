@@ -945,6 +945,16 @@ class UserIF:
         return ret
 
 
+
+    # increase attempt number for unprocessed files
+    def increaseAttemptNrPanda(self,jediTaskID,increasedNr):
+        # exec
+        ret = self.taskBuffer.increaseAttemptNrPanda(jediTaskID,increasedNr)
+        # return
+        return ret
+
+
+
     # change task attribute
     def changeTaskAttributePanda(self,jediTaskID,attrName,attrValue):
         # kill
@@ -1937,6 +1947,43 @@ def changeTaskPriority(req,jediTaskID=None,newPriority=None):
     except:
         return pickle.dumps((False,'newPriority must be an integer'))        
     ret = userIF.changeTaskPriority(jediTaskID,newPriority)
+    return pickle.dumps(ret)
+
+
+
+# increase attempt number for unprocessed files
+def increaseAttemptNrPanda(req,jediTaskID,increasedNr):
+    # check security
+    if not isSecure(req):
+        return pickle.dumps((False,'secure connection is required'))
+    # get DN
+    user = None
+    if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        user = _getDN(req)        
+    # check role
+    prodRole = _isProdRoleATLAS(req)
+    # only prod managers can use this method
+    ret = None
+    if not prodRole:
+        ret = 3,"production or pilot role required"
+    # check jediTaskID
+    if ret == None:
+        try:
+            jediTaskID = long(jediTaskID)
+        except:
+            ret = 4,'jediTaskID must be an integer'
+    # check increase
+    if ret == None:
+        wrongNr = False
+        try:
+            increasedNr = long(increasedNr)
+        except:
+            wrongNr = True
+        if wrongNr or increasedNr<0:
+            ret = 4,'increase must be a positive integer'
+    # exec
+    if ret == None:
+        ret = userIF.increaseAttemptNrPanda(jediTaskID,increasedNr)
     return pickle.dumps(ret)
 
 

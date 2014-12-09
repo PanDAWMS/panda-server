@@ -2569,6 +2569,19 @@ class TaskBuffer:
 
 
 
+    # increase attempt number for unprocessed files
+    def increaseAttemptNrPanda(self,jediTaskID,increasedNr):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.increaseAttemptNrPanda(jediTaskID,increasedNr)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
     # get jediTaskID from taskName
     def getTaskIDwithTaskNameJEDI(self,userName,taskName):
         # get proxy

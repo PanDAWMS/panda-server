@@ -31,6 +31,7 @@ from DatasetSpec import DatasetSpec
 from CloudTaskSpec import CloudTaskSpec
 from WrappedCursor import WrappedCursor
 from pandalogger.PandaLogger import PandaLogger
+from pandalogger.LogWrapper import LogWrapper
 from config import panda_config
 from brokerage.PandaSiteIDs import PandaSiteIDs
 
@@ -13863,6 +13864,105 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return None
+
+
+
+    # increase attempt number for unprocessed files
+    def increaseAttemptNrPanda(self,jediTaskID,increasedNr):
+        comment = ' /* DBProxy.increaseAttemptNrPanda */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <jediTaskID={0}>".format(jediTaskID)
+        tmpLog = LogWrapper(_logger,methodName,monToken="<jediTaskID={0}>".format(jediTaskID))
+        tmpLog.debug("increasedNr={0}".format(increasedNr))
+        try:
+            # sql to check task status
+            sqlT  = 'SELECT status,oldStatus FROM {0}.JEDI_Tasks '.format(panda_config.schemaJEDI)
+            sqlT += 'WHERE jediTaskID=:jediTaskID FOR UPDATE '
+            # start transaction
+            self.conn.begin()
+            # select
+            self.cur.arraysize = 10
+            varMap = {}
+            varMap[':jediTaskID']  = jediTaskID
+            # get task status
+            self.cur.execute(sqlT+comment, varMap)
+            resT = self.cur.fetchone()
+            if resT == None:
+                tmpMsg = "jediTaskID={0} not found".format(jediTaskID)
+                tmpLog.debug(tmpMsg)
+                retVal = 1,tmpMsg
+            else:
+                taskStatus,oldStatus = resT
+            # check task status
+            okStatusList = ['running','scouting','ready']
+            if not taskStatus in okStatusList and not oldStatus in okStatusList:
+                tmpMsg = "command rejected since status={0} or oldStatus={1} not in {2}".format(taskStatus,
+                                                                                                oldStatus,
+                                                                                                str(okStatusList))
+                tmpLog.debug(tmpMsg)
+                retVal = 2,tmpMsg
+            else:
+                # sql to get datasetIDs for master
+                sqlM  = 'SELECT datasetID FROM {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
+                sqlM += 'WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) '
+                sqlM += 'AND masterID IS NULL '
+                # sql to increase attempt numbers
+                sqlAB  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
+                sqlAB += "SET maxAttempt=maxAttempt+:increasedNr "
+                sqlAB += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status "
+                # sql to update datasets
+                sqlD  = "UPDATE {0}.JEDI_Datasets ".format(panda_config.schemaJEDI)
+                sqlD += "SET nFilesTobeUsed=nFilesTobeUsed-:nFilesReset,nFilesFailed=nFilesFailed-:nFilesReset "
+                # get datasetIDs for master
+                varMap = {}
+                varMap[':jediTaskID'] = jediTaskID
+                varMap[':type1'] = 'input'
+                varMap[':type2'] = 'pseudo_input'
+                self.cur.execute(sqlM+comment, varMap)
+                resM = self.cur.fetchall()
+                total_nFilesIncreased = 0
+                total_nFilesReset = 0
+                for datasetID, in resM:
+                    # increase attempt numbers
+                    varMap = {}
+                    varMap[':jediTaskID'] = jediTaskID
+                    varMap[':datasetID'] = datasetID
+                    varMap[':status'] = 'ready'
+                    varMap[':increasedNr'] = increasedNr
+                    sqlA = sqlAB + "AND maxAttempt>attemptNr "
+                    self.cur.execute(sqlA+comment, varMap)
+                    nFilesIncreased = self.cur.rowcount
+                    sqlA = sqlAB + "AND maxAttempt=attemptNr "
+                    self.cur.execute(sqlA+comment, varMap)
+                    nFilesReset = self.cur.rowcount
+                    nFilesIncreased += nFilesReset
+                    # update dataset
+                    if nFilesReset > 0:
+                        varMap = {}
+                        varMap[':jediTaskID'] = jediTaskID
+                        varMap[':datasetID'] = datasetID
+                        varMap[':nFilesReset'] = nFilesReset
+                        tmpLog.debug(sqlD+comment+str(varMap))
+                        self.cur.execute(sqlD+comment, varMap)
+                    total_nFilesIncreased += nFilesIncreased
+                    total_nFilesReset += nFilesReset
+                tmpMsg = "increased attemptNr for {0} inputs ({1} reactivated)".format(total_nFilesIncreased,
+                                                                                       total_nFilesReset)
+                tmpLog.debug(tmpMsg)
+                tmpLog.sendMsg(tmpMsg,'jedi','pandasrv')
+                retVal = 0,tmpMsg
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug("done")
+            return retVal
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(tmpLog,methodName)
+            return None,"DB error"
+
 
 
     # get jediTaskID from taskName
