@@ -19,6 +19,7 @@ from taskbuffer.JobSpec import JobSpec
 from userinterface import Client
 from dataservice.datriHandler import datriHandler
 
+from dataservice.DDM import ddm
 
 from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
@@ -66,6 +67,7 @@ class EventPicker:
                 self.putLog("cannot lock %s" % self.evpFileName)
                 self.evpFile.close()
                 return True
+            ddm.useDirectDQ2()
             # options
             runEvtList          = []
             eventPickDataType   = ''

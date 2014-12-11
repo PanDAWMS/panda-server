@@ -108,7 +108,7 @@ fileList = glob.glob(evpFilePatt)
 fileList.sort() 
 
 # create thread pool and semaphore
-adderLock = threading.Semaphore(3)
+adderLock = threading.Semaphore(1)
 adderThreadPool = ThreadPool()
 
 # add

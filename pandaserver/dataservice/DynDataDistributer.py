@@ -1070,10 +1070,12 @@ class DynDataDistributer:
         for iDDMTry in range(nTry):
             self.putLog('%s/%s registerContainer %s' % (iDDMTry,nTry,containerName))
             status,out = ddm.DQ2.main('registerContainer',containerName,datasetNames)
+            self.putLog(out)
             if status != 0 and out.find('DQDatasetExistsException') == -1:
                 if "DQContainerExistsException" in out:
                     self.putLog('%s/%s registerDatasetsInContainer %s' % (iDDMTry,nTry,containerName))
                     status,out = ddm.DQ2.main('registerDatasetsInContainer',containerName,datasetNames)
+                    self.putLog(out)
                     if status == 0:
                         break
                 time.sleep(60)
@@ -1100,15 +1102,16 @@ class DynDataDistributer:
         chksums = []
         for tmpFile in files:
             guids.append(tmpFile['guid'])
-            lfns.append(tmpFile['lfn'])
-            fsizes.append(None)
-            chksums.append(None)
+            lfns.append(tmpFile['scope']+':'+tmpFile['lfn'])
+            fsizes.append(long(tmpFile['filesize']))
+            chksums.append(tmpFile['checksum'])
         # register new dataset    
         nTry = 3
         for iDDMTry in range(nTry):
             self.putLog('%s/%s registerNewDataset %s' % (iDDMTry,nTry,datasetName))
             status,out = ddm.DQ2.main('registerNewDataset',datasetName,lfns,guids,fsizes,chksums,
-                                      None,None,None,True)
+                                      None,None,None,True,rse=locations[0])
+            self.putLog(out)
             if status != 0 and out.find('DQDatasetExistsException') == -1:
                 time.sleep(60)
             else:
@@ -1140,12 +1143,14 @@ class DynDataDistributer:
             for iDDMTry in range(nTry):
                 self.putLog('%s/%s registerDatasetLocation %s %s' % (iDDMTry,nTry,datasetName,tmpLocation))
                 status,out = ddm.DQ2.main('registerDatasetLocation',datasetName,tmpLocation,0,1,None,None,None,"14 days")
+                self.putLog(out)
                 if status != 0 and out.find('DQLocationExistsException') == -1:
                     time.sleep(60)
                 else:
                     for iDDMTry in range(nTry):
                         self.putLog('%s/%s setReplicaMetaDataAttribute %s %s owner=%s' % \
                                         (iDDMTry,nTry,datasetName,tmpLocation,owner))
+                        self.putLog(out)
                         status,out = ddm.DQ2.main('setReplicaMetaDataAttribute',datasetName,tmpLocation,'owner',owner)
                         if status != 0:
                             time.sleep(60)
