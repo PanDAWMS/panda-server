@@ -1,6 +1,9 @@
 Release Note
 
 * current
+  * fixed event-picking for rucio
+  * fixed DDM for unicode
+  * introduced timeout for starting
   * added increaseAttemptNr
   * fixed checkRucioDataset
   * fixed method emulator in DDM

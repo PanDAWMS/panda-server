@@ -57,6 +57,8 @@ class _DQMethod:
         # expand args
         for i in range(len(args)):
             arg = args[i]
+            if isinstance(arg,types.UnicodeType):
+                arg = str(arg)
             if isinstance(arg,types.StringType):
                 # check invalid characters
                 for invCh in ['"',"'",'(',')',';']:
@@ -66,6 +68,8 @@ class _DQMethod:
             else:
                 com = '%s%s,' % (com,str(arg))
         for tmpK,tmpV in kwargs.iteritems():
+            if isinstance(tmpV,types.UnicodeType):
+                tmpV = str(tmpV)
             if isinstance(tmpV,types.StringType):
                 com += "%s='%s'," % (tmpK,tmpV)
             else:

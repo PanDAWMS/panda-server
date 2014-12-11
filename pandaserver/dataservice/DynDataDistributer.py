@@ -14,6 +14,7 @@ import datetime
 from dataservice.DDM import ddm
 from dataservice.DDM import toa
 from dataservice.DDM import dq2Common
+from dataservice.DDM import dq2Info
 from taskbuffer.JobSpec import JobSpec
 import brokerage.broker
 
@@ -1015,13 +1016,29 @@ class DynDataDistributer:
             if status != 0:
                 self.putLog('failed to parse DN={0}'.format(owner))
             else:
-                owner = out
-                self.putLog('parsed DN={0}'.format(owner))
+                status,out = dq2Info.finger(out)
+                if status != 0:
+                    self.putLog('failed to dq2.finger: {0}'.format(out))
+                else:
+                    try:
+                        exec "userInfo=%s" % out
+                        owner = userInfo['nickname']
+                    except:
+                        self.putLog('wrong output from dq2.finger: {0}'.format(out))
+            self.putLog('parsed DN={0}'.format(owner))
         # sort by locations
         filesMap = {}
         for tmpFile in files:
             tmpLocations = replicaMap[tmpFile['dataset']]
             tmpLocations.sort()
+            newLocations = []
+            # skip STAGING
+            for tmpLocation in tmpLocations:
+                if not tmpLocation.endswith('STAGING'):
+                    newLocations.append(tmpLocation)
+            if newLocations == []:
+                continue
+            tmpLocations = newLocations
             tmpKey = tuple(tmpLocations)
             if not filesMap.has_key(tmpKey):
                 filesMap[tmpKey] = []
@@ -1054,6 +1071,11 @@ class DynDataDistributer:
             self.putLog('%s/%s registerContainer %s' % (iDDMTry,nTry,containerName))
             status,out = ddm.DQ2.main('registerContainer',containerName,datasetNames)
             if status != 0 and out.find('DQDatasetExistsException') == -1:
+                if "DQContainerExistsException" in out:
+                    self.putLog('%s/%s registerDatasetsInContainer %s' % (iDDMTry,nTry,containerName))
+                    status,out = ddm.DQ2.main('registerDatasetsInContainer',containerName,datasetNames)
+                    if status == 0:
+                        break
                 time.sleep(60)
             else:
                 break
@@ -1063,17 +1085,6 @@ class DynDataDistributer:
             self.putLog(out,'error')
             self.putLog('bad DQ2 response to register %s' % containerName, 'error')
             return False
-        # set owner
-        nTry = 3
-        for iDDMTry in range(nTry):
-            self.putLog('%s/%s setMetaDataAttribute %s owner=%s' % (iDDMTry,nTry,containerName,owner))
-            status,out = ddm.DQ2.main('setMetaDataAttribute',containerName,'owner',owner)
-            if status != 0:
-                time.sleep(60)
-            else:
-                break
-        if status != 0:
-            self.putLog(out,'error')
         # return
         return True
         
@@ -1123,17 +1134,6 @@ class DynDataDistributer:
             self.putLog(out,'error')
             self.putLog('bad DQ2 response to freeze %s' % datasetName, 'error')
             return resForFailure
-        # set owner
-        nTry = 3
-        for iDDMTry in range(nTry):
-            self.putLog('%s/%s setMetaDataAttribute %s owner=%s' % (iDDMTry,nTry,datasetName,owner))
-            status,out = ddm.DQ2.main('setMetaDataAttribute',datasetName,'owner',owner)
-            if status != 0:
-                time.sleep(60)
-            else:
-                break
-        if status != 0:
-            self.putLog(out,'error')
         # register locations
         for tmpLocation in locations:
             nTry = 3

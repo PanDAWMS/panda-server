@@ -773,7 +773,7 @@ except:
 
 # reassign too long-standing jobs in active table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=2)
-status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsActive4",timeLimit,['activated'],['managed'],[],[],[],True)
+status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsActive4",timeLimit,['activated','starting'],['managed'],[],[],[],True)
 jobs = []
 jediJobs = []
 if res != None:
