@@ -398,7 +398,7 @@ class DynDataDistributer:
                 allSiteMap[tmpSiteSpec.cloud] = []
             allSiteMap[tmpSiteSpec.cloud].append(tmpSiteSpec)
         # NG DQ2 IDs
-        ngDQ2SuffixList = ['LOCALGROUPDISK']
+        ngDQ2SuffixList = ['LOCALGROUPDISK','STAGING']
         # loop over all clouds
         returnMap = {}
         checkedMetaMap = {}
@@ -1076,12 +1076,14 @@ class DynDataDistributer:
                     self.putLog('%s/%s registerDatasetsInContainer %s' % (iDDMTry,nTry,containerName))
                     status,out = ddm.DQ2.main('registerDatasetsInContainer',containerName,datasetNames)
                     self.putLog(out)
-                    if status == 0:
+                    if status == 0 or 'DQContainerAlreadyHasDataset' in out:
                         break
                 time.sleep(60)
             else:
                 break
         if out.find('DQDatasetExistsException') != -1:
+            pass
+        elif 'DQContainerAlreadyHasDataset' in out:
             pass
         elif status != 0 or out.startswith('Error'):
             self.putLog(out,'error')
