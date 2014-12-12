@@ -8,6 +8,7 @@ import sys
 import time
 import types
 import urllib
+import hashlib
 import datetime
 import commands
 import threading
@@ -26,6 +27,7 @@ import brokerage.broker
 import brokerage.broker_util
 import DataServiceUtils
 from rucio.client import Client as RucioClient
+from rucio.common.exception import FileAlreadyExists,DataIdentifierAlreadyExists,Duplicate
 
 from SetupperPluginBase import SetupperPluginBase
 
@@ -324,38 +326,33 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 ddmBackEnd = backEndMap[dispatchDBlock]
                 if ddmBackEnd == None:
                     ddmBackEnd = 'rucio'
-                tmpMsg = 'registerNewDataset {ds} {lfns} {guids} {fsizes} {chksums} rse={rse} backend={backend}'
+                tmpMsg = 'registerNewDataset {ds} {lfns} {guids} {fsizes} {chksums}'
                 self.logger.debug(tmpMsg.format(ds=dispatchDBlock,
                                                 lfns=str(disFiles['lfns']),
                                                 guids=str(disFiles['guids']),
                                                 fsizes=str(disFiles['fsizes']),
                                                 chksums=str(disFiles['chksums']),
-                                                backend=ddmBackEnd,
-                                                rse=dispSiteMap[dispatchDBlock]['src'],
                                                 ))
-                for iDDMTry in range(3):
-                    status,out = ddm.DQ2.main('registerNewDataset',dispatchDBlock,disFiles['lfns'],disFiles['guids'],
-                                              disFiles['fsizes'],disFiles['chksums'],None,None,None,True,
-                                              rse=dispSiteMap[dispatchDBlock]['src'],
-                                              force_backend=ddmBackEnd)
-                    if status != 0 and out.find('DQDatasetExistsException') != -1:
+                nDDMTry = 3
+                isOK = False
+                for iDDMTry in range(nDDMTry):
+                    try:
+                        out = self.registerDispatchDataset(dispatchDBlock,disFiles['lfns'],disFiles['guids'],
+                                                           disFiles['fsizes'],disFiles['chksums'])
+                        isOK = True
                         break
-                    elif status != 0 or out.find("DQ2 internal server exception") != -1 \
-                             or out.find("An error occurred on the central catalogs") != -1 \
-                             or out.find("MySQL server has gone away") != -1:
-                        self.logger.debug("sleep %s for %s" % (iDDMTry,dispatchDBlock))
-                        self.logger.debug(status)
-                        self.logger.debug(out)
-                        self.logger.debug("-------------")                                                                
+                    except:
+                        errType,errValue = sys.exc_info()[:2]
+                        self.logger.error("registerDispatchDataset : failed with {0}:{1}".format(errType,errValue))
+                        if iDDMTry+1 == nDDMTry:
+                            break
+                        self.logger.debug("sleep {0}/{1}".format(iDDMTry,nDDMTry))
                         time.sleep(60)
-                    else:
-                        break
-                if status != 0 or out.find('Error') != -1:
-                    self.logger.error(out)
+                if not isOK:
                     dispError[dispatchDBlock] = "Setupper._setupSource() could not register dispatchDBlock"
                     continue
                 self.logger.debug(out)
-                vuidStr = out
+                vuidStr = str(out)
                 # freezeDataset dispatch dataset
                 self.logger.debug('freezeDataset '+dispatchDBlock)
                 for iDDMTry in range(3):            
@@ -738,6 +735,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     dq2ID = srcDQ2ID
                     dq2IDList = []
                     # register replica
+                    isOK = False
                     if dq2ID != dstDQ2ID:
                         # make list
                         if self.replicaMap.has_key(job.dispatchDBlock):
@@ -799,32 +797,31 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         # use default location if empty
                         if dq2IDList == []:
                             dq2IDList = [dq2ID]
-                        for dq2ID in dq2IDList:
-                            self.logger.debug('registerDatasetLocation {ds} {dq2ID} {lifeTime} backend={backend}'.format(ds=job.dispatchDBlock,
-                                                                                                                         dq2ID=dq2ID,
-                                                                                                                         lifeTime="7 days",
-                                                                                                                         backend=ddmBackEnd,
-                                                                                                                         ))
-                            for iDDMTry in range(3):                                            
-                                status,out = ddm.DQ2.main('registerDatasetLocation',job.dispatchDBlock,dq2ID,0,1,None,None,None,"7 days",
-                                                          force_backend=ddmBackEnd)
-                                if status != 0 or out.find("DQ2 internal server exception") != -1 \
-                                       or out.find("An error occurred on the central catalogs") != -1 \
-                                       or out.find("MySQL server has gone away") != -1:
-                                    time.sleep(60)
-                                else:
-                                    break
-                            self.logger.debug(out)
-                            # failure
-                            if status != 0 or out.find('Error') != -1:
+                        # register dataset locations
+                        self.logger.debug('registerDatasetLocation {ds} {dq2ID} {lifeTime}days'.format(ds=job.dispatchDBlock,
+                                                                                                       dq2ID=str(dq2IDList),
+                                                                                                       lifeTime=7))
+                        nDDMTry = 3
+                        for iDDMTry in range(nDDMTry):
+                            try:
+                                out = self.registerDispatchDatasetLocation(job.dispatchDBlock,dq2IDList,7)
+                                self.logger.debug(out)
+                                isOK = True
                                 break
+                            except:
+                                errType,errValue = sys.exc_info()[:2]
+                                self.logger.error("registerDispatchDatasetLocation : failed with {0}:{1}".format(errType,errValue))
+                                if iDDMTry+1 == nDDMTry:
+                                    break
+                                self.logger.debug("sleep {0}/{1}".format(iDDMTry,nDDMTry))
+                                time.sleep(60)
                     else:
-                        # skip registerDatasetLocations
-                        status,out = 0,''
-                    if status != 0 or out.find('Error') != -1:
-                        self.logger.error(out)                    
+                        # register locations later for prestaging
+                        isOK = True
+                    if not isOK:
                         dispError[disp] = "Setupper._subscribeDistpatchDB() could not register location"
                     else:
+                        isOK = False
                         # assign destination
                         optSub = {'DATASET_COMPLETE_EVENT' : ['http://%s:%s/server/panda/datasetCompleted' % \
                                                               (panda_config.pserverhosthttp,panda_config.pserverporthttp)]}
@@ -872,7 +869,26 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                                     break
                                 optSource[dq2ID] = {'policy' : 0}
                             optSrcPolicy = 000010
+                            # register dataset locations
+                            self.logger.debug('pre registerDatasetLocation {ds} {dq2ID} {lifeTime}days'.format(ds=job.dispatchDBlock,
+                                                                                                               dq2ID=str(optSource.keys()),
+                                                                                                               lifeTime=7))
+                            nDDMTry = 3
+                            for iDDMTry in range(nDDMTry):
+                                try:
+                                    out = self.registerDispatchDatasetLocation(job.dispatchDBlock,optSource.keys(),7)
+                                    self.logger.debug(out)
+                                    isOK = True
+                                    break
+                                except:
+                                    errType,errValue = sys.exc_info()[:2]
+                                    self.logger.error("pre registerDispatchDatasetLocation : failed with {0}:{1}".format(errType,errValue))
+                                    if iDDMTry+1 == nDDMTry:
+                                        break
+                                    self.logger.debug("sleep {0}/{1}".format(iDDMTry,nDDMTry))
+                                    time.sleep(60)
                         else:
+                            isOK = True
                             # set sources to handle T2s in another cloud and to transfer dis datasets being split in multiple sites 
                             for tmpDQ2ID in dq2IDList:
                                 optSource[tmpDQ2ID] = {'policy' : 0}
@@ -892,46 +908,32 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         else:
                             optShare = "production"
                             optActivity = "Production"
-                        # register subscription
-                        self.logger.debug('%s %s %s' % ('registerDatasetSubscription',
-                                                        (job.dispatchDBlock,dq2ID),
-                                                        {'version':0,'archived':0,'callbacks':optSub,'sources':optSource,'sources_policy':optSrcPolicy,
-                                                         'wait_for_sources':0,'destination':None,'query_more_sources':0,'sshare':optShare,'group':None,
-                                                         'activity':"Production",'acl_alias':None,'replica_lifetime':"7 days",
-                                                         'force_backend':ddmBackEnd}))
-                        for iDDMTry in range(3):                                                                
-                            status,out = ddm.DQ2.main('registerDatasetSubscription',job.dispatchDBlock,dq2ID,version=0,archived=0,callbacks=optSub,
-                                                      sources=optSource,sources_policy=optSrcPolicy,wait_for_sources=0,destination=None,
-                                                      query_more_sources=0,sshare=optShare,group=None,activity=optActivity,
-                                                      acl_alias=None,replica_lifetime="7 days",force_backend=ddmBackEnd)
-                            if status != 0 or out.find("DQ2 internal server exception") != -1 \
-                                   or out.find("An error occurred on the central catalogs") != -1 \
-                                   or out.find("MySQL server has gone away") != -1:
-                                time.sleep(60)
-                            else:
-                                break
-                        if status != 0 or (out != 'None' and len(out) != 35):
-                            self.logger.error(out)
-                            dispError[disp] = "Setupper._subscribeDistpatchDB() could not register subscription"
+                        if not isOK:
+                            dispError[disp] = "Setupper._subscribeDistpatchDB() could not register location for prestage"
                         else:
-                            self.logger.debug(out)
-                        # logging
-                        try:
-                            # make message
-                            dq2ID = dstDQ2ID
-                            message = '%s - siteID:%s type:dispatch vuid:%s' % (commands.getoutput('hostname'),dq2ID,
-                                                                                self.vuidMap[job.dispatchDBlock])
-                            # get logger
-                            _pandaLogger = PandaLogger()
-                            _pandaLogger.lock()
-                            _pandaLogger.setParams({'Type':'registerSubscription'})
-                            logger = _pandaLogger.getHttpLogger(panda_config.loggername)
-                            # add message
-                            logger.info(message)
-                            # release HTTP handler
-                            _pandaLogger.release()
-                        except:
-                            pass
+                            # register subscription
+                            self.logger.debug('%s %s %s' % ('registerDatasetSubscription',
+                                                            (job.dispatchDBlock,dq2ID),
+                                                            {'version':0,'archived':0,'callbacks':optSub,'sources':optSource,'sources_policy':optSrcPolicy,
+                                                             'wait_for_sources':0,'destination':None,'query_more_sources':0,'sshare':optShare,'group':None,
+                                                             'activity':"Production",'acl_alias':None,'replica_lifetime':"7 days",
+                                                             'force_backend':ddmBackEnd}))
+                            for iDDMTry in range(3):                                                                
+                                status,out = ddm.DQ2.main('registerDatasetSubscription',job.dispatchDBlock,dq2ID,version=0,archived=0,callbacks=optSub,
+                                                          sources=optSource,sources_policy=optSrcPolicy,wait_for_sources=0,destination=None,
+                                                          query_more_sources=0,sshare=optShare,group=None,activity=optActivity,
+                                                          acl_alias=None,replica_lifetime="7 days",force_backend=ddmBackEnd)
+                                if status != 0 or out.find("DQ2 internal server exception") != -1 \
+                                       or out.find("An error occurred on the central catalogs") != -1 \
+                                       or out.find("MySQL server has gone away") != -1:
+                                    time.sleep(60)
+                                else:
+                                    break
+                            if status != 0 or (out != 'None' and len(out) != 35):
+                                self.logger.error(out)
+                                dispError[disp] = "Setupper._subscribeDistpatchDB() could not register subscription"
+                            else:
+                                self.logger.debug(out)
                 # use PandaDDM
                 else:
                     # set DDM user DN
@@ -2037,37 +2039,34 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                     tmpFileSpec.dispatchDBlock = disDBlock
                         # register datasets
                         iLoop += 1
-                        tmpMsg = 'ext registerNewDataset {ds} {lfns} {guids} {fsizes} {chksums} rse={rse} backend={backend}'
+                        tmpMsg = 'ext registerNewDataset {ds} {lfns} {guids} {fsizes} {chksums}'
                         self.logger.debug(tmpMsg.format(ds=disDBlock,
                                                         lfns=str(lfns),
                                                         guids=str(guids),
                                                         fsizes=str(fsizes),
                                                         chksums=str(chksums),
-                                                        backend=tmpDdmBackEnd,
-                                                        rse=tmpLocation,
                                                         ))
-                        for iDDMTry in range(3):
-                            status,out = ddm.DQ2.main('registerNewDataset',disDBlock,lfns,guids,fsizes,chksums,
-                                                      None,None,None,True,rse=tmpLocation,force_backend=tmpDdmBackEnd)
-                            if status != 0 and out.find('DQDatasetExistsException') != -1:
-                                break
-                            elif status != 0 or out.find("DQ2 internal server exception") != -1 \
-                                     or out.find("An error occurred on the central catalogs") != -1 \
-                                     or out.find("MySQL server has gone away") != -1:
-                                self.logger.debug("sleep %s for %s" % (iDDMTry,disDBlock))
-                                self.logger.debug(status)
+                        nDDMTry = 3
+                        isOK = False
+                        for iDDMTry in range(nDDMTry):
+                            try:
+                                out = self.registerDispatchDataset(disDBlock,lfns,guids,fsizes,chksums)
                                 self.logger.debug(out)
-                                time.sleep(60)
-                            else:
+                                isOK = True
                                 break
-                        if status != 0 or out.find('Error') != -1:
-                            self.logger.error(out)
+                            except:
+                                errType,errValue = sys.exc_info()[:2]
+                                self.logger.error("ext registerDispatchDataset : failed with {0}:{1}".format(errType,errValue))
+                                if iDDMTry+1 == nDDMTry:
+                                    break
+                                self.logger.debug("sleep {0}/{1}".format(iDDMTry,nDDMTry))
+                                time.sleep(60)
+                        # failure
+                        if not isOK:
                             continue
-                        else:
-                            self.logger.debug(out)
                         # get VUID
                         try:
-                            exec "vuid = %s['vuid']" % out
+                            exec "vuid = %s['vuid']" % str(out)
                             # dataset spec. currentfiles is used to count the number of failed jobs
                             ds = DatasetSpec()
                             ds.vuid = vuid
@@ -2097,24 +2096,28 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         else:
                             self.logger.debug(out)
                         # register location
-                        self.logger.debug('registerDatasetLocation {ds} {dq2ID} {lifeTime}'.format(ds=disDBlock,
-                                                                                                   dq2ID=tmpLocation,
-                                                                                                   lifeTime="7 days",
-                                                                                                   ))
-                        for iDDMTry in range(3):
-                            status,out = ddm.DQ2.main('registerDatasetLocation',disDBlock,tmpLocation,0,1,None,None,None,"7 days")
-                            if status != 0 or out.find("DQ2 internal server exception") != -1 \
-                                   or out.find("An error occurred on the central catalogs") != -1 \
-                                   or out.find("MySQL server has gone away") != -1:
-                                time.sleep(60)
-                            else:
+                        isOK = False
+                        self.logger.debug('ext registerDatasetLocation {ds} {dq2ID} {lifeTime}days'.format(ds=disDBlock,
+                                                                                                           dq2ID=tmpLocation,
+                                                                                                           lifeTime=7,
+                                                                                                           ))
+                        nDDMTry = 3
+                        for iDDMTry in range(nDDMTry):
+                            try:
+                                out = self.registerDispatchDatasetLocation(disDBlock,[tmpLocation],7)
+                                self.logger.debug(out)
+                                isOK = True
                                 break
+                            except:
+                                errType,errValue = sys.exc_info()[:2]
+                                self.logger.error("ext registerDispatchDatasetLocation : failed with {0}:{1}".format(errType,errValue))
+                                if iDDMTry+1 == nDDMTry:
+                                    break
+                                self.logger.debug("sleep {0}/{1}".format(iDDMTry,nDDMTry))
+                                time.sleep(60)
                         # failure
-                        if status != 0 or out.find('Error') != -1:
-                            self.logger.error(out)
+                        if not isOK:
                             continue
-                        else:
-                            self.logger.debug(out)
         # insert datasets to DB
         self.taskBuffer.insertDatasets(dispList)
         self.logger.debug('finished to make dis datasets for existing files')
@@ -2401,3 +2404,66 @@ class SetupperAtlasPlugin (SetupperPluginBase):
     # check if rucio dataset
     def checkRucioDataset(self,datasetName,scope=None):
         return True
+
+
+
+    # register dispatch dataset
+    def registerDispatchDataset(self,dsn,lfns=[],guids=[],sizes=[],checksums=[],scope='panda'):
+        files = []
+        for lfn, guid, size, checksum in zip(lfns, guids, sizes, checksums):
+            if lfn.find(':') > -1:
+                s, lfn = lfn.split(':')[0], lfn.split(':')[1]
+            else:
+                s = scope
+            file = {'scope': s, 'name': lfn, 'bytes': size, 'meta': {'guid': guid}}
+            if checksum.startswith('md5:'):
+                file['md5'] = checksum[4:]
+            elif checksum.startswith('ad:'):
+                file['adler32'] = checksum[3:]
+            files.append(file)
+        # register dataset
+        client = RucioClient()
+        try:
+            client.add_dataset(scope=scope, name=dsn)
+        except DataIdentifierAlreadyExists:
+            pass
+        # add files
+        try:
+            client.add_files_to_dataset(scope=scope,name=dsn,files=files, rse=None)
+        except FileAlreadyExists:
+            for f in files:
+                try:
+                    client.add_files_to_dataset(scope=scope, name=dsn, files=[f], rse=None)
+                except FileAlreadyExists:
+                    pass
+        vuid = hashlib.md5(scope+':'+dsn).hexdigest()
+        vuid = '%s-%s-%s-%s-%s' % (vuid[0:8], vuid[8:12], vuid[12:16], vuid[16:20], vuid[20:32])
+        duid = vuid
+        return {'duid': duid, 'version': 1, 'vuid': vuid}
+
+
+
+    # register dispatch dataset
+    def registerDispatchDatasetLocation(self,dsn,rses,lifetime=None,scope='panda'):
+        if lifetime != None:
+            lifetime = lifetime*24*60*60
+        dids = []
+        did = {'scope': scope, 'name': dsn}
+        dids.append(did)
+        # make location
+        rses.sort()
+        location = '|'.join(rses)
+        # check if a replication rule already exists
+        client = RucioClient()
+        for rule in client.list_did_rules(scope=scope, name=dsn):
+            if (rule['rse_expression'] == location) and (rule['account'] == self.client.account):
+                return True
+        try:
+            client.add_replication_rule(dids=dids,copies=1,rse_expression=location,weight=None,
+                                        lifetime=lifetime, grouping='NONE', account=client.account,
+                                        locked=False, notify='N')
+        except Duplicate:
+            pass
+        return True
+
+

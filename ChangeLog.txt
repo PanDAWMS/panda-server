@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * using rucio api for _dis
   * fixed event-picking for rucio
   * fixed DDM for unicode
   * introduced timeout for starting
