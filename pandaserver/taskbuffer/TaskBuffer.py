@@ -2621,6 +2621,19 @@ class TaskBuffer:
 
 
 
+    # check input file status 
+    def checkInputFileStatusInJEDI(self,jobSpec):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.checkInputFileStatusInJEDI(jobSpec)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 

@@ -11624,6 +11624,24 @@ class DBProxy:
             # since they were already updated by merged job
             if jobSpec.jobStatus == 'finished' and fileSpec.isUnMergedOutput():
                 continue
+            # check file status
+            varMap = {}
+            varMap[':fileID']     = fileSpec.fileID
+            varMap[':datasetID']  = fileSpec.datasetID
+            varMap[':jediTaskID'] = jobSpec.jediTaskID
+            varMap[':attemptNr']  = fileSpec.attemptNr
+            sqlFileStat  = "SELECT status FROM ATLAS_PANDA.JEDI_Dataset_Contents "
+            sqlFileStat += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND attemptNr=:attemptNr "
+            sqlFileStat += "FOR UPDATE "
+            cur.execute(sqlFileStat+comment,varMap)
+            resFileStat = self.cur.fetchone()
+            if resFileStat != None:
+                oldFileStatus, = resFileStat
+            else:
+                oldFileStatus = None
+            # skip if already cancelled
+            if oldFileStatus in ['cancelled']:
+                continue
             # update Dataset Contents table
             updateMetadata  = False
             updateAttemptNr = False
@@ -11817,6 +11835,9 @@ class DBProxy:
                         _logger.debug(methodName+' '+\
                                           'not change nFilesOnHold for datasetID={0} since sub is in {1}'.format(datasetID,
                                                                                                                  preMergedDestStat))
+                        # increment nUsed when mergeing is killed before merge job is generated
+                        if oldFileStatus == 'ready':
+                            datasetContentsStat[datasetID]['nFilesUsed'] += 1
         # update JEDI_Datasets table
         nOutEvents = 0
         if datasetContentsStat != {}:
@@ -14072,4 +14093,56 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return False
+
+
+
+    # check input file status 
+    def checkInputFileStatusInJEDI(self,jobSpec):
+        comment = ' /* DBProxy.checkInputFileStatusInJEDI( */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger,methodName,monToken="<PandaID={0}>".format(jobSpec.PandaID))
+        tmpLog.debug("start")
+        try:
+            # only JEDI
+            if jobSpec.lockedby != 'jedi':
+                return True
+            # sql to check file status
+            sqlFileStat  = "SELECT status FROM ATLAS_PANDA.JEDI_Dataset_Contents "
+            sqlFileStat += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND attemptNr=:attemptNr "
+            # begin transaction
+            self.conn.begin()
+            # loop over all input files
+            allOK = True
+            for fileSpec in jobSpec.Files:
+                # only input file
+                if not fileSpec.type in ['input']:
+                    continue
+                varMap = {}
+                varMap[':jediTaskID'] = fileSpec.jediTaskID
+                varMap[':datasetID']  = fileSpec.datasetID
+                varMap[':fileID']     = fileSpec.fileID
+                varMap[':attemptNr']  = fileSpec.attemptNr
+                self.cur.execute(sqlFileStat+comment,varMap)
+                resFileStat = self.cur.fetchone()
+                if resFileStat != None:
+                    fileStatus, = resFileStat
+                    if fileStatus in ['cancelled']:
+                        tmpLog.debug("jediTaskID={0} datasetID={1} fileID={2} attemptNr={3} is in wrong status ({4})".format(fileSpec.jediTaskID,
+                                                                                                                             fileSpec.datasetID,
+                                                                                                                             fileSpec.fileID,
+                                                                                                                             fileSpec.attemptNr,
+                                                                                                                             fileStatus))
+                        allOK = False
+                        break
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug("done with {0}".format(allOK))
+            return allOK
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return None
             

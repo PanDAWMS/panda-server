@@ -89,6 +89,17 @@ class AdderGen:
             elif self.attemptNr != None and self.job.attemptNr != self.attemptNr:
                 self.logger.error('wrong attemptNr -> job=%s <> %s' % (self.job.attemptNr,self.attemptNr))
             else:
+                # check file status in JEDI
+                fileCheckInJEDI = self.taskBuffer.checkInputFileStatusInJEDI(self.job)
+                self.logger.debug("check file status in JEDI : {0}".format(fileCheckInJEDI))                
+                if fileCheckInJEDI == None:
+                    raise RuntimeError,'failed to check file status in JEDI'
+                if fileCheckInJEDI == False:
+                    # set job status to failed since some file status is wrong in JEDI 
+                    self.jobStatus = 'failed'
+                    self.job.ddmErrorCode = ErrorCode.EC_Adder
+                    self.job.ddmErrorDiag = "wrong file status in JEDI"
+                    self.logger.debug("set jobStatus={0} since input are already cancelled in JEDI".format(self.jobStatus))
                 # keep old status
                 oldJobStatus = self.job.jobStatus
                 # set job status
