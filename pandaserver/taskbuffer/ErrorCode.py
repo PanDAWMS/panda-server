@@ -48,6 +48,9 @@ EC_EventServiceUnused = 116
 # didn't process any events on WN
 EC_EventServiceUnprocessed = 117
 
+# didn't process any events on WN and last consumer
+EC_EventServiceLastUnprocessed = 118
+
 
 
 # file not found

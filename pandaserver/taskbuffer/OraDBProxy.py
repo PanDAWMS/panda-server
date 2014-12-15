@@ -1159,6 +1159,11 @@ class DBProxy:
                         job.jobStatus = 'cancelled'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceUnprocessed
                         job.taskBufferErrorDiag = "didn't process any events on WN for Event Service"
+                    elif retEvS == 6:
+                        # didn't process any event ranges and last consumer
+                        job.jobStatus = 'failed'
+                        job.taskBufferErrorCode = ErrorCode.EC_EventServiceLastUnprocessed
+                        job.taskBufferErrorDiag = "didn't process any events on WN for Event Service"
                 # delete from jobsDefined/Active
                 varMap = {}
                 varMap[':PandaID'] = job.PandaID
@@ -13085,6 +13090,7 @@ class DBProxy:
             # 3 : max attempts reached
             # 4 : not generated a merge job since other consumers are still running
             # 5 : didn't process any events on WN
+            # 6 : didn't process any events on WN and fail since the last one
             # None : fatal error
             retValue = 1,None
             # begin transaction
@@ -13148,11 +13154,26 @@ class DBProxy:
             # fail immediately if didn't process any event ranges
             if nRowED == 0:
                 _logger.debug("{0} : no more retry since did't process any event ranges on WN".format(methodName))
+                # check if there is active consumer
+                sqlAC  = "SELECT COUNT(*) FROM ATLAS_PANDA.jobsActive4 "
+                sqlAC += "WHERE jediTaskID=:jediTaskID AND jobsetID=:jobsetID "
+                varMap = {}
+                varMap[':jediTaskID'] = jobSpec.jediTaskID
+                varMap[':jobsetID']   = jobSpec.jobsetID
+                self.cur.execute(sqlAC+comment, varMap)
+                resAC = self.cur.fetchone()
+                numActiveEC, = resAC
+                _logger.debug("{0} : num of active consumers = {1}".format(methodName,numActiveEC))
                 # commit
                 if useCommit:
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
-                retValue = 5,None
+                if numActiveEC == 1:
+                    # last one
+                    retValue = 6,None
+                else:
+                    # there are active consumers
+                    retValue = 5,None
                 return retValue
             # look for hopeless event ranges
             sqlEU  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
