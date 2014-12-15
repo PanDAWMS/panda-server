@@ -13926,14 +13926,14 @@ class DBProxy:
                 # sql to get datasetIDs for master
                 sqlM  = 'SELECT datasetID FROM {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
                 sqlM += 'WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) '
-                sqlM += 'AND masterID IS NULL '
                 # sql to increase attempt numbers
                 sqlAB  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
                 sqlAB += "SET maxAttempt=maxAttempt+:increasedNr "
-                sqlAB += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status "
+                sqlAB += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status AND keepTrack=:keepTrack "
                 # sql to update datasets
                 sqlD  = "UPDATE {0}.JEDI_Datasets ".format(panda_config.schemaJEDI)
-                sqlD += "SET nFilesTobeUsed=nFilesTobeUsed-:nFilesReset,nFilesFailed=nFilesFailed-:nFilesReset "
+                sqlD += "SET nFilesUsed=nFilesUsed-:nFilesReset,nFilesFailed=nFilesFailed-:nFilesReset "
+                sqlD += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
                 # get datasetIDs for master
                 varMap = {}
                 varMap[':jediTaskID'] = jediTaskID
@@ -13949,6 +13949,7 @@ class DBProxy:
                     varMap[':jediTaskID'] = jediTaskID
                     varMap[':datasetID'] = datasetID
                     varMap[':status'] = 'ready'
+                    varMap[':keepTrack']  = 1
                     varMap[':increasedNr'] = increasedNr
                     sqlA = sqlAB + "AND maxAttempt>attemptNr "
                     self.cur.execute(sqlA+comment, varMap)

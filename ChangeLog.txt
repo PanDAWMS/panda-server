@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed increaseAttemptNr to increase max attempt for secondary datasets
   * fixed to increment nFilesUsed when merging is killed before merge generation
   * added protection against orphaned merge jobs
   * using rucio api for _dis
