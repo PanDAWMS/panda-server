@@ -2864,7 +2864,7 @@ class DBProxy:
                 sqlRR += "FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
                 sqlRR += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND status=:eventStatus "
                 # read parent PandaID
-                sqlPP  = "SELECT oldPandaID FROM {0}.JEDI_Job_Retry_History ".format(panda_config.schemaJEDI)
+                sqlPP  = "SELECT DISTINCT oldPandaID FROM {0}.JEDI_Job_Retry_History ".format(panda_config.schemaJEDI)
                 sqlPP += "WHERE jediTaskID=:jediTaskID AND newPandaID=:pandaID " # FIXME 'to ignore normal retry chain by JEDI' AND type=:esRetry "
                 # read files
                 sqlFile = "SELECT %s FROM ATLAS_PANDA.filesTable4 " % FileSpec.columnNames()
@@ -11931,7 +11931,7 @@ class DBProxy:
         sqlFP += "WHERE row_ID=:row_ID "
         if not onlyHistory:
             for tmpFile in job.Files:
-                # slip if no JEDI
+                # skip if no JEDI
                 if tmpFile.fileID == 'NULL':
                     continue
                 # update JEDI contents
@@ -11951,19 +11951,49 @@ class DBProxy:
                     varMap[':row_ID'] = tmpFile.row_ID
                     _logger.debug(sqlFP+comment+str(varMap))
                     cur.execute(sqlFP+comment,varMap)
+        # get origin
+        originIDs = self.getOriginPandaIDsJEDI(job.parentID,job.jediTaskID,cur)
         # sql to record retry history
         sqlRH  = "INSERT INTO {0}.JEDI_Job_Retry_History ".format(panda_config.schemaJEDI)
-        sqlRH += "(jediTaskID,oldPandaID,newPandaID,relationType) "
-        sqlRH += "VALUES(:jediTaskID,:oldPandaID,:newPandaID,:relationType) "
+        sqlRH += "(jediTaskID,oldPandaID,newPandaID,originPandaID,relationType) "
+        sqlRH += "VALUES(:jediTaskID,:oldPandaID,:newPandaID,:originPandaID,:relationType) "
         # record retry history
-        varMap = {}
-        varMap[':jediTaskID'] = job.jediTaskID
-        varMap[':oldPandaID'] = job.parentID
-        varMap[':newPandaID'] = job.PandaID
-        varMap[':relationType'] = 'retry'
-        _logger.debug(sqlRH+comment+str(varMap))
-        cur.execute(sqlRH+comment,varMap)
+        for originID in originIDs:
+            varMap = {}
+            varMap[':jediTaskID'] = job.jediTaskID
+            varMap[':oldPandaID'] = job.parentID
+            varMap[':newPandaID'] = job.PandaID
+            varMap[':originPandaID'] = originID
+            varMap[':relationType'] = 'retry'
+            cur.execute(sqlRH+comment,varMap)
         return
+
+
+
+    # get origin PandaIDs
+    def getOriginPandaIDsJEDI(self,pandaID,jediTaskID,cur):
+        comment = ' /* DBProxy.getOriginPandaIDsJEDI */'
+        # sql to get parent IDs
+        sqlFJ  = "SELECT DISTINCT oldPandaID FROM {0}.JEDI_Job_Retry_History ".format(panda_config.schemaJEDI)
+        sqlFJ += "WHERE jediTaskID=:jediTaskID AND newPandaID=:newPandaID "
+        varMap = {}
+        varMap[':jediTaskID'] = jediTaskID
+        varMap[':newPandaID'] = pandaID
+        cur.execute(sqlFJ+comment,varMap)
+        resT = cur.fetchall()
+        retList = []
+        if resT == []:
+            # origin
+            retList.append(pandaID)
+        else:
+            for oldPandaID, in resT:
+                # get parents
+                originIDs = self.getOriginPandaIDsJEDI(oldPandaID,jediTaskID,cur)
+                for originID in originIDs:
+                    if not originID in retList:
+                        retList.append(originID)
+        # return
+        return retList
 
 
 
@@ -11975,7 +12005,7 @@ class DBProxy:
         _logger.debug("{0} start".format(methodName))
         # sql
         sql  = "SELECT oldPandaID,newPandaID FROM {0}.JEDI_Job_Retry_History ".format(panda_config.schemaJEDI)
-        sql += "WHERE jediTaskID=:jediTaskID "
+        sql += "WHERE jediTaskID=:jediTaskID GROUP BY oldPandaID,newPandaID "
         try:
             # set autocommit on
             self.conn.begin()

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed for originpandaid
   * changed event-picking to work with non deterministic URLs
   * introduced EventServiceLastUnprocessed
   * added reqID
