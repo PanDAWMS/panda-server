@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed event-picking to work with non deterministic URLs
   * introduced EventServiceLastUnprocessed
   * added reqID
   * fixed increaseAttemptNr to increase max attempt for secondary datasets

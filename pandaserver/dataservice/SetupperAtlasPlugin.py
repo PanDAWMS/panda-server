@@ -2456,7 +2456,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         # check if a replication rule already exists
         client = RucioClient()
         for rule in client.list_did_rules(scope=scope, name=dsn):
-            if (rule['rse_expression'] == location) and (rule['account'] == self.client.account):
+            if (rule['rse_expression'] == location) and (rule['account'] == client.account):
                 return True
         try:
             client.add_replication_rule(dids=dids,copies=1,rse_expression=location,weight=None,

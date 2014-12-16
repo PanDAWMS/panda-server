@@ -15,6 +15,7 @@ from dataservice.DDM import ddm
 from dataservice.DDM import toa
 from dataservice.DDM import dq2Common
 from dataservice.DDM import dq2Info
+from dataservice.DDM import rucioAPI
 from taskbuffer.JobSpec import JobSpec
 import brokerage.broker
 
@@ -1078,7 +1079,7 @@ class DynDataDistributer:
                     self.putLog(out)
                     if status == 0 or 'DQContainerAlreadyHasDataset' in out:
                         break
-                time.sleep(60)
+                time.sleep(10)
             else:
                 break
         if out.find('DQDatasetExistsException') != -1:
@@ -1110,27 +1111,26 @@ class DynDataDistributer:
         # register new dataset    
         nTry = 3
         for iDDMTry in range(nTry):
-            self.putLog('%s/%s registerNewDataset %s' % (iDDMTry,nTry,datasetName))
-            status,out = ddm.DQ2.main('registerNewDataset',datasetName,lfns,guids,fsizes,chksums,
-                                      None,None,None,True,rse=locations[0])
-            self.putLog(out)
-            if status != 0 and out.find('DQDatasetExistsException') == -1:
-                time.sleep(60)
-            else:
+            try:
+                self.putLog('%s/%s registerNewDataset %s' % (iDDMTry,nTry,datasetName))
+                out = rucioAPI.registerDatasetWithOldFiles(datasetName,lfns,guids,fsizes,chksums,
+                                                           lifetime=14)
+                self.putLog(out)
                 break
-        if out.find('DQDatasetExistsException') != -1:
-            pass
-        elif status != 0 or out.startswith('Error'):
-            self.putLog(out,'error')
-            self.putLog('bad DQ2 response to register %s' % datasetName, 'error')
-            return resForFailure
+            except:
+                errType,errValue = sys.exc_info()[:2]
+                self.putLog("%s %s" % (errType,errValue),'error')
+                if iDDMTry+1 == nTry:
+                    self.putLog('failed to register {0} in rucio'.format(datasetName))
+                    return resForFailure
+                time.sleep(10)
         # freeze dataset    
         nTry = 3
         for iDDMTry in range(nTry):
             self.putLog('%s/%s freezeDataset %s' % (iDDMTry,nTry,datasetName))
             status,out = ddm.DQ2.main('freezeDataset',datasetName)
             if status != 0 and out.find('DQFrozenDatasetException') == -1:
-                time.sleep(60)
+                time.sleep(10)
             else:
                 break
         if out.find('DQFrozenDatasetException') != -1:
@@ -1143,29 +1143,33 @@ class DynDataDistributer:
         for tmpLocation in locations:
             nTry = 3
             for iDDMTry in range(nTry):
-                self.putLog('%s/%s registerDatasetLocation %s %s' % (iDDMTry,nTry,datasetName,tmpLocation))
-                status,out = ddm.DQ2.main('registerDatasetLocation',datasetName,tmpLocation,0,1,None,None,None,"14 days")
+                try:
+                    self.putLog('%s/%s registerDatasetLocation %s %s' % (iDDMTry,nTry,datasetName,tmpLocation))
+                    out = rucioAPI.registerDatasetLocation(datasetName,[tmpLocation],14)
+                    self.putLog(out)
+                except:
+                    errType,errValue = sys.exc_info()[:2]
+                    self.putLog("%s %s" % (errType,errValue),'error')
+                    if iDDMTry+1 == nTry:
+                        self.putLog('failed to register {0} in rucio'.format(datasetName))
+                        return resForFailure
+                    time.sleep(10)
+            # set owner
+            for iDDMTry in range(nTry):
+                self.putLog('%s/%s setReplicaMetaDataAttribute %s %s owner=%s' % \
+                                (iDDMTry,nTry,datasetName,tmpLocation,owner))
                 self.putLog(out)
-                if status != 0 and out.find('DQLocationExistsException') == -1:
+                status,out = ddm.DQ2.main('setReplicaMetaDataAttribute',datasetName,tmpLocation,'owner',owner)
+                if status != 0:
+                    self.putLog(out,'error')
                     time.sleep(60)
                 else:
-                    for iDDMTry in range(nTry):
-                        self.putLog('%s/%s setReplicaMetaDataAttribute %s %s owner=%s' % \
-                                        (iDDMTry,nTry,datasetName,tmpLocation,owner))
-                        self.putLog(out)
-                        status,out = ddm.DQ2.main('setReplicaMetaDataAttribute',datasetName,tmpLocation,'owner',owner)
-                        if status != 0:
-                            time.sleep(60)
-                        else:
-                            break
-                    if status != 0:
-                        self.putLog(out,'error')
                     break
             if out.find('DQLocationExistsException') != -1:
                 pass
             elif status != 0 or out.startswith('Error'):
                 self.putLog(out,'error')
-                self.putLog('bad DQ2 response to freeze %s' % datasetName, 'error')
+                self.putLog('bad DQ2 response to set owner %s' % datasetName, 'error')
                 return resForFailure
         return True
 
@@ -1724,5 +1728,3 @@ class DynDataDistributer:
             if rNumber <= 0:
                 return tmpCan
         return allCandidates[-1]
-                
-            
