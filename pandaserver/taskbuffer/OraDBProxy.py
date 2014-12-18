@@ -11913,7 +11913,8 @@ class DBProxy:
             if res != None:
                 if res[0] in ['ready','running','scouting','pending',
                               'topreprocess','preprocessing','aborting',
-                              'finishing','scouted','toreassign','paused']:
+                              'finishing','scouted','toreassign','paused',
+                              'throttled']:
                     retVal = True
         _logger.debug('checkTaskStatusJEDI jediTaskID=%s with %s' % (jediTaskID,retVal))            
         return retVal
@@ -12409,7 +12410,7 @@ class DBProxy:
                     if taskStatus in ['finished','failed','done','aborted','broken','paused']:
                         goForward = False
                 if comStr == 'resume':
-                    if not taskStatus in ['paused']:
+                    if not taskStatus in ['paused','throttled']:
                         goForward = False
                 if not goForward:
                     retStr = 'Command rejected: the {0} command is not accepted if the task is in {1} status'.format(comStr,taskStatus)
