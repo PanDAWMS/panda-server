@@ -397,7 +397,7 @@ def changeListDatasetsOut(out,datasetName=None):
 def extractImportantError(out):
     retStr = ''
     try:
-        strList = ['InvalidRSEExpression']
+        strList = ['InvalidRSEExpression','Details:']
         for line in out.split('\n'):
             for tmpStr in strList:
                 if tmpStr in line:

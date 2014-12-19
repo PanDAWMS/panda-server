@@ -204,7 +204,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         if status != 0 or out.find("DQ2 internal server exception") != -1 \
                                or out.find("An error occurred on the central catalogs") != -1 \
                                or out.find("MySQL server has gone away") != -1:
-                            time.sleep(60)
+                            time.sleep(10)
                         else:
                             break
                     if status != 0 or out.find('Error') != -1:
@@ -347,7 +347,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         if iDDMTry+1 == nDDMTry:
                             break
                         self.logger.debug("sleep {0}/{1}".format(iDDMTry,nDDMTry))
-                        time.sleep(60)
+                        time.sleep(10)
                 if not isOK:
                     dispError[dispatchDBlock] = "Setupper._setupSource() could not register dispatchDBlock"
                     continue
@@ -362,7 +362,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                            or out.find("MySQL server has gone away") != -1:
                         if out.find('DQFrozenDatasetException') != -1:
                             break
-                        time.sleep(60)
+                        time.sleep(10)
                     else:
                         break
                 if status != 0 and out.find('DQFrozenDatasetException') != -1:
@@ -560,7 +560,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                         self.logger.debug(status)
                                         self.logger.debug(out)
                                         self.logger.debug("-------------")                                                                
-                                        time.sleep(60)
+                                        time.sleep(10)
                                     else:
                                         break
                                 if status != 0 or out.find('Error') != -1:
@@ -607,7 +607,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                             elif status != 0 or out.find("DQ2 internal server exception") != -1 \
                                                      or out.find("An error occurred on the central catalogs") != -1 \
                                                      or out.find("MySQL server has gone away") != -1:
-                                                time.sleep(60)
+                                                time.sleep(10)
                                             else:
                                                 break
                                         # ignore "already exists at location XYZ"
@@ -640,7 +640,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                 if status != 0 or out.find("DQ2 internal server exception") != -1 \
                                        or out.find("An error occurred on the central catalogs") != -1 \
                                        or out.find("MySQL server has gone away") != -1:
-                                    time.sleep(60)
+                                    time.sleep(10)
                                 else:
                                     break
                             if status != 0 or out.find('Error') != -1:                                
@@ -814,7 +814,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                 if iDDMTry+1 == nDDMTry:
                                     break
                                 self.logger.debug("sleep {0}/{1}".format(iDDMTry,nDDMTry))
-                                time.sleep(60)
+                                time.sleep(10)
                     else:
                         # register locations later for prestaging
                         isOK = True
@@ -886,7 +886,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                     if iDDMTry+1 == nDDMTry:
                                         break
                                     self.logger.debug("sleep {0}/{1}".format(iDDMTry,nDDMTry))
-                                    time.sleep(60)
+                                    time.sleep(10)
                         else:
                             isOK = True
                             # set sources to handle T2s in another cloud and to transfer dis datasets being split in multiple sites 
@@ -926,7 +926,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                 if status != 0 or out.find("DQ2 internal server exception") != -1 \
                                        or out.find("An error occurred on the central catalogs") != -1 \
                                        or out.find("MySQL server has gone away") != -1:
-                                    time.sleep(60)
+                                    time.sleep(10)
                                 else:
                                     break
                             if status != 0 or (out != 'None' and len(out) != 35):
@@ -1160,7 +1160,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         elif status != 0 or out.find("DQ2 internal server exception") != -1 \
                                  or out.find("An error occurred on the central catalogs") != -1 \
                                  or out.find("MySQL server has gone away") != -1:
-                            time.sleep(60)
+                            time.sleep(10)
                         else:
                             break
                     if status != 0 or out.startswith('Error'):
@@ -1706,7 +1706,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             elif status == -1:
                 break
             elif status != 0 or (not self.isDQ2ok(out)):
-                time.sleep(60)
+                time.sleep(10)
             else:
                 break
         if status != 0 or out.startswith('Error'):
@@ -1728,7 +1728,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         for iDDMTry in range(3):
             status,out = ddm.DQ2.main('listDatasetsInContainer',container)
             if status != 0 or (not self.isDQ2ok(out)):
-                time.sleep(60)
+                time.sleep(10)
             else:
                 break
         self.logger.debug(out)
@@ -1752,7 +1752,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                    or out.find("An error occurred on the central catalogs") != -1 \
                    or out.find("MySQL server has gone away") != -1 \
                    or out == '()':
-                time.sleep(60)
+                time.sleep(10)
             else:
                 break
         self.logger.debug(out)
@@ -1822,7 +1822,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             self.logger.debug("%s/%s listDatasetReplicas %s" % (iDDMTry,nTry,dataset))
             status,out = ddm.DQ2.main('listDatasetReplicas',dataset,0,None,True)
             if status != 0 or (not self.isDQ2ok(out)):
-                time.sleep(60)
+                time.sleep(10)
             else:
                 break
         # result    
@@ -1882,7 +1882,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 self.logger.debug("%s/%s deleteDatasetReplicas %s %s" % (iDDMTry,nTry,dataset,str(delSites)))
                 status,out = ddm.DQ2.main('deleteDatasetReplicas',dataset,delSites)
                 if status != 0 or (not self.isDQ2ok(out)):
-                    time.sleep(60)
+                    time.sleep(10)
                 else:
                     break
             # result
@@ -2060,7 +2060,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                 if iDDMTry+1 == nDDMTry:
                                     break
                                 self.logger.debug("sleep {0}/{1}".format(iDDMTry,nDDMTry))
-                                time.sleep(60)
+                                time.sleep(10)
                         # failure
                         if not isOK:
                             continue
@@ -2087,7 +2087,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                             if status != 0 or out.find("DQ2 internal server exception") != -1 \
                                    or out.find("An error occurred on the central catalogs") != -1 \
                                    or out.find("MySQL server has gone away") != -1:
-                                time.sleep(60)
+                                time.sleep(10)
                             else:
                                 break
                         if status != 0 or (out.find('Error') != -1 and out.find("is frozen") == -1):
@@ -2114,7 +2114,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                 if iDDMTry+1 == nDDMTry:
                                     break
                                 self.logger.debug("sleep {0}/{1}".format(iDDMTry,nDDMTry))
-                                time.sleep(60)
+                                time.sleep(10)
                         # failure
                         if not isOK:
                             continue
@@ -2303,7 +2303,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             elif out.find('DQLocationExistsException') != -1:
                 break
             elif status != 0 or (not self.isDQ2ok(out)):
-                time.sleep(60)
+                time.sleep(10)
             else:
                 break
         # result
@@ -2330,7 +2330,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             if status != 0 or (not self.isDQ2ok(out)):
                 if 'ReplicaNotFound' in out:
                     break
-                time.sleep(60)
+                time.sleep(10)
             else:
                 break
         if status != 0 or out.startswith('Error'):
@@ -2359,8 +2359,10 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             self.logger.debug('%s/%s setReplicaMetaDataAttribute %s %s %s=%s' % (iDDMTry,nTry,datasetName,
                                                                                  locationName,attrname,attrvalue))
             status,out = ddm.DQ2.main('setReplicaMetaDataAttribute',datasetName,locationName,attrname,attrvalue)
-            if status != 0 or (not self.isDQ2ok(out)):
-                time.sleep(60)
+            if 'InvalidRSEExpression' in out:
+                break
+            elif status != 0 or (not self.isDQ2ok(out)):
+                time.sleep(10)
             else:
                 break
         if status != 0 or out.startswith('Error'):

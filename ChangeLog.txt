@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * chnaged Setupper for InvalidRSEExpression
   * changed Adder to extract important DDM error messages
   * setting lifetime to _dis
   * added throttled
