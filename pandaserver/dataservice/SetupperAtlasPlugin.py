@@ -2427,6 +2427,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             client.add_dataset(scope=scope, name=dsn)
         except DataIdentifierAlreadyExists:
             pass
+        # set lifetime
+        client.set_metadata(scope,dsn,key='lifetime',value=7*86400)
         # add files
         try:
             client.add_files_to_dataset(scope=scope,name=dsn,files=files, rse=None)

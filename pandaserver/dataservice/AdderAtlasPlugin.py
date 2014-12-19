@@ -470,8 +470,13 @@ class AdderAtlasPlugin (AdderPluginBase):
                      self.logger.error('%s' % out)
                      if (iTry+1) == nTry or isFatal:
                          self.job.ddmErrorCode = ErrorCode.EC_Adder
+                         # extract important error string
+                         extractedErrStr = DataServiceUtils.extractImportantError(out)
                          errMsg = "Could not add files to DDM: "
-                         self.job.ddmErrorDiag = errMsg + out.split('\n')[-1]
+                         if extractedErrStr == '':
+                             self.job.ddmErrorDiag = errMsg + out.split('\n')[-1]
+                         else:
+                             self.job.ddmErrorDiag = errMsg + extractedErrStr
                          if isFatal:
                              self.result.setFatal()
                          else:
@@ -500,7 +505,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                         for iDDMTry in range(3):
                             out = 'OK'
                             isFailed = False                        
-                            try:                        
+                            try:
                                 self.dq2api.registerDatasetSubscription(tmpName,dq2ID,version=0,archived=0,callbacks=optSub,
                                                                         sources=optSource,sources_policy=(001000 | 010000),
                                                                         wait_for_sources=0,destination=None,query_more_sources=0,
@@ -518,6 +523,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                                 if 'is not a Tiers of Atlas Destination' in str(errValue) or \
                                         'is not in Tiers of Atlas' in str(errValue) or \
                                         'RSE Expression resulted in an empty set' in str(errValue) or \
+                                        'RSE excluded due to write blacklisting' in str(errValue) or \
                                         'used/quota' in str(errValue):
                                     # fatal error
                                     self.job.ddmErrorCode = ErrorCode.EC_Subscription
@@ -528,9 +534,15 @@ class AdderAtlasPlugin (AdderPluginBase):
                                 break
                         if isFailed:
                             self.logger.error('%s' % out)
+                            # extract important error string
+                            extractedErrStr = DataServiceUtils.extractImportantError(out)
                             if self.job.ddmErrorCode == ErrorCode.EC_Subscription:
                                 # fatal error
-                                self.job.ddmErrorDiag = "subscription failure with %s" % out
+                                if extractedErrStr == '':
+                                    self.job.ddmErrorDiag = "subscription failure with %s" % out
+                                else:
+                                    self.logger.error(extractedErrStr)
+                                    self.job.ddmErrorDiag = "subscription failure with %s" % extractedErrStr
                                 self.result.setFatal()
                             else:
                                 # temoprary errors

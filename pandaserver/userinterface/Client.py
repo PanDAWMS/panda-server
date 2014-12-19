@@ -1569,7 +1569,7 @@ def changeTaskRamCount(jediTaskID,ramCount):
 
        args:
            jediTaskID: jediTaskID of the task to change the priority
-           ramCount: new walltime for the task
+           ramCount: new ramCount for the task
        returns:
            status code
                  0: communication succeeded to the panda server 

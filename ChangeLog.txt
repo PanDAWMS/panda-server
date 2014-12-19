@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * changed Adder to extract important DDM error messages
+  * setting lifetime to _dis
   * added throttled
   * changed for originpandaid
   * changed event-picking to work with non deterministic URLs

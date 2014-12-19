@@ -392,3 +392,19 @@ def changeListDatasetsOut(out,datasetName=None):
     return out
     
 
+
+# extract importand error string
+def extractImportantError(out):
+    retStr = ''
+    try:
+        strList = ['InvalidRSEExpression']
+        for line in out.split('\n'):
+            for tmpStr in strList:
+                if tmpStr in line:
+                    retStr += line
+                    retStr += ' '
+        retStr = retStr[:-1]
+    except:
+        pass
+    return retStr
+
