@@ -11621,6 +11621,7 @@ class DBProxy:
         # loop over all files
         finishUnmerge = False
         hasInput = False
+        _logger.debug(methodName+' waitLock={0}'.format(waitLock))
         for fileSpec in jobSpec.Files:
             # skip if no JEDI
             if fileSpec.fileID == 'NULL':
@@ -11638,6 +11639,9 @@ class DBProxy:
             sqlFileStat  = "SELECT status FROM ATLAS_PANDA.JEDI_Dataset_Contents "
             sqlFileStat += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND attemptNr=:attemptNr "
             sqlFileStat += "FOR UPDATE "
+            if not waitLock:
+                sqlFileStat += "NOWAIT "
+            _logger.debug(methodName+' '+sqlFileStat+comment+str(varMap))
             cur.execute(sqlFileStat+comment,varMap)
             resFileStat = self.cur.fetchone()
             if resFileStat != None:
@@ -11746,6 +11750,8 @@ class DBProxy:
                 if updateNumEvents:
                     sqlEVT = "SELECT nEvents FROM ATLAS_PANDA.JEDI_Dataset_Contents "
                     sqlEVT += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+                    if not waitLock:
+                        sqlEVT += "FOR UPDATE NOWAIT "
                     varMap = {}
                     varMap[':fileID']     = fileSpec.fileID
                     varMap[':datasetID']  = fileSpec.datasetID
@@ -11824,6 +11830,7 @@ class DBProxy:
                     varMap[':jediTaskID'] = jobSpec.jediTaskID
                     sqlGetDest  = "SELECT destinationDBlock FROM ATLAS_PANDA.filesTable4 "
                     sqlGetDest += "WHERE pandaID=:pandaID AND jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+                    _logger.debug(methodName+' '+sqlGetDest+comment+str(varMap))
                     cur.execute(sqlGetDest+comment,varMap)
                     preMergedDest, = self.cur.fetchone()
                     # check if corresponding sub is closed
@@ -11832,6 +11839,7 @@ class DBProxy:
                     varMap[':subtype'] = 'sub'
                     sqlCheckDest  = "SELECT status FROM ATLAS_PANDA.Datasets "
                     sqlCheckDest += "WHERE name=:name AND subtype=:subtype "
+                    _logger.debug(methodName+' '+sqlCheckDest+comment+str(varMap))
                     cur.execute(sqlCheckDest+comment,varMap)
                     preMergedDestStat, = self.cur.fetchone()
                     if not preMergedDestStat in ['tobeclosed','completed']:
