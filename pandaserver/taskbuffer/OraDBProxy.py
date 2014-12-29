@@ -3403,10 +3403,6 @@ class DBProxy:
                 # instantiate JobSpec
                 job = JobSpec()
                 job.pack(res[0])
-                # kill associated consumers for event service
-                if useEventService:
-                    self.killEventServiceConsumers(job,True,False)
-                    self.killUnusedEventServiceConsumers(job,False)
                 # delete
                 if table=='ATLAS_PANDA.jobsDefined4':
                     varMap = {}
@@ -3500,6 +3496,10 @@ class DBProxy:
                         fileSpec = FileSpec()
                         fileSpec.pack(resF)
                         job.addFile(fileSpec)
+                    # kill associated consumers for event service
+                    if useEventService:
+                        self.killEventServiceConsumers(job,True,False)
+                        self.killUnusedEventServiceConsumers(job,False)
                     # update JEDI
                     self.propagateResultToJEDI(job,self.cur,oldJobStatus)
                 break
