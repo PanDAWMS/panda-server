@@ -1076,7 +1076,7 @@ class TaskBuffer:
                 scrStr += " %s\n" % tmpDS
                 # ln
                 for tmpLFN in tmpFileList:
-                    scrStr += "ln -fs %s*/%s ./%s\n" % (tmpDS.rstrip("/"),tmpLFN,tmpLFN)
+                    scrStr += "ln -fs %s*/%s ./%s\n" % (tmpDS.split(':')[-1].rstrip("/"),tmpLFN,tmpLFN)
             scrStr += "\n#transform commands\n\n"
             for tmpIdx,tmpRel in enumerate(tmpRels):
                 # asetup
