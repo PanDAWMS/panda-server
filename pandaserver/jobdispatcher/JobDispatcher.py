@@ -216,15 +216,22 @@ class JobDipatcher:
 
     # update job status
     def updateJob(self,jobID,jobStatus,timeout,xml,siteName,param,metadata,attemptNr=None,stdout=''):
+        # recoverable error for ES merge
+        recoverableEsMerge = False
+        if 'pilotErrorCode' in param and param['pilotErrorCode'] in ['1224']:
+            recoverableEsMerge = True
         # retry failed analysis job and ddm job
         if jobStatus=='failed' \
-           and ((param.has_key('pilotErrorCode') and (param['pilotErrorCode'] in ['1200','1201'] \
-                                                      or param['pilotErrorCode'].startswith('-'))) \
-                 or (siteName != None and siteName.find('DDM') != -1)):
+                and ((param.has_key('pilotErrorCode') and (param['pilotErrorCode'] in ['1200','1201'] \
+                                                               or param['pilotErrorCode'].startswith('-') \
+                                                               or recoverableEsMerge)) \
+                         or (siteName != None and siteName.find('DDM') != -1)):
             # retry
-            if param.has_key('pilotErrorCode') and param['pilotErrorCode'].startswith('-'):
-                # pilot retry with new PandaID
-                ret = self.taskBuffer.retryJob(jobID,param,getNewPandaID=True,attemptNr=attemptNr)
+            if param.has_key('pilotErrorCode') and (param['pilotErrorCode'].startswith('-') or \
+                                                        recoverableEsMerge):
+                # pilot retry with new PandaID. Negative codes or ESMERGERECOVERABLE
+                ret = self.taskBuffer.retryJob(jobID,param,getNewPandaID=True,attemptNr=attemptNr,
+                                               recoverableEsMerge=recoverableEsMerge)
             else:
                 # old style
                 ret = self.taskBuffer.retryJob(jobID,param,attemptNr=attemptNr)                

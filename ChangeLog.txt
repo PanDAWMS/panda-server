@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added retry for ES merge when ERR_ESMERGERECOVERABLE
   * fixed getScriptOfflineRunning for did
   * fixed killJob for ES
   * chnaged Setupper for InvalidRSEExpression

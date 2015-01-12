@@ -1979,7 +1979,7 @@ class DBProxy:
 
     # retry analysis job
     def retryJob(self,pandaID,param,failedInActive=False,changeJobInMem=False,inMemJob=None,
-                 getNewPandaID=False,attemptNr=None):
+                 getNewPandaID=False,attemptNr=None,recoverableEsMerge=False):
         comment = ' /* DBProxy.retryJob */'                
         _logger.debug("retryJob : %s inActive=%s" % (pandaID,failedInActive))
         sql1 = "SELECT %s FROM ATLAS_PANDA.jobsActive4 " % JobSpec.columnNames()
@@ -2051,7 +2051,8 @@ class DBProxy:
                 # check pilot retry
                 usePilotRetry = False
                 if job.prodSourceLabel in ['user','panda','ptest','rc_test'] and \
-                   param.has_key('pilotErrorCode') and param['pilotErrorCode'].startswith('-') and \
+                   param.has_key('pilotErrorCode') and \
+                   (param['pilotErrorCode'].startswith('-') or recoverableEsMerge) and \
                    job.maxAttempt > job.attemptNr and \
                    (not job.processingType.startswith('gangarobot') or job.processingType=='gangarobot-rctest') and \
                    not job.processingType.startswith('hammercloud'):
@@ -2178,7 +2179,10 @@ class DBProxy:
                             if oldComputingSite == file.destinationSE:
                                 file.destinationSE = job.computingSite
                             # modify jobParameters
-                            sepPatt = "(\'|\"|%20|:)" + oldName + "(\'|\"|%20| )"
+                            if not recoverableEsMerge:
+                                sepPatt = "(\'|\"|%20|:)" + oldName + "(\'|\"|%20| )"
+                            else:
+                                sepPatt = "(\'|\"| |:|=)" + oldName + "(\'|\"| |<|$)"
                             matches = re.findall(sepPatt,job.jobParameters)
                             for match in matches:
                                 oldPatt = match[0]+oldName+match[-1]
@@ -13286,6 +13290,8 @@ class DBProxy:
             jobSpec.startTime        = None
             jobSpec.modificationTime = datetime.datetime.utcnow()
             jobSpec.attemptNr       += 1
+            if doMerging:
+                jobSpec.maxAttempt = jobSpec.attemptNr+3
             if not doMerging:
                 #jobSpec.currentPriority -= 10
                 pass
