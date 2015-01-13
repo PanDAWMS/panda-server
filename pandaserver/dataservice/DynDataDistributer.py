@@ -654,34 +654,13 @@ class DynDataDistributer:
             if dq2ID == '':
                 self.putLog("cannot find DQ2 ID for %s:%s" % (sitename,dataset))
                 return retFailed
-            for valueItem in ['used','total']:
-                nTry = 3
-                for iDDMTry in range(nTry):
-                    status,out = ddm.DQ2.main('queryStorageUsage','srm',valueItem,dq2ID)
-                    if status != 0 or (not self.isDQ2ok(out)):
-                        time.sleep(60)
-                    else:
-                        break
-                # result    
-                if status != 0 or out.startswith('Error'):
-                    self.putLog("%s/%s queryStorageUsage key=%s value=%s site=%s" % (iDDMTry,nTry,'srm',valueItem,dq2ID))
-                    self.putLog(out,'error')
-                    self.putLog('bad DQ2 response for %s:%s' % (dq2ID,valueItem), 'error')            
-                    return retFailed
-                try:
-                    # convert res to map
-                    exec "tmpGigaVal = %s[0]['giga']" % out
-                    if not sizeMap.has_key(sitename):
-                        sizeMap[sitename] = {}
-                    # append
-                    sizeMap[sitename][valueItem] = tmpGigaVal
-                    # cache
-                    self.cachedSizeMap[sitename] = sizeMap[sitename]
-                except:
-                    self.putLog("%s/%s queryStorageUsage key=%s value=%s site=%s" % (iDDMTry,nTry,'srm',valueItem,dq2ID))                    
-                    self.putLog(out,'error')            
-                    self.putLog('could not convert HTTP-res to free size map for %s%s' % (dq2ID,valueItem), 'error')
-                    return retFailed
+            tmpMap = rucioAPI.getRseUsage(dq2ID)
+            if tmpMap == {}:
+                self.putLog('getRseUsage failed for {0}'.format(sitename))
+            # append
+            sizeMap[sitename] = tmpMap
+            # cache
+            self.cachedSizeMap[sitename] = sizeMap[sitename]
         # return
         self.putLog('getFreeDiskSize done->%s' % str(sizeMap))
         return True,sizeMap

@@ -454,6 +454,27 @@ class RucioAPI:
 
 
 
+
+    # get disk usage at RSE
+    def getRseUsage(self,rse):
+        retMap = {}
+        try:
+            client = RucioClient()
+            itr = client.get_rse_usage(rse)
+            # look for srm
+            for item in itr:
+                if item['source'] == 'srm':
+                    print item
+                    retMap = {'total':item['total']/1024/1024/1024,
+                              'used':item['used']/1024/1024/1024,
+                              'free':item['free']/1024/1024/1024}
+                    break
+        except:
+            pass
+        return retMap
+
+
+
 # instantiate
 rucioAPI = RucioAPI()
 del RucioAPI

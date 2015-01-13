@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed getFreeDiskSize in PD2P
   * added retry for ES merge when ERR_ESMERGERECOVERABLE
   * fixed getScriptOfflineRunning for did
   * fixed killJob for ES
