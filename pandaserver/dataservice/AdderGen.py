@@ -402,6 +402,18 @@ class AdderGen:
         except:
             pass
         self.logger.debug('nEventsMap=%s' % str(nEventsMap))
+        # parse json
+        try:
+            import json
+            jsonDict = json.loads(self.job.metadata)
+            for jsonFileItem in jsonDict['files']['output']:
+                for jsonSubFileItem in jsonFileItem['subFiles']:
+                    lfn = str(jsonSubFileItem['name'])
+                    nevents = jsonSubFileItem['nentries']
+                    nEventsMap[lfn] = nevents
+        except:
+            pass
+        self.logger.debug('nEventsMapJson=%s' % str(nEventsMap))
         # get lumi block number
         lumiBlockNr = self.job.getLumiBlockNr()
         # check files
