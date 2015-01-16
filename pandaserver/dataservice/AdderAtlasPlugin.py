@@ -413,6 +413,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                                  '[USER][OTHER] Parameter value [None] is not a valid uid!',
                                  'FileConsistencyMismatch',
                                  'Problem validating attachment',
+                                 'DELETED_DIDS_PK',
                                  'Apache Server at atlddmcat-writer.cern.ch Port 443']
                  regStart = datetime.datetime.utcnow()
                  try:

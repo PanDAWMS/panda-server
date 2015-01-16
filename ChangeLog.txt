@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed for UNDEFINED in jobReport.json
   * sending prodDBlocks to the pilot
   * changed updateJob to avoid row lock contantation
   * setting subJobStatus to cancelled ES jobs

@@ -409,8 +409,11 @@ class AdderGen:
             for jsonFileItem in jsonDict['files']['output']:
                 for jsonSubFileItem in jsonFileItem['subFiles']:
                     lfn = str(jsonSubFileItem['name'])
-                    nevents = jsonSubFileItem['nentries']
-                    nEventsMap[lfn] = nevents
+                    try:
+                        nevents = long(jsonSubFileItem['nentries'])
+                        nEventsMap[lfn] = nevents
+                    except:
+                        pass
         except:
             pass
         self.logger.debug('nEventsMapJson=%s' % str(nEventsMap))
