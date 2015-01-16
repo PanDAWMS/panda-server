@@ -1,6 +1,9 @@
 Release Note
 
 * current
+  * sending prodDBlocks to the pilot
+  * changed updateJob to avoid row lock contantation
+  * setting subJobStatus to cancelled ES jobs
   * extracting # of events from json
   * fixed getFreeDiskSize in PD2P
   * added retry for ES merge when ERR_ESMERGERECOVERABLE

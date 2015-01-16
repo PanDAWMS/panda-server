@@ -76,7 +76,8 @@ class Response:
         strDisTokenForOutput = ''                
         strDestination = ''
         strRealDataset = ''
-        strRealDatasetIn = ''        
+        strRealDatasetIn = ''
+        strProdDBlock = ''
         strDestToken = ''
         strProdToken = ''
         strProdTokenForOutput = ''
@@ -100,6 +101,7 @@ class Response:
                 if strDisToken != '':
                     strDisToken += ','
                 strDisToken += file.dispatchDBlockToken
+                strProdDBlock += '%s,' % file.prodDBlock 
                 if strProdToken != '':
                     strProdToken += ','
                 strProdToken += file.prodDBlockToken
@@ -149,6 +151,8 @@ class Response:
         self.data['destinationDblock'] = strDestination
         # destination DBlock space token
         self.data['destinationDBlockToken'] = strDestToken
+        # prod DBlocks
+        self.data['prodDBlocks'] = strProdDBlock[:-1]
         # prod DBlock space token
         self.data['prodDBlockToken'] = strProdToken
         # real output datasets

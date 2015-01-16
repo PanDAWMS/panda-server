@@ -1130,11 +1130,13 @@ class DBProxy:
                     elif retEvS == 0:
                         # retry event ranges
                         job.jobStatus = 'cancelled'
+                        job.jobSubStatus = 'finished'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceRetried
                         job.taskBufferErrorDiag = 'cancelled to retry unprocessed even ranges in PandaID={0}'.format(retNewPandaID)
                     elif retEvS == 2:
                         # goes to merging
                         job.jobStatus = 'cancelled'
+                        job.jobSubStatus = 'finished'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceMerge
                         job.taskBufferErrorDiag = 'cancelled to merge pre-merged files in PandaID={0}'.format(retNewPandaID)
                         # kill unused event service consumers
@@ -1150,6 +1152,7 @@ class DBProxy:
                     elif retEvS == 4:
                         # other consumers are running
                         job.jobStatus = 'cancelled'
+                        job.jobSubStatus = 'finished'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceWaitOthers
                         job.taskBufferErrorDiag = 'no further action since other Event ServiceEvent Service consumers were still running'
                         # kill unused
@@ -1157,6 +1160,7 @@ class DBProxy:
                     elif retEvS == 5:
                         # didn't process any event ranges
                         job.jobStatus = 'cancelled'
+                        job.jobSubStatus = 'finished'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceUnprocessed
                         job.taskBufferErrorDiag = "didn't process any events on WN for Event Service"
                     elif retEvS == 6:
@@ -1931,6 +1935,15 @@ class DBProxy:
                         # no difference
                         if diffNum == 0:
                             continue
+                        # SQL to check lock
+                        varMap = {}
+                        varMap[':jediTaskID'] = job.jediTaskID
+                        varMap[':datasetID']  = tmpDatasetID
+                        sqlJediCL  = "SELECT nFilesTobeUsed,nFilesOnHold,status FROM ATLAS_PANDA.JEDI_Datasets "
+                        sqlJediCL += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+                        sqlJediCL += "FOR UPDATE NOWAIT "
+                        _logger.debug(sqlJediCL+comment+str(varMap))
+                        self.cur.execute(sqlJediCL+comment, varMap)
                         # SQL to update dataset 
                         varMap = {}
                         varMap[':jediTaskID'] = job.jediTaskID
@@ -1970,7 +1983,7 @@ class DBProxy:
                 self._rollback(True)
                 if iTry+1 < nTry:
                     _logger.debug("updateJob : %s retry : %s" % (job.PandaID,iTry))
-                    time.sleep(random.randint(10,20))
+                    time.sleep(random.randint(3,10))
                     continue
                 type, value, traceBack = sys.exc_info()
                 _logger.error("updateJob : %s %s" % (type,value))
@@ -13805,6 +13818,7 @@ class DBProxy:
                         continue
                     # set error code
                     dJob.jobStatus = 'cancelled'
+                    dJob.jobSubStatus = 'finished'
                     dJob.endTime   = datetime.datetime.utcnow()
                     dJob.taskBufferErrorCode = ErrorCode.EC_EventServiceUnused
                     dJob.taskBufferErrorDiag = 'killed since all event ranges were processed by other consumers while waiting in the queue'
