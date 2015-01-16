@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed cyclic import in panda_config
   * fixed for UNDEFINED in jobReport.json
   * sending prodDBlocks to the pilot
   * changed updateJob to avoid row lock contantation

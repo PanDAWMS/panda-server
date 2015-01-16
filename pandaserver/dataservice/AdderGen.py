@@ -23,6 +23,8 @@ from taskbuffer import EventServiceUtils
 # logger
 _logger = PandaLogger().getLogger('Adder')
 
+panda_config.setupPlugin()
+
    
 class AdderGen:
     # constructor

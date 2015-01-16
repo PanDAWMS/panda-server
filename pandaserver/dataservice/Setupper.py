@@ -17,6 +17,8 @@ from pandalogger.LogWrapper import LogWrapper
 # logger
 _logger = PandaLogger().getLogger('Setupper')
 
+panda_config.setupPlugin()
+
 
 # main class
 class Setupper (threading.Thread):

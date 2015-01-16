@@ -454,6 +454,48 @@ class RucioAPI:
 
 
 
+    # register files in dataset
+    def registerFilesInDataset(self,idMap,rse):
+        # loop over all datasets
+        for datasetName,fileList in idMap.iteritems():
+            # extract scope from dataset
+            scope,dsn = self.extract_scope(datasetName)
+            files = []
+            for tmpFile in fileList:
+                # extract scope from LFN if available
+                lfn = tmpFile['lfn']
+                if ':' in lfn:
+                    s, lfn = lfn.split(':')
+                else:
+                    s = scope
+                # set metadata
+                meta = {'guid': tmpFile['guid']}
+                if 'events' in tmpFile:
+                    meta['events'] = tmpFile['events']
+                if 'lumiblocknr' in tmpFile:
+                    meta['lumiblocknr'] = tmpFile['lumiblocknr']
+                # set mandatory fields
+                file = {'scope': s,
+                        'name' : lfn,
+                        'bytes': tmpFile['size'],
+                        'meta' : meta}
+                if checksum.startswith('md5:'):
+                    file['md5'] = checksum[4:]
+                elif checksum.startswith('ad:'):
+                    file['adler32'] = checksum[3:]
+                if 'surl' in tmpFile:
+                    file['pfn'] = tmpFile['surl']
+                # append files
+                files.append(file)
+            try:
+                # add files
+                client = RucioClient()
+                client.add_files_to_dataset(scope=scope,name=dsn,files=files,rse=rse)
+            except FileAlreadyExists:
+                pass
+        return
+
+
 
     # get disk usage at RSE
     def getRseUsage(self,rse):

@@ -109,5 +109,6 @@ def getPlugin(modConfigName,vo):
 
 
 # plug-ins
-parsePluginConf('adder_plugins')
-parsePluginConf('setupper_plugins')
+def setupPlugin():
+    parsePluginConf('adder_plugins')
+    parsePluginConf('setupper_plugins')
