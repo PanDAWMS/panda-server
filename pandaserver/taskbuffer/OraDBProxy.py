@@ -3698,6 +3698,47 @@ class DBProxy:
             return failedRetVal
 
 
+    # get PandaIDs with TaskID
+    def getPandaIDsWithTaskID(self,jediTaskID):
+        comment = ' /* DBProxy.getPandaIDsWithTaskID */'                        
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger,methodName+" <jediTaskID={0}>".format(jediTaskID))
+        tmpLog.debug("start")
+        # SQL
+        sql  = "SELECT PandaID FROM ATLAS_PANDA.jobsWaiting4 "
+        sql += "WHERE jediTaskID=:jediTaskID "
+        sql += "UNION "
+        sql += "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 "
+        sql += "WHERE jediTaskID=:jediTaskID "
+        sql += "UNION "
+        sql += "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
+        sql += "WHERE jediTaskID=:jediTaskID "
+        varMap = {}
+        varMap[':jediTaskID'] = jediTaskID
+        try:
+            # start transaction
+            self.conn.begin()
+            # select
+            self.cur.arraysize = 1000000
+            self.cur.execute(sql+comment,varMap)
+            res = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            retList = []
+            for pandaID, in res:
+                retList.append(pandaID)
+                
+            tmpLog.debug("found {0} IDs".format(len(retList)))
+            return retList
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return []
+
+
     # get express jobs
     def getExpressJobs(self,dn):
         comment = ' /* DBProxy.getExpressJobs */'                        

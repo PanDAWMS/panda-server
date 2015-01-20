@@ -1706,3 +1706,49 @@ def increaseAttemptNr(jediTaskID,increase):
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR increaseAttemptNr : %s %s" % (errtype,errvalue)
         return EC_Failed,output+'\n'+errStr
+
+
+
+# kill unfinished jobs
+def killUnfinishedJobs(jediTaskID,code=None,verbose=False,srvID=None,useMailAsID=False):
+    """Kill unfinished jobs in a task. Normal users can kill only their own jobs.
+    People with production VOMS role can kill any jobs.
+    Running jobs are killed when next heartbeat comes from the pilot.
+    Set code=9 if running jobs need to be killed immediately. 
+
+       args:
+           jediTaskID: the taskID of the task
+           code: specify why the jobs are killed
+                 2: expire
+                 3: aborted
+                 4: expire in waiting
+                 7: retry by server
+                 8: rebrokerage
+                 9: force kill
+                 50: kill by JEDI
+                 91: kill user jobs with prod role
+           verbose: set True to see what's going on
+           srvID: obsolete
+           useMailAsID: obsolete
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           the list of clouds (or Nones if tasks are not yet assigned) 
+    """     
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+    curl.verbose = verbose
+    # execute
+    url = _getURL('URLSSL',srvID) + '/killUnfinishedJobs'
+    data = {'jediTaskID':jediTaskID,'code':code,'useMailAsID':useMailAsID}
+    status,output = curl.post(url,data)
+    try:
+        return status,pickle.loads(output)
+    except:
+        type, value, traceBack = sys.exc_info()
+        errStr = "ERROR killUnfinishedJobs : %s %s" % (type,value)
+        print errStr
+        return EC_Failed,output+'\n'+errStr

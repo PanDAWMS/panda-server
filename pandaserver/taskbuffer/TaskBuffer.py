@@ -808,6 +808,18 @@ class TaskBuffer:
         return retJobs
 
 
+    # get PandaIDs with TaskID
+    def getPandaIDsWithTaskID(self,jediTaskID):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        retJobs = proxy.getPandaIDsWithTaskID(jediTaskID)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return retJobs
+
+
     # get slimmed file info with PandaIDs
     def getSlimmedFileInfoPandaIDs(self,pandaIDs):
         iPandaID = 0

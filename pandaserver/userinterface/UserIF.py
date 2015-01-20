@@ -268,6 +268,15 @@ class UserIF:
         return pickle.dumps(ret)
 
 
+
+    # get PandaIDs with TaskID
+    def getPandaIDsWithTaskID(self,jediTaskID):
+        # get PandaIDs
+        ret = self.taskBuffer.getPandaIDsWithTaskID(jediTaskID)
+        # serialize 
+        return pickle.dumps(ret)
+
+
     # get assigned cloud for tasks
     def seeCloudTask(self,idsStr):
         try:
@@ -2066,3 +2075,40 @@ def resumeTask(req,jediTaskID):
             return pickle.dumps((False,'jediTaskID must be an integer'))
     ret = userIF.resumeTask(jediTaskID,user,prodRole)
     return pickle.dumps(ret)
+
+
+
+# kill unfinished jobs
+def killUnfinishedJobs(req,jediTaskID,code=None,useMailAsID=None):
+    # check security
+    if not isSecure(req):
+        return False
+    # get DN
+    user = None
+    if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        user = _getDN(req)        
+    # check role
+    prodManager = False
+    # get FQANs
+    fqans = _getFQAN(req)
+    # loop over all FQANs
+    for fqan in fqans:
+        # check production role
+        for rolePat in ['/atlas/usatlas/Role=production','/atlas/Role=production']:
+            if fqan.startswith(rolePat):
+                prodManager = True
+                break
+        # escape
+        if prodManager:
+            break
+    # use email address as ID
+    if useMailAsID == 'True':
+        useMailAsID = True
+    else:
+        useMailAsID = False
+    # hostname
+    host = req.get_remote_host()
+    # get PandaIDs
+    ids = userIF.getPandaIDsWithTaskID(jediTaskID)
+    # kill
+    return userIF.killJobs(ids,user,host,code,prodManager,useMailAsID,fqans)
