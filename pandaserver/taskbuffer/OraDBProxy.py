@@ -2065,10 +2065,13 @@ class DBProxy:
                 usePilotRetry = False
                 if job.prodSourceLabel in ['user','panda','ptest','rc_test'] and \
                    param.has_key('pilotErrorCode') and \
-                   (param['pilotErrorCode'].startswith('-') or recoverableEsMerge) and \
+                   param['pilotErrorCode'].startswith('-') and \
                    job.maxAttempt > job.attemptNr and \
                    (not job.processingType.startswith('gangarobot') or job.processingType=='gangarobot-rctest') and \
                    not job.processingType.startswith('hammercloud'):
+                    usePilotRetry = True
+                # retry for ES merge
+                if recoverableEsMerge and  EventServiceUtils.isEventServiceMerge(job):
                     usePilotRetry = True
                 # check if it's analysis job # FIXME once pilot retry works correctly the conditions below will be cleaned up
                 if (((job.prodSourceLabel == 'user' or job.prodSourceLabel == 'panda') \
@@ -2180,7 +2183,7 @@ class DBProxy:
                             if file.type == 'log':
                                 file.GUID = commands.getoutput('uuidgen')
                             # don't change input and lib.tgz    
-                            if file.type == 'input' or (file.type == 'output' and job.prodSourceLabel == 'panda') or \
+                            if file.type in ['input','pseudo_input'] or (file.type == 'output' and job.prodSourceLabel == 'panda') or \
                                    (file.type == 'output' and file.lfn.endswith('.lib.tgz') and job.prodSourceLabel in ['rc_test','ptest']):
                                 continue
                             # append attemptNr to LFN
