@@ -4426,6 +4426,7 @@ class DBProxy:
                     tmpKey = ':stat%s' % tmpIdx
                     varMap[tmpKey] = tmpStat
                     sql += '%s,' % tmpKey
+                    tmpIdx += 1
                 sql = sql[:-1]
                 sql += ') '
             if labels != []:
@@ -4435,6 +4436,7 @@ class DBProxy:
                     tmpKey = ':label%s' % tmpIdx
                     varMap[tmpKey] = tmpStat
                     sql += '%s,' % tmpKey
+                    tmpIdx += 1
                 sql = sql[:-1]
                 sql += ') '
             if processTypes != []:
@@ -4444,6 +4446,7 @@ class DBProxy:
                     tmpKey = ':processType%s' % tmpIdx
                     varMap[tmpKey] = tmpStat
                     sql += '%s,' % tmpKey
+                    tmpIdx += 1
                 sql = sql[:-1]
                 sql += ') '
             if sites != []:
@@ -4453,6 +4456,7 @@ class DBProxy:
                     tmpKey = ':site%s' % tmpIdx
                     varMap[tmpKey] = tmpStat
                     sql += '%s,' % tmpKey
+                    tmpIdx += 1
                 sql = sql[:-1]
                 sql += ') '
             if clouds != []:
@@ -4462,6 +4466,7 @@ class DBProxy:
                     tmpKey = ':cloud%s' % tmpIdx
                     varMap[tmpKey] = tmpStat
                     sql += '%s,' % tmpKey
+                    tmpIdx += 1
                 sql = sql[:-1]
                 sql += ') '
             # sql for lock
@@ -4470,8 +4475,10 @@ class DBProxy:
             self.conn.begin()
             # select
             self.cur.arraysize = 1000000
+            _logger.debug(sql+comment+str(varMap))
             self.cur.execute(sql+comment,varMap)
             resList = self.cur.fetchall()
+            _logger.debug("lockJobsForReassign : found %s" % (len(resList)))
             retList = []
             # lock
             for tmpItem in resList:
@@ -4484,7 +4491,7 @@ class DBProxy:
                 raise RuntimeError, 'Commit error'
             # sort
             retList.sort()
-            _logger.debug("lockJobsForReassign : %s" % (len(retList)))
+            _logger.debug("lockJobsForReassign : return %s" % (len(retList)))
             return True,retList
         except:
             # roll back

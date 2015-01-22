@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed lockJobsForReassign
   * added killUnfinishedJobs
   * fixed retryJob for pseudo_input
   * fixed cyclic import in panda_config
