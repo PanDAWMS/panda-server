@@ -229,6 +229,15 @@ class AdderGen:
                         self.logger.debug(": %s %s" % (type,value))
                         self.logger.debug("cannot unlock XML")
                     return
+                # increase RAM limit
+                try:
+                    if self.job.lockedby == 'jedi' and self.job.pilotErrorCode in [1223,1212] \
+                            and not self.job.minRamCount in [0,None,'NULL']:
+                        self.logger.debug("increase RAM limit") 
+                        self.taskBuffer.increaseRamLimitJEDI(self.job.jediTaskID,self.job.minRamCount)
+                except:
+                    errtype,errvalue = sys.exc_info()[:2]
+                    self.logger.debug("failed to increase RAM limit : %s %s" % (errtype,errvalue))
                 # setup for closer
                 if not (EventServiceUtils.isEventServiceJob(self.job) and self.job.jobStatus == 'cancelled'):
                     destDBList = []

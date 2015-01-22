@@ -2646,6 +2646,19 @@ class TaskBuffer:
 
 
 
+    # increase memory limit
+    def increaseRamLimitJEDI(self,jediTaskID,jobRamCount):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.increaseRamLimitJEDI(jediTaskID,jobRamCount)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 

@@ -14277,4 +14277,64 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return None
+
+
+
+    # increase memory limit
+    def increaseRamLimitJEDI(self,jediTaskID,jobRamCount):
+        comment = ' /* DBProxy.increaseRamLimitJEDI */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <jediTaskID={0}>".format(jediTaskID)
+        _logger.debug("{0} : start".format(methodName))
+        try:
+            # RAM limit
+            limitList = [1000,2000,3000,4000,6000,8000]
+            # begin transaction
+            self.conn.begin()
+            # get currnet limit
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            sqlUE  = "SELECT ramCount FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+            sqlUE += "WHERE jediTaskID=:jediTaskID "
+            self.cur.execute(sqlUE+comment,varMap)
+            taskRamCount, = self.cur.fetchone()
+            _logger.debug("{0} : RAM limit task={1} job={2}".format(methodName,taskRamCount,jobRamCount))
+            # do nothing if the task doesn't define RAM limit
+            if taskRamCount in [0,None]:
+                _logger.debug("{0} : no change since task RAM limit is {1}".format(methodName,taskRamCount))
+            else:
+                # skip if already increased or largest limit
+                if taskRamCount > jobRamCount:
+                    dbgStr = "no change since task RAM limit ({0}) is larger than job limit ({1})".format(taskRamCount,
+                                                                                                          jobRamCount)
+                    _logger.debug("{0} : {1}".format(methodName,dbgStr))
+                elif taskRamCount >= limitList[-1]:
+                    dbgStr  = "no change "
+                    dbgStr += "since task RAM limit ({0}) is larger than or equal to the highest limit ({1})".format(taskRamCount,
+                                                                                                                     limitList[-1])
+                    _logger.debug("{0} : {1}".format(methodName,dbgStr))
+                else:
+                    for nextLimit in limitList:
+                        if taskRamCount < nextLimit:
+                            break
+                    # update RAM limit
+                    varMap = {}
+                    varMap[':jediTaskID'] = jediTaskID
+                    varMap[':ramCount'] = nextLimit
+                    sqlRL  = "UPDATE {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+                    sqlRL += "SET ramCount=:ramCount "
+                    sqlRL += "WHERE jediTaskID=:jediTaskID "
+                    self.cur.execute(sqlRL+comment,varMap)
+                    _logger.debug("{0} : increased RAM limit to {1} from {2}".format(methodName,nextLimit,taskRamCount))
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            _logger.debug("{0} : done".format(methodName))
+            return True
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return False
             

@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added increaseRamLimitJEDI
   * fixed lockJobsForReassign
   * added killUnfinishedJobs
   * fixed retryJob for pseudo_input
