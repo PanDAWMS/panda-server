@@ -59,23 +59,33 @@ varMap[':modificationTime'] = timeLimit
 varMap[':prodSourceLabel']  = 'managed'
 varMap[':computingSite']    = site
 if options.assigned:
-    sql = "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 "
+    sql = "SELECT PandaID,lockedby FROM ATLAS_PANDA.jobsDefined4 "
 else:
-    sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
+    sql = "SELECT PandaID,lockedby FROM ATLAS_PANDA.jobsActive4 "
 sql += "WHERE jobStatus=:jobStatus AND computingSite=:computingSite AND modificationTime<:modificationTime AND prodSourceLabel=:prodSourceLabel ORDER BY PandaID"
 status,res = proxyS.querySQLS(sql,varMap)
 
 jobs = []
+jediJobs = []
 if res != None:
-    for (id,) in res:
-        jobs.append(id)
+    for (id,lockedby) in res:
+        if lockedby == 'jedi':
+            jediJobs.append(id)
+        else:
+            jobs.append(id)
 if len(jobs):
     nJob = 100
     iJob = 0
     while iJob < len(jobs):
         print 'reassign  %s' % str(jobs[iJob:iJob+nJob])
-        #eraseDispDatasets(jobs[iJob:iJob+nJob])        
         Client.reassignJobs(jobs[iJob:iJob+nJob])
         iJob += nJob
-        time.sleep(10)
+if len(jediJobs) != 0:
+    nJob = 100
+    iJob = 0
+    while iJob < len(jediJobs):
+        print 'kill JEDI jobs %s' % str(jediJobs[iJob:iJob+nJob])
+        Client.killJobs(jediJobs[iJob:iJob+nJob],51)
+        iJob += nJob
+
 

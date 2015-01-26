@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed reassignSite
   * added increaseRamLimitJEDI
   * fixed lockJobsForReassign
   * added killUnfinishedJobs
