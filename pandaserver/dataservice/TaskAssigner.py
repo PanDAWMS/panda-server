@@ -573,6 +573,19 @@ class TaskAssigner:
                     else:
                         message = "%s didn't make subscription" % self.taskID
                         self.sendMesg(message,msgType='warning')
+                # make subscription for aggregation
+                if taskType in taskTypesAgg:
+                    # check if input is container
+                    inputIsContainer = False
+                    for tmpDS in removedDQ2Map.keys():
+                        if tmpDS.endswith('/'):
+                            inputIsContainer = True
+                            break
+                    # only for container
+                    if inputIsContainer:
+                        _logger.info('%s Aggregation start' % self.taskID)
+                        retSub = self.makeSubscription(removedDQ2Map,RWs,fullRWs,expRWs,aggregation=True)
+                        _logger.info('%s Aggregation end with %s' % (self.taskID,retSub))
                 # return
                 _logger.info(messageEnd)
                 _logger.info("%s end" % self.taskID) 

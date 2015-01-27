@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed TA for dataset aggregation
   * fixed reassignSite
   * added increaseRamLimitJEDI
   * fixed lockJobsForReassign
