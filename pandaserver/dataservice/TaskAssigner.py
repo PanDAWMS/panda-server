@@ -14,6 +14,7 @@ import brokerage.broker_util
 from DDM import ddm
 from DDM import dq2Common
 from DDM import toa
+from DDM import rucioAPI
 from config import panda_config
 from taskbuffer import ProcessGroups
 from pandalogger.PandaLogger import PandaLogger
@@ -430,27 +431,39 @@ class TaskAssigner:
                 weightParams[tmpCloudName]['nPilot'] = nPilot
                 _logger.info('%s  # of pilots %s' % (self.taskID,nPilot))
                 # available space
-                weightParams[tmpCloudName]['space'] = tmpT1Site.space
-                _logger.info('%s  T1 space    %s' % (self.taskID,tmpT1Site.space))
+                tmpMap = rucioAPI.getRseUsage(tmpT1Site.ddm)
+                weightParams[tmpCloudName]['freeSpace'] = tmpMap['free']
+                # take volume of secondary data into account
+                tmpMap = rucioAPI.getRseUsage(tmpT1Site.ddm, 'reaper')
+                weightParams[tmpCloudName]['secSpace'] = tmpMap['used']
+                _logger.info('{0}  T1 space    free:{1}GB secondary:{2}GB'.format(self.taskID,weightParams[tmpCloudName]['freeSpace'],
+                                                                                  weightParams[tmpCloudName]['secSpace']))
                 # MC share
                 weightParams[tmpCloudName]['mcshare'] = tmpCloud['mcshare']
                 _logger.info('%s  MC share    %s' % (self.taskID,tmpCloud['mcshare']))
                 # calculate available space = totalT1space - ((RW(cloud)+RW(thistask))*GBperSI2kday))
-                aveSpace,sizeCloud,sizeThis = self.getAvailableSpace(weightParams[tmpCloudName]['space'],
+                totalSpace = weightParams[tmpCloudName]['freeSpace'] + weightParams[tmpCloudName]['secSpace']
+                aveSpace,sizeCloud,sizeThis = self.getAvailableSpace(totalSpace,
                                                                      fullRWs[tmpCloudName],
                                                                      expRWs[self.taskID])
-                # no task is assigned if available space is less than 1TB
-                if aveSpace < (thr_space_low * 1024 * tmpCloud['mcshare']):
-                    message = '%s    %s skip : space:%s (total:%s - assigned:%s - this:%s) < %s(mcshare) x %sTB' % \
-                              (self.taskID,tmpCloudName,aveSpace,weightParams[tmpCloudName]['space'],
-                               sizeCloud,sizeThis,tmpCloud['mcshare'],thr_space_low)
+                # no task is assigned if available space is less than the limit
+                aveNG = aveSpace < (thr_space_low * 1024 * tmpCloud['mcshare'])
+                freeNG = weightParams[tmpCloudName]['freeSpace'] < (thr_space_low * 1024 * tmpCloud['mcshare'])
+                if aveNG or freeNG:
+                    if aveNG:
+                        message = '%s    %s skip : space:%sGB (free+secondary:%s - assigned:%s - this:%s) < %s(mcshare) x %sTB' % \
+                            (self.taskID,tmpCloudName,aveSpace,totalSpace,
+                             sizeCloud,sizeThis,tmpCloud['mcshare'],thr_space_low)
+                    else:
+                        message = '%s    %s skip : free space:%sGB  < %s(mcshare) x %sTB' % \
+                            (self.taskID,tmpCloudName,weightParams[tmpCloudName]['freeSpace'],tmpCloud['mcshare'],thr_space_low)
                     _logger.info(message)
                     self.sendMesg(message,msgType='warning')
                     del weightParams[tmpCloudName]                    
                     continue
                 else:
-                    _logger.info('%s    %s pass : space:%s (total:%s - assigned:%s - this:%s)' % \
-                                  (self.taskID,tmpCloudName,aveSpace,weightParams[tmpCloudName]['space'],
+                    _logger.info('%s    %s pass : space:%sGB (free+secondary:%s - assigned:%s - this:%s)' % \
+                                  (self.taskID,tmpCloudName,aveSpace,totalSpace,
                                    sizeCloud,sizeThis))
                 # not assign tasks when RW is too high
                 if RWs.has_key(tmpCloudName) and RWs[tmpCloudName] > thr_RW_high*weightParams[tmpCloudName]['mcshare']:
