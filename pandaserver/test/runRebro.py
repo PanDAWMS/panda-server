@@ -135,8 +135,12 @@ try:
     # get jobs older than threshold
     ret,res = taskBuffer.querySQLS(sql, varMap)
     resList = []
+    keyList = set()
     if res != None:
         for tmpItem in res:
+            jobDefinitionID,prodUserName,prodUserID,computingSite,maxTime,jediTaskID,processingType = tmpItem
+            tmpKey = (jediTaskID,jobDefinitionID)
+            keyList.add(tmpKey)
             resList.append(tmpItem)
     # get stalled assigned job 
     sqlA  = "SELECT jobDefinitionID,prodUserName,prodUserID,computingSite,MAX(creationTime),jediTaskID,processingType "
@@ -150,12 +154,14 @@ try:
     varMap[':modificationTime'] = sortTimeLimit
     varMap[':lockedBy']         = 'jedi'
     varMap[':jobStatus1']       = 'assigned'
-    #varMap[':jobStatus2']       = 'defined'
-    varMap[':jobStatus2']       = 'dummy'
+    varMap[':jobStatus2']       = 'defined'
     retA,resA = taskBuffer.querySQLS(sqlA, varMap)
     if resA != None:
         for tmpItem in resA:
-            if not tmpItem in resList:
+            jobDefinitionID,prodUserName,prodUserID,computingSite,maxTime,jediTaskID,processingType = tmpItem
+            tmpKey = (jediTaskID,jobDefinitionID)
+            if not tmpKey in keyList:
+                keyList.add(tmpKey)
                 resList.append(tmpItem)
     # sql to check recent activity
     sql  = "SELECT PandaID,modificationTime FROM %s WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "

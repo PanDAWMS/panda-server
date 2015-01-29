@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed rebro for defined
   * changed TA to take secondary volume into account
   * fixed TA for dataset aggregation
   * fixed reassignSite
