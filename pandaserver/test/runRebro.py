@@ -117,18 +117,12 @@ try:
     sql += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND jobStatus IN (:jobStatus1,:jobStatus2) "
     sql += "AND modificationTime<:modificationTime "
     sql += "AND jobsetID IS NOT NULL "    
-    sql += "AND (processingType IN (:processingType1,:processingType2) "
-    sql += "OR (processingType LIKE :processingType3 AND lockedBy=:lockedBy) "
-    sql += "OR (processingType LIKE :processingType4 AND lockedBy=:lockedBy) ) "
+    sql += "AND lockedBy=:lockedBy "
     sql += "GROUP BY jobDefinitionID,prodUserName,prodUserID,computingSite,jediTaskID,processingType " 
     varMap = {}
     varMap[':prodSourceLabel1'] = 'user'
     varMap[':prodSourceLabel2'] = 'panda'
     varMap[':modificationTime'] = sortTimeLimit
-    varMap[':processingType1']  = 'pathena'
-    varMap[':processingType2']  = 'prun'
-    varMap[':processingType3']  = 'panda-client%'
-    varMap[':processingType4']  = 'ganga-%-jedi-%'
     varMap[':lockedBy']         = 'jedi'
     varMap[':jobStatus1']       = 'activated'
     varMap[':jobStatus2']       = 'throttled'
@@ -164,10 +158,14 @@ try:
                 keyList.add(tmpKey)
                 resList.append(tmpItem)
     # sql to check recent activity
-    sql  = "SELECT PandaID,modificationTime FROM %s WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
+    sql  = "SELECT PandaID,modificationTime FROM %s "
+    sql += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
+    sql += "AND computingSite=:computingSite AND jediTaskID=:jediTaskID "
     sql += "AND modificationTime>:modificationTime AND rownum <= 1"
     # sql to get associated jobs with jediTaskID
-    sqlJJ = "SELECT PandaID FROM %s WHERE jediTaskID=:jediTaskID AND jobStatus IN (:jobS1,:jobS2,:jobS3,:jobS4) AND jobDefinitionID=:jobDefID "
+    sqlJJ  = "SELECT PandaID FROM %s "
+    sqlJJ += "WHERE jediTaskID=:jediTaskID AND jobStatus IN (:jobS1,:jobS2,:jobS3,:jobS4) "
+    sqlJJ += "AND jobDefinitionID=:jobDefID AND computingSite=:computingSite "
     if resList != []:
         from userinterface.ReBroker import ReBroker
         recentRuntimeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
@@ -185,6 +183,8 @@ try:
                 break
             # check if jobs with the jobID have run recently 
             varMap = {}
+            varMap[':jediTaskID']       = jediTaskID
+            varMap[':computingSite']    = computingSite
             varMap[':prodUserName']     = prodUserName
             varMap[':jobDefinitionID']  = jobDefinitionID
             varMap[':modificationTime'] = recentRuntimeLimit
@@ -240,6 +240,7 @@ try:
                     varMap = {}
                     varMap[':jediTaskID'] = jediTaskID
                     varMap[':jobDefID'] = jobDefinitionID
+                    varMap[':computingSite'] = computingSite
                     varMap[':jobS1'] = 'defined'
                     varMap[':jobS2'] = 'assigned'
                     varMap[':jobS3'] = 'activated'

@@ -14337,4 +14337,326 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return False
+
+
+
+    # reset files in JEDI
+    def resetFileStatusInJEDI(self,dn,prodManager,datasetName,lostFiles,lostInputDatasets):
+        comment = ' /* DBProxy.resetFileStatusInJEDI */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <datasetName={0}>".format(datasetName)
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        try:
+            # list of lost input files
+            lostInputFiles = set()
+            # get compact DN
+            compactDN = self.cleanUserID(dn)
+            if compactDN in ['','NULL',None]:
+                compactDN = dn
+            tmpLog.debug("userName={0}".format(compactDN))    
+            toSkip = False
+            # begin transaction
+            self.conn.begin()
+            # get jediTaskID
+            varMap = {}
+            varMap[':type1'] = 'log'
+            varMap[':type2'] = 'output'
+            varMap[':name1'] = datasetName
+            varMap[':name2'] = datasetName.split(':')[-1]
+            sqlGI  = 'SELECT jediTaskID,datasetID FROM {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
+            sqlGI += 'WHERE type IN (:type1,:type2) AND datasetName IN (:name1,:name2) '
+            self.cur.execute(sqlGI+comment,varMap)
+            resGI = self.cur.fetchall()
+            # use the largest datasetID since broken tasks might have been retried
+            jediTaskID = None
+            datasetID = None
+            for tmpJediTaskID,tmpDatasetID in resGI:
+                if jediTaskID == None or jediTaskID < tmpJediTaskID:
+                    jediTaskID = tmpJediTaskID
+                    datasetID = tmpDatasetID
+                elif datasetID < tmpDatasetID:
+                    datasetID =tmpDatasetID
+            if jediTaskID == None:
+                tmpLog.debug("jediTaskID not found")
+                toSkip = True
+            if not toSkip:
+                # get task status and owner
+                tmpLog.debug("jediTaskID={0} datasetID={1}".format(jediTaskID,datasetID))
+                varMap = {}
+                varMap[':jediTaskID'] = jediTaskID
+                sqlOW  = 'SELECT status,userName FROM {0}.JEDI_Tasks '.format(panda_config.schemaJEDI)
+                sqlOW += 'WHERE jediTaskID=:jediTaskID '
+                self.cur.execute(sqlOW+comment,varMap)
+                resOW = self.cur.fetchone()
+                taskStatus,ownerName = resOW
+                # check ownership
+                if not prodManager and ownerName != compactDN:
+                    tmpLog.debug("not the owner = {0}".format(ownerName))
+                    toSkip = True
+            if not toSkip:
+                # get affected PandaIDs
+                sqlLP  = 'SELECT pandaID FROM {0}.JEDI_Dataset_Contents '.format(panda_config.schemaJEDI)
+                sqlLP += 'WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND lfn=:lfn '
+                # sql to update file status
+                sqlUFO  = 'UPDATE {0}.JEDI_Dataset_Contents '.format(panda_config.schemaJEDI)
+                sqlUFO += 'SET status=:newStatus '
+                sqlUFO += 'WHERE jediTaskID=:jediTaskID AND type=:type AND status=:oldStatus AND PandaID=:PandaID '
+                # get affected PandaIDs
+                lostPandaIDs = set([])
+                nDiff = 0
+                for lostFile in lostFiles:
+                    varMap = {}
+                    varMap[':jediTaskID'] = jediTaskID
+                    varMap[':datasetID'] = datasetID
+                    varMap[':lfn'] = lostFile
+                    self.cur.execute(sqlLP+comment,varMap)
+                    resLP = self.cur.fetchone()
+                    if resLP != None:
+                        nDiff += 1
+                        pandaID, = resLP
+                        lostPandaIDs.add(pandaID)
+                        # update the file and coproduced files to lost
+                        varMap = {}
+                        varMap[':jediTaskID'] = jediTaskID
+                        varMap[':PandaID'] = pandaID
+                        varMap[':type'] = 'output'
+                        varMap[':newStatus'] = 'lost'
+                        varMap[':oldStatus'] = 'finished'
+                        self.cur.execute(sqlUFO+comment,varMap)
+                # update output dataset statistics
+                sqlUDO  = 'UPDATE {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
+                sqlUDO += 'SET nFilesFinished=nFilesFinished-:nDiff '
+                sqlUDO += 'WHERE jediTaskID=:jediTaskID AND type=:type '
+                varMap = {}
+                varMap[':jediTaskID'] = jediTaskID
+                varMap[':type'] = 'output'
+                varMap[':nDiff'] = nDiff
+                tmpLog.debug(sqlUDO+comment+str(varMap))
+                self.cur.execute(sqlUDO+comment,varMap)
+                # get input datasets
+                sqlID  = 'SELECT datasetID,datasetName,masterID FROM {0}.JEDI_Datasets '.format(jedi_config.db.schemaJEDI)
+                sqlID += 'WHERE jediTaskID=:jediTaskID AND type=:type '
+                varMap = {}
+                varMap[':jediTaskID'] = jediTaskID
+                varMap[':type'] = 'input'
+                self.cur.execute(sqlID+comment,varMap)
+                resID = self.cur.fetchall()
+                inputDatasets = {}
+                masterID = None
+                for tmpDatasetID,tmpDatasetName,tmpMasterID in resID:
+                    inputDatasets[tmpDatasetID] = tmpDatasetName
+                    if tmpMasterID == None:
+                        masterID = tmpDatasetID
+                # sql to get affected inputs
+                sqlAI  = 'SELECT fileID,datasetID,lfn,outPandaID FROM {0}.JEDI_Dataset_Contents '.format(jedi_config.db.schemaJEDI)
+                sqlAI += 'WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) AND PandaID=:PandaID '
+                # sql to update input file status
+                sqlUFI  = 'UPDATE {0}.JEDI_Dataset_Contents '.format(panda_config.schemaJEDI)
+                sqlUFI += 'SET status=:newStatus,attemptNr=attemptNr+1 '
+                sqlUFI += 'WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND status=:oldStatus '
+                # get affected inputs
+                datasetCountMap = {}
+                for lostPandaID in lostPandaIDs:
+                    varMap = {}
+                    varMap[':jediTaskID'] = jediTaskID
+                    varMap[':PandaID'] = lostPandaID
+                    varMap[':type1'] = 'input'
+                    varMap[':type2'] = 'pseudo_input'
+                    self.cur.execute(sqlAI+comment,varMap)
+                    resAI = self.cur.fetchall()
+                    newResAI = []
+                    for tmpItem in resAI:
+                        tmpFileID,tmpDatasetID,tmpLFN,tmpOutPandaID = tmpItem
+                        # input for merged files
+                        if tmpOutPandaID != None:
+                            varMap = {}
+                            varMap[':jediTaskID'] = jediTaskID
+                            varMap[':PandaID'] = tmpOutPandaID
+                            varMap[':type1'] = 'input'
+                            varMap[':type2'] = 'pseudo_input'
+                            self.cur.execute(sqlAI+comment,varMap)
+                            resAI2 = self.cur.fetchall()
+                            for tmpItem in resAI2:
+                                newResAI.append(tmpItem)
+                        else:
+                            newResAI.append(tmpItem)
+                    for tmpFileID,tmpDatasetID,tmpLFN,tmpOutPandaI in newResAI:
+                        # skip if dataset was already deleted
+                        if tmpDatasetID in lostInputDatasets:
+                            if tmpDatasetID == masterID:
+                                lostInputFiles.add(tmpLFN)
+                            continue
+                        # reset file status
+                        if not tmpDatasetID in datasetCountMap:
+                            datasetCountMap[tmpDatasetID] = 0
+                        varMap = {}
+                        varMap[':jediTaskID'] = jediTaskID
+                        varMap[':datasetID'] = tmpDatasetID
+                        varMap[':fileID'] = tmpFileID
+                        varMap[':newStatus'] = 'ready'
+                        varMap[':oldStatus'] = 'finished'
+                        self.cur.execute(sqlUFI+comment,varMap)
+                        nRow = self.cur.rowcount
+                        if nRow > 0:
+                            datasetCountMap[tmpDatasetID] += 1
+                # update dataset statistics
+                sqlUDI  = 'UPDATE {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
+                sqlUDI += 'SET nFilesUsed=nFilesUsed-:nDiff,nFilesFinished=nFilesFinished-:nDiff '
+                sqlUDI += 'WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID '
+                for tmpDatasetID,nDiff in datasetCountMap.iteritems():
+                    varMap = {}
+                    varMap[':jediTaskID'] = jediTaskID
+                    varMap[':datasetID'] = tmpDatasetID
+                    varMap[':nDiff'] = nDiff
+                    tmpLog.debug(sqlUDI+comment+str(varMap))
+                    self.cur.execute(sqlUDI+comment,varMap)
+                # update task status
+                if taskStatus == 'done':
+                    sqlUT  = 'UPDATE {0}.JEDI_Tasks SET status=:newStatus WHERE jediTaskID=:jediTaskID '.format(panda_config.schemaJEDI)
+                    varMap = {}
+                    varMap[':jediTaskID'] = jediTaskID
+                    varMap[':newStatus'] = 'finished'
+                    self.cur.execute(sqlUT+comment,varMap)
+                # some input datasets are lost
+                if len(lostInputDatasets) != 0:
+                    # rename input datasets since deleted names cannot be reused
+                    sqlUN  = 'UPDATE {0}.JEDI_Datasets SET datasetName=:datasetName '.format(panda_config.schemaJEDI)
+                    sqlUN += 'WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID '
+                    for tmpDatasetID,tmpDatasetName in lostInputDatasets.iteritems():
+                        # look for rev number
+                        tmpMatch = re.search('\.rcov(\d+)$',tmpDatasetName)
+                        if tmpMatch == None:
+                            revNum = 0
+                        else:
+                            revNum = int(tmpMatch.group(1))
+                        newDatasetName = re.sub('\.rcov(\d+)$','',tmpDatasetName)
+                        newDatasetName += '.rcov{0}'.format(revNum+1)
+                        varMap = {}
+                        varMap[':jediTaskID'] = jediTaskID
+                        varMap[':datasetID'] = tmpDatasetID
+                        varMap[':datasetName'] = newDatasetName
+                        self.cur.execute(sqlUN+comment,varMap)
+                    # get child task
+                    sqlGC  = 'SELECT jediTaskID FROM {0}.JEDI_Tasks WHERE parent_tid=:jediTaskID '.format(panda_config.schemaJEDI)
+                    varMap = {}
+                    varMap[':jediTaskID'] = jediTaskID
+                    self.cur.execute(sqlGC+comment,varMap)
+                    resGC = self.cur.fetchone()
+                    if resGC != None:
+                        childTaskID, = resGC
+                        if not childTaskID in [None,jediTaskID]:
+                            # get output datasets
+                            varMap = {}
+                            varMap[':jediTaskID'] = jediTaskID
+                            varMap[':type1'] = 'output'
+                            varMap[':type2'] = 'log'
+                            sqlOD  = 'SELECT datasetID,datasetName FROM {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
+                            sqlOD += 'WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) '
+                            self.cur.execute(sqlOD+comment,varMap)
+                            resOD = self.cur.fetchall()
+                            outputDatasets = {}
+                            for tmpDatasetID,tmpDatasetName in resOD:
+                                # remove scope and extension
+                                bareName = tmpDatasetName.split(':')[-1]
+                                bareName = re.sub('\.rcov(\d+)$','',bareName)
+                                outputDatasets[bareName] = {'datasetID':tmpDatasetID,
+                                                            'datasetName':tmpDatasetName}
+                            # get input datasets for child
+                            varMap = {}
+                            varMap[':jediTaskID'] = childTaskID
+                            varMap[':type'] = 'input'
+                            sqlGI  = 'SELECT datasetName FROM {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
+                            sqlGI += 'WHERE jediTaskID=:jediTaskID AND type=:type '
+                            self.cur.execute(sqlGI+comment,varMap)
+                            resGI = self.cur.fetchall()
+                            for tmpDatasetName, in resGI:
+                                # remove scope and extension
+                                bareName = tmpDatasetName.split(':')[-1]
+                                bareName = re.sub('\.rcov(\d+)$','',bareName)
+                                # check if child renamed them
+                                if bareName in outputDatasets and \
+                                        tmpDatasetName.split(':')[-1] != outputDatasets[bareName]['datasetName'].split(':')[-1]:
+                                    newDatasetName = tmpDatasetName
+                                    # remove scope
+                                    if not ':' in outputDatasets[bareName]['datasetName']:
+                                        newDatasetName = newDatasetName.split(':')[-1]
+                                    # rename output datasets if child renamed them
+                                    varMap = {}
+                                    varMap[':jediTaskID'] = jediTaskID
+                                    varMap[':datasetID'] = outputDatasets[bareName]['datasetID']
+                                    varMap[':datasetName'] = newDatasetName
+                                    self.cur.execute(sqlUN+comment,varMap)
+                                    tmpLog.debug("renamed datasetID={0} to {1}".format(varMap[':datasetID'],
+                                                                                       varMap[':datasetName']))
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug("done")
+            return True,lostInputFiles
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return False,None
+
+
+
+    # get input datasets for output dataset
+    def getInputDatasetsForOutputDatasetJEDI(self,datasetName):
+        comment = ' /* DBProxy.getInputDatasetsForOutputDatasetJEDI */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <datasetName={0}>".format(datasetName)
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        try:
+            toSkip = False
+            inputDatasets = {}
+            # begin transaction
+            self.conn.begin()
+            # get jediTaskID
+            varMap = {}
+            varMap[':type1'] = 'log'
+            varMap[':type2'] = 'output'
+            varMap[':name1'] = datasetName
+            varMap[':name2'] = datasetName.split(':')[-1]
+            sqlGI  = 'SELECT jediTaskID,datasetID FROM {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
+            sqlGI += 'WHERE type IN (:type1,:type2) AND datasetName IN (:name1,:name2) '
+            self.cur.execute(sqlGI+comment,varMap)
+            resGI = self.cur.fetchall()
+            # use the largest datasetID since broken tasks might have been retried
+            jediTaskID = None
+            datasetID = None
+            for tmpJediTaskID,tmpDatasetID in resGI:
+                if jediTaskID == None or jediTaskID < tmpJediTaskID:
+                    jediTaskID = tmpJediTaskID
+                    datasetID = tmpDatasetID
+                elif datasetID < tmpDatasetID:
+                    datasetID =tmpDatasetID
+            if jediTaskID == None:
+                tmpLog.debug("jediTaskID not found")
+                toSkip = True
+            if not toSkip:
+                # get input datasets
+                sqlID  = 'SELECT datasetID,datasetName,masterID FROM {0}.JEDI_Datasets '.format(jedi_config.db.schemaJEDI)
+                sqlID += 'WHERE jediTaskID=:jediTaskID AND type=:type '
+                varMap = {}
+                varMap[':jediTaskID'] = jediTaskID
+                varMap[':type'] = 'input'
+                self.cur.execute(sqlID+comment,varMap)
+                resID = self.cur.fetchall()
+                for tmpDatasetID,tmpDatasetName,tmpMasterID in resID:
+                    inputDatasets[tmpDatasetID] = tmpDatasetName
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug("done")
+            return True,inputDatasets
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return False,None
             

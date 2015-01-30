@@ -2659,6 +2659,32 @@ class TaskBuffer:
 
 
 
+    # reset files in JEDI
+    def resetFileStatusInJEDI(self,dn,prodManager,datasetName,lostFiles,lostInputDatasets):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.resetFileStatusInJEDI(dn,prodManager,datasetName,lostFiles,lostInputDatasets)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
+    # get input datasets for output dataset
+    def getInputDatasetsForOutputDatasetJEDI(self,datasetName):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getInputDatasetsForOutputDatasetJEDI(datasetName)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 
