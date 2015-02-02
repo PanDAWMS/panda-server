@@ -399,10 +399,10 @@ class AdderAtlasPlugin (AdderPluginBase):
         else:
             destIdMap = self.decomposeIdMap(idMap,dsDestMap)          
         # add files
-        isFatal  = False
-        isFailed = False
         nTry = 3
         for iTry in range(nTry):
+            isFatal  = False
+            isFailed = False
             regStart = datetime.datetime.utcnow()
             try:
                 if not self.useCentralLFC():

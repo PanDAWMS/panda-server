@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * filling outPandaID
   * using rucio API for file registration
   * fixed rebro for jobDef=0
   * fixed rebro for defined
