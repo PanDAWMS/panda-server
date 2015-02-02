@@ -16,7 +16,9 @@ import ErrorCode
 from dq2.clientapi import DQ2
 from dq2.filecatalog.FileCatalogUnknownFactory import FileCatalogUnknownFactory
 from dq2.filecatalog.FileCatalogException import FileCatalogException
-from rucio.common.exception import FileConsistencyMismatch
+from rucio.common.exception import FileConsistencyMismatch,DataIdentifierNotFound
+
+from DDM import rucioAPI
 
 try:
     from dq2.clientapi.cli import Register2
@@ -393,102 +395,71 @@ class AdderAtlasPlugin (AdderPluginBase):
                     regFileList.append(tmpRegItem['lfn'])
         # decompose idMap
         if not self.useCentralLFC():
-            destIdMap = {'DUMMY':idMap}
+            destIdMap = {None:idMap}
         else:
             destIdMap = self.decomposeIdMap(idMap,dsDestMap)          
-        # loop over all destination
-        for tmpDest,tmpIdMap in destIdMap.iteritems():
-             # number of retry
-             nTry = 3
-             for iTry in range(nTry):
-                 # empty
-                 if idMap == {}:
-                     break
-                 # add data to datasets
-                 isFailed = False
-                 isFatal  = False
-                 setErrorDiag = False
-                 out = 'OK'
-                 fatalErrStrs = ['[ORA-00001] unique constraint (ATLAS_DQ2.UQ_01_FILES_GUID) violated',
-                                 '[USER][OTHER] Parameter value [None] is not a valid uid!',
-                                 'FileConsistencyMismatch',
-                                 'Problem validating attachment',
-                                 'DELETED_DIDS_PK',
-                                 'Apache Server at atlddmcat-writer.cern.ch Port 443']
-                 regStart = datetime.datetime.utcnow()
-                 try:
-                     if not self.useCentralLFC():
-                         regMsgStr = "DQ2 registraion for %s files " % regNumFiles                    
-                         self.logger.debug('%s %s' % ('registerFilesInDatasets',str(tmpIdMap)))
-                         self.dq2api.registerFilesInDatasets(tmpIdMap)
-                     else:
-                         regMsgStr = "LFC+DQ2 registraion with backend={0} for {1} files ".format(self.ddmBackEnd,
-                                                                                                  regNumFiles)
-                         self.logger.debug('%s %s %s' % ('Register.registerFilesInDatasets',tmpDest,str(tmpIdMap)))
-                         if self.ddmBackEnd != None:
-                             registerAPI = Register2.Register(tmpDest,force_backend=self.ddmBackEnd)
-                         else:    
-                             registerAPI = Register2.Register(tmpDest)
-                         out = registerAPI.registerFilesInDatasets(tmpIdMap)
-                 except DQ2.DQFileExistsInDatasetException:
-                     # hamless error 
-                     errType,errValue = sys.exc_info()[:2]
-                     out = '%s : %s' % (errType,errValue)
-                 except (DQ2.DQClosedDatasetException,
-                         DQ2.DQFrozenDatasetException,
-                         DQ2.DQUnknownDatasetException,
-                         DQ2.DQDatasetExistsException,
-                         DQ2.DQFileMetaDataMismatchException,
-                         FileCatalogUnknownFactory,
-                         FileCatalogException,
-                         RucioFileCatalogException,
-                         FileConsistencyMismatch,
-                         exceptions.KeyError):
-                     # fatal errors
-                     errType,errValue = sys.exc_info()[:2]
-                     out = '%s : %s' % (errType,errValue)
-                     isFatal = True
-                     isFailed = True
-                 except:
-                     # unknown errors
-                     errType,errValue = sys.exc_info()[:2]
-                     out = '%s : %s' % (errType,errValue)
-                     for tmpFatalErrStr in fatalErrStrs:
-                         if tmpFatalErrStr in str(errValue):
-                             self.job.ddmErrorDiag = 'failed to add files : ' + tmpFatalErrStr
-                             setErrorDiag = True
-                             break
-                     if setErrorDiag:
-                         isFatal = True
-                     else:
-                         isFatal = False
-                     isFailed = True                
-                 regTime = datetime.datetime.utcnow() - regStart
-                 self.logger.debug(regMsgStr + \
-                                   'took %s.%03d sec' % (regTime.seconds,regTime.microseconds/1000))
-                 # failed
-                 if isFailed or isFatal:
-                     self.logger.error('%s' % out)
-                     if (iTry+1) == nTry or isFatal:
-                         self.job.ddmErrorCode = ErrorCode.EC_Adder
-                         # extract important error string
-                         extractedErrStr = DataServiceUtils.extractImportantError(out)
-                         errMsg = "Could not add files to DDM: "
-                         if extractedErrStr == '':
-                             self.job.ddmErrorDiag = errMsg + out.split('\n')[-1]
-                         else:
-                             self.job.ddmErrorDiag = errMsg + extractedErrStr
-                         if isFatal:
-                             self.result.setFatal()
-                         else:
-                             self.result.setTemporary()
-                         return 1
-                     self.logger.error("Try:%s" % iTry)
-                     # sleep
-                     time.sleep(10)                    
-                 else:
-                     self.logger.debug('%s' % str(out))
-                     break
+        # add files
+        isFatal  = False
+        isFailed = False
+        nTry = 3
+        for iTry in range(nTry):
+            regStart = datetime.datetime.utcnow()
+            try:
+                if not self.useCentralLFC():
+                    regMsgStr = "DQ2 registraion for %s files " % regNumFiles                    
+                else:
+                    regMsgStr = "LFC+DQ2 registraion with backend={0} for {1} files ".format(self.ddmBackEnd,
+                                                                                             regNumFiles)
+                self.logger.debug('%s %s' % ('registerFilesInDatasets',str(destIdMap)))
+                out = rucioAPI.registerFilesInDataset(destIdMap)
+            except (DQ2.DQClosedDatasetException,
+                    DQ2.DQFrozenDatasetException,
+                    DQ2.DQUnknownDatasetException,
+                    DQ2.DQDatasetExistsException,
+                    DQ2.DQFileMetaDataMismatchException,
+                    FileCatalogUnknownFactory,
+                    FileCatalogException,
+                    DataIdentifierNotFound,
+                    RucioFileCatalogException,
+                    FileConsistencyMismatch,
+                    exceptions.KeyError):
+                # fatal errors
+                errType,errValue = sys.exc_info()[:2]
+                out = '%s : %s' % (errType,errValue)
+                isFatal = True
+                isFailed = True
+            except:
+                # unknown errors
+                errType,errValue = sys.exc_info()[:2]
+                out = '%s : %s' % (errType,errValue)
+                isFatal = False
+                isFailed = True                
+            regTime = datetime.datetime.utcnow() - regStart
+            self.logger.debug(regMsgStr + \
+                                  'took %s.%03d sec' % (regTime.seconds,regTime.microseconds/1000))
+            # failed
+            if isFailed or isFatal:
+                self.logger.error('%s' % out)
+                if (iTry+1) == nTry or isFatal:
+                    self.job.ddmErrorCode = ErrorCode.EC_Adder
+                    # extract important error string
+                    extractedErrStr = DataServiceUtils.extractImportantError(out)
+                    errMsg = "Could not add files to DDM: "
+                    if extractedErrStr == '':
+                        self.job.ddmErrorDiag = errMsg + out.split('\n')[-1]
+                    else:
+                        self.job.ddmErrorDiag = errMsg + extractedErrStr
+                    if isFatal:
+                        self.result.setFatal()
+                    else:
+                        self.result.setTemporary()
+                    return 1
+                self.logger.error("Try:%s" % iTry)
+                # sleep
+                time.sleep(10)                    
+            else:
+                self.logger.debug('%s' % str(out))
+                break
         # register dataset subscription
         subActivity = 'Production'
         if not self.job.prodSourceLabel in ['user']:
