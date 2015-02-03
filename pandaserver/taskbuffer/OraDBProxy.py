@@ -310,9 +310,10 @@ class DBProxy:
             originPandaID = None
             if oldPandaIDs != None and len(oldPandaIDs) > 0:
                 varMap = {}
+                varMap[':jediTaskID'] = job.jediTaskID
                 varMap[':pandaID'] = oldPandaIDs[0]
                 sqlOrigin  = "SELECT originPandaID FROM {0}.JEDI_Job_Retry_History ".format(panda_config.schemaJEDI)
-                sqlOrigin += "WHERE newPandaID=:pandaID "
+                sqlOrigin += "WHERE jediTaskID=:jediTaskID AND newPandaID=:pandaID "
                 self.cur.execute(sqlOrigin+comment,varMap)
                 resOrigin = self.cur.fetchone() 
                 if resOrigin != None:
