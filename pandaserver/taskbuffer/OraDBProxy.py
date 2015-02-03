@@ -215,7 +215,7 @@ class DBProxy:
 
     # insert job to jobsDefined
     def insertNewJob(self,job,user,serNum,weight=0.0,priorityOffset=0,userVO=None,groupJobSN=0,toPending=False,
-                     origEsJob=False,eventServiceInfo=None):
+                     origEsJob=False,eventServiceInfo=None,oldPandaIDs=None,relationType=None):
         comment = ' /* DBProxy.insertNewJob */'
         if not toPending:
             sql1 = "INSERT INTO ATLAS_PANDA.jobsDefined4 (%s) " % JobSpec.columnNames()
@@ -306,6 +306,34 @@ class DBProxy:
                 strJediTaskID = str(job.jediTaskID)
             except:
                 strJediTaskID = ''
+            # get originPandaID
+            originPandaID = None
+            if oldPandaIDs != None and len(oldPandaIDs) > 0:
+                varMap = {}
+                varMap[':pandaID'] = oldPandaIDs[0]
+                sqlOrigin  = "SELECT originPandaID FROM {0}.JEDI_Job_Retry_History ".format(panda_config.schemaJEDI)
+                sqlOrigin += "WHERE newPandaID=:pandaID "
+                self.cur.execute(sqlOrigin+comment,varMap)
+                resOrigin = self.cur.fetchone() 
+                if resOrigin != None:
+                    originPandaID, = resOrigin
+                else:
+                    originPandaID = oldPandaIDs[0]
+            if originPandaID == None:
+                originPandaID = job.PandaID
+            newJobName = re.sub('\$ORIGINPANDAID',str(originPandaID),job.jobName)
+            # update jobName
+            if newJobName != job.jobName:
+                job.jobName = newJobName
+                if not toPending:
+                    sqlJobName  = "UPDATE ATLAS_PANDA.jobsDefined4 "
+                else:
+                    sqlJobName  = "UPDATE ATLAS_PANDA.jobsWaiting4 "
+                sqlJobName += "SET jobName=:jobName WHERE PandaID=:pandaID "
+                varMap ={}
+                varMap[':jobName'] = job.jobName
+                varMap[':pandaID'] = job.PandaID
+                self.cur.execute(sqlJobName+comment,varMap)
             # reset changed attribute list
             job.resetChangedList()
             # insert files
@@ -419,6 +447,9 @@ class DBProxy:
             varMap[':PandaID'] = job.PandaID
             varMap[':param']   = job.jobParameters
             self.cur.execute(sqlJob+comment, varMap)
+            # record retry history
+            if oldPandaIDs != None and len(oldPandaIDs) > 0:
+                self.recordRetryHistoryJEDI(job.jediTaskID,job.PandaID,oldPandaIDs,relationType)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -14662,3 +14693,47 @@ class DBProxy:
             self.dumpErrorMessage(_logger,methodName)
             return False,None
             
+
+
+    # record retry history
+    def recordRetryHistoryJEDI(self,jediTaskID,newPandaID,oldPandaIDs,relationType):
+        comment = ' /* DBProxy.recordRetryHistoryJEDI */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <PandaID={0}>".format(newPandaID)
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        # sql to check record
+        sqlCK  = "SELECT jediTaskID FROM {0}.JEDI_Job_Retry_History ".format(panda_config.schemaJEDI)
+        sqlCK += "WHERE jediTaskID=:jediTaskID AND oldPandaID=:oldPandaID AND newPandaID=:newPandaID AND originPandaID=:originPandaID "
+        # sql to insert record
+        sqlIN = "INSERT INTO {0}.JEDI_Job_Retry_History ".format(panda_config.schemaJEDI) 
+        if relationType == None:
+            sqlIN += "(jediTaskID,oldPandaID,newPandaID,originPandaID) "
+            sqlIN += "VALUES(:jediTaskID,:oldPandaID,:newPandaID,:originPandaID) "
+        else:
+            sqlIN += "(jediTaskID,oldPandaID,newPandaID,originPandaID,relationType) "
+            sqlIN += "VALUES(:jediTaskID,:oldPandaID,:newPandaID,:originPandaID,:relationType) "
+        for oldPandaID in oldPandaIDs:
+            # get origin
+            originIDs = self.getOriginPandaIDsJEDI(oldPandaID,jediTaskID,self.cur)
+            for originID in originIDs:
+                # check
+                varMap = {}
+                varMap[':jediTaskID'] = jediTaskID
+                varMap[':oldPandaID'] = oldPandaID
+                varMap[':newPandaID'] = newPandaID
+                varMap[':originPandaID'] = originID
+                self.cur.execute(sqlCK+comment,varMap)
+                resCK = self.cur.fetchone()
+                # insert
+                if resCK == None:
+                    varMap = {}
+                    varMap[':jediTaskID'] = jediTaskID
+                    varMap[':oldPandaID'] = oldPandaID
+                    varMap[':newPandaID'] = newPandaID
+                    varMap[':originPandaID'] = originID
+                    if relationType != None:
+                        varMap[':relationType'] = relationType
+                    self.cur.execute(sqlIN+comment,varMap)
+        # return
+        tmpLog.debug("done")

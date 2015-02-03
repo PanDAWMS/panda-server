@@ -1,6 +1,8 @@
 Release Note
 
 * current
+  * changed for jobName
+  * added recordRetryHistory in insertNewJob
   * filling outPandaID
   * using rucio API for file registration
   * fixed rebro for jobDef=0

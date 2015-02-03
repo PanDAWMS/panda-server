@@ -108,7 +108,7 @@ class TaskBuffer:
     
     # store Jobs into DB
     def storeJobs(self,jobs,user,joinThr=False,forkSetupper=False,fqans=[],hostname='',resetLocInSetupper=False,
-                  checkSpecialHandling=True,toPending=False):
+                  checkSpecialHandling=True,toPending=False,oldPandaIDs=None,relationType=None):
         try:
             _logger.debug("storeJobs : start for %s nJobs=%s" % (user,len(jobs)))
             # check quota for priority calculation
@@ -270,7 +270,7 @@ class TaskBuffer:
             firstLiveLog = True
             nRunJob = 0
             esJobsetMap = {}
-            for job in jobs:
+            for idxJob,job in enumerate(jobs):
                 # set JobID. keep original JobID when retry
                 if userJobID != -1 and job.prodSourceLabel in ['user','panda'] \
                         and (job.attemptNr in [0,'0','NULL'] or \
@@ -347,9 +347,14 @@ class TaskBuffer:
                         job.jobsetID = esJobsetMap[esIndex]
                     else:
                         origEsJob = True
+                if oldPandaIDs != None and len(oldPandaIDs) > idxJob:
+                    jobOldPandaIDs = oldPandaIDs[idxJob]
+                else:
+                    jobOldPandaIDs = None
                 # insert job to DB
                 if not proxy.insertNewJob(job,user,serNum,weight,priorityOffset,userVO,groupJobSerialNum,
-                                          toPending,origEsJob,eventServiceInfo):
+                                          toPending,origEsJob,eventServiceInfo,oldPandaIDs=jobOldPandaIDs,
+                                          relationType=relationType):
                     # reset if failed
                     job.PandaID = None
                 else:
