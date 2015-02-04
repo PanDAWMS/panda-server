@@ -1,6 +1,10 @@
 Release Note
 
 * current
+  * sending sourceSite to the pilot
+  * UnsupportedOperation as fatal 
+  * channged getJob to ignore fairshare for pmerge
+  * registering LB info to log
   * changed for jobName
   * added recordRetryHistory in insertNewJob
   * filling outPandaID

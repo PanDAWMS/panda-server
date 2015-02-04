@@ -195,6 +195,8 @@ class Response:
         self.data['processingType'] = job.processingType
         # transferType
         self.data['transferType'] = job.transferType
+        # sourceSite
+        self.data['sourceSite'] = job.sourceSite
         # current priority
         self.data['currentPriority'] = job.currentPriority
         # taskID

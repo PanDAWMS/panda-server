@@ -1935,7 +1935,7 @@ class DBProxy:
                                     datasetContentsStat[file.datasetID] = {'diff':0,'cType':'hold'}
                                 datasetContentsStat[file.datasetID]['diff'] += 1
                         # update metadata in JEDI
-                        if useJEDI and file.type in ['output'] and extraInfo != None:
+                        if useJEDI and file.type in ['output','log'] and extraInfo != None:
                             varMap = {}
                             sqlFileMeta = ''
                             if extraInfo.has_key('nevents') and file.lfn in extraInfo['nevents']:
@@ -9473,8 +9473,11 @@ class DBProxy:
                 retVarMap[':shareLabel1'] = 'managed'
                 retVarMap[':shareLabel2'] = 'test'
                 retVarMap[':shareLabel3'] = 'prod_test'
-                retVarMap[':shareLabel4'] = 'install'                
-                retStr = 'AND (prodSourceLabel IN (:shareLabel2,:shareLabel3,:shareLabel4) OR (prodSourceLabel=:shareLabel1 ' + retStr + '))'
+                retVarMap[':shareLabel4'] = 'install'
+                retVarMap[':shareLabel5'] = 'pmerge'
+                newRetStr  = 'AND (prodSourceLabel IN (:shareLabel2,:shareLabel3,:shareLabel4) '
+                newRetStr += 'OR processingType=:shareLabel5 OR (prodSourceLabel=:shareLabel1 ' + retStr + '))'
+                retStr = newRetStr
             return retStr,retVarMap
         except:
             errtype,errvalue = sys.exc_info()[:2]
