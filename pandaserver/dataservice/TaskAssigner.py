@@ -1206,20 +1206,32 @@ class TaskAssigner:
         # loop over all datasets
         allRepMap = {}
         for dataset in datasets:
+            allFileList = []
             _logger.debug((self.taskID,'listDatasetReplicas',dataset))
             for iDDMTry in range(3):
-                status,out = ddm.DQ2.main('listDatasetReplicas',dataset,0,None,False)
-                if status != 0 or (not DataServiceUtils.isDQ2ok(out)):
-                    time.sleep(60)
-                else:
-                    break
+                status,outList = ddm.DQ2.listFilesInDataset(dataset)
+                if status == 0:
+                    exec "allFileList = %s[0]" % outList
+                    status,out = ddm.DQ2.main('listDatasetReplicas',dataset,0,None,True)
+                    if status != 0 or (not DataServiceUtils.isDQ2ok(out)):
+                        time.sleep(60)
+                    else:
+                        break
             _logger.debug('%s %s' % (self.taskID,out))                
             if status != 0 or out.startswith('Error'):
                 return False,out
             tmpRepSites = {}
             try:
                 # convert res to map
-                exec "tmpRepSites = %s" % out
+                exec "oldOut = %s" % out
+                tmpVal = oldOut.values()[0]
+                tmpRepSites = {}
+                # incomplete
+                for tmpEP in tmpVal[0]:
+                    tmpRepSites[tmpEP] = [{'total':len(allFileList), 'found':0, 'immutable':1}]
+                # complete
+                for tmpEP in tmpVal[1]:
+                    tmpRepSites[tmpEP] = [{'total':len(allFileList), 'found':len(allFileList), 'immutable':1}]
             except:
                 return False,out
             # get map

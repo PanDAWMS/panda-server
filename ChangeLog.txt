@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed TA to use old=True for listDatasetReplicas
   * sending sourceSite to the pilot
   * UnsupportedOperation as fatal 
   * channged getJob to ignore fairshare for pmerge
