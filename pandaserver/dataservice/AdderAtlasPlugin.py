@@ -645,7 +645,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                     self.job.ddmErrorDiag = "DaTRI failed with %s %s" % (errType,errValue)
                     return 0
         # collect list of merging files
-        if self.goToMerging:
+        if self.goToMerging and not self.jobStatus in ['failed','cancelled']:
             for tmpFileList in idMap.values():
                 for tmpFile in tmpFileList:
                     if not tmpFile['lfn'] in self.result.mergingFiles:

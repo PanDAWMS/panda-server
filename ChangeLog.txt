@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed not to use pre-merged log files from failed jobs
   * changed TA to use old=True for listDatasetReplicas
   * sending sourceSite to the pilot
   * UnsupportedOperation as fatal 
