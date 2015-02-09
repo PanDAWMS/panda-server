@@ -13271,19 +13271,6 @@ class DBProxy:
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
                 return retValue
-            # release unprocessed event ranges
-            sqlEC  = "UPDATE {0}.JEDI_Events SET status=:esReady,attemptNr=attemptNr-1,pandaID=:jobsetID ".format(panda_config.schemaJEDI)
-            sqlEC += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND status<>:esFinished "
-            varMap = {}
-            varMap[':jediTaskID']  = jobSpec.jediTaskID
-            varMap[':pandaID']     = pandaID
-            varMap[':jobsetID']    = jobSpec.jobsetID
-            varMap[':esFinished']  = EventServiceUtils.ST_finished
-            varMap[':esReady']     = EventServiceUtils.ST_ready
-            _logger.debug(sqlEC+comment+str(varMap))
-            self.cur.execute(sqlEC+comment, varMap)
-            nRowEC = self.cur.rowcount
-            _logger.debug("{0} : released {1} event ranges".format(methodName,nRowEC))
             # change status to done
             sqlED  = "UPDATE {0}.JEDI_Events SET status=:newStatus ".format(panda_config.schemaJEDI)
             sqlED += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND status=:oldStatus "
@@ -13295,6 +13282,23 @@ class DBProxy:
             self.cur.execute(sqlED+comment, varMap)
             nRowED = self.cur.rowcount
             _logger.debug("{0} : set done to {1} event ranges".format(methodName,nRowED))
+            # release unprocessed event ranges
+            sqlEC  = "UPDATE {0}.JEDI_Events SET status=:newStatus,attemptNr=attemptNr-1,pandaID=:jobsetID ".format(panda_config.schemaJEDI)
+            sqlEC += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND status<>:esDone "
+            varMap = {}
+            varMap[':jediTaskID']  = jobSpec.jediTaskID
+            varMap[':pandaID']     = pandaID
+            varMap[':jobsetID']    = jobSpec.jobsetID
+            varMap[':esDone']      = EventServiceUtils.ST_done
+            if nRowED == 0:
+                # cancel since didn't process any event ranges
+                varMap[':newStatus'] = EventServiceUtils.ST_cancelled
+            else:
+                varMap[':newStatus'] = EventServiceUtils.ST_ready
+            _logger.debug(sqlEC+comment+str(varMap))
+            self.cur.execute(sqlEC+comment, varMap)
+            nRowEC = self.cur.rowcount
+            _logger.debug("{0} : released {1} event ranges".format(methodName,nRowEC))
             # fail immediately if didn't process any event ranges
             if nRowED == 0:
                 _logger.debug("{0} : no more retry since did't process any event ranges on WN".format(methodName))
