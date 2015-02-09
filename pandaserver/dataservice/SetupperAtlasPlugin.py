@@ -64,6 +64,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         self.missingDatasetList = {}
         # lfn ds map
         self.lfnDatasetMap = {}
+        # missing files at T1
+        self.missingFilesInT1 = {}
         
         
     # main
@@ -322,6 +324,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             # use DQ2
             if (not self.pandaDDM) and job.prodSourceLabel != 'ddm':
                 # register dispatch dataset
+                self.dispFileList[dispatchDBlock] = fileList[dispatchDBlock]
                 disFiles = fileList[dispatchDBlock]
                 ddmBackEnd = backEndMap[dispatchDBlock]
                 if ddmBackEnd == None:
@@ -729,6 +732,17 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     dstDQ2ID = srcDQ2ID
                 else:
                     dstDQ2ID = self.siteMapper.getSite(job.computingSite).ddm
+                # check if missing at T1
+                missingAtT1 = False
+                if job.prodSourceLabel in ['managed','test']:
+                    for tmpLFN in self.dispFileList[job.dispatchDBlock]['lfns']:
+                        if not job.cloud in self.missingFilesInT1:
+                            break
+                        if tmpLFN in self.missingFilesInT1[job.cloud] or \
+                                tmpLFN.split(':')[-1] in self.missingFilesInT1[job.cloud]:
+                            missingAtT1 = True
+                            break
+                    self.logger.debug('{0} missing at T1 : {1}'.format(job.dispatchDBlock,missingAtT1))
                 # use DQ2
                 if (not self.pandaDDM) and job.prodSourceLabel != 'ddm':
                     # look for replica
@@ -736,7 +750,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     dq2IDList = []
                     # register replica
                     isOK = False
-                    if dq2ID != dstDQ2ID:
+                    if dq2ID != dstDQ2ID or missingAtT1:
                         # make list
                         if self.replicaMap.has_key(job.dispatchDBlock):
                             # set DQ2 ID for DISK
@@ -798,23 +812,27 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         if dq2IDList == []:
                             dq2IDList = [dq2ID]
                         # register dataset locations
-                        self.logger.debug('registerDatasetLocation {ds} {dq2ID} {lifeTime}days'.format(ds=job.dispatchDBlock,
-                                                                                                       dq2ID=str(dq2IDList),
-                                                                                                       lifeTime=7))
-                        nDDMTry = 3
-                        for iDDMTry in range(nDDMTry):
-                            try:
-                                out = self.registerDispatchDatasetLocation(job.dispatchDBlock,dq2IDList,7)
-                                self.logger.debug(out)
-                                isOK = True
-                                break
-                            except:
-                                errType,errValue = sys.exc_info()[:2]
-                                self.logger.error("registerDispatchDatasetLocation : failed with {0}:{1}".format(errType,errValue))
-                                if iDDMTry+1 == nDDMTry:
+                        if missingAtT1:
+                            # without locatios to let DDM find sources
+                            isOK = True
+                        else:
+                            self.logger.debug('registerDatasetLocation {ds} {dq2ID} {lifeTime}days'.format(ds=job.dispatchDBlock,
+                                                                                                           dq2ID=str(dq2IDList),
+                                                                                                           lifeTime=7))
+                            nDDMTry = 3
+                            for iDDMTry in range(nDDMTry):
+                                try:
+                                    out = self.registerDispatchDatasetLocation(job.dispatchDBlock,dq2IDList,7)
+                                    self.logger.debug(out)
+                                    isOK = True
                                     break
-                                self.logger.debug("sleep {0}/{1}".format(iDDMTry,nDDMTry))
-                                time.sleep(10)
+                                except:
+                                    errType,errValue = sys.exc_info()[:2]
+                                    self.logger.error("registerDispatchDatasetLocation : failed with {0}:{1}".format(errType,errValue))
+                                    if iDDMTry+1 == nDDMTry:
+                                        break
+                                    self.logger.debug("sleep {0}/{1}".format(iDDMTry,nDDMTry))
+                                    time.sleep(10)
                     else:
                         # register locations later for prestaging
                         isOK = True
@@ -829,7 +847,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         optSrcPolicy = 001000 | 010000
                         dq2ID = dstDQ2ID
                         # prestaging
-                        if srcDQ2ID == dstDQ2ID:
+                        if srcDQ2ID == dstDQ2ID and not missingAtT1:
                             # stage-in callback
                             optSub['DATASET_STAGED_EVENT'] = ['http://%s:%s/server/panda/datasetCompleted' % \
                                                               (panda_config.pserverhosthttp,panda_config.pserverporthttp)]
@@ -890,8 +908,9 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         else:
                             isOK = True
                             # set sources to handle T2s in another cloud and to transfer dis datasets being split in multiple sites 
-                            for tmpDQ2ID in dq2IDList:
-                                optSource[tmpDQ2ID] = {'policy' : 0}
+                            if not missingAtT1:
+                                for tmpDQ2ID in dq2IDList:
+                                    optSource[tmpDQ2ID] = {'policy' : 0}
                             # T1 used as T2
                             if job.cloud != self.siteMapper.getSite(tmpDstID).cloud and \
                                    (not dstDQ2ID.endswith('PRODDISK')) and \
@@ -1412,6 +1431,10 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             if not missLFNs.has_key(cloudKey):
                 missLFNs[cloudKey] = []
             missLFNs[cloudKey] += tmpMissLFNs
+            if not cloudKey in self.missingFilesInT1:
+                self.missingFilesInT1[cloudKey] = set()
+            for tmpMissLFN in tmpMissLFNs:
+                self.missingFilesInT1[cloudKey].add(tmpMissLFN)
         self.logger.debug('checking T2 LFC')
         # check availability of files at T2
         for cloudKey,tmpAllLFNs in allLFNs.iteritems():

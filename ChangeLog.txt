@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * making _dis w/o source when missing at T1
   * fixed ES retry
   * changed not to use pre-merged log files from failed jobs
   * changed TA to use old=True for listDatasetReplicas
