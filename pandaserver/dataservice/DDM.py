@@ -447,7 +447,7 @@ class RucioAPI:
         try:
             client.add_replication_rule(dids=dids,copies=1,rse_expression=location,weight=None,
                                         lifetime=lifetime, grouping='NONE', account=client.account,
-                                        locked=False, notify='N')
+                                        locked=False, notify='N',ignore_availability=True)
         except Duplicate:
             pass
         return True

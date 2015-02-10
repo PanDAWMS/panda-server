@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * using ignore_availability when making subscriptions
   * making _dis w/o source when missing at T1
   * fixed ES retry
   * changed not to use pre-merged log files from failed jobs
