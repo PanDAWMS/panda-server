@@ -1290,11 +1290,15 @@ def killTask(jediTaskID):
 
 
 # finish task
-def finishTask(jediTaskID):
+def finishTask(jediTaskID,soft=False):
     """Finish a task
 
        args:
            jediTaskID: jediTaskID of the task to be finished
+           soft: If True, new jobs are not generated and the task is 
+                 finihsed once all remaining jobs are done.
+                 If False, all remaining jobs are killed and then the
+                 task is finished
        returns:
            status code
                  0: communication succeeded to the panda server 
@@ -1316,6 +1320,8 @@ def finishTask(jediTaskID):
     url = baseURLSSL + '/finishTask'
     data = {'jediTaskID':jediTaskID}
     data['properErrorCode'] = True
+    if soft:
+        data['soft'] = True
     status,output = curl.post(url,data)
     try:
         return status,pickle.loads(output)

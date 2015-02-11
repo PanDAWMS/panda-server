@@ -887,9 +887,11 @@ class UserIF:
 
 
     # finish task
-    def finishTask(self,jediTaskID,user,prodRole,properErrorCode):
+    def finishTask(self,jediTaskID,user,prodRole,properErrorCode,qualifier):
         # kill
-        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'finish',properErrorCode=properErrorCode)
+        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'finish',
+                                                   properErrorCode=properErrorCode,
+                                                   comQualifier=qualifier)
         # return
         return ret
 
@@ -1883,11 +1885,14 @@ def reassignTask(req,jediTaskID,site=None,cloud=None):
 
 
 # finish task
-def finishTask(req,jediTaskID=None,properErrorCode=None):
+def finishTask(req,jediTaskID=None,properErrorCode=None,soft=None):
     if properErrorCode == 'True':
         properErrorCode = True
     else:
         properErrorCode = False
+    qualifier = None
+    if soft == 'True':
+        qualifier = 'soft'
     # check security
     if not isSecure(req):
         if properErrorCode:
@@ -1908,7 +1913,8 @@ def finishTask(req,jediTaskID=None,properErrorCode=None):
             return pickle.dumps((101,'jediTaskID must be an integer'))        
         else:
             return pickle.dumps((False,'jediTaskID must be an integer'))
-    ret = userIF.finishTask(jediTaskID,user,prodRole,properErrorCode)
+    ret = userIF.finishTask(jediTaskID,user,prodRole,properErrorCode,
+                            qualifier)
     return pickle.dumps(ret)
 
 

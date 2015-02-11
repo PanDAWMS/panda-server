@@ -12458,7 +12458,8 @@ class DBProxy:
 
 
     # send command to task through DEFT
-    def sendCommandTaskPanda(self,jediTaskID,dn,prodRole,comStr,comComment=None,useCommit=True,properErrorCode=False):
+    def sendCommandTaskPanda(self,jediTaskID,dn,prodRole,comStr,comComment=None,useCommit=True,properErrorCode=False,
+                             comQualifier=None):
         comment = ' /* JediDBProxy.sendCommandTaskPanda */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += ' <jediTaskID={0}>'.format(jediTaskID)
@@ -12467,8 +12468,9 @@ class DBProxy:
             compactDN = self.cleanUserID(dn)
             if compactDN in ['','NULL',None]:
                 compactDN = dn
-            _logger.debug("{0} start com={1} DN={2} prod={3} comment={4}".format(methodName,comStr,compactDN,
-                                                                                 prodRole,comComment))
+            _logger.debug("{0} start com={1} DN={2} prod={3} comment={4} qualifier={5}".format(methodName,comStr,compactDN,
+                                                                                               prodRole,comComment,
+                                                                                               comQualifier))
             # sql to check status and owner
             sqlTC  = "SELECT status,userName,prodSourceLabel FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
             sqlTC += "WHERE jediTaskID=:jediTaskID FOR UPDATE "
@@ -12544,7 +12546,11 @@ class DBProxy:
                 varMap[':comm_cmd']  = comStr
                 varMap[':comm_owner']  = 'DEFT'
                 if comComment == None:
-                    varMap[':comm_comment'] = '{0} by {1}'.format(comStr,compactDN)  
+                    tmpStr = ''
+                    if not comQualifier in ['',None]:
+                        tmpStr += '{0} '.format(comQualifier)
+                    tmpStr += '{0} by {1}'.format(comStr,compactDN)
+                    varMap[':comm_comment'] = tmpStr
                 else:
                     varMap[':comm_comment'] = comComment
                 self.cur.execute(sqlC+comment,varMap)
