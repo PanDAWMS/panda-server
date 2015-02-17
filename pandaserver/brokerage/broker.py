@@ -1468,13 +1468,13 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         # fail jobs if no sites have the release
                         if (not foundRelease or (tmpJob.relocationFlag != 1 and not foundOneCandidate)) and (tmpJob.prodSourceLabel in ['managed','test']):
                             # reset
-                            if tmpJob.relocationFlag != 1:
+                            if not tmpJob.relocationFlag in [1,2]:
                                 tmpJob.computingSite = None
                                 tmpJob.computingElement = None
                             # go to waiting
                             tmpJob.jobStatus          = 'waiting'
                             tmpJob.brokerageErrorCode = ErrorCode.EC_Release
-                            if tmpJob.relocationFlag == 1:
+                            if tmpJob.relocationFlag in [1,2]:
                                 try:
                                     if resultsForAnal['pilot'] != []:
                                         tmpJob.brokerageErrorDiag = '%s no pilots' % tmpJob.computingSite

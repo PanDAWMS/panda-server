@@ -303,7 +303,7 @@ class TaskBuffer:
                     if job.prodSourceLabel != 'panda':
                         nRunJob += 1
                 # set relocation flag
-                if job.computingSite != 'NULL':
+                if job.computingSite != 'NULL' and job.relocationFlag != 2:
                     job.relocationFlag = 1
                 # protection agains empty jobParameters
                 if job.jobParameters in ['',None,'NULL']:
@@ -401,11 +401,13 @@ class TaskBuffer:
            
 
     # lock jobs for reassign
-    def lockJobsForReassign(self,tableName,timeLimit,statList,labels,processTypes,sites,clouds,useJEDI=False):
+    def lockJobsForReassign(self,tableName,timeLimit,statList,labels,processTypes,sites,clouds,
+                            useJEDI=False,onlyReassignable=False):
         # get DB proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        res = proxy.lockJobsForReassign(tableName,timeLimit,statList,labels,processTypes,sites,clouds,useJEDI)
+        res = proxy.lockJobsForReassign(tableName,timeLimit,statList,labels,processTypes,sites,clouds,
+                                        useJEDI,onlyReassignable)
         # release DB proxy
         self.proxyPool.putProxy(proxy)
         # return

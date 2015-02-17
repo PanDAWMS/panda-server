@@ -3136,7 +3136,7 @@ class DBProxy:
             if not job.prodSourceLabel in ['user','panda']:
                 job.dispatchDBlock   = None
                 # erase old assignment
-                if (not keepSite) and job.relocationFlag != 1:
+                if (not keepSite) and not job.relocationFlag in [1,2]:
                     job.computingSite = None
                 job.computingElement = None
             # host and time information
@@ -3257,7 +3257,7 @@ class DBProxy:
                     self._rollback()
                     return None
                 job.dispatchDBlock = None
-                if (not keepSite) and job.relocationFlag != 1:
+                if (not keepSite) and not job.relocationFlag in [1,2]:
                     # erase old assignment
                     job.computingSite = None
                 job.computingElement = None
@@ -4440,7 +4440,7 @@ class DBProxy:
 
     # lock jobs for reassign
     def lockJobsForReassign(self,tableName,timeLimit,statList,labels,processTypes,sites,clouds,
-                            useJEDI=False):
+                            useJEDI=False,onlyReassignable=False):
         comment = ' /* DBProxy.lockJobsForReassign */'                        
         _logger.debug("lockJobsForReassign : %s %s %s %s %s %s %s %s" % \
                       (tableName,timeLimit,statList,labels,processTypes,sites,clouds,useJEDI))
@@ -4503,6 +4503,9 @@ class DBProxy:
                     tmpIdx += 1
                 sql = sql[:-1]
                 sql += ') '
+            if onlyReassignable:
+                sql += "AND (relocationFlag IS NULL OR relocationFlag<>:relocationFlag "
+                varMap[':relocationFlag'] = 2
             # sql for lock
             sqlLock = 'UPDATE %s SET modificationTime=CURRENT_DATE WHERE PandaID=:PandaID' % tableName
             # start transaction

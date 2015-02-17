@@ -680,7 +680,7 @@ for tmpCloud in siteMapper.getCloudList():
         continue
     status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsActive4",timeLimit,['activated'],['managed'],
                                                 ['evgen','simul'],[siteMapper.getCloud(tmpCloud)['tier1']],[],
-                                                True)
+                                                True,onlyReassignable=True)
     jobs = []
     jediJobs = []
     if res != None:
@@ -742,7 +742,8 @@ try:
                 _logger.debug(' %s:%s %s/%s > %s' % (tmpCloud,tmpComputingSite,tmpStatData['activated'],tmpStatData['running'],stuckThr))
                 # get stuck jobs
                 status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsActive4",timeLimit,['activated'],['managed'],
-                                                            ['evgen','simul'],[tmpComputingSite],[tmpCloud],True)
+                                                            ['evgen','simul'],[tmpComputingSite],[tmpCloud],True,
+                                                            onlyReassignable=True)
                 jobs = []
                 jediJobs = []
                 if res != None:
@@ -773,7 +774,8 @@ except:
 
 # reassign too long-standing jobs in active table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=2)
-status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsActive4",timeLimit,['activated','starting'],['managed'],[],[],[],True)
+status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsActive4",timeLimit,['activated','starting'],['managed'],[],[],[],True,
+                                            onlyReassignable=True)
 jobs = []
 jediJobs = []
 if res != None:

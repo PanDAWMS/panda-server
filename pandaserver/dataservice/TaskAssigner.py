@@ -35,6 +35,9 @@ thr_space_low = 5
 # special reduction for TAPE
 reductionForTape = 0.5
 
+# special weight for T1 data
+specialWeightT1Data = 10
+
 # task types using MC share
 taskTypesMcShare = ['evgen']
 
@@ -84,11 +87,13 @@ class TaskAssigner:
 
 
     # set cloud
-    def setCloud(self,lfns,guids,locations={},metadata=None,fileCounts=None):
+    def setCloud(self,lfns,guids,locations={},metadata=None,fileCounts=None,
+                 dsSizeMap=None):
         try:
             _logger.info('%s setCloud' % self.taskID)
             _logger.info('%s metadata="%s"' % (self.taskID,metadata))
             _logger.info('%s fileCounts="%s"' % (self.taskID,fileCounts))            
+            _logger.info('%s dsSizeMap="%s"' % (self.taskID,dsSizeMap))
             taskType = None
             RWs      = {}
             expRWs   = {}
@@ -226,6 +231,7 @@ class TaskAssigner:
             t2ListForMissing = {}
             diskCopyCloud = None
             badMetaMap = {}
+            weightWithData = {}
             if locations != {}:
                 # sort datasets by the number of sites
                 numSitesDatasetMap = {}
@@ -328,6 +334,10 @@ class TaskAssigner:
                             if (tmpT2List != [] and len(tmpT2CacheList) != len(tmpT2List)) and not tmpCloudName in removedDQ2Map[dataset]:
                                 removedDQ2Map[dataset].append(tmpCloudName)
                         else:
+                            if not tmpCloudName in weightWithData:
+                                weightWithData[tmpCloudName] = 0
+                            if dsSizeMap != None and dataset in dsSizeMap:
+                                weightWithData[tmpCloudName] += dsSizeMap[dataset]
                             if not useCacheT1:
                                 # check incomplete or not
                                 tmpStat = sites[foundSE][-1]
@@ -358,10 +368,11 @@ class TaskAssigner:
                 # remove clouds
                 for tmpCloudName in removedCloud:
                     if tmpCloudName in cloudList:
-                        cloudList.remove(tmpCloudName)
-            _logger.info('%s new locations after DQ2 filter %s' % (self.taskID,str(cloudList)))
-            _logger.info('%s clouds where complete disk copies are available %s' % (self.taskID,str(diskCopyCloud)))
-            _logger.info('%s removed DQ2 map %s' % (self.taskID,str(removedDQ2Map)))
+                        #cloudList.remove(tmpCloudName)
+                        pass
+            #_logger.info('%s new locations after DQ2 filter %s' % (self.taskID,str(cloudList)))
+            #_logger.info('%s clouds where complete disk copies are available %s' % (self.taskID,str(diskCopyCloud)))
+            #_logger.info('%s removed DQ2 map %s' % (self.taskID,str(removedDQ2Map)))
             if cloudList == []:
                 # make subscription to empty cloud
                 if taskType in taskTypesSub:
@@ -384,29 +395,9 @@ class TaskAssigner:
                 message = '%s no input data locations' % self.taskID
                 self.sendMesg(message,msgType='warning')
                 raise RuntimeError, '%s cloud list is empty after DQ2 filter' % self.taskID
-            message = '%s input data locations %s' % (self.taskID,str(cloudList))
+            message = '%s input data size per cloud %s' % (self.taskID,str(weightWithData))
             _logger.info(message)
             self.sendMesg(message)
-            # calculate # of loops
-            nFile = 200
-            nLoop = len(guids) / nFile
-            if len(guids) % nFile != 0:
-                nLoop += 1
-            iFileList = []
-            for iTmp in range(nLoop):
-                iFileList.append(iTmp*nFile)
-            # truncate list to avoid too many lookup     
-            maxLoop = 100
-            if len(iFileList) > maxLoop:
-                random.shuffle(iFileList)
-                iFileList = iFileList[:maxLoop]
-                iFileList.sort()
-            # count the number of files to be lookup
-            maxNFiles = 0
-            if not usingOpenDS:
-                # if dataset is open, doesn't check nFiles
-                for iFile in iFileList:
-                    maxNFiles += len(lfns[iFile:iFile+nFile])
             # loop over all cloud
             weightParams = {}
             foundCandidateWithT1 = []
@@ -473,88 +464,18 @@ class TaskAssigner:
                     self.sendMesg(message,msgType='warning')
                     del weightParams[tmpCloudName]
                     continue
-                # T1
-                t1List = [tmpT1Site.sitename]
-                # get files
-                weightParams[tmpCloudName]['nFiles'] = 0
-                # loop
-                tmpMaxNumFile = 0
-                for tmpSiteNameScan in t1List:
-                    tmpScanRet,tmpN = DataServiceUtils.getNumAvailableFilesSite(tmpSiteNameScan,
-                                                                                self.siteMapper,
-                                                                                locations,badMetaMap,
-                                                                                tmpCloud['tier1SE'],
-                                                                                noCheck=datasetTypeToSkipCheck,
-                                                                                fileCounts=fileCounts)
-                    # failed
-                    if not tmpScanRet:
-                        raise RuntimeError, 'failed to get nFiles at %s due to %s' % (tmpSiteNameScan,tmpN)
-                    # max
-                    if tmpMaxNumFile < tmpN:
-                        tmpMaxNumFile = tmpN
                 # set
-                weightParams[tmpCloudName]['nFiles'] = tmpMaxNumFile
-                _logger.info('%s  # of files at T1 %s' % (self.taskID,weightParams[tmpCloudName]['nFiles']))
-                # found candidate
-                foundCandidateT1 = False
-                if weightParams[tmpCloudName]['nFiles'] >= maxNFiles:
-                    foundCandidateT1 = True
-                    # avoid incomplete at T1 
-                    for tmpDS,tmpT2CloudList in removedDQ2Map.iteritems():
-                        if tmpCloudName in tmpT2CloudList:
-                            foundCandidateT1 = False
-                            # reset nFiles at T1
-                            weightParams[tmpCloudName]['nFiles'] = 0
-                            break
-                    if foundCandidateT1:        
-                        foundCandidateWithT1.append(tmpCloudName)
-                # check T2 if files are missing
-                if (not foundCandidateT1 or weightParams[tmpCloudName]['nFiles'] < maxNFiles) and \
-                       t2ListForMissing.has_key(tmpCloudName) and t2ListForMissing[tmpCloudName] != []:
-                    _logger.info('%s  T2 candidates %s' % (self.taskID,str(t2ListForMissing[tmpCloudName])))
-                    # loop
-                    tmpMaxNumFile = 0
-                    for tmpSiteNameScan in t2ListForMissing[tmpCloudName]:
-                        tmpScanRet,tmpN = DataServiceUtils.getNumAvailableFilesSite(tmpSiteNameScan,
-                                                                                    self.siteMapper,
-                                                                                    locations,badMetaMap,
-                                                                                    noCheck=datasetTypeToSkipCheck,
-                                                                                    fileCounts=fileCounts)
-                        # failed
-                        if not tmpScanRet:
-                            raise RuntimeError, 'failed to get nFiles at %s due to %s' % (tmpSiteNameScan,tmpN)
-                        # use larger value
-                        _logger.info('%s  # of files at T2:%s %s' % (self.taskID,tmpSiteNameScan,tmpN))
-                        if tmpN > weightParams[tmpCloudName]['nFiles']:
-                            weightParams[tmpCloudName]['nFiles'] = tmpN
-                            # found candidate
-                            if weightParams[tmpCloudName]['nFiles'] >= maxNFiles:
-                                candidatesUsingT2.append(tmpCloudName)
-                                break
+                if tmpCloudName in weightWithData:
+                    weightParams[tmpCloudName]['dsSize'] = int(weightWithData[tmpCloudName] / 1024 / 1024 / 1024)
+                else:
+                    weightParams[tmpCloudName]['dsSize'] = 0
+                _logger.info('%s  data size at T1 %sGB' % (self.taskID,weightParams[tmpCloudName]['dsSize']))
+                foundCandidateWithT1.append(tmpCloudName)
             # compare parameters
-            definedCloud = "US"
             maxClouds = []
             useMcShare = False
             # use clouds where T1 have the data
             maxClouds += foundCandidateWithT1
-            # use clouds where T2 have the data
-            maxClouds += candidatesUsingT2
-            # logging
-            _logger.info('%s check nFiles' % self.taskID)            
-            for cloudName,params in weightParams.iteritems():
-                if not cloudName in maxClouds:
-                    if maxNFiles == 0:
-                        message = '%s    %s skip : missing files at DATA/GROUPDISK' % \
-                                  (self.taskID,cloudName)
-                    elif params['nFiles'] != maxNFiles:
-                        message = '%s    %s skip : incomplete replica' % \
-                                  (self.taskID,cloudName)
-                    else:
-                        message = '%s    %s skip : no complete replica at DATA/GROUPDISK' % \
-                                  (self.taskID,cloudName)
-                    _logger.info(message)
-                    self.sendMesg(message)
-                    time.sleep(2)                    
             # check RW
             _logger.info('%s check RW' % self.taskID)                
             tmpInfClouds = []
@@ -613,6 +534,7 @@ class TaskAssigner:
                 # choose cloud according to weight
                 nWeightList = []
                 totalWeight = 0
+                _logger.info('%s weight list' % self.taskID)
                 for cloudName in maxClouds:
                     if (taskType in taskTypesMcShare):
                         # use MC share for evgen
@@ -628,14 +550,18 @@ class TaskAssigner:
                     if diskCopyCloud != None and diskCopyCloud != [] and cloudName not in diskCopyCloud:
                         tmpWeight *= float(reductionForTape)
                         message += '*%s' % reductionForTape
+                    # special weight for T1 data
+                    tmpWeight *= (int(weightParams[cloudName]['dsSize'] / specialWeightT1Data) + 1)
+                    message += '*({0}/{1}GB+1)'.format(weightParams[cloudName]['dsSize'],
+                                                       specialWeightT1Data)
                     self.sendMesg(message)
                     nWeightList.append(tmpWeight)
                     totalWeight += tmpWeight
+                    _logger.info(message)
                 # check total weight
                 if totalWeight == 0:
                     raise RuntimeError, 'totalWeight=0'
                 # determin cloud using random number
-                _logger.info('%s weights %s' % (self.taskID,str(nWeightList)))
                 rNumber = random.random() * totalWeight
                 _logger.info('%s    totalW   %s' % (self.taskID,totalWeight))                
                 _logger.info('%s    rNumber  %s' % (self.taskID,rNumber))
@@ -1092,7 +1018,6 @@ class TaskAssigner:
         # get metadata
         nTry = 3
         for iDDMTry in range(nTry):
-            _logger.debug('%s %s/%s listMetaDataReplica %s %s' % (self.taskID,iDDMTry,nTry,datasetName,locationName))
             status,out = ddm.DQ2.main('listMetaDataReplica',locationName,datasetName)
             if status != 0 or (not DataServiceUtils.isDQ2ok(out)):
                 if 'rucio.common.exception.ReplicaNotFound' in out:
@@ -1101,7 +1026,9 @@ class TaskAssigner:
             else:
                 break
         if status != 0 or out.startswith('Error'):
-            _logger.error("%s %s" % (self.taskID,out))
+            if not 'rucio.common.exception.ReplicaNotFound' in out:
+                _logger.debug('%s %s/%s listMetaDataReplica %s %s' % (self.taskID,iDDMTry,nTry,datasetName,locationName))
+                _logger.error("%s %s" % (self.taskID,out))
             return resForFailure
         metadata = {}
         try:
@@ -1116,7 +1043,6 @@ class TaskAssigner:
             self.metadataMap[datasetName] = {}
         self.metadataMap[datasetName][locationName] = metadata    
         # return
-        _logger.debug('%s getReplicaMetadata -> %s' % (self.taskID,str(metadata)))
         return True,metadata
 
 
@@ -1152,7 +1078,8 @@ class TaskAssigner:
                     return False
         except:
             errtype,errvalue = sys.exc_info()[:2]
-            _logger.error("%s checkMetadata : %s %s" % (self.taskID,errtype,errvalue))
+            if not 'failed to get metadata' in str(errvalue):
+                _logger.error("%s checkMetadata : %s %s" % (self.taskID,errtype,errvalue))
             # FIXME
             #return False
         # OK
@@ -1187,15 +1114,15 @@ class TaskAssigner:
         if self.contDsMap.has_key(container):
             return True,self.contDsMap[container]
         # get datasets in container
-        _logger.debug((self.taskID,'listDatasetsInContainer',container))
         for iDDMTry in range(3):
             status,out = ddm.DQ2.main('listDatasetsInContainer',container)
             if status != 0 or (not DataServiceUtils.isDQ2ok(out)):
                 time.sleep(60)
             else:
                 break
-        _logger.debug('%s %s' % (self.taskID,out))
         if status != 0 or out.startswith('Error'):
+            _logger.debug((self.taskID,'listDatasetsInContainer',container))
+            _logger.error('%s %s' % (self.taskID,out))
             return False,out
         datasets = []
         try:
@@ -1207,7 +1134,6 @@ class TaskAssigner:
         allRepMap = {}
         for dataset in datasets:
             allFileList = []
-            _logger.debug((self.taskID,'listDatasetReplicas',dataset))
             for iDDMTry in range(3):
                 status,outList = ddm.DQ2.listFilesInDataset(dataset)
                 if status == 0:
@@ -1217,8 +1143,9 @@ class TaskAssigner:
                         time.sleep(60)
                     else:
                         break
-            _logger.debug('%s %s' % (self.taskID,out))                
             if status != 0 or out.startswith('Error'):
+                _logger.debug((self.taskID,'listDatasetReplicas',dataset))
+                _logger.error('%s %s' % (self.taskID,out))
                 return False,out
             tmpRepSites = {}
             try:
@@ -1237,7 +1164,6 @@ class TaskAssigner:
             # get map
             allRepMap[dataset] = tmpRepSites
         # return
-        _logger.debug('%s %s' % (self.taskID,str(allRepMap)))
         self.contDsMap[container] = allRepMap
         return True,allRepMap
 

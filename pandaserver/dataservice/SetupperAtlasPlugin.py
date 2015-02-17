@@ -1313,21 +1313,26 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         tmpGUIDs = []
                         tmpReLoc = {}
                         tmpCountMap = {}
+                        tmpDsSizeMap = {}
                         for dataset in datasets:
                             # get LFNs
                             eachDSLFNs = lfnMap[dataset].values()
                             tmpLFNs += eachDSLFNs
                             # get GUIDs
+                            tmpDsSize = 0
                             for oneLFN in eachDSLFNs:
                                 tmpGUIDs.append(valMap[oneLFN]['guid'])
+                                tmpDsSize += valMap[oneLFN]['fsize']
                             # locations
                             tmpReLoc[dataset] = replicaMap[dataset]
                             # file counts
                             tmpCountMap[dataset] = len(eachDSLFNs)
+                            # dataset size
+                            tmpDsSizeMap[dataset] = tmpDsSize
                         # set cloud
                         self.logger.debug("set cloud for %s" % job.taskID)
                         retCloud = cloudResolver.setCloud(tmpLFNs,tmpGUIDs,tmpReLoc,metadata=job.metadata,
-                                                          fileCounts=tmpCountMap)
+                                                          fileCounts=tmpCountMap,dsSizeMap=tmpDsSizeMap)
                         self.logger.debug("setCloud() %s -> %s" % (job.taskID,retCloud))
                         if retCloud == None:
                             self.logger.debug("failed to set cloud for %s" % job.taskID)
