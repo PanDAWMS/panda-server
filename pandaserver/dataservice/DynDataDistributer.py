@@ -1329,8 +1329,11 @@ class DynDataDistributer:
                     # collect locations
                     tmpLocationList = []
                     for tmpLocation in replicaMap.keys():
-                        if not tmpLocation in tmpLocationList:
-                            tmpLocationList.append(tmpLocation)
+                        # use only complete replicas
+                        dsStatDict = replicaMap[tmpLocation][0]
+                        if dsStatDict['total'] != None and dsStatDict['total'] == dsStatDict['found']:
+                            if not tmpLocation in tmpLocationList:
+                                tmpLocationList.append(tmpLocation)
                     allLocations[tmpDsName] = tmpLocationList
                 # get file info
                 tmpFileRet,tmpFileInfo = self.getFileFromDataset(tmpDsName,tmpGUID)

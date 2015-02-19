@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * fixed EventPicking to use only complete replicas
   * removed constraint with T1 data from TA
   * added soft finish
   * using ignore_availability when making subscriptions

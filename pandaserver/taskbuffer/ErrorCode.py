@@ -51,6 +51,9 @@ EC_EventServiceUnprocessed = 117
 # didn't process any events on WN and last consumer
 EC_EventServiceLastUnprocessed = 118
 
+# all event ranges failed
+EC_EventServiceAllFailed = 119
+
 
 
 # file not found

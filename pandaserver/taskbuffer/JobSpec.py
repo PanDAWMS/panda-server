@@ -317,3 +317,24 @@ class JobSpec(object):
             if tmpItem.startswith('ddm:'):
                 return tmpItem.split(':')[-1]
         return None
+
+
+
+    # set to accept partial finish
+    def setToAcceptPartialFinish(self):
+        token = 'ap'
+        if self.specialHandling in [None,'']:
+            self.specialHandling = token
+        else:
+            if not token in self.specialHandling.split(','):
+                self.specialHandling = self.specialHandling+','+token
+
+
+
+    # accept partial finish
+    def acceptPartialFinish(self):
+        token = 'ap'
+        if self.specialHandling in [None,'']:
+            return False
+        else:
+            return token in self.specialHandling.split(',')
