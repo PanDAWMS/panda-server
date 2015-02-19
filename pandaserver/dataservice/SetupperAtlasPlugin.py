@@ -1156,6 +1156,10 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 # append job to processed list
                 jobsProcessed.append(job)
                 continue
+            # check if T1
+            tmpSrcID = self.siteMapper.getCloud(job.cloud)['source']
+            srcDQ2ID = self.siteMapper.getSite(tmpSrcID).ddm
+            dstDQ2ID = self.siteMapper.getSite(job.computingSite).ddm
             # collect datasets
             datasets = []
             for file in job.Files:
@@ -1163,6 +1167,11 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         and (file.GUID == 'NULL' or job.prodSourceLabel in ['managed','test','ptest']):
                     if not file.dataset in datasets:
                         datasets.append(file.dataset)
+                if srcDQ2ID == dstDQ2ID and file.type == 'input' and job.prodSourceLabel in ['managed','test','ptest'] \
+                        and file.status != 'ready':
+                    if not job.cloud in self.missingFilesInT1:
+                        self.missingFilesInT1[job.cloud] = set()
+                    self.missingFilesInT1[job.cloud].add(file.lfn)
             # get LFN list
             for dataset in datasets:
                 if not dataset in lfnMap.keys():
@@ -1524,6 +1533,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                               (len(self.availableLFNsInT2[cloudKey][tmpDsName]['sites'][tmpSiteName]),
                                                cloudKey,tmpSiteName,tmpDsName))
         self.logger.debug('missLFNs at T1 %s' % missLFNs)
+        self.logger.debug('missLFNs at T1 with JEDI {0}'.format(str(self.missingFilesInT1)))
         # check if files in source LRC/LFC
         tmpJobList = tuple(jobsProcessed)
         for job in tmpJobList:
