@@ -396,6 +396,19 @@ class DBProxy:
                     self.cur.execute(sqlJediFile+comment, varMap)
                     # insert event tables
                     if origEsJob and eventServiceInfo != None and file.lfn in eventServiceInfo:
+                        # discard old successful event ranges
+                        sqlJediOdEvt  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+                        sqlJediOdEvt += "SET status=:esDiscarded "
+                        sqlJediOdEvt += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+                        sqlJediOdEvt += "AND status=:esDone "
+                        varMap = {}
+                        varMap[':jediTaskID']  = file.jediTaskID
+                        varMap[':datasetID']   = file.datasetID
+                        varMap[':fileID']      = file.fileID
+                        varMap[':esDone']      = EventServiceUtils.ST_done
+                        varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
+                        self.cur.execute(sqlJediOdEvt+comment, varMap)
+                        # insert new ranges
                         sqlJediEvent  = "INSERT INTO {0}.JEDI_Events ".format(panda_config.schemaJEDI)
                         sqlJediEvent += "(jediTaskID,datasetID,PandaID,fileID,attemptNr,status,"
                         sqlJediEvent += "job_processID,def_min_eventID,def_max_eventID,processed_upto_eventID) "
@@ -1202,6 +1215,14 @@ class DBProxy:
                         job.jobStatus = 'failed'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceLastUnprocessed
                         job.taskBufferErrorDiag = "didn't process any events on WN for Event Service"
+                    elif retEvS == 7:
+                        # all event ranges failed
+                        job.jobStatus = 'failed'
+                        job.taskBufferErrorCode = ErrorCode.EC_EventServiceAllFailed
+                        job.taskBufferErrorDiag = "all event ranges failed"
+                    # kill unused event ranges
+                    if job.jobStatus == 'failed':
+                        self.killUnusedEventRanges(job.jediTaskID,job.jobsetID)
                 # delete from jobsDefined/Active
                 varMap = {}
                 varMap[':PandaID'] = job.PandaID
@@ -2105,7 +2126,7 @@ class DBProxy:
                    not job.processingType.startswith('hammercloud'):
                     usePilotRetry = True
                 # retry for ES merge
-                if recoverableEsMerge and  EventServiceUtils.isEventServiceMerge(job):
+                if recoverableEsMerge and EventServiceUtils.isEventServiceMerge(job):
                     usePilotRetry = True
                 # check if it's analysis job # FIXME once pilot retry works correctly the conditions below will be cleaned up
                 if (((job.prodSourceLabel == 'user' or job.prodSourceLabel == 'panda') \
@@ -2997,6 +3018,7 @@ class DBProxy:
                     for esPandaID in esDonePandaIDs:
                         tmpInputFileSpec = copy.copy(tmpFileSpec)
                         tmpInputFileSpec.type = 'input'
+                        tmpInputFileSpec.GUID = None
                         # append PandaID as suffix
                         tmpInputFileSpec.lfn  = tmpInputFileSpec.lfn + '.{0}'.format(esPandaID)
                         # add file
@@ -13244,6 +13266,7 @@ class DBProxy:
             # 4 : not generated a merge job since other consumers are still running
             # 5 : didn't process any events on WN
             # 6 : didn't process any events on WN and fail since the last one
+            # 7 : all event ranges failed
             # None : fatal error
             retValue = 1,None
             # begin transaction
@@ -13341,32 +13364,49 @@ class DBProxy:
             varMap[':minAttempt'] = 0
             self.cur.execute(sqlEU+comment, varMap)
             resEU = self.cur.fetchone()
-            # fail immediately if there is hopeless event ranges
+            # there is hopeless event ranges
             if resEU[0] != 0:
-                _logger.debug("{0} : no more retry since reached max number of reattempts for some event ranges".format(methodName))
-                # commit
-                if useCommit:
-                    if not self._commit():
-                        raise RuntimeError, 'Commit error'
-                retValue = 3,None
-                return retValue
+                if not jobSpec.acceptPartialFinish():
+                    # fail immediately
+                    _logger.debug("{0} : no more retry since reached max number of reattempts for some event ranges".format(methodName))
+                    # commit
+                    if useCommit:
+                        if not self._commit():
+                            raise RuntimeError, 'Commit error'
+                    retValue = 3,None
+                    return retValue
+                else:
+                    # set fatal to hopeless event ranges
+                    sqlFH  = "UPDATE {0}.JEDI_Events SET status=:esFatal ".format(panda_config.schemaJEDI)
+                    sqlFH += "WHERE jediTaskID=:jediTaskID AND pandaID=:jobsetID AND attemptNr=:minAttempt AND status<>:esFatal "
+                    varMap = {}
+                    varMap[':jediTaskID']  = jobSpec.jediTaskID
+                    varMap[':jobsetID']    = jobSpec.jobsetID
+                    varMap[':esFatal']     = EventServiceUtils.ST_fatal
+                    self.cur.execute(sqlFH+comment, varMap)
             # look for event ranges to process
             sqlERP  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
-            sqlERP += "WHERE jediTaskID=:jediTaskID AND pandaID=:jobsetID AND rownum=1 "
+            sqlERP += "WHERE jediTaskID=:jediTaskID AND pandaID=:jobsetID AND status=:esReady AND rownum=1 "
             varMap = {}
             varMap[':jediTaskID']  = jobSpec.jediTaskID
             varMap[':jobsetID']    = jobSpec.jobsetID
+            varMap[':esReady']     = EventServiceUtils.ST_ready
             _logger.debug(sqlERP+comment+str(varMap))
             self.cur.execute(sqlERP+comment, varMap)
             resERP = self.cur.fetchone()
             nRow, = resERP
             _logger.debug("{0} : {1} unprocessed event ranges".format(methodName,nRow))
             otherRunning = False
+            hasDoneRange = False
             if nRow == 0:
                 # check if other consumers finished
                 sqlEOC  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
                 sqlEOC += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-                sqlEOC += "AND NOT status IN (:esDone,:esDiscarded,:esCancelled) AND rownum=1"
+                sqlEOC += "AND NOT status IN (:esDone,:esDiscarded,:esCancelled,:esFatal) AND rownum=1 "
+                # count the number of done ranges
+                sqlCDO  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+                sqlCDO += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+                sqlCDO += "AND status=:esDone AND rownum=1 "
                 for fileSpec in job.Files:
                     if fileSpec.type == 'input':
                         varMap = {}
@@ -13376,6 +13416,7 @@ class DBProxy:
                         varMap[':esDone']      = EventServiceUtils.ST_done
                         varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
                         varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
+                        varMap[':esFatal']     = EventServiceUtils.ST_fatal
                         _logger.debug(sqlEOC+comment+str(varMap))
                         self.cur.execute(sqlEOC+comment, varMap)
                         resEOC = self.cur.fetchone()
@@ -13385,6 +13426,18 @@ class DBProxy:
                             otherRunning = True
                             _logger.debug("{0} : {1} event ranges still running".format(methodName,nOCRow))
                             break
+                        # check if there are done ranges
+                        if not hasDoneRange:
+                            varMap = {}
+                            varMap[':jediTaskID']  = fileSpec.jediTaskID
+                            varMap[':datasetID']   = fileSpec.datasetID
+                            varMap[':fileID']      = fileSpec.fileID
+                            varMap[':esDone']      = EventServiceUtils.ST_done
+                            self.cur.execute(sqlCDO+comment, varMap)
+                            resCDO = self.cur.fetchone()
+                            nCDORow, = resCDO
+                            if nCDORow != 0:
+                                hasDoneRange = True
                 # do merging since all ranges were done
                 if not otherRunning:
                     doMerging = True
@@ -13398,6 +13451,16 @@ class DBProxy:
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
                 retValue = 4,None
+                return retValue
+            # all failed
+            if doMerging and not hasDoneRange:
+                # fail immediately
+                _logger.debug("{0} : all event ranges failed".format(methodName))
+                # commit
+                if useCommit:
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+                retValue = 7,None
                 return retValue
             # reset job attributes
             jobSpec.jobStatus        = 'activated'
@@ -13948,6 +14011,26 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return False
+
+
+
+    # kill unused event ranges
+    def killUnusedEventRanges(self,jediTaskID,jobsetID):
+        comment = ' /* DBProxy.killUnusedEventRanges */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <jediTaskID={0} jobsetID={1}>".format(jediTaskID,jobsetID)
+        # sql to kill event ranges
+        varMap = {}
+        varMap[':jediTaskID']  = jediTaskID
+        varMap[':jobsetID']    = jobsetID
+        varMap[':esReady']     = EventServiceUtils.ST_ready
+        varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
+        sqlCE  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+        sqlCE += "SET status=:esCancelled "
+        sqlCE += "WHERE jediTaskID=:jediTaskID AND pandaID=:jobsetID "
+        sqlCE += "AND status=:esReady "
+        _logger.debug(sqlCE+comment+str(varMap))
+        self.cur.execute(sqlCE, varMap)
 
 
 
