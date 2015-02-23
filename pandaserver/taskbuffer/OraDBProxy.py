@@ -4526,7 +4526,7 @@ class DBProxy:
                 sql = sql[:-1]
                 sql += ') '
             if onlyReassignable:
-                sql += "AND (relocationFlag IS NULL OR relocationFlag<>:relocationFlag "
+                sql += "AND (relocationFlag IS NULL OR relocationFlag<>:relocationFlag) "
                 varMap[':relocationFlag'] = 2
             # sql for lock
             sqlLock = 'UPDATE %s SET modificationTime=CURRENT_DATE WHERE PandaID=:PandaID' % tableName
@@ -13391,7 +13391,6 @@ class DBProxy:
             varMap[':jediTaskID']  = jobSpec.jediTaskID
             varMap[':jobsetID']    = jobSpec.jobsetID
             varMap[':esReady']     = EventServiceUtils.ST_ready
-            _logger.debug(sqlERP+comment+str(varMap))
             self.cur.execute(sqlERP+comment, varMap)
             resERP = self.cur.fetchone()
             nRow, = resERP
@@ -13462,6 +13461,22 @@ class DBProxy:
                         raise RuntimeError, 'Commit error'
                 retValue = 7,None
                 return retValue
+            # check if there is fatal range
+            hasFatalRange = False
+            if doMerging:
+                sqlCFE  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+                sqlCFE += "WHERE jediTaskID=:jediTaskID AND pandaID=:jobsetID AND "
+                sqlCFE += "status=:esFatal AND rownum=1 "
+                varMap = {}
+                varMap[':jediTaskID']  = jobSpec.jediTaskID
+                varMap[':jobsetID']    = jobSpec.jobsetID
+                varMap[':esFatal']     = EventServiceUtils.ST_fatal
+                self.cur.execute(sqlCFE+comment, varMap)
+                resCFE = self.cur.fetchone()
+                nRowCEF, = resCFE
+                _logger.debug("{0} : {1} fatal even ranges ".format(methodName,nRowCEF))
+                if nRowCEF > 0:
+                    hasFatalRange = True
             # reset job attributes
             jobSpec.jobStatus        = 'activated'
             jobSpec.startTime        = None
@@ -13476,6 +13491,8 @@ class DBProxy:
             jobSpec.transExitCode    = None
             jobSpec.jobMetrics       = None
             jobSpec.jobSubStatus     = None
+            if hasFatalRange:
+                jobSpec.jobSubStatus = 'partial'
             for attr in jobSpec._attributes:
                 if attr.endswith('ErrorCode') or attr.endswith('ErrorDiag'):
                     setattr(jobSpec,attr,None)
