@@ -1036,7 +1036,8 @@ class DynDataDistributer:
             while tmpSubIndex < len(tmpFiles):
                 tmpDsName = containerName[:-1] + '_%04d' % tmpIndex
                 tmpRet = self.registerDatasetWithLocation(tmpDsName,tmpFiles[tmpSubIndex:tmpSubIndex+nFilesPerDataset],
-                                                          tmpLocations,owner=owner)
+                                                          #tmpLocations,owner=owner)
+                                                          tmpLocations,owner=None)
                 # failed
                 if not tmpRet:
                     self.putLog('failed to register %s' % tmpDsName, 'error')
@@ -1127,6 +1128,7 @@ class DynDataDistributer:
                     out = rucioAPI.registerDatasetLocation(datasetName,[tmpLocation],14,owner)
                     self.putLog(out)
                     out = str(out)
+                    break
                 except:
                     errType,errValue = sys.exc_info()[:2]
                     self.putLog("%s %s" % (errType,errValue),'error')
