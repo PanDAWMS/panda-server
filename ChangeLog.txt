@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * removed setReplicaMetaDataAttribute from EP
   * added partial finish
   * setting None to pre-merged log files when sending ES merge jobs
   * added protection to SetupperAtlas against new files copied after JEDI file lookup

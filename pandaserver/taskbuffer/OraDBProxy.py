@@ -13312,8 +13312,8 @@ class DBProxy:
             varMap[':oldStatus']  = EventServiceUtils.ST_finished
             varMap[':newStatus']  = EventServiceUtils.ST_done
             self.cur.execute(sqlED+comment, varMap)
-            nRowED = self.cur.rowcount
-            _logger.debug("{0} : set done to {1} event ranges".format(methodName,nRowED))
+            nRowDone = self.cur.rowcount
+            _logger.debug("{0} : set done to {1} event ranges".format(methodName,nRowDone))
             # release unprocessed event ranges
             sqlEC  = "UPDATE {0}.JEDI_Events SET status=:newStatus,attemptNr=attemptNr-1,pandaID=:jobsetID ".format(panda_config.schemaJEDI)
             sqlEC += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND status<>:esDone "
@@ -13322,39 +13322,10 @@ class DBProxy:
             varMap[':pandaID']     = pandaID
             varMap[':jobsetID']    = jobSpec.jobsetID
             varMap[':esDone']      = EventServiceUtils.ST_done
-            if nRowED == 0:
-                # cancel since didn't process any event ranges
-                varMap[':newStatus'] = EventServiceUtils.ST_cancelled
-            else:
-                varMap[':newStatus'] = EventServiceUtils.ST_ready
-            _logger.debug(sqlEC+comment+str(varMap))
+            varMap[':newStatus'] = EventServiceUtils.ST_ready
             self.cur.execute(sqlEC+comment, varMap)
-            nRowEC = self.cur.rowcount
-            _logger.debug("{0} : released {1} event ranges".format(methodName,nRowEC))
-            # fail immediately if didn't process any event ranges
-            if nRowED == 0:
-                _logger.debug("{0} : no more retry since did't process any event ranges on WN".format(methodName))
-                # check if there is active consumer
-                sqlAC  = "SELECT COUNT(*) FROM ATLAS_PANDA.jobsActive4 "
-                sqlAC += "WHERE jediTaskID=:jediTaskID AND jobsetID=:jobsetID "
-                varMap = {}
-                varMap[':jediTaskID'] = jobSpec.jediTaskID
-                varMap[':jobsetID']   = jobSpec.jobsetID
-                self.cur.execute(sqlAC+comment, varMap)
-                resAC = self.cur.fetchone()
-                numActiveEC, = resAC
-                _logger.debug("{0} : num of active consumers = {1}".format(methodName,numActiveEC))
-                # commit
-                if useCommit:
-                    if not self._commit():
-                        raise RuntimeError, 'Commit error'
-                if numActiveEC == 1:
-                    # last one
-                    retValue = 6,None
-                else:
-                    # there are active consumers
-                    retValue = 5,None
-                return retValue
+            nRowReleased = self.cur.rowcount
+            _logger.debug("{0} : released {1} event ranges".format(methodName,nRowReleased))
             # look for hopeless event ranges
             sqlEU  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sqlEU += "WHERE jediTaskID=:jediTaskID AND pandaID=:jobsetID AND attemptNr=:minAttempt AND rownum=1 "
@@ -13364,8 +13335,9 @@ class DBProxy:
             varMap[':minAttempt'] = 0
             self.cur.execute(sqlEU+comment, varMap)
             resEU = self.cur.fetchone()
+            nRowFatal, = resEU
             # there is hopeless event ranges
-            if resEU[0] != 0:
+            if nRowFatal != 0:
                 if not jobSpec.acceptPartialFinish():
                     # fail immediately
                     _logger.debug("{0} : no more retry since reached max number of reattempts for some event ranges".format(methodName))
@@ -13383,18 +13355,21 @@ class DBProxy:
                     varMap[':jediTaskID']  = jobSpec.jediTaskID
                     varMap[':jobsetID']    = jobSpec.jobsetID
                     varMap[':esFatal']     = EventServiceUtils.ST_fatal
+                    varMap[':minAttempt']  = 0
                     self.cur.execute(sqlFH+comment, varMap)
             # look for event ranges to process
             sqlERP  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
-            sqlERP += "WHERE jediTaskID=:jediTaskID AND pandaID=:jobsetID AND status=:esReady AND rownum=1 "
+            sqlERP += "WHERE jediTaskID=:jediTaskID AND pandaID=:jobsetID AND status=:esReady "
+            sqlERP += "AND attemptNr>:minAttempt AND rownum=1 "
             varMap = {}
             varMap[':jediTaskID']  = jobSpec.jediTaskID
             varMap[':jobsetID']    = jobSpec.jobsetID
             varMap[':esReady']     = EventServiceUtils.ST_ready
+            varMap[':minAttempt']  = 0
             self.cur.execute(sqlERP+comment, varMap)
             resERP = self.cur.fetchone()
             nRow, = resERP
-            _logger.debug("{0} : {1} unprocessed event ranges".format(methodName,nRow))
+            _logger.debug("{0} : {1} unprocessed event ranges remain".format(methodName,nRow))
             otherRunning = False
             hasDoneRange = False
             if nRow == 0:
@@ -13460,6 +13435,31 @@ class DBProxy:
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
                 retValue = 7,None
+                return retValue
+            # fail immediately if didn't do anything with the largest attemptNr
+            if nRowDone == 0 and nRowReleased == 0 and jobSpec.attemptNr >= jobSpec.maxAttempt and \
+                    not (doMerging and hasDoneRange):
+                _logger.debug("{0} : no more retry since did't do anything with the largest attemptNr".format(methodName))
+                # check if there is active consumer
+                sqlAC  = "SELECT COUNT(*) FROM ATLAS_PANDA.jobsActive4 "
+                sqlAC += "WHERE jediTaskID=:jediTaskID AND jobsetID=:jobsetID "
+                varMap = {}
+                varMap[':jediTaskID'] = jobSpec.jediTaskID
+                varMap[':jobsetID']   = jobSpec.jobsetID
+                self.cur.execute(sqlAC+comment, varMap)
+                resAC = self.cur.fetchone()
+                numActiveEC, = resAC
+                _logger.debug("{0} : num of active consumers = {1}".format(methodName,numActiveEC))
+                # commit
+                if useCommit:
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+                if numActiveEC == 1:
+                    # last one
+                    retValue = 6,None
+                else:
+                    # there are active consumers
+                    retValue = 5,None
                 return retValue
             # check if there is fatal range
             hasFatalRange = False
