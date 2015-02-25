@@ -18,7 +18,7 @@ from config import panda_config
 proxyS = DBProxy()
 proxyS.connect(panda_config.dbhost,panda_config.dbpasswd,panda_config.dbuser,panda_config.dbname)
 
-site = sys.argv[1]
+site = args[0]
 import userinterface.Client as Client
 
 # erase dispatch datasets
@@ -64,6 +64,8 @@ else:
     sql = "SELECT PandaID,lockedby FROM ATLAS_PANDA.jobsActive4 "
 sql += "WHERE jobStatus=:jobStatus AND computingSite=:computingSite AND modificationTime<:modificationTime AND prodSourceLabel=:prodSourceLabel ORDER BY PandaID"
 status,res = proxyS.querySQLS(sql,varMap)
+
+print "got {0} jobs".format(len(res))
 
 jobs = []
 jediJobs = []
