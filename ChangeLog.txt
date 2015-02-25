@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * using stateChangeTime for heartbeat check of starting jobs
   * changed starting jobs not to be updated by subsequent heartbeats 
   * using panda instead of user account in EP
   * removed setReplicaMetaDataAttribute from EP

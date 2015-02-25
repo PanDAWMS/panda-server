@@ -772,9 +772,9 @@ except:
     errType,errValue = sys.exc_info()[:2]
     _logger.error("failed to reassign T2 evgensimul with %s:%s" % (errType,errValue))
 
-# reassign too long-standing jobs in active table
+# reassign too long activated jobs in active table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=2)
-status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsActive4",timeLimit,['activated','starting'],['managed'],[],[],[],True,
+status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsActive4",timeLimit,['activated'],['managed'],[],[],[],True,
                                             onlyReassignable=True)
 jobs = []
 jediJobs = []
@@ -784,20 +784,49 @@ if res != None:
             jediJobs.append(id)
         else:
             jobs.append(id)
-_logger.debug('reassignJobs for long in active table -> #%s' % len(jobs))
+_logger.debug('reassignJobs for long activated in active table -> #%s' % len(jobs))
 if len(jobs) != 0:
     nJob = 100
     iJob = 0
     while iJob < len(jobs):
-        _logger.debug('reassignJobs for long in active table (%s)' % jobs[iJob:iJob+nJob])
+        _logger.debug('reassignJobs for long activated in active table (%s)' % jobs[iJob:iJob+nJob])
         taskBuffer.reassignJobs(jobs[iJob:iJob+nJob],joinThr=True)
         iJob += nJob
-_logger.debug('reassignJobs for long JEDI in active table -> #%s' % len(jediJobs))
+_logger.debug('reassignJobs for long activated JEDI in active table -> #%s' % len(jediJobs))
 if len(jediJobs) != 0:
     nJob = 100
     iJob = 0
     while iJob < len(jediJobs):
-        _logger.debug('reassignJobs for long JEDI in active table (%s)' % jediJobs[iJob:iJob+nJob])
+        _logger.debug('reassignJobs for long activated JEDI in active table (%s)' % jediJobs[iJob:iJob+nJob])
+        Client.killJobs(jediJobs[iJob:iJob+nJob],51)
+        iJob += nJob
+
+# reassign too long starting jobs in active table
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=2)
+status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsActive4",timeLimit,['starting'],['managed'],[],[],[],True,
+                                            onlyReassignable=True,useStateChangeTime=True)
+jobs = []
+jediJobs = []
+if res != None:
+    for (id,lockedby) in res:
+        if lockedby == 'jedi':
+            jediJobs.append(id)
+        else:
+            jobs.append(id)
+_logger.debug('reassignJobs for long starting in active table -> #%s' % len(jobs))
+if len(jobs) != 0:
+    nJob = 100
+    iJob = 0
+    while iJob < len(jobs):
+        _logger.debug('reassignJobs for long starting in active table (%s)' % jobs[iJob:iJob+nJob])
+        taskBuffer.reassignJobs(jobs[iJob:iJob+nJob],joinThr=True)
+        iJob += nJob
+_logger.debug('reassignJobs for long starting JEDI in active table -> #%s' % len(jediJobs))
+if len(jediJobs) != 0:
+    nJob = 100
+    iJob = 0
+    while iJob < len(jediJobs):
+        _logger.debug('reassignJobs for long stating JEDI in active table (%s)' % jediJobs[iJob:iJob+nJob])
         Client.killJobs(jediJobs[iJob:iJob+nJob],51)
         iJob += nJob
         

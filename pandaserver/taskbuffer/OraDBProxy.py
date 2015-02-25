@@ -1682,8 +1682,6 @@ class DBProxy:
         varMap0 = {}
         varMap0[':PandaID'] = pandaID
         sql1 = "UPDATE ATLAS_PANDA.jobsActive4 SET jobStatus=:jobStatus,modificationTime=CURRENT_DATE"
-        if updateStateChange or jobStatus in ['starting']:
-            sql1 += ",stateChangeTime=CURRENT_DATE"
         varMap = {}
         varMap[':jobStatus'] = jobStatus
         presetEndTime = False
@@ -1740,9 +1738,10 @@ class DBProxy:
                     # don't update holding or starting
                     if oldJobStatus == 'holding' and jobStatus == 'holding':
                         _logger.debug("updateJobStatus : PandaID=%s skip to reset holding" % pandaID)
-                    elif oldJobStatus == 'starting' and jobStatus == 'starting':
-                        _logger.debug("updateJobStatus : PandaID=%s skip to reset starting" % pandaID)
-                    else:    
+                    else:
+                        # update stateChangeTime
+                        if updateStateChange or (jobStatus=='starting' and oldJobStatus != 'starting'):
+                            sql1 += ",stateChangeTime=CURRENT_DATE"
                         # set endTime if undefined for holding
                         if jobStatus == 'holding' and endTime==None and not presetEndTime:
                             sql1 += ',endTime=CURRENT_DATE '
@@ -4464,7 +4463,7 @@ class DBProxy:
 
     # lock jobs for reassign
     def lockJobsForReassign(self,tableName,timeLimit,statList,labels,processTypes,sites,clouds,
-                            useJEDI=False,onlyReassignable=False):
+                            useJEDI=False,onlyReassignable=False,useStateChangeTime=False):
         comment = ' /* DBProxy.lockJobsForReassign */'                        
         _logger.debug("lockJobsForReassign : %s %s %s %s %s %s %s %s" % \
                       (tableName,timeLimit,statList,labels,processTypes,sites,clouds,useJEDI))
@@ -4474,7 +4473,10 @@ class DBProxy:
                 sql  = "SELECT PandaID FROM %s " % tableName
             else:
                 sql  = "SELECT PandaID,lockedby FROM %s " % tableName
-            sql += "WHERE modificationTime<:modificationTime "
+            if not useStateChangeTime:
+                sql += "WHERE modificationTime<:modificationTime "
+            else:
+                sql += "WHERE stateChangeTime<:modificationTime "
             varMap = {}
             varMap[':modificationTime'] = timeLimit
             if statList != []:
@@ -4531,7 +4533,10 @@ class DBProxy:
                 sql += "AND (relocationFlag IS NULL OR relocationFlag<>:relocationFlag) "
                 varMap[':relocationFlag'] = 2
             # sql for lock
-            sqlLock = 'UPDATE %s SET modificationTime=CURRENT_DATE WHERE PandaID=:PandaID' % tableName
+            if not useStateChangeTime:
+                sqlLock = 'UPDATE %s SET modificationTime=CURRENT_DATE WHERE PandaID=:PandaID' % tableName
+            else:
+                sqlLock = 'UPDATE %s SET stateChangeTime=CURRENT_DATE WHERE PandaID=:PandaID' % tableName
             # start transaction
             self.conn.begin()
             # select
