@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * changed starting jobs not to be updated by subsequent heartbeats 
   * using panda instead of user account in EP
   * removed setReplicaMetaDataAttribute from EP
   * added partial finish

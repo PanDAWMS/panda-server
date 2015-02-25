@@ -1737,9 +1737,11 @@ class DBProxy:
                     # convert empty to NULL
                     if ret == '':
                         ret = 'NULL'
-                    # don't update holding
+                    # don't update holding or starting
                     if oldJobStatus == 'holding' and jobStatus == 'holding':
                         _logger.debug("updateJobStatus : PandaID=%s skip to reset holding" % pandaID)
+                    elif oldJobStatus == 'starting' and jobStatus == 'starting':
+                        _logger.debug("updateJobStatus : PandaID=%s skip to reset starting" % pandaID)
                     else:    
                         # set endTime if undefined for holding
                         if jobStatus == 'holding' and endTime==None and not presetEndTime:
