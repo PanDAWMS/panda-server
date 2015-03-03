@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * cleanup of the brokerage
   * fixed reassignSite for options
   * using stateChangeTime for heartbeat check of starting jobs
   * changed starting jobs not to be updated by subsequent heartbeats 
