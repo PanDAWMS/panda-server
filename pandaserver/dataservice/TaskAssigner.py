@@ -425,7 +425,7 @@ class TaskAssigner:
                 tmpMap = rucioAPI.getRseUsage(tmpT1Site.ddm)
                 weightParams[tmpCloudName]['freeSpace'] = tmpMap['free']
                 # take volume of secondary data into account
-                tmpMap = rucioAPI.getRseUsage(tmpT1Site.ddm, 'reaper')
+                tmpMap = rucioAPI.getRseUsage(tmpT1Site.ddm, 'expired')
                 weightParams[tmpCloudName]['secSpace'] = tmpMap['used']
                 _logger.info('{0}  T1 space    free:{1}GB secondary:{2}GB'.format(self.taskID,weightParams[tmpCloudName]['freeSpace'],
                                                                                   weightParams[tmpCloudName]['secSpace']))
