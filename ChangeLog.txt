@@ -1,6 +1,7 @@
 Release Note
 
 * current
+  * added olderThan to reassignSite
   * changed reaper to expired
   * cleanup of the brokerage
   * fixed reassignSite for options

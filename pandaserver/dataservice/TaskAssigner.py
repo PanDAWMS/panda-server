@@ -36,7 +36,7 @@ thr_space_low = 5
 reductionForTape = 0.5
 
 # special weight for T1 data
-specialWeightT1Data = 10
+specialWeightT1Data = 1
 
 # task types using MC share
 taskTypesMcShare = ['evgen']
