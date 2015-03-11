@@ -245,6 +245,13 @@ def isDBR(datasetName):
     return False
 
 
+# check invalid characters in dataset name
+def checkInvalidCharacters(datasetName):
+    if re.match("^[A-Za-z0-9][A-Za-z0-9\.\-\_/]{1,255}$",datasetName) != None:
+        return True
+    return False
+
+
 # get the list of sites in a cloud which cache a dataset
 def getSitesWithCacheDS(cloudKey,excludedSites,siteMapper,datasetName):
     retList = []
