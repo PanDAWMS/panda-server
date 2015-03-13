@@ -1187,7 +1187,7 @@ class DBProxy:
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceMerge
                         job.taskBufferErrorDiag = 'cancelled to merge pre-merged files in PandaID={0}'.format(retNewPandaID)
                         # kill unused event service consumers
-                        self.killUnusedEventServiceConsumers(job,False)
+                        self.killUnusedEventServiceConsumers(job,False,killAll=True)
                     elif retEvS == 3:
                         # maximum attempts reached
                         job.jobStatus = 'failed'
@@ -13930,7 +13930,7 @@ class DBProxy:
 
 
     # kill unused consumers related to an ES job
-    def killUnusedEventServiceConsumers(self,job,useCommit=True):
+    def killUnusedEventServiceConsumers(self,job,useCommit=True,killAll=False):
         comment = ' /* DBProxy.killUnusedEventServiceConsumers */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <PandaID={0}>".format(job.PandaID)
@@ -13942,7 +13942,10 @@ class DBProxy:
             # sql to get PandaIDs of consumers
             sqlCP  = "SELECT PandaID,specialHandling FROM ATLAS_PANDA.{0} "
             sqlCP += "WHERE jediTaskID=:jediTaskID AND jobsetID=:jobsetID "
-            sqlCP += "AND jobStatus IN (:st1,:st2,:st3,:st4,:st5,:st6,:st7) "
+            if killAll:
+                sqlCP += "AND jobStatus IN (:st1,:st2,:st3,:st4,:st5,:st6,:st7) "
+            else:
+                sqlCP += "AND jobStatus IN (:st1,:st2,:st3) "
             # get PandaIDs
             varMap = {}
             varMap[':jediTaskID'] = job.jediTaskID
@@ -13950,10 +13953,11 @@ class DBProxy:
             varMap[':st1'] = 'activated'
             varMap[':st2'] = 'assigned'
             varMap[':st3'] = 'waiting'
-            varMap[':st4'] = 'starting'
-            varMap[':st5'] = 'running'
-            varMap[':st6'] = 'holding'
-            varMap[':st7'] = 'sent'
+            if killAll:
+                varMap[':st4'] = 'starting'
+                varMap[':st5'] = 'running'
+                varMap[':st6'] = 'holding'
+                varMap[':st7'] = 'sent'
             self.cur.arraysize = 100000
             killPandaIDsMap = {}
             for tableName in ['jobsActive4','jobsDefined4','jobsWaiting4']:
