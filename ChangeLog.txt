@@ -1,6 +1,8 @@
-Release Note
+Release Notes
 
 * current
+  * changed killUnusedEsConsumers to kill running jobs as well
+  * cleanup in taskBuffer
   * added checkInvalidCharacters
   * added olderThan to reassignSite
   * changed reaper to expired

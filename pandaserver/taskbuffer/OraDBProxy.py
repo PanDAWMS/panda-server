@@ -13942,7 +13942,7 @@ class DBProxy:
             # sql to get PandaIDs of consumers
             sqlCP  = "SELECT PandaID,specialHandling FROM ATLAS_PANDA.{0} "
             sqlCP += "WHERE jediTaskID=:jediTaskID AND jobsetID=:jobsetID "
-            sqlCP += "AND jobStatus IN (:st1,:st2,:st3) "
+            sqlCP += "AND jobStatus IN (:st1,:st2,:st3,:st4,:st5,:st6,:st7) "
             # get PandaIDs
             varMap = {}
             varMap[':jediTaskID'] = job.jediTaskID
@@ -13950,6 +13950,10 @@ class DBProxy:
             varMap[':st1'] = 'activated'
             varMap[':st2'] = 'assigned'
             varMap[':st3'] = 'waiting'
+            varMap[':st4'] = 'starting'
+            varMap[':st5'] = 'running'
+            varMap[':st6'] = 'holding'
+            varMap[':st7'] = 'sent'
             self.cur.arraysize = 100000
             killPandaIDsMap = {}
             for tableName in ['jobsActive4','jobsDefined4','jobsWaiting4']:
