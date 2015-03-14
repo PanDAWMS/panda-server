@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * removed old machinery to reassign reprocessing jobs
   * changed killUnusedEsConsumers to kill running jobs as well
   * cleanup in taskBuffer
   * added checkInvalidCharacters
