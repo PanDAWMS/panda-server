@@ -1,6 +1,8 @@
 Release Notes
 
 * current
+  * fixed propagateResult for pmerge to update T_TASK.total_events 
+  * changed TA to use sites where data is fully or partially available
   * removed old machinery to reassign reprocessing jobs
   * changed killUnusedEsConsumers to kill running jobs as well
   * cleanup in taskBuffer

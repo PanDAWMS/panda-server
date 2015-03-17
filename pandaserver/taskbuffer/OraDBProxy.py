@@ -12025,7 +12025,7 @@ class DBProxy:
                     _logger.debug(methodName+' '+sqlJediDS+comment+str(varMap))                            
                     cur.execute(sqlJediDS+comment,varMap)
         # update t_task
-        if jobSpec.jobStatus == 'finished' and not jobSpec.prodSourceLabel in ['panda'] and jobSpec.processingType != 'pmerge':
+        if jobSpec.jobStatus == 'finished' and not jobSpec.prodSourceLabel in ['panda']:
             varMap = {}
             varMap[':jediTaskID'] = jobSpec.jediTaskID
             varMap[':status1']    = 'running'
@@ -12033,7 +12033,10 @@ class DBProxy:
             varMap['noutevents']  = nOutEvents
             schemaDEFT = self.getSchemaDEFT()
             sqlTtask  = "UPDATE {0}.T_TASK ".format(schemaDEFT)
-            sqlTtask += "SET total_done_jobs=total_done_jobs+1,timestamp=CURRENT_DATE,total_events=total_events+:noutevents "
+            if jobSpec.processingType != 'pmerge':
+                sqlTtask += "SET total_done_jobs=total_done_jobs+1,timestamp=CURRENT_DATE,total_events=total_events+:noutevents "
+            else:
+                sqlTtask += "SET timestamp=CURRENT_DATE,total_events=total_events+:noutevents "
             sqlTtask += "WHERE taskid=:jediTaskID AND status IN (:status1,:status2) "
             _logger.debug(methodName+' '+sqlTtask+comment+str(varMap))
             cur.execute(sqlTtask+comment,varMap)

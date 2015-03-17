@@ -172,6 +172,7 @@ class TaskAssigner:
             _logger.info('%s fullRWs =%s' % (self.taskID,str(fullRWs)))            
             # remove offline clouds and check validation/fasttrack
             tmpCloudList = []
+            badClouds = []
             for tmpCloudName in cloudList:
                 # get cloud
                 tmpCloud = self.siteMapper.getCloud(tmpCloudName)
@@ -180,6 +181,7 @@ class TaskAssigner:
                     message = '%s    %s skip : status==%s' % (self.taskID,tmpCloudName,tmpCloud['status'])
                     _logger.info(message)
                     self.sendMesg(message)
+                    badClouds.append(tmpCloudName)
                     continue
                 # skip non-validation cloud if validation
                 if self.prodSourceLabel in ['validation'] and tmpCloud['validation'] != 'true':
@@ -205,7 +207,8 @@ class TaskAssigner:
                 # append
                 tmpCloudList.append(tmpCloudName)
                 self.cloudForSubs.append(tmpCloudName)
-            cloudList = tmpCloudList
+            goodClouds = tmpCloudList
+            cloudList = goodClouds + badClouds
             # DQ2 location info
             _logger.info('%s DQ2 locations %s' % (self.taskID,str(locations)))
             # check immutable datasets
@@ -334,10 +337,11 @@ class TaskAssigner:
                             if (tmpT2List != [] and len(tmpT2CacheList) != len(tmpT2List)) and not tmpCloudName in removedDQ2Map[dataset]:
                                 removedDQ2Map[dataset].append(tmpCloudName)
                         else:
-                            if not tmpCloudName in weightWithData:
-                                weightWithData[tmpCloudName] = 0
-                            if dsSizeMap != None and dataset in dsSizeMap:
-                                weightWithData[tmpCloudName] += dsSizeMap[dataset]
+                            if not DataServiceUtils.isDBR(dataset):
+                                if not tmpCloudName in weightWithData:
+                                    weightWithData[tmpCloudName] = 0
+                                if dsSizeMap != None and dataset in dsSizeMap:
+                                    weightWithData[tmpCloudName] += dsSizeMap[dataset]
                             if not useCacheT1:
                                 # check incomplete or not
                                 tmpStat = sites[foundSE][-1]
@@ -398,6 +402,17 @@ class TaskAssigner:
             message = '%s input data size per cloud %s' % (self.taskID,str(weightWithData))
             _logger.info(message)
             self.sendMesg(message)
+            if weightWithData == {}:
+                # use all good clouds if no T1 has data
+                cloudList = goodClouds
+                _logger.info('%s use all good clouds since no T1 has data' % self.taskID)
+            else:
+                cloudList = []
+                # use only clouds that have complete/incomplete data
+                for tmpCloud in weightWithData.keys():
+                    if tmpCloud in goodClouds:
+                        cloudList.append(tmpCloud)
+                _logger.info('%s use clouds where data is fullly or partially available' % self.taskID)
             # loop over all cloud
             weightParams = {}
             foundCandidateWithT1 = []
@@ -508,6 +523,7 @@ class TaskAssigner:
                         message = "%s didn't make subscription" % self.taskID
                         self.sendMesg(message,msgType='warning')
                 # make subscription for aggregation
+                """
                 if taskType in taskTypesAgg:
                     # check if input is container
                     inputIsContainer = False
@@ -520,6 +536,7 @@ class TaskAssigner:
                         _logger.info('%s Aggregation start' % self.taskID)
                         retSub = self.makeSubscription(removedDQ2Map,RWs,fullRWs,expRWs,aggregation=True)
                         _logger.info('%s Aggregation end with %s' % (self.taskID,retSub))
+                """        
                 # return
                 _logger.info(messageEnd)
                 _logger.info("%s end" % self.taskID) 
