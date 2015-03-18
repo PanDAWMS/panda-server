@@ -133,6 +133,14 @@ class TaskAssigner:
             _logger.info('%s prioMap = %s' % (self.taskID,str(prioMap)))            
             _logger.info('%s fullRWs = %s' % (self.taskID,str(fullRWs)))
             _logger.info('%s tt2Map  = %s' % (self.taskID,str(tt2Map)))
+            # get total input size
+            totalInputSize = 0
+            if dsSizeMap != None:
+                for tmpDatasetName,tmpDatasetSize in dsSizeMap.iteritems():
+                    if not DataServiceUtils.isDBR(tmpDatasetName):
+                        totalInputSize += tmpDatasetSize
+                # in GB
+                totalInputSize = totalInputSize / 1024 / 1024 / 1024
             # get cloud list
             cloudList = self.siteMapper.getCloudList()
             # get pilot statistics
@@ -568,9 +576,10 @@ class TaskAssigner:
                         tmpWeight *= float(reductionForTape)
                         message += '*%s' % reductionForTape
                     # special weight for T1 data
-                    tmpWeight *= (int(weightParams[cloudName]['dsSize'] / specialWeightT1Data) + 1)
-                    message += '*({0}/{1}GB+1)'.format(weightParams[cloudName]['dsSize'],
-                                                       specialWeightT1Data)
+                    tmpWeight /= (int((totalInputSize-weightParams[cloudName]['dsSize']) / specialWeightT1Data) + 1)
+                    message += '/(({0}-{1})/{2}GB+1)'.format(totalInputSize,
+                                                             weightParams[cloudName]['dsSize'],
+                                                             specialWeightT1Data)
                     self.sendMesg(message)
                     nWeightList.append(tmpWeight)
                     totalWeight += tmpWeight
