@@ -13166,8 +13166,8 @@ class DBProxy:
             sqlC  = "SELECT def_min_eventID,def_max_eventID FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sqlC += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND fileID=:fileID "
             sqlC += "AND job_processID=:job_processID "
-            # sql to get nvents
-            sqlE  = "SELECT nEvents FROM ATLAS_PANDA.jobsActive4 "
+            # sql to get nEvents
+            sqlE  = "SELECT jobStatus,nEvents FROM ATLAS_PANDA.jobsActive4 "
             sqlE += "WHERE PandaID=:pandaID "
             # sql to set nEvents
             sqlS  = "UPDATE ATLAS_PANDA.jobsActive4 "
@@ -13189,66 +13189,74 @@ class DBProxy:
             except:
                 _logger.error("{0} : wrongly formatted eventRangeID".format(methodName))
                 return False
-            varMap = {}
-            varMap[':jediTaskID'] = jediTaskID
-            varMap[':pandaID'] = pandaID
-            varMap[':fileID'] = fileID
-            varMap[':job_processID'] = job_processID
-            varMap[':attemptNr'] = attemptNr
             # map string status to int
             if eventStatus == 'running':
-                varMap[':eventStatus'] = EventServiceUtils.running
+                intEventStatus = EventServiceUtils.running
             elif eventStatus == 'finished':
-                varMap[':eventStatus'] = EventServiceUtils.ST_finished
+                intEventStatus = EventServiceUtils.ST_finished
             elif eventStatus == 'failed':
-                varMap[':eventStatus'] = EventServiceUtils.ST_failed
+                intEventStatus = EventServiceUtils.ST_failed
             else:
-                _logger.error("{0} : unknown status")
+                _logger.error("{0} : unknown status".format(methodName))
                 return False
             # start transaction
             self.conn.begin()
-            # update
-            self.cur.execute(sqlU+comment, varMap)
-            nRow = self.cur.rowcount
-            if nRow == 1 and eventStatus in ['finished']:
-                # get event range
-                varMap = {}
-                varMap[':jediTaskID'] = jediTaskID
-                varMap[':pandaID'] = pandaID
-                varMap[':fileID'] = fileID
-                varMap[':job_processID'] = job_processID
-                self.cur.execute(sqlC+comment, varMap)
-                resC = self.cur.fetchone()
-                if resC != None:
-                    minEventID,maxEventID = resC
-                    nEvents = maxEventID-minEventID+1
-                    # get nevents
-                    varMap = {}
-                    varMap[':pandaID'] = pandaID
-                    self.cur.execute(sqlE+comment, varMap)
-                    resE = self.cur.fetchone()
-                    if resE != None:
-                        nEventsOld, = resE
-                        if nEventsOld != None:
-                            nEvents += nEventsOld
-                        # update nevents
-                        varMap = {}
-                        varMap[':pandaID'] = pandaID
-                        varMap[':nEvents'] = nEvents
-                        self.cur.execute(sqlS+comment, varMap)
-            # update cpuConsumptionTime
-            if cpuConsumptionTime != None and eventStatus in ['finished','failed']:
-                varMap = {}
-                varMap[':PandaID'] = pandaID
-                if coreCount == None:
-                    varMap[':actualCpuTime'] = long(cpuConsumptionTime)
+            nRow = 0
+            # get jobStatus and nEvents
+            varMap = {}
+            varMap[':pandaID'] = pandaID
+            self.cur.execute(sqlE+comment, varMap)
+            resE = self.cur.fetchone()
+            if resE == None:
+                _logger.debug("{0} : unknown PandaID".format(methodName))
+            else:
+                # check job status
+                jobStatus,nEventsOld = resE
+                if not jobStatus in ['sent','running','starting']:
+                    _logger.debug("{0} : wrong jobStatus={1}".format(methodName,jobStatus))
                 else:
-                    varMap[':actualCpuTime'] = long(coreCount) * long(cpuConsumptionTime)
-                self.cur.execute(sqlT+comment, varMap)
+                    # update event
+                    varMap = {}
+                    varMap[':jediTaskID'] = jediTaskID
+                    varMap[':pandaID'] = pandaID
+                    varMap[':fileID'] = fileID
+                    varMap[':job_processID'] = job_processID
+                    varMap[':attemptNr'] = attemptNr
+                    varMap[':eventStatus'] = intEventStatus
+                    self.cur.execute(sqlU+comment, varMap)
+                    nRow = self.cur.rowcount
+                    if nRow == 1 and eventStatus in ['finished']:
+                        # get event range
+                        varMap = {}
+                        varMap[':jediTaskID'] = jediTaskID
+                        varMap[':pandaID'] = pandaID
+                        varMap[':fileID'] = fileID
+                        varMap[':job_processID'] = job_processID
+                        self.cur.execute(sqlC+comment, varMap)
+                        resC = self.cur.fetchone()
+                        if resC != None:
+                            minEventID,maxEventID = resC
+                            nEvents = maxEventID-minEventID+1
+                            if nEventsOld != None:
+                                nEvents += nEventsOld
+                            # update nevents
+                            varMap = {}
+                            varMap[':pandaID'] = pandaID
+                            varMap[':nEvents'] = nEvents
+                            self.cur.execute(sqlS+comment, varMap)
+                    # update cpuConsumptionTime
+                    if cpuConsumptionTime != None and eventStatus in ['finished','failed']:
+                        varMap = {}
+                        varMap[':PandaID'] = pandaID
+                        if coreCount == None:
+                            varMap[':actualCpuTime'] = long(cpuConsumptionTime)
+                        else:
+                            varMap[':actualCpuTime'] = long(coreCount) * long(cpuConsumptionTime)
+                        self.cur.execute(sqlT+comment, varMap)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
-            _logger.debug("{0} done with nRow={1}".format(methodName,nRow))
+            _logger.debug("{0} : done with nRow={1}".format(methodName,nRow))
             return True
         except:
             # roll back

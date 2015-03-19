@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * checking job status in updateEventRange
   * using Production Input/Output as subscription activities
   * recording throttled into jobs_statuslog
   * changed the task brokerage to use negative weight based on missing input size
