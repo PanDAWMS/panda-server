@@ -1,6 +1,8 @@
 Release Notes
 
 * current
+  * using Production Input/Output as subscription activities
+  * recording throttled into jobs_statuslog
   * changed the task brokerage to use negative weight based on missing input size
   * fixed propagateResult for pmerge to update T_TASK.total_events 
   * changed TA to use sites where data is fully or partially available
