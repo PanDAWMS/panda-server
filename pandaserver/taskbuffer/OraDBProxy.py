@@ -119,16 +119,30 @@ class DBProxy:
                     self.cur = SQLDumper.SQLDumper(self.cur)
             except:
                 pass
-            # get hostname
-            self.cur.execute("SELECT SYS_CONTEXT('USERENV','HOST') FROM dual")
-            res = self.cur.fetchone()
-            if res != None:
-                self.hostname = res[0]
-            # set TZ
-            self.cur.execute("ALTER SESSION SET TIME_ZONE='UTC'")
-            # set DATE format
-            self.cur.execute("ALTER SESSION SET NLS_DATE_FORMAT='YYYY/MM/DD HH24:MI:SS'")
-            return True
+            if panda_config.backend == 'oracle':
+                # get hostname
+                self.cur.execute("SELECT SYS_CONTEXT('USERENV','HOST') FROM dual")
+                res = self.cur.fetchone()
+                if res != None:
+                    self.hostname = res[0]
+                # set TZ
+                self.cur.execute("ALTER SESSION SET TIME_ZONE='UTC'")
+                # set DATE format
+                self.cur.execute("ALTER SESSION SET NLS_DATE_FORMAT='YYYY/MM/DD HH24:MI:SS'")
+                return True
+            else:
+                # get hostname
+                self.cur.execute("SELECT SUBSTRING_INDEX(USER(),'@',-1)")
+                res = self.cur.fetchone()
+                if res != None:
+                    self.hostname = res[0]
+                # set TZ
+                self.cur.execute("SET @@SESSION.TIME_ZONE = '+00:00'")
+                # set DATE format
+                self.cur.execute("SET @@SESSION.DATETIME_FORMAT='%%Y/%%m/%%d %%H:%%i:%%s'")
+                # disable autocommit
+                self.cur.execute("SET autocommit=0")
+                return True
         except:
             type, value, traceBack = sys.exc_info()
             _logger.error("connect : %s %s" % (type,value))
