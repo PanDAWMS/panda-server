@@ -1,6 +1,8 @@
 Release Notes
 
 * current
+  * changed to keep endTime when jobs are killed
+  * changed to ignore heartbeats when job is in merging
   * checking job status in updateEventRange
   * using Production Input/Output as subscription activities
   * recording throttled into jobs_statuslog

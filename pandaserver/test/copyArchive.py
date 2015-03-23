@@ -244,26 +244,31 @@ _logger.debug("Site Access : done")
 _logger.debug("AnalFinalizer session")
 try:
     # get min PandaID for failed jobs in Active table
-    sql  = "SELECT MIN(PandaID),prodUserName,jobDefinitionID FROM ATLAS_PANDA.jobsActive4 "
+    sql  = "SELECT MIN(PandaID),prodUserName,jobDefinitionID,jediTaskID,computingSite FROM ATLAS_PANDA.jobsActive4 "
     sql += "WHERE prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus "
-    sql += "GROUP BY prodUserName,jobDefinitionID "
+    sql += "GROUP BY prodUserName,jobDefinitionID,jediTaskID,computingSite "
     varMap = {}
     varMap[':jobStatus']       = 'failed'
     varMap[':prodSourceLabel'] = 'user'
     status,res = taskBuffer.querySQLS(sql,varMap)
     if res != None:
         # loop over all user/jobdefID
-        for pandaID,prodUserName,jobDefinitionID in res:
+        for pandaID,prodUserName,jobDefinitionID,jediTaskID,computingSite in res:
             # check
-            _logger.debug("check finalization for %s %s" % (prodUserName,jobDefinitionID))
+            _logger.debug("check finalization for %s task=%s jobdefID=%s site=%s" % (prodUserName,jediTaskID,
+                                                                                     jobDefinitionID,
+                                                                                     computingSite))
             sqlC  = "SELECT COUNT(*) FROM ATLAS_PANDA.jobsActive4 "
             sqlC += "WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName "
-            sqlC += "AND jobDefinitionID=:jobDefinitionID "
+            sqlC += "AND jobDefinitionID=:jobDefinitionID AND jediTaskID=:jediTaskID "
+            sqlC += "AND computingSite=:computingSite "
             sqlC += "AND NOT jobStatus IN (:jobStatus1,:jobStatus2) "
             varMap = {}
-            varMap[':jobStatus1']       = 'failed'
-            varMap[':jobStatus2']       = 'merging'
+            varMap[':jobStatus1']      = 'failed'
+            varMap[':jobStatus2']      = 'merging'
             varMap[':prodSourceLabel'] = 'user'
+            varMap[':jediTaskID']      = jediTaskID
+            varMap[':computingSite']   = computingSite
             varMap[':jobDefinitionID'] = jobDefinitionID
             varMap[':prodUserName']    = prodUserName
             statC,resC = taskBuffer.querySQLS(sqlC,varMap)
@@ -277,8 +282,15 @@ try:
                     finalizedFlag = taskBuffer.finalizePendingJobs(prodUserName,jobDefinitionID,waitLock=True)
                     _logger.debug("finalized with %s" % finalizedFlag)
                     if finalizedFlag and jobSpec.produceUnMerge():
+                        # collect sub datasets
+                        finalStatusDS = []
+                        for tmpFileSpec in jobSpec.Files:
+                            if tmpFileSpec.type in ['log','output'] and \
+                                    re.search('_sub\d+$',tmpFileSpec.destinationDBlock) != None:
+                                if not tmpFileSpec.destinationDBlock in finalStatusDS:
+                                    finalStatusDS.append(tmpFileSpec.destinationDBlock)
                         _logger.debug("update unmerged datasets")
-                        taskBuffer.updateUnmergedDatasets(jobSpec)
+                        taskBuffer.updateUnmergedDatasets(jobSpec,finalStatusDS)
             else:
                 _logger.debug("n of non-failed jobs : None")
 except:

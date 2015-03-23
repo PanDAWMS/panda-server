@@ -1735,9 +1735,11 @@ class DBProxy:
                     # convert empty to NULL
                     if ret == '':
                         ret = 'NULL'
-                    # don't update holding or starting
+                    # don't update holding or merging
                     if oldJobStatus == 'holding' and jobStatus == 'holding':
                         _logger.debug("updateJobStatus : PandaID=%s skip to reset holding" % pandaID)
+                    elif oldJobStatus == 'merging':
+                        _logger.debug("updateJobStatus : PandaID=%s skip to change from merging" % pandaID)
                     else:
                         # update stateChangeTime
                         if updateStateChange or (jobStatus=='starting' and oldJobStatus != 'starting'):
@@ -1888,7 +1890,7 @@ class DBProxy:
                             hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and \
                             job.lockedby == 'jedi' and self.checkTaskStatusJEDI(job.jediTaskID,self.cur):
                         useJEDI = True
-                    # SQL to check JEDI files                                                                                                 
+                    # SQL to check JEDI files
                     sqlJediFJ  = "SELECT 1 FROM ATLAS_PANDA.JEDI_Dataset_Contents "
                     sqlJediFJ += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                     sqlJediFJ += "AND attemptNr=:attemptNr AND status=:status AND keepTrack=:keepTrack "
@@ -2301,6 +2303,8 @@ class DBProxy:
                                 sql1+= " RETURNING PandaID INTO :newPandaID"
                                 # set parentID
                                 job.parentID = job.PandaID
+                                job.creationTime = datetime.datetime.utcnow()
+                                job.modificationTime = job.creationTime
                                 varMap = job.valuesMap(useSeq=True)
                                 varMap[':newPandaID'] = self.cur.var(varNUMBER)
                                 # insert
@@ -3497,9 +3501,11 @@ class DBProxy:
                 oldJobStatus = job.jobStatus
                 # error code
                 if job.jobStatus != 'failed':
-                    # set status etc for non-failed jobs                    
-                    job.endTime   = datetime.datetime.utcnow()
-                    job.modificationTime = job.endTime
+                    currentTime = datetime.datetime.utcnow()
+                    # set status etc for non-failed jobs
+                    if job.endTime in [None,'NULL']:
+                        job.endTime = currentTime
+                    job.modificationTime = currentTime
                     if code in ['2','4']:
                         # expire
                         if code == '2':
@@ -13498,13 +13504,13 @@ class DBProxy:
             # reset job attributes
             jobSpec.jobStatus        = 'activated'
             jobSpec.startTime        = None
-            jobSpec.modificationTime = datetime.datetime.utcnow()
+            jobSpec.creationTime     = datetime.datetime.utcnow()
+            jobSpec.modificationTime = jobSpec.creationTime
             jobSpec.attemptNr       += 1
             if doMerging:
                 jobSpec.maxAttempt = jobSpec.attemptNr+3
             if not doMerging:
-                #jobSpec.currentPriority -= 10
-                pass
+                jobSpec.currentPriority += 1
             jobSpec.endTime          = None
             jobSpec.transExitCode    = None
             jobSpec.jobMetrics       = None
