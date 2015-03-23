@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * changed timeout for starting jobs to 12h
   * changed to keep endTime when jobs are killed
   * changed to ignore heartbeats when job is in merging
   * checking job status in updateEventRange

@@ -814,7 +814,7 @@ if len(jediJobs) != 0:
         iJob += nJob
 
 # reassign too long starting jobs in active table
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=2)
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
 status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsActive4",timeLimit,['starting'],['managed'],[],[],[],True,
                                             onlyReassignable=True,useStateChangeTime=True)
 jobs = []
