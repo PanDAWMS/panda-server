@@ -1036,7 +1036,8 @@ class DynDataDistributer:
             while tmpSubIndex < len(tmpFiles):
                 tmpDsName = containerName[:-1] + '_%04d' % tmpIndex
                 tmpRet = self.registerDatasetWithLocation(tmpDsName,tmpFiles[tmpSubIndex:tmpSubIndex+nFilesPerDataset],
-                                                          tmpLocations,owner=owner)
+                                                          #tmpLocations,owner=owner)
+                                                          tmpLocations,owner=None)
                 # failed
                 if not tmpRet:
                     self.putLog('failed to register %s' % tmpDsName, 'error')
@@ -1124,8 +1125,10 @@ class DynDataDistributer:
             for iDDMTry in range(nTry):
                 try:
                     self.putLog('%s/%s registerDatasetLocation %s %s' % (iDDMTry,nTry,datasetName,tmpLocation))
-                    out = rucioAPI.registerDatasetLocation(datasetName,[tmpLocation],14)
+                    out = rucioAPI.registerDatasetLocation(datasetName,[tmpLocation],14,owner)
                     self.putLog(out)
+                    out = str(out)
+                    break
                 except:
                     errType,errValue = sys.exc_info()[:2]
                     self.putLog("%s %s" % (errType,errValue),'error')
@@ -1133,17 +1136,6 @@ class DynDataDistributer:
                         self.putLog('failed to register {0} in rucio'.format(datasetName))
                         return resForFailure
                     time.sleep(10)
-            # set owner
-            for iDDMTry in range(nTry):
-                self.putLog('%s/%s setReplicaMetaDataAttribute %s %s owner=%s' % \
-                                (iDDMTry,nTry,datasetName,tmpLocation,owner))
-                self.putLog(out)
-                status,out = ddm.DQ2.main('setReplicaMetaDataAttribute',datasetName,tmpLocation,'owner',owner)
-                if status != 0:
-                    self.putLog(out,'error')
-                    time.sleep(60)
-                else:
-                    break
             if out.find('DQLocationExistsException') != -1:
                 pass
             elif status != 0 or out.startswith('Error'):

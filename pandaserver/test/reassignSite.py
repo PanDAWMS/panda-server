@@ -9,6 +9,7 @@ usage = "%prog [options] siteName"
 optP = optparse.OptionParser(usage=usage,conflict_handler="resolve")
 optP.add_option('--assigned',action='store_const',const=True,dest='assigned',
                 default=False,help='reassign jobs in assigned state. Jobs in activated state are reassigned by default')
+optP.add_option('--olderThan',action='store',dest='olderThan',default=1,help="reassign jobs with modificationTime older than N hours (1 by default)")
 options,args = optP.parse_args()
 
 from taskbuffer.OraDBProxy import DBProxy
@@ -18,7 +19,7 @@ from config import panda_config
 proxyS = DBProxy()
 proxyS.connect(panda_config.dbhost,panda_config.dbpasswd,panda_config.dbuser,panda_config.dbname)
 
-site = sys.argv[1]
+site = args[0]
 import userinterface.Client as Client
 
 # erase dispatch datasets
@@ -49,7 +50,11 @@ def eraseDispDatasets(ids):
         status,out = ddm.DQ2.main('eraseDataset',dataset)
         print out
 
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+try:
+    options.olderThan = int(options.olderThan)
+except:
+    pass
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=options.olderThan)
 varMap = {}
 if options.assigned:
     varMap[':jobStatus']        = 'assigned'
@@ -64,6 +69,8 @@ else:
     sql = "SELECT PandaID,lockedby FROM ATLAS_PANDA.jobsActive4 "
 sql += "WHERE jobStatus=:jobStatus AND computingSite=:computingSite AND modificationTime<:modificationTime AND prodSourceLabel=:prodSourceLabel ORDER BY PandaID"
 status,res = proxyS.querySQLS(sql,varMap)
+
+print "got {0} jobs".format(len(res))
 
 jobs = []
 jediJobs = []

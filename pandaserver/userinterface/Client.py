@@ -1646,7 +1646,7 @@ def resumeTask(jediTaskID,verbose=False):
     """Resume task
 
        args:
-           jediTaskID: jediTaskID of the task to pause
+           jediTaskID: jediTaskID of the task to release
        returns:
            status code
                  0: communication succeeded to the panda server 

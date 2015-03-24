@@ -462,7 +462,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                 self.logger.debug('%s' % str(out))
                 break
         # register dataset subscription
-        subActivity = 'Production'
+        subActivity = 'Production Output'
         if not self.job.prodSourceLabel in ['user']:
             for tmpName,tmpVal in subMap.iteritems():
                 for dq2ID,optSub,optSource in tmpVal:

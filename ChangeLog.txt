@@ -1,6 +1,29 @@
-Release Note
+Release Notes
 
 * current
+  * changed timeout for starting jobs to 12h
+  * changed to keep endTime when jobs are killed
+  * changed to ignore heartbeats when job is in merging
+  * checking job status in updateEventRange
+  * using Production Input/Output as subscription activities
+  * recording throttled into jobs_statuslog
+  * changed the task brokerage to use negative weight based on missing input size
+  * fixed propagateResult for pmerge to update T_TASK.total_events 
+  * changed TA to use sites where data is fully or partially available
+  * removed old machinery to reassign reprocessing jobs
+  * changed killUnusedEsConsumers to kill running jobs as well
+  * cleanup in taskBuffer
+  * added checkInvalidCharacters
+  * added olderThan to reassignSite
+  * changed reaper to expired
+  * cleanup of the brokerage
+  * fixed reassignSite for options
+  * using stateChangeTime for heartbeat check of starting jobs
+  * changed starting jobs not to be updated by subsequent heartbeats 
+  * using panda instead of user account in EP
+  * removed setReplicaMetaDataAttribute from EP
+  * added partial finish
+  * setting None to pre-merged log files when sending ES merge jobs
   * added protection to SetupperAtlas against new files copied after JEDI file lookup
   * fixed EventPicking to use only complete replicas
   * removed constraint with T1 data from TA

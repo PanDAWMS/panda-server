@@ -244,26 +244,31 @@ _logger.debug("Site Access : done")
 _logger.debug("AnalFinalizer session")
 try:
     # get min PandaID for failed jobs in Active table
-    sql  = "SELECT MIN(PandaID),prodUserName,jobDefinitionID FROM ATLAS_PANDA.jobsActive4 "
+    sql  = "SELECT MIN(PandaID),prodUserName,jobDefinitionID,jediTaskID,computingSite FROM ATLAS_PANDA.jobsActive4 "
     sql += "WHERE prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus "
-    sql += "GROUP BY prodUserName,jobDefinitionID "
+    sql += "GROUP BY prodUserName,jobDefinitionID,jediTaskID,computingSite "
     varMap = {}
     varMap[':jobStatus']       = 'failed'
     varMap[':prodSourceLabel'] = 'user'
     status,res = taskBuffer.querySQLS(sql,varMap)
     if res != None:
         # loop over all user/jobdefID
-        for pandaID,prodUserName,jobDefinitionID in res:
+        for pandaID,prodUserName,jobDefinitionID,jediTaskID,computingSite in res:
             # check
-            _logger.debug("check finalization for %s %s" % (prodUserName,jobDefinitionID))
+            _logger.debug("check finalization for %s task=%s jobdefID=%s site=%s" % (prodUserName,jediTaskID,
+                                                                                     jobDefinitionID,
+                                                                                     computingSite))
             sqlC  = "SELECT COUNT(*) FROM ATLAS_PANDA.jobsActive4 "
             sqlC += "WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName "
-            sqlC += "AND jobDefinitionID=:jobDefinitionID "
+            sqlC += "AND jobDefinitionID=:jobDefinitionID AND jediTaskID=:jediTaskID "
+            sqlC += "AND computingSite=:computingSite "
             sqlC += "AND NOT jobStatus IN (:jobStatus1,:jobStatus2) "
             varMap = {}
-            varMap[':jobStatus1']       = 'failed'
-            varMap[':jobStatus2']       = 'merging'
+            varMap[':jobStatus1']      = 'failed'
+            varMap[':jobStatus2']      = 'merging'
             varMap[':prodSourceLabel'] = 'user'
+            varMap[':jediTaskID']      = jediTaskID
+            varMap[':computingSite']   = computingSite
             varMap[':jobDefinitionID'] = jobDefinitionID
             varMap[':prodUserName']    = prodUserName
             statC,resC = taskBuffer.querySQLS(sqlC,varMap)
@@ -277,8 +282,15 @@ try:
                     finalizedFlag = taskBuffer.finalizePendingJobs(prodUserName,jobDefinitionID,waitLock=True)
                     _logger.debug("finalized with %s" % finalizedFlag)
                     if finalizedFlag and jobSpec.produceUnMerge():
+                        # collect sub datasets
+                        finalStatusDS = []
+                        for tmpFileSpec in jobSpec.Files:
+                            if tmpFileSpec.type in ['log','output'] and \
+                                    re.search('_sub\d+$',tmpFileSpec.destinationDBlock) != None:
+                                if not tmpFileSpec.destinationDBlock in finalStatusDS:
+                                    finalStatusDS.append(tmpFileSpec.destinationDBlock)
                         _logger.debug("update unmerged datasets")
-                        taskBuffer.updateUnmergedDatasets(jobSpec)
+                        taskBuffer.updateUnmergedDatasets(jobSpec,finalStatusDS)
             else:
                 _logger.debug("n of non-failed jobs : None")
 except:
@@ -772,9 +784,9 @@ except:
     errType,errValue = sys.exc_info()[:2]
     _logger.error("failed to reassign T2 evgensimul with %s:%s" % (errType,errValue))
 
-# reassign too long-standing jobs in active table
+# reassign too long activated jobs in active table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=2)
-status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsActive4",timeLimit,['activated','starting'],['managed'],[],[],[],True,
+status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsActive4",timeLimit,['activated'],['managed'],[],[],[],True,
                                             onlyReassignable=True)
 jobs = []
 jediJobs = []
@@ -784,20 +796,49 @@ if res != None:
             jediJobs.append(id)
         else:
             jobs.append(id)
-_logger.debug('reassignJobs for long in active table -> #%s' % len(jobs))
+_logger.debug('reassignJobs for long activated in active table -> #%s' % len(jobs))
 if len(jobs) != 0:
     nJob = 100
     iJob = 0
     while iJob < len(jobs):
-        _logger.debug('reassignJobs for long in active table (%s)' % jobs[iJob:iJob+nJob])
+        _logger.debug('reassignJobs for long activated in active table (%s)' % jobs[iJob:iJob+nJob])
         taskBuffer.reassignJobs(jobs[iJob:iJob+nJob],joinThr=True)
         iJob += nJob
-_logger.debug('reassignJobs for long JEDI in active table -> #%s' % len(jediJobs))
+_logger.debug('reassignJobs for long activated JEDI in active table -> #%s' % len(jediJobs))
 if len(jediJobs) != 0:
     nJob = 100
     iJob = 0
     while iJob < len(jediJobs):
-        _logger.debug('reassignJobs for long JEDI in active table (%s)' % jediJobs[iJob:iJob+nJob])
+        _logger.debug('reassignJobs for long activated JEDI in active table (%s)' % jediJobs[iJob:iJob+nJob])
+        Client.killJobs(jediJobs[iJob:iJob+nJob],51)
+        iJob += nJob
+
+# reassign too long starting jobs in active table
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
+status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsActive4",timeLimit,['starting'],['managed'],[],[],[],True,
+                                            onlyReassignable=True,useStateChangeTime=True)
+jobs = []
+jediJobs = []
+if res != None:
+    for (id,lockedby) in res:
+        if lockedby == 'jedi':
+            jediJobs.append(id)
+        else:
+            jobs.append(id)
+_logger.debug('reassignJobs for long starting in active table -> #%s' % len(jobs))
+if len(jobs) != 0:
+    nJob = 100
+    iJob = 0
+    while iJob < len(jobs):
+        _logger.debug('reassignJobs for long starting in active table (%s)' % jobs[iJob:iJob+nJob])
+        taskBuffer.reassignJobs(jobs[iJob:iJob+nJob],joinThr=True)
+        iJob += nJob
+_logger.debug('reassignJobs for long starting JEDI in active table -> #%s' % len(jediJobs))
+if len(jediJobs) != 0:
+    nJob = 100
+    iJob = 0
+    while iJob < len(jediJobs):
+        _logger.debug('reassignJobs for long stating JEDI in active table (%s)' % jediJobs[iJob:iJob+nJob])
         Client.killJobs(jediJobs[iJob:iJob+nJob],51)
         iJob += nJob
         
@@ -1368,83 +1409,6 @@ for name,addr in mailMap.iteritems():
     # update email
     _logger.debug("set '%s' to %s" % (name,addr))
     status,res = taskBuffer.querySQLS("UPDATE ATLAS_PANDAMETA.users SET email=:addr WHERE name=:name",{':addr':addr,':name':name})
-
-# reassign reprocessing jobs in defined table
-_memoryCheck("repro")
-class ReassginRepro (threading.Thread):
-    def __init__(self,taskBuffer,lock,jobs):
-        threading.Thread.__init__(self)
-        self.jobs       = jobs
-        self.lock       = lock
-        self.taskBuffer = taskBuffer
-
-    def run(self):
-        self.lock.acquire()
-        try:
-            if len(self.jobs):
-                nJob = 100
-                iJob = 0
-                while iJob < len(self.jobs):
-                    # reassign jobs one by one to break dis dataset formation
-                    for job in self.jobs[iJob:iJob+nJob]:
-                        _logger.debug('reassignJobs in Pepro (%s)' % [job])
-                        self.taskBuffer.reassignJobs([job],joinThr=True)
-                    iJob += nJob
-        except:
-            pass
-        self.lock.release()
-        
-reproLock = threading.Semaphore(3)
-
-nBunch = 20
-iBunch = 0
-timeLimitMod = datetime.datetime.utcnow() - datetime.timedelta(hours=8)
-timeLimitCre = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
-firstFlag = True
-while True:
-    # lock
-    reproLock.acquire()
-    # get jobs
-    varMap = {}
-    varMap[':jobStatus'] = 'assigned'
-    varMap[':prodSourceLabel'] = 'managed'
-    varMap[':modificationTime'] = timeLimitMod
-    varMap[':creationTime'] = timeLimitCre
-    varMap[':processingType'] = 'reprocessing'
-    if firstFlag:
-        firstFlag = False
-        status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE jobStatus=:jobStatus AND prodSourceLabel=:prodSourceLabel AND modificationTime<:modificationTime AND creationTime<:creationTime AND processingType=:processingType ORDER BY PandaID",
-                                      varMap)
-        if res != None:
-            _logger.debug('total Repro for reassignJobs : %s' % len(res))
-    # get a bunch    
-    status,res = taskBuffer.querySQLS("SELECT * FROM (SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE jobStatus=:jobStatus AND prodSourceLabel=:prodSourceLabel AND modificationTime<:modificationTime AND creationTime<:creationTime AND processingType=:processingType ORDER BY PandaID) WHERE rownum<=%s" % nBunch,
-                                  varMap)
-    # escape
-    if res == None or len(res) == 0:
-        reproLock.release()
-        break
-
-    # get IDs
-    jobs=[]
-    for id, in res:
-        jobs.append(id)
-        
-    # reassign
-    _logger.debug('reassignJobs for Pepro %s' % (iBunch*nBunch))
-    # lock
-    currentTime = datetime.datetime.utcnow()
-    for jobID in jobs:
-        varMap = {}
-        varMap[':PandaID'] = jobID
-        varMap[':modificationTime'] = currentTime
-        status,res = taskBuffer.querySQLS("UPDATE ATLAS_PANDA.jobsDefined4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID",
-                                          varMap)
-    reproLock.release()
-    # run thr
-    reproThr = ReassginRepro(taskBuffer,reproLock,jobs)
-    reproThr.start()
-    iBunch += 1
 
 _memoryCheck("end")
 

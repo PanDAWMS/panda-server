@@ -36,7 +36,7 @@ thr_space_low = 5
 reductionForTape = 0.5
 
 # special weight for T1 data
-specialWeightT1Data = 10
+specialWeightT1Data = 1
 
 # task types using MC share
 taskTypesMcShare = ['evgen']
@@ -133,6 +133,14 @@ class TaskAssigner:
             _logger.info('%s prioMap = %s' % (self.taskID,str(prioMap)))            
             _logger.info('%s fullRWs = %s' % (self.taskID,str(fullRWs)))
             _logger.info('%s tt2Map  = %s' % (self.taskID,str(tt2Map)))
+            # get total input size
+            totalInputSize = 0
+            if dsSizeMap != None:
+                for tmpDatasetName,tmpDatasetSize in dsSizeMap.iteritems():
+                    if not DataServiceUtils.isDBR(tmpDatasetName):
+                        totalInputSize += tmpDatasetSize
+                # in GB
+                totalInputSize = totalInputSize / 1024 / 1024 / 1024
             # get cloud list
             cloudList = self.siteMapper.getCloudList()
             # get pilot statistics
@@ -172,6 +180,7 @@ class TaskAssigner:
             _logger.info('%s fullRWs =%s' % (self.taskID,str(fullRWs)))            
             # remove offline clouds and check validation/fasttrack
             tmpCloudList = []
+            badClouds = []
             for tmpCloudName in cloudList:
                 # get cloud
                 tmpCloud = self.siteMapper.getCloud(tmpCloudName)
@@ -180,6 +189,7 @@ class TaskAssigner:
                     message = '%s    %s skip : status==%s' % (self.taskID,tmpCloudName,tmpCloud['status'])
                     _logger.info(message)
                     self.sendMesg(message)
+                    badClouds.append(tmpCloudName)
                     continue
                 # skip non-validation cloud if validation
                 if self.prodSourceLabel in ['validation'] and tmpCloud['validation'] != 'true':
@@ -205,7 +215,8 @@ class TaskAssigner:
                 # append
                 tmpCloudList.append(tmpCloudName)
                 self.cloudForSubs.append(tmpCloudName)
-            cloudList = tmpCloudList
+            goodClouds = tmpCloudList
+            cloudList = goodClouds + badClouds
             # DQ2 location info
             _logger.info('%s DQ2 locations %s' % (self.taskID,str(locations)))
             # check immutable datasets
@@ -334,10 +345,11 @@ class TaskAssigner:
                             if (tmpT2List != [] and len(tmpT2CacheList) != len(tmpT2List)) and not tmpCloudName in removedDQ2Map[dataset]:
                                 removedDQ2Map[dataset].append(tmpCloudName)
                         else:
-                            if not tmpCloudName in weightWithData:
-                                weightWithData[tmpCloudName] = 0
-                            if dsSizeMap != None and dataset in dsSizeMap:
-                                weightWithData[tmpCloudName] += dsSizeMap[dataset]
+                            if not DataServiceUtils.isDBR(dataset):
+                                if not tmpCloudName in weightWithData:
+                                    weightWithData[tmpCloudName] = 0
+                                if dsSizeMap != None and dataset in dsSizeMap:
+                                    weightWithData[tmpCloudName] += dsSizeMap[dataset]
                             if not useCacheT1:
                                 # check incomplete or not
                                 tmpStat = sites[foundSE][-1]
@@ -398,6 +410,17 @@ class TaskAssigner:
             message = '%s input data size per cloud %s' % (self.taskID,str(weightWithData))
             _logger.info(message)
             self.sendMesg(message)
+            if weightWithData == {}:
+                # use all good clouds if no T1 has data
+                cloudList = goodClouds
+                _logger.info('%s use all good clouds since no T1 has data' % self.taskID)
+            else:
+                cloudList = []
+                # use only clouds that have complete/incomplete data
+                for tmpCloud in weightWithData.keys():
+                    if tmpCloud in goodClouds:
+                        cloudList.append(tmpCloud)
+                _logger.info('%s use clouds where data is fullly or partially available' % self.taskID)
             # loop over all cloud
             weightParams = {}
             foundCandidateWithT1 = []
@@ -425,7 +448,7 @@ class TaskAssigner:
                 tmpMap = rucioAPI.getRseUsage(tmpT1Site.ddm)
                 weightParams[tmpCloudName]['freeSpace'] = tmpMap['free']
                 # take volume of secondary data into account
-                tmpMap = rucioAPI.getRseUsage(tmpT1Site.ddm, 'reaper')
+                tmpMap = rucioAPI.getRseUsage(tmpT1Site.ddm, 'expired')
                 weightParams[tmpCloudName]['secSpace'] = tmpMap['used']
                 _logger.info('{0}  T1 space    free:{1}GB secondary:{2}GB'.format(self.taskID,weightParams[tmpCloudName]['freeSpace'],
                                                                                   weightParams[tmpCloudName]['secSpace']))
@@ -508,6 +531,7 @@ class TaskAssigner:
                         message = "%s didn't make subscription" % self.taskID
                         self.sendMesg(message,msgType='warning')
                 # make subscription for aggregation
+                """
                 if taskType in taskTypesAgg:
                     # check if input is container
                     inputIsContainer = False
@@ -520,6 +544,7 @@ class TaskAssigner:
                         _logger.info('%s Aggregation start' % self.taskID)
                         retSub = self.makeSubscription(removedDQ2Map,RWs,fullRWs,expRWs,aggregation=True)
                         _logger.info('%s Aggregation end with %s' % (self.taskID,retSub))
+                """        
                 # return
                 _logger.info(messageEnd)
                 _logger.info("%s end" % self.taskID) 
@@ -551,9 +576,10 @@ class TaskAssigner:
                         tmpWeight *= float(reductionForTape)
                         message += '*%s' % reductionForTape
                     # special weight for T1 data
-                    tmpWeight *= (int(weightParams[cloudName]['dsSize'] / specialWeightT1Data) + 1)
-                    message += '*({0}/{1}GB+1)'.format(weightParams[cloudName]['dsSize'],
-                                                       specialWeightT1Data)
+                    tmpWeight /= (int((totalInputSize-weightParams[cloudName]['dsSize']) / specialWeightT1Data) + 1)
+                    message += '/(({0}-{1})/{2}GB+1)'.format(totalInputSize,
+                                                             weightParams[cloudName]['dsSize'],
+                                                             specialWeightT1Data)
                     self.sendMesg(message)
                     nWeightList.append(tmpWeight)
                     totalWeight += tmpWeight

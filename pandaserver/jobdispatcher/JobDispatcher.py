@@ -728,17 +728,30 @@ def getStatus(req,ids,timeout=60):
     return jobDispatcher.getStatus(ids,int(timeout))
 
 
+
 # get a list of even ranges for a PandaID
 def getEventRanges(req,pandaID,jobsetID,nRanges=10,timeout=60):
-    _logger.debug("getEventRanges(PandaID=%s jobsetID=%s nRanges=%s)" % (pandaID,jobsetID,nRanges))
+    tmpStr = "getEventRanges(PandaID=%s jobsetID=%s nRanges=%s)" % (pandaID,jobsetID,nRanges)
+    _logger.debug(tmpStr+' start')
+    tmpStat,tmpOut = checkPilotPermission(req)
+    if not tmpStat:
+        _logger.error(tmpStr+'failed with '+tmpOut)
+        #return tmpOut
     return jobDispatcher.getEventRanges(pandaID,jobsetID,nRanges,int(timeout))
+
 
 
 # update an event range
 def updateEventRange(req,eventRangeID,eventStatus,coreCount=None,cpuConsumptionTime=None,timeout=60):
-    _logger.debug("updateEventRange(%s status=%s coreCount=%s cpuConsumptionTime=%s)" % \
-                      (eventRangeID,eventStatus,coreCount,cpuConsumptionTime))
+    tmpStr = "updateEventRange(%s status=%s coreCount=%s cpuConsumptionTime=%s)" % \
+        (eventRangeID,eventStatus,coreCount,cpuConsumptionTime)
+    _logger.debug(tmpStr+' start')
+    tmpStat,tmpOut = checkPilotPermission(req)
+    if not tmpStat:
+        _logger.error(tmpStr+'failed with '+tmpOut)
+        #return tmpOut
     return jobDispatcher.updateEventRange(eventRangeID,eventStatus,coreCount,cpuConsumptionTime,int(timeout))
+
 
 
 # generate pilot token
@@ -767,4 +780,19 @@ def getKeyPair(req,publicKeyName,privateKeyName):
     realDN = _getDN(req)
     return jobDispatcher.getKeyPair(realDN,publicKeyName,privateKeyName)
 
+
+
+# check pilot permission
+def checkPilotPermission(req):
+    # get DN
+    realDN = _getDN(req)
+    # get FQANs
+    fqans = _getFQAN(req)
+    # check production role
+    prodManager = _checkRole(fqans,realDN,jobDispatcher,True)
+    if not prodManager:
+        return False,"production or pilot role is required"
+    if realDN == None:
+        return False,"failed to retrive DN"
+    return True,None
         

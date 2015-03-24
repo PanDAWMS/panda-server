@@ -926,7 +926,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                             optActivity = "Staging"
                         else:
                             optShare = "production"
-                            optActivity = "Production"
+                            optActivity = "Production Input"
                         if not isOK:
                             dispError[disp] = "Setupper._subscribeDistpatchDB() could not register location for prestage"
                         else:
@@ -935,7 +935,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                                             (job.dispatchDBlock,dq2ID),
                                                             {'version':0,'archived':0,'callbacks':optSub,'sources':optSource,'sources_policy':optSrcPolicy,
                                                              'wait_for_sources':0,'destination':None,'query_more_sources':0,'sshare':optShare,'group':None,
-                                                             'activity':"Production",'acl_alias':None,'replica_lifetime':"7 days",
+                                                             'activity':optActivity,'acl_alias':None,'replica_lifetime':"7 days",
                                                              'force_backend':ddmBackEnd}))
                             for iDDMTry in range(3):                                                                
                                 status,out = ddm.DQ2.main('registerDatasetSubscription',job.dispatchDBlock,dq2ID,version=0,archived=0,callbacks=optSub,
@@ -2334,7 +2334,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             status,out = ddm.DQ2.main('registerDatasetSubscription',dataset,dq2ID,version=0,archived=0,
                                       callbacks={},sources={},sources_policy=optSrcPolicy,
                                       wait_for_sources=0,destination=None,query_more_sources=0,
-                                      sshare="production",group=None,activity='Production',acl_alias='secondary')
+                                      sshare="production",group=None,activity='Production Input',acl_alias='secondary')
             status,out = 0,''
             if out.find('DQSubscriptionExistsException') != -1:
                 break
