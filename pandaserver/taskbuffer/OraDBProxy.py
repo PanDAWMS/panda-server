@@ -3695,7 +3695,10 @@ class DBProxy:
                             self.cur.execute(sqlMeta+comment, varMap)
                             for clobMeta, in self.cur:
                                 if clobMeta != None:
-                                    resMeta = clobMeta.read()
+                                    try:
+                                        resMeta = clobMeta.read()
+                                    except AttributeError:
+                                        resMeta = str(clobMeta)
                                 break
                         # job parameters
                         job.jobParameters = None
@@ -3705,7 +3708,10 @@ class DBProxy:
                         self.cur.execute(sqlJobP+comment, varMap)
                         for clobJobP, in self.cur:
                             if clobJobP != None:
-                                job.jobParameters = clobJobP.read()
+                                try:
+                                    job.jobParameters = clobJobP.read()
+                                except AttributeError:
+                                    job.jobParameters = str(clobJobP)
                             break
                         # commit
                         if not self._commit():
