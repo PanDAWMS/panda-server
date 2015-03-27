@@ -211,7 +211,11 @@ class DBProxy:
                 resItem = []
                 for item in items:
                     # read CLOB
-                    resItem.append(item.read())
+                    try:
+                        itemRead = item.read()
+                    except AttributeError:
+                        itemRead = item
+                    resItem.append(itemRead)
                 # append    
                 res.append(resItem)
             # commit
@@ -2176,7 +2180,10 @@ class DBProxy:
                             varMap[':PandaID'] = job.PandaID
                             self.cur.execute(sqlJobP+comment, varMap)
                             for clobJobP, in self.cur:
-                                job.jobParameters = clobJobP.read()
+                                try:
+                                    job.jobParameters = clobJobP.read()
+                                except AttributeError:
+                                    job.jobParameters = str(clobJobP)
                                 break
                         # reset job
                         job.jobStatus = 'activated'
@@ -2317,7 +2324,10 @@ class DBProxy:
                                 varMap[':PandaID'] = job.PandaID
                                 self.cur.execute(sqlMeta+comment, varMap)
                                 for clobJobP, in self.cur:
-                                    job.metadata = clobJobP.read()
+                                    try:
+                                        job.metadata = clobJobP.read()
+                                    except AttributeError:
+                                        job.metadata = str(clobJobP)
                                     break
                                 # insert job with new PandaID
                                 sql1 = "INSERT INTO ATLAS_PANDA.jobsActive4 (%s) " % JobSpec.columnNames()
@@ -3060,7 +3070,10 @@ class DBProxy:
                 varMap[':PandaID'] = job.PandaID
                 self.cur.execute(sqlJobP+comment, varMap)
                 for clobJobP, in self.cur:
-                    job.jobParameters = clobJobP.read()
+                    try:
+                        job.jobParameters = clobJobP.read()
+                    except AttributeError:
+                        job.jobParameters = str(clobJobP)
                     break
                 # remove or extract parameters for merge
                 if EventServiceUtils.isEventServiceJob(job):
@@ -3199,7 +3212,10 @@ class DBProxy:
             sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
             self.cur.execute(sqlJobP+comment, varMap)
             for clobJobP, in self.cur:
-                job.jobParameters = clobJobP.read()
+                try:
+                    job.jobParameters = clobJobP.read()
+                except AttributeError:
+                    job.jobParameters = str(clobJobP)
                 break
             # Files
             oldSubList = []
@@ -3312,7 +3328,10 @@ class DBProxy:
                 sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
                 self.cur.execute(sqlJobP+comment, varMap)
                 for clobJobP, in self.cur:
-                    job.jobParameters = clobJobP.read()
+                    try:
+                        job.jobParameters = clobJobP.read()
+                    except AttributeError:
+                        job.jobParameters = str(clobJobP)
                     break
                 # Files
                 sqlFile = "SELECT %s FROM ATLAS_PANDA.filesTable4 " % FileSpec.columnNames()
@@ -11382,7 +11401,10 @@ class DBProxy:
                         self.cur.execute(sqlMeta+comment, varMap)
                         for clobMeta, in self.cur:
                             if clobMeta != None:
-                                job.metadata = clobMeta.read()
+                                try:
+                                    job.metadata = clobMeta.read()
+                                except AttributeError:
+                                    job.metadata = str(clobMeta)
                             break
                         # job parameters
                         job.jobParameters = None
@@ -11393,7 +11415,10 @@ class DBProxy:
                         self.cur.execute(sqlJobP+comment, varMap)
                         for clobJobP, in self.cur:
                             if clobJobP != None:
-                                job.jobParameters = clobJobP.read()
+                                try:
+                                    job.jobParameters = clobJobP.read()
+                                except AttributeError:
+                                    job.jobParameters = str(clobJobP)
                             break
                         # commit
                         if not self._commit():
@@ -13130,7 +13155,10 @@ class DBProxy:
                 self.cur.execute(sql+comment,varMap)
                 retStr = ''
                 for tmpItem, in self.cur:
-                    retStr = tmpItem.read()
+                    try:
+                        retStr = tmpItem.read()
+                    except AttributeError:
+                        retStr = str(tmpItem)
                     break
                 # commit
                 if not self._commit():
@@ -13647,7 +13675,10 @@ class DBProxy:
             varMap[':PandaID'] = jobSpec.PandaID
             self.cur.execute(sqlJobP+comment, varMap)
             for clobJobP, in self.cur:
-                jobSpec.jobParameters = clobJobP.read()
+                try:
+                    jobSpec.jobParameters = clobJobP.read()
+                except AttributeError:
+                    jobSpec.jobParameters = str(clobJobP)
                 break
             # changes some attributes for merging
             if doMerging:
