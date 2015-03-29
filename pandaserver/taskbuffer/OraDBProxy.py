@@ -80,6 +80,7 @@ class DBProxy:
         self.updateTimeForFaresharePolicy = None
         # hostname
         self.myHostName = socket.getfqdn()
+        self.backend = panda_config.backend
         
         
     # connect to DB
@@ -9612,7 +9613,10 @@ class DBProxy:
             self.conn.begin()
             # select
             sql  = "SELECT siteid,countryGroup,availableCPU,availableStorage,pledgedCPU,pledgedStorage "
-            sql += "FROM ATLAS_PANDAMETA.schedconfig WHERE countryGroup IS NOT NULL AND siteid LIKE 'ANALY_%' "
+            if self.backend == 'oracle':
+                sql += "FROM ATLAS_PANDAMETA.schedconfig WHERE countryGroup IS NOT NULL AND siteid LIKE 'ANALY_%' "
+            else:
+                sql += "FROM ATLAS_PANDAMETA.schedconfig WHERE countryGroup IS NOT NULL AND siteid LIKE 'ANALY_%%' "
             self.cur.arraysize = 100000            
             self.cur.execute(sql+comment)
             res = self.cur.fetchall()
