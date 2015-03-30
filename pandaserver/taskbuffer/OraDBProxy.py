@@ -105,7 +105,7 @@ class DBProxy:
                 _logger.debug("failed to close old connection")                                                
         # connect    
         try:
-            if panda_config.backend == 'oracle':
+            if self.backend == 'oracle':
                 self.conn = cx_Oracle.connect(dsn=self.dbhost,user=self.dbuser,
                                               password=self.dbpasswd,threaded=True)
             else:
@@ -120,7 +120,7 @@ class DBProxy:
                     self.cur = SQLDumper.SQLDumper(self.cur)
             except:
                 pass
-            if panda_config.backend == 'oracle':
+            if self.backend == 'oracle':
                 # get hostname
                 self.cur.execute("SELECT SYS_CONTEXT('USERENV','HOST') FROM dual")
                 res = self.cur.fetchone()
@@ -305,7 +305,7 @@ class DBProxy:
             self.conn.begin()
             # get jobsetID for event service
             if origEsJob:
-                if panda_config.backend == 'oracle':
+                if self.backend == 'oracle':
                     sqlESS = "SELECT ATLAS_PANDA.JOBSDEFINED4_PANDAID_SEQ.nextval FROM dual ";
                     self.cur.arraysize = 10
                     self.cur.execute(sqlESS+comment, {})
@@ -5959,7 +5959,7 @@ class DBProxy:
                 # use predefined flag
                 freshFlag = definedFreshFlag
             # get serial number
-            if panda_config.backend == 'oracle':
+            if self.backend == 'oracle':
                 sql = "SELECT ATLAS_PANDA.SUBCOUNTER_SUBID_SEQ.nextval FROM dual";
                 self.cur.arraysize = 100
                 self.cur.execute(sql+comment, {})
@@ -5997,7 +5997,7 @@ class DBProxy:
             # start transaction
             self.conn.begin()
             # get serial number
-            if panda_config.backend == 'oracle':
+            if self.backend == 'oracle':
                 sql = "SELECT ATLAS_PANDA.GROUP_JOBID_SEQ.nextval FROM dual";
                 self.cur.execute(sql+comment, {})
                 sn, = self.cur.fetchone()
@@ -6145,7 +6145,7 @@ class DBProxy:
             cloudTask = CloudTaskSpec()
             cloudTask.taskid = tid
             cloudTask.status = 'defined'
-            if panda_config.backend == 'oracle':
+            if self.backend == 'oracle':
                 sql = "INSERT INTO ATLAS_PANDA.cloudtasks (id,taskid,status,tmod,tenter) VALUES(ATLAS_PANDA.CLOUDTASKS_ID_SEQ.nextval,:taskid,:status,CURRENT_DATE,CURRENT_DATE)"
             else:
                 #panda_config.backend == 'mysql':
@@ -6370,7 +6370,7 @@ class DBProxy:
                     raise RuntimeError, 'Commit error'
                 return "SUCCEEDED"
             # insert new CloudTask
-            if panda_config.backend == 'oracle':
+            if self.backend == 'oracle':
                 sql = "INSERT INTO ATLAS_PANDA.cloudtasks (id,taskid,status,tmod,tenter) VALUES(ATLAS_PANDA.CLOUDTASKS_ID_SEQ.nextval,:taskid,:status,CURRENT_DATE,CURRENT_DATE)"
             else:
                 #panda_config.backend == 'mysql':
@@ -10845,7 +10845,7 @@ class DBProxy:
             self.conn.begin()
             # construct SQL
             vals = {}
-            if panda_config.backend == 'oracle':
+            if self.backend == 'oracle':
                 sql0 = 'INSERT INTO ATLAS_PANDAMETA.proxykey (id,'
                 sql1 = 'VALUES (ATLAS_PANDAMETA.PROXYKEY_ID_SEQ.nextval,'
             else:
@@ -10985,7 +10985,7 @@ class DBProxy:
                     raise RuntimeError, 'Commit error'
                 return res[0]
             # add
-            if panda_config.backend == 'oracle':
+            if self.backend == 'oracle':
                 sql = 'INSERT INTO ATLAS_PANDAMETA.siteaccess (id,dn,pandasite,status,created) VALUES (ATLAS_PANDAMETA.SITEACCESS_ID_SEQ.nextval,:dn,:pandasite,:status,CURRENT_DATE)'
             else:
                 #panda_config.backend == 'mysql':
@@ -12343,7 +12343,7 @@ class DBProxy:
             oraErrCode = oraErrCode[:-1]
             _logger.debug("rollback EC:%s %s" % (oraErrCode,errValue))
             # error codes for connection error
-            if panda_config.backend == 'oracle':
+            if self.backend == 'oracle':
                 error_Codes  = ['ORA-01012','ORA-01033','ORA-01034','ORA-01089',
                                 'ORA-03113','ORA-03114','ORA-12203','ORA-12500',
                                 'ORA-12571','ORA-03135','ORA-25402']
@@ -12463,7 +12463,7 @@ class DBProxy:
             sqlT  = "INSERT INTO {0}.T_TASK ".format(schemaDEFT)
             sqlT += "(taskid,status,submit_time,vo,prodSourceLabel,userName,taskName,jedi_task_parameters,priority,current_priority,parent_tid) VALUES "
             varMap = {}
-            if panda_config.backend == 'oracle':
+            if self.backend == 'oracle':
                 sqlT += "({0}.PRODSYS2_TASK_ID_SEQ.nextval,".format(schemaDEFT)
             else:
                 #panda_config.backend == 'mysql':
@@ -12478,7 +12478,7 @@ class DBProxy:
                 varMap[':nextval'] = nextval
             sqlT += ":status,CURRENT_DATE,:vo,:prodSourceLabel,:userName,:taskName,:param,:priority,:current_priority,"
             if parent_tid == None:
-                if panda_config.backend == 'oracle':
+                if self.backend == 'oracle':
                     sqlT += "{0}.PRODSYS2_TASK_ID_SEQ.currval) ".format(schemaDEFT)
                 else:
                     #panda_config.backend == 'mysql':
