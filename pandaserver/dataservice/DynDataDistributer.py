@@ -449,14 +449,14 @@ class DynDataDistributer:
                                 closeSiteList.append(tmpCloseSiteID)
                     # checks for T1            
                     if tmpDQ2ID.startswith(prefixDQ2T1):
-                        if tmpStatMap[0]['total'] == tmpStatMap[0]['found']:
-                            t1HasReplica = True
                         # check replica metadata to get archived info
                         retRepMeta,tmpRepMetadata = self.getReplicaMetadata(tmpDS,tmpDQ2ID)
                         if not retRepMeta:
                             self.putLog("failed to get replica metadata for %s:%s" % \
-                                        (tmpDS,tmpDQ2ID),'error')
-                            return failedRet
+                                        (tmpDS,tmpDQ2ID),'warning')
+                            continue
+                        if tmpStatMap[0]['total'] == tmpStatMap[0]['found']:
+                            t1HasReplica = True
                         # check archived field
                         if isinstance(tmpRepMetadata,types.DictType) and tmpRepMetadata.has_key('archived') and \
                             tmpRepMetadata['archived'] == 'primary':
@@ -776,7 +776,7 @@ class DynDataDistributer:
             self.putLog('%s/%s listMetaDataReplica %s %s' % (iDDMTry,nTry,datasetName,locationName))
             status,out = ddm.DQ2.main('listMetaDataReplica',locationName,datasetName)
             if status != 0 or (not self.isDQ2ok(out)):
-                time.sleep(60)
+                time.sleep(10)
             else:
                 break
         if status != 0 or out.startswith('Error'):
