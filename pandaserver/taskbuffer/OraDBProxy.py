@@ -338,8 +338,9 @@ class DBProxy:
             # reset changed attribute list
             job.resetChangedList()
             # insert files
-            _logger.debug("insertNewJob : %s Label:%s prio:%s" % (job.PandaID,job.prodSourceLabel,
-                                                                      job.currentPriority))
+            _logger.debug("insertNewJob : inserted %s label:%s prio:%s jediTaskID:%s" % (job.PandaID,job.prodSourceLabel,
+                                                                                         job.currentPriority,
+                                                                                         job.jediTaskID))
             sqlFile = "INSERT INTO ATLAS_PANDA.filesTable4 (%s) " % FileSpec.columnNames()
             sqlFile+= FileSpec.bindValuesExpression(useSeq=True)
             sqlFile+= " RETURNING row_ID INTO :newRowID"
@@ -441,13 +442,16 @@ class DBProxy:
                 sqlTtask += "WHERE taskid=:jediTaskID "
                 _logger.debug(sqlTtask+comment+str(varMap))
                 self.cur.execute(sqlTtask+comment,varMap)
+                _logger.debug("insertNewJob : %s updated T_TASK jediTaskID:%s" % (job.PandaID,job.jediTaskID))
             # metadata
             if job.prodSourceLabel in ['user','panda'] and job.metadata != '':
                 sqlMeta = "INSERT INTO ATLAS_PANDA.metaTable (PandaID,metaData) VALUES (:PandaID,:metaData)"
                 varMap = {}
                 varMap[':PandaID']  = job.PandaID
                 varMap[':metaData'] = job.metadata
+                _logger.debug("insertNewJob : %s inserting meta jediTaskID:%s" % (job.PandaID,job.jediTaskID))
                 self.cur.execute(sqlMeta+comment, varMap)
+                _logger.debug("insertNewJob : %s inserted meta jediTaskID:%s" % (job.PandaID,job.jediTaskID))
             # job parameters
             if not job.prodSourceLabel in ['managed']:
                 job.jobParameters = re.sub('\$JOBSETID', jobsetID, job.jobParameters)
@@ -460,14 +464,18 @@ class DBProxy:
             varMap = {}
             varMap[':PandaID'] = job.PandaID
             varMap[':param']   = job.jobParameters
+            _logger.debug("insertNewJob : %s inserting jobParam jediTaskID:%s" % (job.PandaID,job.jediTaskID))
             self.cur.execute(sqlJob+comment, varMap)
+            _logger.debug("insertNewJob : %s inserted jobParam jediTaskID:%s" % (job.PandaID,job.jediTaskID))
             # record retry history
             if oldPandaIDs != None and len(oldPandaIDs) > 0:
+                _logger.debug("insertNewJob : %s recording history nOld=%s jediTaskID:%s" % (job.PandaID,len(oldPandaIDs),job.jediTaskID))
                 self.recordRetryHistoryJEDI(job.jediTaskID,job.PandaID,oldPandaIDs,relationType)
+                _logger.debug("insertNewJob : %s recorded history jediTaskID:%s" % (job.PandaID,job.jediTaskID))
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
-            _logger.debug("insertNewJob : %s File OK" % job.PandaID)
+            _logger.debug("insertNewJob : %s all OK jediTaskID:%s" % (job.PandaID,job.jediTaskID))
             # record status change
             try:
                 self.recordStatusChange(job.PandaID,job.jobStatus,jobInfo=job)
@@ -476,7 +484,7 @@ class DBProxy:
             return True
         except:
             type, value, traceBack = sys.exc_info()
-            _logger.error("insertNewJob : %s %s" % (type,value))
+            _logger.error("insertNewJob : jediTaskID:%s %s %s" % (job.jediTaskID,type,value))
             # roll back
             self._rollback()
             return False
@@ -12129,24 +12137,25 @@ class DBProxy:
     def getOriginPandaIDsJEDI(self,pandaID,jediTaskID,cur):
         comment = ' /* DBProxy.getOriginPandaIDsJEDI */'
         # sql to get parent IDs
-        sqlFJ  = "SELECT DISTINCT oldPandaID FROM {0}.JEDI_Job_Retry_History ".format(panda_config.schemaJEDI)
+        sqlFJ  = "SELECT MIN(originPandaID) FROM {0}.JEDI_Job_Retry_History ".format(panda_config.schemaJEDI)
         sqlFJ += "WHERE jediTaskID=:jediTaskID AND newPandaID=:newPandaID "
         varMap = {}
         varMap[':jediTaskID'] = jediTaskID
         varMap[':newPandaID'] = pandaID
         cur.execute(sqlFJ+comment,varMap)
-        resT = cur.fetchall()
+        resT = cur.fetchone()
         retList = []
-        if resT == []:
+        if resT == None:
             # origin
             retList.append(pandaID)
         else:
-            for oldPandaID, in resT:
-                # get parents
-                originIDs = self.getOriginPandaIDsJEDI(oldPandaID,jediTaskID,cur)
-                for originID in originIDs:
-                    if not originID in retList:
-                        retList.append(originID)
+            # use only one origin since tracking the whole tree brings too many origins
+            originPandaID, = resT
+            if originPandaID == None:
+                # origin
+                retList.append(pandaID)
+            else:
+                retList.append(originPandaID)
         # return
         return retList
 

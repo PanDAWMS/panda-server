@@ -434,6 +434,9 @@ class TaskAssigner:
                     fullRWs[tmpCloudName] = 0
                 # get cloud
                 tmpCloud = self.siteMapper.getCloud(tmpCloudName)
+                # patch for TW
+                if cloudList == ['TW']:
+                    tmpCloud['mcshare'] = 1
                 weightParams[tmpCloudName] = {}            
                 # get T1 site
                 tmpT1Site = self.siteMapper.getSite(tmpCloud['source'])
