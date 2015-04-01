@@ -1,6 +1,7 @@
 from AdderPluginBase import AdderPluginBase
 from CouchAPI.CMSCouch import CouchServer
 import time, datetime, traceback, logging
+from config import panda_config
 import hashlib
 
 def getHashLfn(lfn):
@@ -24,7 +25,7 @@ class AdderCmsPlugin(AdderPluginBase):
 
         # Define the logger attribute
         self.logger = logging.getLogger('ASOPlugin')
-        hdlr = logging.FileHandler('/data/atlpan/srv/var/log/panda/ASOPlugin.log')
+        hdlr = logging.FileHandler('%s/ASOPlugin.log' %panda_config.logdir)
         formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
         hdlr.setFormatter(formatter)
         self.logger.addHandler(hdlr)
