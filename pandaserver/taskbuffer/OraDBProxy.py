@@ -2332,26 +2332,18 @@ class DBProxy:
                                     varMap[':newRowID'] = self.cur.var(varNUMBER)
                                     self.cur.execute(sqlFile+comment, varMap)
                                     file.row_ID = long(self.cur.getvalue(varMap[':newRowID']))
-                                # update mod time for files
-                                varMap = {}
-                                varMap[':PandaID'] = job.PandaID
-                                varMap[':modificationTime'] = job.modificationTime
-                                sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
-                                self.cur.execute(sqlFMod+comment,varMap)
                                 # metadata
                                 if job.VO != 'cms':
-                                    sqlMeta = "INSERT INTO ATLAS_PANDA.metaTable (PandaID,metaData,modificationTime) VALUES (:PandaID,:metaData,:modTime)"
+                                    sqlMeta = "INSERT INTO ATLAS_PANDA.metaTable (PandaID,metaData) VALUES (:PandaID,:metaData)"
                                     varMap = {}
                                     varMap[':PandaID']  = job.PandaID
                                     varMap[':metaData'] = job.metadata
-                                    varMap[':modTime']  = job.modificationTime                            
                                     self.cur.execute(sqlMeta+comment, varMap)
                                 # job parameters
-                                sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters,modificationTime) VALUES (:PandaID,:param,:modTime)"
+                                sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters) VALUES (:PandaID,:param)"
                                 varMap = {}
                                 varMap[':PandaID'] = job.PandaID
                                 varMap[':param']   = job.jobParameters
-                                varMap[':modTime'] = job.modificationTime
                                 self.cur.execute(sqlJob+comment, varMap)
                                 # set error code to original job to avoid being retried by another process
                                 sqlE = "UPDATE ATLAS_PANDA.jobsActive4 SET taskBufferErrorCode=:errCode,taskBufferErrorDiag=:errDiag WHERE PandaID=:PandaID"
@@ -13604,18 +13596,11 @@ class DBProxy:
                 varMap[':newRowID'] = self.cur.var(varNUMBER)
                 self.cur.execute(sqlFile+comment, varMap)
                 fileSpec.row_ID = long(self.cur.getvalue(varMap[':newRowID']))
-            # update mod time for files
-            varMap = {}
-            varMap[':PandaID'] = jobSpec.PandaID
-            varMap[':modificationTime'] = jobSpec.modificationTime
-            sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
-            self.cur.execute(sqlFMod+comment,varMap)
             # insert job parameters
-            sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters,modificationTime) VALUES (:PandaID,:param,:modTime)"
+            sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters) VALUES (:PandaID,:param)"
             varMap = {}
             varMap[':PandaID'] = jobSpec.PandaID
             varMap[':param']   = jobSpec.jobParameters
-            varMap[':modTime'] = jobSpec.modificationTime
             self.cur.execute(sqlJob+comment, varMap)
             # propagate change to JEDI
             self.updateForPilotRetryJEDI(jobSpec,self.cur,onlyHistory=True)
