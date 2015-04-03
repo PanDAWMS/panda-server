@@ -1,9 +1,9 @@
 # Configuration file for the httpd service.
 
-OPTIONS="-f @@install_dir@@/etc/panda/panda_server-httpd.conf"
+OPTIONS="-f /etc/panda/panda_server-httpd.conf"
 
 # for FastCGI/WSGI
-#OPTIONS="-f @@install_dir@@/etc/panda/panda_server-httpd-FastCGI.conf"
+#OPTIONS="-f /etc/panda/panda_server-httpd-FastCGI.conf"
 #HTTPD='/usr/sbin/httpd'
 
 # reset PATH/LD_LIBRARY_PATH since atlpan's ones break grid-tools
@@ -16,7 +16,7 @@ export RUCIO_ACCOUNT=panda
 export RUCIO_APPID=pandasrv
 
 # panda home
-export PANDA_HOME=@@install_dir@@
+export PANDA_HOME=~@@panda_user@@
 
 # timezone
 export TZ=UTC
@@ -25,11 +25,11 @@ export TZ=UTC
 export PYTHONPATH=@@install_purelib@@/pandacommon:@@install_purelib@@/pandaserver
 
 # avoid to use AFS
-export HOME=/home/atlpan
+export HOME=~@@panda_user@@
 
 # set user's proxy
 export X509_USER_PROXY=FIXME
 
 # panda server URLs
-export PANDA_URL='http://@@host_name@@:25080/server/panda'
-export PANDA_URL_SSL='https://@@host_name@@:25443/server/panda'
+export PANDA_URL='http://${HOSTNAME}:25080/server/panda'
+export PANDA_URL_SSL='https://${HOSTNAME}:25443/server/panda'

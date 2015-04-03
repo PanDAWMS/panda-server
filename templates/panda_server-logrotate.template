@@ -1,4 +1,4 @@
-@@install_dir@@/var/log/panda/*log {
+/var/log/panda/*log {
     rotate 180
     daily
     compress    
@@ -7,12 +7,12 @@
     sharedscripts
     daily       
     prerotate
-        killall -u atlpan python > /dev/null 2>/dev/null || true
-        killall -u atlpan python@@python_exec_version@@ > /dev/null 2>/dev/null || true
+        killall -u @@panda_user@@ python > /dev/null 2>/dev/null || true
+        killall -u @@panda_user@@ python@@python_exec_version@@ > /dev/null 2>/dev/null || true
     endscript
     postrotate
-	killall -u atlpan python > /dev/null 2>/dev/null || true
-        killall -u atlpan python@@python_exec_version@@ > /dev/null 2>/dev/null || true
+	killall -u @@panda_user@@ python > /dev/null 2>/dev/null || true
+        killall -u @@panda_user@@ python@@python_exec_version@@ > /dev/null 2>/dev/null || true
 	/sbin/service httpd-pandasrv graceful > /dev/null 2>/dev/null || true
     endscript
 }

@@ -7,7 +7,7 @@
 #
 
 # log directory
-logdir=@@install_dir@@/var/log/panda
+logdir=/var/log/panda
 
 # logger name
 loggername = prod
@@ -45,7 +45,7 @@ lockfile_getUU = %(logdir)s/getUU.lock
 #
 
 # cache space
-cache_dir = @@install_dir@@/var/cache/pandaserver
+cache_dir = /var/cache/pandaserver
 
 
 
@@ -138,7 +138,7 @@ pserverportcache = 25085
 pserveralias = pandaserver.cern.ch
 
 # space to keep key pairs
-keyDir = @@install_dir@@/var/keys
+keyDir = /var/keys
 
 
 

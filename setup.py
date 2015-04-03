@@ -3,19 +3,17 @@
 # Setup prog for Panda Server
 #
 #
+
+release_version='0.0.2'
+panda_user = 'pansrv'
+panda_group = 'pansrv'
+
 # set PYTHONPATH to use the current directory first
 import sys
 sys.path.insert(0,'.')
 
-# get release version
 import os
-import PandaPkgInfo
-release_version = PandaPkgInfo.release_version
-if os.environ.has_key('BUILD_NUMBER'):
-    release_version = '{0}.{1}'.format(release_version,os.environ['BUILD_NUMBER'])
-
 import re
-import sys
 import socket
 import commands
 from distutils.core import setup
@@ -56,8 +54,6 @@ sys.argv = newArgv
 class install_panda(install_org):
     def initialize_options (self):
         install_org.initialize_options(self)
-        self.prefix = '/data/atlpan/srv'
-
 
 # generates files using templates and install them
 class install_data_panda (install_data_org):
@@ -65,7 +61,8 @@ class install_data_panda (install_data_org):
     def initialize_options (self):
         install_data_org.initialize_options (self)
         self.install_purelib = None
-        self.host_name = socket.getfqdn()
+        self.panda_user = panda_user
+        self.panda_group = panda_group
         self.python_exec_version = '%s.%s' % sys.version_info[:2]
         
     def finalize_options (self):
@@ -111,7 +108,7 @@ class install_data_panda (install_data_org):
                     raise RuntimeError,"%s doesn't have the .template extension" % srcFile
                 # dest filename
                 destFile = re.sub('(\.exe)*\.template$','',srcFile)
-                destFile = destFile.split('/')[-1]
+                destFile = re.sub(r'^templates/','',destFile)
                 destFile = '%s/%s' % (tmpDir,destFile)
                 # open src
                 inFile = open(srcFile)
@@ -125,6 +122,9 @@ class install_data_panda (install_data_org):
                         raise RuntimeError,'unknown pattern %s in %s' % (item,srcFile)
                     # get pattern
                     patt = getattr(self,item)
+                    # remove install root, if any
+                    if self.root is not None and patt.startswith(self.root):
+                        patt = patt[len(self.root):]
                     # remove build/*/dump for bdist
                     patt = re.sub('build/[^/]+/dumb','',patt)
                     # remove /var/tmp/*-buildroot for bdist_rpm
@@ -132,6 +132,10 @@ class install_data_panda (install_data_org):
                     # replace
                     filedata = filedata.replace('@@%s@@' % item, patt)
                 # write to dest
+                if '/' in destFile:
+                    destSubDir = os.path.dirname(destFile)
+                    if not os.path.exists(destSubDir):
+                        os.makedirs(destSubDir)
                 oFile = open(destFile,'w')
                 oFile.write(filedata)
                 oFile.close()
@@ -159,7 +163,7 @@ setup(
     url='https://twiki.cern.ch/twiki/bin/view/Atlas/PanDA',
     packages=[ 'pandaserver',
                'pandaserver.brokerage',
-               'pandaserver.config',               
+               'pandaserver.config',
                'pandaserver.dataservice',
                'pandaserver.jobdispatcher',
                'pandaserver.server',
@@ -170,42 +174,42 @@ setup(
               ],
     data_files=[
                 # config files 
-                ('etc/panda', ['templates/panda_server-httpd.conf.rpmnew.template',
-                               'templates/panda_server-httpd-FastCGI.conf.rpmnew.template',
-                               'templates/panda_server.cfg.rpmnew.template',
+                ('/etc/panda', ['templates/panda_server-httpd.conf.template',
+                               'templates/panda_server-httpd-FastCGI.conf.template',
+                               'templates/panda_server.cfg.template',
                                'templates/panda_server-grid-env.sh.template',
                                ]
                  ),
                 # sysconfig
-                ('etc/sysconfig', ['templates/panda_server-sysconfig.rpmnew.template',
+                ('/etc/sysconfig', ['templates/sysconfig/panda_server.template',
                                    ]
                  ),
                 # logrotate
-                ('etc/logrotate.d', ['templates/panda_server-logrotate.template',
+                ('/etc/logrotate.d', ['templates/logrotate.d/panda_server.template',
                                      ]
                  ),
                 # init script
-                ('etc/init.d', ['templates/panda_server-ctl.exe.template',
+                ('/etc/rc.d/init.d', ['templates/init.d/panda_server.exe.template',
                                    ]
                  ),
                 # crons
-                ('usr/bin', ['templates/panda_server-add.sh.exe.template',
-                             'templates/panda_server-priority.sh.exe.template',
-                             'templates/panda_server-copyArchive.sh.exe.template',
-                             'templates/panda_server-copyROOT.sh.exe.template',
-                             'templates/panda_server-vomsrenew.sh.exe.template',
-                             'templates/panda_server-archivelog.sh.exe.template',
-                             'templates/panda_server-tmpwatch.sh.exe.template',
-                             'templates/panda_server-backupJobArch.sh.exe.template',
-                             'templates/panda_server-deleteJobs.sh.exe.template',
-                             'templates/panda_server-merge.sh.exe.template',
-                             'templates/panda_server-datasetManager.sh.exe.template',
-                             'templates/panda_server-evpPD2P.sh.exe.template',
-                             'templates/panda_server-callback.sh.exe.template',
+                ('/usr/bin', ['templates/panda_server-add.exe.template',
+                             'templates/panda_server-priority.exe.template',
+                             'templates/panda_server-copyArchive.exe.template',
+                             'templates/panda_server-copyROOT.exe.template',
+                             'templates/panda_server-vomsrenew.exe.template',
+                             'templates/panda_server-archivelog.exe.template',
+                             'templates/panda_server-tmpwatch.exe.template',
+                             'templates/panda_server-backupJobArch.exe.template',
+                             'templates/panda_server-deleteJobs.exe.template',
+                             'templates/panda_server-merge.exe.template',
+                             'templates/panda_server-datasetManager.exe.template',
+                             'templates/panda_server-evpPD2P.exe.template',
+                             'templates/panda_server-callback.exe.template',
                              'templates/panda_server-makeSlsXml.exe.template',
-                             'templates/panda_server-boostUser.sh.exe.template',
-                             'templates/panda_server-runRebro.sh.exe.template',
-                             'templates/panda_server-proxyCache.sh.exe.template',
+                             'templates/panda_server-boostUser.exe.template',
+                             'templates/panda_server-runRebro.exe.template',
+                             'templates/panda_server-proxyCache.exe.template',
                              ]
                  ),
                 # var dirs
