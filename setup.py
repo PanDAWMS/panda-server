@@ -177,7 +177,7 @@ setup(
                 ('/etc/panda', ['templates/panda_server-httpd.conf.template',
                                'templates/panda_server-httpd-FastCGI.conf.template',
                                'templates/panda_server.cfg.template',
-                               'templates/panda_server-grid-env.sh.template',
+                               'templates/panda_server-grid-env.template',
                                ]
                  ),
                 # sysconfig
