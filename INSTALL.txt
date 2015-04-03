@@ -1,4 +1,4 @@
-Installation
+IInstallation
 --------------------
 
 1. install panda-common and panda-server.
