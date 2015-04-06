@@ -5,8 +5,8 @@
 #
 
 release_version='0.0.2'
-panda_user = 'pansrv'
-panda_group = 'pansrv'
+panda_user = 'atlpan'
+panda_group = 'zp'
 
 # set PYTHONPATH to use the current directory first
 import sys
