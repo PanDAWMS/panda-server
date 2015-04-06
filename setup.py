@@ -174,9 +174,9 @@ setup(
               ],
     data_files=[
                 # config files 
-                ('/etc/panda', ['templates/panda_server-httpd.conf.template',
-                               'templates/panda_server-httpd-FastCGI.conf.template',
-                               'templates/panda_server.cfg.template',
+                ('/etc/panda', ['templates/panda_server-httpd.conf.rpmnew.template',
+                               'templates/panda_server-httpd-FastCGI.conf.rpmnew.template',
+                               'templates/panda_server.cfg.rpmnew.template',
                                'templates/panda_server-grid-env.template',
                                ]
                  ),
