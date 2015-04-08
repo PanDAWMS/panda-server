@@ -1125,7 +1125,7 @@ class TaskBuffer:
         except:
             errType,errValue = sys.exc_info()[:2]
             _logger.error("getScriptOfflineRunning : %s %s" % (errType,errValue))
-            return "ERROR: ServerError with getScriptOfflineRunning"
+            return "ERROR: ServerError in getScriptOfflineRunning with %s %s" % (errType,errValue)
                                 
             
     # kill jobs

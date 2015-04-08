@@ -80,6 +80,7 @@ class DBProxy:
         self.updateTimeForFaresharePolicy = None
         # hostname
         self.myHostName = socket.getfqdn()
+        self.backend = panda_config.backend
         
         
     # connect to DB
@@ -104,7 +105,7 @@ class DBProxy:
                 _logger.debug("failed to close old connection")                                                
         # connect    
         try:
-            if panda_config.backend == 'oracle':
+            if self.backend == 'oracle':
                 self.conn = cx_Oracle.connect(dsn=self.dbhost,user=self.dbuser,
                                               password=self.dbpasswd,threaded=True)
             else:
@@ -119,16 +120,30 @@ class DBProxy:
                     self.cur = SQLDumper.SQLDumper(self.cur)
             except:
                 pass
-            # get hostname
-            self.cur.execute("SELECT SYS_CONTEXT('USERENV','HOST') FROM dual")
-            res = self.cur.fetchone()
-            if res != None:
-                self.hostname = res[0]
-            # set TZ
-            self.cur.execute("ALTER SESSION SET TIME_ZONE='UTC'")
-            # set DATE format
-            self.cur.execute("ALTER SESSION SET NLS_DATE_FORMAT='YYYY/MM/DD HH24:MI:SS'")
-            return True
+            if self.backend == 'oracle':
+                # get hostname
+                self.cur.execute("SELECT SYS_CONTEXT('USERENV','HOST') FROM dual")
+                res = self.cur.fetchone()
+                if res != None:
+                    self.hostname = res[0]
+                # set TZ
+                self.cur.execute("ALTER SESSION SET TIME_ZONE='UTC'")
+                # set DATE format
+                self.cur.execute("ALTER SESSION SET NLS_DATE_FORMAT='YYYY/MM/DD HH24:MI:SS'")
+                return True
+            else:
+                # get hostname
+                self.cur.execute("SELECT SUBSTRING_INDEX(USER(),'@',-1)")
+                res = self.cur.fetchone()
+                if res != None:
+                    self.hostname = res[0]
+                # set TZ
+                self.cur.execute("SET @@SESSION.TIME_ZONE = '+00:00'")
+                # set DATE format
+                self.cur.execute("SET @@SESSION.DATETIME_FORMAT='%%Y/%%m/%%d %%H:%%i:%%s'")
+                # disable autocommit
+                self.cur.execute("SET autocommit=0")
+                return True
         except:
             type, value, traceBack = sys.exc_info()
             _logger.error("connect : %s %s" % (type,value))
@@ -197,7 +212,11 @@ class DBProxy:
                 resItem = []
                 for item in items:
                     # read CLOB
-                    resItem.append(item.read())
+                    try:
+                        itemRead = item.read()
+                    except AttributeError:
+                        itemRead = item
+                    resItem.append(itemRead)
                 # append    
                 res.append(resItem)
             # commit
@@ -235,7 +254,7 @@ class DBProxy:
         job.creationTime     = datetime.datetime.utcnow()
         job.modificationTime = job.creationTime
         job.stateChangeTime  = job.creationTime
-        job.prodDBUpdateTime = datetime.datetime(1,1,1)
+        job.prodDBUpdateTime = datetime.datetime(1970,1,1)
         # DN
         if job.prodUserID == "NULL" or job.prodSourceLabel in ['user','panda']:
             job.prodUserID = user
@@ -286,10 +305,20 @@ class DBProxy:
             self.conn.begin()
             # get jobsetID for event service
             if origEsJob:
-                sqlESS = "SELECT ATLAS_PANDA.JOBSDEFINED4_PANDAID_SEQ.nextval FROM dual ";
-                self.cur.arraysize = 10
-                self.cur.execute(sqlESS+comment, {})
-                job.jobsetID, = self.cur.fetchone()
+                if self.backend == 'oracle':
+                    sqlESS = "SELECT ATLAS_PANDA.JOBSDEFINED4_PANDAID_SEQ.nextval FROM dual ";
+                    self.cur.arraysize = 10
+                    self.cur.execute(sqlESS+comment, {})
+                    job.jobsetID, = self.cur.fetchone()
+                else:
+                    #panda_config.backend == 'mysql':
+                    ### fake sequence
+                    sql = " INSERT INTO ATLAS_PANDA.JOBSDEFINED4_PANDAID_SEQ (col) VALUES (NULL) "
+                    self.cur.arraysize = 10
+                    self.cur.execute(sql + comment, {})
+                    sql2 = """ SELECT LAST_INSERT_ID() """
+                    self.cur.execute(sql2 + comment, {})
+                    job.jobsetID, = self.cur.fetchone()
             # insert job
             varMap = job.valuesMap(useSeq=True)
             varMap[':newPandaID'] = self.cur.var(varNUMBER)
@@ -2162,7 +2191,10 @@ class DBProxy:
                             varMap[':PandaID'] = job.PandaID
                             self.cur.execute(sqlJobP+comment, varMap)
                             for clobJobP, in self.cur:
-                                job.jobParameters = clobJobP.read()
+                                try:
+                                    job.jobParameters = clobJobP.read()
+                                except AttributeError:
+                                    job.jobParameters = str(clobJobP)
                                 break
                         # reset job
                         job.jobStatus = 'activated'
@@ -2303,7 +2335,10 @@ class DBProxy:
                                 varMap[':PandaID'] = job.PandaID
                                 self.cur.execute(sqlMeta+comment, varMap)
                                 for clobJobP, in self.cur:
-                                    job.metadata = clobJobP.read()
+                                    try:
+                                        job.metadata = clobJobP.read()
+                                    except AttributeError:
+                                        job.metadata = str(clobJobP)
                                     break
                                 # insert job with new PandaID
                                 sql1 = "INSERT INTO ATLAS_PANDA.jobsActive4 (%s) " % JobSpec.columnNames()
@@ -2332,26 +2367,18 @@ class DBProxy:
                                     varMap[':newRowID'] = self.cur.var(varNUMBER)
                                     self.cur.execute(sqlFile+comment, varMap)
                                     file.row_ID = long(self.cur.getvalue(varMap[':newRowID']))
-                                # update mod time for files
-                                varMap = {}
-                                varMap[':PandaID'] = job.PandaID
-                                varMap[':modificationTime'] = job.modificationTime
-                                sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
-                                self.cur.execute(sqlFMod+comment,varMap)
                                 # metadata
                                 if job.VO != 'cms':
-                                    sqlMeta = "INSERT INTO ATLAS_PANDA.metaTable (PandaID,metaData,modificationTime) VALUES (:PandaID,:metaData,:modTime)"
+                                    sqlMeta = "INSERT INTO ATLAS_PANDA.metaTable (PandaID,metaData) VALUES (:PandaID,:metaData)"
                                     varMap = {}
                                     varMap[':PandaID']  = job.PandaID
                                     varMap[':metaData'] = job.metadata
-                                    varMap[':modTime']  = job.modificationTime                            
                                     self.cur.execute(sqlMeta+comment, varMap)
                                 # job parameters
-                                sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters,modificationTime) VALUES (:PandaID,:param,:modTime)"
+                                sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters) VALUES (:PandaID,:param)"
                                 varMap = {}
                                 varMap[':PandaID'] = job.PandaID
                                 varMap[':param']   = job.jobParameters
-                                varMap[':modTime'] = job.modificationTime
                                 self.cur.execute(sqlJob+comment, varMap)
                                 # set error code to original job to avoid being retried by another process
                                 sqlE = "UPDATE ATLAS_PANDA.jobsActive4 SET taskBufferErrorCode=:errCode,taskBufferErrorDiag=:errDiag WHERE PandaID=:PandaID"
@@ -3048,7 +3075,10 @@ class DBProxy:
                 varMap[':PandaID'] = job.PandaID
                 self.cur.execute(sqlJobP+comment, varMap)
                 for clobJobP, in self.cur:
-                    job.jobParameters = clobJobP.read()
+                    try:
+                        job.jobParameters = clobJobP.read()
+                    except AttributeError:
+                        job.jobParameters = str(clobJobP)
                     break
                 # remove or extract parameters for merge
                 if EventServiceUtils.isEventServiceJob(job):
@@ -3187,7 +3217,10 @@ class DBProxy:
             sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
             self.cur.execute(sqlJobP+comment, varMap)
             for clobJobP, in self.cur:
-                job.jobParameters = clobJobP.read()
+                try:
+                    job.jobParameters = clobJobP.read()
+                except AttributeError:
+                    job.jobParameters = str(clobJobP)
                 break
             # Files
             oldSubList = []
@@ -3300,7 +3333,10 @@ class DBProxy:
                 sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
                 self.cur.execute(sqlJobP+comment, varMap)
                 for clobJobP, in self.cur:
-                    job.jobParameters = clobJobP.read()
+                    try:
+                        job.jobParameters = clobJobP.read()
+                    except AttributeError:
+                        job.jobParameters = str(clobJobP)
                     break
                 # Files
                 sqlFile = "SELECT %s FROM ATLAS_PANDA.filesTable4 " % FileSpec.columnNames()
@@ -3685,7 +3721,10 @@ class DBProxy:
                             self.cur.execute(sqlMeta+comment, varMap)
                             for clobMeta, in self.cur:
                                 if clobMeta != None:
-                                    resMeta = clobMeta.read()
+                                    try:
+                                        resMeta = clobMeta.read()
+                                    except AttributeError:
+                                        resMeta = str(clobMeta)
                                 break
                         # job parameters
                         job.jobParameters = None
@@ -3695,7 +3734,10 @@ class DBProxy:
                         self.cur.execute(sqlJobP+comment, varMap)
                         for clobJobP, in self.cur:
                             if clobJobP != None:
-                                job.jobParameters = clobJobP.read()
+                                try:
+                                    job.jobParameters = clobJobP.read()
+                                except AttributeError:
+                                    job.jobParameters = str(clobJobP)
                             break
                         # commit
                         if not self._commit():
@@ -5923,10 +5965,20 @@ class DBProxy:
                 # use predefined flag
                 freshFlag = definedFreshFlag
             # get serial number
-            sql = "SELECT ATLAS_PANDA.SUBCOUNTER_SUBID_SEQ.nextval FROM dual";
-            self.cur.arraysize = 100
-            self.cur.execute(sql+comment, {})
-            sn, = self.cur.fetchone()            
+            if self.backend == 'oracle':
+                sql = "SELECT ATLAS_PANDA.SUBCOUNTER_SUBID_SEQ.nextval FROM dual";
+                self.cur.arraysize = 100
+                self.cur.execute(sql+comment, {})
+                sn, = self.cur.fetchone()
+            else:
+                # panda_config.backend == 'mysql'
+                ### fake sequence
+                sql = " INSERT INTO ATLAS_PANDA.SUBCOUNTER_SUBID_SEQ (col) VALUES (NULL) "
+                self.cur.arraysize = 100
+                self.cur.execute(sql + comment, {})
+                sql2 = """ SELECT LAST_INSERT_ID() """
+                self.cur.execute(sql2 + comment, {})
+                sn, = self.cur.fetchone()
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -5951,9 +6003,19 @@ class DBProxy:
             # start transaction
             self.conn.begin()
             # get serial number
-            sql = "SELECT ATLAS_PANDA.GROUP_JOBID_SEQ.nextval FROM dual";
-            self.cur.execute(sql+comment, {})
-            sn, = self.cur.fetchone()            
+            if self.backend == 'oracle':
+                sql = "SELECT ATLAS_PANDA.GROUP_JOBID_SEQ.nextval FROM dual";
+                self.cur.execute(sql+comment, {})
+                sn, = self.cur.fetchone()
+            else:
+                # panda_config.backend == 'mysql'
+                ### fake sequence
+                sql = " INSERT INTO ATLAS_PANDA.GROUP_JOBID_SEQ (col) VALUES (NULL) "
+                self.cur.arraysize = 100
+                self.cur.execute(sql + comment, {})
+                sql2 = """ SELECT LAST_INSERT_ID() """
+                self.cur.execute(sql2 + comment, {})
+                sn, = self.cur.fetchone()
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -6088,8 +6150,13 @@ class DBProxy:
             _logger.debug("insert new CloudTask")
             cloudTask = CloudTaskSpec()
             cloudTask.taskid = tid
-            cloudTask.status = 'defined' 
-            sql = "INSERT INTO ATLAS_PANDA.cloudtasks (id,taskid,status,tmod,tenter) VALUES(ATLAS_PANDA.CLOUDTASKS_ID_SEQ.nextval,:taskid,:status,CURRENT_DATE,CURRENT_DATE)"
+            cloudTask.status = 'defined'
+            if self.backend == 'oracle':
+                sql = "INSERT INTO ATLAS_PANDA.cloudtasks (id,taskid,status,tmod,tenter) VALUES(ATLAS_PANDA.CLOUDTASKS_ID_SEQ.nextval,:taskid,:status,CURRENT_DATE,CURRENT_DATE)"
+            else:
+                #panda_config.backend == 'mysql':
+                ### fake sequence
+                sql = "INSERT INTO ATLAS_PANDA.cloudtasks (id,taskid,status,tmod,tenter) VALUES(NULL,:taskid,:status,CURRENT_DATE,CURRENT_DATE)"
             sql+= " RETURNING id INTO :newID"          
             varMap = {}
             varMap[':taskid'] = cloudTask.taskid
@@ -6309,7 +6376,12 @@ class DBProxy:
                     raise RuntimeError, 'Commit error'
                 return "SUCCEEDED"
             # insert new CloudTask
-            sql = "INSERT INTO ATLAS_PANDA.cloudtasks (id,taskid,status,tmod,tenter) VALUES(ATLAS_PANDA.CLOUDTASKS_ID_SEQ.nextval,:taskid,:status,CURRENT_DATE,CURRENT_DATE)"
+            if self.backend == 'oracle':
+                sql = "INSERT INTO ATLAS_PANDA.cloudtasks (id,taskid,status,tmod,tenter) VALUES(ATLAS_PANDA.CLOUDTASKS_ID_SEQ.nextval,:taskid,:status,CURRENT_DATE,CURRENT_DATE)"
+            else:
+                #panda_config.backend == 'mysql':
+                ### fake sequence
+                sql = "INSERT INTO ATLAS_PANDA.cloudtasks (id,taskid,status,tmod,tenter) VALUES(NULL,:taskid,:status,CURRENT_DATE,CURRENT_DATE)"
             varMap = {}
             varMap[':taskid'] = tid
             varMap[':status'] = status
@@ -9547,7 +9619,10 @@ class DBProxy:
             self.conn.begin()
             # select
             sql  = "SELECT siteid,countryGroup,availableCPU,availableStorage,pledgedCPU,pledgedStorage "
-            sql += "FROM ATLAS_PANDAMETA.schedconfig WHERE countryGroup IS NOT NULL AND siteid LIKE 'ANALY_%' "
+            if self.backend == 'oracle':
+                sql += "FROM ATLAS_PANDAMETA.schedconfig WHERE countryGroup IS NOT NULL AND siteid LIKE 'ANALY_%' "
+            else:
+                sql += "FROM ATLAS_PANDAMETA.schedconfig WHERE countryGroup IS NOT NULL AND siteid LIKE 'ANALY_%%' "
             self.cur.arraysize = 100000            
             self.cur.execute(sql+comment)
             res = self.cur.fetchall()
@@ -10355,8 +10430,13 @@ class DBProxy:
             sql  = "SELECT jobid,status FROM ATLAS_PANDAMETA.users WHERE name=:name "
             sql += "FOR UPDATE "
             sqlAdd  = "INSERT INTO ATLAS_PANDAMETA.users "
-            sqlAdd += "(ID,NAME,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
-            sqlAdd += "VALUES(ATLAS_PANDAMETA.USERS_ID_SEQ.nextval,:name,"
+            if self.backend == 'oracle':
+                sqlAdd += "(ID,NAME,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
+                sqlAdd += "VALUES(ATLAS_PANDAMETA.USERS_ID_SEQ.nextval,:name,"
+            else:
+                #self.backend == 'mysql':
+                sqlAdd += "(NAME,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
+                sqlAdd += "VALUES(:name,"
             sqlAdd += "CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,0,1) "
             varMap = {}
             varMap[':name'] = name
@@ -10481,8 +10561,13 @@ class DBProxy:
                 if jediCheck:
                     name = self.cleanUserID(dn)
                     sqlAdd  = "INSERT INTO ATLAS_PANDAMETA.users "
-                    sqlAdd += "(ID,NAME,DN,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
-                    sqlAdd += "VALUES(ATLAS_PANDAMETA.USERS_ID_SEQ.nextval,:name,:dn,"
+                    if self.backend == 'oracle':
+                        sqlAdd += "(ID,NAME,DN,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
+                        sqlAdd += "VALUES(ATLAS_PANDAMETA.USERS_ID_SEQ.nextval,:name,:dn,"
+                    else:
+                        #self.backend == 'mysql':
+                        sqlAdd += "(NAME,DN,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
+                        sqlAdd += "VALUES(:name,:dn,"
                     sqlAdd += "CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,0,1) "
                     varMap = {}
                     varMap[':name'] = name
@@ -10765,9 +10850,23 @@ class DBProxy:
             # set autocommit on
             self.conn.begin()
             # construct SQL
-            sql0 = 'INSERT INTO ATLAS_PANDAMETA.proxykey (id,'
-            sql1 = 'VALUES (ATLAS_PANDAMETA.PROXYKEY_ID_SEQ.nextval,'
             vals = {}
+            if self.backend == 'oracle':
+                sql0 = 'INSERT INTO ATLAS_PANDAMETA.proxykey (id,'
+                sql1 = 'VALUES (ATLAS_PANDAMETA.PROXYKEY_ID_SEQ.nextval,'
+            else:
+                #panda_config.backend == 'mysql':
+                ### fake sequence
+                sql = " INSERT INTO ATLAS_PANDA.PROXYKEY_ID_SEQ (col) VALUES (NULL) "
+                self.cur.arraysize = 100
+                self.cur.execute(sql + comment, {})
+                sql2 = """ SELECT LAST_INSERT_ID() """
+                self.cur.execute(sql2 + comment, {})
+                nextval, = self.cur.fetchone()
+                sql0 = 'INSERT INTO ATLAS_PANDAMETA.proxykey (id,'
+                sql1 = 'VALUES (:nextval,'
+                vals[':nextval'] = nextval
+
             for key,val in params.iteritems():
                 sql0 += '%s,'  % key
                 sql1 += ':%s,' % key
@@ -10892,7 +10991,11 @@ class DBProxy:
                     raise RuntimeError, 'Commit error'
                 return res[0]
             # add
-            sql = 'INSERT INTO ATLAS_PANDAMETA.siteaccess (id,dn,pandasite,status,created) VALUES (ATLAS_PANDAMETA.SITEACCESS_ID_SEQ.nextval,:dn,:pandasite,:status,CURRENT_DATE)'
+            if self.backend == 'oracle':
+                sql = 'INSERT INTO ATLAS_PANDAMETA.siteaccess (id,dn,pandasite,status,created) VALUES (ATLAS_PANDAMETA.SITEACCESS_ID_SEQ.nextval,:dn,:pandasite,:status,CURRENT_DATE)'
+            else:
+                #panda_config.backend == 'mysql':
+                sql = 'INSERT INTO ATLAS_PANDAMETA.siteaccess (id,dn,pandasite,status,created) VALUES (NULL,:dn,:pandasite,:status,CURRENT_DATE)'
             varMap = {}
             varMap[':dn'] = dn
             varMap[':pandasite'] = siteID
@@ -11308,7 +11411,10 @@ class DBProxy:
                         self.cur.execute(sqlMeta+comment, varMap)
                         for clobMeta, in self.cur:
                             if clobMeta != None:
-                                job.metadata = clobMeta.read()
+                                try:
+                                    job.metadata = clobMeta.read()
+                                except AttributeError:
+                                    job.metadata = str(clobMeta)
                             break
                         # job parameters
                         job.jobParameters = None
@@ -11319,7 +11425,10 @@ class DBProxy:
                         self.cur.execute(sqlJobP+comment, varMap)
                         for clobJobP, in self.cur:
                             if clobJobP != None:
-                                job.jobParameters = clobJobP.read()
+                                try:
+                                    job.jobParameters = clobJobP.read()
+                                except AttributeError:
+                                    job.jobParameters = str(clobJobP)
                             break
                         # commit
                         if not self._commit():
@@ -12241,7 +12350,7 @@ class DBProxy:
             oraErrCode = oraErrCode[:-1]
             _logger.debug("rollback EC:%s %s" % (oraErrCode,errValue))
             # error codes for connection error
-            if panda_config.backend == 'oracle':
+            if self.backend == 'oracle':
                 error_Codes  = ['ORA-01012','ORA-01033','ORA-01034','ORA-01089',
                                 'ORA-03113','ORA-03114','ORA-12203','ORA-12500',
                                 'ORA-12571','ORA-03135','ORA-25402']
@@ -12360,10 +12469,33 @@ class DBProxy:
             # sql to insert task parameters
             sqlT  = "INSERT INTO {0}.T_TASK ".format(schemaDEFT)
             sqlT += "(taskid,status,submit_time,vo,prodSourceLabel,userName,taskName,jedi_task_parameters,priority,current_priority,parent_tid) VALUES "
-            sqlT += "({0}.PRODSYS2_TASK_ID_SEQ.nextval,".format(schemaDEFT)
+            varMap = {}
+            if self.backend == 'oracle':
+                sqlT += "({0}.PRODSYS2_TASK_ID_SEQ.nextval,".format(schemaDEFT)
+            else:
+                #panda_config.backend == 'mysql':
+                ### fake sequence
+                sql = " INSERT INTO PRODSYS2_TASK_ID_SEQ (col) VALUES (NULL) "
+                self.cur.arraysize = 100
+                self.cur.execute(sql + comment, {})
+                sql2 = """ SELECT LAST_INSERT_ID() """
+                self.cur.execute(sql2 + comment, {})
+                nextval, = self.cur.fetchone()
+                sqlT += "( :nextval ,".format(schemaDEFT)
+                varMap[':nextval'] = nextval
             sqlT += ":status,CURRENT_DATE,:vo,:prodSourceLabel,:userName,:taskName,:param,:priority,:current_priority,"
             if parent_tid == None:
-                sqlT += "{0}.PRODSYS2_TASK_ID_SEQ.currval) ".format(schemaDEFT)
+                if self.backend == 'oracle':
+                    sqlT += "{0}.PRODSYS2_TASK_ID_SEQ.currval) ".format(schemaDEFT)
+                else:
+                    #panda_config.backend == 'mysql':
+                    ### fake sequence
+                    sql = " SELECT MAX(COL) FROM PRODSYS2_TASK_ID_SEQ "
+                    self.cur.arraysize = 100
+                    self.cur.execute(sql + comment, {})
+                    currval, = self.cur.fetchone()
+                    sqlT += " :currval ) "
+                    varMap[':currval'] = currval
             else:
                 sqlT += ":parent_tid) "
             sqlT += "RETURNING TASKID INTO :jediTaskID"
@@ -12382,7 +12514,6 @@ class DBProxy:
             errorCode = 0
             if taskParamsJson['taskType'] == 'anal' and \
                     (taskParamsJson.has_key('uniqueTaskName') and taskParamsJson['uniqueTaskName'] == True):
-                varMap = {}
                 varMap[':vo']       = taskParamsJson['vo']
                 varMap[':userName'] = taskParamsJson['userName']
                 varMap[':taskName'] = taskParamsJson['taskName']
@@ -13035,7 +13166,10 @@ class DBProxy:
                 self.cur.execute(sql+comment,varMap)
                 retStr = ''
                 for tmpItem, in self.cur:
-                    retStr = tmpItem.read()
+                    try:
+                        retStr = tmpItem.read()
+                    except AttributeError:
+                        retStr = str(tmpItem)
                     break
                 # commit
                 if not self._commit():
@@ -13552,7 +13686,10 @@ class DBProxy:
             varMap[':PandaID'] = jobSpec.PandaID
             self.cur.execute(sqlJobP+comment, varMap)
             for clobJobP, in self.cur:
-                jobSpec.jobParameters = clobJobP.read()
+                try:
+                    jobSpec.jobParameters = clobJobP.read()
+                except AttributeError:
+                    jobSpec.jobParameters = str(clobJobP)
                 break
             # changes some attributes for merging
             if doMerging:
@@ -13604,18 +13741,11 @@ class DBProxy:
                 varMap[':newRowID'] = self.cur.var(varNUMBER)
                 self.cur.execute(sqlFile+comment, varMap)
                 fileSpec.row_ID = long(self.cur.getvalue(varMap[':newRowID']))
-            # update mod time for files
-            varMap = {}
-            varMap[':PandaID'] = jobSpec.PandaID
-            varMap[':modificationTime'] = jobSpec.modificationTime
-            sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
-            self.cur.execute(sqlFMod+comment,varMap)
             # insert job parameters
-            sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters,modificationTime) VALUES (:PandaID,:param,:modTime)"
+            sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters) VALUES (:PandaID,:param)"
             varMap = {}
             varMap[':PandaID'] = jobSpec.PandaID
             varMap[':param']   = jobSpec.jobParameters
-            varMap[':modTime'] = jobSpec.modificationTime
             self.cur.execute(sqlJob+comment, varMap)
             # propagate change to JEDI
             self.updateForPilotRetryJEDI(jobSpec,self.cur,onlyHistory=True)
