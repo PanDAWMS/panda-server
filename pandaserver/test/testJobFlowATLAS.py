@@ -13,7 +13,7 @@ import nose
 import time
 import uuid
 import socket
-import urllib
+import urllib, urllib2
 import httplib
 import re
 import os
@@ -22,7 +22,8 @@ import urlparse
 import userinterface.Client as Client
 from taskbuffer.JobSpec import JobSpec
 from taskbuffer.FileSpec import FileSpec
-
+from taskbuffer.TaskBuffer import taskBuffer
+from config import panda_config
 
 def sendCommand(function, node):
     """
@@ -68,7 +69,7 @@ class JobFlowATLAS(object):
     __datasetName = 'panda.destDB.%s' % uuid.uuid1()
     __destName = None
     __jobList = []
-    
+
     __XMLTEMPLATE_BASE = """<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
 <!-- ATLAS file meta-data catalog -->
 <!DOCTYPE POOLFILECATALOG SYSTEM "InMemory">
@@ -123,7 +124,7 @@ class JobFlowATLAS(object):
         self.__site = site
         self.__cloud = cloud
         self.__nJobs = nJobs
-
+        taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
 
     def defineEvgen16Job(self, i):
         """Define an Evgen16 job based on predefined values and randomly generated names
@@ -258,7 +259,7 @@ class JobFlowATLAS(object):
         #node['pilotErrorCode']=-1202
         node['pilotErrorDiag'] = 'aaaaaaaaaaaaaaaaaaaaaaa'
         node['metaData'] = meta
-        node['siteName'] = 'BNL_ATLAS_test'
+        node['siteName'] = self.__site
         node['attemptNr'] = 0
         node['jobMetrics'] = "aaaaa=2 bbbb=3"
         node['coreCount'] = 10
@@ -275,6 +276,33 @@ class JobFlowATLAS(object):
             jobS = job['jobSpec']
             jobID = job['jobID']
             self.__finishJob(jobS, jobID)
+
+
+    def sendDDMCallbacks(self):
+
+        #Output dataset
+        dataset = taskBuffer.queryDatasetWithMap({'name': self.__datasetName})
+
+        node={}
+        node['vuid'] = dataset.vuid
+        node['site'] = self.__site
+        
+        function="datasetCompleted"
+        data = sendCommand(function, node)
+        
+        assert data == True, "DDM Callback did not return as expected for OUTPUT dataset. data = %s" %data
+        
+        #Log dataset
+        dataset = taskBuffer.queryDatasetWithMap({'name': "%s.log" %self.__datasetName})
+
+        node={}
+        node['vuid'] = dataset.vuid
+        node['site'] = self.__site
+        
+        function="datasetCompleted"
+        data = sendCommand(function, node)
+        
+        assert data == True, "DDM Callback did not return as expected for LOG data = %s" %data
 
 
 def testFlow():
@@ -314,10 +342,15 @@ def testFlow():
     test.getStatus(['holding'])
     
     #Step 7: Run the adder to register the output in DDM 
-    #execfile("add.py")
-    #test.getStatus(['transferring'])
+    execfile("add.py")
     
     #Step 8: Simulate a callback from DDM
+    time.sleep(1)
+    self.sendDDMCallbacks()
+    
+    #Step 9: Run the adder to register the output in DDM 
+    execfile("add.py")
+
 
 
 if __name__ == "__main__":
