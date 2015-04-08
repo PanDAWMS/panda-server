@@ -503,7 +503,7 @@ class RucioAPI:
                 attachmentList.append(attachment)
         # add files
         client = RucioClient()
-        return client.add_files_to_datasets(attachmentList)
+        return client.add_files_to_datasets(attachmentList,ignore_duplicate=True)
 
 
 
