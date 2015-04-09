@@ -156,8 +156,8 @@ def main(backGround=False):
         clientid = 'PANDA-' + socket.getfqdn()
         queue = '/queue/Consumer.test1.poc.pocMSG'
         ssl_opts = {'use_ssl' : True,
-                    'ssl_cert_file' : '/data/atlpan/hostcert.pem',
-                    'ssl_key_file'  : '/data/atlpan/hostkey.pem'}
+                    'ssl_cert_file' : '%s/hostcert.pem'%panda_config.certdir,
+                    'ssl_key_file'  : '%s/hostkey.pem'%panda_config.certdir}
         # resolve multiple brokers
         brokerList = socket.gethostbyname_ex('gridmsg007.cern.ch')[-1]
         # set listener

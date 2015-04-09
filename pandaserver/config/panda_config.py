@@ -46,7 +46,10 @@ if not tmpSelf.__dict__.has_key('backend'):
     tmpSelf.__dict__['backend'] = 'oracle'
 if not tmpSelf.__dict__.has_key('dbport'):
     tmpSelf.__dict__['dbport'] = 0
-
+    
+# Directory for certs
+if not tmpSelf.__dict__.has_key('certdir'):
+    tmpSelf.__dict__['certdir'] = '/data/atlpan'
 
 # schemas
 if not tmpSelf.__dict__.has_key('schemaPANDA'):
