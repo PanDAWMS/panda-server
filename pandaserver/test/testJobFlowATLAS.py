@@ -13,7 +13,7 @@ import nose
 import time
 import uuid
 import socket
-import urllib, urllib2
+import urllib
 import httplib
 import re
 import os
@@ -281,7 +281,8 @@ class JobFlowATLAS(object):
     def sendDDMCallbacks(self):
 
         #Output dataset
-        dataset = taskBuffer.queryDatasetWithMap({'name': self.__datasetName})
+        #TODO: This module should be decoupled from taskBuffer - there should be a web call
+        dataset = taskBuffer.queryDatasetWithMap({'name': self.__datasetName}) 
 
         node={}
         node['vuid'] = dataset.vuid
@@ -290,19 +291,7 @@ class JobFlowATLAS(object):
         function="datasetCompleted"
         data = sendCommand(function, node)
         
-        assert data == True, "DDM Callback did not return as expected for OUTPUT dataset. data = %s" %data
-        
-        #Log dataset
-        dataset = taskBuffer.queryDatasetWithMap({'name': "%s.log" %self.__datasetName})
-
-        node={}
-        node['vuid'] = dataset.vuid
-        node['site'] = self.__site
-        
-        function="datasetCompleted"
-        data = sendCommand(function, node)
-        
-        assert data == True, "DDM Callback did not return as expected for LOG data = %s" %data
+        assert data == "True", "DDM Callback did not return as expected for OUTPUT dataset. data = %s" %data
 
 
 def testFlow():
@@ -322,7 +311,7 @@ def testFlow():
     test.generateJobs()
 
     #Step 2: Check the state of the jobs. They should all be in state 'activated'
-    time.sleep(10) #TODO: Improve and wait for the jobs in defined state
+    time.sleep(3) #TODO: Improve and wait for the jobs in defined state
     jobInfoList = test.getStatus(['defined', 'activated'])
 
     #Step 3: Get the job (PanDA server believes the pilot got the job)
@@ -342,16 +331,21 @@ def testFlow():
     test.getStatus(['holding'])
     
     #Step 7: Run the adder to register the output in DDM 
-    execfile("add.py")
-    
+    from subprocess import call
+    status = call(["python", "add.py"])    
+    assert status == 0, "Call to Adder failed"
+
     #Step 8: Simulate a callback from DDM
-    time.sleep(1)
-    self.sendDDMCallbacks()
-    
+    time.sleep(120)
+    test.sendDDMCallbacks()
+       
     #Step 9: Run the adder to register the output in DDM 
-    execfile("add.py")
-
-
+    time.sleep(120)    
+    status = call(["python", "add.py"])
+    assert status == 0, "Call to Adder failed"
+ 
+    time.sleep(1)
+    test.getStatus(['finished'])
 
 if __name__ == "__main__":
     nose.runmodule()
