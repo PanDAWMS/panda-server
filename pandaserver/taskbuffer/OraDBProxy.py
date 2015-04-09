@@ -1747,7 +1747,7 @@ class DBProxy:
             sql1W += "AND NOT jobStatus=:ngStatus "
             varMap[':ngStatus'] = 'holding'
         updatedFlag = False
-        nTry=3
+        nTry=1
         for iTry in range(nTry):
             try:
                 # begin transaction
@@ -1838,7 +1838,16 @@ class DBProxy:
                                 # no difference
                                 if diffNum == 0:
                                     continue
-                                # SQL
+                                # SQL to lock
+                                sqlJediDL  = "SELECT nFilesOnHold FROM ATLAS_PANDA.JEDI_Datasets "
+                                sqlJediDL += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+                                sqlJediDL += "FOR UPDATE NOWAIT "
+                                varMap = {}
+                                varMap[':jediTaskID'] = jediTaskID
+                                varMap[':datasetID']  = tmpDatasetID
+                                _logger.debug(sqlJediDL+comment+str(varMap))
+                                self.cur.execute(sqlJediDL+comment, varMap)
+                                # SQL to update 
                                 sqlJediDU  = "UPDATE ATLAS_PANDA.JEDI_Datasets SET "
                                 if diffNum > 0:
                                     sqlJediDU += "nFilesOnHold=nFilesOnHold+:diffNum "
@@ -1871,6 +1880,7 @@ class DBProxy:
                                                          'prodSourceLabel':prodSourceLabel})
                 except:
                     _logger.error('recordStatusChange in updateJobStatus')
+                _logger.debug("updateJobStatus : PandaID=%s done" % pandaID)
                 return ret
             except:
                 # roll back

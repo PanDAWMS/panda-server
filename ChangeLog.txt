@@ -1,6 +1,8 @@
 Release Notes
 
 * current
+  * added NOWAIT to updateJobStatus
+  * fixed reassignTask.py
   * setting proper jobDefID when attemptNr>1 as well
   * adding NOWAIT to finalizePendingJobs
   * improved error message of getScriptOfflineRunning
