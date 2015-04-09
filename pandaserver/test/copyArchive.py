@@ -279,7 +279,7 @@ try:
                     jobSpecs = taskBuffer.peekJobs([pandaID],fromDefined=False,fromArchived=False,fromWaiting=False)
                     jobSpec = jobSpecs[0]
                     _logger.debug("finalize %s %s" % (prodUserName,jobDefinitionID)) 
-                    finalizedFlag = taskBuffer.finalizePendingJobs(prodUserName,jobDefinitionID,waitLock=True)
+                    finalizedFlag = taskBuffer.finalizePendingJobs(prodUserName,jobDefinitionID)
                     _logger.debug("finalized with %s" % finalizedFlag)
                     if finalizedFlag and jobSpec.produceUnMerge():
                         # collect sub datasets

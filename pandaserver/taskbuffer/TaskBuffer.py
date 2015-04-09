@@ -275,8 +275,7 @@ class TaskBuffer:
                 if userJobID != -1 and job.prodSourceLabel in ['user','panda'] \
                         and (job.attemptNr in [0,'0','NULL'] or \
                                  (not job.jobExecutionID in [0,'0','NULL']) or \
-                                 (job.lockedby == 'jedi' and job.attemptNr == 1) \
-                                 ) \
+                                 job.lockedby == 'jedi') \
                         and (not jobs[0].processingType in ['merge','unmerge']):
                     job.jobDefinitionID = userJobID
                 # set jobsetID

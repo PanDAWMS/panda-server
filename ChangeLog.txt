@@ -1,6 +1,8 @@
 Release Notes
 
 * current
+  * setting proper jobDefID when attemptNr>1 as well
+  * adding NOWAIT to finalizePendingJobs
   * improved error message of getScriptOfflineRunning
   * fixed ppEventServiceJob not to update modTime for file and jobO
   * changed TA to work with mcshare(TW)=0
