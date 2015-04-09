@@ -17,9 +17,8 @@ LoadModule status_module modules/mod_status.so
 # WSGI
 LoadModule wsgi_module modules/mod_wsgi.so
 
-
-User  atlpan
-Group zp
+User  %%panda_user%%
+Group %%panda_group%%
 
 <IfModule prefork.c>
 StartServers         25
