@@ -301,3 +301,16 @@ adder_plugins = local:dataservice.AdderDummyPlugin:AdderDummyPlugin
 
 # plugins for Setupper. format=vo1(|vo2(vo3...):moduleName:className(,vo4...) 
 setupper_plugins = local:dataservice.SetupperDummyPlugin:SetupperDummyPlugin
+
+
+
+##########################
+#
+# Panda Proxy
+#
+
+# URL
+pandaProxy_URLSSL = https://aipanda084.cern.ch:25128/proxy/panda
+
+# CA cert
+pandaProxy_ca_certs = /etc/pki/tls/certs/CERN-bundle.pem
