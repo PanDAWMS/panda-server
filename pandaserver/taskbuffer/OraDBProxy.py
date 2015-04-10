@@ -1834,7 +1834,10 @@ class DBProxy:
                                         # decrement nOnHold
                                         datasetContentsStat[tmpDatasetID] -= 1
                             # loop over all datasets
-                            for tmpDatasetID,diffNum in datasetContentsStat.iteritems():
+                            tmpDatasetIDs = datasetContentsStat.keys()
+                            tmpDatasetIDs.sort()
+                            for tmpDatasetID in tmpDatasetIDs:
+                                diffNum = datasetContentsStat[tmpDatasetID]
                                 # no difference
                                 if diffNum == 0:
                                     continue
@@ -2034,7 +2037,10 @@ class DBProxy:
                                 _logger.debug(sqlFileMeta+comment+str(varMap))
                                 self.cur.execute(sqlFileMeta+comment,varMap)
                     # loop over all JEDI datasets
-                    for tmpDatasetID,valMap in datasetContentsStat.iteritems():
+                    tmpDatasetIDs = datasetContentsStat.keys()
+                    tmpDatasetIDs.sort()
+                    for tmpDatasetID in tmpDatasetIDs:
+                        valMap = datasetContentsStat[tmpDatasetID]
                         diffNum = valMap['diff']
                         cType = valMap['cType']
                         # no difference
@@ -12124,7 +12130,10 @@ class DBProxy:
         # update JEDI_Datasets table
         nOutEvents = 0
         if datasetContentsStat != {}:
-            for tmpDatasetID,tmpContentsStat in datasetContentsStat.iteritems():
+            tmpDatasetIDs = datasetContentsStat.keys()
+            tmpDatasetIDs.sort()
+            for tmpDatasetID in tmpDatasetIDs:
+                tmpContentsStat = datasetContentsStat[tmpDatasetID]
                 sqlJediDL = "SELECT nFilesUsed,nFilesFailed,nFilesTobeUsed,nFilesFinished,nFilesOnHold FROM ATLAS_PANDA.JEDI_Datasets "
                 sqlJediDL += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID FOR UPDATE "
                 if not waitLock:
