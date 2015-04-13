@@ -16,7 +16,7 @@ export RUCIO_ACCOUNT=panda
 export RUCIO_APPID=pandasrv
 
 # panda home
-export PANDA_HOME=~@@panda_user@@
+export PANDA_HOME=/data/atlpan
 
 # timezone
 export TZ=UTC
@@ -31,6 +31,6 @@ export HOME=~@@panda_user@@
 export X509_USER_PROXY=/data/atlpan/x509up_u25606
 
 # panda server URLs
-export PANDA_URL="http://${HOSTNAME}:25080/server/panda"
-export PANDA_URL_SSL="https://${HOSTNAME}:25443/server/panda"
-export PANDA_URL_MAP=CERN,$PANDA_URL,$PANDA_URL_SSL
+export PANDA_URL="http://`hostname --fqdn`:25080/server/panda"
+export PANDA_URL_SSL="https://`hostname --fqdn`:25443/server/panda"
+export PANDA_URL_MAP=CERN,$PANDA_URL,$PANDA _URL_SSL
