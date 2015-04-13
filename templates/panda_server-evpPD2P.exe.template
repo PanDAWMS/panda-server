@@ -4,6 +4,6 @@
 source /etc/profile.d/grid-env.sh
 
 # import env vars from sysconfig
-source /etc/sysconfig/panda_server-sysconfig
+source /etc/sysconfig/panda_server
 
 python@@python_exec_version@@ @@install_purelib@@/pandaserver/test/evpPD2P.py

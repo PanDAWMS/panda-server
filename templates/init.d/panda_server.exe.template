@@ -68,8 +68,8 @@ fi
 STATUSURL="http://localhost:25080/server-status"
 
 # Source /etc/sysconfig/httpd for $HTTPD setting, etc.
-if [ -r /etc/sysconfig/panda_server-sysconfig ]; then
-   . /etc/sysconfig/panda_server-sysconfig
+if [ -r /etc/sysconfig/panda_server ]; then
+   . /etc/sysconfig/panda_server
 fi
 
 ERROR=0
