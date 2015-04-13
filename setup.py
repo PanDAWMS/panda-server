@@ -178,7 +178,7 @@ setup(
                                'templates/panda_server-httpd-FastCGI.conf.rpmnew.template',
                                'templates/panda_server.cfg.rpmnew.template',
                                'templates/panda_server-grid-env.template',
-                               'templates/panda_srv.cron.template',
+                               'templates/pandasrv.cron.template',
                                ]
                  ),
                 # sysconfig
