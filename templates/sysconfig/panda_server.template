@@ -28,8 +28,9 @@ export PYTHONPATH=@@install_purelib@@/pandacommon:@@install_purelib@@/pandaserve
 export HOME=~@@panda_user@@
 
 # set user's proxy
-export X509_USER_PROXY=FIXME
+export X509_USER_PROXY=/data/atlpan/x509up_u25606
 
 # panda server URLs
-export PANDA_URL='http://${HOSTNAME}:25080/server/panda'
-export PANDA_URL_SSL='https://${HOSTNAME}:25443/server/panda'
+export PANDA_URL="http://${HOSTNAME}:25080/server/panda"
+export PANDA_URL_SSL="https://${HOSTNAME}:25443/server/panda"
+export PANDA_URL_MAP=CERN,$PANDA_URL,$PANDA_URL_SSL
