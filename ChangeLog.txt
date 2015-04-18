@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * added localEsMerge
   * sorting datasetIDs to avoid dead-lock
   * added NOWAIT to updateJobStatus
   * fixed reassignTask.py

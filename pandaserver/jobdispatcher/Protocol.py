@@ -264,6 +264,11 @@ class Response:
             errtype,errvalue = sys.exc_info()[:2]
             return False,"proxy retrieval failed with {0} {1}".format(errtype.__name__,errvalue)
 
+
+    # set secret key for panda proxy
+    def setPandaProxySecretKey(self,secretKey):
+        self.data['pandaProxySecretKey'] = secretKey
+
                 
 
 # check if secure connection

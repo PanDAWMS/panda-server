@@ -10203,16 +10203,21 @@ class DBProxy:
             _logger.debug("{0} got {1} glexec sites".format(methodName,len(retMap['glexecSites'])))
             # set autocommit on
             self.conn.begin()
-            # select for proxy cache
-            sql  = "SELECT DISTINCT siteID,catchAll FROM ATLAS_PANDAMETA.schedconfig WHERE catchAll IS NOT NULL AND catchAll LIKE :patt "
+            # select for proxy cache and panda proxy
+            sql = "SELECT DISTINCT siteID,catchAll FROM ATLAS_PANDAMETA.schedconfig WHERE catchAll IS NOT NULL "
             varMap = {}
-            varMap[':patt'] = '%proxyCache=%'
             self.cur.arraysize = 10000
             self.cur.execute(sql+comment,varMap)
             resList = self.cur.fetchall()
             tmpRet = {}
+            tmpPandaProxy = set()
             sql = "SELECT dn FROM ATLAS_PANDAMETA.users WHERE name=:name "
             for siteID,catchAll in resList:
+                try:
+                    if 'PandaProxy' in catchAll.split(','):
+                        tmpPandaProxy.add(siteID)
+                except:
+                    pass
                 # extract username
                 tmpMatch = re.search('proxyCache=([^,]+)',catchAll)
                 if tmpMatch != None:
@@ -10229,6 +10234,8 @@ class DBProxy:
                         tmpRet[siteID] = {'dn':userDN,'role':role}
             retMap['proxyCacheSites'] = tmpRet
             _logger.debug("{0} got {1} proxyCache sites".format(methodName,len(retMap['proxyCacheSites'])))
+            retMap['pandaProxySites'] = tmpPandaProxy
+            _logger.debug("{0} got {1} pandaProxy sites".format(methodName,len(retMap['pandaProxySites'])))
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -13720,8 +13727,18 @@ class DBProxy:
                     pass
                 # change special handling
                 EventServiceUtils.setEventServiceMerge(jobSpec)
-                # run merge jobs at destination 
-                jobSpec.computingSite = jobSpec.destinationSE
+                # check where merge is done
+                sqlWM  = "SELECT catchAll FROM ATLAS_PANDAMETA.schedconfig WHERE siteid=:siteid "
+                varMap = {}
+                varMap[':siteid'] = jobSpec.computingSite
+                self.cur.execute(sqlWM+comment, varMap)
+                resWM = self.cur.fetchone()
+                if resWM != None and 'localEsMerge' in resWM[0]:
+                    # run merge jobs at the same site
+                    pass
+                else:
+                    # run merge jobs at destination 
+                    jobSpec.computingSite = jobSpec.destinationSE
                 jobSpec.coreCount = None
             # insert job with new PandaID
             sql1  = "INSERT INTO ATLAS_PANDA.jobsActive4 ({0}) ".format(JobSpec.columnNames())
