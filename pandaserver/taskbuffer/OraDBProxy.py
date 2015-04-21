@@ -2543,8 +2543,7 @@ class DBProxy:
         # use memcache
         useMemcache = False
         try:
-            if panda_config.memcached_enable and siteName in ['MWT2_UC','ANALY_MWT2','BNL_ATLAS_test','ANALY_BNL_test',
-                                                              'ANALY_GLASGOW']: # FIXME
+            if panda_config.memcached_enable and siteName in panda_config.memcached_sites: # FIXME
                 # initialize memcache
                 if self.memcache == None:
                     from MemProxy import MemProxy

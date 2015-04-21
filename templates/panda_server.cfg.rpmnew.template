@@ -224,7 +224,8 @@ memcached_srvs = voatlas248.cern.ch:11211,voatlas249.cern.ch:11211,voatlas250.ce
 # expiration time in memcached
 memcached_exptime = 86400
 
-
+# memcached enabled sites
+memcached_sites = MWT2_UC,ANALY_MWT2,BNL_ATLAS_test,ANALY_BNL_test,ANALY_GLASGOW
 
 ##########################
 #
@@ -315,3 +316,5 @@ setupper_plugins = local:dataservice.SetupperDummyPlugin:SetupperDummyPlugin
 #def_type       = production
 #def_status     = online
 #def_gatekeeper = gridgk01.racf.bnl.gov
+
+#
