@@ -307,11 +307,11 @@ setupper_plugins = local:dataservice.SetupperDummyPlugin:SetupperDummyPlugin
 # Default site
 #
 
-#def_sitename   = 'BNL_ATLAS_1'
-#def_nickname   = 'BNL_ATLAS_1-condor'
-#def_dq2url     = 'http://dms02.usatlas.bnl.gov:8000/dq2/'
-#def_ddm        = 'PANDA_UNDEFINED'
-#def_type       = 'production'
-#def_status     = 'online'
-#def_gatekeeper = 'gridgk01.racf.bnl.gov'
-#def_setokens   = {}
+#def_sitename   = BNL_ATLAS_1
+#def_queue   = ANALY_BNL_ATLAS_1
+#def_nickname   = BNL_ATLAS_1-condor
+#def_dq2url     = http://dms02.usatlas.bnl.gov:8000/dq2/
+#def_ddm        = PANDA_UNDEFINED
+#def_type       = production
+#def_status     = online
+#def_gatekeeper = gridgk01.racf.bnl.gov

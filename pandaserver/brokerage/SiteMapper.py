@@ -19,7 +19,7 @@ defSite.ddm        = panda_config.def_ddm
 defSite.type       = panda_config.def_type
 defSite.gatekeeper = panda_config.def_gatekeeper
 defSite.status     = panda_config.def_status
-defSite.setokens   = panda_config.def_setokens
+defSite.setokens   = {}
 
 
 ########################################################################

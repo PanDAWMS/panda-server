@@ -68,6 +68,8 @@ if not tmpSelf.__dict__.has_key('schemaGRISLI'):
 # default site
 if not tmpSelf.__dict__.has_key('def_sitename'):
     tmpSelf.__dict__['def_sitename'] = 'BNL_ATLAS_1'
+if not tmpSelf.__dict__.has_key('def_queue'):
+    tmpSelf.__dict__['def_queue'] = 'ANALY_BNL_ATLAS_1'
 if not tmpSelf.__dict__.has_key('def_nickname'):
     tmpSelf.__dict__['def_nickname']= 'BNL_ATLAS_1-condor'
 if not tmpSelf.__dict__.has_key('def_dq2url'):
@@ -80,10 +82,6 @@ if not tmpSelf.__dict__.has_key('def_gatekeeper'):
     tmpSelf.__dict__['def_gatekeeper'] = 'gridgk01.racf.bnl.gov'
 if not tmpSelf.__dict__.has_key('def_status'):
     tmpSelf.__dict__['def_status']= 'online'
-if not tmpSelf.__dict__.has_key('def_setokens'):
-    tmpSelf.__dict__['def_setokens']= {}
-
-
 
 # dict for plugins
 g_pluginMap = {}    
