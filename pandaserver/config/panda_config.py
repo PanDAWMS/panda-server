@@ -64,6 +64,24 @@ if not tmpSelf.__dict__.has_key('schemaDEFT'):
     tmpSelf.__dict__['schemaDEFT'] = 'ATLAS_DEFT'
 if not tmpSelf.__dict__.has_key('schemaGRISLI'):
     tmpSelf.__dict__['schemaGRISLI'] = 'ATLAS_GRISLI'
+    
+# default site
+if not tmpSelf.__dict__.has_key('def_sitename'):
+    tmpSelf.__dict__['def_sitename'] = 'BNL_ATLAS_1'
+if not tmpSelf.__dict__.has_key('def_nickname'):
+    tmpSelf.__dict__['def_nickname']= 'BNL_ATLAS_1-condor'
+if not tmpSelf.__dict__.has_key('def_dq2url'):
+    tmpSelf.__dict__['def_dq2url']= 'http://dms02.usatlas.bnl.gov:8000/dq2/'
+if not tmpSelf.__dict__.has_key('def_ddm'):
+    tmpSelf.__dict__['def_ddm']= 'PANDA_UNDEFINED'
+if not tmpSelf.__dict__.has_key('def_type'):
+    tmpSelf.__dict__['def_type']= 'production'
+if not tmpSelf.__dict__.has_key('def_gatekeeper'):
+    tmpSelf.__dict__['def_gatekeeper'] = 'gridgk01.racf.bnl.gov'
+if not tmpSelf.__dict__.has_key('def_status'):
+    tmpSelf.__dict__['def_status']= 'online'
+if not tmpSelf.__dict__.has_key('def_setokens'):
+    tmpSelf.__dict__['def_setokens']= {}
 
 
 
