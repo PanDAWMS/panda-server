@@ -244,7 +244,7 @@ def count_processes() :
 	output = subprocess.Popen( ['ps', 'aux'], stdout=subprocess.PIPE ).communicate()[0]
 	count = 0
 	for line in output.split( '\n' ) :
-		if( re.match( 'atlpan', line ) ) :
+		if( re.match( '@@panda_user@@', line ) ) :
 			if( re.search( 'http', line ) ) :
 				count += 1
 	return count
@@ -261,7 +261,7 @@ def count_add_processes() :
 	return count
 
 def count_holdings() :
-	output = subprocess.Popen("ls /data/atlpan/srv/var/log/panda/ | egrep '(finished|failed)'",
+	output = subprocess.Popen("ls /var/log/panda/ | egrep '(finished|failed)'",
 				  stdout=subprocess.PIPE,shell=True).communicate()[0]
         count =0
 	for line in output.split( '\n' ) :
@@ -275,9 +275,9 @@ def registration_time(timeSlice=False,onlyDQ2=False) :
 	aveRegTime = '0.0'
 	try:
 		if onlyDQ2:
-			com = "grep registraion /data/atlpan/srv/var/log/panda/panda-Adder.log | grep DQ2 | grep -v LFC"
+			com = "grep registraion /var/log/panda/panda-Adder.log | grep DQ2 | grep -v LFC"
 		else:
-			com = "grep 'LFC+DQ2' /data/atlpan/srv/var/log/panda/panda-Adder.log"
+			com = "grep 'LFC+DQ2' /var/log/panda/panda-Adder.log"
 		if not timeSlice:
 			com += ' | tail -1000'
 		output = subprocess.Popen(com,stdout=subprocess.PIPE,shell=True).communicate()[0]
@@ -315,7 +315,7 @@ def filelookup_time(timeSlice=False) :
 	aveRegTime = '0.0'
 	timeNow = datetime.datetime.utcnow()
 	try:
-		com = "grep took /data/atlpan/srv/var/log/panda/panda-broker_util.log | grep file | grep -v 'for 1 LFNs' | grep -v 'for 2 LFNs'"
+		com = "grep took /var/log/panda/panda-broker_util.log | grep file | grep -v 'for 1 LFNs' | grep -v 'for 2 LFNs'"
 		if not timeSlice:
 			com += ' | tail -1000'
 		output = subprocess.Popen(com,stdout=subprocess.PIPE,shell=True).communicate()[0]
@@ -389,7 +389,7 @@ def count_finished_callback() :
 	nJobs = 0
 	try:
 		timeNow = datetime.datetime.utcnow()
-		output = subprocess.Popen("grep 'all files ready' /data/atlpan/srv/var/log/panda/panda-Finisher.log",
+		output = subprocess.Popen("grep 'all files ready' /var/log/panda/panda-Finisher.log",
 					  stdout=subprocess.PIPE,shell=True).communicate()[0]
 		pandaIDs = []
 		for line in output.split( '\n' ):
@@ -416,7 +416,7 @@ def count_finished_catalogcheck() :
 	nJobs = 0
 	try:
 		timeNow = datetime.datetime.utcnow()
-		output = subprocess.Popen("grep Finish /data/atlpan/srv/var/log/panda/panda-datasetManager.log | grep -v Wait",
+		output = subprocess.Popen("grep Finish /var/log/panda/panda-datasetManager.log | grep -v Wait",
 					  stdout=subprocess.PIPE,shell=True).communicate()[0]
 		pandaIDs = []
 		for line in output.split( '\n' ):

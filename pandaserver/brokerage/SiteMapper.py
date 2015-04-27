@@ -1,5 +1,6 @@
 import re
 import sys
+from config import panda_config
 
 # logger
 from pandalogger.PandaLogger import PandaLogger
@@ -11,13 +12,13 @@ from PandaSiteIDs import PandaSiteIDs
 # default site
 from taskbuffer.SiteSpec import SiteSpec
 defSite = SiteSpec()
-defSite.sitename   = 'BNL_ATLAS_1'
-defSite.nickname   = 'BNL_ATLAS_1-condor'
-defSite.dq2url     = 'http://dms02.usatlas.bnl.gov:8000/dq2/'
-defSite.ddm        = 'PANDA_UNDEFINED'
-defSite.type       = 'production'
-defSite.gatekeeper = 'gridgk01.racf.bnl.gov'
-defSite.status     = 'online'
+defSite.sitename   = panda_config.def_sitename
+defSite.nickname   = panda_config.def_nickname
+defSite.dq2url     = panda_config.def_dq2url
+defSite.ddm        = panda_config.def_ddm
+defSite.type       = panda_config.def_type
+defSite.gatekeeper = panda_config.def_gatekeeper
+defSite.status     = panda_config.def_status
 defSite.setokens   = {}
 
 
