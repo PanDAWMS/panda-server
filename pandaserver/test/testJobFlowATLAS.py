@@ -311,7 +311,8 @@ def testFlow():
     test.generateJobs()
 
     #Step 2: Check the state of the jobs. They should all be in state 'activated'
-    time.sleep(3) #TODO: Improve and wait for the jobs in defined state
+    #TODO: Improve and wait for the jobs in defined state
+    time.sleep(10) #It takes usually 7 seconds on the testbed
     jobInfoList = test.getStatus(['defined', 'activated'])
 
     #Step 3: Get the job (PanDA server believes the pilot got the job)

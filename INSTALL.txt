@@ -1,4 +1,4 @@
-Installation
+IInstallation
 --------------------
 
 1. install panda-common and panda-server.
@@ -11,12 +11,9 @@ Installation
 
   2. Build and install
      $ cd panda-common
-     $ python setup.py install --prefix=INSTALLDIR
+     $ python setup.py install
      $ cd ../panda-server
-     $ python setup.py install --prefix=INSTALLDIR
-
-where INSTALLDIR is /data/atlpan/testsrv, for example.
-
+     $ python setup.py install
 
 * For RPM installation
 
@@ -40,9 +37,6 @@ Make sure that sslcacert in pandabuild.repo is consistent if you manully install
 Finally,
 
 $ sudo yum install panda-server
-
-INSTALLDIR is set to /data/atlpan/srv for RPMs
-
 
 2. Modify config files
 
@@ -112,12 +106,12 @@ glite_source = INSTALLDIR/etc/grid-env.sh
 
 5. Make log and cache dirs, and change owner if RPM is used 
 
-mkdir -p INSTALLDIR/var/log/panda
-mkdir -p INSTALLDIR/var/log/panda/wsgisocks
-mkdir -p INSTALLDIR/var/cache/pandaserver
-chown atlpan:zp INSTALLDIR/var/log/panda
-chown atlpan:zp INSTALLDIR/var/log/panda/wsgisocks
-chown atlpan:zp INSTALLDIR/var/cache/pandaserver
+mkdir -p /var/log/panda
+mkdir -p /var/log/panda/wsgisocks
+mkdir -p /var/cache/pandaserver
+chown atlpan:zp /var/log/panda
+chown atlpan:zp /var/log/panda/wsgisocks
+chown atlpan:zp /var/cache/pandaserver
 
 6. For voatlas
 
