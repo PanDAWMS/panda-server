@@ -903,7 +903,7 @@ class FinisherThr (threading.Thread):
                         guidMap = {}
                         for file in job.Files:
                             # set file status
-                            if file.status == 'transferring':
+                            if file.status == 'transferring' or file.type in ['log','output']:
                                 file.status = 'failed'
                             # collect GUIDs to delete files from _tid datasets
                             if file.type == 'output' or file.type == 'log':
