@@ -1384,7 +1384,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         if forAnalysis or siteMapper.checkCloud(previousCloud):
                             minSites[scanSiteList[0]] = 0
                         else:
-                            minSites[panda_config.def_site] = 0
+                            minSites[panda_config.def_sitename] = 0
                         # release not found
                         if forAnalysis and trustIS:
                             candidateForAnal = False
@@ -1588,7 +1588,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     chosen_ce = siteMapper.getSite(job.computingSite)
                     # if site doesn't exist, use the default site
                     if job.homepackage.startswith('AnalysisTransforms'):
-                        if chosen_ce.sitename == panda_config.def_site:
+                        if chosen_ce.sitename == panda_config.def_sitename:
                             chosen_ce = siteMapper.getSite(panda_config.def_queue)
                             overwriteSite = True
                 else:
