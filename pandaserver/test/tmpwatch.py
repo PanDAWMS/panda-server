@@ -12,7 +12,7 @@ optP.add_option('-h',action='store',type='int',dest='limit',default=12,
 options,args = optP.parse_args()
 
 # patterns of tmp files
-tmpPatts = ['/tmp/tmp*','/tmp/atlpan/tmp*']
+tmpPatts = ['/tmp/tmp*','/tmp/atlpan/tmp*','/tmp/pansrv/tmp*']
 
 # limit
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=options.limit)

@@ -194,7 +194,9 @@ def main(backGround=False):
         # main loop
         from taskbuffer.TaskBuffer import taskBuffer
         # check certificate
-        certName = '/data/atlpan/pandasv1_usercert.pem'
+        certName = '%s/pandasv1_usercert.pem' %panda_config.certdir
+        keyName = '%s/pandasv1_userkey.pem' %panda_config.certdir
+
         _logger.debug('checking certificate {0}'.format(certName))
         certOK,certMsg = DataServiceUtils.checkCertificate(certName)
         if not certOK:
@@ -211,7 +213,7 @@ def main(backGround=False):
         ssl_opts = {'use_ssl' : True,
                     'ssl_version' : ssl.PROTOCOL_TLSv1,
                     'ssl_cert_file' : certName,
-                    'ssl_key_file'  : '/data/atlpan/pandasv1_userkey.pem'}
+                    'ssl_key_file'  : keyName}
         # resolve multiple brokers
         brokerList = socket.gethostbyname_ex('atlas-mb.cern.ch')[-1]
         # set listener
@@ -257,7 +259,7 @@ if __name__ == "__main__":
         for line in out.split('\n'):
             items = line.split()
             # owned process
-            if not items[0] in ['sm','atlpan','root']: # ['os.getlogin()']: doesn't work in cron
+            if not items[0] in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
                 continue
             # look for python
             if re.search('python',line) == None:

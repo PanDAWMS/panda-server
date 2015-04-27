@@ -1384,7 +1384,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         if forAnalysis or siteMapper.checkCloud(previousCloud):
                             minSites[scanSiteList[0]] = 0
                         else:
-                            minSites['BNL_ATLAS_1'] = 0
+                            minSites[panda_config.def_site] = 0
                         # release not found
                         if forAnalysis and trustIS:
                             candidateForAnal = False
@@ -1586,16 +1586,16 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 if job.computingSite != 'NULL':
                     # instantiate KnownSite
                     chosen_ce = siteMapper.getSite(job.computingSite)
-                    # if site doesn't exist, use ANALY_BNL_ATLAS_1
+                    # if site doesn't exist, use the default site
                     if job.homepackage.startswith('AnalysisTransforms'):
-                        if chosen_ce.sitename == 'BNL_ATLAS_1':
-                            chosen_ce = siteMapper.getSite('ANALY_BNL_ATLAS_1')
+                        if chosen_ce.sitename == panda_config.def_site:
+                            chosen_ce = siteMapper.getSite(panda_config.def_queue)
                             overwriteSite = True
                 else:
                     # default for Analysis jobs
                     if job.homepackage.startswith('AnalysisTransforms'):
-                        chosen_ce = siteMapper.getSite('ANALY_BNL_ATLAS_1')
-                        overwriteSite = True                        
+                        chosen_ce = siteMapper.getSite(panda_config.def_queue)
+                        overwriteSite = True
                     else:
                         # set chosen_ce
                         chosen_ce = 'TOBEDONE'
