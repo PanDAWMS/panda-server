@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# setup grid stuff
-source /opt/glite/etc/profile.d/grid-env.sh
-
 # import env vars from sysconfig
 source /etc/sysconfig/panda_server
 
