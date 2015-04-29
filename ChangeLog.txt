@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * added support for valiable number of outputs
   * changed updateJobStatus to pin waiting consumers
   * fixed to update file status when jobs are timed out when aCT is transferring files
   * added localEsMerge

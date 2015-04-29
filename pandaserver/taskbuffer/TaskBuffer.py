@@ -2693,6 +2693,19 @@ class TaskBuffer:
 
 
 
+    # copy file record
+    def copyFileRecord(self,newLFN,fileSpec):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.copyFileRecord(newLFN,fileSpec)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 

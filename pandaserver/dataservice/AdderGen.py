@@ -430,6 +430,11 @@ class AdderGen:
         self.logger.debug('nEventsMapJson=%s' % str(nEventsMap))
         # get lumi block number
         lumiBlockNr = self.job.getLumiBlockNr()
+        # copy files for variable number of outputs
+        tmpStat = self.copyFilesForVariableNumOutputs(lfns)
+        if not tmpStat:
+            self.logger.error("failed to copy files for ariable number of outputs")
+            return 2
         # check files
         fileList = []
         for file in self.job.Files:
@@ -494,4 +499,35 @@ class AdderGen:
         # return
         self.logger.debug("parseXML end")
         return 0
-        
+
+
+
+    # copy files for variable number of outputs
+    def copyFilesForVariableNumOutputs(self,lfns):
+        # get original output files
+        origOutputs = {}
+        for tmpFile in self.job.Files:
+            if tmpFile.type in ['output','log']:
+                origOutputs[tmpFile.lfn] = tmpFile
+        # look for unkown files
+        addedNewFiles = False
+        for newLFN in lfns:
+            if not newLFN in origOutputs:
+                # look for corresponding original output
+                for origLFN in origOutputs.keys():
+                    tmpPatt = '^{0}_\d+$'.format(origLFN)
+                    if re.search(tmpPatt,newLFN) != None:
+                        # copy file record
+                        tmpStat = self.taskBuffer.copyFileRecord(newLFN,origOutputs[origLFN])
+                        if not tmpStat:
+                            return False
+                        addedNewFiles = True
+                        break
+        # refresh job info
+        if addedNewFiles:
+            self.job = self.taskBuffer.peekJobs([self.jobID],fromDefined=False,
+                                                fromArchived=False,
+                                                fromWaiting=False,
+                                                forAnal=True)[0]
+        # return
+        return True

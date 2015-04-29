@@ -14606,8 +14606,9 @@ class DBProxy:
 
     # check input file status 
     def checkInputFileStatusInJEDI(self,jobSpec):
-        comment = ' /* DBProxy.checkInputFileStatusInJEDI( */'
+        comment = ' /* DBProxy.checkInputFileStatusInJEDI */'
         methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <PandaID={0}>".format(jobSpec.PandaID)
         tmpLog = LogWrapper(_logger,methodName,monToken="<PandaID={0}>".format(jobSpec.PandaID))
         tmpLog.debug("start")
         try:
@@ -15080,3 +15081,69 @@ class DBProxy:
                     self.cur.execute(sqlIN+comment,varMap)
         # return
         tmpLog.debug("done")
+
+
+
+    # copy file record
+    def copyFileRecord(self,newLFN,fileSpec):
+        comment = ' /* DBProxy.copyFileRecord */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <newLFN={0}>".format(newLFN)
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        try:
+            # reset rowID
+            tmpFileSpec = copy.copy(fileSpec)
+            tmpFileSpec.row_ID = None
+            tmpFileSpec.lfn = newLFN
+            # begin transaction
+            self.conn.begin()
+            # insert file in JEDI
+            if not tmpFileSpec.jediTaskID in [None,'NULL']:
+                # get fileID
+                sqlFileID = "SELECT ATLAS_PANDA.JEDI_DATASET_CONT_FILEID_SEQ.nextval FROM dual "
+                self.cur.execute(sqlFileID+comment)
+                newFileID, = self.cur.fetchone()
+                # read file in JEDI
+                varMap = {}
+                varMap[':jediTaskID'] = tmpFileSpec.jediTaskID
+                varMap[':datasetID']  = tmpFileSpec.datasetID
+                varMap[':fileID']     = tmpFileSpec.fileID
+                sqlGI  = 'SELECT * FROM {0}.JEDI_Dataset_Contents '.format(panda_config.schemaJEDI)
+                sqlGI += 'WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID '
+                self.cur.execute(sqlGI+comment,varMap)
+                resGI = self.cur.fetchone()
+                tmpFileSpec.fileID = newFileID
+                if resGI != None:
+                    # make sql and map
+                    sqlJI  = "INSERT INTO {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
+                    sqlJI += "VALUES ("
+                    varMap = {}
+                    for columDesc,columVal in zip(self.cur.description,resGI):
+                        columName = columDesc[0]
+                        # overwrite fileID
+                        if columName == 'FILEID':
+                            columVal = tmpFileSpec.fileID
+                        keyName = ':{0}'.format(columName)
+                        varMap[keyName] = columVal
+                        sqlJI += '{0},'.format(keyName)
+                    sqlJI = sqlJI[:-1]
+                    sqlJI += ") "
+                    # insert file in JEDI
+                    self.cur.execute(sqlJI+comment,varMap)
+            # insert file in Panda
+            sqlFile = "INSERT INTO ATLAS_PANDA.filesTable4 ({0}) ".format(FileSpec.columnNames())
+            sqlFile+= FileSpec.bindValuesExpression(useSeq=True)
+            varMap = tmpFileSpec.valuesMap(useSeq=True)
+            self.cur.execute(sqlFile+comment, varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug("done")
+            return True
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return False
