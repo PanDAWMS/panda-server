@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * changed updateJobStatus to pin waiting consumers
   * fixed to update file status when jobs are timed out when aCT is transferring files
   * added localEsMerge
   * sorting datasetIDs to avoid dead-lock

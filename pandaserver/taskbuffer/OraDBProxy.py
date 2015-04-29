@@ -1714,7 +1714,7 @@ class DBProxy:
     def updateJobStatus(self,pandaID,jobStatus,param,updateStateChange=False,attemptNr=None):
         comment = ' /* DBProxy.updateJobStatus */'        
         _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s status=%s" % (pandaID,attemptNr,jobStatus))
-        sql0  = "SELECT commandToPilot,endTime,specialHandling,jobStatus,computingSite,cloud,prodSourceLabel,lockedby,jediTaskID "
+        sql0  = "SELECT commandToPilot,endTime,specialHandling,jobStatus,computingSite,cloud,prodSourceLabel,lockedby,jediTaskID,jobsetID "
         sql0 += "FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
         varMap0 = {}
         varMap0[':PandaID'] = pandaID
@@ -1758,7 +1758,7 @@ class DBProxy:
                 res = self.cur.fetchone()
                 if res != None:
                     ret = ''
-                    commandToPilot,endTime,specialHandling,oldJobStatus,computingSite,cloud,prodSourceLabel,lockedby,jediTaskID = res
+                    commandToPilot,endTime,specialHandling,oldJobStatus,computingSite,cloud,prodSourceLabel,lockedby,jediTaskID,jobsetID = res
                     # debug mode
                     if not specialHandling in [None,''] and 'debug' in specialHandling:
                         ret += 'debug,'
@@ -1792,6 +1792,18 @@ class DBProxy:
                             updatedFlag = True
                         if nUp == 0 and jobStatus == 'transferring':
                             _logger.debug("updateJobStatus : PandaID=%s ignore to update for transferring" % pandaID)
+                        # update waiting ES jobs not to get reassigned
+                        if updatedFlag and EventServiceUtils.isEventServiceSH(specialHandling):
+                            # sql to update ES jobs
+                            sqlUE  = "UPDATE ATLAS_PANDA.jobsActive4 SET modificationTime=CURRENT_DATE "
+                            sqlUE += "WHERE jediTaskID=:jediTaskID AND jobsetID=:jobsetID AND jobStatus=:jobStatus "
+                            varMap = {}
+                            varMap[':jediTaskID'] = jediTaskID
+                            varMap[':jobsetID']   = jobsetID
+                            varMap[':jobStatus']  = 'activated'
+                            self.cur.execute (sqlUE+comment,varMap)
+                            nUE = self.cur.rowcount
+                            _logger.debug("updateJobStatus : PandaID=%s updated %s ES jobs" % (pandaID,nUE))
                         # update nFilesOnHold for JEDI RW calculation
                         if updatedFlag and oldJobStatus != jobStatus and (jobStatus == 'transferring' or oldJobStatus == 'transferring') and \
                                 hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and \
