@@ -12068,7 +12068,7 @@ class DBProxy:
                 elif fileStatus == 'ready':
                     # check attemptNr and maxAttempt when the file failed (ready = input failed)
                     # skip secondary datasets which have maxAttempt=None 
-                    sqlAttNr  = "SELECT attemptNr,maxAttempt FROM ATLAS_PANDA.JEDI_Dataset_Contents "
+                    sqlAttNr  = "SELECT attemptNr,maxAttempt,failedAttempt,maxFailure FROM ATLAS_PANDA.JEDI_Dataset_Contents "
                     sqlAttNr += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                     varMap = {}
                     varMap[':fileID']     = fileSpec.fileID
@@ -12078,9 +12078,9 @@ class DBProxy:
                     cur.execute(sqlAttNr+comment,varMap)
                     resAttNr = self.cur.fetchone()
                     if resAttNr != None:
-                        newAttemptNr,maxAttempt = resAttNr
+                        newAttemptNr,maxAttempt,failedAttempt,maxFailure = resAttNr
                         if maxAttempt != None:
-                            if maxAttempt > newAttemptNr:
+                            if maxAttempt > newAttemptNr and (maxFailure == None or maxFailure > failedAttempt):
                                 if fileSpec.status != 'merging': 
                                     # decrement nUsed to trigger reattempt
                                     datasetContentsStat[datasetID]['nFilesUsed'] -= 1
@@ -12233,7 +12233,8 @@ class DBProxy:
     def updateForPilotRetryJEDI(self,job,cur,onlyHistory=False):
         comment = ' /* DBProxy.updateForPilotRetryJEDI */'
         # sql to update file
-        sqlFJ  = "UPDATE {0}.JEDI_Dataset_Contents SET attemptNr=attemptNr+1,PandaID=:PandaID ".format(panda_config.schemaJEDI)
+        sqlFJ  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
+        sqlFJ += "SET attemptNr=attemptNr+1,failedAttempt=failedAttempt+1,PandaID=:PandaID "
         sqlFJ += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
         sqlFJ += "AND attemptNr=:attemptNr AND keepTrack=:keepTrack "
         sqlFP  = "UPDATE ATLAS_PANDA.filesTable4 SET attemptNr=attemptNr+1 "
@@ -14437,6 +14438,10 @@ class DBProxy:
                 sqlAB  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
                 sqlAB += "SET maxAttempt=maxAttempt+:increasedNr "
                 sqlAB += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status AND keepTrack=:keepTrack "
+                # sql to increase attempt numbers and failure counts
+                sqlAF  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
+                sqlAF += "SET maxAttempt=maxAttempt+:increasedNr,maxFailure=maxFailure+:increasedNr "
+                sqlAF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status AND keepTrack=:keepTrack "
                 # sql to update datasets
                 sqlD  = "UPDATE {0}.JEDI_Datasets ".format(panda_config.schemaJEDI)
                 sqlD += "SET nFilesUsed=nFilesUsed-:nFilesReset,nFilesFailed=nFilesFailed-:nFilesReset "
@@ -14458,13 +14463,30 @@ class DBProxy:
                     varMap[':status'] = 'ready'
                     varMap[':keepTrack']  = 1
                     varMap[':increasedNr'] = increasedNr
-                    sqlA = sqlAB + "AND maxAttempt>attemptNr "
+                    nFilesIncreased = 0
+                    nFilesReset = 0
+                    # still active and maxFailure is undefined
+                    sqlA = sqlAB + "AND maxAttempt>attemptNr AND maxFailure IS NULL "
                     self.cur.execute(sqlA+comment, varMap)
-                    nFilesIncreased = self.cur.rowcount
-                    sqlA = sqlAB + "AND maxAttempt=attemptNr "
+                    nRow = self.cur.rowcount
+                    nFilesIncreased += nRow
+                    # still active and maxFailure is defined
+                    sqlA = sqlAF + "AND maxAttempt>attemptNr AND (maxFailure IS NOT NULL AND maxFailure>failedAttempt) "
                     self.cur.execute(sqlA+comment, varMap)
-                    nFilesReset = self.cur.rowcount
-                    nFilesIncreased += nFilesReset
+                    nRow = self.cur.rowcount
+                    nFilesIncreased += nRow
+                    # already done and maxFailure is undefined
+                    sqlA = sqlAB + "AND maxAttempt=attemptNr AND maxFailure IS NULL "
+                    self.cur.execute(sqlA+comment, varMap)
+                    nRow = self.cur.rowcount
+                    nFilesReset += nRow
+                    nFilesIncreased += nRow
+                    # already done and maxFailure is defined
+                    sqlA = sqlAF + "AND (maxAttempt=attemptNr OR (maxFailure IS NOT NULL AND maxFailure=failedAttempt)) "
+                    self.cur.execute(sqlA+comment, varMap)
+                    nRow = self.cur.rowcount
+                    nFilesReset += nRow
+                    nFilesIncreased += nRow
                     # update dataset
                     if nFilesReset > 0:
                         varMap = {}

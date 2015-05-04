@@ -1,6 +1,8 @@
 Release Notes
 
 * current
+  * introduced maxFailuer in JEDI_Dataset_Contents
+  * changed to use list_dataset_replicas of Rucio API
   * added support for valiable number of outputs
   * changed updateJobStatus to pin waiting consumers
   * fixed to update file status when jobs are timed out when aCT is transferring files

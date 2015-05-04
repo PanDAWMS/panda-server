@@ -538,6 +538,27 @@ class RucioAPI:
 
 
 
+    # list dataset replicas
+    def listDatasetReplicas(self,datasetName):
+        retMap = {}
+        # extract scope from dataset
+        scope,dsn = self.extract_scope(datasetName)
+        try:
+            # get replicas
+            client = RucioClient()
+            itr = client.list_dataset_replicas(scope,dsn)
+            for item in itr:
+                rse = item["rse"]
+                retMap[rse] = [{'total':item["length"],
+                                'found':item["available_length"],
+                                'immutable':1}]
+            return 0,retMap
+        except:
+            errType,errVale = sys.exc_info()[:2]
+            return 1,'%s %s' % (errType,errVale)
+
+
+
 # instantiate
 rucioAPI = RucioAPI()
 del RucioAPI

@@ -672,25 +672,19 @@ class DynDataDistributer:
         nTry = 3
         for iDDMTry in range(nTry):
             self.putLog("%s/%s listDatasetReplicas %s" % (iDDMTry,nTry,dataset))
-            status,out = ddm.DQ2.main('listDatasetReplicas',dataset,0,None,False)
-            if status != 0 or (not self.isDQ2ok(out)):
-                time.sleep(60)
+            status,out = rucioAPI.listDatasetReplicas(dataset)
+            if status != 0:
+                time.sleep(10)
             else:
                 break
         # result    
-        if status != 0 or out.startswith('Error'):
+        if status != 0:
             self.putLog(out,'error')
-            self.putLog('bad DQ2 response for %s' % dataset, 'error')            
+            self.putLog('bad response for %s' % dataset, 'error')            
             return False,{}
-        try:
-            # convert res to map
-            exec "tmpRepSites = %s" % out
-            self.putLog('getListDatasetReplicas->%s' % str(tmpRepSites))
-            return True,tmpRepSites
-        except:
-            self.putLog(out,'error')            
-            self.putLog('could not convert HTTP-res to replica map for %s' % dataset, 'error')
-            return False,{}
+        self.putLog('getListDatasetReplicas->%s' % str(out))
+        return True,out
+
         
     
     # get replicas for a container 
