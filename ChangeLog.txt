@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * Added ALICE-Titan client scripts under test/alice/
   * Added LSST client scripts under test/lsst/
   * introduced maxFailuer in JEDI_Dataset_Contents
   * changed to use list_dataset_replicas of Rucio API
