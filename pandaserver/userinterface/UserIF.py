@@ -78,25 +78,19 @@ class UserIF:
         job0 = None
         # get user VO
         userVO = 'atlas'
-        if len(jobs):
-            try:
-                job0 = jobs[0]
-            except:
-                errType, errValue = sys.exc_info()[:2]
-                _logger.error("submitJobs : checking userVO: jobs[0] does not exist... %s %s" % (errType, errValue))
-                job0 = None
-            try:
-                userVO = job0.VO
-            except:
-                errType, errValue = sys.exc_info()[:2]
-                _logger.error("submitJobs : checking userVO: userVO not found, defaulting to %s. %s %s" % (errType, errValue, userVO))
+
+        try:
+            job0 = jobs[0]
+            userVO = job0.VO
+        except (IndexError, AttributeError) as e:
+            _logger.error("submitJobs : checking userVO. userVO not found, defaulting to %s. (Exception %s)" %(userVO, e))
+                
         # get LSST pipeline username
-        if userVO.lower() == 'lsst' and job0 is not None \
-            and job0.prodUserName is not None and len(job0.prodUserName) \
-            and job0.prodUserName.lower() != 'none':
+        if userVO.lower() == 'lsst':
             try:
-                user = job0.prodUserName
-            except:
+                if job0.prodUserName and job0.prodUserName.lower() != 'none':
+                    user = job0.prodUserName
+            except AttributeError:
                 _logger.error("submitJobs : checking username for userVO[%s]: username not found, defaulting to %s. %s %s" % (userVO, user))
         # store jobs
         ret = self.taskBuffer.storeJobs(jobs,user,forkSetupper=True,fqans=userFQANs,
