@@ -16,6 +16,9 @@ from threading import Lock
 from config import panda_config
 from dataservice.Adder import Adder
 from pandalogger.PandaLogger import PandaLogger
+import DispatcherUtils
+from taskbuffer import EventServiceUtils
+
 
 # logger
 _logger = PandaLogger().getLogger('JobDispatcher')
@@ -202,6 +205,19 @@ class JobDipatcher:
                     errtype,errvalue = sys.exc_info()[:2]
                     _logger.warning("getJob : %s %s failed to get user proxy with %s:%s" % (siteName,node,
                                                                                             errtype.__name__,errvalue))
+            # panda proxy
+            if 'pandaProxySites' in self.specialDispatchParams and siteName in self.specialDispatchParams['pandaProxySites'] \
+                    and (EventServiceUtils.isEventServiceJob(jobs[0]) or EventServiceUtils.isEventServiceMerge(jobs[0])):
+                # get secret key
+                tmpSecretKey,tmpErrMsg = DispatcherUtils.getSecretKey(jobs[0].PandaID)
+                if tmpSecretKey == None:
+                    _logger.warning("getJob : PandaID=%s site=%s failed to get panda proxy secret key : %s" % (jobs[0].PandaID,
+                                                                                                               siteName,
+                                                                                                               tmpErrMsg))
+                else:
+                    # set secret key
+                    _logger.debug("getJob : PandaID=%s key=%s" % (jobs[0].PandaID,tmpSecretKey))
+                    response.setPandaProxySecretKey(tmpSecretKey)
         else:
             if tmpWrapper.result == Protocol.TimeOutToken:
                 # timeout

@@ -1,0 +1,6 @@
+#!/bin/bash
+
+export PYTHONPATH=$PWD:$PYTHONPATH
+# Point client to EC2 instance
+export PANDA_URL=http://pandawms.org:25080/server/panda
+export PANDA_URL_SSL=https://pandawms.org:25443/server/panda

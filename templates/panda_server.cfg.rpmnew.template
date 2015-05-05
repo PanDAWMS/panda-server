@@ -7,7 +7,7 @@
 #
 
 # log directory
-logdir=@@install_dir@@/var/log/panda
+logdir=/var/log/panda
 
 # logger name
 loggername = prod
@@ -45,7 +45,7 @@ lockfile_getUU = %(logdir)s/getUU.lock
 #
 
 # cache space
-cache_dir = @@install_dir@@/var/cache/pandaserver
+cache_dir = /var/cache/pandaserver
 
 
 
@@ -138,7 +138,7 @@ pserverportcache = 25085
 pserveralias = pandaserver.cern.ch
 
 # space to keep key pairs
-keyDir = @@install_dir@@/var/keys
+keyDir = /var/keys
 
 
 
@@ -224,7 +224,8 @@ memcached_srvs = voatlas248.cern.ch:11211,voatlas249.cern.ch:11211,voatlas250.ce
 # expiration time in memcached
 memcached_exptime = 86400
 
-
+# memcached enabled sites
+memcached_sites = MWT2_UC,ANALY_MWT2,BNL_ATLAS_test,ANALY_BNL_test,ANALY_GLASGOW
 
 ##########################
 #
@@ -301,3 +302,31 @@ adder_plugins = local:dataservice.AdderDummyPlugin:AdderDummyPlugin
 
 # plugins for Setupper. format=vo1(|vo2(vo3...):moduleName:className(,vo4...) 
 setupper_plugins = local:dataservice.SetupperDummyPlugin:SetupperDummyPlugin
+
+
+##########################
+#
+# Panda Proxy
+#
+
+# URL
+pandaProxy_URLSSL = https://aipanda084.cern.ch:25128/proxy/panda
+
+# CA cert
+pandaProxy_ca_certs = /etc/pki/tls/certs/CERN-bundle.pem
+#########################
+#
+# Default site
+#
+
+#def_sitename   = BNL_ATLAS_1
+#def_queue   = ANALY_BNL_ATLAS_1
+#def_nickname   = BNL_ATLAS_1-condor
+#def_dq2url     = http://dms02.usatlas.bnl.gov:8000/dq2/
+#def_ddm        = PANDA_UNDEFINED
+#def_type       = production
+#def_status     = online
+#def_gatekeeper = gridgk01.racf.bnl.gov
+
+#
+

@@ -449,14 +449,14 @@ class DynDataDistributer:
                                 closeSiteList.append(tmpCloseSiteID)
                     # checks for T1            
                     if tmpDQ2ID.startswith(prefixDQ2T1):
-                        if tmpStatMap[0]['total'] == tmpStatMap[0]['found']:
-                            t1HasReplica = True
                         # check replica metadata to get archived info
                         retRepMeta,tmpRepMetadata = self.getReplicaMetadata(tmpDS,tmpDQ2ID)
                         if not retRepMeta:
                             self.putLog("failed to get replica metadata for %s:%s" % \
-                                        (tmpDS,tmpDQ2ID),'error')
-                            return failedRet
+                                        (tmpDS,tmpDQ2ID),'warning')
+                            continue
+                        if tmpStatMap[0]['total'] == tmpStatMap[0]['found']:
+                            t1HasReplica = True
                         # check archived field
                         if isinstance(tmpRepMetadata,types.DictType) and tmpRepMetadata.has_key('archived') and \
                             tmpRepMetadata['archived'] == 'primary':
@@ -672,25 +672,19 @@ class DynDataDistributer:
         nTry = 3
         for iDDMTry in range(nTry):
             self.putLog("%s/%s listDatasetReplicas %s" % (iDDMTry,nTry,dataset))
-            status,out = ddm.DQ2.main('listDatasetReplicas',dataset,0,None,False)
-            if status != 0 or (not self.isDQ2ok(out)):
-                time.sleep(60)
+            status,out = rucioAPI.listDatasetReplicas(dataset)
+            if status != 0:
+                time.sleep(10)
             else:
                 break
         # result    
-        if status != 0 or out.startswith('Error'):
+        if status != 0:
             self.putLog(out,'error')
-            self.putLog('bad DQ2 response for %s' % dataset, 'error')            
+            self.putLog('bad response for %s' % dataset, 'error')            
             return False,{}
-        try:
-            # convert res to map
-            exec "tmpRepSites = %s" % out
-            self.putLog('getListDatasetReplicas->%s' % str(tmpRepSites))
-            return True,tmpRepSites
-        except:
-            self.putLog(out,'error')            
-            self.putLog('could not convert HTTP-res to replica map for %s' % dataset, 'error')
-            return False,{}
+        self.putLog('getListDatasetReplicas->%s' % str(out))
+        return True,out
+
         
     
     # get replicas for a container 
@@ -776,7 +770,7 @@ class DynDataDistributer:
             self.putLog('%s/%s listMetaDataReplica %s %s' % (iDDMTry,nTry,datasetName,locationName))
             status,out = ddm.DQ2.main('listMetaDataReplica',locationName,datasetName)
             if status != 0 or (not self.isDQ2ok(out)):
-                time.sleep(60)
+                time.sleep(10)
             else:
                 break
         if status != 0 or out.startswith('Error'):

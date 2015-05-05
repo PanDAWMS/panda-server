@@ -25,39 +25,48 @@ print
 print 'trying to reassign jobs with modificationTime < CURRENT-{0}min. Change the limit using -m if necessary'.format(options.limit)
 
 jobs = []
+jediJobs = []
 
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=options.limit)
 varMap = {}
 varMap[':modificationTime'] = timeLimit
-varMap[':prodSourceLabel']  = 'managed'
 varMap[':taskID']    = taskid
-sql = "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE taskID=:taskID AND modificationTime<:modificationTime AND prodSourceLabel=:prodSourceLabel "
+sql = "SELECT PandaID,lockedby FROM ATLAS_PANDA.jobsDefined4 WHERE taskID=:taskID AND modificationTime<:modificationTime "
 status,res = proxyS.querySQLS(sql,varMap)
 if res != None:
-    for (id,) in res:
-        jobs.append(id)
+    for (id,lockedby) in res:
+        if lockedby == 'jedi':
+            jediJobs.append(id)
+        else:
+            jobs.append(id)
+            
 
 varMap = {}
-varMap[':jobStatus']        = 'activated'
+varMap[':js1']        = 'activated'
+varMap[':js2']        = 'starting'
 varMap[':modificationTime'] = timeLimit
-varMap[':prodSourceLabel']  = 'managed'
 varMap[':taskID']    = taskid
-sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND taskID=:taskID AND modificationTime<:modificationTime AND prodSourceLabel=:prodSourceLabel "
+sql = "SELECT PandaID,lockedby FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus IN (:js1,:js2) AND taskID=:taskID AND modificationTime<:modificationTime "
 status,res = proxyS.querySQLS(sql,varMap)
 if res != None:
-    for (id,) in res:
-        jobs.append(id)
+    for (id,lockedby) in res:
+        if lockedby == 'jedi':
+            jediJobs.append(id)
+        else:
+            jobs.append(id)
 
 varMap = {}
 varMap[':jobStatus']        = 'waiting'
 varMap[':modificationTime'] = timeLimit
-varMap[':prodSourceLabel']  = 'managed'
 varMap[':taskID']    = taskid
-sql = "SELECT PandaID FROM ATLAS_PANDA.jobsWaiting4 WHERE jobStatus=:jobStatus AND taskID=:taskID AND modificationTime<:modificationTime AND prodSourceLabel=:prodSourceLabel "
+sql = "SELECT PandaID,lockedby FROM ATLAS_PANDA.jobsWaiting4 WHERE jobStatus=:jobStatus AND taskID=:taskID AND modificationTime<:modificationTime "
 status,res = proxyS.querySQLS(sql,varMap)
 if res != None:
-    for (id,) in res:
-        jobs.append(id)
+    for (id,lockedby) in res:
+        if lockedby == 'jedi':
+            jediJobs.append(id)
+        else:
+            jobs.append(id)
 
 # reassign
 jobs.sort()
@@ -70,7 +79,15 @@ if len(jobs):
         iJob += nJob
         time.sleep(10)
 
+if len(jediJobs) != 0:
+    nJob = 100
+    iJob = 0
+    while iJob < len(jediJobs):
+        print 'kill JEDI jobs %s' % str(jediJobs[iJob:iJob+nJob])
+        Client.killJobs(jediJobs[iJob:iJob+nJob],51)
+        iJob += nJob
+
 print
-print 'reassigned {0} jobs'.format(len(jobs))
+print 'reassigned {0} jobs'.format(len(jobs+jediJobs))
 
 

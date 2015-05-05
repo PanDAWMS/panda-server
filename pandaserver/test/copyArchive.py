@@ -12,6 +12,7 @@ import threading
 import userinterface.Client as Client
 from dataservice.DDM import ddm
 from dataservice.DDM import dashBorad
+from dataservice.DDM import rucioAPI
 from taskbuffer.OraDBProxy import DBProxy
 from taskbuffer.TaskBuffer import taskBuffer
 from pandalogger.PandaLogger import PandaLogger
@@ -80,7 +81,7 @@ try:
             continue
         items = line.split()
         # owned process
-        if not items[0] in ['sm','atlpan','root']: # ['os.getlogin()']: doesn't work in cron
+        if not items[0] in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
             continue
         # look for python
         if re.search('python',line) == None:
@@ -110,7 +111,7 @@ try:
     for line in out.split('\n'):
         items = line.split()
         # owned process
-        if not items[0] in ['sm','atlpan','root']: # ['os.getlogin()']: doesn't work in cron
+        if not items[0] in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
             continue
         # look for python
         if re.search('python',line) == None:
@@ -244,26 +245,31 @@ _logger.debug("Site Access : done")
 _logger.debug("AnalFinalizer session")
 try:
     # get min PandaID for failed jobs in Active table
-    sql  = "SELECT MIN(PandaID),prodUserName,jobDefinitionID FROM ATLAS_PANDA.jobsActive4 "
+    sql  = "SELECT MIN(PandaID),prodUserName,jobDefinitionID,jediTaskID,computingSite FROM ATLAS_PANDA.jobsActive4 "
     sql += "WHERE prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus "
-    sql += "GROUP BY prodUserName,jobDefinitionID "
+    sql += "GROUP BY prodUserName,jobDefinitionID,jediTaskID,computingSite "
     varMap = {}
     varMap[':jobStatus']       = 'failed'
     varMap[':prodSourceLabel'] = 'user'
     status,res = taskBuffer.querySQLS(sql,varMap)
     if res != None:
         # loop over all user/jobdefID
-        for pandaID,prodUserName,jobDefinitionID in res:
+        for pandaID,prodUserName,jobDefinitionID,jediTaskID,computingSite in res:
             # check
-            _logger.debug("check finalization for %s %s" % (prodUserName,jobDefinitionID))
+            _logger.debug("check finalization for %s task=%s jobdefID=%s site=%s" % (prodUserName,jediTaskID,
+                                                                                     jobDefinitionID,
+                                                                                     computingSite))
             sqlC  = "SELECT COUNT(*) FROM ATLAS_PANDA.jobsActive4 "
             sqlC += "WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName "
-            sqlC += "AND jobDefinitionID=:jobDefinitionID "
+            sqlC += "AND jobDefinitionID=:jobDefinitionID AND jediTaskID=:jediTaskID "
+            sqlC += "AND computingSite=:computingSite "
             sqlC += "AND NOT jobStatus IN (:jobStatus1,:jobStatus2) "
             varMap = {}
-            varMap[':jobStatus1']       = 'failed'
-            varMap[':jobStatus2']       = 'merging'
+            varMap[':jobStatus1']      = 'failed'
+            varMap[':jobStatus2']      = 'merging'
             varMap[':prodSourceLabel'] = 'user'
+            varMap[':jediTaskID']      = jediTaskID
+            varMap[':computingSite']   = computingSite
             varMap[':jobDefinitionID'] = jobDefinitionID
             varMap[':prodUserName']    = prodUserName
             statC,resC = taskBuffer.querySQLS(sqlC,varMap)
@@ -274,11 +280,18 @@ try:
                     jobSpecs = taskBuffer.peekJobs([pandaID],fromDefined=False,fromArchived=False,fromWaiting=False)
                     jobSpec = jobSpecs[0]
                     _logger.debug("finalize %s %s" % (prodUserName,jobDefinitionID)) 
-                    finalizedFlag = taskBuffer.finalizePendingJobs(prodUserName,jobDefinitionID,waitLock=True)
+                    finalizedFlag = taskBuffer.finalizePendingJobs(prodUserName,jobDefinitionID)
                     _logger.debug("finalized with %s" % finalizedFlag)
                     if finalizedFlag and jobSpec.produceUnMerge():
+                        # collect sub datasets
+                        finalStatusDS = []
+                        for tmpFileSpec in jobSpec.Files:
+                            if tmpFileSpec.type in ['log','output'] and \
+                                    re.search('_sub\d+$',tmpFileSpec.destinationDBlock) != None:
+                                if not tmpFileSpec.destinationDBlock in finalStatusDS:
+                                    finalStatusDS.append(tmpFileSpec.destinationDBlock)
                         _logger.debug("update unmerged datasets")
-                        taskBuffer.updateUnmergedDatasets(jobSpec)
+                        taskBuffer.updateUnmergedDatasets(jobSpec,finalStatusDS)
             else:
                 _logger.debug("n of non-failed jobs : None")
 except:
@@ -802,7 +815,7 @@ if len(jediJobs) != 0:
         iJob += nJob
 
 # reassign too long starting jobs in active table
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=2)
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=48)
 status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsActive4",timeLimit,['starting'],['managed'],[],[],[],True,
                                             onlyReassignable=True,useStateChangeTime=True)
 jobs = []
@@ -1228,21 +1241,12 @@ class T2Cleaner (threading.Thread):
             for vuid,name,modDate in self.datasets:
                 _logger.debug("cleanT2 %s" % name)
                 # get list of replicas
-                status,out = ddm.DQ2.main('listDatasetReplicas',name,0,None,False)
-                if status != 0 and out.find('DQFrozenDatasetException')  == -1 and \
-                       out.find("DQUnknownDatasetException") == -1 and out.find("DQSecurityException") == -1 and \
-                       out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1:
+                status,out = rucioAPI.listDatasetReplicas(name)
+                if status != 0:
                     _logger.error(out)
                     continue
                 else:
-                    try:
-                        # convert res to map
-                        exec "tmpRepSites = %s" % out
-                    except:
-                        tmpRepSites = {}
-                        _logger.error("cannot convert to replica map")
-                        _logger.error(out)
-                        continue
+                    tmpRepSites = out
                     # check cloud
                     cloudName = None
                     for tmpCloudName in siteMapper.getCloudList():

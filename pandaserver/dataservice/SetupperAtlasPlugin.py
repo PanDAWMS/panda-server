@@ -17,6 +17,7 @@ import ErrorCode
 import TaskAssigner
 from DDM import ddm
 from DDM import toa
+from DDM import rucioAPI
 from dataservice.DDM import dq2Common
 from taskbuffer.JobSpec import JobSpec
 from taskbuffer.FileSpec import FileSpec
@@ -1848,40 +1849,24 @@ class SetupperAtlasPlugin (SetupperPluginBase):
 
     # get list of replicas for a dataset
     def getListDatasetReplicas(self,dataset,getMap=True):
-        # get files
-        status,allFileList = self.getListFilesInDataset(dataset)
-        if not status:
-            if getMap:
-                return False,{}
-            else:
-                return 1,str({})
         nTry = 3
         for iDDMTry in range(nTry):
             self.logger.debug("%s/%s listDatasetReplicas %s" % (iDDMTry,nTry,dataset))
-            status,out = ddm.DQ2.main('listDatasetReplicas',dataset,0,None,True)
-            if status != 0 or (not self.isDQ2ok(out)):
+            status,out = rucioAPI.listDatasetReplicas(dataset)
+            if status != 0:
                 time.sleep(10)
             else:
                 break
         # result    
-        if status != 0 or out.startswith('Error'):
+        if status != 0:
             self.logger.error(out)
-            self.logger.error('bad DQ2 response for %s' % dataset)
+            self.logger.error('bad response for %s' % dataset)
             if getMap:
                 return False,{}
             else:
                 return 1,str({})
         try:
-            # convert res to map
-            exec "oldOut = %s" % out
-            tmpVal = oldOut.values()[0]
-            # incomplete
-            retMap = {}
-            for tmpEP in tmpVal[0]:
-                retMap[tmpEP] = [{'total':len(allFileList), 'found':0, 'immutable':1}]
-            # complete
-            for tmpEP in tmpVal[1]:
-                retMap[tmpEP] = [{'total':len(allFileList), 'found':len(allFileList), 'immutable':1}]
+            retMap = out
             self.logger.debug('getListDatasetReplicas->%s' % str(retMap))
             if getMap:
                 return True,retMap

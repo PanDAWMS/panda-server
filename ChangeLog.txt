@@ -1,6 +1,28 @@
 Release Notes
 
 * current
+  * Added ALICE-Titan client scripts under test/alice/
+  * Added LSST client scripts under test/lsst/
+  * introduced maxFailuer in JEDI_Dataset_Contents
+  * changed to use list_dataset_replicas of Rucio API
+  * added support for valiable number of outputs
+  * changed updateJobStatus to pin waiting consumers
+  * fixed to update file status when jobs are timed out when aCT is transferring files
+  * added localEsMerge
+  * sorting datasetIDs to avoid dead-lock
+  * added NOWAIT to updateJobStatus
+  * fixed reassignTask.py
+  * setting proper jobDefID when attemptNr>1 as well
+  * adding NOWAIT to finalizePendingJobs
+  * improved error message of getScriptOfflineRunning
+  * fixed ppEventServiceJob not to update modTime for file and jobO
+  * changed TA to work with mcshare(TW)=0
+  * added a protection to EP for missing replica metadata
+  * changed timeout for staring to 48h
+  * changed getOriginPandaIDs to return only one origin
+  * changed timeout for starting jobs to 12h
+  * changed to keep endTime when jobs are killed
+  * changed to ignore heartbeats when job is in merging
   * checking job status in updateEventRange
   * using Production Input/Output as subscription activities
   * recording throttled into jobs_statuslog

@@ -275,8 +275,7 @@ class TaskBuffer:
                 if userJobID != -1 and job.prodSourceLabel in ['user','panda'] \
                         and (job.attemptNr in [0,'0','NULL'] or \
                                  (not job.jobExecutionID in [0,'0','NULL']) or \
-                                 (job.lockedby == 'jedi' and job.attemptNr == 1) \
-                                 ) \
+                                 job.lockedby == 'jedi') \
                         and (not jobs[0].processingType in ['merge','unmerge']):
                     job.jobDefinitionID = userJobID
                 # set jobsetID
@@ -1125,7 +1124,7 @@ class TaskBuffer:
         except:
             errType,errValue = sys.exc_info()[:2]
             _logger.error("getScriptOfflineRunning : %s %s" % (errType,errValue))
-            return "ERROR: ServerError with getScriptOfflineRunning"
+            return "ERROR: ServerError in getScriptOfflineRunning with %s %s" % (errType,errValue)
                                 
             
     # kill jobs
@@ -2687,6 +2686,19 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # exec
         ret = proxy.getInputDatasetsForOutputDatasetJEDI(datasetName)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
+    # copy file record
+    def copyFileRecord(self,newLFN,fileSpec):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.copyFileRecord(newLFN,fileSpec)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

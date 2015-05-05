@@ -13,6 +13,7 @@ import userinterface.Client as Client
 from dataservice.DDM import ddm
 from dataservice.DDM import toa
 from dataservice.DDM import dashBorad
+from dataservice.DDM import rucioAPI
 from taskbuffer.OraDBProxy import DBProxy
 from taskbuffer.TaskBuffer import taskBuffer
 from pandalogger.PandaLogger import PandaLogger
@@ -86,7 +87,7 @@ try:
             continue
         items = line.split()
         # owned process
-        if not items[0] in ['sm','atlpan','root']: # ['os.getlogin()']: doesn't work in cron
+        if not items[0] in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
             continue
         # look for python
         if re.search('python',line) == None:
@@ -116,7 +117,7 @@ try:
     for line in out.split('\n'):
         items = line.split()
         # owned process
-        if not items[0] in ['sm','atlpan','root']: # ['os.getlogin()']: doesn't work in cron
+        if not items[0] in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
             continue
         # look for python
         if re.search('python',line) == None:
@@ -518,23 +519,13 @@ class T2Cleaner (threading.Thread):
             for vuid,name,modDate in self.datasets:
                 _logger.debug("cleanT2 %s" % name)
                 # get list of replicas
-                status,out = ddm.DQ2.main('listDatasetReplicas',name,0,None,False)
-                if status != 0 and out.find('DQFrozenDatasetException')  == -1 and \
-                       out.find("DQUnknownDatasetException") == -1 and out.find("DQSecurityException") == -1 and \
-                       out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1:
+                status,out = rucioAPI.listDatasetReplicas(name)
+                if status != 0:
                     _logger.error(out)
                     continue
                 else:
-                    if out.find("DQUnknownDatasetException") == -1 and out.find("DQDeletedDatasetException") == -1:
-                        listOut = out
-                        try:
-                            # convert res to map
-                            exec "tmpRepSites = %s" % out
-                        except:
-                            tmpRepSites = {}
-                            _logger.error("cannot convert to replica map")
-                            _logger.error(out)
-                            continue
+                    if True:
+                        tmpRepSites = out
                         # check if there is active subscription
                         _logger.debug('listSubscriptions %s' % name)
                         subStat,subOut = ddm.DQ2.main('listSubscriptions',name)
@@ -698,21 +689,12 @@ class EraserThr (threading.Thread):
                     # change replica lifetime
                     endStatus = 'shortened'
                     # get list of replicas
-                    status,out = ddm.DQ2.main('listDatasetReplicas',name,0,None,False)
-                    if status != 0 and out.find('DQFrozenDatasetException')  == -1 and \
-                           out.find("DQUnknownDatasetException") == -1 and out.find("DQSecurityException") == -1 and \
-                           out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1:
+                    status,out = rucioAPI.listDatasetReplicas(name)
+                    if status != 0:
                         _logger.error(out)
                         continue
-                    if out.find("DQUnknownDatasetException") == -1 and out.find("DQDeletedDatasetException") == -1:
-                        try:
-                            # convert res to map
-                            exec "tmpRepSites = %s" % out
-                        except:
-                            tmpRepSites = {}
-                            _logger.error("cannot convert to replica map")
-                            _logger.error(out)
-                            continue
+                    if True:
+                        tmpRepSites = out
                         # set replica lifetime
                         setMetaFlag = True
                         for tmpDDM in tmpRepSites.keys():
@@ -903,7 +885,7 @@ class FinisherThr (threading.Thread):
                         guidMap = {}
                         for file in job.Files:
                             # set file status
-                            if file.status == 'transferring':
+                            if file.status == 'transferring' or file.type in ['log','output']:
                                 file.status = 'failed'
                             # collect GUIDs to delete files from _tid datasets
                             if file.type == 'output' or file.type == 'log':

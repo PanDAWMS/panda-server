@@ -46,7 +46,10 @@ if not tmpSelf.__dict__.has_key('backend'):
     tmpSelf.__dict__['backend'] = 'oracle'
 if not tmpSelf.__dict__.has_key('dbport'):
     tmpSelf.__dict__['dbport'] = 0
-
+    
+# Directory for certs
+if not tmpSelf.__dict__.has_key('certdir'):
+    tmpSelf.__dict__['certdir'] = '/data/atlpan'
 
 # schemas
 if not tmpSelf.__dict__.has_key('schemaPANDA'):
@@ -61,8 +64,31 @@ if not tmpSelf.__dict__.has_key('schemaDEFT'):
     tmpSelf.__dict__['schemaDEFT'] = 'ATLAS_DEFT'
 if not tmpSelf.__dict__.has_key('schemaGRISLI'):
     tmpSelf.__dict__['schemaGRISLI'] = 'ATLAS_GRISLI'
-
-
+    
+# default site
+if not tmpSelf.__dict__.has_key('def_sitename'):
+    tmpSelf.__dict__['def_sitename'] = 'BNL_ATLAS_1'
+if not tmpSelf.__dict__.has_key('def_queue'):
+    tmpSelf.__dict__['def_queue'] = 'ANALY_BNL_ATLAS_1'
+if not tmpSelf.__dict__.has_key('def_nickname'):
+    tmpSelf.__dict__['def_nickname']= 'BNL_ATLAS_1-condor'
+if not tmpSelf.__dict__.has_key('def_dq2url'):
+    tmpSelf.__dict__['def_dq2url']= 'http://dms02.usatlas.bnl.gov:8000/dq2/'
+if not tmpSelf.__dict__.has_key('def_ddm'):
+    tmpSelf.__dict__['def_ddm']= 'PANDA_UNDEFINED'
+if not tmpSelf.__dict__.has_key('def_type'):
+    tmpSelf.__dict__['def_type']= 'production'
+if not tmpSelf.__dict__.has_key('def_gatekeeper'):
+    tmpSelf.__dict__['def_gatekeeper'] = 'gridgk01.racf.bnl.gov'
+if not tmpSelf.__dict__.has_key('def_status'):
+    tmpSelf.__dict__['def_status'] = 'online'
+    
+if not tmpSelf.__dict__.has_key('memcached_sites'):
+    tmpSelf.__dict__['memcached_sites'] = ['MWT2_UC',
+                                      'ANALY_MWT2',
+                                      'BNL_ATLAS_test',
+                                      'ANALY_BNL_test',
+                                      'ANALY_GLASGOW']
 
 # dict for plugins
 g_pluginMap = {}    

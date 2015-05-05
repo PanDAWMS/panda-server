@@ -12,6 +12,7 @@ import threading
 
 from dataservice.DDM import ddm
 from dataservice.DDM import dq2Common
+from dataservice.DDM import rucioAPI
 from taskbuffer.JobSpec import JobSpec
 from taskbuffer.OraDBProxy import DBProxy
 from dataservice.Setupper import Setupper
@@ -699,25 +700,18 @@ class ReBroker (threading.Thread):
         nTry = 3
         for iDDMTry in range(nTry):
             _logger.debug("%s %s/%s listDatasetReplicas %s" % (self.token,iDDMTry,nTry,dataset))
-            status,out = ddm.DQ2.main('listDatasetReplicas',dataset,0,None,False)
-            if status != 0 or (not self.isDQ2ok(out)):
-                time.sleep(60)
+            status,out = rucioAPI.listDatasetReplicas(dataset)
+            if status != 0:
+                time.sleep(10)
             else:
                 break
         # result    
-        if status != 0 or out.startswith('Error'):
+        if status != 0:
             _logger.error(self.token+' '+out)
-            _logger.error('%s bad DQ2 response for %s' % (self.token,dataset))            
+            _logger.error('%s bad response for %s' % (self.token,dataset))            
             return False,{}
-        try:
-            # convert res to map
-            exec "tmpRepSites = %s" % out
-            _logger.debug('%s getListDatasetReplicas->%s' % (self.token,str(tmpRepSites)))
-            return True,tmpRepSites
-        except:
-            _logger.error(self.token+' '+out)            
-            _logger.error('%s could not convert HTTP-res to replica map for %s' % (self.token,dataset))
-            return False,{}
+        _logger.debug('%s getListDatasetReplicas->%s' % (self.token,str(out)))
+        return True,out
         
     
     # get replicas for a container 
