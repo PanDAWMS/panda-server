@@ -81,7 +81,8 @@ class UserIF:
 
         try:
             job0 = jobs[0]
-            userVO = job0.VO
+            if job0.VO:
+                userVO = job0.VO
         except (IndexError, AttributeError) as e:
             _logger.error("submitJobs : checking userVO. userVO not found, defaulting to %s. (Exception %s)" %(userVO, e))
                 
