@@ -1109,7 +1109,7 @@ class TaskBuffer:
                 tmpSplitter.whitespace_split = True
                 # loop for params
                 for tmpItem in tmpSplitter:
-                    tmpMatch = re.search('^([^=]+=)(.+)$',tmpItem)
+                    tmpMatch = re.search('^-([^=]+=)(.+)$',tmpItem)
                     if tmpMatch != None:
                         tmpArgName = tmpMatch.group(1)
                         tmpArgVal  = tmpMatch.group(2)
