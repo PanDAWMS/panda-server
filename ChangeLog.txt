@@ -2,6 +2,8 @@ Release Notes
 
 * current
   * fixed getScriptOfflineRunning for ATLASPANDA-185
+  * Added ALICE-Titan client scripts under test/alice/
+  * Added LSST client scripts under test/lsst/
   * introduced maxFailuer in JEDI_Dataset_Contents
   * changed to use list_dataset_replicas of Rucio API
   * added support for valiable number of outputs
