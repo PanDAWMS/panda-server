@@ -10203,6 +10203,8 @@ class DBProxy:
             resList = self.cur.fetchall()
             tmpRet = {}
             tmpPandaProxy = set()
+            # FIXME
+            tmpPandaProxy.add('AGLT2_SL6')
             sql = "SELECT dn FROM ATLAS_PANDAMETA.users WHERE name=:name "
             for siteID,catchAll in resList:
                 try:
@@ -12720,13 +12722,13 @@ class DBProxy:
                     if taskStatus in ['finished','done','prepared','broken','aborted','aborted','toabort','aborting','failed','finishing']:
                         goForward = False
                 if comStr == 'retry':
-                    if not taskStatus in ['finished','failed','aborted']:
+                    if not taskStatus in ['finished','failed','aborted','exhausted']:
                         goForward = False
                 if comStr == 'incexec':
-                    if not taskStatus in ['finished','failed','done','aborted']:
+                    if not taskStatus in ['finished','failed','done','aborted','exhausted']:
                         goForward = False
                 if comStr == 'reassign':
-                    if not taskStatus in ['registered','defined','ready','running','scouting','scouted','pending','assigning']:
+                    if not taskStatus in ['registered','defined','ready','running','scouting','scouted','pending','assigning','exhausted']:
                         goForward = False
                 if comStr == 'pause':
                     if taskStatus in ['finished','failed','done','aborted','broken','paused']:
