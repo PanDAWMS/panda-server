@@ -1,0 +1,6 @@
+<gacl>
+<entry>
+  <any-user/>
+  <allow><read/><list/></allow>
+</entry>
+</gacl>
