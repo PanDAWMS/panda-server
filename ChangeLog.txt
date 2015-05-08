@@ -1,6 +1,9 @@
 Release Notes
 
 * current
+  * changed AdderAtlas to regard InvalidPath as fatal
+  * changed TA to ignore clouds with mcshare=0
+  * added exhausted
   * fixed getScriptOfflineRunning for ATLASPANDA-185
   * Added ALICE-Titan client scripts under test/alice/
   * Added LSST client scripts under test/lsst/
