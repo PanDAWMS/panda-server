@@ -174,6 +174,7 @@ setup(
                'pandaserver.userinterface',
                'pandaserver.proxycache',
               ],
+    package_data = {'pandaserver.server': ['.gacl']},
     data_files=[
                 # config files 
                 ('/etc/panda', ['templates/panda_server-httpd.conf.rpmnew.template',
