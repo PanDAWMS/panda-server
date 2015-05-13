@@ -283,7 +283,8 @@ class Closer:
             # update unmerged datasets in JEDI to trigger merging
             if flagComplete and self.job.produceUnMerge() and finalStatusDS != []:
                 if finalizedFlag:
-                    self.taskBuffer.updateUnmergedDatasets(self.job,finalStatusDS)
+                    tmpStat = self.taskBuffer.updateUnmergedDatasets(self.job,finalStatusDS)
+                    _logger.debug('%s updated unmerged datasets with %s' % (self.pandaID,tmpStat))
             # start notifier
             _logger.debug('%s source:%s complete:%s' % (self.pandaID,self.job.prodSourceLabel,flagComplete))
             if (self.job.jobStatus != 'transferring') and ((flagComplete and self.job.prodSourceLabel=='user') or \
