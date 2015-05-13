@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * setting hidden metadata to _dis/_sub
   * changed AdderAtlas to regard InvalidPath as fatal
   * changed TA to ignore clouds with mcshare=0
   * added exhausted

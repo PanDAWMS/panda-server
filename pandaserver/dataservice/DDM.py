@@ -559,6 +559,20 @@ class RucioAPI:
 
 
 
+    # set metadata
+    def setMetaData(self,dsn,metadata=None):
+        # register dataset
+        client = RucioClient()
+        try:
+            scope,dsn = self.extract_scope(dsn)
+            for tmpKey,tmpValue in metadata.iteritems():
+                client.set_metadata(scope,dsn,key=tmpKey,value=tmpValue)
+        except:
+            pass
+        return True
+
+
+
 # instantiate
 rucioAPI = RucioAPI()
 del RucioAPI
