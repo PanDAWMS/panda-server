@@ -2,7 +2,6 @@
 proxy for database connection
 
 """
-
 import re
 import os
 import sys
@@ -148,7 +147,19 @@ class DBProxy:
             type, value, traceBack = sys.exc_info()
             _logger.error("connect : %s %s" % (type,value))
             return False
-
+    
+    #Internal caching of a result. Use only for information with low 
+    #update frequency and low memory footprint
+    def memoize(f):
+        memo = {}
+        def helper(self, x):
+            now = datetime.datetime.now()
+            if x not in memo or memo[x]['timestamp'] < now - datetime.timedelta(hours=1):
+                memo[x] = {}
+                memo[x]['value'] = f(self, x)
+                memo[x]['timestamp'] = now
+            return memo[x]['value']
+        return helper
 
     # query an SQL   
     def querySQL(self,sql,arraySize=1000):
@@ -15169,3 +15180,69 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return False
+
+
+    # get error definitions from DB (values cached for 1 hour)
+    @memoize
+    def getRetrialRules(self):
+        #Logging
+        comment = ' /* DBProxy.getRetrialRules */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        
+        # SQL to extract the error definitions
+        sql  = """
+        SELECT re.errorsource, re.errorcode, re.parameters, re.architecture, re.release, ra.name
+        FROM ATLAS_PANDA.RETRYERRORS re, ATLAS_PANDA.RETRYACTIONS ra
+        WHERE re.RetryAction_FK=ra.ID
+        """
+
+        self.cur.execute(sql+comment, {})
+        definitions = self.cur.fetchall()   #example of output: [('pilotErrorCode', 1, None, None, None, 'noretry'),...]
+        
+        retrial_rules = {} #TODO: Consider if we want a class RetrialRule
+        for definition in definitions:
+            error_source, error_code, parameters, architecture, release, action = definition
+            
+            #Convert the parameter string into a dictionary
+            #1. Convert a string like "key1=value1&key2=value2" into [[key1, value1],[key2,value2]]
+            params_list = map(lambda key_value_pair: key_value_pair.split("="), parameters.split("&"))
+            #2. Convert a list [[key1, value1],[key2,value2]] into {key1: value1, key2: value2}
+            params_dict = dict((key, value) for (key, value) in params_list)
+            #TODO: Need to define a formatting and naming convention for setting the parameteres
+            
+            retrial_rules.setdefault(error_source,{})
+            retrial_rules[error_source].setdefault(error_code,[])
+            retrial_rules[error_source][error_code].append({'action': action, 
+                                                             'params': params_dict, 
+                                                             'architecture': architecture, 
+                                                             'release': release})
+        _logger.debug("Loaded retrial rules from DB: %s" %retrial_rules)
+        # return
+        tmpLog.debug("done")
+        return retrial_rules
+    
+    def setMaxAttempt(self, jobID, maxAttempt):
+        #Logging
+        comment = ' /* DBProxy.blockRetries */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        
+        varMap = {}
+        varMap[':maxAttempt'] = maxAttempt
+        varMap[':jobID'] = jobID
+
+        #TODO: Check other code and/or ask Tadashi how this is done correctly (job vs file level)
+        #Update the job entry
+        sql  = """
+        UPDATE ATLAS_PANDA.jobsActive4 set maxAttempt = :maxAttempt where jobID = :jobID
+        """
+        self.cur.execute(sql+comment, varMap)
+        
+        #Commit updates
+        if not self._commit():
+            raise RuntimeError, 'Commit error'
+        tmpLog.debug("done")
+        return True

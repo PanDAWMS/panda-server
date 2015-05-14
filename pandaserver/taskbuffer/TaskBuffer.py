@@ -2704,6 +2704,40 @@ class TaskBuffer:
         return ret
 
 
+    # get Error Definitions
+    def getRetrialRules(self):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getErrorDefinitions()
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # get Error Definitions
+    def setMaxAttempt(self, jobID, attemptNr):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.setMaxAttempt(jobID, attemptNr)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # get Error Definitions
+    def setMemLimit(self, memLimit):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getErrorDefinitions()
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
 
 # Singleton
 taskBuffer = TaskBuffer()
