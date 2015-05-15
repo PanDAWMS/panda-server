@@ -148,17 +148,19 @@ class DBProxy:
             _logger.error("connect : %s %s" % (type,value))
             return False
     
-    #Internal caching of a result. Use only for information with low 
-    #update frequency and low memory footprint
+    #Internal caching of a result. Use only for information 
+    #with low update frequency and low memory footprint
     def memoize(f):
         memo = {}
-        def helper(self, x):
+        kwd_mark = object()
+        def helper(self, *args, **kwargs):
             now = datetime.datetime.now()
-            if x not in memo or memo[x]['timestamp'] < now - datetime.timedelta(hours=1):
-                memo[x] = {}
-                memo[x]['value'] = f(self, x)
-                memo[x]['timestamp'] = now
-            return memo[x]['value']
+            key = args + (kwd_mark,) + tuple(sorted(kwargs.items()))
+            if key not in memo or memo[key]['timestamp'] < now - datetime.timedelta(hours=1):
+                memo[key] = {}
+                memo[key]['value'] = f(self, *args, **kwargs)
+                memo[key]['timestamp'] = now
+            return memo[key]['value']
         return helper
 
     # query an SQL   
