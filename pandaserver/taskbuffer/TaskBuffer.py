@@ -2717,7 +2717,7 @@ class TaskBuffer:
 
 
     # get Error Definitions
-    def setMaxAttempt(self, jobID, attemptNr):
+    def setMaxAttempt(self, jobID, files, attemptNr):
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec

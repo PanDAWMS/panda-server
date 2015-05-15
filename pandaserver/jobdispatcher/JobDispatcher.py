@@ -18,7 +18,7 @@ from dataservice.Adder import Adder
 from pandalogger.PandaLogger import PandaLogger
 import DispatcherUtils
 from taskbuffer import EventServiceUtils
-
+from taskbuffer import retryModule
 
 # logger
 _logger = PandaLogger().getLogger('JobDispatcher')
@@ -235,7 +235,7 @@ class JobDipatcher:
         
         # First of all: check if job failed and in this case take first actions according to error table 
         if jobStatus=='failed' and param.has_key('pilotErrorCode'):
-            DispatcherUtils.apply_retrial_rules(self.taskBuffer, jobID, 'pilotErrorCode', param['pilotErrorCode'], attemptNr)
+            retryModule.apply_retrial_rules(self.taskBuffer, jobID, 'pilotErrorCode', param['pilotErrorCode'], attemptNr)
         
         # recoverable error for ES merge
         recoverableEsMerge = False

@@ -15225,7 +15225,7 @@ class DBProxy:
         tmpLog.debug("done")
         return retrial_rules
     
-    def setMaxAttempt(self, jobID, maxAttempt):
+    def setMaxAttempt(self, jobID, files, maxAttempt):
         #Logging
         comment = ' /* DBProxy.blockRetries */'
         methodName = comment.split(' ')[-2].split('.')[-1]
@@ -15236,13 +15236,30 @@ class DBProxy:
         varMap[':maxAttempt'] = maxAttempt
         varMap[':jobID'] = jobID
 
-        #TODO: Check other code and/or ask Tadashi how this is done correctly (job vs file level)
         #Update the job entry
         sql  = """
-        UPDATE ATLAS_PANDA.jobsActive4 set maxAttempt = :maxAttempt where jobID = :jobID
+        UPDATE ATLAS_PANDA.jobsActive4 
+        SET maxAttempt = :maxAttempt 
+        WHERE jobID = :jobID
         """
         self.cur.execute(sql+comment, varMap)
         
+        #Update the file entries to avoid JEDI generating new jobs
+        #fileIDs = [pandafile.fileID for pandafile in files]
+        input_files = filter(lambda pandafile: pandafile.type == 'input', files)
+        input_fileIDs = [input_file.fileID for input_file in input_files]
+
+        #TODO 1: See if cx_Oracle admits such a syntax
+        sql  = """
+        UPDATE ATLAS_PANDA.JEDI_DatasetContents 
+        SET maxAttempt=:maxAttempt
+        WHERE fileID in :fileIDs 
+        """
+        varMap = {}
+        varMap[':maxAttempt'] = maxAttempt
+        varMap[':jobID'] = jobID
+        varMap[':fileIDs'] = input_fileIDs
+
         #Commit updates
         if not self._commit():
             raise RuntimeError, 'Commit error'
