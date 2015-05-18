@@ -10444,13 +10444,15 @@ class DBProxy:
             sql  = "SELECT jobid,status FROM ATLAS_PANDAMETA.users WHERE name=:name "
             sql += "FOR UPDATE "
             sqlAdd  = "INSERT INTO ATLAS_PANDAMETA.users "
-            if self.backend == 'oracle':
-                sqlAdd += "(ID,NAME,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
-                sqlAdd += "VALUES(ATLAS_PANDAMETA.USERS_ID_SEQ.nextval,:name,"
-            else:
+            sqlAdd += "(ID,NAME,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
+            sqlAdd += "VALUES(ATLAS_PANDAMETA.USERS_ID_SEQ.nextval,:name,"
+            #if self.backend == 'oracle':
+            #    sqlAdd += "(ID,NAME,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
+            #    sqlAdd += "VALUES(ATLAS_PANDAMETA.USERS_ID_SEQ.nextval,:name,"
+            #else:
                 #self.backend == 'mysql':
-                sqlAdd += "(NAME,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
-                sqlAdd += "VALUES(:name,"
+            #    sqlAdd += "(NAME,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
+            #    sqlAdd += "VALUES(:name,"
             sqlAdd += "CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,0,1) "
             varMap = {}
             varMap[':name'] = name
@@ -10575,13 +10577,15 @@ class DBProxy:
                 if jediCheck:
                     name = self.cleanUserID(dn)
                     sqlAdd  = "INSERT INTO ATLAS_PANDAMETA.users "
-                    if self.backend == 'oracle':
-                        sqlAdd += "(ID,NAME,DN,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
-                        sqlAdd += "VALUES(ATLAS_PANDAMETA.USERS_ID_SEQ.nextval,:name,:dn,"
-                    else:
+                    sqlAdd += "(ID,NAME,DN,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
+                    sqlAdd += "VALUES(ATLAS_PANDAMETA.USERS_ID_SEQ.nextval,:name,:dn,"
+                    #if self.backend == 'oracle':
+                    #    sqlAdd += "(ID,NAME,DN,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
+                    #    sqlAdd += "VALUES(ATLAS_PANDAMETA.USERS_ID_SEQ.nextval,:name,:dn,"
+                    #else:
                         #self.backend == 'mysql':
-                        sqlAdd += "(NAME,DN,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
-                        sqlAdd += "VALUES(:name,:dn,"
+                    #    sqlAdd += "(NAME,DN,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
+                    #    sqlAdd += "VALUES(:name,:dn,"
                     sqlAdd += "CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,0,1) "
                     varMap = {}
                     varMap[':name'] = name
@@ -10865,21 +10869,23 @@ class DBProxy:
             self.conn.begin()
             # construct SQL
             vals = {}
-            if self.backend == 'oracle':
-                sql0 = 'INSERT INTO ATLAS_PANDAMETA.proxykey (id,'
-                sql1 = 'VALUES (ATLAS_PANDAMETA.PROXYKEY_ID_SEQ.nextval,'
-            else:
-                #panda_config.backend == 'mysql':
-                ### fake sequence
-                sql = " INSERT INTO ATLAS_PANDA.PROXYKEY_ID_SEQ (col) VALUES (NULL) "
-                self.cur.arraysize = 100
-                self.cur.execute(sql + comment, {})
-                sql2 = """ SELECT LAST_INSERT_ID() """
-                self.cur.execute(sql2 + comment, {})
-                nextval, = self.cur.fetchone()
-                sql0 = 'INSERT INTO ATLAS_PANDAMETA.proxykey (id,'
-                sql1 = 'VALUES (:nextval,'
-                vals[':nextval'] = nextval
+            sql0 = 'INSERT INTO ATLAS_PANDAMETA.proxykey (id,'
+            sql1 = 'VALUES (ATLAS_PANDAMETA.PROXYKEY_ID_SEQ.nextval,'
+            #if self.backend == 'oracle':
+            #    #sql0 = 'INSERT INTO ATLAS_PANDAMETA.proxykey (id,'
+            #    sql1 = 'VALUES (ATLAS_PANDAMETA.PROXYKEY_ID_SEQ.nextval,'
+            #else:
+            #    #panda_config.backend == 'mysql':
+            #    ### fake sequence
+            #    sql = " INSERT INTO ATLAS_PANDA.PROXYKEY_ID_SEQ (col) VALUES (NULL) "
+            #    self.cur.arraysize = 100
+            #    self.cur.execute(sql + comment, {})
+            #    sql2 = """ SELECT LAST_INSERT_ID() """
+            #    self.cur.execute(sql2 + comment, {})
+            #    nextval, = self.cur.fetchone()
+            #    #sql0 = 'INSERT INTO ATLAS_PANDAMETA.proxykey (id,'
+            #    sql1 = 'VALUES (:nextval,'
+            #    vals[':nextval'] = nextval
 
             for key,val in params.iteritems():
                 sql0 += '%s,'  % key
