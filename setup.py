@@ -178,6 +178,8 @@ setup(
                'pandaserver.server',
                'pandaserver.taskbuffer',
                'pandaserver.test',
+               'pandaserver.test.lsst',
+               'pandaserver.test.alice',
                'pandaserver.userinterface',
                'pandaserver.proxycache',
               ],

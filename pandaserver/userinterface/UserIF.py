@@ -74,9 +74,28 @@ class UserIF:
         # reject injection for bad prodSourceLabel
         if not goodProdSourceLabel:
             return "ERROR: production role is required for production jobs"
+        
+        job0 = None
+        # get user VO
+        userVO = 'atlas'
+
+        try:
+            job0 = jobs[0]
+            if job0.VO:
+                userVO = job0.VO
+        except (IndexError, AttributeError) as e:
+            _logger.error("submitJobs : checking userVO. userVO not found, defaulting to %s. (Exception %s)" %(userVO, e))
+                
+        # get LSST pipeline username
+        if userVO.lower() == 'lsst':
+            try:
+                if job0.prodUserName and job0.prodUserName.lower() != 'none':
+                    user = job0.prodUserName
+            except AttributeError:
+                _logger.error("submitJobs : checking username for userVO[%s]: username not found, defaulting to %s. %s %s" % (userVO, user))
         # store jobs
         ret = self.taskBuffer.storeJobs(jobs,user,forkSetupper=True,fqans=userFQANs,
-                                        hostname=host,toPending=toPending)
+                                        hostname=host, toPending=toPending, userVO=userVO)
         _logger.debug("submitJobs %s ->:%s" % (user,len(ret)))
         # serialize 
         return pickle.dumps(ret)
