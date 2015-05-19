@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * setting a very large priority to ES merge jobs
   * reset doing datasets to kick updateUnmergedDatasets
   * setting hidden metadata to _dis/_sub
   * changed AdderAtlas to regard InvalidPath as fatal

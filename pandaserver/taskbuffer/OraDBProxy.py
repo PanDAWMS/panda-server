@@ -13692,7 +13692,8 @@ class DBProxy:
             jobSpec.attemptNr       += 1
             if doMerging:
                 jobSpec.maxAttempt = jobSpec.attemptNr+3
-            if not doMerging:
+                jobSpec.currentPriority = 5000
+            else:
                 jobSpec.currentPriority += 1
             jobSpec.endTime          = None
             jobSpec.transExitCode    = None
