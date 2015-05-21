@@ -29,7 +29,7 @@ from JobSpec  import JobSpec
 from FileSpec import FileSpec
 from DatasetSpec import DatasetSpec
 from CloudTaskSpec import CloudTaskSpec
-from WrappedCursor import WrappedCursor
+from WrappedCursor import Wrapp/edCursor
 from pandalogger.PandaLogger import PandaLogger
 from pandalogger.LogWrapper import LogWrapper
 from config import panda_config
@@ -122,6 +122,7 @@ class DBProxy:
             except:
                 pass
             self.hostname = self.cur.initialize()
+            return True
         except:
             type, value, traceBack = sys.exc_info()
             _logger.error("connect : %s %s" % (type,value))

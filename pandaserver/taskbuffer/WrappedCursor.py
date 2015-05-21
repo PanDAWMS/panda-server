@@ -49,21 +49,21 @@ class WrappedCursor(object):
             if res != None:
                 hostname = res[0]
             # set TZ
-            self.cur.execute("ALTER SESSION SET TIME_ZONE='UTC'")
+            self.execute("ALTER SESSION SET TIME_ZONE='UTC'")
             # set DATE format
-            self.cur.execute("ALTER SESSION SET NLS_DATE_FORMAT='YYYY/MM/DD HH24:MI:SS'")
+            self.execute("ALTER SESSION SET NLS_DATE_FORMAT='YYYY/MM/DD HH24:MI:SS'")
         else:
             # get hostname
-            self.cur.execute("SELECT SUBSTRING_INDEX(USER(),'@',-1)")
-            res = self.cur.fetchone()
+            self.execute("SELECT SUBSTRING_INDEX(USER(),'@',-1)")
+            res = self.fetchone()
             if res != None:
                 hostname = res[0]
             # set TZ
-            self.cur.execute("SET @@SESSION.TIME_ZONE = '+00:00'")
+            self.execute("SET @@SESSION.TIME_ZONE = '+00:00'")
             # set DATE format
-            self.cur.execute("SET @@SESSION.DATETIME_FORMAT='%%Y/%%m/%%d %%H:%%i:%%s'")
+            self.execute("SET @@SESSION.DATETIME_FORMAT='%%Y/%%m/%%d %%H:%%i:%%s'")
             # disable autocommit
-            self.cur.execute("SET autocommit=0")
+            self.execute("SET autocommit=0")
         return hostname
     # execute query on cursor
     def execute(self, sql, varDict=None, cur=None  # , returningInto=None
