@@ -29,7 +29,7 @@ from JobSpec  import JobSpec
 from FileSpec import FileSpec
 from DatasetSpec import DatasetSpec
 from CloudTaskSpec import CloudTaskSpec
-from WrappedCursor import Wrapp/edCursor
+from WrappedCursor import WrappedCursor
 from pandalogger.PandaLogger import PandaLogger
 from pandalogger.LogWrapper import LogWrapper
 from config import panda_config
