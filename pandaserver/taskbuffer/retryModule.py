@@ -1,16 +1,35 @@
 import sys
+import time
 from pandalogger.PandaLogger import PandaLogger
 
 # logger
 _logger = PandaLogger().getLogger('Scrooge')
 
-NO_RETRY = 'noretry'
+NO_RETRY = 'no_retry'
 INCREASE_MEM = 'increase_memory'
 LIMIT_RETRY = 'limit_retry'
 
+def timeit(method):
+    """Decorator function to time the execution time of any given method. Use as decorator.
+    """
+    def timed(*args, **kwargs):
+        ts = time.time()
+        result = method(*args, **kwargs)
+        te = time.time()
 
-def conditions_apply(architecture_job, release_job, architecture_rule, release_rule):
-    if (architecture_rule and architecture_rule != architecture_job) or (release_rule and release_rule != release_job):
+        _logger.debug('%r (%r, %r) took %.2f sec' %(method.__name__, args, kwargs, te-ts))
+        return result
+
+    return timed
+
+
+def conditions_apply(architecture_job, release_job, wqid_job, architecture_rule, release_rule, wqid_rule):
+    """Checks that the architecture, release and work queue of rule and job match, 
+    only in case the attributes are defined for the rule
+    """
+    if ((architecture_rule and architecture_rule != architecture_job) 
+        or (release_rule and release_rule != release_job)
+        or (wqid_rule and wqid_rule != wqid_job)):
         return False
     return True
 
@@ -23,11 +42,15 @@ def compare_strictness(rule1, rule2):
         rule1_weight += 1
     if rule1['release']: 
         rule1_weight += 1
+    if rule1['wqid']: 
+        rule1_weight += 1
 
     rule2_weight = 0
     if rule2['architecture']: 
         rule2_weight += 1
     if rule2['release']: 
+        rule2_weight += 1
+    if rule2['wqid']: 
         rule2_weight += 1
 
     if rule1 > rule2:
@@ -38,7 +61,7 @@ def compare_strictness(rule1, rule2):
         return 0
 
 
-def preprocess_rules(rules, release_job, architecture_job):
+def preprocess_rules(rules, release_job, architecture_job, wqid_job):
     """Do some preliminary validation of the applicable rules.
     - Duplicate rules, (action=limit_retry, maxAttempt=5) vs (action=limit_retry, maxAttempt=7, release=X):
          resolve to the most specific rule, in our example (action=limit_retry, maxAttempt=7, release=X) 
@@ -50,16 +73,16 @@ def preprocess_rules(rules, release_job, architecture_job):
     try:
         #See if there is a  NO_RETRY rule. Effect of NO_RETRY rules is the same, so just take the first one that appears
         for rule in rules:
-            if (not conditions_apply(architecture_job, release_job, rule['architecture'], rule['release']) or
-                rule['action']!= NO_RETRY): 
+            if (rule['action']!= NO_RETRY or
+                not conditions_apply(architecture_job, release_job, wqid_job, rule['architecture'], rule['release'], rule['wqid'])):
                 continue
             else:
                 filtered_rules.append(rule)
         
         #See if there is a INCREASE_MEM rule. The effect of INCREASE_MEM rules is the same, so take the first one that appears
         for rule in rules:
-            if (not conditions_apply(architecture_job, release_job, rule['architecture'], rule['release']) or
-                rule['action']!= INCREASE_MEM): 
+            if (rule['action']!= INCREASE_MEM or
+                not conditions_apply(architecture_job, release_job, wqid_job, rule['architecture'], rule['release'], rule['wqid'])): 
                 continue
             else:
                 filtered_rules.append(rule)
@@ -67,7 +90,7 @@ def preprocess_rules(rules, release_job, architecture_job):
         #See if there is a LIMIT_RETRY rule. Take the narrowest rule, in case of draw take the strictest
         limit_retry_rule = {}
         for rule in rules:
-            if (not conditions_apply(architecture_job, release_job, rule['architecture'], rule['release']) or
+            if (not conditions_apply(architecture_job, release_job, wqid_job, rule['architecture'], rule['release'], rule['wqid']) or
                 rule['action']!= LIMIT_RETRY): 
                 continue
             elif not limit_retry_rule:
@@ -87,10 +110,10 @@ def preprocess_rules(rules, release_job, architecture_job):
         filtered_rules.append(limit_retry_rule)
     
     return filtered_rules
-    
 
 
 #TODO: Add a call to the retrial rules from the UserIF.killJob
+@timeit
 def apply_retrial_rules(task_buffer, jobID, error_source, error_code, attemptNr):
     """Get rules from DB and applies them to a failed job. Actions can be:
     - flag the job so it is not retried again (error code is a final state and retrying will not help)
@@ -103,7 +126,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, attemptNr)
     try:
         #TODO: Check if peeking the job again has any performance penalty and if there is any better way
         job = task_buffer.peekJobs([jobID], fromDefined=False, fromArchived=False, fromWaiting=False)[0]
-        applicable_rules = preprocess_rules(retrial_rules[error_source][error_code], job.AtlasRelease, job.cmtConfig)
+        applicable_rules = preprocess_rules(retrial_rules[error_source][error_code], job.AtlasRelease, job.cmtConfig, job.workQueue_ID)
         
         for rule in applicable_rules:
             try:
@@ -111,29 +134,43 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, attemptNr)
                 parameters = rule['params']
                 architecture = rule['architecture'] #cmtconfig
                 release = rule['release'] #transHome
+                wqid = rule['release'] #work queue ID
+                active = rule['active'] #If False, don't apply rule, only log
                 
                 _logger.debug("Processing rule %s for jobID %s, error_source %s, error_code %s, attemptNr %s" %(rule, jobID, error_source, error_code, attemptNr))
                 
-                if conditions_apply(job.cmtConfig, job.AtlasRelease, architecture, release):
+                if conditions_apply(job.cmtConfig, job.AtlasRelease, job.workQueue_ID, architecture, release, wqid):
                     _logger.debug("Skipped rule %s. cmtConfig (%s : %s) or Release (%s : %s) did NOT match" %(rule, architecture, job.cmtConfig, release, job.AtlasRelease))
                     continue
                 
-                if action == NO_RETRY: 
-                    task_buffer.setMaxAttempt(jobID, job.Files, attemptNr)
-                    _logger.debug("setMaxAttempt jobID: %s, maxAttempt: %s" %(jobID, attemptNr))
+                if action == NO_RETRY:
+                    if active:
+                        task_buffer.setMaxAttempt(jobID, job.Files, attemptNr)
+                    #Log to pandamon and logfile
+                    message = "[RETRYMODULE] setMaxAttempt jobID: %s, maxAttempt: %s. Rule/Action active: %s" %(jobID, attemptNr, active)
+                    pandalog(message)
+                    _logger.debug(message)
                 
                 elif action == LIMIT_RETRY:
                     try:
-                        task_buffer.setMaxAttempt(jobID, job.Files, int(parameters['maxAttempt']))
-                    except (KeyError, ValueError) as e:
+                        if active:
+                            task_buffer.setMaxAttempt(jobID, job.Files, int(parameters['maxAttempt']))
+                        #Log to pandamon and logfile
+                        message = "[RETRYMODULE] setMaxAttempt jobID: %s, maxAttempt: %s. Rule/Action active: %s" %(jobID, int(parameters['maxAttempt']), active)
+                        pandalog(message)
+                        _logger.debug(message)
+                    except (KeyError, ValueError):
                         _logger.debug("Inconsistent definition of limit_retry rule - maxAttempt not defined. parameters: %s" %parameters)
                 
                 elif action == INCREASE_MEM:
                     try:
                         #TODO 1: Complete as in AdderGen (232-240) and delete lines from AdderGen
-                        if not job.minRamCount in [0,None,'NULL']:
+                        if active and not job.minRamCount in [0,None,'NULL']:
                             task_buffer.increaseRamLimitJEDI(job.jediTaskID, job.minRamCount)
-                        _logger.debug("Increased RAM limit for jobID: %s, jediTaskID: %s" %(jobID, job.jediTaskID))
+                        #Log to pandamon and logfile
+                        message = "[RETRYMODULE] increaseRAMLimit for jobID: %s, jediTaskID: %s" %(jobID, job.jediTaskID)
+                        pandalog(message)
+                        _logger.debug(message)
                     except:
                         errtype,errvalue = sys.exc_info()[:2]
                         _logger.debug("Failed to increase RAM limit : %s %s" % (errtype,errvalue))
@@ -144,3 +181,11 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, attemptNr)
                         _logger.debug("Rule was missing some field(s). Rule: %s" %rule)
     except KeyError:
         _logger.debug("No retrial rules to apply for jobID %s, attemptNr %s, failed with %s=%s" %(jobID, attemptNr, error_source, error_code))
+
+
+def pandalog(message):
+    """Function to send message to panda logger. For the moment dummy placeholder.
+    https://github.com/PanDAWMS/panda-jedi/blob/master/pandajedi/jediorder/JobGenerator.py#L405
+    """
+    return True
+

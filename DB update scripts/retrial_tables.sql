@@ -17,8 +17,9 @@ MAXVALUE 999999999999 MINVALUE 1 CACHE 10 ;
 --RETRY ACTIONS TABLE DEFINITION
 CREATE TABLE ATLAS_PANDA.RETRYACTIONS
 ( ID number(10) NOT NULL,
-  name varchar2(50 BYTE) NOT NULL,
-  description varchar2(250 BYTE)
+  Name varchar2(50 BYTE) NOT NULL,
+  Description varchar2(250 BYTE),
+  Active char default 'Y' NOT NULL 
 );
 
 --RETRY ACTIONS INDEX ON ID
@@ -45,7 +46,7 @@ ON ATLAS_PANDA.RETRYACTIONS TO ATLAS_PANDA_READROLE;
 /*
 insert into ATLAS_PANDA.RETRYACTIONS (ID, name, description)
 VALUES (ATLAS_PANDA.RETRYACTIONS_ID_SEQ.nextval, 
-           'noretry', 'This action will prevent PanDA server from retrying the job again. It is considered a final error.');
+           'no_retry', 'This action will prevent PanDA server from retrying the job again. It is considered a final error.');
 
 insert into ATLAS_PANDA.RETRYACTIONS (ID, name, description)
 VALUES (ATLAS_PANDA.RETRYACTIONS_ID_SEQ.nextval, 
@@ -85,7 +86,11 @@ CREATE TABLE ATLAS_PANDA.RETRYERRORS
   RetryAction_FK number(10) NOT NULL,
   Parameters varchar2(256 BYTE),
   Architecture varchar2 (256 BYTE),
-  Release VARCHAR2 (64 BYTE)
+  Release VARCHAR2 (64 BYTE),
+  WorkQueue_ID NUMBER(5),
+  Description varchar2(250 BYTE),
+  Expiration_date timestamp,
+  Active char default 'Y' NOT NULL 
 );
 
 --RETRY ACTIONS INDEX ON ID

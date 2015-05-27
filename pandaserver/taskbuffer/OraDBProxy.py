@@ -33,6 +33,7 @@ from pandalogger.PandaLogger import PandaLogger
 from pandalogger.LogWrapper import LogWrapper
 from config import panda_config
 from brokerage.PandaSiteIDs import PandaSiteIDs
+from __builtin__ import True
 
 if panda_config.backend == 'oracle':
     import cx_Oracle
@@ -15195,31 +15196,40 @@ class DBProxy:
         
         # SQL to extract the error definitions
         sql  = """
-        SELECT re.errorsource, re.errorcode, re.parameters, re.architecture, re.release, ra.name
+        SELECT re.errorsource, re.errorcode, re.parameters, re.architecture, re.release, re.workqueue_id, ra.name, re.active, ra.active
         FROM ATLAS_PANDA.RETRYERRORS re, ATLAS_PANDA.RETRYACTIONS ra
         WHERE re.RetryAction_FK=ra.ID
+        AND (CURRENT_TIMESTAMP > re.expiration_date or re.expiration_date IS NULL)
         """
 
         self.cur.execute(sql+comment, {})
-        definitions = self.cur.fetchall()   #example of output: [('pilotErrorCode', 1, None, None, None, 'noretry'),...]
+        definitions = self.cur.fetchall()   #example of output: [('pilotErrorCode', 1, None, None, None, None, 'no_retry', 'Y', 'Y'),...]
         
         retrial_rules = {} #TODO: Consider if we want a class RetrialRule
         for definition in definitions:
-            error_source, error_code, parameters, architecture, release, action = definition
+            error_source, error_code, parameters, architecture, release, wqid, action, e_active, a_active = definition
             
+            #TODO: Need to define a formatting and naming convention for setting the parameteres
             #Convert the parameter string into a dictionary
             #1. Convert a string like "key1=value1&key2=value2" into [[key1, value1],[key2,value2]]
             params_list = map(lambda key_value_pair: key_value_pair.split("="), parameters.split("&"))
             #2. Convert a list [[key1, value1],[key2,value2]] into {key1: value1, key2: value2}
             params_dict = dict((key, value) for (key, value) in params_list)
-            #TODO: Need to define a formatting and naming convention for setting the parameteres
+            
+            #Calculate if action and error combination should be active
+            if e_active == 'Y' and a_active == 'Y':
+                active = True #Apply the action for this error
+            else:
+                active = False #Do not apply the action for this error, only log 
             
             retrial_rules.setdefault(error_source,{})
             retrial_rules[error_source].setdefault(error_code,[])
             retrial_rules[error_source][error_code].append({'action': action, 
-                                                             'params': params_dict, 
-                                                             'architecture': architecture, 
-                                                             'release': release})
+                                                            'params': params_dict, 
+                                                            'architecture': architecture, 
+                                                            'release': release,
+                                                            'wqid': wqid,
+                                                            'active': active})
         _logger.debug("Loaded retrial rules from DB: %s" %retrial_rules)
         # return
         tmpLog.debug("done")
