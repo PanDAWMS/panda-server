@@ -4669,7 +4669,7 @@ class DBProxy:
                 sql += "AND currentPriority>=:currentPriority AND rownum<=%s " % rownum
             else:
                 sql += "AND currentPriority<:currentPriority AND rownum<=%s " % rownum
-                varMap[':modificationTime'] = timeNow - datetime.timedelta(hours=4)
+                varMap[':modificationTime'] = timeNow - datetime.timedelta(hours=2)
             sql += "FOR UPDATE "
             # sql for lock
             sqlLock = 'UPDATE ATLAS_PANDA.jobsActive4 SET modificationTime=CURRENT_DATE WHERE PandaID=:PandaID'
