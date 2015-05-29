@@ -105,6 +105,7 @@ class DBProxy:
                 _logger.debug("failed to close old connection")                                                
         # connect    
         try:
+
             if self.backend == 'oracle':
                 self.conn = cx_Oracle.connect(dsn=self.dbhost,user=self.dbuser,
                                               password=self.dbpasswd,threaded=True)
@@ -120,30 +121,8 @@ class DBProxy:
                     self.cur = SQLDumper.SQLDumper(self.cur)
             except:
                 pass
-            if self.backend == 'oracle':
-                # get hostname
-                self.cur.execute("SELECT SYS_CONTEXT('USERENV','HOST') FROM dual")
-                res = self.cur.fetchone()
-                if res != None:
-                    self.hostname = res[0]
-                # set TZ
-                self.cur.execute("ALTER SESSION SET TIME_ZONE='UTC'")
-                # set DATE format
-                self.cur.execute("ALTER SESSION SET NLS_DATE_FORMAT='YYYY/MM/DD HH24:MI:SS'")
-                return True
-            else:
-                # get hostname
-                self.cur.execute("SELECT SUBSTRING_INDEX(USER(),'@',-1)")
-                res = self.cur.fetchone()
-                if res != None:
-                    self.hostname = res[0]
-                # set TZ
-                self.cur.execute("SET @@SESSION.TIME_ZONE = '+00:00'")
-                # set DATE format
-                self.cur.execute("SET @@SESSION.DATETIME_FORMAT='%%Y/%%m/%%d %%H:%%i:%%s'")
-                # disable autocommit
-                self.cur.execute("SET autocommit=0")
-                return True
+            self.hostname = self.cur.initialize()
+            return True
         except:
             type, value, traceBack = sys.exc_info()
             _logger.error("connect : %s %s" % (type,value))
@@ -6178,13 +6157,8 @@ class DBProxy:
             cloudTask = CloudTaskSpec()
             cloudTask.taskid = tid
             cloudTask.status = 'defined'
-            if self.backend == 'oracle':
-                sql = "INSERT INTO ATLAS_PANDA.cloudtasks (id,taskid,status,tmod,tenter) VALUES(ATLAS_PANDA.CLOUDTASKS_ID_SEQ.nextval,:taskid,:status,CURRENT_DATE,CURRENT_DATE)"
-            else:
-                #panda_config.backend == 'mysql':
-                ### fake sequence
-                sql = "INSERT INTO ATLAS_PANDA.cloudtasks (id,taskid,status,tmod,tenter) VALUES(NULL,:taskid,:status,CURRENT_DATE,CURRENT_DATE)"
-            sql+= " RETURNING id INTO :newID"          
+            sql = "INSERT INTO ATLAS_PANDA.cloudtasks (id,taskid,status,tmod,tenter) VALUES(ATLAS_PANDA.CLOUDTASKS_ID_SEQ.nextval,:taskid,:status,CURRENT_DATE,CURRENT_DATE)"
+            sql+= " RETURNING id INTO :newID"
             varMap = {}
             varMap[':taskid'] = cloudTask.taskid
             varMap[':status'] = cloudTask.status
@@ -6403,12 +6377,7 @@ class DBProxy:
                     raise RuntimeError, 'Commit error'
                 return "SUCCEEDED"
             # insert new CloudTask
-            if self.backend == 'oracle':
-                sql = "INSERT INTO ATLAS_PANDA.cloudtasks (id,taskid,status,tmod,tenter) VALUES(ATLAS_PANDA.CLOUDTASKS_ID_SEQ.nextval,:taskid,:status,CURRENT_DATE,CURRENT_DATE)"
-            else:
-                #panda_config.backend == 'mysql':
-                ### fake sequence
-                sql = "INSERT INTO ATLAS_PANDA.cloudtasks (id,taskid,status,tmod,tenter) VALUES(NULL,:taskid,:status,CURRENT_DATE,CURRENT_DATE)"
+            sql = "INSERT INTO ATLAS_PANDA.cloudtasks (id,taskid,status,tmod,tenter) VALUES(ATLAS_PANDA.CLOUDTASKS_ID_SEQ.nextval,:taskid,:status,CURRENT_DATE,CURRENT_DATE)"
             varMap = {}
             varMap[':taskid'] = tid
             varMap[':status'] = status
@@ -10466,13 +10435,8 @@ class DBProxy:
             sql  = "SELECT jobid,status FROM ATLAS_PANDAMETA.users WHERE name=:name "
             sql += "FOR UPDATE "
             sqlAdd  = "INSERT INTO ATLAS_PANDAMETA.users "
-            if self.backend == 'oracle':
-                sqlAdd += "(ID,NAME,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
-                sqlAdd += "VALUES(ATLAS_PANDAMETA.USERS_ID_SEQ.nextval,:name,"
-            else:
-                #self.backend == 'mysql':
-                sqlAdd += "(NAME,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
-                sqlAdd += "VALUES(:name,"
+            sqlAdd += "(ID,NAME,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
+            sqlAdd += "VALUES(ATLAS_PANDAMETA.USERS_ID_SEQ.nextval,:name,"
             sqlAdd += "CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,0,1) "
             varMap = {}
             varMap[':name'] = name
@@ -10597,13 +10561,8 @@ class DBProxy:
                 if jediCheck:
                     name = self.cleanUserID(dn)
                     sqlAdd  = "INSERT INTO ATLAS_PANDAMETA.users "
-                    if self.backend == 'oracle':
-                        sqlAdd += "(ID,NAME,DN,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
-                        sqlAdd += "VALUES(ATLAS_PANDAMETA.USERS_ID_SEQ.nextval,:name,:dn,"
-                    else:
-                        #self.backend == 'mysql':
-                        sqlAdd += "(NAME,DN,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
-                        sqlAdd += "VALUES(:name,:dn,"
+                    sqlAdd += "(ID,NAME,DN,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
+                    sqlAdd += "VALUES(ATLAS_PANDAMETA.USERS_ID_SEQ.nextval,:name,:dn,"
                     sqlAdd += "CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,0,1) "
                     varMap = {}
                     varMap[':name'] = name
@@ -10887,21 +10846,8 @@ class DBProxy:
             self.conn.begin()
             # construct SQL
             vals = {}
-            if self.backend == 'oracle':
-                sql0 = 'INSERT INTO ATLAS_PANDAMETA.proxykey (id,'
-                sql1 = 'VALUES (ATLAS_PANDAMETA.PROXYKEY_ID_SEQ.nextval,'
-            else:
-                #panda_config.backend == 'mysql':
-                ### fake sequence
-                sql = " INSERT INTO ATLAS_PANDA.PROXYKEY_ID_SEQ (col) VALUES (NULL) "
-                self.cur.arraysize = 100
-                self.cur.execute(sql + comment, {})
-                sql2 = """ SELECT LAST_INSERT_ID() """
-                self.cur.execute(sql2 + comment, {})
-                nextval, = self.cur.fetchone()
-                sql0 = 'INSERT INTO ATLAS_PANDAMETA.proxykey (id,'
-                sql1 = 'VALUES (:nextval,'
-                vals[':nextval'] = nextval
+            sql0 = 'INSERT INTO ATLAS_PANDAMETA.proxykey (id,'
+            sql1 = 'VALUES (ATLAS_PANDAMETA.PROXYKEY_ID_SEQ.nextval,'
 
             for key,val in params.iteritems():
                 sql0 += '%s,'  % key
@@ -11027,11 +10973,8 @@ class DBProxy:
                     raise RuntimeError, 'Commit error'
                 return res[0]
             # add
-            if self.backend == 'oracle':
-                sql = 'INSERT INTO ATLAS_PANDAMETA.siteaccess (id,dn,pandasite,status,created) VALUES (ATLAS_PANDAMETA.SITEACCESS_ID_SEQ.nextval,:dn,:pandasite,:status,CURRENT_DATE)'
-            else:
-                #panda_config.backend == 'mysql':
-                sql = 'INSERT INTO ATLAS_PANDAMETA.siteaccess (id,dn,pandasite,status,created) VALUES (NULL,:dn,:pandasite,:status,CURRENT_DATE)'
+            sql = 'INSERT INTO ATLAS_PANDAMETA.siteaccess (id,dn,pandasite,status,created) VALUES (ATLAS_PANDAMETA.SITEACCESS_ID_SEQ.nextval,:dn,:pandasite,:status,CURRENT_DATE)'
+
             varMap = {}
             varMap[':dn'] = dn
             varMap[':pandasite'] = siteID
