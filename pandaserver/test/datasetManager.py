@@ -454,8 +454,31 @@ class Freezer (threading.Thread):
                             
 # freeze dataset
 _logger.debug("==== freeze datasets ====")
+timeLimitRU = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
+timeLimitRL = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
 timeLimitU = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
 timeLimitL = datetime.datetime.utcnow() - datetime.timedelta(days=14)
+# reset doing so that Closer can update unmerged datasets
+sql  = "SELECT name FROM ATLAS_PANDA.Datasets "
+sql += "WHERE type=:type AND (modificationdate BETWEEN :modificationdateRL AND :modificationdateRU) AND subType=:subType AND status=:oldStatus "
+varMap = {}
+varMap[':modificationdateRU'] = timeLimitRU
+varMap[':modificationdateRL'] = timeLimitRL
+varMap[':type'] = 'output'
+varMap[':subType'] = 'sub'
+varMap[':oldStatus'] = 'doing'
+retReset,resReset = taskBuffer.querySQLS(sql,varMap)
+sql = "UPDATE ATLAS_PANDA.Datasets SET status=:newStatus,modificationdate=:modificationdateU WHERE name=:name AND status=:oldStatus "
+if resReset != None:
+    for name, in resReset:
+        varMap = {}
+        varMap[':name'] = name
+        varMap[':oldStatus'] = 'doing'
+        varMap[':newStatus'] = 'running'
+        varMap[':modificationdateU'] = timeLimitU
+        _logger.debug("reset {0} to freeze".format(name))
+        taskBuffer.querySQLS(sql,varMap)
+# loop for freezer
 freezeLock = threading.Semaphore(5)
 freezeProxyLock = threading.Lock()
 freezeThreadPool = ThreadPool()

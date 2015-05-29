@@ -566,6 +566,10 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                         self.logger.debug("-------------")                                                                
                                         time.sleep(10)
                                     else:
+                                        # set metadata
+                                        if name != originalName and re.search('_sub\d+$',name) != None:
+                                            metadata = {'lifetime':14*86400,'hidden':True}
+                                            rucioAPI.setMetaData(name,metadata)
                                         break
                                 if status != 0 or out.find('Error') != -1:
                                     # unset vuidStr
@@ -2446,14 +2450,14 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             elif checksum.startswith('ad:'):
                 file['adler32'] = checksum[3:]
             files.append(file)
+        # metadata
+        metadata = {'hidden':True}
         # register dataset
         client = RucioClient()
         try:
-            client.add_dataset(scope=scope, name=dsn)
+            client.add_dataset(scope=scope,name=dsn,lifetime=7*86400,meta=metadata)
         except DataIdentifierAlreadyExists:
             pass
-        # set lifetime
-        client.set_metadata(scope,dsn,key='lifetime',value=7*86400)
         # add files
         try:
             client.add_files_to_dataset(scope=scope,name=dsn,files=files, rse=None)

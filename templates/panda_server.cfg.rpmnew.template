@@ -119,6 +119,25 @@ dbbridgeverbose = False
 dump_sql = False
 
 
+##########################
+#
+# MySQL DB parameters: don't use for Oracle
+#
+#backend = mysql
+
+#schemaPANDA = ATLAS_PANDA
+#schemaMETA = ATLAS_PANDAMETA
+#schemaGRISLI = ATLAS_GRISLI
+#schemaPANDAARCH = ATLAS_PANDAARCH
+#schemaJEDI = ATLAS_PANDA
+#schemaDEFT = ATLAS_DEFT
+
+#dbhostmysql = pandawms.org
+#dbportmysql = 23306
+#dbnamemysql = pandadb1
+#dbusermysql = pansrusr1
+#dbpasswdmysql = FIXME
+
 
 ##########################
 #

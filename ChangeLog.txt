@@ -1,6 +1,14 @@
 Release Notes
 
 * current
+  * reduced interval for low prio jobs to finish
+  * fixed offlineRunning
+  * setting a very large priority to ES merge jobs
+  * reset doing datasets to kick updateUnmergedDatasets
+  * setting hidden metadata to _dis/_sub
+  * changed AdderAtlas to regard InvalidPath as fatal
+  * changed TA to ignore clouds with mcshare=0
+  * added exhausted
   * fixed getScriptOfflineRunning for ATLASPANDA-185
   * Added ALICE-Titan client scripts under test/alice/
   * Added LSST client scripts under test/lsst/

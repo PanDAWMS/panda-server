@@ -458,6 +458,13 @@ class TaskAssigner:
                 # MC share
                 weightParams[tmpCloudName]['mcshare'] = tmpCloud['mcshare']
                 _logger.info('%s  MC share    %s' % (self.taskID,tmpCloud['mcshare']))
+                # skip if MC share is zero
+                if tmpCloud['mcshare'] == 0:
+                    message = '%s    %s skip : zero MC share' % (self.taskID,tmpCloudName)
+                    _logger.info(message)
+                    self.sendMesg(message,msgType='warning')
+                    del weightParams[tmpCloudName]                    
+                    continue
                 # calculate available space = totalT1space - ((RW(cloud)+RW(thistask))*GBperSI2kday))
                 totalSpace = weightParams[tmpCloudName]['freeSpace'] + weightParams[tmpCloudName]['secSpace']
                 aveSpace,sizeCloud,sizeThis = self.getAvailableSpace(totalSpace,

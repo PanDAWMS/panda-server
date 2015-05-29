@@ -108,7 +108,7 @@ class TaskBuffer:
     
     # store Jobs into DB
     def storeJobs(self,jobs,user,joinThr=False,forkSetupper=False,fqans=[],hostname='',resetLocInSetupper=False,
-                  checkSpecialHandling=True,toPending=False,oldPandaIDs=None,relationType=None):
+                  checkSpecialHandling=True,toPending=False,oldPandaIDs=None,relationType=None,  userVO='atlas'):
         try:
             _logger.debug("storeJobs : start for %s nJobs=%s" % (user,len(jobs)))
             # check quota for priority calculation
@@ -117,7 +117,6 @@ class TaskBuffer:
             userJobsetID   = -1
             userStatus     = True
             priorityOffset = 0
-            userVO         = 'atlas'
             userCountry    = None
             useExpress     = False
             nExpressJobs   = 0
@@ -1109,7 +1108,7 @@ class TaskBuffer:
                 tmpSplitter.whitespace_split = True
                 # loop for params
                 for tmpItem in tmpSplitter:
-                    tmpMatch = re.search('^-([^=]+=)(.+)$',tmpItem)
+                    tmpMatch = re.search('^(-[^=]+=)(.+)$',tmpItem)
                     if tmpMatch != None:
                         tmpArgName = tmpMatch.group(1)
                         tmpArgVal  = tmpMatch.group(2)
