@@ -155,7 +155,7 @@ class install_data_panda (install_data_org):
         #post install
         uid = pwd.getpwnam(panda_user).pw_uid
         gid = grp.getgrnam(panda_group).gr_gid
-        for directory in ['/var/log/panda/wsgisocks', '/var/log/panda/fastsocks']:
+        for directory in ['/var/log/panda', '/var/log/panda/wsgisocks', '/var/log/panda/fastsocks']:
             if not os.path.exists(directory):
                 os.makedirs(directory)
                 os.chown(directory, uid, gid)                
@@ -223,6 +223,7 @@ setup(
                              'templates/panda_server-proxyCache.exe.template',
                              ]
                  ),
+
                 # var dirs
                 #('var/log/panda', []),
                 #('var/cache/pandaserver', []),                
