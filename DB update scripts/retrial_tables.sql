@@ -1,3 +1,12 @@
+--Expand the dataset contents table to include minramcount in order to be able to
+--increase the RAM requirements at job level (before it was at task level) 
+alter table ATLAS_PANDA.jedi_dataset_contents add
+(
+    minramcount number(10)
+)
+
+------------------------------------------------------------------
+
 --RETRY ACTIONS SEQUENCE FOR PK
 CREATE SEQUENCE ATLAS_PANDA.RETRYACTIONS_ID_SEQ INCREMENT BY 1 
 MAXVALUE 999999999999 MINVALUE 1 CACHE 10 ;

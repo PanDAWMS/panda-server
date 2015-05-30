@@ -2666,6 +2666,19 @@ class TaskBuffer:
 
 
 
+    # increase memory limit
+    def increaseRamLimitJobJEDI(self,job, jobRamCount):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.increaseRamLimitJobJEDI(job, jobRamCount)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
     # reset files in JEDI
     def resetFileStatusInJEDI(self,dn,prodManager,datasetName,lostFiles,lostInputDatasets):
         # get proxy

@@ -9,6 +9,7 @@ NO_RETRY = 'no_retry'
 INCREASE_MEM = 'increase_memory'
 LIMIT_RETRY = 'limit_retry'
 
+
 def timeit(method):
     """Decorator function to time the execution time of any given method. Use as decorator.
     """
@@ -166,7 +167,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, attemptNr)
                     try:
                         #TODO 1: Complete as in AdderGen (232-240) and delete lines from AdderGen
                         if active and not job.minRamCount in [0,None,'NULL']:
-                            task_buffer.increaseRamLimitJEDI(job.jediTaskID, job.minRamCount)
+                            task_buffer.increaseRamLimitJobJEDI(job, job.minRamCount)
                         #Log to pandamon and logfile
                         message = "[RETRYMODULE] increaseRAMLimit for jobID: %s, jediTaskID: %s" %(jobID, job.jediTaskID)
                         pandalog(message)
