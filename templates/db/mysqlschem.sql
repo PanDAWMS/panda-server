@@ -1,13 +1,12 @@
 # ************************************************************
 # Sequel Pro SQL dump
-# Версия 4096
+# Version 4096
 #
 # http://www.sequelpro.com/
 # http://code.google.com/p/sequel-pro/
 #
-# Адрес: 144.206.233.187 (MySQL 5.1.73)
-# Схема: pandadbat
-# Время создания: 2015-05-29 12:30:28 +0000
+# MySQL 5.1.73
+# Created at: 2015-05-29 12:30:28 +0000
 # ************************************************************
 
 
@@ -19,9 +18,6 @@
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
-
-# Дамп таблицы cache
-# ------------------------------------------------------------
 
 CREATE TABLE `cache` (
   `TYPE` varchar(250) NOT NULL,
@@ -36,10 +32,6 @@ CREATE TABLE `cache` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы cache_old
-# ------------------------------------------------------------
-
 CREATE TABLE `cache_old` (
   `TYPE` varchar(250) NOT NULL,
   `VALUE` varchar(250) NOT NULL,
@@ -52,10 +44,6 @@ CREATE TABLE `cache_old` (
   UNIQUE KEY `PRIMARY_CACHE` (`TYPE`,`VALUE`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы cache_old_2
-# ------------------------------------------------------------
 
 CREATE TABLE `cache_old_2` (
   `TYPE` varchar(250) NOT NULL,
@@ -70,10 +58,6 @@ CREATE TABLE `cache_old_2` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы cache_track_new
-# ------------------------------------------------------------
-
 CREATE TABLE `cache_track_new` (
   `TRACK_TIME` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `TYPE` varchar(250) DEFAULT NULL,
@@ -84,10 +68,6 @@ CREATE TABLE `cache_track_new` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы certificates
-# ------------------------------------------------------------
-
 CREATE TABLE `certificates` (
   `ID` int(11) NOT NULL,
   `CERT` varchar(4000) NOT NULL,
@@ -95,10 +75,6 @@ CREATE TABLE `certificates` (
   UNIQUE KEY `PRIMARY_CERTIFICATES` (`ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы classlist
-# ------------------------------------------------------------
 
 CREATE TABLE `classlist` (
   `CLASS` varchar(30) NOT NULL,
@@ -112,10 +88,6 @@ CREATE TABLE `classlist` (
   UNIQUE KEY `PRIMARY_CLASSLIST` (`CLASS`,`NAME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы cloudconfig
-# ------------------------------------------------------------
 
 CREATE TABLE `cloudconfig` (
   `NAME` varchar(20) NOT NULL,
@@ -148,10 +120,6 @@ CREATE TABLE `cloudconfig` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы cloudspace
-# ------------------------------------------------------------
-
 CREATE TABLE `cloudspace` (
   `CLOUD` varchar(20) NOT NULL,
   `STORE` varchar(50) NOT NULL,
@@ -163,10 +131,6 @@ CREATE TABLE `cloudspace` (
   UNIQUE KEY `PRIMARY_CLOUDSPACE` (`CLOUD`,`STORE`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы cloudtasks
-# ------------------------------------------------------------
 
 CREATE TABLE `cloudtasks` (
   `ID` int(11) NOT NULL AUTO_INCREMENT,
@@ -182,20 +146,12 @@ CREATE TABLE `cloudtasks` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы cloudtasks_id_seq
-# ------------------------------------------------------------
-
 CREATE TABLE `cloudtasks_id_seq` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT,
   `col` bit(1) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы datasets
-# ------------------------------------------------------------
 
 CREATE TABLE `datasets` (
   `VUID` varchar(40) NOT NULL,
@@ -218,10 +174,6 @@ CREATE TABLE `datasets` (
   KEY `DATASETS_MODIFDATE_IDX` (`MODIFICATIONDATE`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы dslist
-# ------------------------------------------------------------
 
 CREATE TABLE `dslist` (
   `ID` int(11) NOT NULL,
@@ -247,10 +199,6 @@ CREATE TABLE `dslist` (
   KEY `DSLIST_DUID_IDX` (`DUID`,`SITE`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы filestable_arch
-# ------------------------------------------------------------
 
 CREATE TABLE `filestable_arch` (
   `ROW_ID` bigint(20) NOT NULL,
@@ -281,10 +229,6 @@ CREATE TABLE `filestable_arch` (
   KEY `FILES_ARCH_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы filestable4
-# ------------------------------------------------------------
 
 CREATE TABLE `filestable4` (
   `ROW_ID` bigint(20) NOT NULL AUTO_INCREMENT,
@@ -321,10 +265,6 @@ CREATE TABLE `filestable4` (
 ) ENGINE=InnoDB AUTO_INCREMENT=386 DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы filestable4_row_id_seq
-# ------------------------------------------------------------
-
 CREATE TABLE `filestable4_row_id_seq` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT,
   `col` bit(1) DEFAULT NULL,
@@ -332,20 +272,12 @@ CREATE TABLE `filestable4_row_id_seq` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы group_jobid_seq
-# ------------------------------------------------------------
-
 CREATE TABLE `group_jobid_seq` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT,
   `col` bit(1) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы groups
-# ------------------------------------------------------------
 
 CREATE TABLE `groups` (
   `ID` int(11) NOT NULL,
@@ -403,10 +335,6 @@ CREATE TABLE `groups` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы history
-# ------------------------------------------------------------
-
 CREATE TABLE `history` (
   `ID` int(11) NOT NULL,
   `ENTRYTIME` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -420,20 +348,12 @@ CREATE TABLE `history` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы incidents
-# ------------------------------------------------------------
-
 CREATE TABLE `incidents` (
   `AT_TIME` datetime DEFAULT '0000-00-00 00:00:00',
   `TYPEKEY` varchar(20) DEFAULT NULL,
   `DESCRIPTION` varchar(200) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы installedsw
-# ------------------------------------------------------------
 
 CREATE TABLE `installedsw` (
   `SITEID` varchar(60) NOT NULL DEFAULT '',
@@ -448,10 +368,6 @@ CREATE TABLE `installedsw` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы jdllist
-# ------------------------------------------------------------
-
 CREATE TABLE `jdllist` (
   `NAME` varchar(60) NOT NULL,
   `HOST` varchar(60) DEFAULT NULL,
@@ -462,10 +378,6 @@ CREATE TABLE `jdllist` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы jedi_aux_status_mintaskid
-# ------------------------------------------------------------
-
 CREATE TABLE `jedi_aux_status_mintaskid` (
   `STATUS` varchar(64) NOT NULL,
   `MIN_JEDITASKID` bigint(20) NOT NULL,
@@ -473,20 +385,12 @@ CREATE TABLE `jedi_aux_status_mintaskid` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы jedi_dataset_cont_fileid_seq
-# ------------------------------------------------------------
-
 CREATE TABLE `jedi_dataset_cont_fileid_seq` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT,
   `col` bit(1) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы jedi_dataset_contents
-# ------------------------------------------------------------
 
 CREATE TABLE `jedi_dataset_contents` (
   `JEDITASKID` bigint(20) NOT NULL,
@@ -521,10 +425,6 @@ CREATE TABLE `jedi_dataset_contents` (
   CONSTRAINT `JEDI_DATASETCONT_JEDITASKID_FK` FOREIGN KEY (`JEDITASKID`) REFERENCES `jedi_tasks` (`JEDITASKID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы jedi_datasets
-# ------------------------------------------------------------
 
 CREATE TABLE `jedi_datasets` (
   `JEDITASKID` bigint(20) NOT NULL,
@@ -572,20 +472,12 @@ CREATE TABLE `jedi_datasets` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы jedi_datasets_id_seq
-# ------------------------------------------------------------
-
 CREATE TABLE `jedi_datasets_id_seq` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT,
   `col` bit(1) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы jedi_events
-# ------------------------------------------------------------
 
 CREATE TABLE `jedi_events` (
   `JEDITASKID` bigint(20) NOT NULL,
@@ -603,10 +495,6 @@ CREATE TABLE `jedi_events` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы jedi_job_retry_history
-# ------------------------------------------------------------
-
 CREATE TABLE `jedi_job_retry_history` (
   `JEDITASKID` bigint(20) NOT NULL,
   `OLDPANDAID` bigint(20) NOT NULL,
@@ -621,10 +509,6 @@ CREATE TABLE `jedi_job_retry_history` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы jedi_jobparams_template
-# ------------------------------------------------------------
-
 CREATE TABLE `jedi_jobparams_template` (
   `JEDITASKID` bigint(20) NOT NULL,
   `JOBPARAMSTEMPLATE` text,
@@ -633,10 +517,6 @@ CREATE TABLE `jedi_jobparams_template` (
   CONSTRAINT `JEDI_JOBPARTEMPL_JEDITASKID_FK` FOREIGN KEY (`JEDITASKID`) REFERENCES `jedi_tasks` (`JEDITASKID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы jedi_output_template
-# ------------------------------------------------------------
 
 CREATE TABLE `jedi_output_template` (
   `JEDITASKID` bigint(20) NOT NULL,
@@ -655,20 +535,12 @@ CREATE TABLE `jedi_output_template` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы jedi_output_template_id_seq
-# ------------------------------------------------------------
-
 CREATE TABLE `jedi_output_template_id_seq` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT,
   `col` bit(1) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы jedi_process_lock
-# ------------------------------------------------------------
 
 CREATE TABLE `jedi_process_lock` (
   `VO` varchar(16) NOT NULL,
@@ -681,10 +553,6 @@ CREATE TABLE `jedi_process_lock` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы jedi_taskparams
-# ------------------------------------------------------------
-
 CREATE TABLE `jedi_taskparams` (
   `JEDITASKID` bigint(20) NOT NULL,
   `TASKPARAMS` text,
@@ -693,10 +561,6 @@ CREATE TABLE `jedi_taskparams` (
   CONSTRAINT `JEDI_TASKPARAMS_JEDITASKID_FK` FOREIGN KEY (`JEDITASKID`) REFERENCES `jedi_tasks` (`JEDITASKID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы jedi_tasks
-# ------------------------------------------------------------
 
 CREATE TABLE `jedi_tasks` (
   `JEDITASKID` bigint(20) NOT NULL,
@@ -768,10 +632,6 @@ CREATE TABLE `jedi_tasks` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы jedi_work_queue
-# ------------------------------------------------------------
-
 CREATE TABLE `jedi_work_queue` (
   `QUEUE_ID` int(11) NOT NULL,
   `QUEUE_NAME` varchar(16) NOT NULL,
@@ -790,20 +650,12 @@ CREATE TABLE `jedi_work_queue` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы jedi_work_queue_id_seq
-# ------------------------------------------------------------
-
 CREATE TABLE `jedi_work_queue_id_seq` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT,
   `col` bit(1) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы jobclass
-# ------------------------------------------------------------
 
 CREATE TABLE `jobclass` (
   `ID` int(11) NOT NULL,
@@ -820,10 +672,6 @@ CREATE TABLE `jobclass` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы jobparamstable
-# ------------------------------------------------------------
-
 CREATE TABLE `jobparamstable` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL DEFAULT '1970-01-01 00:00:00',
@@ -833,10 +681,6 @@ CREATE TABLE `jobparamstable` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы jobparamstable_arch
-# ------------------------------------------------------------
-
 CREATE TABLE `jobparamstable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -844,10 +688,6 @@ CREATE TABLE `jobparamstable_arch` (
   KEY `JOBPARAMS_ARCH_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы jobs_statuslog
-# ------------------------------------------------------------
 
 CREATE TABLE `jobs_statuslog` (
   `PANDAID` bigint(20) NOT NULL,
@@ -860,10 +700,6 @@ CREATE TABLE `jobs_statuslog` (
   KEY `JOBS_STATUSLOG_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы jobsactive4
-# ------------------------------------------------------------
 
 CREATE TABLE `jobsactive4` (
   `PANDAID` bigint(20) NOT NULL DEFAULT '0',
@@ -977,10 +813,6 @@ CREATE TABLE `jobsactive4` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы jobsarchived
-# ------------------------------------------------------------
-
 CREATE TABLE `jobsarchived` (
   `PANDAID` bigint(20) NOT NULL DEFAULT '0',
   `JOBDEFINITIONID` bigint(20) NOT NULL DEFAULT '0',
@@ -1088,10 +920,6 @@ CREATE TABLE `jobsarchived` (
   KEY `JOBS_JOBDEFID_PRODUSERNAME_IDX` (`JOBDEFINITIONID`,`PRODUSERNAME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы jobsarchived4
-# ------------------------------------------------------------
 
 CREATE TABLE `jobsarchived4` (
   `PANDAID` bigint(20) NOT NULL DEFAULT '0',
@@ -1208,10 +1036,6 @@ CREATE TABLE `jobsarchived4` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы jobsdebug
-# ------------------------------------------------------------
-
 CREATE TABLE `jobsdebug` (
   `PANDAID` bigint(20) NOT NULL,
   `STDOUT` varchar(2048) DEFAULT NULL,
@@ -1219,10 +1043,6 @@ CREATE TABLE `jobsdebug` (
   CONSTRAINT `JOBSDEBUG_PANDAID_FK` FOREIGN KEY (`PANDAID`) REFERENCES `jobsactive4` (`PANDAID`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы jobsdefined4
-# ------------------------------------------------------------
 
 CREATE TABLE `jobsdefined4` (
   `PANDAID` bigint(20) NOT NULL AUTO_INCREMENT,
@@ -1331,10 +1151,6 @@ CREATE TABLE `jobsdefined4` (
 ) ENGINE=InnoDB AUTO_INCREMENT=132 DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы jobswaiting4
-# ------------------------------------------------------------
-
 CREATE TABLE `jobswaiting4` (
   `PANDAID` bigint(20) NOT NULL DEFAULT '0',
   `JOBDEFINITIONID` bigint(20) NOT NULL DEFAULT '0',
@@ -1440,10 +1256,6 @@ CREATE TABLE `jobswaiting4` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы logstable
-# ------------------------------------------------------------
-
 CREATE TABLE `logstable` (
   `PANDAID` int(11) NOT NULL DEFAULT '0',
   `LOG1` text NOT NULL,
@@ -1455,10 +1267,6 @@ CREATE TABLE `logstable` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы members
-# ------------------------------------------------------------
-
 CREATE TABLE `members` (
   `UNAME` varchar(30) NOT NULL,
   `GNAME` varchar(30) NOT NULL,
@@ -1469,10 +1277,6 @@ CREATE TABLE `members` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы metatable
-# ------------------------------------------------------------
-
 CREATE TABLE `metatable` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL DEFAULT '1970-01-01 00:00:00',
@@ -1482,10 +1286,6 @@ CREATE TABLE `metatable` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы metatable_arch
-# ------------------------------------------------------------
-
 CREATE TABLE `metatable_arch` (
   `PANDAID` bigint(20) NOT NULL DEFAULT '0',
   `MODIFICATIONTIME` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1494,10 +1294,6 @@ CREATE TABLE `metatable_arch` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы multicloud_history
-# ------------------------------------------------------------
-
 CREATE TABLE `multicloud_history` (
   `SITE` varchar(60) NOT NULL,
   `MULTICLOUD` varchar(64) DEFAULT NULL,
@@ -1505,10 +1301,6 @@ CREATE TABLE `multicloud_history` (
   KEY `MULTICLOUD_HISTORY_SITE_IDX` (`SITE`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы mv_jobsactive4_stats
-# ------------------------------------------------------------
 
 CREATE TABLE `mv_jobsactive4_stats` (
   `ID` int(20) NOT NULL AUTO_INCREMENT,
@@ -1529,10 +1321,6 @@ CREATE TABLE `mv_jobsactive4_stats` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы pandaconfig
-# ------------------------------------------------------------
-
 CREATE TABLE `pandaconfig` (
   `NAME` varchar(60) NOT NULL,
   `CONTROLLER` varchar(20) NOT NULL,
@@ -1542,20 +1330,12 @@ CREATE TABLE `pandaconfig` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы pandaids_modiftime
-# ------------------------------------------------------------
-
 CREATE TABLE `pandaids_modiftime` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFTIME` datetime NOT NULL,
   PRIMARY KEY (`PANDAID`,`MODIFTIME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы pandaids_modiftime_errlog
-# ------------------------------------------------------------
 
 CREATE TABLE `pandaids_modiftime_errlog` (
   `ORA_ERR_NUMBER$` int(11) DEFAULT NULL,
@@ -1567,10 +1347,6 @@ CREATE TABLE `pandaids_modiftime_errlog` (
   `MODIFTIME` varchar(4000) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы pandalog
-# ------------------------------------------------------------
 
 CREATE TABLE `pandalog` (
   `BINTIME` datetime NOT NULL DEFAULT '1970-01-01 00:00:00',
@@ -1591,10 +1367,6 @@ CREATE TABLE `pandalog` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы pandalog_fax
-# ------------------------------------------------------------
-
 CREATE TABLE `pandalog_fax` (
   `BINTIME` datetime NOT NULL DEFAULT '1970-01-01 00:00:00',
   `NAME` varchar(30) DEFAULT NULL,
@@ -1611,10 +1383,6 @@ CREATE TABLE `pandalog_fax` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы passwords
-# ------------------------------------------------------------
-
 CREATE TABLE `passwords` (
   `ID` int(11) NOT NULL,
   `PASS` varchar(60) NOT NULL,
@@ -1622,10 +1390,6 @@ CREATE TABLE `passwords` (
   UNIQUE KEY `PRIMARY_PASWD` (`ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы pilotqueue
-# ------------------------------------------------------------
 
 CREATE TABLE `pilotqueue` (
   `JOBID` varchar(100) NOT NULL,
@@ -1666,10 +1430,6 @@ CREATE TABLE `pilotqueue` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы pilotqueue_bnl
-# ------------------------------------------------------------
-
 CREATE TABLE `pilotqueue_bnl` (
   `JOBID` varchar(100) NOT NULL,
   `TPID` varchar(60) NOT NULL,
@@ -1708,10 +1468,6 @@ CREATE TABLE `pilotqueue_bnl` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы pilottoken
-# ------------------------------------------------------------
-
 CREATE TABLE `pilottoken` (
   `TOKEN` varchar(64) NOT NULL,
   `SCHEDULERHOST` varchar(100) DEFAULT NULL,
@@ -1725,10 +1481,6 @@ CREATE TABLE `pilottoken` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы pilottype
-# ------------------------------------------------------------
-
 CREATE TABLE `pilottype` (
   `NAME` varchar(60) NOT NULL,
   `SCRIPT` varchar(60) NOT NULL,
@@ -1738,10 +1490,6 @@ CREATE TABLE `pilottype` (
   UNIQUE KEY `PRIMARY_PILOTTYPE` (`NAME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы productiondatasets
-# ------------------------------------------------------------
 
 CREATE TABLE `productiondatasets` (
   `NAME` varchar(120) NOT NULL,
@@ -1760,10 +1508,6 @@ CREATE TABLE `productiondatasets` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы proxykey
-# ------------------------------------------------------------
-
 CREATE TABLE `proxykey` (
   `ID` int(11) NOT NULL AUTO_INCREMENT,
   `DN` varchar(100) NOT NULL,
@@ -1776,10 +1520,6 @@ CREATE TABLE `proxykey` (
   UNIQUE KEY `PRIMARY_PROXYKEY` (`ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы redirect
-# ------------------------------------------------------------
 
 CREATE TABLE `redirect` (
   `SERVICE` varchar(30) NOT NULL,
@@ -1802,10 +1542,6 @@ CREATE TABLE `redirect` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы savedpages
-# ------------------------------------------------------------
-
 CREATE TABLE `savedpages` (
   `NAME` varchar(30) NOT NULL,
   `FLAG` varchar(20) NOT NULL,
@@ -1817,10 +1553,6 @@ CREATE TABLE `savedpages` (
   UNIQUE KEY `PRIMARY_SAVEDPAGES` (`NAME`,`FLAG`,`HOURS`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы schedconfig
-# ------------------------------------------------------------
 
 CREATE TABLE `schedconfig` (
   `NAME` varchar(60) NOT NULL DEFAULT 'default',
@@ -1940,10 +1672,6 @@ CREATE TABLE `schedconfig` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы schedconfig_1st_attempt
-# ------------------------------------------------------------
-
 CREATE TABLE `schedconfig_1st_attempt` (
   `NICKNAME` varchar(60) NOT NULL,
   `LOCALQUEUE` varchar(20) DEFAULT NULL,
@@ -2042,10 +1770,6 @@ CREATE TABLE `schedconfig_1st_attempt` (
   `WANSINKLIMIT` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы schedconfig_2nd_attempt
-# ------------------------------------------------------------
 
 CREATE TABLE `schedconfig_2nd_attempt` (
   `NICKNAME` varchar(60) NOT NULL,
@@ -2149,10 +1873,6 @@ CREATE TABLE `schedconfig_2nd_attempt` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы schedinstance
-# ------------------------------------------------------------
-
 CREATE TABLE `schedinstance` (
   `NAME` varchar(60) NOT NULL DEFAULT 'default',
   `NICKNAME` varchar(60) NOT NULL,
@@ -2176,10 +1896,6 @@ CREATE TABLE `schedinstance` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы sequence
-# ------------------------------------------------------------
-
 CREATE TABLE `sequence` (
   `name` varchar(100) NOT NULL,
   `increment` int(11) NOT NULL DEFAULT '1',
@@ -2190,10 +1906,6 @@ CREATE TABLE `sequence` (
   PRIMARY KEY (`name`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
-
-
-# Дамп таблицы servicelist
-# ------------------------------------------------------------
 
 CREATE TABLE `servicelist` (
   `ID` int(11) NOT NULL,
@@ -2225,10 +1937,6 @@ CREATE TABLE `servicelist` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы siteaccess
-# ------------------------------------------------------------
-
 CREATE TABLE `siteaccess` (
   `ID` int(11) NOT NULL AUTO_INCREMENT,
   `DN` varchar(100) DEFAULT NULL,
@@ -2243,10 +1951,6 @@ CREATE TABLE `siteaccess` (
   UNIQUE KEY `SITEACCESS_DNSITE_IDX` (`DN`,`PANDASITE`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы sitedata
-# ------------------------------------------------------------
 
 CREATE TABLE `sitedata` (
   `SITE` varchar(60) NOT NULL,
@@ -2286,10 +1990,6 @@ CREATE TABLE `sitedata` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы siteddm
-# ------------------------------------------------------------
-
 CREATE TABLE `siteddm` (
   `NAME` varchar(60) NOT NULL,
   `INCMD` varchar(60) NOT NULL,
@@ -2302,10 +2002,6 @@ CREATE TABLE `siteddm` (
   UNIQUE KEY `PRIMARY_SITEDDM` (`NAME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы sitehistory
-# ------------------------------------------------------------
 
 CREATE TABLE `sitehistory` (
   `SITE` varchar(60) NOT NULL,
@@ -2351,10 +2047,6 @@ CREATE TABLE `sitehistory` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы sites_matrix_data
-# ------------------------------------------------------------
-
 CREATE TABLE `sites_matrix_data` (
   `SOURCE` varchar(256) NOT NULL,
   `DESTINATION` varchar(256) NOT NULL,
@@ -2374,10 +2066,6 @@ CREATE TABLE `sites_matrix_data` (
   `XRDCP_LAST_UPDATE` date DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы sitesinfo
-# ------------------------------------------------------------
 
 CREATE TABLE `sitesinfo` (
   `NAME` varchar(120) NOT NULL,
@@ -2403,10 +2091,6 @@ CREATE TABLE `sitesinfo` (
   `TIMESTAMP` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы sitestats
-# ------------------------------------------------------------
 
 CREATE TABLE `sitestats` (
   `CLOUD` varchar(10) DEFAULT NULL,
@@ -2443,20 +2127,12 @@ CREATE TABLE `sitestats` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы subcounter_subid_seq
-# ------------------------------------------------------------
-
 CREATE TABLE `subcounter_subid_seq` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT,
   `col` bit(1) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=130 DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы submithosts
-# ------------------------------------------------------------
 
 CREATE TABLE `submithosts` (
   `NAME` varchar(60) NOT NULL,
@@ -2473,10 +2149,6 @@ CREATE TABLE `submithosts` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы sysconfig
-# ------------------------------------------------------------
-
 CREATE TABLE `sysconfig` (
   `NAME` varchar(60) NOT NULL,
   `SYSTEM` varchar(20) NOT NULL,
@@ -2485,10 +2157,6 @@ CREATE TABLE `sysconfig` (
   UNIQUE KEY `PRIMARY_SYSCFG` (`NAME`,`SYSTEM`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы t_m4regions_replication
-# ------------------------------------------------------------
 
 CREATE TABLE `t_m4regions_replication` (
   `TIER2` varchar(50) NOT NULL,
@@ -2514,10 +2182,6 @@ CREATE TABLE `t_m4regions_replication` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы table_part_boundaries
-# ------------------------------------------------------------
-
 CREATE TABLE `table_part_boundaries` (
   `TAB_NAME` varchar(30) NOT NULL,
   `PART_NAME` varchar(30) NOT NULL,
@@ -2529,10 +2193,6 @@ CREATE TABLE `table_part_boundaries` (
   UNIQUE KEY `TABLE_PART_BOUNDARIES_PK` (`TAB_NAME`,`PART_NAME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы tablepart4copying
-# ------------------------------------------------------------
 
 CREATE TABLE `tablepart4copying` (
   `TABLE_NAME` varchar(30) NOT NULL,
@@ -2547,10 +2207,6 @@ CREATE TABLE `tablepart4copying` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы taginfo
-# ------------------------------------------------------------
-
 CREATE TABLE `taginfo` (
   `TAG` varchar(30) NOT NULL,
   `DESCRIPTION` varchar(100) NOT NULL,
@@ -2560,10 +2216,6 @@ CREATE TABLE `taginfo` (
   UNIQUE KEY `PRIMARY_TAGINFO` (`TAG`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы tags
-# ------------------------------------------------------------
 
 CREATE TABLE `tags` (
   `ID` int(11) NOT NULL,
@@ -2579,10 +2231,6 @@ CREATE TABLE `tags` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы usagereport
-# ------------------------------------------------------------
-
 CREATE TABLE `usagereport` (
   `ENTRY` int(11) NOT NULL,
   `FLAG` varchar(20) NOT NULL,
@@ -2597,10 +2245,6 @@ CREATE TABLE `usagereport` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы usercacheusage
-# ------------------------------------------------------------
-
 CREATE TABLE `usercacheusage` (
   `USERNAME` varchar(128) NOT NULL,
   `FILENAME` varchar(256) NOT NULL,
@@ -2613,10 +2257,6 @@ CREATE TABLE `usercacheusage` (
   KEY `USERCACHEUSAGE_USR_CRDATE_INDX` (`USERNAME`,`CREATIONTIME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы users
-# ------------------------------------------------------------
 
 CREATE TABLE `users` (
   `ID` int(11) NOT NULL AUTO_INCREMENT,
@@ -2675,10 +2315,6 @@ CREATE TABLE `users` (
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы usersubs
-# ------------------------------------------------------------
-
 CREATE TABLE `usersubs` (
   `DATASETNAME` varchar(255) NOT NULL,
   `SITE` varchar(64) NOT NULL,
@@ -2690,10 +2326,6 @@ CREATE TABLE `usersubs` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы vo_to_site
-# ------------------------------------------------------------
-
 CREATE TABLE `vo_to_site` (
   `SITE_NAME` varchar(32) NOT NULL,
   `QUEUE` varchar(64) NOT NULL,
@@ -2703,10 +2335,6 @@ CREATE TABLE `vo_to_site` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы vorspassfail
-# ------------------------------------------------------------
-
 CREATE TABLE `vorspassfail` (
   `SITE_NAME` varchar(32) NOT NULL,
   `PASSFAIL` char(4) NOT NULL,
@@ -2715,10 +2343,6 @@ CREATE TABLE `vorspassfail` (
   UNIQUE KEY `PRIMARY_VORSPASSFAIL` (`SITE_NAME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы wndata
-# ------------------------------------------------------------
 
 CREATE TABLE `wndata` (
   `SITE` varchar(60) NOT NULL,
@@ -2753,10 +2377,6 @@ CREATE TABLE `wndata` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы y2006_filestable_arch
-# ------------------------------------------------------------
-
 CREATE TABLE `y2006_filestable_arch` (
   `ROW_ID` bigint(20) NOT NULL,
   `PANDAID` bigint(20) NOT NULL,
@@ -2787,10 +2407,6 @@ CREATE TABLE `y2006_filestable_arch` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы y2006_jobparamstable_arch
-# ------------------------------------------------------------
-
 CREATE TABLE `y2006_jobparamstable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
@@ -2798,10 +2414,6 @@ CREATE TABLE `y2006_jobparamstable_arch` (
   KEY `JOBPARAMS2006_ARCH_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы y2006_jobsarchived
-# ------------------------------------------------------------
 
 CREATE TABLE `y2006_jobsarchived` (
   `PANDAID` bigint(20) NOT NULL,
@@ -2906,10 +2518,6 @@ CREATE TABLE `y2006_jobsarchived` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы y2006_metatable_arch
-# ------------------------------------------------------------
-
 CREATE TABLE `y2006_metatable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
@@ -2917,10 +2525,6 @@ CREATE TABLE `y2006_metatable_arch` (
   KEY `META2006_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы y2007_filestable_arch
-# ------------------------------------------------------------
 
 CREATE TABLE `y2007_filestable_arch` (
   `ROW_ID` bigint(20) NOT NULL,
@@ -2952,10 +2556,6 @@ CREATE TABLE `y2007_filestable_arch` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы y2007_jobparamstable_arch
-# ------------------------------------------------------------
-
 CREATE TABLE `y2007_jobparamstable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
@@ -2963,10 +2563,6 @@ CREATE TABLE `y2007_jobparamstable_arch` (
   KEY `JOBPARAMS2007_ARCH_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы y2007_jobsarchived
-# ------------------------------------------------------------
 
 CREATE TABLE `y2007_jobsarchived` (
   `PANDAID` bigint(20) NOT NULL,
@@ -3071,10 +2667,6 @@ CREATE TABLE `y2007_jobsarchived` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы y2007_metatable_arch
-# ------------------------------------------------------------
-
 CREATE TABLE `y2007_metatable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
@@ -3082,10 +2674,6 @@ CREATE TABLE `y2007_metatable_arch` (
   KEY `META2007_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы y2008_filestable_arch
-# ------------------------------------------------------------
 
 CREATE TABLE `y2008_filestable_arch` (
   `ROW_ID` bigint(20) NOT NULL,
@@ -3117,10 +2705,6 @@ CREATE TABLE `y2008_filestable_arch` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы y2008_jobparamstable_arch
-# ------------------------------------------------------------
-
 CREATE TABLE `y2008_jobparamstable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
@@ -3128,10 +2712,6 @@ CREATE TABLE `y2008_jobparamstable_arch` (
   KEY `JOBPARAMS2008_ARCH_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы y2008_jobsarchived
-# ------------------------------------------------------------
 
 CREATE TABLE `y2008_jobsarchived` (
   `PANDAID` bigint(20) NOT NULL,
@@ -3236,10 +2816,6 @@ CREATE TABLE `y2008_jobsarchived` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы y2008_metatable_arch
-# ------------------------------------------------------------
-
 CREATE TABLE `y2008_metatable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
@@ -3247,10 +2823,6 @@ CREATE TABLE `y2008_metatable_arch` (
   KEY `META2008_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы y2009_filestable_arch
-# ------------------------------------------------------------
 
 CREATE TABLE `y2009_filestable_arch` (
   `ROW_ID` bigint(20) NOT NULL,
@@ -3282,10 +2854,6 @@ CREATE TABLE `y2009_filestable_arch` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы y2009_jobparamstable_arch
-# ------------------------------------------------------------
-
 CREATE TABLE `y2009_jobparamstable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
@@ -3293,10 +2861,6 @@ CREATE TABLE `y2009_jobparamstable_arch` (
   KEY `JOBPARAMS2009_ARCH_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы y2009_jobsarchived
-# ------------------------------------------------------------
 
 CREATE TABLE `y2009_jobsarchived` (
   `PANDAID` bigint(20) NOT NULL,
@@ -3401,10 +2965,6 @@ CREATE TABLE `y2009_jobsarchived` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы y2009_metatable_arch
-# ------------------------------------------------------------
-
 CREATE TABLE `y2009_metatable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
@@ -3412,10 +2972,6 @@ CREATE TABLE `y2009_metatable_arch` (
   KEY `META2009_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы y2010_filestable_arch
-# ------------------------------------------------------------
 
 CREATE TABLE `y2010_filestable_arch` (
   `ROW_ID` bigint(20) NOT NULL,
@@ -3447,10 +3003,6 @@ CREATE TABLE `y2010_filestable_arch` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы y2010_jobparamstable_arch
-# ------------------------------------------------------------
-
 CREATE TABLE `y2010_jobparamstable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
@@ -3458,10 +3010,6 @@ CREATE TABLE `y2010_jobparamstable_arch` (
   KEY `JOBPARAMS2010_ARCH_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы y2010_jobsarchived
-# ------------------------------------------------------------
 
 CREATE TABLE `y2010_jobsarchived` (
   `PANDAID` bigint(20) NOT NULL,
@@ -3566,10 +3114,6 @@ CREATE TABLE `y2010_jobsarchived` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы y2010_metatable_arch
-# ------------------------------------------------------------
-
 CREATE TABLE `y2010_metatable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
@@ -3577,10 +3121,6 @@ CREATE TABLE `y2010_metatable_arch` (
   KEY `META2010_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы y2011_filestable_arch
-# ------------------------------------------------------------
 
 CREATE TABLE `y2011_filestable_arch` (
   `ROW_ID` bigint(20) NOT NULL,
@@ -3612,10 +3152,6 @@ CREATE TABLE `y2011_filestable_arch` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы y2011_jobparamstable_arch
-# ------------------------------------------------------------
-
 CREATE TABLE `y2011_jobparamstable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
@@ -3623,10 +3159,6 @@ CREATE TABLE `y2011_jobparamstable_arch` (
   KEY `JOBPARAMS2011_ARCH_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы y2011_jobsarchived
-# ------------------------------------------------------------
 
 CREATE TABLE `y2011_jobsarchived` (
   `PANDAID` bigint(20) NOT NULL,
@@ -3731,10 +3263,6 @@ CREATE TABLE `y2011_jobsarchived` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы y2011_metatable_arch
-# ------------------------------------------------------------
-
 CREATE TABLE `y2011_metatable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
@@ -3742,10 +3270,6 @@ CREATE TABLE `y2011_metatable_arch` (
   KEY `META2011_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы y2012_filestable_arch
-# ------------------------------------------------------------
 
 CREATE TABLE `y2012_filestable_arch` (
   `ROW_ID` bigint(20) NOT NULL,
@@ -3777,10 +3301,6 @@ CREATE TABLE `y2012_filestable_arch` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы y2012_jobparamstable_arch
-# ------------------------------------------------------------
-
 CREATE TABLE `y2012_jobparamstable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
@@ -3788,10 +3308,6 @@ CREATE TABLE `y2012_jobparamstable_arch` (
   KEY `JOBPARAMS2012_ARCH_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы y2012_jobsarchived
-# ------------------------------------------------------------
 
 CREATE TABLE `y2012_jobsarchived` (
   `PANDAID` bigint(20) NOT NULL,
@@ -3896,10 +3412,6 @@ CREATE TABLE `y2012_jobsarchived` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы y2012_metatable_arch
-# ------------------------------------------------------------
-
 CREATE TABLE `y2012_metatable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
@@ -3907,10 +3419,6 @@ CREATE TABLE `y2012_metatable_arch` (
   KEY `META2012_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы y2013_filestable_arch
-# ------------------------------------------------------------
 
 CREATE TABLE `y2013_filestable_arch` (
   `ROW_ID` bigint(20) NOT NULL,
@@ -3942,10 +3450,6 @@ CREATE TABLE `y2013_filestable_arch` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы y2013_jobparamstable_arch
-# ------------------------------------------------------------
-
 CREATE TABLE `y2013_jobparamstable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
@@ -3953,10 +3457,6 @@ CREATE TABLE `y2013_jobparamstable_arch` (
   KEY `JOBPARAMS2013_ARCH_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-# Дамп таблицы y2013_jobsarchived
-# ------------------------------------------------------------
 
 CREATE TABLE `y2013_jobsarchived` (
   `PANDAID` bigint(20) NOT NULL,
@@ -4063,10 +3563,6 @@ CREATE TABLE `y2013_jobsarchived` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-
-# Дамп таблицы y2013_metatable_arch
-# ------------------------------------------------------------
-
 CREATE TABLE `y2013_metatable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
@@ -4074,13 +3570,6 @@ CREATE TABLE `y2013_metatable_arch` (
   KEY `META2013_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
-
-
---
--- Dumping routines (FUNCTION) for database 'pandadbat'
---
-DELIMITER ;;
 
 # Dump of FUNCTION curval
 # ------------------------------------------------------------
