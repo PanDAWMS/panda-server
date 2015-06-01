@@ -1,24 +1,27 @@
-# ************************************************************
-# Sequel Pro SQL dump
-# Version 4096
-#
-# http://www.sequelpro.com/
-# http://code.google.com/p/sequel-pro/
-#
-# MySQL 5.1.73
-# Created at: 2015-05-29 12:30:28 +0000
-# ************************************************************
-
+-- MySQL dump 10.13  Distrib 5.1.73, for redhat-linux-gnu (x86_64)
+--
+-- Host: localhost    Database: pandadbat
+-- ------------------------------------------------------
+-- Server version	5.1.73
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
 /*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
 /*!40101 SET NAMES utf8 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
+--
+-- Table structure for table `cache`
+--
 
+DROP TABLE IF EXISTS `cache`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `cache` (
   `TYPE` varchar(250) NOT NULL,
   `VALUE` varchar(250) NOT NULL,
@@ -30,8 +33,24 @@ CREATE TABLE `cache` (
   PRIMARY KEY (`TYPE`,`VALUE`),
   UNIQUE KEY `CACHE_PK` (`TYPE`,`VALUE`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `cache`
+--
 
+LOCK TABLES `cache` WRITE;
+/*!40000 ALTER TABLE `cache` DISABLE KEYS */;
+/*!40000 ALTER TABLE `cache` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `cache_old`
+--
+
+DROP TABLE IF EXISTS `cache_old`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `cache_old` (
   `TYPE` varchar(250) NOT NULL,
   `VALUE` varchar(250) NOT NULL,
@@ -43,8 +62,24 @@ CREATE TABLE `cache_old` (
   PRIMARY KEY (`TYPE`,`VALUE`),
   UNIQUE KEY `PRIMARY_CACHE` (`TYPE`,`VALUE`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `cache_old`
+--
 
+LOCK TABLES `cache_old` WRITE;
+/*!40000 ALTER TABLE `cache_old` DISABLE KEYS */;
+/*!40000 ALTER TABLE `cache_old` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `cache_old_2`
+--
+
+DROP TABLE IF EXISTS `cache_old_2`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `cache_old_2` (
   `TYPE` varchar(250) NOT NULL,
   `VALUE` varchar(250) NOT NULL,
@@ -56,8 +91,24 @@ CREATE TABLE `cache_old_2` (
   PRIMARY KEY (`TYPE`,`VALUE`),
   UNIQUE KEY `PRIMARY_CACHE_NEW` (`TYPE`,`VALUE`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `cache_old_2`
+--
 
+LOCK TABLES `cache_old_2` WRITE;
+/*!40000 ALTER TABLE `cache_old_2` DISABLE KEYS */;
+/*!40000 ALTER TABLE `cache_old_2` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `cache_track_new`
+--
+
+DROP TABLE IF EXISTS `cache_track_new`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `cache_track_new` (
   `TRACK_TIME` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `TYPE` varchar(250) DEFAULT NULL,
@@ -66,16 +117,48 @@ CREATE TABLE `cache_track_new` (
   `LOB_LEN_NEW` int(11) DEFAULT NULL,
   `USERHOST` varchar(250) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `cache_track_new`
+--
 
+LOCK TABLES `cache_track_new` WRITE;
+/*!40000 ALTER TABLE `cache_track_new` DISABLE KEYS */;
+/*!40000 ALTER TABLE `cache_track_new` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `certificates`
+--
+
+DROP TABLE IF EXISTS `certificates`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `certificates` (
   `ID` int(11) NOT NULL,
   `CERT` varchar(4000) NOT NULL,
   PRIMARY KEY (`ID`),
   UNIQUE KEY `PRIMARY_CERTIFICATES` (`ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `certificates`
+--
 
+LOCK TABLES `certificates` WRITE;
+/*!40000 ALTER TABLE `certificates` DISABLE KEYS */;
+/*!40000 ALTER TABLE `certificates` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `classlist`
+--
+
+DROP TABLE IF EXISTS `classlist`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `classlist` (
   `CLASS` varchar(30) NOT NULL,
   `NAME` varchar(60) NOT NULL,
@@ -87,8 +170,24 @@ CREATE TABLE `classlist` (
   PRIMARY KEY (`CLASS`,`NAME`),
   UNIQUE KEY `PRIMARY_CLASSLIST` (`CLASS`,`NAME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `classlist`
+--
 
+LOCK TABLES `classlist` WRITE;
+/*!40000 ALTER TABLE `classlist` DISABLE KEYS */;
+/*!40000 ALTER TABLE `classlist` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `cloudconfig`
+--
+
+DROP TABLE IF EXISTS `cloudconfig`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `cloudconfig` (
   `NAME` varchar(20) NOT NULL,
   `DESCRIPTION` varchar(50) NOT NULL,
@@ -118,8 +217,24 @@ CREATE TABLE `cloudconfig` (
   PRIMARY KEY (`NAME`),
   UNIQUE KEY `PRIMARY_CLOUDCFG` (`NAME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `cloudconfig`
+--
 
+LOCK TABLES `cloudconfig` WRITE;
+/*!40000 ALTER TABLE `cloudconfig` DISABLE KEYS */;
+/*!40000 ALTER TABLE `cloudconfig` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `cloudspace`
+--
+
+DROP TABLE IF EXISTS `cloudspace`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `cloudspace` (
   `CLOUD` varchar(20) NOT NULL,
   `STORE` varchar(50) NOT NULL,
@@ -130,8 +245,24 @@ CREATE TABLE `cloudspace` (
   PRIMARY KEY (`CLOUD`,`STORE`),
   UNIQUE KEY `PRIMARY_CLOUDSPACE` (`CLOUD`,`STORE`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `cloudspace`
+--
 
+LOCK TABLES `cloudspace` WRITE;
+/*!40000 ALTER TABLE `cloudspace` DISABLE KEYS */;
+/*!40000 ALTER TABLE `cloudspace` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `cloudtasks`
+--
+
+DROP TABLE IF EXISTS `cloudtasks`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `cloudtasks` (
   `ID` int(11) NOT NULL AUTO_INCREMENT,
   `TASKNAME` varchar(128) DEFAULT NULL,
@@ -144,15 +275,48 @@ CREATE TABLE `cloudtasks` (
   UNIQUE KEY `CLOUDTASKS_ID_PK` (`ID`),
   KEY `CLOUDTASKS_TASK_IDX` (`TASKNAME`,`TASKID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `cloudtasks`
+--
 
+LOCK TABLES `cloudtasks` WRITE;
+/*!40000 ALTER TABLE `cloudtasks` DISABLE KEYS */;
+/*!40000 ALTER TABLE `cloudtasks` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `cloudtasks_id_seq`
+--
+
+DROP TABLE IF EXISTS `cloudtasks_id_seq`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `cloudtasks_id_seq` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT,
   `col` bit(1) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `cloudtasks_id_seq`
+--
 
+LOCK TABLES `cloudtasks_id_seq` WRITE;
+/*!40000 ALTER TABLE `cloudtasks_id_seq` DISABLE KEYS */;
+INSERT INTO `cloudtasks_id_seq` VALUES (1,NULL);
+/*!40000 ALTER TABLE `cloudtasks_id_seq` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `datasets`
+--
+
+DROP TABLE IF EXISTS `datasets`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `datasets` (
   `VUID` varchar(40) NOT NULL,
   `NAME` varchar(255) NOT NULL,
@@ -173,8 +337,24 @@ CREATE TABLE `datasets` (
   KEY `DATASETS_NAME_IDX` (`NAME`),
   KEY `DATASETS_MODIFDATE_IDX` (`MODIFICATIONDATE`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `datasets`
+--
 
+LOCK TABLES `datasets` WRITE;
+/*!40000 ALTER TABLE `datasets` DISABLE KEYS */;
+/*!40000 ALTER TABLE `datasets` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `dslist`
+--
+
+DROP TABLE IF EXISTS `dslist`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `dslist` (
   `ID` int(11) NOT NULL,
   `DUID` varchar(40) DEFAULT NULL,
@@ -198,38 +378,24 @@ CREATE TABLE `dslist` (
   KEY `DSLIST_NAME_IDX` (`NAME`,`SITE`),
   KEY `DSLIST_DUID_IDX` (`DUID`,`SITE`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `dslist`
+--
 
-CREATE TABLE `filestable_arch` (
-  `ROW_ID` bigint(20) NOT NULL,
-  `PANDAID` bigint(20) NOT NULL DEFAULT '0',
-  `MODIFICATIONTIME` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `CREATIONTIME` datetime DEFAULT NULL,
-  `GUID` varchar(64) DEFAULT NULL,
-  `LFN` varchar(256) DEFAULT NULL,
-  `TYPE` varchar(20) DEFAULT NULL,
-  `FSIZE` bigint(20) DEFAULT '0',
-  `DATASET` varchar(255) DEFAULT NULL,
-  `STATUS` varchar(64) DEFAULT NULL,
-  `MD5SUM` varchar(40) DEFAULT NULL,
-  `CHECKSUM` varchar(40) DEFAULT NULL,
-  `PRODDBLOCK` varchar(255) DEFAULT NULL,
-  `PRODDBLOCKTOKEN` varchar(250) DEFAULT NULL,
-  `DISPATCHDBLOCK` varchar(255) DEFAULT NULL,
-  `DISPATCHDBLOCKTOKEN` varchar(250) DEFAULT NULL,
-  `DESTINATIONDBLOCK` varchar(255) DEFAULT NULL,
-  `DESTINATIONDBLOCKTOKEN` varchar(250) DEFAULT NULL,
-  `DESTINATIONSE` varchar(250) DEFAULT NULL,
-  `SCOPE` varchar(30) DEFAULT NULL,
-  `JEDITASKID` bigint(20) DEFAULT NULL,
-  `DATASETID` bigint(20) DEFAULT NULL,
-  `FILEID` bigint(20) DEFAULT NULL,
-  `ATTEMPTNR` tinyint(4) DEFAULT NULL,
-  KEY `FILES_ARCH_ROWID_IDX` (`ROW_ID`),
-  KEY `FILES_ARCH_PANDAID_IDX` (`PANDAID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+LOCK TABLES `dslist` WRITE;
+/*!40000 ALTER TABLE `dslist` DISABLE KEYS */;
+/*!40000 ALTER TABLE `dslist` ENABLE KEYS */;
+UNLOCK TABLES;
 
+--
+-- Table structure for table `filestable4`
+--
 
+DROP TABLE IF EXISTS `filestable4`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `filestable4` (
   `ROW_ID` bigint(20) NOT NULL AUTO_INCREMENT,
   `PANDAID` bigint(20) NOT NULL DEFAULT '0',
@@ -263,22 +429,116 @@ CREATE TABLE `filestable4` (
   KEY `FILESTABLE4_DATASETYPE3COL_IDX` (`DATASET`,`TYPE`,`DESTINATIONDBLOCK`,`STATUS`,`PANDAID`),
   CONSTRAINT `FILESTABLE4_FILEID_FK` FOREIGN KEY (`JEDITASKID`, `DATASETID`, `FILEID`) REFERENCES `jedi_dataset_contents` (`JEDITASKID`, `DATASETID`, `FILEID`)
 ) ENGINE=InnoDB AUTO_INCREMENT=386 DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `filestable4`
+--
 
+LOCK TABLES `filestable4` WRITE;
+/*!40000 ALTER TABLE `filestable4` DISABLE KEYS */;
+/*!40000 ALTER TABLE `filestable4` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `filestable4_row_id_seq`
+--
+
+DROP TABLE IF EXISTS `filestable4_row_id_seq`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `filestable4_row_id_seq` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT,
   `col` bit(1) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `filestable4_row_id_seq`
+--
 
+LOCK TABLES `filestable4_row_id_seq` WRITE;
+/*!40000 ALTER TABLE `filestable4_row_id_seq` DISABLE KEYS */;
+/*!40000 ALTER TABLE `filestable4_row_id_seq` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `filestable_arch`
+--
+
+DROP TABLE IF EXISTS `filestable_arch`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `filestable_arch` (
+  `ROW_ID` bigint(20) NOT NULL,
+  `PANDAID` bigint(20) NOT NULL DEFAULT '0',
+  `MODIFICATIONTIME` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `CREATIONTIME` datetime DEFAULT NULL,
+  `GUID` varchar(64) DEFAULT NULL,
+  `LFN` varchar(256) DEFAULT NULL,
+  `TYPE` varchar(20) DEFAULT NULL,
+  `FSIZE` bigint(20) DEFAULT '0',
+  `DATASET` varchar(255) DEFAULT NULL,
+  `STATUS` varchar(64) DEFAULT NULL,
+  `MD5SUM` varchar(40) DEFAULT NULL,
+  `CHECKSUM` varchar(40) DEFAULT NULL,
+  `PRODDBLOCK` varchar(255) DEFAULT NULL,
+  `PRODDBLOCKTOKEN` varchar(250) DEFAULT NULL,
+  `DISPATCHDBLOCK` varchar(255) DEFAULT NULL,
+  `DISPATCHDBLOCKTOKEN` varchar(250) DEFAULT NULL,
+  `DESTINATIONDBLOCK` varchar(255) DEFAULT NULL,
+  `DESTINATIONDBLOCKTOKEN` varchar(250) DEFAULT NULL,
+  `DESTINATIONSE` varchar(250) DEFAULT NULL,
+  `SCOPE` varchar(30) DEFAULT NULL,
+  `JEDITASKID` bigint(20) DEFAULT NULL,
+  `DATASETID` bigint(20) DEFAULT NULL,
+  `FILEID` bigint(20) DEFAULT NULL,
+  `ATTEMPTNR` tinyint(4) DEFAULT NULL,
+  KEY `FILES_ARCH_ROWID_IDX` (`ROW_ID`),
+  KEY `FILES_ARCH_PANDAID_IDX` (`PANDAID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `filestable_arch`
+--
+
+LOCK TABLES `filestable_arch` WRITE;
+/*!40000 ALTER TABLE `filestable_arch` DISABLE KEYS */;
+/*!40000 ALTER TABLE `filestable_arch` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `group_jobid_seq`
+--
+
+DROP TABLE IF EXISTS `group_jobid_seq`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `group_jobid_seq` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT,
   `col` bit(1) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `group_jobid_seq`
+--
 
+LOCK TABLES `group_jobid_seq` WRITE;
+/*!40000 ALTER TABLE `group_jobid_seq` DISABLE KEYS */;
+/*!40000 ALTER TABLE `group_jobid_seq` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `groups`
+--
+
+DROP TABLE IF EXISTS `groups`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `groups` (
   `ID` int(11) NOT NULL,
   `NAME` varchar(60) NOT NULL,
@@ -333,8 +593,24 @@ CREATE TABLE `groups` (
   UNIQUE KEY `PRIMARY_GROUPS` (`ID`),
   UNIQUE KEY `GROUPS_NAME_IDX` (`NAME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `groups`
+--
 
+LOCK TABLES `groups` WRITE;
+/*!40000 ALTER TABLE `groups` DISABLE KEYS */;
+/*!40000 ALTER TABLE `groups` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `history`
+--
+
+DROP TABLE IF EXISTS `history`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `history` (
   `ID` int(11) NOT NULL,
   `ENTRYTIME` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -346,15 +622,47 @@ CREATE TABLE `history` (
   PRIMARY KEY (`ID`),
   UNIQUE KEY `PRIMARY_HISTORY` (`ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `history`
+--
 
+LOCK TABLES `history` WRITE;
+/*!40000 ALTER TABLE `history` DISABLE KEYS */;
+/*!40000 ALTER TABLE `history` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `incidents`
+--
+
+DROP TABLE IF EXISTS `incidents`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `incidents` (
   `AT_TIME` datetime DEFAULT '0000-00-00 00:00:00',
   `TYPEKEY` varchar(20) DEFAULT NULL,
   `DESCRIPTION` varchar(200) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `incidents`
+--
 
+LOCK TABLES `incidents` WRITE;
+/*!40000 ALTER TABLE `incidents` DISABLE KEYS */;
+/*!40000 ALTER TABLE `incidents` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `installedsw`
+--
+
+DROP TABLE IF EXISTS `installedsw`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `installedsw` (
   `SITEID` varchar(60) NOT NULL DEFAULT '',
   `CLOUD` varchar(10) DEFAULT NULL,
@@ -366,8 +674,24 @@ CREATE TABLE `installedsw` (
   UNIQUE KEY `INSTALLEDSW_SITERELCACHECMT_UK` (`SITEID`,`RELEASE`,`CACHE`,`CMTCONFIG`),
   KEY `INSTALLEDSW_RELID_SITE_INDX` (`RELEASE`,`SITEID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `installedsw`
+--
 
+LOCK TABLES `installedsw` WRITE;
+/*!40000 ALTER TABLE `installedsw` DISABLE KEYS */;
+/*!40000 ALTER TABLE `installedsw` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `jdllist`
+--
+
+DROP TABLE IF EXISTS `jdllist`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `jdllist` (
   `NAME` varchar(60) NOT NULL,
   `HOST` varchar(60) DEFAULT NULL,
@@ -376,22 +700,70 @@ CREATE TABLE `jdllist` (
   PRIMARY KEY (`NAME`),
   UNIQUE KEY `PRIMARY_JDLLIST` (`NAME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `jdllist`
+--
 
+LOCK TABLES `jdllist` WRITE;
+/*!40000 ALTER TABLE `jdllist` DISABLE KEYS */;
+/*!40000 ALTER TABLE `jdllist` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `jedi_aux_status_mintaskid`
+--
+
+DROP TABLE IF EXISTS `jedi_aux_status_mintaskid`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `jedi_aux_status_mintaskid` (
   `STATUS` varchar(64) NOT NULL,
   `MIN_JEDITASKID` bigint(20) NOT NULL,
   PRIMARY KEY (`STATUS`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `jedi_aux_status_mintaskid`
+--
 
+LOCK TABLES `jedi_aux_status_mintaskid` WRITE;
+/*!40000 ALTER TABLE `jedi_aux_status_mintaskid` DISABLE KEYS */;
+/*!40000 ALTER TABLE `jedi_aux_status_mintaskid` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `jedi_dataset_cont_fileid_seq`
+--
+
+DROP TABLE IF EXISTS `jedi_dataset_cont_fileid_seq`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `jedi_dataset_cont_fileid_seq` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT,
   `col` bit(1) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `jedi_dataset_cont_fileid_seq`
+--
 
+LOCK TABLES `jedi_dataset_cont_fileid_seq` WRITE;
+/*!40000 ALTER TABLE `jedi_dataset_cont_fileid_seq` DISABLE KEYS */;
+/*!40000 ALTER TABLE `jedi_dataset_cont_fileid_seq` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `jedi_dataset_contents`
+--
+
+DROP TABLE IF EXISTS `jedi_dataset_contents`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `jedi_dataset_contents` (
   `JEDITASKID` bigint(20) NOT NULL,
   `DATASETID` bigint(20) NOT NULL,
@@ -424,8 +796,24 @@ CREATE TABLE `jedi_dataset_contents` (
   CONSTRAINT `JEDI_DATASETCONT_DATASETID_FK` FOREIGN KEY (`JEDITASKID`, `DATASETID`) REFERENCES `jedi_datasets` (`JEDITASKID`, `DATASETID`),
   CONSTRAINT `JEDI_DATASETCONT_JEDITASKID_FK` FOREIGN KEY (`JEDITASKID`) REFERENCES `jedi_tasks` (`JEDITASKID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `jedi_dataset_contents`
+--
 
+LOCK TABLES `jedi_dataset_contents` WRITE;
+/*!40000 ALTER TABLE `jedi_dataset_contents` DISABLE KEYS */;
+/*!40000 ALTER TABLE `jedi_dataset_contents` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `jedi_datasets`
+--
+
+DROP TABLE IF EXISTS `jedi_datasets`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `jedi_datasets` (
   `JEDITASKID` bigint(20) NOT NULL,
   `DATASETID` bigint(20) NOT NULL,
@@ -470,15 +858,47 @@ CREATE TABLE `jedi_datasets` (
   KEY `JEDI_DATASET_LOCKEDBY_IDX` (`LOCKEDBY`),
   CONSTRAINT `JEDI_DATASETS_JEDITASKID_FK` FOREIGN KEY (`JEDITASKID`) REFERENCES `jedi_tasks` (`JEDITASKID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `jedi_datasets`
+--
 
+LOCK TABLES `jedi_datasets` WRITE;
+/*!40000 ALTER TABLE `jedi_datasets` DISABLE KEYS */;
+/*!40000 ALTER TABLE `jedi_datasets` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `jedi_datasets_id_seq`
+--
+
+DROP TABLE IF EXISTS `jedi_datasets_id_seq`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `jedi_datasets_id_seq` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT,
   `col` bit(1) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `jedi_datasets_id_seq`
+--
 
+LOCK TABLES `jedi_datasets_id_seq` WRITE;
+/*!40000 ALTER TABLE `jedi_datasets_id_seq` DISABLE KEYS */;
+/*!40000 ALTER TABLE `jedi_datasets_id_seq` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `jedi_events`
+--
+
+DROP TABLE IF EXISTS `jedi_events`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `jedi_events` (
   `JEDITASKID` bigint(20) NOT NULL,
   `PANDAID` bigint(20) NOT NULL,
@@ -493,8 +913,24 @@ CREATE TABLE `jedi_events` (
   PRIMARY KEY (`JEDITASKID`,`PANDAID`,`FILEID`,`JOB_PROCESSID`),
   CONSTRAINT `JEDI_EVENTS_TASKID_FK` FOREIGN KEY (`JEDITASKID`) REFERENCES `jedi_tasks` (`JEDITASKID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `jedi_events`
+--
 
+LOCK TABLES `jedi_events` WRITE;
+/*!40000 ALTER TABLE `jedi_events` DISABLE KEYS */;
+/*!40000 ALTER TABLE `jedi_events` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `jedi_job_retry_history`
+--
+
+DROP TABLE IF EXISTS `jedi_job_retry_history`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `jedi_job_retry_history` (
   `JEDITASKID` bigint(20) NOT NULL,
   `OLDPANDAID` bigint(20) NOT NULL,
@@ -507,8 +943,24 @@ CREATE TABLE `jedi_job_retry_history` (
   KEY `JEDI_JOB_RETRY_HIST_ORIGID_IDX` (`ORIGINPANDAID`),
   CONSTRAINT `JEDI_JOB_RETRY_HIST_TASKID_FK` FOREIGN KEY (`JEDITASKID`) REFERENCES `jedi_tasks` (`JEDITASKID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `jedi_job_retry_history`
+--
 
+LOCK TABLES `jedi_job_retry_history` WRITE;
+/*!40000 ALTER TABLE `jedi_job_retry_history` DISABLE KEYS */;
+/*!40000 ALTER TABLE `jedi_job_retry_history` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `jedi_jobparams_template`
+--
+
+DROP TABLE IF EXISTS `jedi_jobparams_template`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `jedi_jobparams_template` (
   `JEDITASKID` bigint(20) NOT NULL,
   `JOBPARAMSTEMPLATE` text,
@@ -516,8 +968,24 @@ CREATE TABLE `jedi_jobparams_template` (
   UNIQUE KEY `JEDI_JOBPARAMSTEMPL_PK` (`JEDITASKID`),
   CONSTRAINT `JEDI_JOBPARTEMPL_JEDITASKID_FK` FOREIGN KEY (`JEDITASKID`) REFERENCES `jedi_tasks` (`JEDITASKID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `jedi_jobparams_template`
+--
 
+LOCK TABLES `jedi_jobparams_template` WRITE;
+/*!40000 ALTER TABLE `jedi_jobparams_template` DISABLE KEYS */;
+/*!40000 ALTER TABLE `jedi_jobparams_template` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `jedi_output_template`
+--
+
+DROP TABLE IF EXISTS `jedi_output_template`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `jedi_output_template` (
   `JEDITASKID` bigint(20) NOT NULL,
   `DATASETID` bigint(20) NOT NULL,
@@ -533,15 +1001,47 @@ CREATE TABLE `jedi_output_template` (
   CONSTRAINT `JEDI_OUTPUTTEMPL_DATASETID_FK` FOREIGN KEY (`JEDITASKID`, `DATASETID`) REFERENCES `jedi_datasets` (`JEDITASKID`, `DATASETID`),
   CONSTRAINT `JEDI_OUTPUTTEMPL_JEDITASKID_FK` FOREIGN KEY (`JEDITASKID`) REFERENCES `jedi_tasks` (`JEDITASKID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `jedi_output_template`
+--
 
+LOCK TABLES `jedi_output_template` WRITE;
+/*!40000 ALTER TABLE `jedi_output_template` DISABLE KEYS */;
+/*!40000 ALTER TABLE `jedi_output_template` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `jedi_output_template_id_seq`
+--
+
+DROP TABLE IF EXISTS `jedi_output_template_id_seq`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `jedi_output_template_id_seq` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT,
   `col` bit(1) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `jedi_output_template_id_seq`
+--
 
+LOCK TABLES `jedi_output_template_id_seq` WRITE;
+/*!40000 ALTER TABLE `jedi_output_template_id_seq` DISABLE KEYS */;
+/*!40000 ALTER TABLE `jedi_output_template_id_seq` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `jedi_process_lock`
+--
+
+DROP TABLE IF EXISTS `jedi_process_lock`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `jedi_process_lock` (
   `VO` varchar(16) NOT NULL,
   `PRODSOURCELABEL` varchar(20) NOT NULL,
@@ -551,8 +1051,24 @@ CREATE TABLE `jedi_process_lock` (
   `LOCKEDTIME` datetime DEFAULT NULL,
   PRIMARY KEY (`VO`,`PRODSOURCELABEL`,`WORKQUEUE_ID`,`CLOUD`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `jedi_process_lock`
+--
 
+LOCK TABLES `jedi_process_lock` WRITE;
+/*!40000 ALTER TABLE `jedi_process_lock` DISABLE KEYS */;
+/*!40000 ALTER TABLE `jedi_process_lock` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `jedi_taskparams`
+--
+
+DROP TABLE IF EXISTS `jedi_taskparams`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `jedi_taskparams` (
   `JEDITASKID` bigint(20) NOT NULL,
   `TASKPARAMS` text,
@@ -560,8 +1076,24 @@ CREATE TABLE `jedi_taskparams` (
   UNIQUE KEY `JEDI_TASKPARAMS_JEDITASKID_PK` (`JEDITASKID`),
   CONSTRAINT `JEDI_TASKPARAMS_JEDITASKID_FK` FOREIGN KEY (`JEDITASKID`) REFERENCES `jedi_tasks` (`JEDITASKID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `jedi_taskparams`
+--
 
+LOCK TABLES `jedi_taskparams` WRITE;
+/*!40000 ALTER TABLE `jedi_taskparams` DISABLE KEYS */;
+/*!40000 ALTER TABLE `jedi_taskparams` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `jedi_tasks`
+--
+
+DROP TABLE IF EXISTS `jedi_tasks`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `jedi_tasks` (
   `JEDITASKID` bigint(20) NOT NULL,
   `TASKNAME` varchar(132) DEFAULT NULL,
@@ -630,8 +1162,24 @@ CREATE TABLE `jedi_tasks` (
   KEY `JEDI_TASKS_WORKQUEUE_FK` (`WORKQUEUE_ID`),
   CONSTRAINT `JEDI_TASKS_WORKQUEUE_FK` FOREIGN KEY (`WORKQUEUE_ID`) REFERENCES `jedi_work_queue` (`QUEUE_ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `jedi_tasks`
+--
 
+LOCK TABLES `jedi_tasks` WRITE;
+/*!40000 ALTER TABLE `jedi_tasks` DISABLE KEYS */;
+/*!40000 ALTER TABLE `jedi_tasks` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `jedi_work_queue`
+--
+
+DROP TABLE IF EXISTS `jedi_work_queue`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `jedi_work_queue` (
   `QUEUE_ID` int(11) NOT NULL,
   `QUEUE_NAME` varchar(16) NOT NULL,
@@ -648,15 +1196,47 @@ CREATE TABLE `jedi_work_queue` (
   UNIQUE KEY `JEDI_WORK_QUEUEID_PK` (`QUEUE_ID`),
   UNIQUE KEY `JEDI_WORK_QUEUE_NAMETYPEVO_UK` (`QUEUE_NAME`,`QUEUE_TYPE`,`VO`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `jedi_work_queue`
+--
 
+LOCK TABLES `jedi_work_queue` WRITE;
+/*!40000 ALTER TABLE `jedi_work_queue` DISABLE KEYS */;
+/*!40000 ALTER TABLE `jedi_work_queue` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `jedi_work_queue_id_seq`
+--
+
+DROP TABLE IF EXISTS `jedi_work_queue_id_seq`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `jedi_work_queue_id_seq` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT,
   `col` bit(1) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `jedi_work_queue_id_seq`
+--
 
+LOCK TABLES `jedi_work_queue_id_seq` WRITE;
+/*!40000 ALTER TABLE `jedi_work_queue_id_seq` DISABLE KEYS */;
+/*!40000 ALTER TABLE `jedi_work_queue_id_seq` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `jobclass`
+--
+
+DROP TABLE IF EXISTS `jobclass`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `jobclass` (
   `ID` int(11) NOT NULL,
   `NAME` varchar(30) NOT NULL,
@@ -670,8 +1250,24 @@ CREATE TABLE `jobclass` (
   UNIQUE KEY `PRIMARY_JOBCLASS` (`ID`),
   UNIQUE KEY `JOBCLASS_NAME_IDX` (`NAME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `jobclass`
+--
 
+LOCK TABLES `jobclass` WRITE;
+/*!40000 ALTER TABLE `jobclass` DISABLE KEYS */;
+/*!40000 ALTER TABLE `jobclass` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `jobparamstable`
+--
+
+DROP TABLE IF EXISTS `jobparamstable`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `jobparamstable` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL DEFAULT '1970-01-01 00:00:00',
@@ -679,16 +1275,48 @@ CREATE TABLE `jobparamstable` (
   PRIMARY KEY (`PANDAID`,`MODIFICATIONTIME`),
   UNIQUE KEY `PART_JOBPARAMSTABLE_PK` (`PANDAID`,`MODIFICATIONTIME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `jobparamstable`
+--
 
+LOCK TABLES `jobparamstable` WRITE;
+/*!40000 ALTER TABLE `jobparamstable` DISABLE KEYS */;
+/*!40000 ALTER TABLE `jobparamstable` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `jobparamstable_arch`
+--
+
+DROP TABLE IF EXISTS `jobparamstable_arch`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `jobparamstable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `JOBPARAMETERS` text,
   KEY `JOBPARAMS_ARCH_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `jobparamstable_arch`
+--
 
+LOCK TABLES `jobparamstable_arch` WRITE;
+/*!40000 ALTER TABLE `jobparamstable_arch` DISABLE KEYS */;
+/*!40000 ALTER TABLE `jobparamstable_arch` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `jobs_statuslog`
+--
+
+DROP TABLE IF EXISTS `jobs_statuslog`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `jobs_statuslog` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
@@ -699,8 +1327,24 @@ CREATE TABLE `jobs_statuslog` (
   `MODIFICATIONHOST` varchar(128) DEFAULT NULL,
   KEY `JOBS_STATUSLOG_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `jobs_statuslog`
+--
 
+LOCK TABLES `jobs_statuslog` WRITE;
+/*!40000 ALTER TABLE `jobs_statuslog` DISABLE KEYS */;
+/*!40000 ALTER TABLE `jobs_statuslog` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `jobsactive4`
+--
+
+DROP TABLE IF EXISTS `jobsactive4`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `jobsactive4` (
   `PANDAID` bigint(20) NOT NULL DEFAULT '0',
   `JOBDEFINITIONID` bigint(20) NOT NULL DEFAULT '0',
@@ -811,8 +1455,24 @@ CREATE TABLE `jobsactive4` (
   CONSTRAINT `JOBSACTIVE4_JEDITASKID_FK` FOREIGN KEY (`JEDITASKID`) REFERENCES `jedi_tasks` (`JEDITASKID`),
   CONSTRAINT `JOBSACTIVE4_WORKQUEUE_ID_FK` FOREIGN KEY (`WORKQUEUE_ID`) REFERENCES `jedi_work_queue` (`QUEUE_ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `jobsactive4`
+--
 
+LOCK TABLES `jobsactive4` WRITE;
+/*!40000 ALTER TABLE `jobsactive4` DISABLE KEYS */;
+/*!40000 ALTER TABLE `jobsactive4` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `jobsarchived`
+--
+
+DROP TABLE IF EXISTS `jobsarchived`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `jobsarchived` (
   `PANDAID` bigint(20) NOT NULL DEFAULT '0',
   `JOBDEFINITIONID` bigint(20) NOT NULL DEFAULT '0',
@@ -919,8 +1579,24 @@ CREATE TABLE `jobsarchived` (
   KEY `JOBS_JOBSETID_PRODUSERNAME_IDX` (`JOBSETID`,`PRODUSERNAME`),
   KEY `JOBS_JOBDEFID_PRODUSERNAME_IDX` (`JOBDEFINITIONID`,`PRODUSERNAME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `jobsarchived`
+--
 
+LOCK TABLES `jobsarchived` WRITE;
+/*!40000 ALTER TABLE `jobsarchived` DISABLE KEYS */;
+/*!40000 ALTER TABLE `jobsarchived` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `jobsarchived4`
+--
+
+DROP TABLE IF EXISTS `jobsarchived4`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `jobsarchived4` (
   `PANDAID` bigint(20) NOT NULL DEFAULT '0',
   `MODIFICATIONTIME` datetime NOT NULL,
@@ -1034,16 +1710,48 @@ CREATE TABLE `jobsarchived4` (
   CONSTRAINT `JOBSARCHIVED4_JEDITASKID_FK` FOREIGN KEY (`JEDITASKID`) REFERENCES `jedi_tasks` (`JEDITASKID`),
   CONSTRAINT `JOBSARCHIVED4_WORKQUEUE_ID_FK` FOREIGN KEY (`WORKQUEUE_ID`) REFERENCES `jedi_work_queue` (`QUEUE_ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `jobsarchived4`
+--
 
+LOCK TABLES `jobsarchived4` WRITE;
+/*!40000 ALTER TABLE `jobsarchived4` DISABLE KEYS */;
+/*!40000 ALTER TABLE `jobsarchived4` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `jobsdebug`
+--
+
+DROP TABLE IF EXISTS `jobsdebug`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `jobsdebug` (
   `PANDAID` bigint(20) NOT NULL,
   `STDOUT` varchar(2048) DEFAULT NULL,
   PRIMARY KEY (`PANDAID`),
   CONSTRAINT `JOBSDEBUG_PANDAID_FK` FOREIGN KEY (`PANDAID`) REFERENCES `jobsactive4` (`PANDAID`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `jobsdebug`
+--
 
+LOCK TABLES `jobsdebug` WRITE;
+/*!40000 ALTER TABLE `jobsdebug` DISABLE KEYS */;
+/*!40000 ALTER TABLE `jobsdebug` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `jobsdefined4`
+--
+
+DROP TABLE IF EXISTS `jobsdefined4`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `jobsdefined4` (
   `PANDAID` bigint(20) NOT NULL AUTO_INCREMENT,
   `JOBDEFINITIONID` bigint(20) NOT NULL DEFAULT '0',
@@ -1149,8 +1857,24 @@ CREATE TABLE `jobsdefined4` (
   CONSTRAINT `JOBSDEFINED4_JEDITASKID_FK` FOREIGN KEY (`JEDITASKID`) REFERENCES `jedi_tasks` (`JEDITASKID`),
   CONSTRAINT `JOBSDEFINED4_WORKQUEUE_ID_FK` FOREIGN KEY (`WORKQUEUE_ID`) REFERENCES `jedi_work_queue` (`QUEUE_ID`)
 ) ENGINE=InnoDB AUTO_INCREMENT=132 DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `jobsdefined4`
+--
 
+LOCK TABLES `jobsdefined4` WRITE;
+/*!40000 ALTER TABLE `jobsdefined4` DISABLE KEYS */;
+/*!40000 ALTER TABLE `jobsdefined4` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `jobswaiting4`
+--
+
+DROP TABLE IF EXISTS `jobswaiting4`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `jobswaiting4` (
   `PANDAID` bigint(20) NOT NULL DEFAULT '0',
   `JOBDEFINITIONID` bigint(20) NOT NULL DEFAULT '0',
@@ -1254,8 +1978,24 @@ CREATE TABLE `jobswaiting4` (
   CONSTRAINT `JOBSWAITING4_JEDITASKID_FK` FOREIGN KEY (`JEDITASKID`) REFERENCES `jedi_tasks` (`JEDITASKID`),
   CONSTRAINT `JOBSWAITING4_WORKQUEUE_ID_FK` FOREIGN KEY (`WORKQUEUE_ID`) REFERENCES `jedi_work_queue` (`QUEUE_ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `jobswaiting4`
+--
 
+LOCK TABLES `jobswaiting4` WRITE;
+/*!40000 ALTER TABLE `jobswaiting4` DISABLE KEYS */;
+/*!40000 ALTER TABLE `jobswaiting4` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `logstable`
+--
+
+DROP TABLE IF EXISTS `logstable`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `logstable` (
   `PANDAID` int(11) NOT NULL DEFAULT '0',
   `LOG1` text NOT NULL,
@@ -1265,8 +2005,24 @@ CREATE TABLE `logstable` (
   PRIMARY KEY (`PANDAID`),
   UNIQUE KEY `PRIMARY_LOGSTABLE` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `logstable`
+--
 
+LOCK TABLES `logstable` WRITE;
+/*!40000 ALTER TABLE `logstable` DISABLE KEYS */;
+/*!40000 ALTER TABLE `logstable` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `members`
+--
+
+DROP TABLE IF EXISTS `members`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `members` (
   `UNAME` varchar(30) NOT NULL,
   `GNAME` varchar(30) NOT NULL,
@@ -1275,8 +2031,24 @@ CREATE TABLE `members` (
   PRIMARY KEY (`UNAME`,`GNAME`),
   UNIQUE KEY `PRIMARY_MEMBERS` (`UNAME`,`GNAME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `members`
+--
 
+LOCK TABLES `members` WRITE;
+/*!40000 ALTER TABLE `members` DISABLE KEYS */;
+/*!40000 ALTER TABLE `members` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `metatable`
+--
+
+DROP TABLE IF EXISTS `metatable`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `metatable` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL DEFAULT '1970-01-01 00:00:00',
@@ -1284,24 +2056,72 @@ CREATE TABLE `metatable` (
   PRIMARY KEY (`PANDAID`,`MODIFICATIONTIME`),
   UNIQUE KEY `PART_METATABLE_PK` (`PANDAID`,`MODIFICATIONTIME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `metatable`
+--
 
+LOCK TABLES `metatable` WRITE;
+/*!40000 ALTER TABLE `metatable` DISABLE KEYS */;
+/*!40000 ALTER TABLE `metatable` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `metatable_arch`
+--
+
+DROP TABLE IF EXISTS `metatable_arch`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `metatable_arch` (
   `PANDAID` bigint(20) NOT NULL DEFAULT '0',
   `MODIFICATIONTIME` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `METADATA` text,
   KEY `META_ARCH_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `metatable_arch`
+--
 
+LOCK TABLES `metatable_arch` WRITE;
+/*!40000 ALTER TABLE `metatable_arch` DISABLE KEYS */;
+/*!40000 ALTER TABLE `metatable_arch` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `multicloud_history`
+--
+
+DROP TABLE IF EXISTS `multicloud_history`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `multicloud_history` (
   `SITE` varchar(60) NOT NULL,
   `MULTICLOUD` varchar(64) DEFAULT NULL,
   `LAST_UPDATE` datetime NOT NULL,
   KEY `MULTICLOUD_HISTORY_SITE_IDX` (`SITE`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `multicloud_history`
+--
 
+LOCK TABLES `multicloud_history` WRITE;
+/*!40000 ALTER TABLE `multicloud_history` DISABLE KEYS */;
+/*!40000 ALTER TABLE `multicloud_history` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `mv_jobsactive4_stats`
+--
+
+DROP TABLE IF EXISTS `mv_jobsactive4_stats`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `mv_jobsactive4_stats` (
   `ID` int(20) NOT NULL AUTO_INCREMENT,
   `CUR_DATE` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
@@ -1319,8 +2139,24 @@ CREATE TABLE `mv_jobsactive4_stats` (
   `WORKQUEUE_ID` int(11) DEFAULT NULL,
   PRIMARY KEY (`ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `mv_jobsactive4_stats`
+--
 
+LOCK TABLES `mv_jobsactive4_stats` WRITE;
+/*!40000 ALTER TABLE `mv_jobsactive4_stats` DISABLE KEYS */;
+/*!40000 ALTER TABLE `mv_jobsactive4_stats` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `pandaconfig`
+--
+
+DROP TABLE IF EXISTS `pandaconfig`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `pandaconfig` (
   `NAME` varchar(60) NOT NULL,
   `CONTROLLER` varchar(20) NOT NULL,
@@ -1328,15 +2164,47 @@ CREATE TABLE `pandaconfig` (
   PRIMARY KEY (`NAME`),
   UNIQUE KEY `PRIMARY_PANDACFG` (`NAME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `pandaconfig`
+--
 
+LOCK TABLES `pandaconfig` WRITE;
+/*!40000 ALTER TABLE `pandaconfig` DISABLE KEYS */;
+/*!40000 ALTER TABLE `pandaconfig` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `pandaids_modiftime`
+--
+
+DROP TABLE IF EXISTS `pandaids_modiftime`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `pandaids_modiftime` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFTIME` datetime NOT NULL,
   PRIMARY KEY (`PANDAID`,`MODIFTIME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `pandaids_modiftime`
+--
 
+LOCK TABLES `pandaids_modiftime` WRITE;
+/*!40000 ALTER TABLE `pandaids_modiftime` DISABLE KEYS */;
+/*!40000 ALTER TABLE `pandaids_modiftime` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `pandaids_modiftime_errlog`
+--
+
+DROP TABLE IF EXISTS `pandaids_modiftime_errlog`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `pandaids_modiftime_errlog` (
   `ORA_ERR_NUMBER$` int(11) DEFAULT NULL,
   `ORA_ERR_MESG$` varchar(2000) DEFAULT NULL,
@@ -1346,8 +2214,24 @@ CREATE TABLE `pandaids_modiftime_errlog` (
   `PANDAID` varchar(4000) DEFAULT NULL,
   `MODIFTIME` varchar(4000) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `pandaids_modiftime_errlog`
+--
 
+LOCK TABLES `pandaids_modiftime_errlog` WRITE;
+/*!40000 ALTER TABLE `pandaids_modiftime_errlog` DISABLE KEYS */;
+/*!40000 ALTER TABLE `pandaids_modiftime_errlog` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `pandalog`
+--
+
+DROP TABLE IF EXISTS `pandalog`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `pandalog` (
   `BINTIME` datetime NOT NULL DEFAULT '1970-01-01 00:00:00',
   `NAME` varchar(30) DEFAULT NULL,
@@ -1365,8 +2249,24 @@ CREATE TABLE `pandalog` (
   KEY `PANDALOG_NAMETYPEBINTIME_INDX` (`TYPE`,`NAME`,`BINTIME`),
   KEY `PANDALOG_MULTICOLUMN_INDX` (`BINTIME`,`NAME`,`TYPE`,`LEVELNAME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `pandalog`
+--
 
+LOCK TABLES `pandalog` WRITE;
+/*!40000 ALTER TABLE `pandalog` DISABLE KEYS */;
+/*!40000 ALTER TABLE `pandalog` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `pandalog_fax`
+--
+
+DROP TABLE IF EXISTS `pandalog_fax`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `pandalog_fax` (
   `BINTIME` datetime NOT NULL DEFAULT '1970-01-01 00:00:00',
   `NAME` varchar(30) DEFAULT NULL,
@@ -1381,16 +2281,48 @@ CREATE TABLE `pandalog_fax` (
   `LINE` int(11) DEFAULT '0',
   `MESSAGE` varchar(4000) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `pandalog_fax`
+--
 
+LOCK TABLES `pandalog_fax` WRITE;
+/*!40000 ALTER TABLE `pandalog_fax` DISABLE KEYS */;
+/*!40000 ALTER TABLE `pandalog_fax` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `passwords`
+--
+
+DROP TABLE IF EXISTS `passwords`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `passwords` (
   `ID` int(11) NOT NULL,
   `PASS` varchar(60) NOT NULL,
   PRIMARY KEY (`ID`),
   UNIQUE KEY `PRIMARY_PASWD` (`ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `passwords`
+--
 
+LOCK TABLES `passwords` WRITE;
+/*!40000 ALTER TABLE `passwords` DISABLE KEYS */;
+/*!40000 ALTER TABLE `passwords` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `pilotqueue`
+--
+
+DROP TABLE IF EXISTS `pilotqueue`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `pilotqueue` (
   `JOBID` varchar(100) NOT NULL,
   `TPID` varchar(60) NOT NULL,
@@ -1428,8 +2360,24 @@ CREATE TABLE `pilotqueue` (
   KEY `PILOTQUEUE_NICKNAME_IDX` (`NICKNAME`),
   KEY `PILOTQUEUE_STATE_IDX` (`STATE`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `pilotqueue`
+--
 
+LOCK TABLES `pilotqueue` WRITE;
+/*!40000 ALTER TABLE `pilotqueue` DISABLE KEYS */;
+/*!40000 ALTER TABLE `pilotqueue` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `pilotqueue_bnl`
+--
+
+DROP TABLE IF EXISTS `pilotqueue_bnl`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `pilotqueue_bnl` (
   `JOBID` varchar(100) NOT NULL,
   `TPID` varchar(60) NOT NULL,
@@ -1466,8 +2414,24 @@ CREATE TABLE `pilotqueue_bnl` (
   KEY `PILOTQUEUEBNL_QUEUEID_IDX` (`QUEUEID`),
   KEY `PILOTQUEUEBNL_STATE_IDX` (`STATE`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `pilotqueue_bnl`
+--
 
+LOCK TABLES `pilotqueue_bnl` WRITE;
+/*!40000 ALTER TABLE `pilotqueue_bnl` DISABLE KEYS */;
+/*!40000 ALTER TABLE `pilotqueue_bnl` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `pilottoken`
+--
+
+DROP TABLE IF EXISTS `pilottoken`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `pilottoken` (
   `TOKEN` varchar(64) NOT NULL,
   `SCHEDULERHOST` varchar(100) DEFAULT NULL,
@@ -1479,8 +2443,24 @@ CREATE TABLE `pilottoken` (
   PRIMARY KEY (`TOKEN`),
   UNIQUE KEY `PILOTTOKEN_TOKEN_PK` (`TOKEN`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `pilottoken`
+--
 
+LOCK TABLES `pilottoken` WRITE;
+/*!40000 ALTER TABLE `pilottoken` DISABLE KEYS */;
+/*!40000 ALTER TABLE `pilottoken` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `pilottype`
+--
+
+DROP TABLE IF EXISTS `pilottype`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `pilottype` (
   `NAME` varchar(60) NOT NULL,
   `SCRIPT` varchar(60) NOT NULL,
@@ -1489,8 +2469,24 @@ CREATE TABLE `pilottype` (
   PRIMARY KEY (`NAME`),
   UNIQUE KEY `PRIMARY_PILOTTYPE` (`NAME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `pilottype`
+--
 
+LOCK TABLES `pilottype` WRITE;
+/*!40000 ALTER TABLE `pilottype` DISABLE KEYS */;
+/*!40000 ALTER TABLE `pilottype` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `productiondatasets`
+--
+
+DROP TABLE IF EXISTS `productiondatasets`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `productiondatasets` (
   `NAME` varchar(120) NOT NULL,
   `VERSION` int(11) DEFAULT NULL,
@@ -1506,8 +2502,24 @@ CREATE TABLE `productiondatasets` (
   `PRODTIME` datetime DEFAULT NULL,
   `TIMESTAMP` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `productiondatasets`
+--
 
+LOCK TABLES `productiondatasets` WRITE;
+/*!40000 ALTER TABLE `productiondatasets` DISABLE KEYS */;
+/*!40000 ALTER TABLE `productiondatasets` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `proxykey`
+--
+
+DROP TABLE IF EXISTS `proxykey`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `proxykey` (
   `ID` int(11) NOT NULL AUTO_INCREMENT,
   `DN` varchar(100) NOT NULL,
@@ -1519,8 +2531,24 @@ CREATE TABLE `proxykey` (
   PRIMARY KEY (`ID`),
   UNIQUE KEY `PRIMARY_PROXYKEY` (`ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `proxykey`
+--
 
+LOCK TABLES `proxykey` WRITE;
+/*!40000 ALTER TABLE `proxykey` DISABLE KEYS */;
+/*!40000 ALTER TABLE `proxykey` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `redirect`
+--
+
+DROP TABLE IF EXISTS `redirect`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `redirect` (
   `SERVICE` varchar(30) NOT NULL,
   `TYPE` varchar(30) NOT NULL,
@@ -1540,8 +2568,24 @@ CREATE TABLE `redirect` (
   PRIMARY KEY (`URL`),
   UNIQUE KEY `PRIMARY_REDIRECT` (`URL`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `redirect`
+--
 
+LOCK TABLES `redirect` WRITE;
+/*!40000 ALTER TABLE `redirect` DISABLE KEYS */;
+/*!40000 ALTER TABLE `redirect` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `savedpages`
+--
+
+DROP TABLE IF EXISTS `savedpages`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `savedpages` (
   `NAME` varchar(30) NOT NULL,
   `FLAG` varchar(20) NOT NULL,
@@ -1552,8 +2596,24 @@ CREATE TABLE `savedpages` (
   PRIMARY KEY (`NAME`,`FLAG`,`HOURS`),
   UNIQUE KEY `PRIMARY_SAVEDPAGES` (`NAME`,`FLAG`,`HOURS`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `savedpages`
+--
 
+LOCK TABLES `savedpages` WRITE;
+/*!40000 ALTER TABLE `savedpages` DISABLE KEYS */;
+/*!40000 ALTER TABLE `savedpages` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `schedconfig`
+--
+
+DROP TABLE IF EXISTS `schedconfig`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `schedconfig` (
   `NAME` varchar(60) NOT NULL DEFAULT 'default',
   `NICKNAME` varchar(60) NOT NULL,
@@ -1670,8 +2730,24 @@ CREATE TABLE `schedconfig` (
   PRIMARY KEY (`NICKNAME`),
   UNIQUE KEY `PRIMARY_SCHEDCFG` (`NICKNAME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `schedconfig`
+--
 
+LOCK TABLES `schedconfig` WRITE;
+/*!40000 ALTER TABLE `schedconfig` DISABLE KEYS */;
+/*!40000 ALTER TABLE `schedconfig` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `schedconfig_1st_attempt`
+--
+
+DROP TABLE IF EXISTS `schedconfig_1st_attempt`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `schedconfig_1st_attempt` (
   `NICKNAME` varchar(60) NOT NULL,
   `LOCALQUEUE` varchar(20) DEFAULT NULL,
@@ -1769,8 +2845,24 @@ CREATE TABLE `schedconfig_1st_attempt` (
   `WANSOURCELIMIT` int(11) DEFAULT NULL,
   `WANSINKLIMIT` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `schedconfig_1st_attempt`
+--
 
+LOCK TABLES `schedconfig_1st_attempt` WRITE;
+/*!40000 ALTER TABLE `schedconfig_1st_attempt` DISABLE KEYS */;
+/*!40000 ALTER TABLE `schedconfig_1st_attempt` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `schedconfig_2nd_attempt`
+--
+
+DROP TABLE IF EXISTS `schedconfig_2nd_attempt`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `schedconfig_2nd_attempt` (
   `NICKNAME` varchar(60) NOT NULL,
   `QUEUE` varchar(60) DEFAULT NULL,
@@ -1871,8 +2963,24 @@ CREATE TABLE `schedconfig_2nd_attempt` (
   PRIMARY KEY (`NICKNAME`),
   UNIQUE KEY `SCHEDCONFIG_PK` (`NICKNAME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `schedconfig_2nd_attempt`
+--
 
+LOCK TABLES `schedconfig_2nd_attempt` WRITE;
+/*!40000 ALTER TABLE `schedconfig_2nd_attempt` DISABLE KEYS */;
+/*!40000 ALTER TABLE `schedconfig_2nd_attempt` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `schedinstance`
+--
+
+DROP TABLE IF EXISTS `schedinstance`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `schedinstance` (
   `NAME` varchar(60) NOT NULL DEFAULT 'default',
   `NICKNAME` varchar(60) NOT NULL,
@@ -1894,8 +3002,24 @@ CREATE TABLE `schedinstance` (
   UNIQUE KEY `PRIMARY_SCHEDINST` (`NICKNAME`,`PANDASITE`),
   KEY `SCHEDINSTANCE_NICKNAME_IDX` (`NICKNAME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `schedinstance`
+--
 
+LOCK TABLES `schedinstance` WRITE;
+/*!40000 ALTER TABLE `schedinstance` DISABLE KEYS */;
+/*!40000 ALTER TABLE `schedinstance` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `sequence`
+--
+
+DROP TABLE IF EXISTS `sequence`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `sequence` (
   `name` varchar(100) NOT NULL,
   `increment` int(11) NOT NULL DEFAULT '1',
@@ -1905,8 +3029,24 @@ CREATE TABLE `sequence` (
   `cycle` tinyint(1) NOT NULL DEFAULT '0',
   PRIMARY KEY (`name`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `sequence`
+--
 
+LOCK TABLES `sequence` WRITE;
+/*!40000 ALTER TABLE `sequence` DISABLE KEYS */;
+/*!40000 ALTER TABLE `sequence` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `servicelist`
+--
+
+DROP TABLE IF EXISTS `servicelist`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `servicelist` (
   `ID` int(11) NOT NULL,
   `NAME` varchar(60) NOT NULL DEFAULT 'default',
@@ -1935,8 +3075,24 @@ CREATE TABLE `servicelist` (
   KEY `SERVICELIST_NAMEUSERID_IDX` (`NAME`,`HOST`,`CONFIG`,`USERID`),
   KEY `SERVICELIST_NAME_IDX` (`NAME`,`HOST`,`CONFIG`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `servicelist`
+--
 
+LOCK TABLES `servicelist` WRITE;
+/*!40000 ALTER TABLE `servicelist` DISABLE KEYS */;
+/*!40000 ALTER TABLE `servicelist` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `siteaccess`
+--
+
+DROP TABLE IF EXISTS `siteaccess`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `siteaccess` (
   `ID` int(11) NOT NULL AUTO_INCREMENT,
   `DN` varchar(100) DEFAULT NULL,
@@ -1950,8 +3106,24 @@ CREATE TABLE `siteaccess` (
   UNIQUE KEY `SITEACCESS_ID_PRIMARY` (`ID`),
   UNIQUE KEY `SITEACCESS_DNSITE_IDX` (`DN`,`PANDASITE`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `siteaccess`
+--
 
+LOCK TABLES `siteaccess` WRITE;
+/*!40000 ALTER TABLE `siteaccess` DISABLE KEYS */;
+/*!40000 ALTER TABLE `siteaccess` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `sitedata`
+--
+
+DROP TABLE IF EXISTS `sitedata`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `sitedata` (
   `SITE` varchar(60) NOT NULL,
   `FLAG` varchar(20) NOT NULL,
@@ -1988,8 +3160,24 @@ CREATE TABLE `sitedata` (
   PRIMARY KEY (`SITE`,`FLAG`,`HOURS`),
   UNIQUE KEY `PRIMARY_SITEDATA` (`SITE`,`FLAG`,`HOURS`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `sitedata`
+--
 
+LOCK TABLES `sitedata` WRITE;
+/*!40000 ALTER TABLE `sitedata` DISABLE KEYS */;
+/*!40000 ALTER TABLE `sitedata` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `siteddm`
+--
+
+DROP TABLE IF EXISTS `siteddm`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `siteddm` (
   `NAME` varchar(60) NOT NULL,
   `INCMD` varchar(60) NOT NULL,
@@ -2001,8 +3189,24 @@ CREATE TABLE `siteddm` (
   PRIMARY KEY (`NAME`),
   UNIQUE KEY `PRIMARY_SITEDDM` (`NAME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `siteddm`
+--
 
+LOCK TABLES `siteddm` WRITE;
+/*!40000 ALTER TABLE `siteddm` DISABLE KEYS */;
+/*!40000 ALTER TABLE `siteddm` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `sitehistory`
+--
+
+DROP TABLE IF EXISTS `sitehistory`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `sitehistory` (
   `SITE` varchar(60) NOT NULL,
   `FLAG` varchar(20) NOT NULL,
@@ -2045,8 +3249,24 @@ CREATE TABLE `sitehistory` (
   PRIMARY KEY (`SITE`,`FLAG`,`TIME`,`HOURS`),
   UNIQUE KEY `PRIMARY_SITEHIST` (`SITE`,`FLAG`,`TIME`,`HOURS`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `sitehistory`
+--
 
+LOCK TABLES `sitehistory` WRITE;
+/*!40000 ALTER TABLE `sitehistory` DISABLE KEYS */;
+/*!40000 ALTER TABLE `sitehistory` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `sites_matrix_data`
+--
+
+DROP TABLE IF EXISTS `sites_matrix_data`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `sites_matrix_data` (
   `SOURCE` varchar(256) NOT NULL,
   `DESTINATION` varchar(256) NOT NULL,
@@ -2065,8 +3285,24 @@ CREATE TABLE `sites_matrix_data` (
   `PERFSONARAVG_LAST_UPDATE` datetime DEFAULT NULL,
   `XRDCP_LAST_UPDATE` date DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `sites_matrix_data`
+--
 
+LOCK TABLES `sites_matrix_data` WRITE;
+/*!40000 ALTER TABLE `sites_matrix_data` DISABLE KEYS */;
+/*!40000 ALTER TABLE `sites_matrix_data` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `sitesinfo`
+--
+
+DROP TABLE IF EXISTS `sitesinfo`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `sitesinfo` (
   `NAME` varchar(120) NOT NULL,
   `NICK` varchar(20) NOT NULL,
@@ -2090,8 +3326,24 @@ CREATE TABLE `sitesinfo` (
   `NFILES` int(11) DEFAULT NULL,
   `TIMESTAMP` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `sitesinfo`
+--
 
+LOCK TABLES `sitesinfo` WRITE;
+/*!40000 ALTER TABLE `sitesinfo` DISABLE KEYS */;
+/*!40000 ALTER TABLE `sitesinfo` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `sitestats`
+--
+
+DROP TABLE IF EXISTS `sitestats`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `sitestats` (
   `CLOUD` varchar(10) DEFAULT NULL,
   `SITE` varchar(60) DEFAULT NULL,
@@ -2125,15 +3377,47 @@ CREATE TABLE `sitestats` (
   `TSETUP` int(11) DEFAULT '-1',
   KEY `SITESTATS_TIME_INDX` (`AT_TIME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `sitestats`
+--
 
+LOCK TABLES `sitestats` WRITE;
+/*!40000 ALTER TABLE `sitestats` DISABLE KEYS */;
+/*!40000 ALTER TABLE `sitestats` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `subcounter_subid_seq`
+--
+
+DROP TABLE IF EXISTS `subcounter_subid_seq`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `subcounter_subid_seq` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT,
   `col` bit(1) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=130 DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `subcounter_subid_seq`
+--
 
+LOCK TABLES `subcounter_subid_seq` WRITE;
+/*!40000 ALTER TABLE `subcounter_subid_seq` DISABLE KEYS */;
+/*!40000 ALTER TABLE `subcounter_subid_seq` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `submithosts`
+--
+
+DROP TABLE IF EXISTS `submithosts`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `submithosts` (
   `NAME` varchar(60) NOT NULL,
   `NICKNAME` varchar(20) NOT NULL,
@@ -2147,8 +3431,24 @@ CREATE TABLE `submithosts` (
   PRIMARY KEY (`HOST`),
   UNIQUE KEY `PRIMARY_SUBMITHOST` (`HOST`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `submithosts`
+--
 
+LOCK TABLES `submithosts` WRITE;
+/*!40000 ALTER TABLE `submithosts` DISABLE KEYS */;
+/*!40000 ALTER TABLE `submithosts` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `sysconfig`
+--
+
+DROP TABLE IF EXISTS `sysconfig`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `sysconfig` (
   `NAME` varchar(60) NOT NULL,
   `SYSTEM` varchar(20) NOT NULL,
@@ -2156,8 +3456,24 @@ CREATE TABLE `sysconfig` (
   PRIMARY KEY (`NAME`,`SYSTEM`),
   UNIQUE KEY `PRIMARY_SYSCFG` (`NAME`,`SYSTEM`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `sysconfig`
+--
 
+LOCK TABLES `sysconfig` WRITE;
+/*!40000 ALTER TABLE `sysconfig` DISABLE KEYS */;
+/*!40000 ALTER TABLE `sysconfig` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `t_m4regions_replication`
+--
+
+DROP TABLE IF EXISTS `t_m4regions_replication`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `t_m4regions_replication` (
   `TIER2` varchar(50) NOT NULL,
   `CLOUD` varchar(30) NOT NULL,
@@ -2180,8 +3496,24 @@ CREATE TABLE `t_m4regions_replication` (
   `T2GROUP` bigint(20) DEFAULT NULL,
   PRIMARY KEY (`TIER2`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `t_m4regions_replication`
+--
 
+LOCK TABLES `t_m4regions_replication` WRITE;
+/*!40000 ALTER TABLE `t_m4regions_replication` DISABLE KEYS */;
+/*!40000 ALTER TABLE `t_m4regions_replication` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `table_part_boundaries`
+--
+
+DROP TABLE IF EXISTS `table_part_boundaries`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `table_part_boundaries` (
   `TAB_NAME` varchar(30) NOT NULL,
   `PART_NAME` varchar(30) NOT NULL,
@@ -2192,8 +3524,24 @@ CREATE TABLE `table_part_boundaries` (
   PRIMARY KEY (`TAB_NAME`,`PART_NAME`),
   UNIQUE KEY `TABLE_PART_BOUNDARIES_PK` (`TAB_NAME`,`PART_NAME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `table_part_boundaries`
+--
 
+LOCK TABLES `table_part_boundaries` WRITE;
+/*!40000 ALTER TABLE `table_part_boundaries` DISABLE KEYS */;
+/*!40000 ALTER TABLE `table_part_boundaries` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `tablepart4copying`
+--
+
+DROP TABLE IF EXISTS `tablepart4copying`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `tablepart4copying` (
   `TABLE_NAME` varchar(30) NOT NULL,
   `PARTITION_NAME` varchar(30) NOT NULL,
@@ -2205,8 +3553,24 @@ CREATE TABLE `tablepart4copying` (
   PRIMARY KEY (`TABLE_NAME`,`PARTITION_NAME`),
   UNIQUE KEY `TABLEPART4COPYING_PK` (`TABLE_NAME`,`PARTITION_NAME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `tablepart4copying`
+--
 
+LOCK TABLES `tablepart4copying` WRITE;
+/*!40000 ALTER TABLE `tablepart4copying` DISABLE KEYS */;
+/*!40000 ALTER TABLE `tablepart4copying` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `taginfo`
+--
+
+DROP TABLE IF EXISTS `taginfo`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `taginfo` (
   `TAG` varchar(30) NOT NULL,
   `DESCRIPTION` varchar(100) NOT NULL,
@@ -2215,8 +3579,24 @@ CREATE TABLE `taginfo` (
   PRIMARY KEY (`TAG`),
   UNIQUE KEY `PRIMARY_TAGINFO` (`TAG`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `taginfo`
+--
 
+LOCK TABLES `taginfo` WRITE;
+/*!40000 ALTER TABLE `taginfo` DISABLE KEYS */;
+/*!40000 ALTER TABLE `taginfo` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `tags`
+--
+
+DROP TABLE IF EXISTS `tags`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `tags` (
   `ID` int(11) NOT NULL,
   `NAME` varchar(20) NOT NULL,
@@ -2229,8 +3609,24 @@ CREATE TABLE `tags` (
   UNIQUE KEY `PRIMARY_TAGS` (`ID`),
   KEY `TAGS_NAME_IDX` (`NAME`,`UGID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `tags`
+--
 
+LOCK TABLES `tags` WRITE;
+/*!40000 ALTER TABLE `tags` DISABLE KEYS */;
+/*!40000 ALTER TABLE `tags` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `usagereport`
+--
+
+DROP TABLE IF EXISTS `usagereport`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `usagereport` (
   `ENTRY` int(11) NOT NULL,
   `FLAG` varchar(20) NOT NULL,
@@ -2243,8 +3639,24 @@ CREATE TABLE `usagereport` (
   PRIMARY KEY (`ENTRY`),
   UNIQUE KEY `PRIMARY_USAGEREPORT` (`ENTRY`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `usagereport`
+--
 
+LOCK TABLES `usagereport` WRITE;
+/*!40000 ALTER TABLE `usagereport` DISABLE KEYS */;
+/*!40000 ALTER TABLE `usagereport` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `usercacheusage`
+--
+
+DROP TABLE IF EXISTS `usercacheusage`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `usercacheusage` (
   `USERNAME` varchar(128) NOT NULL,
   `FILENAME` varchar(256) NOT NULL,
@@ -2256,8 +3668,24 @@ CREATE TABLE `usercacheusage` (
   `ALIASNAME` varchar(256) DEFAULT NULL,
   KEY `USERCACHEUSAGE_USR_CRDATE_INDX` (`USERNAME`,`CREATIONTIME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `usercacheusage`
+--
 
+LOCK TABLES `usercacheusage` WRITE;
+/*!40000 ALTER TABLE `usercacheusage` DISABLE KEYS */;
+/*!40000 ALTER TABLE `usercacheusage` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `users`
+--
+
+DROP TABLE IF EXISTS `users`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `users` (
   `ID` int(11) NOT NULL AUTO_INCREMENT,
   `NAME` varchar(60) NOT NULL,
@@ -2313,8 +3741,24 @@ CREATE TABLE `users` (
   UNIQUE KEY `PRIMARY_USERS` (`ID`),
   KEY `USERS_NAME_IDX` (`NAME`,`VO`)
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `users`
+--
 
+LOCK TABLES `users` WRITE;
+/*!40000 ALTER TABLE `users` DISABLE KEYS */;
+/*!40000 ALTER TABLE `users` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `usersubs`
+--
+
+DROP TABLE IF EXISTS `usersubs`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `usersubs` (
   `DATASETNAME` varchar(255) NOT NULL,
   `SITE` varchar(64) NOT NULL,
@@ -2324,8 +3768,24 @@ CREATE TABLE `usersubs` (
   `STATE` varchar(30) DEFAULT 'subscribed',
   PRIMARY KEY (`DATASETNAME`,`SITE`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `usersubs`
+--
 
+LOCK TABLES `usersubs` WRITE;
+/*!40000 ALTER TABLE `usersubs` DISABLE KEYS */;
+/*!40000 ALTER TABLE `usersubs` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `vo_to_site`
+--
+
+DROP TABLE IF EXISTS `vo_to_site`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `vo_to_site` (
   `SITE_NAME` varchar(32) NOT NULL,
   `QUEUE` varchar(64) NOT NULL,
@@ -2333,8 +3793,24 @@ CREATE TABLE `vo_to_site` (
   PRIMARY KEY (`SITE_NAME`,`QUEUE`,`VO_NAME`),
   UNIQUE KEY `PRIMARY_VOTOSITE` (`SITE_NAME`,`QUEUE`,`VO_NAME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `vo_to_site`
+--
 
+LOCK TABLES `vo_to_site` WRITE;
+/*!40000 ALTER TABLE `vo_to_site` DISABLE KEYS */;
+/*!40000 ALTER TABLE `vo_to_site` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `vorspassfail`
+--
+
+DROP TABLE IF EXISTS `vorspassfail`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `vorspassfail` (
   `SITE_NAME` varchar(32) NOT NULL,
   `PASSFAIL` char(4) NOT NULL,
@@ -2342,8 +3818,24 @@ CREATE TABLE `vorspassfail` (
   PRIMARY KEY (`SITE_NAME`),
   UNIQUE KEY `PRIMARY_VORSPASSFAIL` (`SITE_NAME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `vorspassfail`
+--
 
+LOCK TABLES `vorspassfail` WRITE;
+/*!40000 ALTER TABLE `vorspassfail` DISABLE KEYS */;
+/*!40000 ALTER TABLE `vorspassfail` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `wndata`
+--
+
+DROP TABLE IF EXISTS `wndata`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `wndata` (
   `SITE` varchar(60) NOT NULL,
   `WN` varchar(50) NOT NULL,
@@ -2375,8 +3867,24 @@ CREATE TABLE `wndata` (
   PRIMARY KEY (`SITE`,`WN`,`FLAG`,`HOURS`),
   UNIQUE KEY `PRIMARY_WNDATA` (`SITE`,`WN`,`FLAG`,`HOURS`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `wndata`
+--
 
+LOCK TABLES `wndata` WRITE;
+/*!40000 ALTER TABLE `wndata` DISABLE KEYS */;
+/*!40000 ALTER TABLE `wndata` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2006_filestable_arch`
+--
+
+DROP TABLE IF EXISTS `y2006_filestable_arch`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2006_filestable_arch` (
   `ROW_ID` bigint(20) NOT NULL,
   `PANDAID` bigint(20) NOT NULL,
@@ -2405,16 +3913,48 @@ CREATE TABLE `y2006_filestable_arch` (
   KEY `F2006_PANDAID_IDX` (`PANDAID`),
   KEY `F2006_ARCH_ROWID_IDX` (`ROW_ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2006_filestable_arch`
+--
 
+LOCK TABLES `y2006_filestable_arch` WRITE;
+/*!40000 ALTER TABLE `y2006_filestable_arch` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2006_filestable_arch` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2006_jobparamstable_arch`
+--
+
+DROP TABLE IF EXISTS `y2006_jobparamstable_arch`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2006_jobparamstable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
   `JOBPARAMETERS` text,
   KEY `JOBPARAMS2006_ARCH_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2006_jobparamstable_arch`
+--
 
+LOCK TABLES `y2006_jobparamstable_arch` WRITE;
+/*!40000 ALTER TABLE `y2006_jobparamstable_arch` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2006_jobparamstable_arch` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2006_jobsarchived`
+--
+
+DROP TABLE IF EXISTS `y2006_jobsarchived`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2006_jobsarchived` (
   `PANDAID` bigint(20) NOT NULL,
   `JOBDEFINITIONID` bigint(20) NOT NULL,
@@ -2516,16 +4056,48 @@ CREATE TABLE `y2006_jobsarchived` (
   KEY `J2006_TASKID_3ATTR_PANDAID_IDX` (`TASKID`,`PRODSOURCELABEL`,`JOBSTATUS`,`PROCESSINGTYPE`,`PANDAID`),
   KEY `J2006_JEDITASKID_IDX` (`JEDITASKID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2006_jobsarchived`
+--
 
+LOCK TABLES `y2006_jobsarchived` WRITE;
+/*!40000 ALTER TABLE `y2006_jobsarchived` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2006_jobsarchived` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2006_metatable_arch`
+--
+
+DROP TABLE IF EXISTS `y2006_metatable_arch`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2006_metatable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
   `METADATA` text,
   KEY `META2006_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2006_metatable_arch`
+--
 
+LOCK TABLES `y2006_metatable_arch` WRITE;
+/*!40000 ALTER TABLE `y2006_metatable_arch` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2006_metatable_arch` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2007_filestable_arch`
+--
+
+DROP TABLE IF EXISTS `y2007_filestable_arch`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2007_filestable_arch` (
   `ROW_ID` bigint(20) NOT NULL,
   `PANDAID` bigint(20) NOT NULL,
@@ -2554,16 +4126,48 @@ CREATE TABLE `y2007_filestable_arch` (
   KEY `F2007_PANDAID_IDX` (`PANDAID`),
   KEY `F2007_ARCH_ROWID_IDX` (`ROW_ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2007_filestable_arch`
+--
 
+LOCK TABLES `y2007_filestable_arch` WRITE;
+/*!40000 ALTER TABLE `y2007_filestable_arch` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2007_filestable_arch` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2007_jobparamstable_arch`
+--
+
+DROP TABLE IF EXISTS `y2007_jobparamstable_arch`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2007_jobparamstable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
   `JOBPARAMETERS` text,
   KEY `JOBPARAMS2007_ARCH_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2007_jobparamstable_arch`
+--
 
+LOCK TABLES `y2007_jobparamstable_arch` WRITE;
+/*!40000 ALTER TABLE `y2007_jobparamstable_arch` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2007_jobparamstable_arch` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2007_jobsarchived`
+--
+
+DROP TABLE IF EXISTS `y2007_jobsarchived`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2007_jobsarchived` (
   `PANDAID` bigint(20) NOT NULL,
   `JOBDEFINITIONID` bigint(20) NOT NULL,
@@ -2665,16 +4269,48 @@ CREATE TABLE `y2007_jobsarchived` (
   KEY `J2007_PRODUSRNAME_4ATTR_IDX` (`PRODUSERNAME`,`JOBSTATUS`,`PRODSOURCELABEL`,`JOBSETID`,`JOBDEFINITIONID`),
   KEY `J2007_TASKID_3ATTR_PANDAID_IDX` (`TASKID`,`PRODSOURCELABEL`,`JOBSTATUS`,`PROCESSINGTYPE`,`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2007_jobsarchived`
+--
 
+LOCK TABLES `y2007_jobsarchived` WRITE;
+/*!40000 ALTER TABLE `y2007_jobsarchived` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2007_jobsarchived` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2007_metatable_arch`
+--
+
+DROP TABLE IF EXISTS `y2007_metatable_arch`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2007_metatable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
   `METADATA` text,
   KEY `META2007_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2007_metatable_arch`
+--
 
+LOCK TABLES `y2007_metatable_arch` WRITE;
+/*!40000 ALTER TABLE `y2007_metatable_arch` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2007_metatable_arch` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2008_filestable_arch`
+--
+
+DROP TABLE IF EXISTS `y2008_filestable_arch`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2008_filestable_arch` (
   `ROW_ID` bigint(20) NOT NULL,
   `PANDAID` bigint(20) NOT NULL,
@@ -2703,16 +4339,48 @@ CREATE TABLE `y2008_filestable_arch` (
   KEY `F2008_PANDAID_IDX` (`PANDAID`),
   KEY `F2008_ARCH_ROWID_IDX` (`ROW_ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2008_filestable_arch`
+--
 
+LOCK TABLES `y2008_filestable_arch` WRITE;
+/*!40000 ALTER TABLE `y2008_filestable_arch` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2008_filestable_arch` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2008_jobparamstable_arch`
+--
+
+DROP TABLE IF EXISTS `y2008_jobparamstable_arch`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2008_jobparamstable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
   `JOBPARAMETERS` text,
   KEY `JOBPARAMS2008_ARCH_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2008_jobparamstable_arch`
+--
 
+LOCK TABLES `y2008_jobparamstable_arch` WRITE;
+/*!40000 ALTER TABLE `y2008_jobparamstable_arch` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2008_jobparamstable_arch` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2008_jobsarchived`
+--
+
+DROP TABLE IF EXISTS `y2008_jobsarchived`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2008_jobsarchived` (
   `PANDAID` bigint(20) NOT NULL,
   `JOBDEFINITIONID` bigint(20) NOT NULL,
@@ -2814,16 +4482,48 @@ CREATE TABLE `y2008_jobsarchived` (
   KEY `J2008_PRODUSRNAME_4ATTR_IDX` (`PRODUSERNAME`,`JOBSTATUS`,`PRODSOURCELABEL`,`JOBSETID`,`JOBDEFINITIONID`),
   KEY `J2008_TASKID_3ATTR_PANDAID_IDX` (`TASKID`,`PRODSOURCELABEL`,`JOBSTATUS`,`PROCESSINGTYPE`,`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2008_jobsarchived`
+--
 
+LOCK TABLES `y2008_jobsarchived` WRITE;
+/*!40000 ALTER TABLE `y2008_jobsarchived` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2008_jobsarchived` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2008_metatable_arch`
+--
+
+DROP TABLE IF EXISTS `y2008_metatable_arch`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2008_metatable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
   `METADATA` text,
   KEY `META2008_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2008_metatable_arch`
+--
 
+LOCK TABLES `y2008_metatable_arch` WRITE;
+/*!40000 ALTER TABLE `y2008_metatable_arch` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2008_metatable_arch` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2009_filestable_arch`
+--
+
+DROP TABLE IF EXISTS `y2009_filestable_arch`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2009_filestable_arch` (
   `ROW_ID` bigint(20) NOT NULL,
   `PANDAID` bigint(20) NOT NULL,
@@ -2852,16 +4552,48 @@ CREATE TABLE `y2009_filestable_arch` (
   KEY `F2009_PANDAID_IDX` (`PANDAID`),
   KEY `F2009_ARCH_ROWID_IDX` (`ROW_ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2009_filestable_arch`
+--
 
+LOCK TABLES `y2009_filestable_arch` WRITE;
+/*!40000 ALTER TABLE `y2009_filestable_arch` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2009_filestable_arch` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2009_jobparamstable_arch`
+--
+
+DROP TABLE IF EXISTS `y2009_jobparamstable_arch`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2009_jobparamstable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
   `JOBPARAMETERS` text,
   KEY `JOBPARAMS2009_ARCH_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2009_jobparamstable_arch`
+--
 
+LOCK TABLES `y2009_jobparamstable_arch` WRITE;
+/*!40000 ALTER TABLE `y2009_jobparamstable_arch` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2009_jobparamstable_arch` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2009_jobsarchived`
+--
+
+DROP TABLE IF EXISTS `y2009_jobsarchived`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2009_jobsarchived` (
   `PANDAID` bigint(20) NOT NULL,
   `JOBDEFINITIONID` bigint(20) NOT NULL,
@@ -2963,16 +4695,48 @@ CREATE TABLE `y2009_jobsarchived` (
   KEY `J2009_JOBSETID_PRODUSRNAME_IDX` (`JOBSETID`,`PRODUSERNAME`),
   KEY `J2009_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2009_jobsarchived`
+--
 
+LOCK TABLES `y2009_jobsarchived` WRITE;
+/*!40000 ALTER TABLE `y2009_jobsarchived` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2009_jobsarchived` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2009_metatable_arch`
+--
+
+DROP TABLE IF EXISTS `y2009_metatable_arch`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2009_metatable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
   `METADATA` text,
   KEY `META2009_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2009_metatable_arch`
+--
 
+LOCK TABLES `y2009_metatable_arch` WRITE;
+/*!40000 ALTER TABLE `y2009_metatable_arch` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2009_metatable_arch` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2010_filestable_arch`
+--
+
+DROP TABLE IF EXISTS `y2010_filestable_arch`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2010_filestable_arch` (
   `ROW_ID` bigint(20) NOT NULL,
   `PANDAID` bigint(20) NOT NULL,
@@ -3001,16 +4765,48 @@ CREATE TABLE `y2010_filestable_arch` (
   KEY `F2010_PANDAID_IDX` (`PANDAID`),
   KEY `F2010_ARCH_ROWID_IDX` (`ROW_ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2010_filestable_arch`
+--
 
+LOCK TABLES `y2010_filestable_arch` WRITE;
+/*!40000 ALTER TABLE `y2010_filestable_arch` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2010_filestable_arch` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2010_jobparamstable_arch`
+--
+
+DROP TABLE IF EXISTS `y2010_jobparamstable_arch`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2010_jobparamstable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
   `JOBPARAMETERS` text,
   KEY `JOBPARAMS2010_ARCH_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2010_jobparamstable_arch`
+--
 
+LOCK TABLES `y2010_jobparamstable_arch` WRITE;
+/*!40000 ALTER TABLE `y2010_jobparamstable_arch` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2010_jobparamstable_arch` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2010_jobsarchived`
+--
+
+DROP TABLE IF EXISTS `y2010_jobsarchived`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2010_jobsarchived` (
   `PANDAID` bigint(20) NOT NULL,
   `JOBDEFINITIONID` bigint(20) NOT NULL,
@@ -3112,16 +4908,48 @@ CREATE TABLE `y2010_jobsarchived` (
   KEY `J2010_PRODUSRNAME_4ATTR_IDX` (`PRODUSERNAME`,`JOBSTATUS`,`PRODSOURCELABEL`,`JOBSETID`,`JOBDEFINITIONID`),
   KEY `J2010_TASKID_3ATTR_PANDAID_IDX` (`TASKID`,`PRODSOURCELABEL`,`JOBSTATUS`,`PROCESSINGTYPE`,`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2010_jobsarchived`
+--
 
+LOCK TABLES `y2010_jobsarchived` WRITE;
+/*!40000 ALTER TABLE `y2010_jobsarchived` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2010_jobsarchived` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2010_metatable_arch`
+--
+
+DROP TABLE IF EXISTS `y2010_metatable_arch`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2010_metatable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
   `METADATA` text,
   KEY `META2010_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2010_metatable_arch`
+--
 
+LOCK TABLES `y2010_metatable_arch` WRITE;
+/*!40000 ALTER TABLE `y2010_metatable_arch` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2010_metatable_arch` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2011_filestable_arch`
+--
+
+DROP TABLE IF EXISTS `y2011_filestable_arch`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2011_filestable_arch` (
   `ROW_ID` bigint(20) NOT NULL,
   `PANDAID` bigint(20) NOT NULL,
@@ -3150,16 +4978,48 @@ CREATE TABLE `y2011_filestable_arch` (
   KEY `F2011_PANDAID_IDX` (`PANDAID`),
   KEY `F2011_ARCH_ROWID_IDX` (`ROW_ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2011_filestable_arch`
+--
 
+LOCK TABLES `y2011_filestable_arch` WRITE;
+/*!40000 ALTER TABLE `y2011_filestable_arch` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2011_filestable_arch` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2011_jobparamstable_arch`
+--
+
+DROP TABLE IF EXISTS `y2011_jobparamstable_arch`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2011_jobparamstable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
   `JOBPARAMETERS` text,
   KEY `JOBPARAMS2011_ARCH_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2011_jobparamstable_arch`
+--
 
+LOCK TABLES `y2011_jobparamstable_arch` WRITE;
+/*!40000 ALTER TABLE `y2011_jobparamstable_arch` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2011_jobparamstable_arch` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2011_jobsarchived`
+--
+
+DROP TABLE IF EXISTS `y2011_jobsarchived`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2011_jobsarchived` (
   `PANDAID` bigint(20) NOT NULL,
   `JOBDEFINITIONID` bigint(20) NOT NULL,
@@ -3261,16 +5121,48 @@ CREATE TABLE `y2011_jobsarchived` (
   KEY `J2011_TASKID_3ATTR_PANDAID_IDX` (`TASKID`,`PRODSOURCELABEL`,`JOBSTATUS`,`PROCESSINGTYPE`,`PANDAID`),
   KEY `J2011_JEDITASKID_IDX` (`JEDITASKID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2011_jobsarchived`
+--
 
+LOCK TABLES `y2011_jobsarchived` WRITE;
+/*!40000 ALTER TABLE `y2011_jobsarchived` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2011_jobsarchived` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2011_metatable_arch`
+--
+
+DROP TABLE IF EXISTS `y2011_metatable_arch`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2011_metatable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
   `METADATA` text,
   KEY `META2011_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2011_metatable_arch`
+--
 
+LOCK TABLES `y2011_metatable_arch` WRITE;
+/*!40000 ALTER TABLE `y2011_metatable_arch` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2011_metatable_arch` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2012_filestable_arch`
+--
+
+DROP TABLE IF EXISTS `y2012_filestable_arch`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2012_filestable_arch` (
   `ROW_ID` bigint(20) NOT NULL,
   `PANDAID` bigint(20) NOT NULL,
@@ -3299,16 +5191,48 @@ CREATE TABLE `y2012_filestable_arch` (
   KEY `F2012_PANDAID_IDX` (`PANDAID`),
   KEY `F2012_ARCH_ROWID_IDX` (`ROW_ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2012_filestable_arch`
+--
 
+LOCK TABLES `y2012_filestable_arch` WRITE;
+/*!40000 ALTER TABLE `y2012_filestable_arch` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2012_filestable_arch` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2012_jobparamstable_arch`
+--
+
+DROP TABLE IF EXISTS `y2012_jobparamstable_arch`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2012_jobparamstable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
   `JOBPARAMETERS` text,
   KEY `JOBPARAMS2012_ARCH_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2012_jobparamstable_arch`
+--
 
+LOCK TABLES `y2012_jobparamstable_arch` WRITE;
+/*!40000 ALTER TABLE `y2012_jobparamstable_arch` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2012_jobparamstable_arch` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2012_jobsarchived`
+--
+
+DROP TABLE IF EXISTS `y2012_jobsarchived`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2012_jobsarchived` (
   `PANDAID` bigint(20) NOT NULL,
   `JOBDEFINITIONID` bigint(20) NOT NULL,
@@ -3410,16 +5334,48 @@ CREATE TABLE `y2012_jobsarchived` (
   KEY `J2012_JOBDEFID_PRODUSRNAME_IDX` (`JOBDEFINITIONID`,`PRODUSERNAME`),
   KEY `J2012_JOBSETID_PRODUSRNAME_IDX` (`JOBSETID`,`PRODUSERNAME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2012_jobsarchived`
+--
 
+LOCK TABLES `y2012_jobsarchived` WRITE;
+/*!40000 ALTER TABLE `y2012_jobsarchived` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2012_jobsarchived` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2012_metatable_arch`
+--
+
+DROP TABLE IF EXISTS `y2012_metatable_arch`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2012_metatable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
   `METADATA` text,
   KEY `META2012_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2012_metatable_arch`
+--
 
+LOCK TABLES `y2012_metatable_arch` WRITE;
+/*!40000 ALTER TABLE `y2012_metatable_arch` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2012_metatable_arch` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2013_filestable_arch`
+--
+
+DROP TABLE IF EXISTS `y2013_filestable_arch`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2013_filestable_arch` (
   `ROW_ID` bigint(20) NOT NULL,
   `PANDAID` bigint(20) NOT NULL,
@@ -3448,16 +5404,48 @@ CREATE TABLE `y2013_filestable_arch` (
   KEY `F2013_PANDAID_IDX` (`PANDAID`),
   KEY `F2013_ARCH_ROWID_IDX` (`ROW_ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2013_filestable_arch`
+--
 
+LOCK TABLES `y2013_filestable_arch` WRITE;
+/*!40000 ALTER TABLE `y2013_filestable_arch` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2013_filestable_arch` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2013_jobparamstable_arch`
+--
+
+DROP TABLE IF EXISTS `y2013_jobparamstable_arch`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2013_jobparamstable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
   `JOBPARAMETERS` text,
   KEY `JOBPARAMS2013_ARCH_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2013_jobparamstable_arch`
+--
 
+LOCK TABLES `y2013_jobparamstable_arch` WRITE;
+/*!40000 ALTER TABLE `y2013_jobparamstable_arch` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2013_jobparamstable_arch` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2013_jobsarchived`
+--
+
+DROP TABLE IF EXISTS `y2013_jobsarchived`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2013_jobsarchived` (
   `PANDAID` bigint(20) NOT NULL,
   `JOBDEFINITIONID` bigint(20) NOT NULL,
@@ -3561,84 +5549,48 @@ CREATE TABLE `y2013_jobsarchived` (
   KEY `J2013_JEDITASKID_IDX` (`JEDITASKID`),
   KEY `J2013_SITE_3ATTR_PANDAID_IDX` (`COMPUTINGSITE`,`JOBSTATUS`,`PRODSOURCELABEL`,`PROCESSINGTYPE`,`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2013_jobsarchived`
+--
 
+LOCK TABLES `y2013_jobsarchived` WRITE;
+/*!40000 ALTER TABLE `y2013_jobsarchived` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2013_jobsarchived` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `y2013_metatable_arch`
+--
+
+DROP TABLE IF EXISTS `y2013_metatable_arch`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `y2013_metatable_arch` (
   `PANDAID` bigint(20) NOT NULL,
   `MODIFICATIONTIME` datetime NOT NULL,
   `METADATA` text,
   KEY `META2013_PANDAID_IDX` (`PANDAID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Dumping data for table `y2013_metatable_arch`
+--
 
-# Dump of FUNCTION curval
-# ------------------------------------------------------------
+LOCK TABLES `y2013_metatable_arch` WRITE;
+/*!40000 ALTER TABLE `y2013_metatable_arch` DISABLE KEYS */;
+/*!40000 ALTER TABLE `y2013_metatable_arch` ENABLE KEYS */;
+UNLOCK TABLES;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
-/*!50003 SET SESSION SQL_MODE=""*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`pandamonat`@`144.206.%.%`*/ /*!50003 FUNCTION `curval`(`seq_name` varchar(100)) RETURNS bigint(20)
-BEGIN
-    DECLARE cur_val bigint;
- 
-    SELECT
-        cur_value INTO cur_val
-    FROM
-        sequence
-    WHERE
-        name = seq_name;
-    RETURN cur_val;
-END */;;
-
-/*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE */;;
-# Dump of FUNCTION nextval
-# ------------------------------------------------------------
-
-/*!50003 SET SESSION SQL_MODE=""*/;;
-/*!50003 CREATE*/ /*!50020 DEFINER=`pandamonat`@`144.206.%.%`*/ /*!50003 FUNCTION `nextval`(`seq_name` varchar(100)) RETURNS bigint(20)
-BEGIN
-    DECLARE cur_val bigint;
- 
-    SELECT
-        cur_value INTO cur_val
-    FROM
-        sequence
-    WHERE
-        name = seq_name;
- 
-    IF cur_val IS NOT NULL THEN
-        UPDATE
-            sequence
-        SET
-            cur_value = IF (
-                (cur_value + increment) > max_value OR (cur_value + increment) < min_value,
-                IF (
-                    cycle = TRUE,
-                    IF (
-                        (cur_value + increment) > max_value,
-                        min_value, 
-                        max_value 
-                    ),
-                    NULL
-                ),
-                cur_value + increment
-            )
-        WHERE
-            name = seq_name;
-    END IF; 
-    SELECT
-        cur_value INTO cur_val
-    FROM
-        sequence
-    WHERE
-        name = seq_name;
-    RETURN cur_val;
-END */;;
-
-/*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE */;;
-DELIMITER ;
-
-/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
 /*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+-- Dump completed on 2015-06-01 16:03:59
