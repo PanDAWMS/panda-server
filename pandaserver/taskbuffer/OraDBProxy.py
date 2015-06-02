@@ -152,16 +152,21 @@ class DBProxy:
     #Internal caching of a result. Use only for information 
     #with low update frequency and low memory footprint
     def memoize(f):
+        _logger.debug("entered memoize")
         memo = {}
         kwd_mark = object()
         def helper(self, *args, **kwargs):
+            _logger.debug("entered helper")
             now = datetime.datetime.now()
             key = args + (kwd_mark,) + tuple(sorted(kwargs.items()))
             if key not in memo or memo[key]['timestamp'] < now - datetime.timedelta(hours=1):
                 memo[key] = {}
                 memo[key]['value'] = f(self, *args, **kwargs)
                 memo[key]['timestamp'] = now
+                _logger.debug("refreshed memo for %s %s"%(args, kwargs))
+            _logger.debug("returning")
             return memo[key]['value']
+        _logger.debug("returning helper")
         return helper
 
     # query an SQL   
@@ -15267,9 +15272,10 @@ class DBProxy:
         WHERE re.RetryAction_FK=ra.ID
         AND (CURRENT_TIMESTAMP > re.expiration_date or re.expiration_date IS NULL)
         """
-
         self.cur.execute(sql+comment, {})
         definitions = self.cur.fetchall()   #example of output: [('pilotErrorCode', 1, None, None, None, None, 'no_retry', 'Y', 'Y'),...]
+        
+        _logger.debug("definitions %s"%(definitions))
         
         retrial_rules = {} #TODO: Consider if we want a class RetrialRule
         for definition in definitions:
