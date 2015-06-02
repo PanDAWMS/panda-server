@@ -233,9 +233,17 @@ class JobDipatcher:
     # update job status
     def updateJob(self,jobID,jobStatus,timeout,xml,siteName,param,metadata,attemptNr=None,stdout=''):
         
-        # First of all: check if job failed and in this case take first actions according to error table 
-        if jobStatus=='failed' and param.has_key('pilotErrorCode'):
-            retryModule.apply_retrial_rules(self.taskBuffer, jobID, 'pilotErrorCode', param['pilotErrorCode'], attemptNr)
+        # First of all: check if job failed and in this case take first actions according to error table
+        source, ecode = None, None
+        if param.has_key('pilotErrorCode'):
+            source = 'pilotErrorCode'
+            ecode = param['pilotErrorCode']
+        elif param.has_key('pilotErrorCode'):
+            source = 'pilotErrorCode'
+            ecode = param['pilotErrorCode']
+            
+        if jobStatus=='failed' and source and ecode:
+            retryModule.apply_retrial_rules(self.taskBuffer, jobID, source, ecode, attemptNr)
         
         # recoverable error for ES merge
         recoverableEsMerge = False

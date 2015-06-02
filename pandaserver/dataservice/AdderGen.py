@@ -19,6 +19,7 @@ from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
 from pandalogger.LogWrapper import LogWrapper
 from taskbuffer import EventServiceUtils
+from taskbuffer import retryModule
 
 # logger
 _logger = PandaLogger().getLogger('Adder')
@@ -102,6 +103,7 @@ class AdderGen:
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
                     self.job.ddmErrorDiag = "wrong file status in JEDI"
                     self.logger.debug("set jobStatus={0} since input are already cancelled in JEDI".format(self.jobStatus))
+                    retryModule.apply_retrial_rules(self.taskBuffer, self.jobID, 'ddmErrorCode', self.job.ddmErrorCode, self.job.attemptNr)
                 # keep old status
                 oldJobStatus = self.job.jobStatus
                 # set job status
@@ -144,6 +146,8 @@ class AdderGen:
                         addResult = None
                         self.job.ddmErrorCode = ErrorCode.EC_Adder
                         self.job.ddmErrorDiag = "AdderPlugin failure"
+                        retryModule.apply_retrial_rules(self.taskBuffer, self.jobID, 'ddmErrorCode', self.job.ddmErrorCode, self.job.attemptNr)
+                        
                     # ignore temporary errors
                     if self.ignoreTmpError and addResult != None and addResult.isTemporary():
                         self.logger.debug(': ignore %s ' % self.job.ddmErrorDiag)
@@ -385,6 +389,7 @@ class AdderGen:
                    (self.job.transExitCode  in [0,'0','NULL']):
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
                     self.job.ddmErrorDiag = "Could not get GUID/LFN/MD5/FSIZE/SURL from pilot XML"
+                    retryModule.apply_retrial_rules(self.taskBuffer, self.jobID, 'ddmErrorCode', self.job.ddmErrorCode, self.job.attemptNr)
                 return 2
             else:
                 # XML was deleted
@@ -495,6 +500,7 @@ class AdderGen:
                     tmpFile.status = 'failed'
                 self.job.ddmErrorCode = ErrorCode.EC_Adder
                 self.job.ddmErrorDiag = "pilot XML is inconsistent with filesTable"
+                retryModule.apply_retrial_rules(self.taskBuffer, self.jobID, 'ddmErrorCode', self.job.ddmErrorCode, self.job.attemptNr)
                 return 2
         # return
         self.logger.debug("parseXML end")
