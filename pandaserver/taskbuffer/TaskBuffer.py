@@ -2722,7 +2722,7 @@ class TaskBuffer:
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.getErrorDefinitions()
+        ret = proxy.getRetrialRules()
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
