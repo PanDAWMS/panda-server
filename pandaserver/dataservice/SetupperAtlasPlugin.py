@@ -538,8 +538,10 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                                 dq2IDList.append(dq2ID)
                                 # set hidden flag for _sub
                                 tmpHiddenFlag = False
+                                tmpActivity = None
                                 if name != originalName and re.search('_sub\d+$',name) != None:
                                     tmpHiddenFlag = True
+                                    tmpActivity = 'Production Output'
                                 # backend
                                 ddmBackEnd = job.getDdmBackEnd()
                                 if ddmBackEnd == None:
@@ -553,6 +555,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                     status,out = ddm.DQ2.main('registerNewDataset',name,[],[],[],[],
                                                               None,None,None,tmpHiddenFlag,
                                                               rse=dq2IDList[0],
+                                                              activity=tmpActivity,
                                                               force_backend=ddmBackEnd)
                                     if status != 0 and out.find('DQDatasetExistsException') != -1:
                                         atFailed = iDDMTry
@@ -2475,7 +2478,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
 
 
     # register dispatch dataset
-    def registerDispatchDatasetLocation(self,dsn,rses,lifetime=None,scope='panda'):
+    def registerDispatchDatasetLocation(self,dsn,rses,lifetime=None,scope='panda',activity=None):
         if lifetime != None:
             lifetime = lifetime*24*60*60
         dids = []
@@ -2484,6 +2487,9 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         # make location
         rses.sort()
         location = '|'.join(rses)
+        # set activity
+        if activity == None:
+            activity = 'Production Input'
         # check if a replication rule already exists
         client = RucioClient()
         for rule in client.list_did_rules(scope=scope, name=dsn):
@@ -2492,7 +2498,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         try:
             client.add_replication_rule(dids=dids,copies=1,rse_expression=location,weight=None,
                                         lifetime=lifetime, grouping='NONE', account=client.account,
-                                        locked=False, notify='N',ignore_availability=True)
+                                        locked=False, notify='N',ignore_availability=True,
+                                        activity=activity)
         except Duplicate:
             pass
         return True

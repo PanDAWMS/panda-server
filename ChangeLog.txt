@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * setting activity for _dis and _sub
   * reduced interval for low prio jobs to finish
   * fixed offlineRunning
   * setting a very large priority to ES merge jobs
