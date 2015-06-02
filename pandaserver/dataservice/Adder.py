@@ -15,6 +15,7 @@ import ErrorCode
 import brokerage.broker_util
 from DDM import ddm
 from Closer import Closer
+from taskbuffer import retryModule
 
 from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
@@ -343,6 +344,7 @@ class Adder (threading.Thread):
                    (self.job.transExitCode  in [0,'0','NULL']):
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
                     self.job.ddmErrorDiag = "Adder._updateOutputs() could not get GUID/LFN/MD5/FSIZE"
+                    retryModule.apply_retrial_rules(self.taskBuffer, self.jobID, 'ddmErrorCode', self.job.ddmErrorCode, self.job.attemptNr)
                 return
             else:
                 # XML was deleted
@@ -496,6 +498,7 @@ class Adder (threading.Thread):
                 self.job.jobStatus = 'failed'
                 self.job.ddmErrorCode = ErrorCode.EC_Adder
                 self.job.ddmErrorDiag = "Adder._updateOutputs() XML is inconsistent with filesTable"
+                retryModule.apply_retrial_rules(self.taskBuffer, self.jobID, 'ddmErrorCode', self.job.ddmErrorCode, self.job.attemptNr)
                 return
         # return if PandaDDM is used or non-DQ2
         if self.pandaDDM or self.job.destinationSE == 'local':
@@ -543,6 +546,7 @@ class Adder (threading.Thread):
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
                     errMsg = "Adder._updateOutputs() could not add files to %s\n" % idMap.keys()
                     self.job.ddmErrorDiag = errMsg + out.split('\n')[-1]
+                    retryModule.apply_retrial_rules(self.taskBuffer, self.jobID, 'ddmErrorCode', self.job.ddmErrorCode, self.job.attemptNr)
                     return
                 _logger.error("%s Try:%s" % (self.jobID,iTry))
                 # sleep
@@ -571,6 +575,7 @@ class Adder (threading.Thread):
                         _logger.error('%s %s' % (self.jobID,out))
                         self.job.ddmErrorCode = ErrorCode.EC_Adder                
                         self.job.ddmErrorDiag = "Adder._updateOutputs() could not register subscription : %s" % tmpName
+                        retryModule.apply_retrial_rules(self.taskBuffer, self.jobID, 'ddmErrorCode', self.job.ddmErrorCode, self.job.attemptNr)
                         return
                     _logger.debug('%s %s' % (self.jobID,out))                                                        
                     # set dataset status
@@ -627,6 +632,7 @@ class Adder (threading.Thread):
                                     _logger.error(tmpMsg)
                                     self.job.ddmErrorCode = ErrorCode.EC_Adder
                                     self.job.ddmErrorDiag = "DaTRI failed for %s with %s %s" % (tmpDsName,dhStatus,dhOut)
+                                    retryModule.apply_retrial_rules(self.taskBuffer, self.jobID, 'ddmErrorCode', self.job.ddmErrorCode, self.job.attemptNr)
                                     return
                     # set dataset status
                     for tmpName,tmpVal in subMap.iteritems():
@@ -637,6 +643,7 @@ class Adder (threading.Thread):
                     _logger.error(tmpMsg)
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
                     self.job.ddmErrorDiag = "DaTRI failed with %s %s" % (errType,errValue)
+                    retryModule.apply_retrial_rules(self.taskBuffer, self.jobID, 'ddmErrorCode', self.job.ddmErrorCode, self.job.attemptNr)
                     return
         # properly finished    
         _logger.debug("%s addFiles end" % self.jobID)
@@ -733,6 +740,7 @@ class Adder (threading.Thread):
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
                     errMsg = "Adder._updateOutputs() could not add files to %s\n" % idMap.keys()
                     self.job.ddmErrorDiag = errMsg + out.split('\n')[-1]
+                    retryModule.apply_retrial_rules(self.taskBuffer, self.jobID, 'ddmErrorCode', self.job.ddmErrorCode, self.job.attemptNr)
                     return
                 _logger.error("%s shadow Try:%s" % (self.jobID,iTry))
                 # sleep

@@ -14754,13 +14754,13 @@ class DBProxy:
 
 
     # increase memory limit
-    def increaseRamLimitJobJEDI(self, jobID, jediTaskID,jobRamCount):
+    def increaseRamLimitJobJEDI(self, job, jobRamCount):
         """Note that this function only increases the min RAM count for the job,
         not for the entire task (for that use increaseRamLimitJEDI)
         """
         comment = ' /* DBProxy.increaseRamLimitJobJEDI */'
         methodName = comment.split(' ')[-2].split('.')[-1]
-        methodName += " <jediTaskID={0}>".format(jediTaskID)
+        methodName += " <jediTaskID={0}>".format(job.jediTaskID)
         _logger.debug("{0} : start".format(methodName))
         try:
             # RAM limit
@@ -15327,7 +15327,7 @@ class DBProxy:
 
         #TODO 1: See if cx_Oracle admits such a syntax
         sql  = """
-        UPDATE ATLAS_PANDA.JEDI_DatasetContents 
+        UPDATE ATLAS_PANDA.JEDI_Dataset_Contents 
         SET maxAttempt=:maxAttempt
         WHERE fileID in :fileIDs 
         """

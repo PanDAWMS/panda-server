@@ -14,6 +14,7 @@ def timeit(method):
     """Decorator function to time the execution time of any given method. Use as decorator.
     """
     def timed(*args, **kwargs):
+        _logger.debug("Entered timed")
         ts = time.time()
         result = method(*args, **kwargs)
         te = time.time()
@@ -28,6 +29,7 @@ def conditions_apply(architecture_job, release_job, wqid_job, architecture_rule,
     """Checks that the architecture, release and work queue of rule and job match, 
     only in case the attributes are defined for the rule
     """
+    _logger.debug("Entered conditions_apply")
     if ((architecture_rule and architecture_rule != architecture_job) 
         or (release_rule and release_rule != release_job)
         or (wqid_rule and wqid_rule != wqid_job)):
@@ -38,6 +40,7 @@ def conditions_apply(architecture_job, release_job, wqid_job, architecture_rule,
 def compare_strictness(rule1, rule2):
     """Return 1 if rule1 is stricter, 0 if equal, -1 if rule2 is stricter
     """
+    _logger.debug("Entered compare_strictness")
     rule1_weight = 0
     if rule1['architecture']: 
         rule1_weight += 1
@@ -70,6 +73,7 @@ def preprocess_rules(rules, release_job, architecture_job, wqid_job):
          resolve into the strictest rule, in our example (limit_retry = 5)
     - Bad intended rules, e.g. (action=limit_retry, maxAttempt=5) vs (action=limit_retry, maxAttempt=7, release=X):
     """
+    _logger.debug("Entered prepprocess_rules")
     filtered_rules = []
     try:
         #See if there is a  NO_RETRY rule. Effect of NO_RETRY rules is the same, so just take the first one that appears
@@ -121,9 +125,11 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, attemptNr)
     - limit the number of retries
     - increase the memory of a job if it failed because of insufficient memory
     """
+    _logger.debug("Entered apply_retrial_rules")
 
     retrial_rules = task_buffer.getRetrialRules()
 
+    _logger.debug("Back from getRetrialRules")
     try:
         #TODO: Check if peeking the job again has any performance penalty and if there is any better way
         job = task_buffer.peekJobs([jobID], fromDefined=False, fromArchived=False, fromWaiting=False)[0]
