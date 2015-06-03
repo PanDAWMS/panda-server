@@ -223,6 +223,7 @@ setup(
                              'templates/panda_server-boostUser.exe.template',
                              'templates/panda_server-runRebro.exe.template',
                              'templates/panda_server-proxyCache.exe.template',
+                             'templates/panda_server-shareMgr.exe.template',
                              ]
                  ),
 

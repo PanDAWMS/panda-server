@@ -674,6 +674,7 @@ class DBProxy:
         sql0 = "SELECT row_ID FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type=:type AND NOT status IN (:status1,:status2) "
         sql1 = "DELETE FROM ATLAS_PANDA.jobsDefined4 "
         sql1+= "WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2) AND commandToPilot IS NULL"
+        sqlS = "SELECT sitershare,cloudrshare FROM ATLAS_PANDAMETA.schedconfig WHERE siteID=:siteID "
         sql2 = "INSERT INTO ATLAS_PANDA.jobsActive4 (%s) " % JobSpec.columnNames()
         sql2+= JobSpec.bindValuesExpression()
         # host and time information
@@ -702,8 +703,16 @@ class DBProxy:
                 self.cur.execute(sql0+comment, varMap)
                 res = self.cur.fetchall()
                 if len(res) == 0 or allOK:
+                    # check resource share
+                    varMap = {}
+                    varMap[':siteID'] = job.computingSite
+                    self.cur.execute(sqlS+comment, varMap)
+                    resSite = self.cur.fetchone()
                     # change status
-                    job.jobStatus = "activated"
+                    if resSite != None and (resSite[0] != None or resSite[1] != None):
+                        job.jobStatus = "throttled"
+                    else:
+                        job.jobStatus = "activated"
                     # delete
                     varMap = {}
                     varMap[':PandaID']       = job.PandaID
@@ -8798,7 +8807,8 @@ class DBProxy:
             sql+= "allowdirectaccess,comment_,lastmod,multicloud,lfcregister,"
             sql+= "countryGroup,availableCPU,pledgedCPU,coreCount,transferringlimit,"
             sql+= "maxwdir,fairsharePolicy,minmemory,maxmemory,mintime,"
-            sql+= "catchall,allowfax,wansourcelimit,wansinklimit "
+            sql+= "catchall,allowfax,wansourcelimit,wansinklimit,site,"
+            sql+= "sitershare,cloudrshare,corepower,wnconnectivity "
             sql+= "FROM ATLAS_PANDAMETA.schedconfig WHERE siteid IS NOT NULL"
             self.cur.arraysize = 10000            
             self.cur.execute(sql+comment)
@@ -8823,7 +8833,8 @@ class DBProxy:
                        allowdirectaccess,comment,lastmod,multicloud,lfcregister, \
                        countryGroup,availableCPU,pledgedCPU,coreCount,transferringlimit, \
                        maxwdir,fairsharePolicy,minmemory,maxmemory,mintime, \
-                       catchall,allowfax,wansourcelimit,wansinklimit \
+                       catchall,allowfax,wansourcelimit,wansinklimit,pandasite, \
+                       sitershare,cloudrshare,corepower,wnconnectivity \
                        = resTmp
                     # skip invalid siteid
                     if siteid in [None,'']:
@@ -8852,7 +8863,23 @@ class DBProxy:
                     ret.comment       = comment
                     ret.statusmodtime = lastmod
                     ret.lfcregister   = lfcregister
+                    ret.pandasite     = pandasite
+                    ret.corepower     = corepower
+                    ret.wnconnectivity = wnconnectivity
                     ret.fairsharePolicy = fairsharePolicy
+                    # resource shares
+                    ret.sitershare = None
+                    try:
+                        if not sitershare in [None,'']:
+                            ret.sitershare = int(sitershare)
+                    except:
+                        pass
+                    ret.cloudrshare = None
+                    try:
+                        if not cloudrshare in [None,'']:
+                            ret.cloudrshare = int(cloudrshare)
+                    except:
+                        pass
                     # maxwdir
                     try:
                         if maxwdir == None:
@@ -15115,3 +15142,94 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return False
+
+
+
+    # throttle jobs for resource shares
+    def throttleJobsForResourceShare(self,site):
+        comment = ' /* DBProxy.throttleJobsForResourceShare */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <site={0}>".format(site)
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        try:
+            # sql to throttle jobs
+            sql  = "UPDATE ATLAS_PANDA.jobsActive4 SET jobStatus=:newStatus "
+            sql += "WHERE computingSite=:site AND jobStatus=:oldStatus AND lockedby=:lockedby "
+            varMap = {}
+            varMap[':site'] = site
+            varMap[':lockedby'] = 'jedi'
+            varMap[':newStatus'] = 'throttled'
+            varMap[':oldStatus'] = 'activated'
+            # begin transaction
+            self.conn.begin()
+            self.cur.execute(sql+comment,varMap)
+            nRow = self.cur.rowcount
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug("throttled {0} jobs".format(nRow))
+            return nRow
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return None
+
+
+
+    # activate jobs for resource shares
+    def activateJobsForResourceShare(self,site,nJobsPerQueue):
+        comment = ' /* DBProxy.activateJobsForResourceShare */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <site={0} nJobsPerQueue={1}>".format(site,nJobsPerQueue)
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        try:
+            # sql to get jobs
+            sqlJ  = "SELECT PandaID,jobStatus FROM ("
+            sqlJ += "SELECT PandaID,jobStatus,"
+            sqlJ += "ROW_NUMBER() OVER(PARTITION BY workqueue_id ORDER BY currentPriority DESC,PandaID) AS row_number "
+            sqlJ += "FROM ATLAS_PANDA.jobsActive4 "
+            sqlJ += "WHERE computingSite=:site AND lockedby=:lockedby AND jobStatus IN (:st1,:st2) "
+            sqlJ += ") "
+            sqlJ += "WHERE row_number<={0} ".format(nJobsPerQueue)
+            # sql to activate jobs
+            sqlA  = "UPDATE ATLAS_PANDA.jobsActive4 SET jobStatus=:newStatus "
+            sqlA += "WHERE PandaID=:PandaID AND jobStatus=:oldStatus "
+            varMap = {}
+            varMap[':site'] = site
+            varMap[':lockedby'] = 'jedi'
+            varMap[':st1'] = 'throttled'
+            varMap[':st2'] = 'activated'
+            # begin transaction
+            self.conn.begin()
+            self.cur.execute(sqlJ+comment,varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            resList = self.cur.fetchall()
+            nRow = 0
+            for pandaID,jobStatus in resList:
+                if jobStatus == 'activated':
+                    continue
+                # activate job
+                varMap = {}
+                varMap[':PandaID'] = pandaID
+                varMap[':newStatus'] = 'activated'
+                varMap[':oldStatus'] = 'throttled'
+                self.conn.begin()
+                self.cur.execute(sqlA+comment,varMap)
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                nRow += self.cur.rowcount
+            tmpLog.debug("activated {0} jobs".format(nRow))
+            return nRow
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return None

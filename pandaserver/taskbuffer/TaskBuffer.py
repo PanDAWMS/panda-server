@@ -2705,6 +2705,32 @@ class TaskBuffer:
 
 
 
+    # throttle jobs for resource shares
+    def throttleJobsForResourceShare(self,site):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.throttleJobsForResourceShare(site)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
+    # activate jobs for resource shares
+    def activateJobsForResourceShare(self,site,nJobsPerQueue):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.activateJobsForResourceShare(site,nJobsPerQueue)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 

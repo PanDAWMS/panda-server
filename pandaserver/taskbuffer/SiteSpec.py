@@ -12,7 +12,8 @@ class SiteSpec(object):
                    'cachedse','allowdirectaccess','comment','cloudlist','statusmodtime','lfcregister',
                    'countryGroup','availableCPU','pledgedCPU','coreCount','reliabilityLevel',
                    'iscvmfs','transferringlimit','maxwdir','fairsharePolicy','minmemory','maxmemory',
-                   'mintime','allowfax','wansourcelimit','wansinklimit')
+                   'mintime','allowfax','wansourcelimit','wansinklimit','pandasite',
+                   'sitershare','cloudrshare','corepower','wnconnectivity')
 
     # constructor
     def __init__(self):
@@ -46,4 +47,31 @@ class SiteSpec(object):
         except:
             pass
         return False
+
+
+    # get resource type
+    def getResourceType(self):
+        if self.type == 'analysis':
+            return "ANALY"
+        if self.minmemory > 0:
+            return "HIMEM"
+        if self.coreCount > 1:
+            return "MCORE"
+        return "SCORE"
                        
+
+
+    # check if resource fair share is used
+    def useResourceFairShare(self):
+        if self.cloudrshare == None and self.sitershare == None:
+            return False
+        return True
+
+
+
+    # check if resource fair share is used at site level
+    def useSiteResourceFairShare(self):
+        if self.sitershare == None:
+            return False
+        return True
+
