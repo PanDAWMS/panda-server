@@ -195,9 +195,9 @@ class JobFlowATLAS(object):
     def getStatus(self, expectedStates):
 
         idList = [job['jobID'] for job in self.__jobList]
-        _logger.info(idList)
+        _logger.info("%s"%idList)
         status, jobInfoList = Client.getJobStatus(idList)
-        _logger.info(jobInfoList)
+        _logger.info("%s"%jobInfoList)
 
         assert status == 0, "Retrieval of job state finished with status: %s" %status
 
@@ -257,9 +257,9 @@ class JobFlowATLAS(object):
                 files_meta += self.__XMLTEMPLATE_FILEMETA.format(guid=file.GUID, lfn=file.lfn)
         
         xml = self.__XMLTEMPLATE_BASE.format(info=files_xml)
-        _logger.info(xml)
+        _logger.info("%s"%xml)
         meta = self.__XMLTEMPLATE_BASE.format(info=self.__XMLTEMPLATE_META.format(files=files_meta))
-        _logger.info(meta)
+        _logger.info("%s"%meta)
 
         node = {}
         node['jobId'] = jobID
