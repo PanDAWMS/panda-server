@@ -18,6 +18,7 @@ import httplib
 import re
 import os
 import urlparse
+import hashlib
 
 import userinterface.Client as Client
 from taskbuffer.JobSpec import JobSpec
@@ -232,6 +233,10 @@ class JobFlowATLAS(object):
             idList.remove(pandaID)
             counter += 1
 
+    def __calculate_path(self, name, scope = 'panda'):
+        hstr = hashlib.md5('%s:%s' % (scope, name)).hexdigest()
+        return('%s/%s/' % (hstr[0:2], hstr[2:4]))
+
 
     def __finishJob(self, job, jobID):
 
@@ -241,8 +246,9 @@ class JobFlowATLAS(object):
             if file.type in ['output', 'log']:
             
                 file.GUID = uuid.uuid1()
-                srm = "srm://srm-eosatlas.cern.ch/eos/atlas/atlasdatadisk/rucio/panda/f3/3d/"
-                pfn = srm+file.lfn
+                srm = "srm://srm-eosatlas.cern.ch/eos/atlas/atlasdatadisk/rucio/panda/"
+                path = self.__calculate_path(file.lfn)
+                pfn = srm+path+file.lfn
                 print("pfn: %s"%pfn)
                 files_xml += self.__XMLTEMPLATE_FILE.format(lfn=file.lfn, guid=file.GUID, srm=srm, pfn=pfn)
                 files_meta += self.__XMLTEMPLATE_FILEMETA.format(guid=file.GUID, lfn=file.lfn)
