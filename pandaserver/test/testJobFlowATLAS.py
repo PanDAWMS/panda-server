@@ -82,7 +82,7 @@ class JobFlowATLAS(object):
     <logical>
         <lfn name="{lfn}"/>
     </logical>
-    <metadata att_name="surl" att_value="{srm}/user.elmsheus/user.elmsheus.hc10006029.ANALY_LONG_BNL_ATLAS.1312433204.e0b.8181.ANALY_LONG_BNL_ATLAS/{lfn}"/>    
+    <metadata att_name="surl" att_value="{pfn}"/>    
     <metadata att_name="fsize" att_value="127340"/>
     <metadata att_name="md5sum" att_value="03cea4013bdb9f2e44050449b6ebf079"/>
 </File>
@@ -241,8 +241,9 @@ class JobFlowATLAS(object):
             if file.type in ['output', 'log']:
             
                 file.GUID = uuid.uuid1()
-                srm = "srm://fakesite.org:8443/srm/managerv2?SFN=/pnfs/fakesite.org/atlascalibdisk/"
-                
+                srm = "srm://srm-eosatlas.cern.ch/eos/atlas/atlasdatadisk/rucio/panda/f3/3d/"
+                pfn = srm+file.lfn
+                print("pfn: %s"%pfn)
                 files_xml += self.__XMLTEMPLATE_FILE.format(lfn=file.lfn, guid=file.GUID, srm=srm)
                 files_meta += self.__XMLTEMPLATE_FILEMETA.format(guid=file.GUID, lfn=file.lfn)
         
