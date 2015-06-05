@@ -1,7 +1,7 @@
 import sys
 import time
 from pandalogger.PandaLogger import PandaLogger
-
+from config import panda_config
 # logger
 _logger = PandaLogger().getLogger('Scrooge')
 
@@ -154,7 +154,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, attemptNr)
                     if active:
                         task_buffer.setMaxAttempt(jobID, job.Files, attemptNr)
                     #Log to pandamon and logfile
-                    message = "[RETRYMODULE] setMaxAttempt jobID: %s, maxAttempt: %s. Rule/Action active: %s" %(jobID, attemptNr, active)
+                    message = "[RETRYMODULE] setMaxAttempt jobID: %s (task: %s), maxAttempt: %s. Rule/Action active: %s" %(jobID, job.jediTaskID, attemptNr, active)
                     pandalog(message)
                     _logger.debug(message)
                 
@@ -163,7 +163,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, attemptNr)
                         if active:
                             task_buffer.setMaxAttempt(jobID, job.Files, int(parameters['maxAttempt']))
                         #Log to pandamon and logfile
-                        message = "[RETRYMODULE] setMaxAttempt jobID: %s, maxAttempt: %s. Rule/Action active: %s" %(jobID, int(parameters['maxAttempt']), active)
+                        message = "[RETRYMODULE] setMaxAttempt jobID: %s (task: %s), maxAttempt: %s. Rule/Action active: %s" %(jobID, job.jediTaskID, int(parameters['maxAttempt']), active)
                         pandalog(message)
                         _logger.debug(message)
                     except (KeyError, ValueError):
@@ -175,7 +175,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, attemptNr)
                         if active and not job.minRamCount in [0,None,'NULL']:
                             task_buffer.increaseRamLimitJobJEDI(job, job.minRamCount)
                         #Log to pandamon and logfile
-                        message = "[RETRYMODULE] increaseRAMLimit for jobID: %s, jediTaskID: %s" %(jobID, job.jediTaskID)
+                        message = "[RETRYMODULE] increaseRAMLimit for jobID: %s (task: %s)" %(jobID, job.jediTaskID)
                         pandalog(message)
                         _logger.debug(message)
                     except:
@@ -194,5 +194,17 @@ def pandalog(message):
     """Function to send message to panda logger. For the moment dummy placeholder.
     https://github.com/PanDAWMS/panda-jedi/blob/master/pandajedi/jediorder/JobGenerator.py#L405
     """
-    return True
+    try:
+        #get logger and lock it
+        tmpPandaLogger = PandaLogger()
+        tmpPandaLogger.lock()
+        #set category (usually prod) and type
+        tmpPandaLogger.setParams({'Type':'retryModule'})
+        tmpLogger = tmpPandaLogger.getHttpLogger(panda_config.loggername)
+        #send the message and release the logger
+        tmpLogger.debug(message)
+        tmpPandaLogger.release()
+        _logger.debug("Uploaded message (%s) to pandamon logger."%(message))
+    except Exception as e:
+        _logger.warning("Could not upload message (%s) to pandamon logger. (Error: %s)"%(message, e))
 
