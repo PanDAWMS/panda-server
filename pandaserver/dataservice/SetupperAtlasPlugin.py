@@ -408,7 +408,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 job.jobStatus = 'failed'
                 job.ddmErrorCode = ErrorCode.EC_Setupper                
                 job.ddmErrorDiag = dispError[job.dispatchDBlock]
-                retryModule.apply_retrial_rules(self.taskBuffer, self.jobID, 'ddmErrorCode', self.job.ddmErrorCode, self.job.attemptNr)
         # delete explicitly some huge variables        
         del fileList
         del prodList
@@ -680,7 +679,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     job.jobStatus = 'failed'
                     job.ddmErrorCode = ErrorCode.EC_Setupper                
                     job.ddmErrorDiag = destError[dest]
-                    retryModule.apply_retrial_rules(self.taskBuffer, self.jobID, 'ddmErrorCode', self.job.ddmErrorCode, self.job.attemptNr)
                 else:
                     newdest = (file.destinationDBlock,file.destinationSE,job.computingSite)
                     # increment number of files
@@ -1061,7 +1059,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 job.ddmErrorCode = ErrorCode.EC_Setupper                
                 job.ddmErrorDiag = dispError[disp]
                 failedJobs.append(job)
-                retryModule.apply_retrial_rules(self.taskBuffer, self.jobID, 'ddmErrorCode', self.job.ddmErrorCode, self.job.attemptNr)
         # update failed jobs only. succeeded jobs should be activate by DDM callback
         self.updateFailedJobs(failedJobs)
         # submit ddm jobs
@@ -1111,7 +1108,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 job.jobStatus    = 'failed'
                 job.ddmErrorCode = ErrorCode.EC_Setupper                
                 job.ddmErrorDiag = "computingSite:%s is unknown" % job.computingSite
-                retryModule.apply_retrial_rules(self.taskBuffer, self.jobID, 'ddmErrorCode', job.ddmErrorCode, job.attemptNr)
                 # append job for downstream process
                 jobsProcessed.append(job)
                 # error message for TA
@@ -1404,7 +1400,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                     job.ddmErrorDiag = errMsg
                                     jobsFailed.append(job)
                                     isFailed = True
-                                    retryModule.apply_retrial_rules(self.taskBuffer, job.jobID, 'ddmErrorCode', self.job.ddmErrorCode, self.job.attemptNr)
                                 continue
                         # add to allLFNs/allGUIDs
                         if addToLfnMap:

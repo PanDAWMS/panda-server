@@ -23,7 +23,7 @@ from taskbuffer import retryModule
 # logger
 _logger = PandaLogger().getLogger('JobDispatcher')
 _pilotReqLogger = PandaLogger().getLogger('PilotRequests')
-
+_logger = PandaLogger().getLogger('JobDispatcher')
 
 # a wrapper to install timpout into a method
 class _TimedMethod:
