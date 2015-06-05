@@ -277,7 +277,7 @@ class JobFlowATLAS(object):
         
         function = "updateJob"
         data = sendCommand(function, node)
-        _logger.info(data)
+        _logger.info("%s"%data)
 
 
     def finishJobs(self):
