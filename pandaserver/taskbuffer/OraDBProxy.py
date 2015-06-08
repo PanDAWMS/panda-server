@@ -3414,6 +3414,7 @@ class DBProxy:
         # 9  : force kill
         # 50 : kill by JEDI
         # 51 : reassigned by JEDI
+        # 52 : force kill by JEDI
         # 91 : kill user jobs with prod role
         comment = ' /* DBProxy.killJob */'        
         _logger.debug("killJob : code=%s PandaID=%s role=%s user=%s wg=%s" % (code,pandaID,prodManager,user,wgProdRole))
@@ -3489,7 +3490,7 @@ class DBProxy:
                             validGroupProdRole = True
                             break
                 if prodManager:
-                    if res[1] in ['user','panda'] and (not code in ['2','4','7','8','9','50','51','91']):
+                    if res[1] in ['user','panda'] and (not code in ['2','4','7','8','9','50','51','52','91']):
                         _logger.debug("ignore killJob -> prod proxy tried to kill analysis job type=%s" % res[1])
                         break
                     _logger.debug("killJob : %s using prod role" % pandaID)
@@ -3511,7 +3512,7 @@ class DBProxy:
                 varMap[':PandaID'] = pandaID
                 varMap[':commandToPilot'] = 'tobekilled'
                 varMap[':taskBufferErrorDiag'] = 'killed by %s' % user
-                if userProdSourceLabel in ['managed','test'] and code in ['9',]:
+                if userProdSourceLabel in ['managed','test'] and code in ['9','52']:
                     # ignore commandToPilot for force kill
                     self.cur.execute((sql1F+comment) % table, varMap)
                 elif useEventService or jobStatusInDB in ['merging']:
@@ -3584,7 +3585,7 @@ class DBProxy:
                         job.taskBufferErrorCode = ErrorCode.EC_Reassigned
                         job.taskBufferErrorDiag = 'reassigned to another site by rebrokerage. new %s' % user
                         job.commandToPilot      = None
-                    elif code=='50':
+                    elif code in ['50','52']:
                         # killed by JEDI
                         job.taskBufferErrorCode = ErrorCode.EC_Kill
                         job.taskBufferErrorDiag = user
@@ -8808,7 +8809,7 @@ class DBProxy:
             sql+= "countryGroup,availableCPU,pledgedCPU,coreCount,transferringlimit,"
             sql+= "maxwdir,fairsharePolicy,minmemory,maxmemory,mintime,"
             sql+= "catchall,allowfax,wansourcelimit,wansinklimit,site,"
-            sql+= "sitershare,cloudrshare,corepower,wnconnectivity "
+            sql+= "sitershare,cloudrshare,corepower,wnconnectivity,catchall "
             sql+= "FROM ATLAS_PANDAMETA.schedconfig WHERE siteid IS NOT NULL"
             self.cur.arraysize = 10000            
             self.cur.execute(sql+comment)
@@ -8834,7 +8835,7 @@ class DBProxy:
                        countryGroup,availableCPU,pledgedCPU,coreCount,transferringlimit, \
                        maxwdir,fairsharePolicy,minmemory,maxmemory,mintime, \
                        catchall,allowfax,wansourcelimit,wansinklimit,pandasite, \
-                       sitershare,cloudrshare,corepower,wnconnectivity \
+                       sitershare,cloudrshare,corepower,wnconnectivity,catchall \
                        = resTmp
                     # skip invalid siteid
                     if siteid in [None,'']:
@@ -8865,6 +8866,7 @@ class DBProxy:
                     ret.lfcregister   = lfcregister
                     ret.pandasite     = pandasite
                     ret.corepower     = corepower
+                    ret.catchall      = catchall
                     ret.wnconnectivity = wnconnectivity
                     ret.fairsharePolicy = fairsharePolicy
                     # resource shares

@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * added 51 in killJob
   * added shareMgr.py
   * setting activity for _dis and _sub
   * reduced interval for low prio jobs to finish

@@ -3,6 +3,8 @@ site specification
 
 """
 
+import re
+
 class SiteSpec(object):
     # attributes
     _attributes = ('sitename','nickname','dq2url','cloud','ddm','lfchost','se','type','gatekeeper',
@@ -13,7 +15,7 @@ class SiteSpec(object):
                    'countryGroup','availableCPU','pledgedCPU','coreCount','reliabilityLevel',
                    'iscvmfs','transferringlimit','maxwdir','fairsharePolicy','minmemory','maxmemory',
                    'mintime','allowfax','wansourcelimit','wansinklimit','pandasite',
-                   'sitershare','cloudrshare','corepower','wnconnectivity')
+                   'sitershare','cloudrshare','corepower','wnconnectivity','catchall')
 
     # constructor
     def __init__(self):
@@ -75,3 +77,23 @@ class SiteSpec(object):
             return False
         return True
 
+
+
+    # check what type of jobs are allowed
+    def getJobSeed(self):
+        tmpVal = self.getValueFromCatchall('jobseed')
+        if tmpVal == None:
+            return 'all'
+        return tmpVal
+
+
+
+    # get value from catchall
+    def getValueFromCatchall(self,key):
+        if self.catchall == None:
+            return None
+        for tmpItem in self.catchall.split(','):
+            tmpMatch = re.search('^{0}=(.+)'.format(key),tmpItem)
+            if tmpMatch != None:
+                return tmpMatch.group(1)
+        return None

@@ -73,7 +73,7 @@ else:
             # add job status
             if not jobStatus in siteJobStatMap[pandaSite][resourceType][computingSite]:
                 siteJobStatMap[pandaSite][resourceType][computingSite][jobStatus] = 0
-            siteJobStatMap[pandaSite][resourceType][computingSite][jobStatus] += cnt
+            siteJobStatMap[pandaSite][resourceType][computingSite][jobStatus] += (cnt*siteSpec.coreCount)
             # share map
             if not pandaSite in siteShareMap:
                 siteShareMap[pandaSite] = {}
@@ -97,7 +97,7 @@ else:
             # add job status
             if not jobStatus in cloudJobStatMap[cloud][resourceType][computingSite]:
                 cloudJobStatMap[cloud][resourceType][computingSite][jobStatus] = 0
-            cloudJobStatMap[cloud][resourceType][computingSite][jobStatus] += cnt
+            cloudJobStatMap[cloud][resourceType][computingSite][jobStatus] += (cnt*siteSpec.coreCount)
             # share map
             if not cloud in cloudShareMap:
                 cloudShareMap[cloud] = {}
