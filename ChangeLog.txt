@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * using tape replicas at T1
   * added 51 in killJob
   * added shareMgr.py
   * setting activity for _dis and _sub

@@ -8869,6 +8869,8 @@ class DBProxy:
                     ret.corepower     = corepower
                     ret.catchall      = catchall
                     ret.wnconnectivity = wnconnectivity
+                    if ret.wnconnectivity == '':
+                        ret.wnconnectivity = None
                     ret.fairsharePolicy = fairsharePolicy
                     # resource shares
                     ret.sitershare = None

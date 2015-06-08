@@ -1435,6 +1435,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             # use BNL by default
             dq2URL = self.siteMapper.getSite('BNL_ATLAS_1').dq2url
             dq2SE  = []
+            tapeSePath = []
             # use cloud's source
             if self.siteMapper.checkCloud(cloudKey):
                 tmpSrcID   = self.siteMapper.getCloud(cloudKey)['source']
@@ -1446,9 +1447,14 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         match = re.search('.+://([^:/]+):*\d*/*',tmpSrcSiteSE)
                         if match != None:
                             dq2SE.append(match.group(1))
-            # get missing files
-            tmpMissLFNs = brokerage.broker_util.getMissLFNsFromLRC(allLFNs[cloudKey],dq2URL,allGUIDs[cloudKey],
-                                                                   dq2SE,scopeList=allScopes[cloudKey])
+                if 'ATLASDATATAPE' in tmpSrcSite.seprodpath:
+                    tapeSePath.append(tmpSrcSite.seprodpath['ATLASDATATAPE'])
+                if 'ATLASMCTAPE' in tmpSrcSite.seprodpath:
+                    tapeSePath.append(tmpSrcSite.seprodpath['ATLASMCTAPE'])
+            # get missing and tape files
+            tmpMissLFNs,tmpTapeLFNs = brokerage.broker_util.getMissAndTapeLFNs(allLFNs[cloudKey],dq2URL,allGUIDs[cloudKey],
+                                                                               dq2SE,scopeList=allScopes[cloudKey],
+                                                                               tapeSePath=tapeSePath)
             # append
             if not missLFNs.has_key(cloudKey):
                 missLFNs[cloudKey] = []
@@ -1457,6 +1463,10 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 self.missingFilesInT1[cloudKey] = set()
             for tmpMissLFN in tmpMissLFNs:
                 self.missingFilesInT1[cloudKey].add(tmpMissLFN)
+            # delete tape files to trigger prestaging
+            for tmpTapeLFN in tmpTapeLFNs:
+                if tmpTapeLFN in self.missingFilesInT1[cloudKey]:
+                    self.missingFilesInT1[cloudKey].remove(tmpTapeLFN)
         self.logger.debug('checking T2 LFC')
         # check availability of files at T2
         for cloudKey,tmpAllLFNs in allLFNs.iteritems():
