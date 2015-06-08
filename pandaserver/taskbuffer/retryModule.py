@@ -3,7 +3,7 @@ import time
 from pandalogger.PandaLogger import PandaLogger
 from config import panda_config
 # logger
-_logger = PandaLogger().getLogger('Scrooge')
+_logger = PandaLogger().getLogger('RetrialModule')
 
 NO_RETRY = 'no_retry'
 INCREASE_MEM = 'increase_memory'
@@ -125,11 +125,17 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, attemptNr)
     - limit the number of retries
     - increase the memory of a job if it failed because of insufficient memory
     """
-    _logger.debug("Entered apply_retrial_rules")
+    _logger.debug("Entered apply_retrial_rules for job %s, error_source %s, error_code %s, attemptNr %s" %(jobID, error_source, error_code, attemptNr))
+
+    try:
+        error_code = int(error_code)
+    except ValueError:
+        _logger.error("Error code  (%s) can not be casted to int" %(error_code))
+        return
 
     retrial_rules = task_buffer.getRetrialRules()
 
-    _logger.debug("Back from getRetrialRules")
+    _logger.debug("Back from getRetrialRules: %s"%retrial_rules)
     try:
         #TODO: Check if peeking the job again has any performance penalty and if there is any better way
         job = task_buffer.peekJobs([jobID], fromDefined=False, fromArchived=False, fromWaiting=False)[0]
@@ -137,16 +143,17 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, attemptNr)
         
         for rule in applicable_rules:
             try:
+                
                 action = rule['action']
                 parameters = rule['params']
                 architecture = rule['architecture'] #cmtconfig
                 release = rule['release'] #transHome
-                wqid = rule['release'] #work queue ID
+                wqid = rule['wqid'] #work queue ID
                 active = rule['active'] #If False, don't apply rule, only log
                 
                 _logger.debug("Processing rule %s for jobID %s, error_source %s, error_code %s, attemptNr %s" %(rule, jobID, error_source, error_code, attemptNr))
                 
-                if conditions_apply(job.cmtConfig, job.AtlasRelease, job.workQueue_ID, architecture, release, wqid):
+                if not conditions_apply(job.cmtConfig, job.AtlasRelease, job.workQueue_ID, architecture, release, wqid):
                     _logger.debug("Skipped rule %s. cmtConfig (%s : %s) or Release (%s : %s) did NOT match" %(rule, architecture, job.cmtConfig, release, job.AtlasRelease))
                     continue
                 
@@ -185,7 +192,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, attemptNr)
                 _logger.debug("Finished rule %s for jobID %s, error_source %s, error_code %s, attemptNr %s" %(rule, jobID, error_source, error_code, attemptNr))
             
             except KeyError:
-                        _logger.debug("Rule was missing some field(s). Rule: %s" %rule)
+                _logger.debug("Rule was missing some field(s). Rule: %s" %rule)
     except KeyError as e:
         _logger.debug("No retrial rules to apply for jobID %s, attemptNr %s, failed with %s=%s. (Exception %e)" %(jobID, attemptNr, error_source, error_code, e))
 

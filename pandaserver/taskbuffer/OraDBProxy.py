@@ -15283,11 +15283,11 @@ class DBProxy:
         retrial_rules = {} #TODO: Consider if we want a class RetrialRule
         for definition in definitions:
             error_source, error_code, parameters, architecture, release, wqid, action, e_active, a_active = definition
-             
+                
             #TODO: Need to define a formatting and naming convention for setting the parameters
             #Convert the parameter string into a dictionary
-            #1. Convert a string like "key1=value1&key2=value2" into [[key1, value1],[key2,value2]]
             try:
+                #1. Convert a string like "key1=value1&key2=value2" into [[key1, value1],[key2,value2]]
                 params_list = map(lambda key_value_pair: key_value_pair.split("="), parameters.split("&"))
                 #2. Convert a list [[key1, value1],[key2,value2]] into {key1: value1, key2: value2}
                 params_dict = dict((key, value) for (key, value) in params_list)
