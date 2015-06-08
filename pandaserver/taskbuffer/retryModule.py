@@ -29,7 +29,6 @@ def conditions_apply(architecture_job, release_job, wqid_job, architecture_rule,
     """Checks that the architecture, release and work queue of rule and job match, 
     only in case the attributes are defined for the rule
     """
-    _logger.debug("Entered conditions_apply")
     if ((architecture_rule and architecture_rule != architecture_job) 
         or (release_rule and release_rule != release_job)
         or (wqid_rule and wqid_rule != wqid_job)):

@@ -2734,7 +2734,7 @@ class TaskBuffer:
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.setMaxAttempt(jobID, attemptNr)
+        ret = proxy.setMaxAttempt(jobID, files, attemptNr)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

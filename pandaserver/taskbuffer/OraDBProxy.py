@@ -15321,12 +15321,12 @@ class DBProxy:
         varMap = {}
         varMap[':maxAttempt'] = maxAttempt
         varMap[':jobID'] = jobID
-
+        
         #Update the job entry
         sql  = """
         UPDATE ATLAS_PANDA.jobsActive4 
         SET maxAttempt = :maxAttempt 
-        WHERE jobID = :jobID
+        WHERE PandaID = :jobID
         """
         self.cur.execute(sql+comment, varMap)
         
@@ -15334,18 +15334,18 @@ class DBProxy:
         #fileIDs = [pandafile.fileID for pandafile in files]
         input_files = filter(lambda pandafile: pandafile.type == 'input', files)
         input_fileIDs = [input_file.fileID for input_file in input_files]
+        
+        if input_fileIDs:
+            input_fileIDs_string = ','.join(':%d' % i for i in xrange(len(input_fileIDs))) 
 
-        #TODO 1: See if cx_Oracle admits such a syntax
-        sql  = """
-        UPDATE ATLAS_PANDA.JEDI_Dataset_Contents 
-        SET maxAttempt=:maxAttempt
-        WHERE fileID in :fileIDs 
-        """
-        varMap = {}
-        varMap[':maxAttempt'] = maxAttempt
-        varMap[':jobID'] = jobID
-        varMap[':fileIDs'] = input_fileIDs
-
+            sql  = """
+            UPDATE ATLAS_PANDA.JEDI_Dataset_Contents 
+            SET maxAttempt=:maxAttempt
+            WHERE fileID in (%s) 
+            """ %(input_fileIDs_string)
+            varMap = {}
+            varMap[':maxAttempt'] = maxAttempt
+        
         #Commit updates
         if not self._commit():
             raise RuntimeError, 'Commit error'
