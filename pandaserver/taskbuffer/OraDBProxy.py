@@ -704,15 +704,16 @@ class DBProxy:
                 res = self.cur.fetchall()
                 if len(res) == 0 or allOK:
                     # check resource share
-                    varMap = {}
-                    varMap[':siteID'] = job.computingSite
-                    self.cur.execute(sqlS+comment, varMap)
-                    resSite = self.cur.fetchone()
-                    # change status
-                    if resSite != None and (resSite[0] != None or resSite[1] != None):
-                        job.jobStatus = "throttled"
-                    else:
-                        job.jobStatus = "activated"
+                    job.jobStatus = "activated"
+                    if job.lockedby == 'jedi':
+                        varMap = {}
+                        varMap[':siteID'] = job.computingSite
+                        self.cur.execute(sqlS+comment, varMap)
+                        resSite = self.cur.fetchone()
+                        # change status
+                        if resSite != None and (not resSite[0] in [None,''] or not resSite[1] in [None,'']):
+                            job.jobStatus = "throttled"
+                            _logger.debug("activateJob : {0} to {1}".format(job.PandaID,job.jobStatus))
                     # delete
                     varMap = {}
                     varMap[':PandaID']       = job.PandaID

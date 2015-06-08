@@ -33,8 +33,7 @@ varMap = {}
 varMap[':s1'] = 'activated'
 varMap[':s2'] = 'throttled'
 varMap[':s3'] = 'running'
-#varMap[':p1'] = 'managed'
-varMap[':p1'] = 'test'
+varMap[':p1'] = 'managed'
 varMap[':lockedBy'] = 'jedi'
 # exec 	
 status,res = taskBuffer.querySQLS(sql,varMap,arraySize=10000)

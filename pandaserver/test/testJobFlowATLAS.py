@@ -18,6 +18,7 @@ import httplib
 import re
 import os
 import urlparse
+import hashlib
 
 import userinterface.Client as Client
 from taskbuffer.JobSpec import JobSpec
@@ -82,7 +83,7 @@ class JobFlowATLAS(object):
     <logical>
         <lfn name="{lfn}"/>
     </logical>
-    <metadata att_name="surl" att_value="{srm}/user.elmsheus/user.elmsheus.hc10006029.ANALY_LONG_BNL_ATLAS.1312433204.e0b.8181.ANALY_LONG_BNL_ATLAS/{lfn}"/>    
+    <metadata att_name="surl" att_value="{pfn}"/>    
     <metadata att_name="fsize" att_value="127340"/>
     <metadata att_name="md5sum" att_value="03cea4013bdb9f2e44050449b6ebf079"/>
 </File>
@@ -232,6 +233,10 @@ class JobFlowATLAS(object):
             idList.remove(pandaID)
             counter += 1
 
+    def __calculate_path(self, name, scope = 'panda'):
+        hstr = hashlib.md5('%s:%s' % (scope, name)).hexdigest()
+        return('%s/%s/' % (hstr[0:2], hstr[2:4]))
+
 
     def __finishJob(self, job, jobID):
 
@@ -241,9 +246,11 @@ class JobFlowATLAS(object):
             if file.type in ['output', 'log']:
             
                 file.GUID = uuid.uuid1()
-                srm = "srm://fakesite.org:8443/srm/managerv2?SFN=/pnfs/fakesite.org/atlascalibdisk/"
-                
-                files_xml += self.__XMLTEMPLATE_FILE.format(lfn=file.lfn, guid=file.GUID, srm=srm)
+                srm = "srm://srm-eosatlas.cern.ch/eos/atlas/atlasdatadisk/rucio/panda/"
+                path = self.__calculate_path(file.lfn)
+                pfn = srm+path+file.lfn
+                print("pfn: %s"%pfn)
+                files_xml += self.__XMLTEMPLATE_FILE.format(lfn=file.lfn, guid=file.GUID, srm=srm, pfn=pfn)
                 files_meta += self.__XMLTEMPLATE_FILEMETA.format(guid=file.GUID, lfn=file.lfn)
         
         xml = self.__XMLTEMPLATE_BASE.format(info=files_xml)
