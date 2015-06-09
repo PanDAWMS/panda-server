@@ -44,9 +44,6 @@ else:
 
 warnings.filterwarnings('ignore')
 
-# logger
-_logger = PandaLogger().getLogger('DBProxy')
-
 # lock file
 _lockGetSN   = open(panda_config.lockfile_getSN, 'w')
 _lockSetDS   = open(panda_config.lockfile_setDS, 'w')
@@ -81,6 +78,11 @@ class DBProxy:
         # hostname
         self.myHostName = socket.getfqdn()
         self.backend = panda_config.backend
+        
+        # logger
+        global _logger
+        _logger = PandaLogger().getLogger('DBProxy')
+
         
         
     # connect to DB
@@ -152,21 +154,16 @@ class DBProxy:
     #Internal caching of a result. Use only for information 
     #with low update frequency and low memory footprint
     def memoize(f):
-        _logger.debug("entered memoize")
         memo = {}
         kwd_mark = object()
         def helper(self, *args, **kwargs):
-            _logger.debug("entered helper")
             now = datetime.datetime.now()
             key = args + (kwd_mark,) + tuple(sorted(kwargs.items()))
             if key not in memo or memo[key]['timestamp'] < now - datetime.timedelta(hours=1):
                 memo[key] = {}
                 memo[key]['value'] = f(self, *args, **kwargs)
                 memo[key]['timestamp'] = now
-                _logger.debug("refreshed memo for %s %s"%(args, kwargs))
-            _logger.debug("returning")
             return memo[key]['value']
-        _logger.debug("returning helper")
         return helper
 
     # query an SQL   
@@ -14765,25 +14762,25 @@ class DBProxy:
         """
         comment = ' /* DBProxy.increaseRamLimitJobJEDI */'
         methodName = comment.split(' ')[-2].split('.')[-1]
-        methodName += " <jediTaskID={0}>".format(job.jediTaskID)
+        methodName += " <PanDAID={0}>".format(job.PandaID)
         _logger.debug("{0} : start".format(methodName))
         try:
             # RAM limit
             limitList = [1000,2000,3000,4000,6000,8000]
             # begin transaction
             self.conn.begin()
+            if job.jediTaskID:
+                varMap = job.valuesMap(onlyChanged=True)
+                varMap[':jediTaskID'] = job.jediTaskID
+                sqlUE  = "SELECT ramCount FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+                sqlUE += "WHERE jediTaskID=:jediTaskID "
+                self.cur.execute(sqlUE+comment,varMap)
+                taskRamCount, = self.cur.fetchone()
+                _logger.debug("{0} : RAM limit task={1} job={2}".format(methodName,taskRamCount,jobRamCount))
+            else:
+                taskRamCount = jobRamCount
             
-            varMap = job.valuesMap(onlyChanged=True)
-            varMap[':PandaID'] = job.PandaID
-            _logger.debug("{0} : varMap is %s".format(methodName,varMap))
-            
-            sqlUE  = "SELECT ramCount FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
-            sqlUE += "WHERE jediTaskID=:jediTaskID "
-            self.cur.execute(sqlUE+comment,varMap)
-            taskRamCount, = self.cur.fetchone()
-            _logger.debug("{0} : RAM limit task={1} job={2}".format(methodName,taskRamCount,jobRamCount))
             # do nothing if the task doesn't define RAM limit
-            #TODO: Need to ask Tadashi
             if taskRamCount in [0,None]:
                 _logger.debug("{0} : no change since task RAM limit is {1}".format(methodName,taskRamCount))
             else:
