@@ -160,7 +160,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, attemptNr)
                     if active:
                         task_buffer.setMaxAttempt(jobID, job.Files, attemptNr)
                     #Log to pandamon and logfile
-                    message = "[RETRYMODULE] setMaxAttempt jobID: %s (task: %s), maxAttempt: %s. Rule/Action active: %s" %(jobID, job.jediTaskID, attemptNr, active)
+                    message = "setMaxAttempt jobID: %s (task: %s), maxAttempt: %s. Rule/action active: %s" %(jobID, job.jediTaskID, attemptNr, active)
                     pandalog(message)
                     _logger.debug(message)
                 
@@ -169,7 +169,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, attemptNr)
                         if active:
                             task_buffer.setMaxAttempt(jobID, job.Files, int(parameters['maxAttempt']))
                         #Log to pandamon and logfile
-                        message = "[RETRYMODULE] setMaxAttempt jobID: %s (task: %s), maxAttempt: %s. Rule/Action active: %s" %(jobID, job.jediTaskID, int(parameters['maxAttempt']), active)
+                        message = "setMaxAttempt jobID: %s (task: %s), maxAttempt: %s. Rule/action active: %s" %(jobID, job.jediTaskID, int(parameters['maxAttempt']), active)
                         pandalog(message)
                         _logger.debug(message)
                     except (KeyError, ValueError):
@@ -181,7 +181,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, attemptNr)
                         if active and not job.minRamCount in [0,None,'NULL']:
                             task_buffer.increaseRamLimitJobJEDI(job, job.minRamCount)
                         #Log to pandamon and logfile
-                        message = "[RETRYMODULE] increaseRAMLimit for jobID: %s (task: %s)" %(jobID, job.jediTaskID)
+                        message = "increaseRAMLimit for jobID: %s (task: %s)" %(jobID, job.jediTaskID)
                         pandalog(message)
                         _logger.debug(message)
                     except:
