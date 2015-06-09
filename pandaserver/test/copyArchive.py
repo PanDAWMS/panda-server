@@ -441,7 +441,7 @@ else:
         time.sleep(1)
 
 # check heartbeat for production jobs
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=2)
 varMap = {}
 varMap[':modificationTime'] = timeLimit
 varMap[':jobStatus1'] = 'running'
