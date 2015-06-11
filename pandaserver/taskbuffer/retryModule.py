@@ -10,6 +10,25 @@ INCREASE_MEM = 'increase_memory'
 LIMIT_RETRY = 'limit_retry'
 
 
+def pandalog(message):
+    """Function to send message to panda logger. For the moment dummy placeholder.
+    https://github.com/PanDAWMS/panda-jedi/blob/master/pandajedi/jediorder/JobGenerator.py#L405
+    """
+    try:
+        #get logger and lock it
+        tmpPandaLogger = PandaLogger()
+        tmpPandaLogger.lock()
+        #set category (usually prod) and type
+        tmpPandaLogger.setParams({'Type':'retryModule'})
+        tmpLogger = tmpPandaLogger.getHttpLogger(panda_config.loggername)
+        #send the message and release the logger
+        tmpLogger.debug(message)
+        tmpPandaLogger.release()
+        _logger.debug("Uploaded message (%s) to pandamon logger."%(message))
+    except Exception as e:
+        _logger.warning("Could not upload message (%s) to pandamon logger. (Error: %s)"%(message, e))
+
+
 def timeit(method):
     """Decorator function to time the execution time of any given method. Use as decorator.
     """
@@ -194,23 +213,4 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, attemptNr)
                 _logger.debug("Rule was missing some field(s). Rule: %s" %rule)
     except KeyError as e:
         _logger.debug("No retrial rules to apply for jobID %s, attemptNr %s, failed with %s=%s. (Exception %e)" %(jobID, attemptNr, error_source, error_code, e))
-
-
-def pandalog(message):
-    """Function to send message to panda logger. For the moment dummy placeholder.
-    https://github.com/PanDAWMS/panda-jedi/blob/master/pandajedi/jediorder/JobGenerator.py#L405
-    """
-    try:
-        #get logger and lock it
-        tmpPandaLogger = PandaLogger()
-        tmpPandaLogger.lock()
-        #set category (usually prod) and type
-        tmpPandaLogger.setParams({'Type':'retryModule'})
-        tmpLogger = tmpPandaLogger.getHttpLogger(panda_config.loggername)
-        #send the message and release the logger
-        tmpLogger.debug(message)
-        tmpPandaLogger.release()
-        _logger.debug("Uploaded message (%s) to pandamon logger."%(message))
-    except Exception as e:
-        _logger.warning("Could not upload message (%s) to pandamon logger. (Error: %s)"%(message, e))
 
