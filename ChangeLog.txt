@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * improved eventLookupClientEI for 0 matching
   * changed EventPicking to use EI
   * reduced timeout for lost-heartbeat to 2h from 6h
   * using tape replicas at T1

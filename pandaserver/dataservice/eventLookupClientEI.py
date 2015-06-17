@@ -50,6 +50,9 @@ class eventLookupClientEI:
                         if tokens == None or tokens == tmpToken:
                             guids[runEvent].add(tmpGUID)
                     continue
+            if '0 results found' in tmpOut:
+                # add dummy
+                guids[None] = None
         except:
             pass
         return guids,command,tmpOut,tmpErr

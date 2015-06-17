@@ -15,6 +15,7 @@ import types
 import random
 import urllib
 import socket
+import inspect
 import datetime
 import commands
 import traceback
@@ -12363,7 +12364,15 @@ class DBProxy:
             errType,errValue = sys.exc_info()[:2]
             oraErrCode = str(errValue).split()[0]
             oraErrCode = oraErrCode[:-1]
-            _logger.debug("rollback EC:%s %s" % (oraErrCode,errValue))
+            errMsg = "rollback EC:%s %s" % (oraErrCode,errValue)
+            try:
+                errMsg = errMsg.strip()
+                frm = inspect.stack()[1]
+                errMsg += ' : '
+                errMsg += str(inspect.getframeinfo(frm[0])[:3])
+            except:
+                pass
+            _logger.debug(errMsg)
             # error codes for connection error
             if self.backend == 'oracle':
                 error_Codes  = ['ORA-01012','ORA-01033','ORA-01034','ORA-01089',
