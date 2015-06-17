@@ -331,10 +331,10 @@ class JobDipatcher:
 
 
     # get a list of even ranges for a PandaID
-    def getEventRanges(self,pandaID,jobsetID,nRanges,timeout):
+    def getEventRanges(self,pandaID,jobsetID,jediTaskID,nRanges,timeout):
         # peek jobs
         tmpWrapper = _TimedMethod(self.taskBuffer.getEventRanges,timeout)
-        tmpWrapper.run(pandaID,jobsetID,nRanges)
+        tmpWrapper.run(pandaID,jobsetID,jediTaskID,nRanges)
         # make response
         if tmpWrapper.result == Protocol.TimeOutToken:
             # timeout
@@ -746,14 +746,14 @@ def getStatus(req,ids,timeout=60):
 
 
 # get a list of even ranges for a PandaID
-def getEventRanges(req,pandaID,jobsetID,nRanges=10,timeout=60):
-    tmpStr = "getEventRanges(PandaID=%s jobsetID=%s nRanges=%s)" % (pandaID,jobsetID,nRanges)
+def getEventRanges(req,pandaID,jobsetID,taskID=None,nRanges=10,timeout=60):
+    tmpStr = "getEventRanges(PandaID=%s jobsetID=%s taskID=%s,nRanges=%s)" % (pandaID,jobsetID,taskID,nRanges)
     _logger.debug(tmpStr+' start')
     tmpStat,tmpOut = checkPilotPermission(req)
     if not tmpStat:
         _logger.error(tmpStr+'failed with '+tmpOut)
         #return tmpOut
-    return jobDispatcher.getEventRanges(pandaID,jobsetID,nRanges,int(timeout))
+    return jobDispatcher.getEventRanges(pandaID,jobsetID,taskID,nRanges,int(timeout))
 
 
 

@@ -2472,11 +2472,11 @@ class TaskBuffer:
 
 
     # get a list of even ranges for a PandaID
-    def getEventRanges(self,pandaID,jobsetID,nRanges):
+    def getEventRanges(self,pandaID,jobsetID,jediTaskID,nRanges):
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.getEventRanges(pandaID,jobsetID,nRanges)
+        ret = proxy.getEventRanges(pandaID,jobsetID,jediTaskID,nRanges)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -2724,6 +2724,19 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # exec
         ret = proxy.activateJobsForResourceShare(site,nJobsPerQueue)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
+    # add associate sub datasets for single consumer job
+    def getDestDBlocksWithSingleConsumer(self,jediTaskID,PandaID,ngDatasets):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getDestDBlocksWithSingleConsumer(jediTaskID,PandaID,ngDatasets)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

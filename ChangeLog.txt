@@ -1,6 +1,8 @@
 Release Notes
 
 * current
+  * added jediTaskID in getEventRanges
+  * set file status to failed when consumers are killed
   * improved eventLookupClientEI for 0 matching
   * changed EventPicking to use EI
   * reduced timeout for lost-heartbeat to 2h from 6h

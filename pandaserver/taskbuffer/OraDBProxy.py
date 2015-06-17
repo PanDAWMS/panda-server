@@ -1195,8 +1195,9 @@ class DBProxy:
                 # main job
                 if useCommit:
                     self.conn.begin()
-                # actions for successful event service 
-                if useJEDI and EventServiceUtils.isEventServiceJob(job):
+                # actions for successful normal ES jobs
+                if useJEDI and EventServiceUtils.isEventServiceJob(job) \
+                        and not EventServiceUtils.isSingleConsumerJob(job):
                     retEvS,retNewPandaID = self.ppEventServiceJob(job,False)
                     # DB error
                     if retEvS == None:
@@ -13225,10 +13226,10 @@ class DBProxy:
                          
 
     # get a list of even ranges for a PandaID
-    def getEventRanges(self,pandaID,jobsetID,nRanges):
+    def getEventRanges(self,pandaID,jobsetID,jediTaskID,nRanges):
         comment = ' /* DBProxy.getEventRanges */'
         methodName = comment.split(' ')[-2].split('.')[-1]
-        methodName += " <PandaID={0} jobsetID={1}>".format(pandaID,jobsetID)
+        methodName += " <PandaID={0} jobsetID={1} jediTaskID={2}>".format(pandaID,jobsetID,jediTaskID)
         _logger.debug("{0} : start nRanges={1}".format(methodName,nRanges))
         try:
             # sql to get ranges
@@ -13311,6 +13312,13 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
+            # kill unused consumers
+            if retRanges == [] and jediTaskID != None:
+                tmpJobSpec = JobSpec()
+                tmpJobSpec.PandaID = pandaID
+                tmpJobSpec.jobsetID = jobsetID
+                tmpJobSpec.jediTaskID = jediTaskID
+                self.killUnusedEventServiceConsumers(tmpJobSpec,True)
             _logger.debug("{0} : {1}".format(methodName,str(retRanges)))
             return json.dumps(retRanges)
         except:
@@ -14062,6 +14070,8 @@ class DBProxy:
             sqlDJD = "DELETE FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID"
             sqlDJI = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
             sqlDJI+= JobSpec.bindValuesExpression()
+            sqlFSF  = "UPDATE ATLAS_PANDA.filesTable4 SET status=:newStatus "
+            sqlFSF += "WHERE PandaID=:PandaID AND type IN (:type1,:type2) "
             sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
             sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
             sqlPMod = "UPDATE ATLAS_PANDA.jobParamsTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
@@ -14104,6 +14114,13 @@ class DBProxy:
                 dJob.stateChangeTime  = dJob.endTime
                 # insert
                 self.cur.execute(sqlDJI+comment, dJob.valuesMap())
+                # set file status
+                varMap = {}
+                varMap[':PandaID']   = pandaID
+                varMap[':type1']     = 'output'
+                varMap[':type2']     = 'log'
+                varMap[':newStatus'] = 'failed'
+                self.cur.execute(sqlFSF+comment,varMap)
                 # update files,metadata,parametes
                 varMap = {}
                 varMap[':PandaID'] = pandaID
@@ -14181,6 +14198,8 @@ class DBProxy:
             sqlDJD = "DELETE FROM ATLAS_PANDA.{0} WHERE PandaID=:PandaID"
             sqlDJI = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
             sqlDJI+= JobSpec.bindValuesExpression()
+            sqlFSF  = "UPDATE ATLAS_PANDA.filesTable4 SET status=:newStatus "
+            sqlFSF += "WHERE PandaID=:PandaID AND type IN (:type1,:type2) "
             sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
             sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
             sqlPMod = "UPDATE ATLAS_PANDA.jobParamsTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
@@ -14221,6 +14240,13 @@ class DBProxy:
                     dJob.stateChangeTime  = dJob.endTime
                     # insert
                     self.cur.execute(sqlDJI+comment, dJob.valuesMap())
+                    # set file status
+                    varMap = {}
+                    varMap[':PandaID']   = pandaID
+                    varMap[':type1']     = 'output'
+                    varMap[':type2']     = 'log'
+                    varMap[':newStatus'] = 'failed'
+                    self.cur.execute(sqlFSF+comment,varMap)
                     # update files,metadata,parametes
                     varMap = {}
                     varMap[':PandaID'] = pandaID
@@ -15247,3 +15273,88 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return None
+
+
+
+    # add associate sub datasets for single consumer job
+    def getDestDBlocksWithSingleConsumer(self,jediTaskID,PandaID,ngDatasets):
+        comment = ' /* DBProxy.getDestDBlocksWithSingleConsumer */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <jediTaskID={0},PandaID={1}>".format(jediTaskID,PandaID)
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        try:
+            retMap = {}
+            checkedDS = set()
+            # sql to get files
+            sqlF  = "SELECT datasetID,fileID FROM ATLAS_PANDA.JEDI_Events "
+            sqlF += "WHERE jediTaskID=:jediTaskID AND PandaID=:PandaID "
+            # sql to get PandaIDs
+            sqlP  = "SELECT distinct PandaID FROM ATLAS_PANDA.filesTable4 "
+            sqlP += "WHERE jediTaskID=:jediTaskID ANd datasetID=:datasetID AND fileID=:fileID "
+            # sql to get sub datasets
+            sqlD  = "SELECT destinationDBlock,datasetID FROM ATLAS_PANDA.filesTable4 "
+            sqlD += "WHERE PandaID=:PandaID AND type IN (:type1,:type2) "
+            # sql to get PandaIDs in merging
+            sqlM  = "SELECT distinct PandaID FROM ATLAS_PANDA.filesTable4 "
+            sqlM += "WHERE jediTaskID=:jediTaskID ANd datasetID=:datasetID AND status=:status "
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            varMap[':PandaID']    = PandaID
+            # begin transaction
+            self.conn.begin()
+            # get files
+            self.cur.execute(sqlF+comment,varMap)
+            resF = self.cur.fetchall()
+            for datasetID,fileID in resF:
+                # get parallel jobs
+                varMap = {}
+                varMap[':jediTaskID'] = jediTaskID
+                varMap[':datasetID']  = datasetID
+                varMap[':fileID']     = fileID
+                self.cur.execute(sqlP+comment,varMap)
+                resP = self.cur.fetchall()
+                for sPandaID, in resP:
+                    if sPandaID == PandaID:
+                        continue
+                    # get sub datasets of parallel jobs
+                    varMap = {}
+                    varMap[':PandaID']    = sPandaID
+                    varMap[':type1'] = 'output'
+                    varMap[':type2'] = 'log'
+                    self.cur.execute(sqlD+comment,varMap)
+                    resD = self.cur.fetchall()
+                    subDatasets = []
+                    subDatasetID = None
+                    for destinationDBlock,datasetID in resD:
+                        if destinationDBlock in ngDatasets:
+                            continue
+                        if destinationDBlock in checkedDS:
+                            continue
+                        checkedDS.add(destinationDBlock)
+                        subDatasets.append(destinationDBlock)
+                        subDatasetID = datasetID
+                    if subDatasets == []:
+                        continue
+                    # get merging PandaID which uses sub dataset
+                    varMap = {}
+                    varMap[':jediTaskID'] = jediTaskID
+                    varMap[':datasetID']  = datasetID
+                    varMap[':status']     = 'merging'
+                    self.cur.execute(sqlM+comment,varMap)
+                    resM = self.cur.fetchone()
+                    if resM != None:
+                        mPandaID, = resM
+                        retMap[mPandaID] = subDatasets
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug("got {0} jobs".format(len(retMap)))
+            return retMap
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return {}
+

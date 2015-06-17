@@ -18,6 +18,7 @@ ST_fatal     = 8
 esHeader = 'es:'
 esToken  = 'eventservice'
 esMergeToken = 'esmerge'
+singleToken = 'sc'
 
 
 # encode file info
@@ -139,3 +140,35 @@ def setEventServiceMerge(job):
             job.specialHandling = newSpecialHandling
     except:
         pass
+
+
+
+# check if specialHandling for single consumer
+def isSingleConsumerSH(specialHandling):
+    try:
+        if specialHandling != None and singleToken in specialHandling.split(','):
+            return True
+    except:
+        pass
+    return False
+
+
+
+# check if event service job
+def isSingleConsumerJob(job):
+    return isSingleConsumerSH(job.specialHandling)
+
+
+
+# set header for single consumer
+def setHeaderForSingleConsumer(specialHandling):
+    if specialHandling == None:
+        specialHandling = ''
+    tokens = specialHandling.split(',')
+    while True:
+        try:
+            tokens.remove('')
+        except:
+            break
+    tokens.append(singleToken)
+    return ','.join(tokens)

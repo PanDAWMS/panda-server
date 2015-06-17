@@ -273,6 +273,23 @@ class AdderGen:
                         cThr.start()
                         cThr.join()
                         self.logger.debug("end Closer")
+                    # run closer for assocaiate parallel jobs
+                    if EventServiceUtils.isSingleConsumerJob(self.job):
+                        assDBlockMap = self.taskBuffer.getDestDBlocksWithSingleConsumer(self.job.jediTaskID,self.job.PandaID,
+                                                                                        destDBList)
+                        for assJobID,assDBlocks in assDBlockMap.iteritems():
+                            assJob = self.taskBuffer.peekJobs([assJobID],fromDefined=False,
+                                                              fromArchived=False,
+                                                              fromWaiting=False,
+                                                              forAnal=True)[0]
+                            if self.job == None:
+                                self.logger.debug(': associated job PandaID={0} not found in DB'.format(assJobID))
+                            else:
+                                cThr = Closer.Closer(self.taskBuffer,assDBlocks,assJob)
+                                self.logger.debug("start Closer for PandaID={0}".format(assJobID))
+                                cThr.start()
+                                cThr.join()
+                                self.logger.debug("end Closer for PandaID={0}".format(assJobID))
             self.logger.debug("end")
             try:
                 # remove Catalog
