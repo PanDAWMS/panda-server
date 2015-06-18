@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * reduced timeout for high prio holding jobs
   * added -info to eventLookupClientEI
   * changed dispatcher to send DDM endpoints
   * added jediTaskID in getEventRanges
