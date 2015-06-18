@@ -1206,7 +1206,7 @@ class DynDataDistributer:
 
 
     # conver event/run list to datasets
-    def convertEvtRunToDatasets(self,runEvtList,dsType,streamName,dsFilters,amiTag):
+    def convertEvtRunToDatasets(self,runEvtList,dsType,streamName,dsFilters,amiTag,user):
         self.putLog('convertEvtRunToDatasets type=%s stream=%s dsPatt=%s amitag=%s' % \
                     (dsType,streamName,str(dsFilters),amiTag))
         # check data type
@@ -1232,7 +1232,7 @@ class DynDataDistributer:
             tmpRunEvtList = runEvtList[iEventsTotal:iEventsTotal+nEventsPerLoop]
             iEventsTotal += nEventsPerLoop
             guidListELSSI,tmpCom,tmpOut,tmpErr = elssiIF.doLookup(tmpRunEvtList,stream=streamName,tokens=streamRef,
-                                                                  amitag=amiTag)
+                                                                  amitag=amiTag,user=user)
             # failed
             if not tmpErr in [None,''] or len(guidListELSSI) == 0:
                 self.putLog(tmpCom)

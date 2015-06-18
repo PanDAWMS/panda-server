@@ -3,7 +3,7 @@ import sys
 import urllib
 from proxycache import panda_proxy_cache
 from taskbuffer import EventServiceUtils
-
+from dataservice import DataServiceUtils
 
 # constants
 TimeOutToken = "TimeOut"
@@ -51,7 +51,7 @@ class Response:
             
                    
     # append job
-    def appendJob(self,job):
+    def appendJob(self,job,siteMapperCache=None):
         # PandaID
         self.data['PandaID'] = job.PandaID
         # prodSourceLabel
@@ -90,6 +90,13 @@ class Response:
         strScopeLog = ''        
         logFile = ''
         logGUID = ''        
+        ddmEndPointIn = []
+        ddmEndPointOut = []
+        siteSpec = None
+        if siteMapperCache != None:
+            siteMapper = siteMapperCache.getObj()
+            siteSpec = siteMapper.getSite(job.computingSite)
+            siteMapperCache.releaseObj()
         for file in job.Files:
             if file.type == 'input':
                 if strIFiles != '':
@@ -114,7 +121,8 @@ class Response:
                     strCheckSum += '%s,' % file.checksum
                 else:
                     strCheckSum += '%s,' % file.md5sum
-                strScopeIn += '%s,' % file.scope    
+                strScopeIn += '%s,' % file.scope
+                ddmEndPointIn.append(self.getDdmEndpoint(siteSpec,file.dispatchDBlockToken))
             if file.type == 'output' or file.type == 'log':
                 if strOFiles != '':
                     strOFiles += ','
@@ -137,6 +145,7 @@ class Response:
                 strDestToken += file.destinationDBlockToken.split(',')[0]
                 strDisTokenForOutput += '%s,' % file.dispatchDBlockToken
                 strProdTokenForOutput += '%s,' % file.prodDBlockToken
+                ddmEndPointOut.append(self.getDdmEndpoint(siteSpec,file.destinationDBlockToken.split(',')[0]))
         # inFiles
         self.data['inFiles'] = strIFiles
         # dispatch DBlock
@@ -179,6 +188,9 @@ class Response:
         self.data['scopeIn']  = strScopeIn[:-1]
         self.data['scopeOut'] = strScopeOut[:-1]
         self.data['scopeLog'] = strScopeLog
+        # DDM endpoints
+        self.data['ddmEndPointIn']  = ','.join(ddmEndPointIn)
+        self.data['ddmEndPointOut'] = ','.join(ddmEndPointOut)
         # destinationSE
         self.data['destinationSE'] = job.destinationSE
         # user ID
@@ -269,6 +281,18 @@ class Response:
     def setPandaProxySecretKey(self,secretKey):
         self.data['pandaProxySecretKey'] = secretKey
 
+
+    # get ddm endpoint
+    def getDdmEndpoint(self,siteSpec,spaceToken):
+        if siteSpec == None:
+            return ''
+        endPoint = DataServiceUtils.getDestinationSE(spaceToken)
+        if endPoint != None:
+            return endPoint
+        if spaceToken in siteSpec.setokens:
+            return siteSpec.setokens[spaceToken]
+        return siteSpec.ddm
+
                 
 
 # check if secure connection
@@ -286,4 +310,3 @@ def getUserDN(req):
         return 'None'
 
                 
-            

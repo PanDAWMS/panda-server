@@ -18,6 +18,7 @@ from dataservice.Adder import Adder
 from pandalogger.PandaLogger import PandaLogger
 import DispatcherUtils
 from taskbuffer import EventServiceUtils
+from brokerage.SiteMapper import SiteMapper
 
 
 # logger
@@ -82,6 +83,15 @@ class CachedObject:
     # get item
     def __getitem__(self,name):
         return self.cachedObj[name]
+    
+    # get object
+    def getObj(self):
+        self.lock.acquire()
+        return self.cachedObj
+
+    # release object
+    def releaseObj(self):
+        self.lock.release()
 
 
 
@@ -103,6 +113,8 @@ class JobDipatcher:
         self.allowedNodes = None
         # special dipatcher parameters
         self.specialDispatchParams = None
+        # site mapper cache
+        self.siteMapperCache = None
         # lock
         self.lock = Lock()
 
@@ -126,6 +138,9 @@ class JobDipatcher:
         # special dipatcher parameters
         if self.specialDispatchParams == None:
             self.specialDispatchParams = CachedObject(60*30,self.taskBuffer.getSpecialDispatchParams)
+        # site mapper cache
+        if self.siteMapperCache == None:
+            self.siteMapperCache = CachedObject(60*30,self.getSiteMapper)
         # release
         self.lock.release()
         
@@ -152,7 +167,8 @@ class JobDipatcher:
             # succeed
             response=Protocol.Response(Protocol.SC_Success)
             # append Job
-            response.appendJob(jobs[0])
+            self.siteMapperCache.update()
+            response.appendJob(jobs[0],self.siteMapperCache)
             # append nSent
             response.appendNode('nSent',nSent)
             # set proxy key
@@ -450,6 +466,11 @@ class JobDipatcher:
                     _logger.debug(tmpMsg)
         # return
         return response.encode()
+
+
+    # get site mapper
+    def getSiteMapper(self):
+        return SiteMapper(self.taskBuffer)
 
     
         

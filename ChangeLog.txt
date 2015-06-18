@@ -1,6 +1,8 @@
 Release Notes
 
 * current
+  * added -info to eventLookupClientEI
+  * changed dispatcher to send DDM endpoints
   * added jediTaskID in getEventRanges
   * set file status to failed when consumers are killed
   * improved eventLookupClientEI for 0 matching

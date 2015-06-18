@@ -8,7 +8,7 @@ class eventLookupClientEI:
         pass
 
 
-    def doLookup(self,runEvtList,stream=None,tokens=None,amitag=None):
+    def doLookup(self,runEvtList,stream=None,tokens=None,amitag=None,user=None):
         command = 'java -jar ' + \
             os.getenv('EIDIR', '/afs/cern.ch/sw/lcg/external/Java/TagConvertor/head/share') + \
             '/lib/EventLookup.exe.jar '
@@ -22,6 +22,8 @@ class eventLookupClientEI:
             command += "-s {0} ".format(stream)
         if not amitag in [None,'']:
             command += "-p {0} ".format(amitag)
+        if user != None:
+            command += '-info "{0}" '.format(user)
         command += r"""-filter 'String RunNumber_EventNumber + "\n" + guids()' """
         p = subprocess.Popen(command, stdout=subprocess.PIPE,shell=True)
         tmpOut,tmpErr = p.communicate()
