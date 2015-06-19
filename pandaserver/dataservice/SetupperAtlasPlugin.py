@@ -473,7 +473,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     # create dataset
                     for name in nameList:
                         computingSite = job.computingSite
-                        if name == originalName:
+                        if name == originalName and not name.startswith('panda.um.'):
                             # for original dataset
                             computingSite = file.destinationSE
                         # use DQ2
@@ -599,19 +599,28 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                        job.prodSourceLabel == 'panda' or (job.prodSourceLabel in ['ptest','rc_test'] and \
                                                                           job.processingType in ['pathena','prun','gangarobot-rctest']) \
                                        or len(tmpTokenList) > 1:
-                                    # register location
-                                    # loop over all locations
+                                    # set replica lifetime to _sub
                                     repLifeTime = None
-                                    if name != originalName and re.search('_sub\d+$',name) != None:
+                                    if (name != originalName and re.search('_sub\d+$',name) != None) or \
+                                            (name == originalName and name.startswith('panda.um.')):
                                         repLifeTime = "14 days"
+                                    # register location
                                     for dq2ID in dq2IDList:
-                                        self.logger.debug('registerDatasetLocation {name} {dq2ID} {repLifeTime} backend={backend}'.format(name=name,
-                                                                                                                                          dq2ID=dq2ID,
-                                                                                                                                          repLifeTime=repLifeTime,
-                                                                                                                                          backend=ddmBackEnd,
-                                                                                                                                          ))
+                                        # set custodial to TAPE
+                                        acl_alias = None
+                                        if name == originalName:
+                                            tmpStat,tmpIsTape = toa.getSiteProperty(dq2ID,'tape')
+                                            if tmpIsTape == 'True':
+                                                acl_alias = 'custodial'
+                                        tmpStr = 'registerDatasetLocation {name} {dq2ID} {repLifeTime} acl_alias={acl_alias} backend={backend}'
+                                        self.logger.debug(tmpStr.format(name=name,
+                                                                        dq2ID=dq2ID,
+                                                                        repLifeTime=repLifeTime,
+                                                                        backend=ddmBackEnd,
+                                                                        acl_alias=acl_alias,
+                                                                        ))
                                         for iDDMTry in range(3):                            
-                                            status,out = ddm.DQ2.main('registerDatasetLocation',name,dq2ID,0,0,None,None,None,repLifeTime,
+                                            status,out = ddm.DQ2.main('registerDatasetLocation',name,dq2ID,0,0,None,None,acl_alias,repLifeTime,
                                                                       force_backend=ddmBackEnd)
                                             if status != 0 and out.find('DQLocationExistsException') != -1:
                                                 break
