@@ -1,6 +1,8 @@
 Release Notes
 
 * current
+  * resetting startTime to endTime when starting jobs are killed
+  * removed pinning for panda.um
   * changed Setupper not to make redundant rule for panda.um
   * reduced timeout for high prio holding jobs
   * added -info to eventLookupClientEI

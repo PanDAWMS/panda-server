@@ -2218,6 +2218,9 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                        not tmpFile.dataset.startswith('ddo') and \
                        not tmpFile.dataset.startswith('user') and \
                        not tmpFile.dataset.startswith('group'):
+                    # ignore pre-merged datasets
+                    if tmpFile.dataset.startswith('panda.um.'):
+                        continue
                     # get replica locations
                     if not allReplicaMap.has_key(tmpFile.dataset):
                         if tmpFile.dataset.endswith('/'):

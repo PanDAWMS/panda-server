@@ -3568,6 +3568,9 @@ class DBProxy:
                     # set status etc for non-failed jobs
                     if job.endTime in [None,'NULL']:
                         job.endTime = currentTime
+                    # reset startTime for aCT where starting jobs don't acutally get started 
+                    if job.jobStatus == 'starting':
+                        job.startTime = job.endTime
                     job.modificationTime = currentTime
                     if code in ['2','4']:
                         # expire
