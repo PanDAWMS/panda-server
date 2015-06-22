@@ -223,8 +223,10 @@ class Response:
         # debug mode
         if job.specialHandling != None and 'debug' in job.specialHandling:
             self.data['debug'] = 'True'
-        # event service
-        if EventServiceUtils.isEventServiceJob(job):
+        # event service or job cloning
+        if EventServiceUtils.isJobCloningJob(job):
+            self.data['cloneJob'] = EventServiceUtils.getJobCloningType(job)
+        elif EventServiceUtils.isEventServiceJob(job):
             self.data['eventService'] = 'True'
             # prod DBlock space token for pre-merging output
             self.data['prodDBlockTokenForOutput'] = strProdTokenForOutput[:-1]

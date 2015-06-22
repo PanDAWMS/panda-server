@@ -134,7 +134,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                 if self.job.prodSourceLabel in ['managed','test']:
                     self.logTransferring = True
             elif self.job.jobStatus == 'finished' and EventServiceUtils.isEventServiceJob(self.job) \
-                    and not EventServiceUtils.isSingleConsumerJob(self.job):
+                    and not EventServiceUtils.isJobCloningJob(self.job):
                 # transfer only log file for normal ES jobs 
                 self.logTransferring = True
             else:
@@ -186,7 +186,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                     continue
                 # add only log file for successful ES jobs
                 if self.job.jobStatus == 'finished' and EventServiceUtils.isEventServiceJob(self.job) \
-                        and not EventServiceUtils.isSingleConsumerJob(self.job) and file.type != 'log':
+                        and not EventServiceUtils.isJobCloningJob(self.job) and file.type != 'log':
                     continue
                 try:
                     # fsize
@@ -574,7 +574,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                     if self.goToTransferring or (self.logTransferring and tmpFile.type == 'log'):
                         # don't go to tranferring for successful ES jobs 
                         if self.job.jobStatus == 'finished' and EventServiceUtils.isEventServiceJob(self.job) \
-                                and not EventServiceUtils.isSingleConsumerJob(self.job):
+                                and not EventServiceUtils.isJobCloningJob(self.job):
                             continue
                         self.result.transferringFiles.append(tmpFile.lfn)
         elif not "--mergeOutput" in self.job.jobParameters:

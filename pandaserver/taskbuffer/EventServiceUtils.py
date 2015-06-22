@@ -19,6 +19,8 @@ esHeader = 'es:'
 esToken  = 'eventservice'
 esMergeToken = 'esmerge'
 singleToken = 'sc'
+singleConsumerType = {'runonce':  '1',
+                      'storeonce':'2'}
 
 
 # encode file info
@@ -143,11 +145,13 @@ def setEventServiceMerge(job):
 
 
 
-# check if specialHandling for single consumer
-def isSingleConsumerSH(specialHandling):
+# check if specialHandling for job cloning
+def isJobCloningSH(specialHandling):
     try:
-        if specialHandling != None and singleToken in specialHandling.split(','):
-            return True
+        if specialHandling != None:
+            for token in specialHandling.split(','):
+                if singleToken == token.split(':')[0]:
+                    return True
     except:
         pass
     return False
@@ -155,13 +159,13 @@ def isSingleConsumerSH(specialHandling):
 
 
 # check if event service job
-def isSingleConsumerJob(job):
-    return isSingleConsumerSH(job.specialHandling)
+def isJobCloningJob(job):
+    return isJobCloningSH(job.specialHandling)
 
 
 
-# set header for single consumer
-def setHeaderForSingleConsumer(specialHandling):
+# set header for job cloning
+def setHeaderForJobCloning(specialHandling,scType):
     if specialHandling == None:
         specialHandling = ''
     tokens = specialHandling.split(',')
@@ -170,5 +174,27 @@ def setHeaderForSingleConsumer(specialHandling):
             tokens.remove('')
         except:
             break
-    tokens.append(singleToken)
+    if scType in singleConsumerType.values():
+        tokens.append('{0}:{1}'.format(singleToken,scType))
     return ','.join(tokens)
+
+
+
+# get consumer type
+def getJobCloningType(job):
+    if job.specialHandling != None:
+        for token in specialHandling.split(','):
+            if singleToken == token.split(':')[0]:
+                for tmpKey,tmpVal in singleConsumerType.iteritems():
+                    if tmpVal == token.split(':')[-1]:
+                        return tmpKey
+    return ''
+
+
+
+# get consumer value
+def getJobCloningValue(scType):
+    if scType in singleConsumerType:
+        return singleConsumerType[scType]
+    return ''
+

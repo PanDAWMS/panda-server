@@ -1197,7 +1197,7 @@ class DBProxy:
                     self.conn.begin()
                 # actions for successful normal ES jobs
                 if useJEDI and EventServiceUtils.isEventServiceJob(job) \
-                        and not EventServiceUtils.isSingleConsumerJob(job):
+                        and not EventServiceUtils.isJobCloningJob(job):
                     retEvS,retNewPandaID = self.ppEventServiceJob(job,False)
                     # DB error
                     if retEvS == None:
@@ -14162,7 +14162,7 @@ class DBProxy:
             sqlCP  = "SELECT PandaID,specialHandling FROM ATLAS_PANDA.{0} "
             sqlCP += "WHERE jediTaskID=:jediTaskID AND jobsetID=:jobsetID "
             if killAll:
-                sqlCP += "AND jobStatus IN (:st1,:st2,:st3,:st4,:st5,:st6,:st7) "
+                sqlCP += "AND jobStatus IN (:st1,:st2,:st3,:st4,:st5,:st6,:st7,:st8) "
             else:
                 sqlCP += "AND jobStatus IN (:st1,:st2,:st3) "
             # get PandaIDs
@@ -14172,11 +14172,12 @@ class DBProxy:
             varMap[':st1'] = 'activated'
             varMap[':st2'] = 'assigned'
             varMap[':st3'] = 'waiting'
+            varMap[':st4'] = 'throttled'
             if killAll:
-                varMap[':st4'] = 'starting'
                 varMap[':st5'] = 'running'
                 varMap[':st6'] = 'holding'
                 varMap[':st7'] = 'sent'
+                varMap[':st8'] = 'starting'
             self.cur.arraysize = 100000
             killPandaIDsMap = {}
             for tableName in ['jobsActive4','jobsDefined4','jobsWaiting4']:

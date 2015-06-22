@@ -1,6 +1,8 @@
 Release Notes
 
 * current
+  * added job cloning stuff
+  * added max/avgRSS etc
   * resetting startTime to endTime when starting jobs are killed
   * removed pinning for panda.um
   * changed Setupper not to make redundant rule for panda.um

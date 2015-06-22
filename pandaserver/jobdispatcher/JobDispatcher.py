@@ -649,7 +649,8 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
               schedulerID=None,pilotID=None,siteName=None,messageLevel=None,pilotLog='',metaData='',
               cpuConversionFactor=None,exeErrorCode=None,exeErrorDiag=None,pilotTiming=None,computingElement=None,
               startTime=None,endTime=None,nEvents=None,nInputFiles=None,batchID=None,attemptNr=None,jobMetrics=None,
-              stdout='',jobSubStatus=None,coreCount=None):
+              stdout='',jobSubStatus=None,coreCount=None,maxRSS=None,maxVMEM=None,maxSWAP=None,maxPSS=None,
+              avgRSS=None,avgVMEM=None,avgSWAP=None,avgPSS=None):
     _logger.debug("updateJob(%s)" % jobId)
     # get DN
     realDN = _getDN(req)
@@ -659,11 +660,12 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
     prodManager = _checkRole(fqans,realDN,jobDispatcher,site=siteName,hostname=req.get_remote_host())
     # check token
     validToken = _checkToken(token,jobDispatcher)
-    _logger.debug("updateJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,attemptNr:%s,jobSubStatus:%s,core:%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s\n==XML==\n%s\n==LOG==\n%s\n==Meta==\n%s\n==Metrics==\n%s\n==stdout==\n%s)" %
+    _logger.debug("updateJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,attemptNr:%s,jobSubStatus:%s,core:%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s,maxRSS=%s,maxVMEM=%s,maxSWAP=%s,maxPSS=%s,avgRSS=%s,avgVMEM=%s,avgSWAP=%s,avgPSS=%s\n==XML==\n%s\n==LOG==\n%s\n==Meta==\n%s\n==Metrics==\n%s\n==stdout==\n%s)" %
                   (jobId,state,transExitCode,pilotErrorCode,pilotErrorDiag,node,workdir,cpuConsumptionTime,
                    cpuConsumptionUnit,remainingSpace,schedulerID,pilotID,siteName,messageLevel,nEvents,nInputFiles,
                    cpuConversionFactor,exeErrorCode,exeErrorDiag,pilotTiming,computingElement,startTime,endTime,
-                   batchID,attemptNr,jobSubStatus,coreCount,realDN,prodManager,token,validToken,str(fqans),xml,pilotLog,metaData,jobMetrics,
+                   batchID,attemptNr,jobSubStatus,coreCount,realDN,prodManager,token,validToken,str(fqans),
+                   maxRSS,maxVMEM,maxSWAP,maxPSS,avgRSS,avgVMEM,avgSWAP,avgPSS,xml,pilotLog,metaData,jobMetrics,
                    stdout))
     _pilotReqLogger.info('method=updateJob,site=%s,node=%s,type=None' % (siteName,node))
     # invalid role
@@ -737,6 +739,22 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
         param['jobSubStatus']=jobSubStatus
     if not coreCount in [None,'']:
         param['actualCoreCount']=coreCount
+    if maxRSS != None:
+        param['maxRSS'] = maxRSS
+    if maxVMEM != None:
+        param['maxVMEM'] = maxVMEM
+    if maxSWAP != None:
+        param['maxSWAP'] = maxSWAP
+    if maxPSS != None:
+        param['maxPSS'] = maxPSS
+    if avgRSS != None:
+        param['avgRSS'] = avgRSS
+    if avgVMEM != None:
+        param['avgVMEM'] = avgVMEM
+    if avgSWAP != None:
+        param['avgSWAP'] = avgSWAP
+    if avgPSS != None:
+        param['avgPSS'] = avgPSS
     if startTime != None:
         try:
             param['startTime']=datetime.datetime(*time.strptime(startTime,'%Y-%m-%d %H:%M:%S')[:6])

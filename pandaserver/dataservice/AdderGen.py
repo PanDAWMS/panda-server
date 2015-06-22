@@ -274,7 +274,7 @@ class AdderGen:
                         cThr.join()
                         self.logger.debug("end Closer")
                     # run closer for assocaiate parallel jobs
-                    if EventServiceUtils.isSingleConsumerJob(self.job):
+                    if EventServiceUtils.isJobCloningJob(self.job):
                         assDBlockMap = self.taskBuffer.getDestDBlocksWithSingleConsumer(self.job.jediTaskID,self.job.PandaID,
                                                                                         destDBList)
                         for assJobID,assDBlocks in assDBlockMap.iteritems():
