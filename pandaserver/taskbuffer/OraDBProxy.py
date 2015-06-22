@@ -1299,7 +1299,6 @@ class DBProxy:
                                 sqlGetCurFiles  = """SELECT /*+ BEGIN_OUTLINE_DATA """
                                 sqlGetCurFiles += """INDEX_RS_ASC(@"SEL$1" "TAB"@"SEL$1" ("DATASETS"."NAME")) """
                                 sqlGetCurFiles += """OUTLINE_LEAF(@"SEL$1") ALL_ROWS """
-                                sqlGetCurFiles += """OPTIMIZER_FEATURES_ENABLE('10.2.0.4') """
                                 sqlGetCurFiles += """IGNORE_OPTIM_EMBEDDED_HINTS """
                                 sqlGetCurFiles += """END_OUTLINE_DATA */ """
                                 sqlGetCurFiles += "currentfiles,vuid FROM ATLAS_PANDA.Datasets tab WHERE name=:name"
@@ -5859,7 +5858,6 @@ class DBProxy:
             sql1  = """SELECT /*+ BEGIN_OUTLINE_DATA """
             sql1 += """INDEX_RS_ASC(@"SEL$1" "TAB"@"SEL$1" ("DATASETS"."NAME")) """
             sql1 += """OUTLINE_LEAF(@"SEL$1") ALL_ROWS """
-            sql1 += """OPTIMIZER_FEATURES_ENABLE('10.2.0.4') """
             sql1 += """IGNORE_OPTIM_EMBEDDED_HINTS """
             sql1 += """END_OUTLINE_DATA */ """
             sql1 += "%s FROM ATLAS_PANDA.Datasets tab" % DatasetSpec.columnNames()
