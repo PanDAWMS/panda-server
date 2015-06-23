@@ -14162,7 +14162,7 @@ class DBProxy:
             if killAll:
                 sqlCP += "AND jobStatus IN (:st1,:st2,:st3,:st4,:st5,:st6,:st7,:st8) "
             else:
-                sqlCP += "AND jobStatus IN (:st1,:st2,:st3) "
+                sqlCP += "AND jobStatus IN (:st1,:st2,:st3,:st4) "
             # get PandaIDs
             varMap = {}
             varMap[':jediTaskID'] = job.jediTaskID
