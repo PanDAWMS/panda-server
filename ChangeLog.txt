@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * added more debug info to insertDataset
   * added soft flag to reassignTask
   * removed old hint for 10.2.0.4
   * added job cloning stuff

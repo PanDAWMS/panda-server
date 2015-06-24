@@ -3418,8 +3418,10 @@ class DBProxy:
         # 51 : reassigned by JEDI
         # 52 : force kill by JEDI
         # 91 : kill user jobs with prod role
-        comment = ' /* DBProxy.killJob */'        
-        _logger.debug("killJob : code=%s PandaID=%s role=%s user=%s wg=%s" % (code,pandaID,prodManager,user,wgProdRole))
+        comment = ' /* DBProxy.killJob */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += ' <PandaID={0}>'.format(pandaID)
+        _logger.debug("%s : code=%s role=%s user=%s wg=%s" % (methodName,code,prodManager,user,wgProdRole))
         # check PandaID
         try:
             long(pandaID)
@@ -3493,19 +3495,19 @@ class DBProxy:
                             break
                 if prodManager:
                     if res[1] in ['user','panda'] and (not code in ['2','4','7','8','9','50','51','52','91']):
-                        _logger.debug("ignore killJob -> prod proxy tried to kill analysis job type=%s" % res[1])
+                        _logger.debug("%s ignored -> prod proxy tried to kill analysis job type=%s" % (methodName,res[1]))
                         break
-                    _logger.debug("killJob : %s using prod role" % pandaID)
+                    _logger.debug("%s using prod role" % methodName)
                 elif validGroupProdRole:
                     # WGs with prod role
-                    _logger.debug("killJob : %s using group prod role for workingGroup=%s" % (pandaID,workingGroup))
+                    _logger.debug("%s using group prod role for workingGroup=%s" % (methodName,workingGroup))
                     pass
                 else:   
                     cn1 = getCN(res[0])
                     cn2 = getCN(user)
-                    _logger.debug("Owner:%s  - Requester:%s " % (cn1,cn2))
+                    _logger.debug("%s Owner:%s  - Requester:%s " % (methodName,cn1,cn2))
                     if cn1 != cn2:
-                        _logger.debug("ignore killJob -> Owner != Requester")
+                        _logger.debug("%s ignored  -> Owner != Requester" % methodName)
                         break
                 # event service
                 useEventService =  EventServiceUtils.isEventServiceSH(specialHandling)
@@ -3654,7 +3656,7 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
-            _logger.debug("killJob : com=%s kill=%s " % (flagCommand,flagKilled))
+            _logger.debug("%s com=%s kill=%s " % (methodName,flagCommand,flagKilled))
             # record status change
             try:
                 if updatedFlag:
@@ -3668,8 +3670,7 @@ class DBProxy:
                                                     'jobsetID':userJobsetID}
             return (flagCommand or flagKilled)
         except:
-            type, value, traceBack = sys.exc_info()
-            _logger.error("killJob : %s %s %s" % (pandaID,type,value))
+            self.dumpErrorMessage(_logger,methodName)
             # roll back
             self._rollback()
             if getUserInfo:
@@ -5744,11 +5745,14 @@ class DBProxy:
     # insert dataset
     def insertDataset(self,dataset,tablename="ATLAS_PANDA.Datasets"):
         comment = ' /* DBProxy.insertDataset */'        
-        _logger.debug("insertDataset(%s)" % dataset.name)
-        sql0 = "SELECT COUNT(*) FROM %s WHERE vuid=:vuid" % tablename
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger,methodName+" <dataset={0}>".format(dataset.name))
+        tmpLog.debug("start")
+        sql0 = "SELECT COUNT(*) FROM %s WHERE vuid=:vuid " % tablename
         sql1 = "INSERT INTO %s " % tablename
         sql1+= "(%s) " % DatasetSpec.columnNames()
         sql1+= DatasetSpec.bindValuesExpression()
+        sql2 = "SELECT name FROM %s WHERE vuid=:vuid " % tablename
         # time information
         dataset.creationdate = datetime.datetime.utcnow()
         dataset.modificationdate = dataset.creationdate
@@ -5769,11 +5773,17 @@ class DBProxy:
             varMap[':vuid'] = dataset.vuid
             self.cur.execute(sql0+comment, varMap)
             nDS, = self.cur.fetchone()
-            _logger.debug("insertDataset nDS=%s with %s" % (nDS,dataset.vuid))
+            tmpLog.debug("nDS=%s with %s" % (nDS,dataset.vuid))
             if nDS == 0:
                 # insert
-                _logger.debug("insertDataset insert %s" % dataset.name)
+                tmpLog.debug(sql1+comment+str(dataset.valuesMap()))
                 self.cur.execute(sql1+comment, dataset.valuesMap())
+                # check name in DB
+                varMap = {}
+                varMap[':vuid'] = dataset.vuid
+                self.cur.execute(sql2+comment, varMap)
+                nameInDB, = self.cur.fetchone()
+                tmpLog.debug("inDB -> %s %s" % (nameInDB,dataset.name==nameInDB))
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -5782,8 +5792,7 @@ class DBProxy:
             # roll back
             self._rollback()
             # error
-            type, value, traceBack = sys.exc_info()
-            _logger.error("insertDataset() : %s %s" % (type,value))
+            self.dumpErrorMessage(_logger,methodName)
             return False
 
 
@@ -5917,6 +5926,7 @@ class DBProxy:
                 varMap[':vuid'] = dataset.vuid
                 for cKey in criteriaMap.keys():
                     varMap[cKey] = criteriaMap[cKey]
+                _logger.debug(sql1+comment+str(varMap))
                 self.cur.execute(sql1+comment, varMap)                
                 retU = self.cur.rowcount            
                 if retU != 0 and retU != 1:
@@ -12115,7 +12125,12 @@ class DBProxy:
                     sqlCheckDest += "WHERE name=:name AND subtype=:subtype "
                     _logger.debug(methodName+' '+sqlCheckDest+comment+str(varMap))
                     cur.execute(sqlCheckDest+comment,varMap)
-                    preMergedDestStat, = self.cur.fetchone()
+                    tmpResDestStat = self.cur.fetchone()
+                    if tmpResDestStat != None:
+                        preMergedDestStat, = tmpResDestStat
+                    else:
+                        preMergedDestStat = 'notfound'
+                        _logger.debug(methodName+' {0} not found for datasetID={1}'.format(preMergedDest,datasetID))
                     if not preMergedDestStat in ['tobeclosed','completed']:
                         datasetContentsStat[datasetID]['nFilesOnHold'] -= 1
                     else:
@@ -12367,13 +12382,6 @@ class DBProxy:
             oraErrCode = str(errValue).split()[0]
             oraErrCode = oraErrCode[:-1]
             errMsg = "rollback EC:%s %s" % (oraErrCode,errValue)
-            try:
-                errMsg = errMsg.strip()
-                frm = inspect.stack()[1]
-                errMsg += ' : '
-                errMsg += str(inspect.getframeinfo(frm[0])[:3])
-            except:
-                pass
             _logger.debug(errMsg)
             # error codes for connection error
             if self.backend == 'oracle':
