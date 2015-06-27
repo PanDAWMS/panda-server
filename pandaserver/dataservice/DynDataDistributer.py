@@ -1048,7 +1048,7 @@ class DynDataDistributer:
             self.putLog(out)
             if status != 0 and out.find('DQDatasetExistsException') == -1:
                 if "DQContainerExistsException" in out:
-                    self.putLog('%s/%s registerDatasetsInContainer %s' % (iDDMTry,nTry,containerName))
+                    self.putLog('%s/%s registerDatasetsInContainer %s %s' % (iDDMTry,nTry,containerName,str(datasetNames)))
                     status,out = ddm.DQ2.main('registerDatasetsInContainer',containerName,datasetNames)
                     self.putLog(out)
                     if status == 0 or 'DQContainerAlreadyHasDataset' in out:

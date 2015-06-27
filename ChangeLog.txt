@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * fixed ppEvent for catchall=None
   * added more debug info to insertDataset
   * added soft flag to reassignTask
   * removed old hint for 10.2.0.4

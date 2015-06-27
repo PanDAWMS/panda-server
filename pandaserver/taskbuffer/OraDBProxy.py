@@ -712,9 +712,11 @@ class DBProxy:
                         self.cur.execute(sqlS+comment, varMap)
                         resSite = self.cur.fetchone()
                         # change status
+                        """
                         if resSite != None and (not resSite[0] in [None,''] or not resSite[1] in [None,'']):
                             job.jobStatus = "throttled"
                             _logger.debug("activateJob : {0} to {1}".format(job.PandaID,job.jobStatus))
+                        """    
                     # delete
                     varMap = {}
                     varMap[':PandaID']       = job.PandaID
@@ -8887,17 +8889,21 @@ class DBProxy:
                     ret.fairsharePolicy = fairsharePolicy
                     # resource shares
                     ret.sitershare = None
+                    """
                     try:
                         if not sitershare in [None,'']:
                             ret.sitershare = int(sitershare)
                     except:
                         pass
+                    """    
                     ret.cloudrshare = None
+                    """
                     try:
                         if not cloudrshare in [None,'']:
                             ret.cloudrshare = int(cloudrshare)
                     except:
                         pass
+                    """    
                     # maxwdir
                     try:
                         if maxwdir == None:
@@ -11952,12 +11958,14 @@ class DBProxy:
                 if jobSpec.jobStatus == 'finished':
                     varMap[':status'] = 'finished'
                 else:
+                    """ WILL MOVE TO RETRY MODULE
                     if fileSpec.status == 'missing' and jobSpec.processingType != 'pmerge':
                         # lost file
                         varMap[':status'] = 'lost'
                     else:
-                        # set ready for next attempt
-                        varMap[':status'] = 'ready'
+                    """
+                    # set ready for next attempt
+                    varMap[':status'] = 'ready'
                     updateAttemptNr = True
                     if jobSpec.jobStatus == 'failed':
                         updateFailedAttempt = True
@@ -12423,7 +12431,10 @@ class DBProxy:
     def dumpErrorMessage(self,tmpLog,methodName):
         # error
         errtype,errvalue = sys.exc_info()[:2]
-        tmpLog.error("{0}: {1} {2}".format(methodName,errtype.__name__,errvalue))
+        errStr = "{0}: {1} {2}".format(methodName,errtype.__name__,errvalue)
+        errStr.strip()
+        errStr += traceback.format_exc()
+        tmpLog.error(errStr)
 
 
 
@@ -13749,7 +13760,7 @@ class DBProxy:
                 varMap[':siteid'] = jobSpec.computingSite
                 self.cur.execute(sqlWM+comment, varMap)
                 resWM = self.cur.fetchone()
-                if resWM != None and 'localEsMerge' in resWM[0]:
+                if resWM != None and resWM[0] != None and 'localEsMerge' in resWM[0]:
                     # run merge jobs at the same site
                     pass
                 else:
