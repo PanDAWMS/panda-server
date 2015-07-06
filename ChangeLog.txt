@@ -1,6 +1,8 @@
 Release Notes
 
 * current
+  * introduced prio limit in shares with throttled
+  * changed code=51 to force-kill
   * fixed ppEvent for catchall=None
   * added more debug info to insertDataset
   * added soft flag to reassignTask

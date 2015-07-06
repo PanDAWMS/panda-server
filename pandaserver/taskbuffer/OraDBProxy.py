@@ -3534,7 +3534,7 @@ class DBProxy:
                 # select
                 varMap = {}
                 varMap[':PandaID'] = pandaID
-                if (userProdSourceLabel in ['managed','test',None] or 'test' in userProdSourceLabel) and code in ['9',]:
+                if (userProdSourceLabel in ['managed','test',None] or 'test' in userProdSourceLabel) and code in ['9','52']:
                     # use dummy for force kill
                     varMap[':jobStatus'] = 'dummy'
                 elif useEventService or jobStatusInDB in ['merging']:

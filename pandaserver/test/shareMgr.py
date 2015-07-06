@@ -24,10 +24,50 @@ siteMapper = SiteMapper(taskBuffer)
 # number of jobs to be activated per queue
 nJobsPerQueue = 50
 
+# priority threshold
+prioCutoff = 950
+
+# get high prio jobs without throttling
+sql  = "SELECT distinct computingSite FROM ATLAS_PANDA.jobsActive4 "
+sql += "WHERE jobStatus=:s1 AND prodSourceLabel IN (:p1) AND lockedBy=:lockedBy "
+sql += "AND currentPriority>=:prioCutoff "
+varMap = {}
+varMap[':s1'] = 'throttled'
+varMap[':p1'] = 'managed'
+varMap[':lockedBy'] = 'jedi'
+varMap[':prioCutoff'] = prioCutoff
+
+# exec 	
+status,res = taskBuffer.querySQLS(sql,varMap,arraySize=10000)
+if res == None:
+    _logger.debug("total %s " % res)
+else:
+    # release high prio jobs
+    sql  = "UPDATE ATLAS_PANDA.jobsActive4 SET jobStatus=:newStatus "
+    sql += "WHERE jobStatus=:oldStatus AND prodSourceLabel IN (:p1) AND lockedBy=:lockedBy "
+    sql += "AND currentPriority>=:prioCutoff AND computingSite=:computingSite "
+    # loop over computing sites
+    for computingSite, in res:
+	# get site spec
+	if not siteMapper.checkSite(computingSite):
+	    continue
+	siteSpec = siteMapper.getSite(computingSite)
+        # check if resource fair share is used
+        if siteSpec.useResourceFairShare():
+            varMap = {}
+            varMap[':newStatus'] = 'activated'
+            varMap[':oldStatus'] = 'throttled'
+            varMap[':p1'] = 'managed'
+            varMap[':lockedBy'] = 'jedi'
+            varMap[':prioCutoff'] = prioCutoff
+            varMap[':computingSite'] = computingSite
+            status,res = taskBuffer.querySQLS(sql,varMap,arraySize=10000)
+
 
 # get statistics
 sql  = "SELECT COUNT(*),jobStatus,computingSite,cloud FROM ATLAS_PANDA.jobsActive4 "
 sql += "WHERE jobStatus IN (:s1,:s2,:s3) AND prodSourceLabel IN (:p1) AND lockedBy=:lockedBy "
+sql += "AND currentPriority<:prioCutoff "
 sql += "GROUP BY jobStatus,computingSite,cloud "
 varMap = {}
 varMap[':s1'] = 'activated'
@@ -35,6 +75,8 @@ varMap[':s2'] = 'throttled'
 varMap[':s3'] = 'running'
 varMap[':p1'] = 'managed'
 varMap[':lockedBy'] = 'jedi'
+varMap[':prioCutoff'] = prioCutoff
+
 # exec 	
 status,res = taskBuffer.querySQLS(sql,varMap,arraySize=10000)
 cloudJobStatMap = {}
