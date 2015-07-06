@@ -15267,7 +15267,7 @@ class DBProxy:
         
         # SQL to extract the error definitions
         sql  = """
-        SELECT re.errorsource, re.errorcode, re.parameters, re.architecture, re.release, re.workqueue_id, ra.name, re.active, ra.active
+        SELECT re.errorsource, re.errorcode, re.errorDiag, re.parameters, re.architecture, re.release, re.workqueue_id, ra.name, re.active, ra.active
         FROM ATLAS_PANDA.RETRYERRORS re, ATLAS_PANDA.RETRYACTIONS ra
         WHERE re.RetryAction_FK=ra.ID
         AND (CURRENT_TIMESTAMP > re.expiration_date or re.expiration_date IS NULL)
@@ -15283,7 +15283,7 @@ class DBProxy:
          
         retrial_rules = {} #TODO: Consider if we want a class RetrialRule
         for definition in definitions:
-            error_source, error_code, parameters, architecture, release, wqid, action, e_active, a_active = definition
+            error_source, error_code, error_diag, parameters, architecture, release, wqid, action, e_active, a_active = definition
                 
             #TODO: Need to define a formatting and naming convention for setting the parameters
             #Convert the parameter string into a dictionary
@@ -15303,7 +15303,8 @@ class DBProxy:
              
             retrial_rules.setdefault(error_source,{})
             retrial_rules[error_source].setdefault(error_code,[])
-            retrial_rules[error_source][error_code].append({'action': action, 
+            retrial_rules[error_source][error_code].append({'error_diag': error_diag,
+                                                            'action': action, 
                                                             'params': params_dict, 
                                                             'architecture': architecture, 
                                                             'release': release,

@@ -92,6 +92,7 @@ CREATE TABLE ATLAS_PANDA.RETRYERRORS
 ( ID number(10) NOT NULL,
   ErrorSource varchar2(256 BYTE) NOT NULL,
   ErrorCode number(10) NOT NULL,
+  ErrorDiag varchar2(256 BYTE),
   RetryAction_FK number(10) NOT NULL,
   Parameters varchar2(256 BYTE),
   Architecture varchar2 (256 BYTE),

@@ -2,6 +2,8 @@ import sys
 import time
 from pandalogger.PandaLogger import PandaLogger
 from config import panda_config
+import re
+from re import error as ReError
 # logger
 _logger = PandaLogger().getLogger('RetrialModule')
 
@@ -44,11 +46,24 @@ def timeit(method):
     return timed
 
 
-def conditions_apply(architecture_job, release_job, wqid_job, architecture_rule, release_rule, wqid_rule):
-    """Checks that the architecture, release and work queue of rule and job match, 
+def safe_search(pattern, message):
+    """Wrapper around re.search with simple exception handling
+    """
+    found = False
+    try:
+        found = re.search(pattern, message)
+    except ReError:
+        _logger.debug("Regexp matching excepted. \nPattern: %s \nString: %s" %(pattern, message))
+    finally:
+        return found
+
+
+def conditions_apply(errordiag_job, architecture_job, release_job, wqid_job, errordiag_rule, architecture_rule, release_rule, wqid_rule):
+    """Checks that the error regexp, architecture, release and work queue of rule and job match, 
     only in case the attributes are defined for the rule
     """
-    if ((architecture_rule and architecture_rule != architecture_job) 
+    if ((errordiag_rule and not safe_search(errordiag_rule, errordiag_job))
+        or (architecture_rule and architecture_rule != architecture_job) 
         or (release_rule and release_rule != release_job)
         or (wqid_rule and wqid_rule != wqid_job)):
         return False
@@ -83,7 +98,7 @@ def compare_strictness(rule1, rule2):
         return 0
 
 
-def preprocess_rules(rules, release_job, architecture_job, wqid_job):
+def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_job):
     """Do some preliminary validation of the applicable rules.
     - Duplicate rules, (action=limit_retry, maxAttempt=5) vs (action=limit_retry, maxAttempt=7, release=X):
          resolve to the most specific rule, in our example (action=limit_retry, maxAttempt=7, release=X) 
@@ -97,7 +112,7 @@ def preprocess_rules(rules, release_job, architecture_job, wqid_job):
         #See if there is a  NO_RETRY rule. Effect of NO_RETRY rules is the same, so just take the first one that appears
         for rule in rules:
             if (rule['action']!= NO_RETRY or
-                not conditions_apply(architecture_job, release_job, wqid_job, rule['architecture'], rule['release'], rule['wqid'])):
+                not conditions_apply(error_diag_job, architecture_job, release_job, wqid_job, rule['error_diag'], rule['architecture'], rule['release'], rule['wqid'])):
                 continue
             else:
                 filtered_rules.append(rule)
@@ -105,7 +120,7 @@ def preprocess_rules(rules, release_job, architecture_job, wqid_job):
         #See if there is a INCREASE_MEM rule. The effect of INCREASE_MEM rules is the same, so take the first one that appears
         for rule in rules:
             if (rule['action']!= INCREASE_MEM or
-                not conditions_apply(architecture_job, release_job, wqid_job, rule['architecture'], rule['release'], rule['wqid'])): 
+                not conditions_apply(error_diag_job, architecture_job, release_job, wqid_job, rule['error_diag'], rule['architecture'], rule['release'], rule['wqid'])): 
                 continue
             else:
                 filtered_rules.append(rule)
@@ -113,7 +128,7 @@ def preprocess_rules(rules, release_job, architecture_job, wqid_job):
         #See if there is a LIMIT_RETRY rule. Take the narrowest rule, in case of draw take the strictest
         limit_retry_rule = {}
         for rule in rules:
-            if (not conditions_apply(architecture_job, release_job, wqid_job, rule['architecture'], rule['release'], rule['wqid']) or
+            if (not conditions_apply(error_diag_job, architecture_job, release_job, wqid_job, rule['error_diag'], rule['architecture'], rule['release'], rule['wqid']) or
                 rule['action']!= LIMIT_RETRY): 
                 continue
             elif not limit_retry_rule:
@@ -137,13 +152,14 @@ def preprocess_rules(rules, release_job, architecture_job, wqid_job):
 
 #TODO: Add a call to the retrial rules from the UserIF.killJob
 @timeit
-def apply_retrial_rules(task_buffer, jobID, error_source, error_code, attemptNr):
+def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag, attemptNr):
     """Get rules from DB and applies them to a failed job. Actions can be:
     - flag the job so it is not retried again (error code is a final state and retrying will not help)
     - limit the number of retries
     - increase the memory of a job if it failed because of insufficient memory
     """
-    _logger.debug("Entered apply_retrial_rules for job %s, error_source %s, error_code %s, attemptNr %s" %(jobID, error_source, error_code, attemptNr))
+    _logger.debug("Entered apply_retrial_rules for job %s, error_source %s, error_code %s, error_diag %s, attemptNr %s" 
+                  %(jobID, error_source, error_code, error_diag, attemptNr))
 
     try:
         error_code = int(error_code)
@@ -157,7 +173,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, attemptNr)
     try:
         #TODO: Check if peeking the job again has any performance penalty and if there is any better way
         job = task_buffer.peekJobs([jobID], fromDefined=False, fromArchived=False, fromWaiting=False)[0]
-        applicable_rules = preprocess_rules(retrial_rules[error_source][error_code], job.AtlasRelease, job.cmtConfig, job.workQueue_ID)
+        applicable_rules = preprocess_rules(retrial_rules[error_source][error_code], error_diag, job.AtlasRelease, job.cmtConfig, job.workQueue_ID)
         
         for rule in applicable_rules:
             try:
@@ -171,7 +187,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, attemptNr)
                 
                 _logger.debug("Processing rule %s for jobID %s, error_source %s, error_code %s, attemptNr %s" %(rule, jobID, error_source, error_code, attemptNr))
                 
-                if not conditions_apply(job.cmtConfig, job.AtlasRelease, job.workQueue_ID, architecture, release, wqid):
+                if not conditions_apply(job.cmtConfig, job.AtlasRelease, job.workQueue_ID, error_diag, architecture, release, wqid):
                     _logger.debug("Skipped rule %s. cmtConfig (%s : %s) or Release (%s : %s) did NOT match" %(rule, architecture, job.cmtConfig, release, job.AtlasRelease))
                     continue
                 

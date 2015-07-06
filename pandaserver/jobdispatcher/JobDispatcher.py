@@ -239,15 +239,22 @@ class JobDipatcher:
         source, ecode = None, None
         if param.has_key('pilotErrorCode'):
             source = 'pilotErrorCode'
-            ecode = param['pilotErrorCode']
-        elif param.has_key('pilotErrorCode'):
-            source = 'pilotErrorCode'
-            ecode = param['pilotErrorCode']
-        _logger.debug("updatejob has source %s and and ecode %s"%(source, ecode))
+            error_code = param['pilotErrorCode']
+            error_diag = param['pilotErrorDiag']
+        elif param.has_key('exeErrorCode'):
+            source = 'exeErrorCode'
+            error_code = param['exeErrorCode']
+            error_diag = param['exeErrorDiag']
+        elif param.has_key('ddmErrorCode'):
+            source = 'ddmErrorCode'
+            error_code = param['ddmErrorCode']
+            error_diag = param['ddmErrorDiag']
+
+        _logger.debug("updatejob has source %s, error_code %s and error_diag %s"%(source, error_code, error_diag))
         
         if jobStatus=='failed' and source and ecode:
             _logger.debug("updatejob will call apply_retrial_rule")
-            retryModule.apply_retrial_rules(self.taskBuffer, jobID, source, ecode, attemptNr)
+            retryModule.apply_retrial_rules(self.taskBuffer, jobID, source, error_code, error_diag, attemptNr)
         _logger.debug("updatejob back from apply_retrial_rule")
         
         # recoverable error for ES merge
