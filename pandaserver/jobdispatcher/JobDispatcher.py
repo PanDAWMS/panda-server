@@ -245,10 +245,6 @@ class JobDipatcher:
             source = 'exeErrorCode'
             error_code = param['exeErrorCode']
             error_diag = param['exeErrorDiag']
-        elif param.has_key('ddmErrorCode'):
-            source = 'ddmErrorCode'
-            error_code = param['ddmErrorCode']
-            error_diag = param['ddmErrorDiag']
 
         _logger.debug("updatejob has source %s, error_code %s and error_diag %s"%(source, error_code, error_diag))
         

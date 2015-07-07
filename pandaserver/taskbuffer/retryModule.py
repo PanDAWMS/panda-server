@@ -171,8 +171,10 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
         return
 
     retrial_rules = task_buffer.getRetrialRules()
-
     _logger.debug("Back from getRetrialRules: %s"%retrial_rules)
+    if not retrial_rules:
+        return
+
     try:
         #TODO: Check if peeking the job again has any performance penalty and if there is any better way
         job = task_buffer.peekJobs([jobID], fromDefined=False, fromArchived=False, fromWaiting=False)[0]
