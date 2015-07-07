@@ -165,7 +165,12 @@ class AdderGen:
                 # set file status for failed jobs or failed transferring jobs
                 if self.job.jobStatus == 'failed' or self.jobStatus == 'failed':
                     if self.job.ddmErrorCode:
-                        retryModule.apply_retrial_rules(self.taskBuffer, self.job.PandaID, 'ddmErrorCode', self.job.ddmErrorCode, self.job.ddmErrorDiag, self.job.attemptNr)
+                        try:
+                            self.logger.debug("AdderGen.run will call apply_retrial_rules")
+                            retryModule.apply_retrial_rules(self.taskBuffer, self.job.PandaID, 'ddmErrorCode', self.job.ddmErrorCode, self.job.ddmErrorDiag, self.job.attemptNr)
+                            self.logger.debug("apply_retrial_rules is back")
+                        except Exception as e:
+                            self.logger.debug("apply_retrial_rules excepted and needs to be investigated (%s)"%(e))
                     
                     self.job.jobStatus = 'failed'
                     for file in self.job.Files:

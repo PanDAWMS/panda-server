@@ -253,9 +253,13 @@ class JobDipatcher:
         _logger.debug("updatejob has source %s, error_code %s and error_diag %s"%(source, error_code, error_diag))
         
         if jobStatus=='failed' and source and error_code:
-            _logger.debug("updatejob will call apply_retrial_rule")
-            retryModule.apply_retrial_rules(self.taskBuffer, jobID, source, error_code, error_diag, attemptNr)
-        _logger.debug("updatejob back from apply_retrial_rule")
+            _logger.debug("updatejob will call apply_retrial_rules")
+            try:
+                retryModule.apply_retrial_rules(self.taskBuffer, jobID, source, error_code, error_diag, attemptNr)
+                _logger.debug("updatejob back from apply_retrial_rules")
+            except Exception as e:
+                _logger.debug("apply_retrial_rules excepted and needs to be investigated (%s)"%(e))
+        
         
         # recoverable error for ES merge
         recoverableEsMerge = False
