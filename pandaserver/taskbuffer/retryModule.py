@@ -62,11 +62,14 @@ def conditions_apply(errordiag_job, architecture_job, release_job, wqid_job, err
     """Checks that the error regexp, architecture, release and work queue of rule and job match, 
     only in case the attributes are defined for the rule
     """
+    _logger.debug("Entered conditions_apply %s"%(locals()))
     if ((errordiag_rule and not safe_search(errordiag_rule, errordiag_job))
         or (architecture_rule and architecture_rule != architecture_job) 
         or (release_rule and release_rule != release_job)
         or (wqid_rule and wqid_rule != wqid_job)):
+        _logger.debug("Leaving conditions_apply: False")
         return False
+    _logger.debug("Leaving conditions_apply: True")
     return True
 
 
@@ -106,7 +109,7 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
          resolve into the strictest rule, in our example (limit_retry = 5)
     - Bad intended rules, e.g. (action=limit_retry, maxAttempt=5) vs (action=limit_retry, maxAttempt=7, release=X):
     """
-    _logger.debug("Entered prepprocess_rules")
+    _logger.debug("Entered preprocess_rules")
     filtered_rules = []
     try:
         #See if there is a  NO_RETRY rule. Effect of NO_RETRY rules is the same, so just take the first one that appears
