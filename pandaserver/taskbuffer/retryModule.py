@@ -221,7 +221,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
                         if active and not job.minRamCount in [0,None,'NULL']:
                             task_buffer.increaseRamLimitJobJEDI(job, job.minRamCount)
                         #Log to pandamon and logfile
-                        message = "increaseRAMLimit for jobID: %s (task: %s)" %(jobID, job.jediTaskID)
+                        message = "increaseRAMLimit for jobID: %s (task: %s). Rule/action active: %s" %(jobID, job.jediTaskID, active)
                         pandalog(message)
                         _logger.debug(message)
                     except:
