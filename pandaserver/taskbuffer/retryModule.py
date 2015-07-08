@@ -198,7 +198,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
                 
                 if action == NO_RETRY:
                     if active:
-                        task_buffer.setMaxAttempt(jobID, job.Files, attemptNr)
+                        task_buffer.setMaxAttempt(jobID, job.jediTaskID, job.Files, attemptNr)
                     #Log to pandamon and logfile
                     message = "setMaxAttempt jobID: %s (task: %s), maxAttempt: %s. Rule/action active: %s" %(jobID, job.jediTaskID, attemptNr, active)
                     pandalog(message)
@@ -207,7 +207,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
                 elif action == LIMIT_RETRY:
                     try:
                         if active:
-                            task_buffer.setMaxAttempt(jobID, job.Files, int(parameters['maxAttempt']))
+                            task_buffer.setMaxAttempt(jobID, job.jediTaskID, job.Files, int(parameters['maxAttempt']))
                         #Log to pandamon and logfile
                         message = "setMaxAttempt jobID: %s (task: %s), maxAttempt: %s. Rule/action active: %s" %(jobID, job.jediTaskID, int(parameters['maxAttempt']), active)
                         pandalog(message)

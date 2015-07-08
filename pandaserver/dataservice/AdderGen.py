@@ -164,7 +164,24 @@ class AdderGen:
                         self.job.jobStatus = 'failed'
                 # set file status for failed jobs or failed transferring jobs
                 if self.job.jobStatus == 'failed' or self.jobStatus == 'failed':
-                    if self.job.ddmErrorCode:
+                    # First of all: check if job failed and in this case take first actions according to error table
+                    source, error_code, error_diag = None, None, None
+                    if self.job.pilotErrorCode:
+                        source = 'pilotErrorCode'
+                        error_code = self.job.pilotErrorCode
+                        error_diag = self.job.pilotErrorDiag
+                    elif self.job.exeErrorCode:
+                        source = 'exeErrorCode'
+                        error_code = self.job.exeErrorCode
+                        error_diag = self.job.exeErrorDiag
+                    elif self.job.ddmErrorCode:
+                        source = 'ddmErrorCode'
+                        error_code = self.job.ddmErrorCode
+                        error_diag = self.job.ddmErrorDiag
+            
+                    _logger.debug("updatejob has source %s, error_code %s and error_diag %s"%(source, error_code, error_diag))
+                    
+                    if source and error_code:
                         try:
                             self.logger.debug("AdderGen.run will call apply_retrial_rules")
                             retryModule.apply_retrial_rules(self.taskBuffer, self.job.PandaID, 'ddmErrorCode', self.job.ddmErrorCode, self.job.ddmErrorDiag, self.job.attemptNr)

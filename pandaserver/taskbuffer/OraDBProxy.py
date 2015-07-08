@@ -15313,28 +15313,16 @@ class DBProxy:
         _logger.debug("Loaded retrial rules from DB: %s" %retrial_rules)
         return retrial_rules
     
-    def setMaxAttempt(self, jobID, files, maxAttempt):
+    def setMaxAttempt(self, jobID, taskID, files, maxAttempt):
         #Logging
         comment = ' /* DBProxy.blockRetries */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         tmpLog = LogWrapper(_logger,methodName)
         tmpLog.debug("start")
         
-        varMap = {}
-        varMap[':maxAttempt'] = maxAttempt
-        varMap[':jobID'] = jobID
-        
-        #Update the job entry
-        sql  = """
-        UPDATE ATLAS_PANDA.jobsActive4 
-        SET maxAttempt = :maxAttempt 
-        WHERE PandaID = :jobID
-        """
-        self.cur.execute(sql+comment, varMap)
-        
         #Update the file entries to avoid JEDI generating new jobs
         #fileIDs = [pandafile.fileID for pandafile in files]
-        input_files = filter(lambda pandafile: pandafile.type == 'input', files)
+        input_files = filter(lambda pandafile: pandafile.type in ('input', 'pseudo_input'), files)
         input_fileIDs = [input_file.fileID for input_file in input_files]
         
         if input_fileIDs:
@@ -15343,10 +15331,14 @@ class DBProxy:
             sql  = """
             UPDATE ATLAS_PANDA.JEDI_Dataset_Contents 
             SET maxAttempt=:maxAttempt
-            WHERE fileID in (%s) 
+            WHERE JEDITaskID = :taskID 
+            AND fileID in (%s) 
             """ %(input_fileIDs_string)
             varMap = {}
             varMap[':maxAttempt'] = maxAttempt
+            varMap[':taskID'] = taskID
+            
+            self.cur.execute(sql+comment, varMap)
         
         #Commit updates
         if not self._commit():

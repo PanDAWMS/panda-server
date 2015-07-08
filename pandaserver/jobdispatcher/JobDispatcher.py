@@ -232,31 +232,8 @@ class JobDipatcher:
 
     # update job status
     def updateJob(self, jobID, jobStatus, timeout, xml, siteName, param, metadata, attemptNr=None, stdout=''):
-        
-        _logger.debug("entered updateJob with params %s" % ([jobID,jobStatus,timeout,xml,siteName,param,metadata,attemptNr]))
-        
-        # First of all: check if job failed and in this case take first actions according to error table
-        source, error_code, error_diag = None, None, None
-        if param.has_key('pilotErrorCode'):
-            source = 'pilotErrorCode'
-            error_code = param['pilotErrorCode']
-            error_diag = param['pilotErrorDiag']
-        elif param.has_key('exeErrorCode'):
-            source = 'exeErrorCode'
-            error_code = param['exeErrorCode']
-            error_diag = param['exeErrorDiag']
 
-        _logger.debug("updatejob has source %s, error_code %s and error_diag %s"%(source, error_code, error_diag))
-        
-        if jobStatus=='failed' and source and error_code:
-            _logger.debug("updatejob will call apply_retrial_rules")
-            try:
-                retryModule.apply_retrial_rules(self.taskBuffer, jobID, source, error_code, error_diag, attemptNr)
-                _logger.debug("updatejob back from apply_retrial_rules")
-            except Exception as e:
-                _logger.debug("apply_retrial_rules excepted and needs to be investigated (%s)"%(e))
-        
-        
+        _logger.debug("entered updateJob with params %s" % ([jobID,jobStatus,timeout,xml,siteName,param,metadata,attemptNr]))
         # recoverable error for ES merge
         recoverableEsMerge = False
         if 'pilotErrorCode' in param and param['pilotErrorCode'] in ['1224']:
