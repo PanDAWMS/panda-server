@@ -46,16 +46,16 @@ def timeit(method):
     return timed
 
 
-def safe_search(pattern, message):
+def safe_match(pattern, message):
     """Wrapper around re.search with simple exception handling
     """
-    found = False
+    matches = False
     try:
-        found = re.search(pattern, message)
+        matches = re.match(pattern, message)
     except ReError:
         _logger.debug("Regexp matching excepted. \nPattern: %s \nString: %s" %(pattern, message))
     finally:
-        return found
+        return matches
 
 
 def conditions_apply(errordiag_job, architecture_job, release_job, wqid_job, errordiag_rule, architecture_rule, release_rule, wqid_rule):
@@ -63,7 +63,7 @@ def conditions_apply(errordiag_job, architecture_job, release_job, wqid_job, err
     only in case the attributes are defined for the rule
     """
     _logger.debug("Entered conditions_apply %s"%(locals()))
-    if ((errordiag_rule and not safe_search(errordiag_rule, errordiag_job))
+    if ((errordiag_rule and not safe_match(errordiag_rule, errordiag_job))
         or (architecture_rule and architecture_rule != architecture_job) 
         or (release_rule and release_rule != release_job)
         or (wqid_rule and wqid_rule != wqid_job)):
