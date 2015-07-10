@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * added taskID to getJob
   * introduced prio limit in shares with throttled
   * changed code=51 to force-kill
   * fixed ppEvent for catchall=None

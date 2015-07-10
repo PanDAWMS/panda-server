@@ -2585,7 +2585,7 @@ class DBProxy:
         
     # get jobs
     def getJobs(self,nJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-                atlasRelease,prodUserID,countryGroup,workingGroup,allowOtherCountry):
+                atlasRelease,prodUserID,countryGroup,workingGroup,allowOtherCountry,taskID):
         comment = ' /* DBProxy.getJobs */'
         # use memcache
         useMemcache = False
@@ -2667,6 +2667,10 @@ class DBProxy:
                 compactDN = prodUserID
             sql1+= "AND prodUserName=:prodUserName " 
             getValMap[':prodUserName'] = compactDN
+        # taskID
+        if taskID != None:
+            sql1+= "AND jediTaskID=:taskID "
+            getValMap[':taskID'] = taskID
         # country group
         specialHandled = False
         if prodSourceLabel == 'user':

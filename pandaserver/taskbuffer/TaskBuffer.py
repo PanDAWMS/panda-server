@@ -620,12 +620,14 @@ class TaskBuffer:
     
     # get jobs
     def getJobs(self,nJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-                atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry):
+                atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry,
+                taskID):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get waiting jobs
         jobs,nSent = proxy.getJobs(nJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-                                   atlasRelease,prodUserID,countryGroup,workingGroup,allowOtherCountry)
+                                   atlasRelease,prodUserID,countryGroup,workingGroup,allowOtherCountry,
+                                   taskID)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # get Proxy Key
