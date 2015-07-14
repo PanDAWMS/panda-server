@@ -9360,7 +9360,7 @@ class DBProxy:
                             if '*' in tmpShareDef['policy']['group']:
                                 # using wild card
                                 tmpPattern = '^' + tmpShareDef['policy']['group'].replace('*','.*') + '$'
-                                if workingGroup != None and re.search(tmpPattern,workingGroup) == None:
+                                if workingGroup == None or re.search(tmpPattern,workingGroup) == None:
                                     continue
                             else:
                                 if tmpShareDef['policy']['group'] != workingGroup:
@@ -9575,6 +9575,8 @@ class DBProxy:
                                 continue
                             for tmpGroup in workingGroupInQueueMap[tmpGroupIdx]:
                                 if tmpGroup in groupUsedInClause:
+                                    continue
+                                if tmpGroup == None:
                                     continue
                                 # add AND at the first WG
                                 if groupUsedInClause == []:
