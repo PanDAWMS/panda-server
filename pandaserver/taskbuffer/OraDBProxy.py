@@ -1347,9 +1347,11 @@ class DBProxy:
                         _logger.debug("archiveJob : %s retry : %s" % (job.PandaID,iTry))                
                         time.sleep(random.randint(10,20))
                         continue
-                type, value, traceBack = sys.exc_info()
-                _logger.error("archiveJob : %s" % job.PandaID)
-                _logger.error("archiveJob : %s %s" % (type,value))
+                errtype,errvalue = sys.exc_info()[:2]
+                errStr = "archiveJob %s : %s %s" % (job.PandaID,errtype,errvalue) 
+                errStr.strip()
+                errStr += traceback.format_exc()
+                _logger.error(errStr)
                 if not useCommit:
                     raise RuntimeError, 'archiveJob failed'
                 return False,[],0,None
@@ -1802,7 +1804,7 @@ class DBProxy:
                                 lockedby == 'jedi' and self.checkTaskStatusJEDI(jediTaskID,self.cur):
                             # SQL to get file list from Panda
                             sqlJediFP  = "SELECT datasetID,fileID,attemptNr FROM ATLAS_PANDA.filesTable4 "
-                            sqlJediFP += "WHERE PandaID=:pandaID AND type IN (:type1,:type2) "
+                            sqlJediFP += "WHERE PandaID=:pandaID AND type IN (:type1,:type2) ORDER BY datasetID,fileID "
                             # SQL to check JEDI files
                             sqlJediFJ  = "SELECT 1 FROM ATLAS_PANDA.JEDI_Dataset_Contents "
                             sqlJediFJ += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
@@ -1870,6 +1872,16 @@ class DBProxy:
                                 varMap[':ngType2']    = 'trn_output'
                                 _logger.debug(sqlJediDU+comment+str(varMap))
                                 self.cur.execute(sqlJediDU+comment, varMap)
+                        # update lastStart
+                        if oldJobStatus in ('starting','sent') and jobStatus=='running':
+                            sqlLS  = "UPDATE ATLAS_PANDAMETA.siteData SET lastStart=CURRENT_DATE "
+                            sqlLS += "WHERE site=:site AND hours=:hours AND flag IN (:flag1,:flag2) "
+                            varMap = {}
+                            varMap[':site'] = computingSite
+                            varMap[':hours'] = 3
+                            varMap[':flag1'] = 'production'
+                            varMap[':flag2'] = 'analysis'
+                            self.cur.execute(sqlLS+comment, varMap)
                 else:
                     _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s notFound" % (pandaID,attemptNr))
                     # already deleted or bad attempt number
@@ -9187,6 +9199,7 @@ class DBProxy:
             # definition for fareshare
             usingGroup = self.faresharePolicy[siteName]['usingGroup'] 
             usingType  = self.faresharePolicy[siteName]['usingType'] 
+            usingID    = self.faresharePolicy[siteName]['usingID']
             usingPrio  = self.faresharePolicy[siteName]['usingPrio']
             usingCloud = self.faresharePolicy[siteName]['usingCloud']
             shareDefList   = []
@@ -9200,6 +9213,8 @@ class DBProxy:
                 sqlH += 'workingGroup,'
             if usingType:
                 sqlH += 'processingType,'
+            if usingID:
+                sqlH += 'workqueue_id,'
             if usingPrio:
                 sqlH += 'currentPriority,'
             sqlH += "SUM(num_of_jobs),MAX(currentPriority) FROM ATLAS_PANDA.MV_JOBSACTIVE4_STATS "
@@ -9223,6 +9238,8 @@ class DBProxy:
                 sqlT += ',workingGroup'
             if usingType:
                 sqlT += ',processingType'
+            if usingID:
+                sqlT += ',workqueue_id'
             if usingPrio:
                 sqlT += ',currentPriority'
             # set autocommit on
@@ -9293,6 +9310,9 @@ class DBProxy:
                 else:
                     processingType = None
                     processGroup = None
+                if usingID:
+                    workqueue_id = tmpItem[tmpIdx]
+                    tmpIdx += 1
                 if usingPrio:
                     currentPriority = tmpItem[tmpIdx]
                     tmpIdx += 1
@@ -9312,12 +9332,14 @@ class DBProxy:
                     # use different list based on usage of priority
                     if tmpShareDef['policy']['priority'] == None:
                         groupInDefList = self.faresharePolicy[siteName]['groupList']
-                        typeInDefList  = self.faresharePolicy[siteName]['typeList'][tmpShareDef['policy']['group']] 
+                        typeInDefList  = self.faresharePolicy[siteName]['typeList'][tmpShareDef['policy']['group']]
+                        idInDefList    = self.faresharePolicy[siteName]['idList']
                     else:
                         groupInDefList = self.faresharePolicy[siteName]['groupListWithPrio']
                         typeInDefList  = self.faresharePolicy[siteName]['typeListWithPrio'][tmpShareDef['policy']['group']]
+                        idInDefList    = self.faresharePolicy[siteName]['idListWithPrio']
                     # check working group
-                    if usingGroup:
+                    if usingGroup and not usingID:
                         if tmpShareDef['policy']['group'] == None:
                             # catchall doesn't contain WGs used by other policies
                             if workingGroup != None and workingGroup in groupInDefList:
@@ -9328,7 +9350,7 @@ class DBProxy:
                                 if '*' in tmpPattern:
                                     tmpPattern = '^' + tmpPattern.replace('*','.*') + '$'
                                     # don't use WG if it is included in other policies
-                                    if re.search(tmpPattern,workingGroup) != None:
+                                    if workingGroup != None and re.search(tmpPattern,workingGroup) != None:
                                         toBeSkippedFlag = True
                                         break
                             if toBeSkippedFlag:
@@ -9338,7 +9360,7 @@ class DBProxy:
                             if '*' in tmpShareDef['policy']['group']:
                                 # using wild card
                                 tmpPattern = '^' + tmpShareDef['policy']['group'].replace('*','.*') + '$'
-                                if re.search(tmpPattern,workingGroup) == None:
+                                if workingGroup != None and re.search(tmpPattern,workingGroup) == None:
                                     continue
                             else:
                                 if tmpShareDef['policy']['group'] != workingGroup:
@@ -9349,7 +9371,7 @@ class DBProxy:
                             if not workingGroup in workingGroupInQueueMap[tmpShareDef['policy']['group']]:
                                 workingGroupInQueueMap[tmpShareDef['policy']['group']].append(workingGroup)
                     # check processingType
-                    if usingType:
+                    if usingType and not usingID:
                         if tmpShareDef['policy']['type'] == None:
                             # catchall doesn't contain processGroups used by other policies
                             if processGroup != None and processGroup in typeInDefList:
@@ -9357,6 +9379,14 @@ class DBProxy:
                         else:
                             # needs to be matched if it is specified in the policy
                             if tmpShareDef['policy']['type'] != processGroup:
+                                continue
+                    # check workqueue_id
+                    if usingID:
+                        if tmpShareDef['policy']['id'] == None:
+                            if workqueue_id != None and workqueue_id in idInDefList:
+                                continue
+                        else:
+                            if tmpShareDef['policy']['id'] != workqueue_id:
                                 continue
                     # check priority    
                     if usingPrio:
@@ -9616,11 +9646,43 @@ class DBProxy:
                             tmpIdx += 1
                         retStr = retStr[:-1]
                         retStr += ') '
+                # workqueue_id
+                if tmpShareDef['id'] == None:
+                    idInDefList  = self.faresharePolicy[siteName]['idList']
+                    # catch all except IDs used by other policies
+                    if idInDefList != []:
+                        # get the list of processingTypes from the list of processGroups
+                        retVarMapP = {}
+                        retStrP = 'AND workqueue_id NOT IN ('
+                        tmpIdx  = 0
+                        for tmpID in idInDefList:
+                            tmpKey = ':shareID%s' % tmpIdx
+                            retVarMapP[tmpKey] = tmpID
+                            retStrP += '%s,' % tmpKey
+                            tmpIdx += 1
+                        retStrP = retStrP[:-1]
+                        retStrP += ') '
+                        # copy
+                        if retVarMapP != {}:
+                            retStr += retStrP
+                            for tmpKey,tmpType in retVarMapP.iteritems():
+                                retVarMap[tmpKey] = tmpType
+                else:
+                    # match with one ID
+                    retStr += 'AND workqueue_id IN ('
+                    tmpIdx = 0
+                    tmpKey = ':shareID%s' % tmpIdx
+                    retVarMap[tmpKey] = tmpShareDef['id']
+                    retStr += '%s,' % tmpKey
+                    tmpIdx += 1
+                    retStr = retStr[:-1]
+                    retStr += ') '
             # priority
             tmpIdx = 0
             for tmpDefItem in prioToBeImposed:
                 if tmpDefItem['group'] in [None,tmpShareDef['group']] and \
-                   tmpDefItem['type'] in [None,tmpShareDef['type']]:
+                   tmpDefItem['type'] in [None,tmpShareDef['type']] and \
+                   tmpDefItem['id'] in [None,tmpShareDef['id']]:
                     if tmpDefItem['prioCondition'] == '>':
                         retStrP = '<='
                     elif tmpDefItem['prioCondition'] == '>=':
@@ -9650,7 +9712,10 @@ class DBProxy:
             return retStr,retVarMap
         except:
             errtype,errvalue = sys.exc_info()[:2]
-            _logger.error("getCriteriaForProdShare %s : %s %s" % (siteName,errtype,errvalue))
+            errStr = "getCriteriaForProdShare %s : %s %s" % (siteName,errtype,errvalue)
+            errStr.strip()
+            errStr += traceback.format_exc()
+            _logger.error(errStr)
             # roll back
             self._rollback()
             return retForNone
@@ -9804,6 +9869,18 @@ class DBProxy:
                             tmpPolicy['prioCondition'] = tmpMatch.group(1)
                         else:
                             hasNonPrioPolicy = True
+                        # workqueue_ID
+                        tmpPolicy['id'] = None
+                        tmpMatch = re.search('id=([^:]+)',tmpItem)
+                        if tmpMatch != None:
+                            if tmpMatch.group(1) in ['*','any']:
+                                # use None for catchall
+                                pass
+                            else:
+                                try:
+                                    tmpPolicy['id'] = int(tmpMatch.group(1))
+                                except:
+                                    pass
                         # share
                         tmpPolicy['share'] = tmpItem.split(':')[-1]
                         # append
@@ -9815,6 +9892,7 @@ class DBProxy:
                         tmpPolicy = {'name'          : 'type=any',
                                      'group'         : None,
                                      'type'          : None,
+                                     'id'            : None,
                                      'priority'      : None,
                                      'prioCondition' : None,
                                      'share'         : '100%'}
@@ -9822,12 +9900,15 @@ class DBProxy:
                     # some translation
                     faresharePolicy[siteid]['usingGroup'] = False
                     faresharePolicy[siteid]['usingType']  = False
+                    faresharePolicy[siteid]['usingID']    = False
                     faresharePolicy[siteid]['usingPrio']  = False
                     faresharePolicy[siteid]['usingCloud'] = usingCloudShare
                     faresharePolicy[siteid]['groupList']  = []
                     faresharePolicy[siteid]['typeList']   = {}
+                    faresharePolicy[siteid]['idList']     = []
                     faresharePolicy[siteid]['groupListWithPrio']  = []
                     faresharePolicy[siteid]['typeListWithPrio']   = {}
+                    faresharePolicy[siteid]['idListWithPrio']     = []
                     for tmpDefItem in faresharePolicy[siteid]['policyList']:
                         # using WG
                         if tmpDefItem['group'] != None:
@@ -9835,6 +9916,9 @@ class DBProxy:
                         # using PG    
                         if tmpDefItem['type'] != None:
                             faresharePolicy[siteid]['usingType'] = True
+                        # using workqueue_ID
+                        if tmpDefItem['id'] != None:
+                            faresharePolicy[siteid]['usingID'] = True
                         # using prio    
                         if tmpDefItem['priority'] != None:
                             faresharePolicy[siteid]['usingPrio'] = True
@@ -9848,6 +9932,9 @@ class DBProxy:
                                 faresharePolicy[siteid]['typeList'][tmpDefItem['group']] = []
                             if tmpDefItem['type'] != None and not tmpDefItem['type'] in faresharePolicy[siteid]['typeList'][tmpDefItem['group']]:
                                 faresharePolicy[siteid]['typeList'][tmpDefItem['group']].append(tmpDefItem['type'])
+                            # get list of workqueue_ids
+                            if tmpDefItem['id'] != None and not tmpDefItem['id'] in faresharePolicy[siteid]['idList']:
+                                faresharePolicy[siteid]['idList'].append(tmpDefItem['id'])
                         else:
                             # get list of woringGroups
                             if tmpDefItem['group'] != None and not tmpDefItem['group'] in faresharePolicy[siteid]['groupListWithPrio']:
@@ -9857,6 +9944,9 @@ class DBProxy:
                                 faresharePolicy[siteid]['typeListWithPrio'][tmpDefItem['group']] = []
                             if tmpDefItem['type'] != None and not tmpDefItem['type'] in faresharePolicy[siteid]['typeListWithPrio'][tmpDefItem['group']]:
                                 faresharePolicy[siteid]['typeListWithPrio'][tmpDefItem['group']].append(tmpDefItem['type'])
+                            # get list of workqueue_ids
+                            if tmpDefItem['id'] != None and not tmpDefItem['id'] in faresharePolicy[siteid]['idListWithPrio']:
+                                faresharePolicy[siteid]['idListWithPrio'].append(tmpDefItem['id'])
                 except:
                     errtype,errvalue = sys.exc_info()[:2]                    
                     _logger.warning("getFaresharePolicy : wrond definition '%s' for %s : %s %s" % (faresharePolicy,siteid,errtype,errvalue))                    
