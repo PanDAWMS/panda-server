@@ -1,5 +1,6 @@
 import re
 import sys
+import json
 import types
 import shlex
 import datetime
@@ -2486,7 +2487,7 @@ class TaskBuffer:
 
 
 
-    # get a list of even ranges for a PandaID
+    # update an even range
     def updateEventRange(self,eventRangeID,eventStatus,cpuCore,cpuConsumptionTime):
         # get proxy
         proxy = self.proxyPool.getProxy()
@@ -2496,6 +2497,40 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         # return
         return ret
+
+
+
+    # update even ranges
+    def updateEventRanges(self,eventRanges):
+        # decode json
+        try:
+            eventRanges = json.loads(eventRanges)
+        except:
+            return json.dumps("ERROR : failed to convert eventRanges with json")
+        retList = []
+        for eventRange in eventRanges:
+            # extract parameters
+            try:
+                eventRangeID = eventRange['eventRangeID']
+                eventStatus = eventRange['eventStatus']
+                cpuCore = None
+                if 'cpuCore' in eventRange:
+                    cpuCore = eventRange['cpuCore']
+                cpuConsumptionTime = None
+                if 'cpuConsumptionTime' in eventRange:
+                    cpuConsumptionTime = eventRange['cpuConsumptionTime']
+            except:
+                retList.append(False)
+                continue
+            # get proxy
+            proxy = self.proxyPool.getProxy()
+            # exec
+            ret = proxy.updateEventRange(eventRangeID,eventStatus,cpuCore,cpuConsumptionTime)
+            # release proxy
+            self.proxyPool.putProxy(proxy)
+            retList.append(ret)
+        # return
+        return json.dumps(retList)
 
 
 

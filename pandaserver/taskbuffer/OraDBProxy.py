@@ -13488,7 +13488,7 @@ class DBProxy:
                 return False
             # map string status to int
             if eventStatus == 'running':
-                intEventStatus = EventServiceUtils.running
+                intEventStatus = EventServiceUtils.ST_running
             elif eventStatus == 'finished':
                 intEventStatus = EventServiceUtils.ST_finished
             elif eventStatus == 'failed':

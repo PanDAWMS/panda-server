@@ -389,6 +389,24 @@ class JobDipatcher:
         return response.encode()
 
 
+    # update event ranges
+    def updateEventRanges(self,eventRanges,timeout):
+        # peek jobs
+        tmpWrapper = _TimedMethod(self.taskBuffer.updateEventRanges,timeout)
+        tmpWrapper.run(eventRanges)
+        # make response
+        if tmpWrapper.result == Protocol.TimeOutToken:
+            # timeout
+            response=Protocol.Response(Protocol.SC_TimeOut)
+        else:
+            # succeed
+            response=Protocol.Response(Protocol.SC_Success)
+            # make return                                                                                                                                              
+            response.appendNode('Returns',tmpWrapper.result)
+        _logger.debug("updateEventRanges : ret -> %s" % (response.encode()))
+        return response.encode()
+
+
     # get DN/token map
     def getDnTokenMap(self):
         # get current datetime
@@ -807,6 +825,18 @@ def updateEventRange(req,eventRangeID,eventStatus,coreCount=None,cpuConsumptionT
         _logger.error(tmpStr+'failed with '+tmpOut)
         #return tmpOut
     return jobDispatcher.updateEventRange(eventRangeID,eventStatus,coreCount,cpuConsumptionTime,int(timeout))
+
+
+
+# update an event ranges
+def updateEventRanges(req,eventRanges,timeout=120):
+    tmpStr = "updateEventRange(%s)" % eventRanges
+    _logger.debug(tmpStr+' start')
+    tmpStat,tmpOut = checkPilotPermission(req)
+    if not tmpStat:
+        _logger.error(tmpStr+'failed with '+tmpOut)
+        #return tmpOut
+    return jobDispatcher.updateEventRanges(eventRanges,int(timeout))
 
 
 

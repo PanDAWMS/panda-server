@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * added updateEventRanges
   * using rucio API instead of DaTRI
   * updating lastStart
   * id in fairshare
