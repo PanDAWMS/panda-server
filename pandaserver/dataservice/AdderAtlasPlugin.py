@@ -18,7 +18,7 @@ from dq2.filecatalog.FileCatalogUnknownFactory import FileCatalogUnknownFactory
 from dq2.filecatalog.FileCatalogException import FileCatalogException
 from rucio.common.exception import FileConsistencyMismatch,DataIdentifierNotFound,UnsupportedOperation,InvalidPath
 
-from DDM import rucioAPI
+from DDM import rucioAPI,dq2Common,dq2Info
 
 try:
     from dq2.clientapi.cli import Register2
@@ -596,58 +596,27 @@ class AdderAtlasPlugin (AdderPluginBase):
             # send request
             if tmpTopDatasets != {} and self.jobStatus == 'finished':
                 try:
-                    from datriHandler import datriHandler
-                    if self.job.lockedby.startswith('Ganga'):
-                        tmpHandler = datriHandler(type='ganga')
-                    else:
-                        tmpHandler = datriHandler(type='pathena')
+                    status,tmpDN = dq2Common.parse_dn(tmpDN)
+                    status,strUserInfo = dq2Info.finger(tmpDN)
+                    exec "userInfo=%s" % strUserInfo
+                    tmpDN = userInfo['nickname']
                     # loop over all output datasets
                     for tmpDsName,dq2IDlist in tmpTopDatasets.iteritems():
                         for tmpDQ2ID in dq2IDlist:
                             if tmpDQ2ID == 'NULL':
                                 continue
-                            tmpMsg = "%s %s ds=%s site=%s id=%s" % (self.jobID,'datriHandler.sendRequest',
-                                                                    tmpDsName,tmpDQ2ID,tmpDN)
+                            tmpMsg = "registerDatasetLocation for DaTRI ds=%s site=%s id=%s" % (tmpDsName,tmpDQ2ID,tmpDN)
                             self.logger.debug(tmpMsg)
-                            tmpHandler.setParameters(data_pattern=tmpDsName,
-                                                     site=tmpDQ2ID,
-                                                     userid=tmpDN)
-                            # number of retry
-                            nTry = 1
-                            for iTry in range(nTry):
-                                dhStatus,dhOut = tmpHandler.sendRequest()
-                                # succeeded
-                                if dhStatus == 0 or "such request is exist" in dhOut:
-                                    self.logger.debug("%s %s" % (dhStatus,dhOut))
-                                    break
-                                # faital errors
-                                if "No input data or input data is incorrect" in dhOut:
-                                    tmpMsg = "datriHandler failed with %s %s" % (dhStatus,dhOut)
-                                    self.logger.error(tmpMsg)
-                                    self.job.ddmErrorCode = ErrorCode.EC_Adder
-                                    self.job.ddmErrorDiag = "DaTRI failed for %s with %s %s" % (tmpDsName,dhStatus,dhOut)
-                                    return 0
-                                # retry
-                                if iTry+1 < nTry:
-                                    # sleep
-                                    time.sleep(10)
-                                else:
-                                    # final attempt failed
-                                    tmpMsg = "datriHandler failed with %s %s" % (dhStatus,dhOut)
-                                    self.logger.error(tmpMsg)
-                                    self.job.ddmErrorCode = ErrorCode.EC_Adder
-                                    self.job.ddmErrorDiag = "DaTRI failed for %s with %s %s" % (tmpDsName,dhStatus,dhOut)
-                                    return 0
+                            rucioAPI.registerDatasetLocation(tmpDsName,[tmpDQ2ID],owner=tmpDN)
                     # set dataset status
                     for tmpName,tmpVal in subMap.iteritems():
                         self.datasetMap[tmpName].status = 'running'
                 except:
                     errType,errValue = sys.exc_info()[:2]
-                    tmpMsg = "datriHandler failed with %s %s" % (errType,errValue)
+                    tmpMsg = "registerDatasetLocation failed with %s %s" % (errType,errValue)
                     self.logger.error(tmpMsg)
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
                     self.job.ddmErrorDiag = "DaTRI failed with %s %s" % (errType,errValue)
-                    return 0
         # collect list of merging files
         if self.goToMerging and not self.jobStatus in ['failed','cancelled']:
             for tmpFileList in idMap.values():
