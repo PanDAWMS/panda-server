@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * added converRSE for PRODDISK retirement
   * added updateEventRanges
   * using rucio API instead of DaTRI
   * updating lastStart

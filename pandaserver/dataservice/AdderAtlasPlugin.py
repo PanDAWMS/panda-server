@@ -11,6 +11,7 @@ import fcntl
 import datetime
 import commands
 import exceptions
+import traceback
 import xml.dom.minidom
 import ErrorCode
 from dq2.clientapi import DQ2
@@ -211,11 +212,14 @@ class AdderAtlasPlugin (AdderPluginBase):
                             raise TypeError,"{0} has SURL=None".format(file.lfn)
                         # get destination
                         if not dsDestMap.has_key(file.destinationDBlock):
+                            toConvert = True
                             if file.destinationDBlockToken in ['',None,'NULL']:
                                 tmpDestList = [self.siteMapper.getSite(self.job.computingSite).ddm]
                             elif DataServiceUtils.getDestinationSE(file.destinationDBlockToken) != None and \
                                     self.siteMapper.getSite(self.job.computingSite).ddm == self.siteMapper.getSite(file.destinationSE).ddm:
                                 tmpDestList = [DataServiceUtils.getDestinationSE(file.destinationDBlockToken)]
+                                # RSE is specified
+                                toConvert = False
                             elif self.siteMapper.getSite(self.job.computingSite).cloud != self.job.cloud and \
                                     (not self.siteMapper.getSite(self.job.computingSite).ddm.endswith('PRODDISK')) and  \
                                     (not self.job.prodSourceLabel in ['user','panda']):
@@ -231,6 +235,17 @@ class AdderAtlasPlugin (AdderPluginBase):
                                         tmpDest = self.siteMapper.getSite(self.job.computingSite).ddm
                                     if not tmpDest in tmpDestList:
                                         tmpDestList.append(tmpDest)
+                            # temporay conversion from DATADISK to PRODDISK for PRODDISK retirement
+                            if toConvert:
+                                try:
+                                    convDestList = self.convertRSE(tmpDestList,fileAttrs['surl'])
+                                    self.logger.debug("RSEs %s->%s %s" % (str(tmpDestList),
+                                                                          str(convDestList),
+                                                                          tmpDestList == convDestList))
+                                    tmpDestList = convDestList
+                                except:
+                                    self.logger.error("%s : " % self.jobID + traceback.format_exc())
+                            # add
                             dsDestMap[file.destinationDBlock] = tmpDestList
                     # extra meta data
                     if self.ddmBackEnd == 'rucio':
@@ -725,3 +740,30 @@ class AdderAtlasPlugin (AdderPluginBase):
         # succeeded    
         self.logger.debug("removeUnmerged end")
         return True
+
+
+    # conversion from DATADISK to PRODDISK for PRODDISK retirement
+    def convertRSE(self,tmpDestList,surl):
+        newDestList = []
+        siteSpec = self.siteMapper.getSite(self.job.computingSite)
+        # loop over all RSEs
+        for tmpDest in tmpDestList:
+            newDest = None
+            if tmpDest.endswith('DATADISK') or tmpDest.endswith('PRODDISK'):
+                for tmpSeToken,tmpSePath in siteSpec.seprodpath.iteritems():
+                    if re.search(tmpSePath,surl) != None:
+                        if tmpSeToken in siteSpec.setokens:
+                            newDest = siteSpec.setokens[tmpSeToken]
+                        break
+                # use counterpart
+                if newDest == None:
+                    if tmpDest.endswith('DATADISK'):
+                        newDest = tmpDest.replace('DATADISK','PRODDISK')
+                    else:
+                        newDest = tmpDest.replace('PRODDISK','DATADISK')
+            # use old one
+            if newDest == None:
+                newDest = tmpDest
+            newDestList.append(newDest)
+        # return
+        return newDestList

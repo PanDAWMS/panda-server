@@ -183,7 +183,7 @@ def setHeaderForJobCloning(specialHandling,scType):
 # get consumer type
 def getJobCloningType(job):
     if job.specialHandling != None:
-        for token in specialHandling.split(','):
+        for token in job.specialHandling.split(','):
             if singleToken == token.split(':')[0]:
                 for tmpKey,tmpVal in singleConsumerType.iteritems():
                     if tmpVal == token.split(':')[-1]:
