@@ -1,5 +1,6 @@
 import re
 import sys
+import json
 import types
 import shlex
 import datetime
@@ -620,12 +621,14 @@ class TaskBuffer:
     
     # get jobs
     def getJobs(self,nJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-                atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry):
+                atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry,
+                taskID):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get waiting jobs
         jobs,nSent = proxy.getJobs(nJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-                                   atlasRelease,prodUserID,countryGroup,workingGroup,allowOtherCountry)
+                                   atlasRelease,prodUserID,countryGroup,workingGroup,allowOtherCountry,
+                                   taskID)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # get Proxy Key
@@ -1108,7 +1111,7 @@ class TaskBuffer:
                 tmpSplitter.whitespace_split = True
                 # loop for params
                 for tmpItem in tmpSplitter:
-                    tmpMatch = re.search('^([^=]+=)(.+)$',tmpItem)
+                    tmpMatch = re.search('^(-[^=]+=)(.+)$',tmpItem)
                     if tmpMatch != None:
                         tmpArgName = tmpMatch.group(1)
                         tmpArgVal  = tmpMatch.group(2)
@@ -2472,11 +2475,11 @@ class TaskBuffer:
 
 
     # get a list of even ranges for a PandaID
-    def getEventRanges(self,pandaID,jobsetID,nRanges):
+    def getEventRanges(self,pandaID,jobsetID,jediTaskID,nRanges):
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.getEventRanges(pandaID,jobsetID,nRanges)
+        ret = proxy.getEventRanges(pandaID,jobsetID,jediTaskID,nRanges)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -2484,7 +2487,7 @@ class TaskBuffer:
 
 
 
-    # get a list of even ranges for a PandaID
+    # update an even range
     def updateEventRange(self,eventRangeID,eventStatus,cpuCore,cpuConsumptionTime):
         # get proxy
         proxy = self.proxyPool.getProxy()
@@ -2494,6 +2497,40 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         # return
         return ret
+
+
+
+    # update even ranges
+    def updateEventRanges(self,eventRanges):
+        # decode json
+        try:
+            eventRanges = json.loads(eventRanges)
+        except:
+            return json.dumps("ERROR : failed to convert eventRanges with json")
+        retList = []
+        for eventRange in eventRanges:
+            # extract parameters
+            try:
+                eventRangeID = eventRange['eventRangeID']
+                eventStatus = eventRange['eventStatus']
+                cpuCore = None
+                if 'cpuCore' in eventRange:
+                    cpuCore = eventRange['cpuCore']
+                cpuConsumptionTime = None
+                if 'cpuConsumptionTime' in eventRange:
+                    cpuConsumptionTime = eventRange['cpuConsumptionTime']
+            except:
+                retList.append(False)
+                continue
+            # get proxy
+            proxy = self.proxyPool.getProxy()
+            # exec
+            ret = proxy.updateEventRange(eventRangeID,eventStatus,cpuCore,cpuConsumptionTime)
+            # release proxy
+            self.proxyPool.putProxy(proxy)
+            retList.append(ret)
+        # return
+        return json.dumps(retList)
 
 
 
@@ -2751,6 +2788,45 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         # return
         return ret
+
+    # throttle jobs for resource shares
+    def throttleJobsForResourceShare(self,site):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.throttleJobsForResourceShare(site)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
+    # activate jobs for resource shares
+    def activateJobsForResourceShare(self,site,nJobsPerQueue):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.activateJobsForResourceShare(site,nJobsPerQueue)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
+    # add associate sub datasets for single consumer job
+    def getDestDBlocksWithSingleConsumer(self,jediTaskID,PandaID,ngDatasets):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getDestDBlocksWithSingleConsumer(jediTaskID,PandaID,ngDatasets)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
 
 # Singleton
 taskBuffer = TaskBuffer()

@@ -11,14 +11,15 @@ import fcntl
 import datetime
 import commands
 import exceptions
+import traceback
 import xml.dom.minidom
 import ErrorCode
 from dq2.clientapi import DQ2
 from dq2.filecatalog.FileCatalogUnknownFactory import FileCatalogUnknownFactory
 from dq2.filecatalog.FileCatalogException import FileCatalogException
-from rucio.common.exception import FileConsistencyMismatch,DataIdentifierNotFound,UnsupportedOperation
+from rucio.common.exception import FileConsistencyMismatch,DataIdentifierNotFound,UnsupportedOperation,InvalidPath
 
-from DDM import rucioAPI
+from DDM import rucioAPI,dq2Common,dq2Info
 
 try:
     from dq2.clientapi.cli import Register2
@@ -133,8 +134,9 @@ class AdderAtlasPlugin (AdderPluginBase):
                 # failed jobs
                 if self.job.prodSourceLabel in ['managed','test']:
                     self.logTransferring = True
-            elif self.job.jobStatus == 'finished' and EventServiceUtils.isEventServiceJob(self.job):
-                # transfer only log file for ES jobs 
+            elif self.job.jobStatus == 'finished' and EventServiceUtils.isEventServiceJob(self.job) \
+                    and not EventServiceUtils.isJobCloningJob(self.job):
+                # transfer only log file for normal ES jobs 
                 self.logTransferring = True
             else:
                 self.goToTransferring = True
@@ -184,7 +186,8 @@ class AdderAtlasPlugin (AdderPluginBase):
                 if self.jobStatus == 'failed' and file.type != 'log':
                     continue
                 # add only log file for successful ES jobs
-                if self.job.jobStatus == 'finished' and EventServiceUtils.isEventServiceJob(self.job) and file.type != 'log':
+                if self.job.jobStatus == 'finished' and EventServiceUtils.isEventServiceJob(self.job) \
+                        and not EventServiceUtils.isJobCloningJob(self.job) and file.type != 'log':
                     continue
                 try:
                     # fsize
@@ -209,11 +212,14 @@ class AdderAtlasPlugin (AdderPluginBase):
                             raise TypeError,"{0} has SURL=None".format(file.lfn)
                         # get destination
                         if not dsDestMap.has_key(file.destinationDBlock):
+                            toConvert = True
                             if file.destinationDBlockToken in ['',None,'NULL']:
                                 tmpDestList = [self.siteMapper.getSite(self.job.computingSite).ddm]
                             elif DataServiceUtils.getDestinationSE(file.destinationDBlockToken) != None and \
                                     self.siteMapper.getSite(self.job.computingSite).ddm == self.siteMapper.getSite(file.destinationSE).ddm:
                                 tmpDestList = [DataServiceUtils.getDestinationSE(file.destinationDBlockToken)]
+                                # RSE is specified
+                                toConvert = False
                             elif self.siteMapper.getSite(self.job.computingSite).cloud != self.job.cloud and \
                                     (not self.siteMapper.getSite(self.job.computingSite).ddm.endswith('PRODDISK')) and  \
                                     (not self.job.prodSourceLabel in ['user','panda']):
@@ -229,6 +235,17 @@ class AdderAtlasPlugin (AdderPluginBase):
                                         tmpDest = self.siteMapper.getSite(self.job.computingSite).ddm
                                     if not tmpDest in tmpDestList:
                                         tmpDestList.append(tmpDest)
+                            # temporay conversion from DATADISK to PRODDISK for PRODDISK retirement
+                            if toConvert:
+                                try:
+                                    convDestList = self.convertRSE(tmpDestList,fileAttrs['surl'])
+                                    self.logger.debug("RSEs %s->%s %s" % (str(tmpDestList),
+                                                                          str(convDestList),
+                                                                          tmpDestList == convDestList))
+                                    tmpDestList = convDestList
+                                except:
+                                    self.logger.error("%s : " % self.jobID + traceback.format_exc())
+                            # add
                             dsDestMap[file.destinationDBlock] = tmpDestList
                     # extra meta data
                     if self.ddmBackEnd == 'rucio':
@@ -423,6 +440,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                     RucioFileCatalogException,
                     FileConsistencyMismatch,
                     UnsupportedOperation,
+                    InvalidPath,
                     exceptions.KeyError):
                 # fatal errors
                 errType,errValue = sys.exc_info()[:2]
@@ -570,7 +588,8 @@ class AdderAtlasPlugin (AdderPluginBase):
                 if tmpFile.type in ['log','output']:
                     if self.goToTransferring or (self.logTransferring and tmpFile.type == 'log'):
                         # don't go to tranferring for successful ES jobs 
-                        if self.job.jobStatus == 'finished' and EventServiceUtils.isEventServiceJob(self.job):
+                        if self.job.jobStatus == 'finished' and EventServiceUtils.isEventServiceJob(self.job) \
+                                and not EventServiceUtils.isJobCloningJob(self.job):
                             continue
                         self.result.transferringFiles.append(tmpFile.lfn)
         elif not "--mergeOutput" in self.job.jobParameters:
@@ -592,58 +611,27 @@ class AdderAtlasPlugin (AdderPluginBase):
             # send request
             if tmpTopDatasets != {} and self.jobStatus == 'finished':
                 try:
-                    from datriHandler import datriHandler
-                    if self.job.lockedby.startswith('Ganga'):
-                        tmpHandler = datriHandler(type='ganga')
-                    else:
-                        tmpHandler = datriHandler(type='pathena')
+                    status,tmpDN = dq2Common.parse_dn(tmpDN)
+                    status,strUserInfo = dq2Info.finger(tmpDN)
+                    exec "userInfo=%s" % strUserInfo
+                    tmpDN = userInfo['nickname']
                     # loop over all output datasets
                     for tmpDsName,dq2IDlist in tmpTopDatasets.iteritems():
                         for tmpDQ2ID in dq2IDlist:
                             if tmpDQ2ID == 'NULL':
                                 continue
-                            tmpMsg = "%s %s ds=%s site=%s id=%s" % (self.jobID,'datriHandler.sendRequest',
-                                                                    tmpDsName,tmpDQ2ID,tmpDN)
+                            tmpMsg = "registerDatasetLocation for DaTRI ds=%s site=%s id=%s" % (tmpDsName,tmpDQ2ID,tmpDN)
                             self.logger.debug(tmpMsg)
-                            tmpHandler.setParameters(data_pattern=tmpDsName,
-                                                     site=tmpDQ2ID,
-                                                     userid=tmpDN)
-                            # number of retry
-                            nTry = 1
-                            for iTry in range(nTry):
-                                dhStatus,dhOut = tmpHandler.sendRequest()
-                                # succeeded
-                                if dhStatus == 0 or "such request is exist" in dhOut:
-                                    self.logger.debug("%s %s" % (dhStatus,dhOut))
-                                    break
-                                # faital errors
-                                if "No input data or input data is incorrect" in dhOut:
-                                    tmpMsg = "datriHandler failed with %s %s" % (dhStatus,dhOut)
-                                    self.logger.error(tmpMsg)
-                                    self.job.ddmErrorCode = ErrorCode.EC_Adder
-                                    self.job.ddmErrorDiag = "DaTRI failed for %s with %s %s" % (tmpDsName,dhStatus,dhOut)
-                                    return 0
-                                # retry
-                                if iTry+1 < nTry:
-                                    # sleep
-                                    time.sleep(10)
-                                else:
-                                    # final attempt failed
-                                    tmpMsg = "datriHandler failed with %s %s" % (dhStatus,dhOut)
-                                    self.logger.error(tmpMsg)
-                                    self.job.ddmErrorCode = ErrorCode.EC_Adder
-                                    self.job.ddmErrorDiag = "DaTRI failed for %s with %s %s" % (tmpDsName,dhStatus,dhOut)
-                                    return 0
+                            rucioAPI.registerDatasetLocation(tmpDsName,[tmpDQ2ID],owner=tmpDN)
                     # set dataset status
                     for tmpName,tmpVal in subMap.iteritems():
                         self.datasetMap[tmpName].status = 'running'
                 except:
                     errType,errValue = sys.exc_info()[:2]
-                    tmpMsg = "datriHandler failed with %s %s" % (errType,errValue)
+                    tmpMsg = "registerDatasetLocation failed with %s %s" % (errType,errValue)
                     self.logger.error(tmpMsg)
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
                     self.job.ddmErrorDiag = "DaTRI failed with %s %s" % (errType,errValue)
-                    return 0
         # collect list of merging files
         if self.goToMerging and not self.jobStatus in ['failed','cancelled']:
             for tmpFileList in idMap.values():
@@ -752,3 +740,30 @@ class AdderAtlasPlugin (AdderPluginBase):
         # succeeded    
         self.logger.debug("removeUnmerged end")
         return True
+
+
+    # conversion from DATADISK to PRODDISK for PRODDISK retirement
+    def convertRSE(self,tmpDestList,surl):
+        newDestList = []
+        siteSpec = self.siteMapper.getSite(self.job.computingSite)
+        # loop over all RSEs
+        for tmpDest in tmpDestList:
+            newDest = None
+            if tmpDest.endswith('DATADISK') or tmpDest.endswith('PRODDISK'):
+                for tmpSeToken,tmpSePath in siteSpec.seprodpath.iteritems():
+                    if re.search(tmpSePath,surl) != None:
+                        if tmpSeToken in siteSpec.setokens:
+                            newDest = siteSpec.setokens[tmpSeToken]
+                        break
+                # use counterpart
+                if newDest == None:
+                    if tmpDest.endswith('DATADISK'):
+                        newDest = tmpDest.replace('DATADISK','PRODDISK')
+                    else:
+                        newDest = tmpDest.replace('PRODDISK','DATADISK')
+            # use old one
+            if newDest == None:
+                newDest = tmpDest
+            newDestList.append(newDest)
+        # return
+        return newDestList

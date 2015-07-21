@@ -398,6 +398,29 @@ else:
         thr.join()
         time.sleep(1)
 
+
+# check heartbeat for high prio production jobs
+timeOutVal = 3
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=timeOutVal)
+sql  = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND currentPriority>:pLimit "
+sql += "AND (modificationTime<:modificationTime OR (endTime IS NOT NULL AND endTime<:endTime))"
+varMap = {}
+varMap[':modificationTime'] = timeLimit
+varMap[':endTime'] = timeLimit
+varMap[':jobStatus'] = 'holding'
+varMap[':pLimit'] = 800
+status,res = taskBuffer.querySQLS(sql,varMap)
+if res == None:
+    _logger.debug("# of High prio Holding Watcher : %s" % res)
+else:
+    _logger.debug("# of High prio Holding Watcher : %s" % len(res))    
+    for (id,) in res:
+        _logger.debug("High prio Holding Watcher %s" % id)
+        thr = Watcher(taskBuffer,id,single=True,sleepTime=60*timeOutVal,sitemapper=siteMapper)
+        thr.start()
+        thr.join()
+        time.sleep(1)
+
 # check heartbeat for production jobs
 timeOutVal = 48
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=timeOutVal)
@@ -441,7 +464,8 @@ else:
         time.sleep(1)
 
 # check heartbeat for production jobs
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+timeOutVal = 2
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=timeOutVal)
 varMap = {}
 varMap[':modificationTime'] = timeLimit
 varMap[':jobStatus1'] = 'running'
@@ -456,7 +480,7 @@ else:
     _logger.debug("# of General Watcher : %s" % len(res))    
     for (id,) in res:
         _logger.debug("General Watcher %s" % id)
-        thr = Watcher(taskBuffer,id,single=True,sitemapper=siteMapper)
+        thr = Watcher(taskBuffer,id,single=True,sleepTime=60*timeOutVal,sitemapper=siteMapper)
         thr.start()
         thr.join()
         time.sleep(1)

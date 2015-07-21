@@ -18,11 +18,17 @@ optP.add_argument('taskid',action='store',
                   metavar='TASKID',help='taskID of the task')
 optP.add_argument('-m',dest='limit',type=int,action='store', default=60,
                     metavar='MIMUTES',help='time limit in minute')
+optP.add_option('-9',action='store_const',const=True,dest='forceKill',
+                default=False,help='kill jobs before next heartbeat is coming')
 options = optP.parse_args()
 taskid = options.taskid
 
 print
 print 'trying to reassign jobs with modificationTime < CURRENT-{0}min. Change the limit using -m if necessary'.format(options.limit)
+
+codeV = 51
+if options.forceKill:
+    codeV = 9
 
 jobs = []
 jediJobs = []
@@ -84,7 +90,7 @@ if len(jediJobs) != 0:
     iJob = 0
     while iJob < len(jediJobs):
         print 'kill JEDI jobs %s' % str(jediJobs[iJob:iJob+nJob])
-        Client.killJobs(jediJobs[iJob:iJob+nJob],51)
+        Client.killJobs(jediJobs[iJob:iJob+nJob],codeV)
         iJob += nJob
 
 print

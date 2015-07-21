@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# import env vars from sysconfig
+source /etc/sysconfig/panda_server
+
+# set PYTHONPATH for LFC.py
+export PYTHONPATH=/usr/lib64/python@@python_exec_version@@/site-packages:$PYTHONPATH
+
+python@@python_exec_version@@ @@install_purelib@@/pandaserver/test/shareMgr.py

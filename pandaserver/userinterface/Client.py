@@ -1333,12 +1333,14 @@ def finishTask(jediTaskID,soft=False):
 
 
 # reassign task to a site
-def reassignTaskToSite(jediTaskID,site):
-    """Reassign a task to a site
+def reassignTaskToSite(jediTaskID,site,soft=False):
+    """Reassign a task to a site. Existing jobs are killed and new jobs are generated at the site
 
        args:
            jediTaskID: jediTaskID of the task to be reassigned
            site: the site name where the task is reassigned 
+           soft: If True, only defined/waiting/assigned/activated jobs are killed.
+                 All jobs are killed by default.
        returns:
            status code
                  0: communication succeeded to the panda server 
@@ -1359,6 +1361,8 @@ def reassignTaskToSite(jediTaskID,site):
     # execute
     url = baseURLSSL + '/reassignTask'
     data = {'jediTaskID':jediTaskID,'site':site}
+    if soft:
+        data['soft'] = True
     status,output = curl.post(url,data)
     try:
         return status,pickle.loads(output)
@@ -1370,12 +1374,14 @@ def reassignTaskToSite(jediTaskID,site):
 
 
 # reassign task to a cloud
-def reassignTaskToCloud(jediTaskID,cloud):
-    """Reassign a task to a cloud
+def reassignTaskToCloud(jediTaskID,cloud,soft=False):
+    """Reassign a task to a cloud. Existing jobs are killed and new jobs are generated in the cloud
 
        args:
            jediTaskID: jediTaskID of the task to be reassigned
-           cloud: the cloud name where the task is reassigned 
+           cloud: the cloud name where the task is reassigned
+           soft: If True, only defined/waiting/assigned/activated jobs are killed.
+                 All jobs are killed by default.
        returns:
            status code
                  0: communication succeeded to the panda server 
@@ -1396,6 +1402,8 @@ def reassignTaskToCloud(jediTaskID,cloud):
     # execute
     url = baseURLSSL + '/reassignTask'
     data = {'jediTaskID':jediTaskID,'cloud':cloud}
+    if soft:
+        data['soft'] = True
     status,output = curl.post(url,data)
     try:
         return status,pickle.loads(output)

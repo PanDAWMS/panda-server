@@ -19,6 +19,7 @@ from pandalogger.PandaLogger import PandaLogger
 import DispatcherUtils
 from taskbuffer import EventServiceUtils
 from taskbuffer import retryModule
+from brokerage.SiteMapper import SiteMapper
 
 # logger
 _logger = PandaLogger().getLogger('JobDispatcher')
@@ -82,6 +83,15 @@ class CachedObject:
     # get item
     def __getitem__(self,name):
         return self.cachedObj[name]
+    
+    # get object
+    def getObj(self):
+        self.lock.acquire()
+        return self.cachedObj
+
+    # release object
+    def releaseObj(self):
+        self.lock.release()
 
 
 
@@ -103,6 +113,8 @@ class JobDipatcher:
         self.allowedNodes = None
         # special dipatcher parameters
         self.specialDispatchParams = None
+        # site mapper cache
+        self.siteMapperCache = None
         # lock
         self.lock = Lock()
 
@@ -126,6 +138,9 @@ class JobDipatcher:
         # special dipatcher parameters
         if self.specialDispatchParams == None:
             self.specialDispatchParams = CachedObject(60*30,self.taskBuffer.getSpecialDispatchParams)
+        # site mapper cache
+        if self.siteMapperCache == None:
+            self.siteMapperCache = CachedObject(60*30,self.getSiteMapper)
         # release
         self.lock.release()
         
@@ -133,14 +148,15 @@ class JobDipatcher:
     # get job
     def getJob(self,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
                atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry,
-               realDN):
+               realDN,taskID):
         jobs = []
         useGLEXEC = False
         useProxyCache = False
         # wrapper function for timeout
         tmpWrapper = _TimedMethod(self.taskBuffer.getJobs,timeout)
         tmpWrapper.run(1,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-                       atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry)
+                       atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry,
+                       taskID)
         if isinstance(tmpWrapper.result,types.ListType):
             jobs = jobs + tmpWrapper.result
         # make response
@@ -152,7 +168,8 @@ class JobDipatcher:
             # succeed
             response=Protocol.Response(Protocol.SC_Success)
             # append Job
-            response.appendJob(jobs[0])
+            self.siteMapperCache.update()
+            response.appendJob(jobs[0],self.siteMapperCache)
             # append nSent
             response.appendNode('nSent',nSent)
             # set proxy key
@@ -333,10 +350,10 @@ class JobDipatcher:
 
 
     # get a list of even ranges for a PandaID
-    def getEventRanges(self,pandaID,jobsetID,nRanges,timeout):
+    def getEventRanges(self,pandaID,jobsetID,jediTaskID,nRanges,timeout):
         # peek jobs
         tmpWrapper = _TimedMethod(self.taskBuffer.getEventRanges,timeout)
-        tmpWrapper.run(pandaID,jobsetID,nRanges)
+        tmpWrapper.run(pandaID,jobsetID,jediTaskID,nRanges)
         # make response
         if tmpWrapper.result == Protocol.TimeOutToken:
             # timeout
@@ -371,6 +388,24 @@ class JobDipatcher:
                 # failed
                 response=Protocol.Response(Protocol.SC_Failed)
         _logger.debug("updateEventRange : %s ret -> %s" % (eventRangeID,response.encode()))
+        return response.encode()
+
+
+    # update event ranges
+    def updateEventRanges(self,eventRanges,timeout):
+        # peek jobs
+        tmpWrapper = _TimedMethod(self.taskBuffer.updateEventRanges,timeout)
+        tmpWrapper.run(eventRanges)
+        # make response
+        if tmpWrapper.result == Protocol.TimeOutToken:
+            # timeout
+            response=Protocol.Response(Protocol.SC_TimeOut)
+        else:
+            # succeed
+            response=Protocol.Response(Protocol.SC_Success)
+            # make return                                                                                                                                              
+            response.appendNode('Returns',tmpWrapper.result)
+        _logger.debug("updateEventRanges : ret -> %s" % (response.encode()))
         return response.encode()
 
 
@@ -452,6 +487,11 @@ class JobDipatcher:
                     _logger.debug(tmpMsg)
         # return
         return response.encode()
+
+
+    # get site mapper
+    def getSiteMapper(self):
+        return SiteMapper(self.taskBuffer)
 
     
         
@@ -569,7 +609,7 @@ web service interface
 # get job
 def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,prodSourceLabel=None,node=None,
            computingElement=None,AtlasRelease=None,prodUserID=None,getProxyKey=None,countryGroup=None,
-           workingGroup=None,allowOtherCountry=None):
+           workingGroup=None,allowOtherCountry=None,taskID=None):
     _logger.debug("getJob(%s)" % siteName)
     # get DN
     realDN = _getDN(req)
@@ -605,10 +645,10 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
             diskSpace = 0
     except:
         diskSpace = 0        
-    _logger.debug("getJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s)" \
+    _logger.debug("getJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,taskID=%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s)" \
                   % (siteName,cpu,mem,diskSpace,prodSourceLabel,node,
                      computingElement,AtlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,
-                     allowOtherCountry,realDN,prodManager,token,validToken,str(fqans)))
+                     allowOtherCountry,taskID,realDN,prodManager,token,validToken,str(fqans)))
     _pilotReqLogger.info('method=getJob,site=%s,node=%s,type=%s' % (siteName,node,prodSourceLabel))    
     # invalid role
     if (not prodManager) and (not prodSourceLabel in ['user']):
@@ -621,7 +661,7 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
     # invoke JD
     return jobDispatcher.getJob(siteName,prodSourceLabel,cpu,mem,diskSpace,node,int(timeout),
                                 computingElement,AtlasRelease,prodUserID,getProxyKey,countryGroup,
-                                workingGroup,allowOtherCountry,realDN)
+                                workingGroup,allowOtherCountry,realDN,taskID)
     
 
 # update job status
@@ -630,7 +670,8 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
               schedulerID=None,pilotID=None,siteName=None,messageLevel=None,pilotLog='',metaData='',
               cpuConversionFactor=None,exeErrorCode=None,exeErrorDiag=None,pilotTiming=None,computingElement=None,
               startTime=None,endTime=None,nEvents=None,nInputFiles=None,batchID=None,attemptNr=None,jobMetrics=None,
-              stdout='',jobSubStatus=None,coreCount=None):
+              stdout='',jobSubStatus=None,coreCount=None,maxRSS=None,maxVMEM=None,maxSWAP=None,maxPSS=None,
+              avgRSS=None,avgVMEM=None,avgSWAP=None,avgPSS=None):
     _logger.debug("updateJob(%s)" % jobId)
     # get DN
     realDN = _getDN(req)
@@ -640,11 +681,12 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
     prodManager = _checkRole(fqans,realDN,jobDispatcher,site=siteName,hostname=req.get_remote_host())
     # check token
     validToken = _checkToken(token,jobDispatcher)
-    _logger.debug("updateJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,attemptNr:%s,jobSubStatus:%s,core:%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s\n==XML==\n%s\n==LOG==\n%s\n==Meta==\n%s\n==Metrics==\n%s\n==stdout==\n%s)" %
+    _logger.debug("updateJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,attemptNr:%s,jobSubStatus:%s,core:%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s,maxRSS=%s,maxVMEM=%s,maxSWAP=%s,maxPSS=%s,avgRSS=%s,avgVMEM=%s,avgSWAP=%s,avgPSS=%s\n==XML==\n%s\n==LOG==\n%s\n==Meta==\n%s\n==Metrics==\n%s\n==stdout==\n%s)" %
                   (jobId,state,transExitCode,pilotErrorCode,pilotErrorDiag,node,workdir,cpuConsumptionTime,
                    cpuConsumptionUnit,remainingSpace,schedulerID,pilotID,siteName,messageLevel,nEvents,nInputFiles,
                    cpuConversionFactor,exeErrorCode,exeErrorDiag,pilotTiming,computingElement,startTime,endTime,
-                   batchID,attemptNr,jobSubStatus,coreCount,realDN,prodManager,token,validToken,str(fqans),xml,pilotLog,metaData,jobMetrics,
+                   batchID,attemptNr,jobSubStatus,coreCount,realDN,prodManager,token,validToken,str(fqans),
+                   maxRSS,maxVMEM,maxSWAP,maxPSS,avgRSS,avgVMEM,avgSWAP,avgPSS,xml,pilotLog,metaData,jobMetrics,
                    stdout))
     _pilotReqLogger.info('method=updateJob,site=%s,node=%s,type=None' % (siteName,node))
     # invalid role
@@ -718,6 +760,22 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
         param['jobSubStatus']=jobSubStatus
     if not coreCount in [None,'']:
         param['actualCoreCount']=coreCount
+    if maxRSS != None:
+        param['maxRSS'] = maxRSS
+    if maxVMEM != None:
+        param['maxVMEM'] = maxVMEM
+    if maxSWAP != None:
+        param['maxSWAP'] = maxSWAP
+    if maxPSS != None:
+        param['maxPSS'] = maxPSS
+    if avgRSS != None:
+        param['avgRSS'] = avgRSS
+    if avgVMEM != None:
+        param['avgVMEM'] = avgVMEM
+    if avgSWAP != None:
+        param['avgSWAP'] = avgSWAP
+    if avgPSS != None:
+        param['avgPSS'] = avgPSS
     if startTime != None:
         try:
             param['startTime']=datetime.datetime(*time.strptime(startTime,'%Y-%m-%d %H:%M:%S')[:6])
@@ -748,14 +806,14 @@ def getStatus(req,ids,timeout=60):
 
 
 # get a list of even ranges for a PandaID
-def getEventRanges(req,pandaID,jobsetID,nRanges=10,timeout=60):
-    tmpStr = "getEventRanges(PandaID=%s jobsetID=%s nRanges=%s)" % (pandaID,jobsetID,nRanges)
+def getEventRanges(req,pandaID,jobsetID,taskID=None,nRanges=10,timeout=60):
+    tmpStr = "getEventRanges(PandaID=%s jobsetID=%s taskID=%s,nRanges=%s)" % (pandaID,jobsetID,taskID,nRanges)
     _logger.debug(tmpStr+' start')
     tmpStat,tmpOut = checkPilotPermission(req)
     if not tmpStat:
         _logger.error(tmpStr+'failed with '+tmpOut)
         #return tmpOut
-    return jobDispatcher.getEventRanges(pandaID,jobsetID,nRanges,int(timeout))
+    return jobDispatcher.getEventRanges(pandaID,jobsetID,taskID,nRanges,int(timeout))
 
 
 
@@ -769,6 +827,18 @@ def updateEventRange(req,eventRangeID,eventStatus,coreCount=None,cpuConsumptionT
         _logger.error(tmpStr+'failed with '+tmpOut)
         #return tmpOut
     return jobDispatcher.updateEventRange(eventRangeID,eventStatus,coreCount,cpuConsumptionTime,int(timeout))
+
+
+
+# update an event ranges
+def updateEventRanges(req,eventRanges,timeout=120):
+    tmpStr = "updateEventRange(%s)" % eventRanges
+    _logger.debug(tmpStr+' start')
+    tmpStat,tmpOut = checkPilotPermission(req)
+    if not tmpStat:
+        _logger.error(tmpStr+'failed with '+tmpOut)
+        #return tmpOut
+    return jobDispatcher.updateEventRanges(eventRanges,int(timeout))
 
 
 

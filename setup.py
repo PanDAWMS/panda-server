@@ -13,6 +13,8 @@ import sys
 sys.path.insert(0,'.')
 
 import os
+import pwd
+import grp
 import re
 import socket
 import commands
@@ -150,6 +152,13 @@ class install_data_panda (install_data_org):
         self.data_files = new_data_files
         install_data_org.run(self)
         
+        #post install
+        uid = pwd.getpwnam(panda_user).pw_uid
+        gid = grp.getgrnam(panda_group).gr_gid
+        for directory in ['/var/log/panda', '/var/log/panda/wsgisocks', '/var/log/panda/fastsocks']:
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+                os.chown(directory, uid, gid)                
         
 # setup for distutils
 setup(
@@ -174,6 +183,7 @@ setup(
                'pandaserver.userinterface',
                'pandaserver.proxycache',
               ],
+    package_data = {'pandaserver.server': ['.gacl']},
     data_files=[
                 # config files 
                 ('/etc/panda', ['templates/panda_server-httpd.conf.rpmnew.template',
@@ -213,8 +223,10 @@ setup(
                              'templates/panda_server-boostUser.exe.template',
                              'templates/panda_server-runRebro.exe.template',
                              'templates/panda_server-proxyCache.exe.template',
+                             'templates/panda_server-shareMgr.exe.template',
                              ]
                  ),
+
                 # var dirs
                 #('var/log/panda', []),
                 #('var/cache/pandaserver', []),                

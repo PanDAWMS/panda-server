@@ -39,7 +39,32 @@ class WrappedCursor(object):
     def __str__(self):
         return 'WrappedCursor[%(conn)s]' % ({'conn': self.conn})
 
-
+    # initialize
+    def initialize(self):
+        hostname = None
+        if self.backend == 'oracle':
+            # get hostname
+            self.execute("SELECT SYS_CONTEXT('USERENV','HOST') FROM dual")
+            res = self.fetchone()
+            if res != None:
+                hostname = res[0]
+            # set TZ
+            self.execute("ALTER SESSION SET TIME_ZONE='UTC'")
+            # set DATE format
+            self.execute("ALTER SESSION SET NLS_DATE_FORMAT='YYYY/MM/DD HH24:MI:SS'")
+        else:
+            # get hostname
+            self.execute("SELECT SUBSTRING_INDEX(USER(),'@',-1)")
+            res = self.fetchone()
+            if res != None:
+                hostname = res[0]
+            # set TZ
+            self.execute("SET @@SESSION.TIME_ZONE = '+00:00'")
+            # set DATE format
+            self.execute("SET @@SESSION.DATETIME_FORMAT='%%Y/%%m/%%d %%H:%%i:%%s'")
+            # disable autocommit
+            self.execute("SET autocommit=0")
+        return hostname
     # execute query on cursor
     def execute(self, sql, varDict=None, cur=None  # , returningInto=None
                 ):
@@ -72,6 +97,8 @@ class WrappedCursor(object):
             # ROWNUM
             sql = re.sub("(?i)(AND)*\s*ROWNUM\s*<=\s*(\d+)", " LIMIT \g<2>", sql)
             sql = re.sub("(?i)(WHERE)\s*LIMIT\s*(\d+)", " LIMIT \g<2>" , sql)
+            # NOWAIT
+            sql = re.sub('NOWAIT', "", sql)
             # RETURNING INTO
             returningInto = None
             m = re.search("RETURNING ([^\s]+) INTO ([^\s]+)", sql, re.I)
@@ -79,6 +106,9 @@ class WrappedCursor(object):
                 returningInto = [{'returning': m.group(1), 'into': m.group(2)}]
                 self._returningIntoMySQLpre(returningInto, varDict, cur)
                 sql = re.sub(m.group(0), '', sql)
+            # Addressing sequence
+            if "INSERT" in sql:
+                sql = re.sub('[a-zA-Z\._]+\.nextval','NULL',sql)
             # schema names
             sql = re.sub('ATLAS_PANDA\.',     panda_config.schemaPANDA + '.',     sql)
             sql = re.sub('ATLAS_PANDAMETA\.', panda_config.schemaMETA + '.',      sql)

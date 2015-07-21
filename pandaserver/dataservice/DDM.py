@@ -11,7 +11,7 @@ from config import panda_config
 
 from rucio.client import Client as RucioClient
 from rucio.common.exception import UnsupportedOperation,DataIdentifierNotFound,\
-    FileAlreadyExists,Duplicate,DataIdentifierAlreadyExists
+    FileAlreadyExists,Duplicate,DataIdentifierAlreadyExists,DuplicateRule
 
 
 # change cwd
@@ -451,7 +451,7 @@ class RucioAPI:
             client.add_replication_rule(dids=dids,copies=1,rse_expression=location,weight=None,
                                         lifetime=lifetime, grouping='DATASET', account=owner,
                                         locked=False, notify='N',ignore_availability=True)
-        except Duplicate:
+        except (Duplicate,DuplicateRule):
             pass
         return True
 
@@ -556,6 +556,20 @@ class RucioAPI:
         except:
             errType,errVale = sys.exc_info()[:2]
             return 1,'%s %s' % (errType,errVale)
+
+
+
+    # set metadata
+    def setMetaData(self,dsn,metadata=None):
+        # register dataset
+        client = RucioClient()
+        try:
+            scope,dsn = self.extract_scope(dsn)
+            for tmpKey,tmpValue in metadata.iteritems():
+                client.set_metadata(scope,dsn,key=tmpKey,value=tmpValue)
+        except:
+            pass
+        return True
 
 
 

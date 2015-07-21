@@ -403,6 +403,34 @@ def getMissLFNsFromLRC(files,url,guids=[],storageName=[],scopeList=[]):
     return missFiles
 
 
+
+# get list of missing and tape LFNs
+def getMissAndTapeLFNs(files,url,guids=[],storageName=[],scopeList=[],tapeSePath=[]):
+    # get OF files
+    okPFNs = getFilesFromLRC(files,url,guids,storageName,scopeList=scopeList,getPFN=True)
+    # collect missing files
+    missFiles = []
+    for file in files:
+        if not file in okPFNs:
+            missFiles.append(file)
+    # get tape files
+    tapeFiles = set()
+    for tmpLFN,tmpPFNs in okPFNs.iteritems():
+        isTape = False
+        for tmpPFN in tmpPFNs:
+            for sePath in tapeSePath:
+                if re.search(sePath,tmpPFN) != None:
+                    isTape = True
+                    break
+            if isTape:
+                break
+        if isTape:
+            tapeFiles.add(tmpLFN)
+    _log.debug('Ret:{0} {1}'.format(str(missFiles),str(tapeFiles)))
+    return missFiles,tapeFiles
+
+
+
 # extract list of se hosts from schedconfig                
 def getSEfromSched(seStr):
     tmpSE = []

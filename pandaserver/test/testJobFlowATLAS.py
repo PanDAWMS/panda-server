@@ -252,6 +252,7 @@ class JobFlowATLAS(object):
                 srm = "srm://srm-eosatlas.cern.ch/eos/atlas/atlasdatadisk/rucio/panda/"
                 path = self.__calculate_path(file.lfn)
                 pfn = srm+path+file.lfn
+
                 _logger.info("pfn: %s"%pfn)
                 files_xml += self.__XMLTEMPLATE_FILE.format(lfn=file.lfn, guid=file.GUID, srm=srm, pfn=pfn)
                 files_meta += self.__XMLTEMPLATE_FILEMETA.format(guid=file.GUID, lfn=file.lfn)

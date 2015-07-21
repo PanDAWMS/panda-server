@@ -172,7 +172,9 @@ class EventPicker:
                                                                                 eventPickDataType,
                                                                                 eventPickStreamName,
                                                                                 eventPickDS,
-                                                                                eventPickAmiTag)
+                                                                                eventPickAmiTag,
+                                                                                self.userDN
+                                                                                )
                 if not tmpRet:
                     if 'isFatal' in locationMap and locationMap['isFatal'] == True:
                         self.ignoreError = False

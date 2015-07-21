@@ -474,7 +474,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     # create dataset
                     for name in nameList:
                         computingSite = job.computingSite
-                        if name == originalName:
+                        if name == originalName and not name.startswith('panda.um.'):
                             # for original dataset
                             computingSite = file.destinationSE
                         # use DQ2
@@ -539,8 +539,10 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                                 dq2IDList.append(dq2ID)
                                 # set hidden flag for _sub
                                 tmpHiddenFlag = False
+                                tmpActivity = None
                                 if name != originalName and re.search('_sub\d+$',name) != None:
                                     tmpHiddenFlag = True
+                                    tmpActivity = 'Production Output'
                                 # backend
                                 ddmBackEnd = job.getDdmBackEnd()
                                 if ddmBackEnd == None:
@@ -554,6 +556,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                     status,out = ddm.DQ2.main('registerNewDataset',name,[],[],[],[],
                                                               None,None,None,tmpHiddenFlag,
                                                               rse=dq2IDList[0],
+                                                              activity=tmpActivity,
                                                               force_backend=ddmBackEnd)
                                     if status != 0 and out.find('DQDatasetExistsException') != -1:
                                         atFailed = iDDMTry
@@ -567,6 +570,10 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                         self.logger.debug("-------------")                                                                
                                         time.sleep(10)
                                     else:
+                                        # set metadata
+                                        if name != originalName and re.search('_sub\d+$',name) != None:
+                                            metadata = {'lifetime':14*86400,'hidden':True}
+                                            rucioAPI.setMetaData(name,metadata)
                                         break
                                 if status != 0 or out.find('Error') != -1:
                                     # unset vuidStr
@@ -593,19 +600,28 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                        job.prodSourceLabel == 'panda' or (job.prodSourceLabel in ['ptest','rc_test'] and \
                                                                           job.processingType in ['pathena','prun','gangarobot-rctest']) \
                                        or len(tmpTokenList) > 1:
-                                    # register location
-                                    # loop over all locations
+                                    # set replica lifetime to _sub
                                     repLifeTime = None
-                                    if name != originalName and re.search('_sub\d+$',name) != None:
+                                    if (name != originalName and re.search('_sub\d+$',name) != None) or \
+                                            (name == originalName and name.startswith('panda.um.')):
                                         repLifeTime = "14 days"
+                                    # register location
                                     for dq2ID in dq2IDList:
-                                        self.logger.debug('registerDatasetLocation {name} {dq2ID} {repLifeTime} backend={backend}'.format(name=name,
-                                                                                                                                          dq2ID=dq2ID,
-                                                                                                                                          repLifeTime=repLifeTime,
-                                                                                                                                          backend=ddmBackEnd,
-                                                                                                                                          ))
+                                        # set custodial to TAPE
+                                        acl_alias = None
+                                        if name == originalName:
+                                            tmpStat,tmpIsTape = toa.getSiteProperty(dq2ID,'tape')
+                                            if tmpIsTape == 'True':
+                                                acl_alias = 'custodial'
+                                        tmpStr = 'registerDatasetLocation {name} {dq2ID} {repLifeTime} acl_alias={acl_alias} backend={backend}'
+                                        self.logger.debug(tmpStr.format(name=name,
+                                                                        dq2ID=dq2ID,
+                                                                        repLifeTime=repLifeTime,
+                                                                        backend=ddmBackEnd,
+                                                                        acl_alias=acl_alias,
+                                                                        ))
                                         for iDDMTry in range(3):                            
-                                            status,out = ddm.DQ2.main('registerDatasetLocation',name,dq2ID,0,0,None,None,None,repLifeTime,
+                                            status,out = ddm.DQ2.main('registerDatasetLocation',name,dq2ID,0,0,None,None,acl_alias,repLifeTime,
                                                                       force_backend=ddmBackEnd)
                                             if status != 0 and out.find('DQLocationExistsException') != -1:
                                                 break
@@ -1429,6 +1445,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             # use BNL by default
             dq2URL = self.siteMapper.getSite('BNL_ATLAS_1').dq2url
             dq2SE  = []
+            tapeSePath = []
             # use cloud's source
             if self.siteMapper.checkCloud(cloudKey):
                 tmpSrcID   = self.siteMapper.getCloud(cloudKey)['source']
@@ -1440,9 +1457,14 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         match = re.search('.+://([^:/]+):*\d*/*',tmpSrcSiteSE)
                         if match != None:
                             dq2SE.append(match.group(1))
-            # get missing files
-            tmpMissLFNs = brokerage.broker_util.getMissLFNsFromLRC(allLFNs[cloudKey],dq2URL,allGUIDs[cloudKey],
-                                                                   dq2SE,scopeList=allScopes[cloudKey])
+                if 'ATLASDATATAPE' in tmpSrcSite.seprodpath:
+                    tapeSePath.append(tmpSrcSite.seprodpath['ATLASDATATAPE'])
+                if 'ATLASMCTAPE' in tmpSrcSite.seprodpath:
+                    tapeSePath.append(tmpSrcSite.seprodpath['ATLASMCTAPE'])
+            # get missing and tape files
+            tmpMissLFNs,tmpTapeLFNs = brokerage.broker_util.getMissAndTapeLFNs(allLFNs[cloudKey],dq2URL,allGUIDs[cloudKey],
+                                                                               dq2SE,scopeList=allScopes[cloudKey],
+                                                                               tapeSePath=tapeSePath)
             # append
             if not missLFNs.has_key(cloudKey):
                 missLFNs[cloudKey] = []
@@ -1451,6 +1473,10 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 self.missingFilesInT1[cloudKey] = set()
             for tmpMissLFN in tmpMissLFNs:
                 self.missingFilesInT1[cloudKey].add(tmpMissLFN)
+            # delete tape files to trigger prestaging
+            for tmpTapeLFN in tmpTapeLFNs:
+                if tmpTapeLFN in self.missingFilesInT1[cloudKey]:
+                    self.missingFilesInT1[cloudKey].remove(tmpTapeLFN)
         self.logger.debug('checking T2 LFC')
         # check availability of files at T2
         for cloudKey,tmpAllLFNs in allLFNs.iteritems():
@@ -2193,6 +2219,9 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                        not tmpFile.dataset.startswith('ddo') and \
                        not tmpFile.dataset.startswith('user') and \
                        not tmpFile.dataset.startswith('group'):
+                    # ignore pre-merged datasets
+                    if tmpFile.dataset.startswith('panda.um.'):
+                        continue
                     # get replica locations
                     if not allReplicaMap.has_key(tmpFile.dataset):
                         if tmpFile.dataset.endswith('/'):
@@ -2447,14 +2476,14 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             elif checksum.startswith('ad:'):
                 file['adler32'] = checksum[3:]
             files.append(file)
+        # metadata
+        metadata = {'hidden':True}
         # register dataset
         client = RucioClient()
         try:
-            client.add_dataset(scope=scope, name=dsn)
+            client.add_dataset(scope=scope,name=dsn,lifetime=7*86400,meta=metadata)
         except DataIdentifierAlreadyExists:
             pass
-        # set lifetime
-        client.set_metadata(scope,dsn,key='lifetime',value=7*86400)
         # add files
         try:
             client.add_files_to_dataset(scope=scope,name=dsn,files=files, rse=None)
@@ -2472,7 +2501,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
 
 
     # register dispatch dataset
-    def registerDispatchDatasetLocation(self,dsn,rses,lifetime=None,scope='panda'):
+    def registerDispatchDatasetLocation(self,dsn,rses,lifetime=None,scope='panda',activity=None):
         if lifetime != None:
             lifetime = lifetime*24*60*60
         dids = []
@@ -2481,6 +2510,9 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         # make location
         rses.sort()
         location = '|'.join(rses)
+        # set activity
+        if activity == None:
+            activity = 'Production Input'
         # check if a replication rule already exists
         client = RucioClient()
         for rule in client.list_did_rules(scope=scope, name=dsn):
@@ -2489,7 +2521,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         try:
             client.add_replication_rule(dids=dids,copies=1,rse_expression=location,weight=None,
                                         lifetime=lifetime, grouping='NONE', account=client.account,
-                                        locked=False, notify='N',ignore_availability=True)
+                                        locked=False, notify='N',ignore_availability=True,
+                                        activity=activity)
         except Duplicate:
             pass
         return True

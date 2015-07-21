@@ -18,6 +18,9 @@ ST_fatal     = 8
 esHeader = 'es:'
 esToken  = 'eventservice'
 esMergeToken = 'esmerge'
+singleToken = 'sc'
+singleConsumerType = {'runonce':  '1',
+                      'storeonce':'2'}
 
 
 # encode file info
@@ -139,3 +142,59 @@ def setEventServiceMerge(job):
             job.specialHandling = newSpecialHandling
     except:
         pass
+
+
+
+# check if specialHandling for job cloning
+def isJobCloningSH(specialHandling):
+    try:
+        if specialHandling != None:
+            for token in specialHandling.split(','):
+                if singleToken == token.split(':')[0]:
+                    return True
+    except:
+        pass
+    return False
+
+
+
+# check if event service job
+def isJobCloningJob(job):
+    return isJobCloningSH(job.specialHandling)
+
+
+
+# set header for job cloning
+def setHeaderForJobCloning(specialHandling,scType):
+    if specialHandling == None:
+        specialHandling = ''
+    tokens = specialHandling.split(',')
+    while True:
+        try:
+            tokens.remove('')
+        except:
+            break
+    if scType in singleConsumerType.values():
+        tokens.append('{0}:{1}'.format(singleToken,scType))
+    return ','.join(tokens)
+
+
+
+# get consumer type
+def getJobCloningType(job):
+    if job.specialHandling != None:
+        for token in job.specialHandling.split(','):
+            if singleToken == token.split(':')[0]:
+                for tmpKey,tmpVal in singleConsumerType.iteritems():
+                    if tmpVal == token.split(':')[-1]:
+                        return tmpKey
+    return ''
+
+
+
+# get consumer value
+def getJobCloningValue(scType):
+    if scType in singleConsumerType:
+        return singleConsumerType[scType]
+    return ''
+

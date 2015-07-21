@@ -1,6 +1,45 @@
 Release Notes
 
 * current
+  * added converRSE for PRODDISK retirement
+  * added updateEventRanges
+  * using rucio API instead of DaTRI
+  * updating lastStart
+  * id in fairshare
+  * added taskID to getJob
+  * introduced prio limit in shares with throttled
+  * changed code=51 to force-kill
+  * fixed ppEvent for catchall=None
+  * added more debug info to insertDataset
+  * added soft flag to reassignTask
+  * removed old hint for 10.2.0.4
+  * added job cloning stuff
+  * added max/avgRSS etc
+  * resetting startTime to endTime when starting jobs are killed
+  * removed pinning for panda.um
+  * changed Setupper not to make redundant rule for panda.um
+  * reduced timeout for high prio holding jobs
+  * added -info to eventLookupClientEI
+  * changed dispatcher to send DDM endpoints
+  * added jediTaskID in getEventRanges
+  * set file status to failed when consumers are killed
+  * improved eventLookupClientEI for 0 matching
+  * changed EventPicking to use EI
+  * reduced timeout for lost-heartbeat to 2h from 6h
+  * using tape replicas at T1
+  * added 51 in killJob
+  * added shareMgr.py
+  * setting activity for _dis and _sub
+  * reduced interval for low prio jobs to finish
+  * fixed offlineRunning
+  * setting a very large priority to ES merge jobs
+  * reset doing datasets to kick updateUnmergedDatasets
+  * setting hidden metadata to _dis/_sub
+  * changed AdderAtlas to regard InvalidPath as fatal
+  * changed TA to ignore clouds with mcshare=0
+  * added exhausted
+  * fixed getScriptOfflineRunning for ATLASPANDA-185
+  * Added ALICE-Titan client scripts under test/alice/
   * Added LSST client scripts under test/lsst/
   * introduced maxFailuer in JEDI_Dataset_Contents
   * changed to use list_dataset_replicas of Rucio API
