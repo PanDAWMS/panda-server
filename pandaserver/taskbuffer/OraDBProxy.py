@@ -87,7 +87,7 @@ class DBProxy:
     # connect to DB
     def connect(self,dbhost=panda_config.dbhost,dbpasswd=panda_config.dbpasswd,
                 dbuser=panda_config.dbuser,dbname=panda_config.dbname,
-                dbtimeout=None,reconnect=False,dbport=panda_config.dbport):
+                dbtimeout=panda_config.dbtimeout,reconnect=False,dbport=panda_config.dbport):
         _logger.debug("connect : re=%s" % reconnect)
         # keep parameters for reconnect
         if not reconnect:
@@ -99,11 +99,11 @@ class DBProxy:
             self.dbport    = dbport
         # close old connection
         if reconnect:
-            _logger.debug("closing old connection")                            
+            _logger.debug("closing old connection")
             try:
                 self.conn.close()
             except:
-                _logger.debug("failed to close old connection")                                                
+                _logger.debug("failed to close old connection")
         # connect    
         try:
 
