@@ -218,7 +218,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
                 elif action == INCREASE_MEM:
                     try:
                         #TODO 1: Complete as in AdderGen (232-240) and delete lines from AdderGen
-                        if active and not job.minRamCount in [0,None,'NULL']:
+                        if active and not job.minRamCount in [0, None, 'NULL']:
                             task_buffer.increaseRamLimitJobJEDI(job, job.minRamCount)
                         #Log to pandamon and logfile
                         message = "increaseRAMLimit for jobID: %s (task: %s). Rule/action active: %s" %(jobID, job.jediTaskID, active)
