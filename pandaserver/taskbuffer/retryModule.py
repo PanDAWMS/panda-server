@@ -13,7 +13,7 @@ LIMIT_RETRY = 'limit_retry'
 
 
 def pandalog(message):
-    """Function to send message to panda logger. For the moment dummy placeholder.
+    """Function to send message to panda logger.
     https://github.com/PanDAWMS/panda-jedi/blob/master/pandajedi/jediorder/JobGenerator.py#L405
     """
     try:
