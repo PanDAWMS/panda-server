@@ -61,7 +61,7 @@ class WrappedCursor(object):
             # set TZ
             self.execute("SET @@SESSION.TIME_ZONE = '+00:00'")
             # set DATE format
-            self.execute("SET @@SESSION.DATETIME_FORMAT='%%Y/%%m/%%d %%H:%%i:%%s'")
+            #self.execute("SET @@SESSION.DATETIME_FORMAT='%%Y/%%m/%%d %%H:%%i:%%s'")
             # disable autocommit
             self.execute("SET autocommit=0")
         return hostname
@@ -236,7 +236,10 @@ class WrappedCursor(object):
 
     # next
     def next(self):
-        return self.cur.next()
+        if self.backend == 'mysql':
+            return self.cur.fetchone()
+        else:
+            return self.cur.next()
 
 
     # close
