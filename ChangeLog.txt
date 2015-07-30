@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * using rucio in getScriptOfflineRunning
   * removed registerDispatchDatasetLocation
   * changed to retry ES merge when lost heartbeat
   * added converRSE for PRODDISK retirement
