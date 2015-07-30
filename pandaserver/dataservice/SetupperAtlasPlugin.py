@@ -833,6 +833,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                             # without locatios to let DDM find sources
                             isOK = True
                         else:
+                            isOK = True
+                            """
                             self.logger.debug('registerDatasetLocation {ds} {dq2ID} {lifeTime}days'.format(ds=job.dispatchDBlock,
                                                                                                            dq2ID=str(dq2IDList),
                                                                                                            lifeTime=7))
@@ -850,6 +852,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                         break
                                     self.logger.debug("sleep {0}/{1}".format(iDDMTry,nDDMTry))
                                     time.sleep(10)
+                            """        
                     else:
                         # register locations later for prestaging
                         isOK = True
@@ -905,6 +908,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                 optSource[dq2ID] = {'policy' : 0}
                             optSrcPolicy = 000010
                             # register dataset locations
+                            isOK = True
+                            """
                             self.logger.debug('pre registerDatasetLocation {ds} {dq2ID} {lifeTime}days'.format(ds=job.dispatchDBlock,
                                                                                                                dq2ID=str(optSource.keys()),
                                                                                                                lifeTime=7))
@@ -922,6 +927,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                         break
                                     self.logger.debug("sleep {0}/{1}".format(iDDMTry,nDDMTry))
                                     time.sleep(10)
+                            """        
                         else:
                             isOK = True
                             # set sources to handle T2s in another cloud and to transfer dis datasets being split in multiple sites 
@@ -2145,6 +2151,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         else:
                             self.logger.debug(out)
                         # register location
+                        """
                         isOK = False
                         self.logger.debug('ext registerDatasetLocation {ds} {dq2ID} {lifeTime}days'.format(ds=disDBlock,
                                                                                                            dq2ID=tmpLocation,
@@ -2164,9 +2171,11 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                     break
                                 self.logger.debug("sleep {0}/{1}".format(iDDMTry,nDDMTry))
                                 time.sleep(10)
+                                
                         # failure
                         if not isOK:
                             continue
+                        """    
         # insert datasets to DB
         self.taskBuffer.insertDatasets(dispList)
         self.logger.debug('finished to make dis datasets for existing files')

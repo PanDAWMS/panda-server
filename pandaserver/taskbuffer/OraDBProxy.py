@@ -14414,11 +14414,11 @@ class DBProxy:
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <PandaID={0}>".format(job.PandaID)
         _logger.debug("{0} : start".format(methodName))
-        # dql to get files
+        # sql to get files
         sqlGF  = "SELECT datasetID,fileID,attemptNr FROM ATLAS_PANDA.filesTable4 "
         sqlGF += "WHERE PandaID=:PandaID AND type IN (:type1,:type2) "
         # sql to check file
-        sqlFJ  = "SELECT attemptNr,maxAttempt FROM {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
+        sqlFJ  = "SELECT attemptNr,maxAttempt,failedAttempt,maxFailure FROM {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
         sqlFJ += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
         sqlFJ += "AND attemptNr=:attemptNr AND keepTrack=:keepTrack AND PandaID=:PandaID "
         # get files
@@ -14441,7 +14441,7 @@ class DBProxy:
             resFJ = self.cur.fetchone()
             if resFJ == None:
                 continue
-            attemptNr,maxAttempt = resFJ
+            attemptNr,maxAttempt,failedAttempt,maxFailure = resFJ
             if maxAttempt == None:
                 continue
             if attemptNr+1 >= maxAttempt:
@@ -14450,6 +14450,13 @@ class DBProxy:
                                                                                                                fileID,
                                                                                                                attemptNr,
                                                                                                                maxAttempt))
+                return False
+            if maxFailure != None and failedAttempt != None and failedAttempt+1 >= maxFailure:
+                # hit the limit
+                _logger.debug("{0} : NG - fileID={1} no more attempt failedAttempt({2})+1>=maxFailure({3})".format(methodName,
+                                                                                                                   fileID,
+                                                                                                                   failedAttempt,
+                                                                                                                   maxFailure))
                 return False
         _logger.debug("{0} : OK".format(methodName))
         return True

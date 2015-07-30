@@ -1,6 +1,8 @@
 Release Notes
 
 * current
+  * removed registerDispatchDatasetLocation
+  * changed to retry ES merge when lost heartbeat
   * added converRSE for PRODDISK retirement
   * added updateEventRanges
   * using rucio API instead of DaTRI
