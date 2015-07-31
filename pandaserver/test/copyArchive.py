@@ -655,12 +655,14 @@ timeLimitSite = datetime.datetime.utcnow() - datetime.timedelta(hours=inactiveTi
 timeLimitJob  = datetime.datetime.utcnow() - datetime.timedelta(hours=inactiveTimeLimitJob)
 # get PandaIDs
 sql  = 'SELECT distinct computingSite FROM ATLAS_PANDA.jobsActive4 '
-sql += 'WHERE prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus '
-sql += 'AND modificationTime<:timeLimit AND lockedby=:lockedby AND currentPriority>=:prioLimit '
+sql += 'WHERE prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) '
+sql += 'AND (modificationTime<:timeLimit OR stateChangeTime<:timeLimit) '
+sql += 'AND lockedby=:lockedby AND currentPriority>=:prioLimit '
 sql += 'AND NOT processingType IN (:pType1) AND relocationFlag<>:rFlag1 '
 varMap = {}
 varMap[':prodSourceLabel'] = 'managed'
-varMap[':jobStatus'] = 'activated'
+varMap[':jobStatus1'] = 'activated'
+varMap[':jobStatus2'] = 'starting'
 varMap[':lockedby']  = 'jedi'
 varMap[':timeLimit'] = timeLimitJob
 varMap[':prioLimit'] = inactivePrioLimit
@@ -670,8 +672,9 @@ stDS,resDS = taskBuffer.querySQLS(sql,varMap)
 sqlSS  = 'SELECT laststart FROM ATLAS_PANDAMETA.siteData '
 sqlSS += 'WHERE site=:site AND flag=:flag AND hours=:hours AND laststart<:laststart '
 sqlPI  = 'SELECT PandaID FROM ATLAS_PANDA.jobsActive4 '
-sqlPI += 'WHERE prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus '
-sqlPI += 'AND modificationTime<:timeLimit AND lockedby=:lockedby AND currentPriority>=:prioLimit '
+sqlPI += 'WHERE prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) '
+sqlPI += 'AND (modificationTime<:timeLimit OR stateChangeTime<:timeLimit) '
+sqlPI += 'AND lockedby=:lockedby AND currentPriority>=:prioLimit '
 sqlPI += 'AND computingSite=:site AND NOT processingType IN (:pType1) AND relocationFlag<>:rFlag1 '
 for tmpSite, in resDS:
     # check if the site is inactive
@@ -685,7 +688,8 @@ for tmpSite, in resDS:
         # get jobs
         varMap = {}
         varMap[':prodSourceLabel'] = 'managed'
-        varMap[':jobStatus'] = 'activated'
+        varMap[':jobStatus1'] = 'activated'
+        varMap[':jobStatus2'] = 'starting'
         varMap[':lockedby']  = 'jedi'
         varMap[':timeLimit'] = timeLimitJob
         varMap[':prioLimit'] = inactivePrioLimit
