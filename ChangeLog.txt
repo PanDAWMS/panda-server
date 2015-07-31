@@ -1,10 +1,12 @@
 Release Notes
 
 * current
+  * changed to reassign high prio jobs when sites are inactive
+  * changed lastStart to be updated only by managed/user/panda
   * using rucio in getScriptOfflineRunning
   * removed registerDispatchDatasetLocation
   * changed to retry ES merge when lost heartbeat
-  * added converRSE for PRODDISK retirement
+  * added convertRSE for PRODDISK retirement
   * added updateEventRanges
   * using rucio API instead of DaTRI
   * updating lastStart

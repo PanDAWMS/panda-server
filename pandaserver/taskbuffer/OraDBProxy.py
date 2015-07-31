@@ -1873,7 +1873,8 @@ class DBProxy:
                                 _logger.debug(sqlJediDU+comment+str(varMap))
                                 self.cur.execute(sqlJediDU+comment, varMap)
                         # update lastStart
-                        if oldJobStatus in ('starting','sent') and jobStatus=='running':
+                        if oldJobStatus in ('starting','sent') and jobStatus=='running' and \
+                                prodSourceLabel in ('managed','user','panda'):
                             sqlLS  = "UPDATE ATLAS_PANDAMETA.siteData SET lastStart=CURRENT_DATE "
                             sqlLS += "WHERE site=:site AND hours=:hours AND flag IN (:flag1,:flag2) "
                             varMap = {}
@@ -1882,6 +1883,7 @@ class DBProxy:
                             varMap[':flag1'] = 'production'
                             varMap[':flag2'] = 'analysis'
                             self.cur.execute(sqlLS+comment, varMap)
+                            _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s updated lastStart" % (pandaID,attemptNr))
                 else:
                     _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s notFound" % (pandaID,attemptNr))
                     # already deleted or bad attempt number
