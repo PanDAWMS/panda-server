@@ -8471,6 +8471,7 @@ class DBProxy:
         comment = ' /* DBProxy.updateSiteData */'                            
         _logger.debug("updateSiteData start")
         sqlDel =  "DELETE FROM ATLAS_PANDAMETA.SiteData WHERE HOURS=:HOURS AND LASTMOD<:LASTMOD"
+        sqlRst =  "UPDATE ATLAS_PANDAMETA.SiteData SET GETJOB=:GETJOB,UPDATEJOB=:UPDATEJOB WHERE HOURS=:HOURS AND LASTMOD<:LASTMOD"
         sqlCh  =  "SELECT count(*) FROM ATLAS_PANDAMETA.SiteData WHERE FLAG=:FLAG AND HOURS=:HOURS AND SITE=:SITE"
         sqlIn  =  "INSERT INTO ATLAS_PANDAMETA.SiteData (SITE,FLAG,HOURS,GETJOB,UPDATEJOB,LASTMOD,"
         sqlIn  += "NSTART,FINISHED,FAILED,DEFINED,ASSIGNED,WAITING,ACTIVATED,HOLDING,RUNNING,TRANSFERRING) "
@@ -8480,12 +8481,19 @@ class DBProxy:
         sqlUp  += "WHERE FLAG=:FLAG AND HOURS=:HOURS AND SITE=:SITE"
         sqlAll  = "SELECT getJob,updateJob,FLAG FROM ATLAS_PANDAMETA.SiteData WHERE HOURS=:HOURS AND SITE=:SITE"
         try:
+            self.conn.begin()
             # delete old records
             varMap = {}
-            varMap[':HOURS'] = 3
+            varMap[':HOURS'] = 48
             varMap[':LASTMOD'] = datetime.datetime.utcnow()-datetime.timedelta(hours=varMap[':HOURS'])
-            self.conn.begin()
             self.cur.execute(sqlDel+comment,varMap)
+            # set 0 to old records
+            varMap = {}
+            varMap[':HOURS'] = 3
+            varMap[':GETJOB'] = 0
+            varMap[':UPDATEJOB'] = 0
+            varMap[':LASTMOD'] = datetime.datetime.utcnow()-datetime.timedelta(hours=varMap[':HOURS'])
+            self.cur.execute(sqlRst+comment,varMap)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
