@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * removed datri stuff from EP
   * added hasValueInCatchall
   * keep records in SiteData for 48h
   * changed to reassign high prio jobs in activated/starting when sites are inactive
