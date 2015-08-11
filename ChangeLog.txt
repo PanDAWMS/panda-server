@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * added nJobs in getJob
   * removed datri stuff from EP
   * added hasValueInCatchall
   * keep records in SiteData for 48h
