@@ -14924,15 +14924,27 @@ class DBProxy:
                                 break
                         
                         # update RAM limit
-                        varMap = job.valuesMap(onlyChanged=True)
+                        varMap = {}
+                        varMap[':jediTaskID'] = job.jediTaskID
+                        varMap[':pandaID'] = job.PandaID
                         varMap[':ramCount'] = nextLimit
-                        sqlRL  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
-                        sqlRL += "SET ramCount=:ramCount "
-                        sqlRL += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND pandaID=:pandaID "
-                        sqlRL += "AND attemptNr=:attemptNr"
-    
-                        self.cur.execute(sqlRL+comment,varMap)
-                        _logger.debug("{0} : increased RAM limit to {1} from {2}".format(methodName, nextLimit, jobRamCount))
+                        
+                        input_files = filter(lambda pandafile: pandafile.type in ('input', 'pseudo_input'), job.Files)
+                        input_tuples = [(input_file.datasetID, input_file.fileID, input_file.attemptNr) for input_file in input_files]
+
+                        for entry in input_tuples:
+                            datasetID, fileId, attemptNr = entry
+                            varMap[':datasetID'] = datasetID
+                            varMap[':fileID'] = fileId
+                            varMap[':attemptNr'] = attemptNr
+                            
+                            sqlRL  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
+                            sqlRL += "SET ramCount=:ramCount "
+                            sqlRL += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID"
+                            sqlRL += "AND pandaID=:pandaID AND fileID=:fileID AND attemptNr=:attemptNr"
+
+                            self.cur.execute(sqlRL+comment,varMap)
+                            _logger.debug("{0} : increased RAM limit to {1} from {2} for PandaID {3}".format(methodName, nextLimit, jobRamCount, job.PandaID))
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
@@ -15446,16 +15458,19 @@ class DBProxy:
         #fileIDs = [pandafile.fileID for pandafile in files]
         input_files = filter(lambda pandafile: pandafile.type in ('input', 'pseudo_input'), files)
         input_fileIDs = [input_file.fileID for input_file in input_files]
+        input_datasetIDs = [input_file.datasetID for input_file in input_files]
         
         if input_fileIDs:
-            input_fileIDs_string = ','.join(':%d' % i for i in xrange(len(input_fileIDs))) 
+            input_fileIDs_string = ','.join(':%d' % i for i in xrange(len(input_fileIDs)))
+            input_datasetIDs_string = ','.join(':%d' % i for i in xrange(len(input_datasetIDs))) 
 
             sql  = """
             UPDATE ATLAS_PANDA.JEDI_Dataset_Contents 
             SET maxAttempt=:maxAttempt
-            WHERE JEDITaskID = :taskID 
-            AND fileID in (%s) 
-            """ %(input_fileIDs_string)
+            WHERE JEDITaskID = :taskID
+            AND datasetID in (%s) 
+            AND fileID in (%s)
+            """ %(input_datasetIDs_string, input_fileIDs_string)
             varMap = {}
             varMap[':maxAttempt'] = maxAttempt
             varMap[':taskID'] = taskID
