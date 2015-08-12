@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * changed getCriteriaForProdShare for urgent to ignore fairshare
   * added nJobs in getJob
   * removed datri stuff from EP
   * added hasValueInCatchall

@@ -9718,8 +9718,10 @@ class DBProxy:
                 retVarMap[':shareLabel3'] = 'prod_test'
                 retVarMap[':shareLabel4'] = 'install'
                 retVarMap[':shareLabel5'] = 'pmerge'
+                retVarMap[':shareLabel6'] = 'urgent'
                 newRetStr  = 'AND (prodSourceLabel IN (:shareLabel2,:shareLabel3,:shareLabel4) '
-                newRetStr += 'OR processingType=:shareLabel5 OR (prodSourceLabel=:shareLabel1 ' + retStr + '))'
+                newRetStr += 'OR (processingType IN (:shareLabel5,:shareLabel6)) '
+                newRetStr += 'OR (prodSourceLabel=:shareLabel1 ' + retStr + '))'
                 retStr = newRetStr
             return retStr,retVarMap
         except:
