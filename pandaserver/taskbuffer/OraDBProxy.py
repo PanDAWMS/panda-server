@@ -2733,7 +2733,8 @@ class DBProxy:
         sql2 = "SELECT %s FROM ATLAS_PANDA.jobsActive4 " % JobSpec.columnNames()
         sql2+= "WHERE PandaID=:PandaID"
         retJobs = []
-        nSent = 0           
+        nSent = 0
+        getValMapOrig = copy.copy(getValMap)
         try:
             timeLimit = datetime.timedelta(seconds=timeout-10)
             timeStart = datetime.datetime.utcnow()
@@ -2742,6 +2743,7 @@ class DBProxy:
             attSQL    = "AND ((creationTime<:creationTime AND attemptNr>1) OR attemptNr<=1) "
             # get nJobs
             for iJob in range(nJobs):
+                getValMap = copy.copy(getValMapOrig)
                 pandaID = 0
                 fileMapForMem = {}
                 # select channel for ddm jobs
@@ -2841,13 +2843,14 @@ class DBProxy:
                                 toGetPandaIDs = False
                             else:
                                 # set priority
-                                sql1 += "AND currentPriority=:currentPriority"
                                 getValMap[':currentPriority'] = tmpPriority
                         maxAttemptIDx = 10
                         if toGetPandaIDs:
                             # get PandaIDs
                             sqlP = "SELECT /*+ INDEX_RS_ASC(tab (PRODSOURCELABEL COMPUTINGSITE JOBSTATUS) ) */ PandaID,currentPriority,specialHandling FROM ATLAS_PANDA.jobsActive4 tab "
                             sqlP+= sql1
+                            if ':currentPriority' in getValMap:
+                                sqlP += "AND currentPriority=:currentPriority "
                             _logger.debug(sqlP+comment+str(getValMap))
                             # start transaction
                             self.conn.begin()
@@ -3151,11 +3154,13 @@ class DBProxy:
                     _logger.error('recordStatusChange in getJobs')
             return retJobs,nSent
         except:
+            errtype,errvalue = sys.exc_info()[:2]
+            errStr = "getJobs : %s %s" % (errtype,errvalue)
+            errStr.strip()
+            errStr += traceback.format_exc()
+            _logger.error(errStr)
             # roll back
             self._rollback()
-            # error report
-            type, value, traceBack = sys.exc_info()
-            _logger.error("getJobs : %s %s" % (type,value))
             return [],0
         
 
