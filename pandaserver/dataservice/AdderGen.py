@@ -184,7 +184,7 @@ class AdderGen:
                     if source and error_code:
                         try:
                             self.logger.debug("AdderGen.run will call apply_retrial_rules")
-                            retryModule.apply_retrial_rules(self.taskBuffer, self.job.PandaID, 'ddmErrorCode', self.job.ddmErrorCode, self.job.ddmErrorDiag, self.job.attemptNr)
+                            retryModule.apply_retrial_rules(self.taskBuffer, self.job.PandaID, source, error_code, error_diag, self.job.attemptNr)
                             self.logger.debug("apply_retrial_rules is back")
                         except Exception as e:
                             self.logger.debug("apply_retrial_rules excepted and needs to be investigated (%s)"%(e))
