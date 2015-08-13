@@ -2,7 +2,7 @@
 --increase the RAM requirements at job level (before it was at task level) 
 alter table ATLAS_PANDA.jedi_dataset_contents add
 (
-    ramcount number(10)
+    ramcount number(10) default 0
 )
 
 ------------------------------------------------------------------
