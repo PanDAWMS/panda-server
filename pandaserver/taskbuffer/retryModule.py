@@ -233,5 +233,5 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
             except KeyError:
                 _logger.debug("Rule was missing some field(s). Rule: %s" %rule)
     except KeyError as e:
-        _logger.debug("No retrial rules to apply for jobID %s, attemptNr %s, failed with %s=%s. (Exception %e)" %(jobID, attemptNr, error_source, error_code, e))
+        _logger.debug("No retrial rules to apply for jobID %s, attemptNr %s, failed with %s=%s. (Exception %s)" %(jobID, attemptNr, error_source, error_code, e))
 
