@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * changed ppEvt to keep failed event records for ES
   * changed getCriteriaForProdShare for urgent to ignore fairshare
   * added nJobs in getJob
   * removed datri stuff from EP

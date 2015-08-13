@@ -13643,16 +13643,34 @@ class DBProxy:
             _logger.debug("{0} : set done to {1} event ranges".format(methodName,nRowDone))
             # release unprocessed event ranges
             sqlEC  = "UPDATE {0}.JEDI_Events SET status=:newStatus,attemptNr=attemptNr-1,pandaID=:jobsetID ".format(panda_config.schemaJEDI)
-            sqlEC += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND status<>:esDone "
+            sqlEC += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND NOT status IN (:esDone,:esFailed) "
             varMap = {}
             varMap[':jediTaskID']  = jobSpec.jediTaskID
             varMap[':pandaID']     = pandaID
             varMap[':jobsetID']    = jobSpec.jobsetID
             varMap[':esDone']      = EventServiceUtils.ST_done
-            varMap[':newStatus'] = EventServiceUtils.ST_ready
+            varMap[':esFailed']    = EventServiceUtils.ST_failed
+            varMap[':newStatus']   = EventServiceUtils.ST_ready
             self.cur.execute(sqlEC+comment, varMap)
             nRowReleased = self.cur.rowcount
             _logger.debug("{0} : released {1} event ranges".format(methodName,nRowReleased))
+            # copy failed event ranges
+            varMap = {}
+            varMap[':jediTaskID']  = jobSpec.jediTaskID
+            varMap[':pandaID']     = pandaID
+            varMap[':jobsetID']    = jobSpec.jobsetID
+            varMap[':esFailed']    = EventServiceUtils.ST_failed
+            varMap[':newStatus']   = EventServiceUtils.ST_ready
+            sqlEF  = "INSERT INTO {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlEF += "(jediTaskID,datasetID,PandaID,fileID,attemptNr,status,"
+            sqlEF += "job_processID,def_min_eventID,def_max_eventID,processed_upto_eventID) "
+            sqlEF += "SELECT jediTaskID,datasetID,:jobsetID,fileID,attemptNr-1,:newStatus,"
+            sqlEF += "job_processID,def_min_eventID,def_max_eventID,processed_upto_eventID "
+            sqlEF += "FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlEF += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND status=:esFailed "
+            self.cur.execute(sqlEF+comment, varMap)
+            nRowCopied = self.cur.rowcount
+            _logger.debug("{0} : copied {1} failed event ranges".format(methodName,nRowCopied))
             # look for hopeless event ranges
             sqlEU  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sqlEU += "WHERE jediTaskID=:jediTaskID AND pandaID=:jobsetID AND attemptNr=:minAttempt AND rownum=1 "
@@ -13703,7 +13721,7 @@ class DBProxy:
                 # check if other consumers finished
                 sqlEOC  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
                 sqlEOC += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-                sqlEOC += "AND NOT status IN (:esDone,:esDiscarded,:esCancelled,:esFatal) AND rownum=1 "
+                sqlEOC += "AND NOT status IN (:esDone,:esDiscarded,:esCancelled,:esFatal,:esFailed) AND rownum=1 "
                 # count the number of done ranges
                 sqlCDO  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
                 sqlCDO += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
@@ -13718,6 +13736,7 @@ class DBProxy:
                         varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
                         varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
                         varMap[':esFatal']     = EventServiceUtils.ST_fatal
+                        varMap[':esFailed']    = EventServiceUtils.ST_failed
                         _logger.debug(sqlEOC+comment+str(varMap))
                         self.cur.execute(sqlEOC+comment, varMap)
                         resEOC = self.cur.fetchone()
@@ -14161,7 +14180,7 @@ class DBProxy:
             sqlCE  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sqlCE += "SET status=:status "
             sqlCE += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-            sqlCE += "AND NOT status IN (:esFinished,:esDone) "
+            sqlCE += "AND NOT status IN (:esFinished,:esDone,::esDiscarded,:esCancelled,:esFailed,:esFatal) "
             # look for consumers for each input
             killPandaIDs = []
             for fileSpec in job.Files:
@@ -14191,6 +14210,10 @@ class DBProxy:
                     varMap[':esDone']     = EventServiceUtils.ST_done
                     self.cur.execute(sqlDE+comment, varMap)
                     varMap[':status']     = EventServiceUtils.ST_cancelled
+                    varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
+                    varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
+                    varMap[':esFatal']     = EventServiceUtils.ST_fatal
+                    varMap[':esFailed']    = EventServiceUtils.ST_failed
                     self.cur.execute(sqlCE+comment, varMap)
             # kill consumers
             sqlDJS = "SELECT %s " % JobSpec.columnNames()
@@ -14211,7 +14234,6 @@ class DBProxy:
                 # skip jobsetID
                 if pandaID == job.jobsetID:
                     continue
-                _logger.debug("{0} : kill associated consumer {1}".format(methodName,pandaID))
                 # read job
                 varMap = {}
                 varMap[':PandaID'] = pandaID
@@ -14220,6 +14242,7 @@ class DBProxy:
                 resJob = self.cur.fetchall()
                 if len(resJob) == 0:
                     continue
+                _logger.debug("{0} : kill associated consumer {1}".format(methodName,pandaID))
                 # instantiate JobSpec
                 dJob = JobSpec()
                 dJob.pack(resJob[0])
