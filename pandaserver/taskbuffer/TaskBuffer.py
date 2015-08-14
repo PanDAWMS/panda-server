@@ -31,6 +31,8 @@ class TaskBuffer:
         self.lock = Lock()
         self.processLimiter = None
 
+    def __repr__(self):
+        return "TaskBuffer"
 
     # initialize
     def init(self,dbname,dbpass,nDBConnection=10,useTimeout=False):

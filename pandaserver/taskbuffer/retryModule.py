@@ -176,7 +176,6 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
         return
 
     try:
-        #TODO: Check if peeking the job again has any performance penalty and if there is any better way
         job = task_buffer.peekJobs([jobID], fromDefined=False, fromArchived=True, fromWaiting=False)[0]
         applicable_rules = preprocess_rules(retrial_rules[error_source][error_code], error_diag, job.AtlasRelease, job.cmtConfig, job.workQueue_ID)
         

@@ -14940,7 +14940,7 @@ class DBProxy:
                             
                             sqlRL  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
                             sqlRL += "SET ramCount=:ramCount "
-                            sqlRL += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID"
+                            sqlRL += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
                             sqlRL += "AND pandaID=:pandaID AND fileID=:fileID AND attemptNr=:attemptNr"
 
                             self.cur.execute(sqlRL+comment,varMap)
