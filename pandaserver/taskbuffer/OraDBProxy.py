@@ -14884,9 +14884,8 @@ class DBProxy:
             return False
 
 
-
     # increase memory limit
-    def increaseRamLimitJobJEDI(self, job, jobRamCount):
+    def increaseRamLimitJobJEDI(self, job, jobRamCount, jediTaskID):
         """Note that this function only increases the min RAM count for the job,
         not for the entire task (for the latter use increaseRamLimitJEDI)
         """
@@ -14901,9 +14900,23 @@ class DBProxy:
             else:
                 # RAM limit
                 limitList = [1000,2000,3000,4000,6000,8000]
+                            self.conn.begin()
+
+                # get currnet limit
+                varMap = {}
+                varMap[':jediTaskID'] = jediTaskID
+                sqlUE  = "SELECT ramCount FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+                sqlUE += "WHERE jediTaskID=:jediTaskID "
+                self.cur.execute(sqlUE+comment,varMap)
+                taskRamCount, = self.cur.fetchone()
+                _logger.debug("{0} : RAM limit task={1} job={2}".format(methodName,taskRamCount,jobRamCount))
+                
+                #To increase, we select the highest requirement in job or task
+                #e.g. ops could have increased task RamCount through direct DB access
+                maxJobTaskRam = max(jobRamCount, taskRamCount)
                 
                 # do nothing if the job doesn't define RAM limit
-                if jobRamCount in [0,None]:
+                if maxJobTaskRam in [0,None]:
                     _logger.debug("{0} : no change since job RAM limit is {1}".format(methodName, jobRamCount))
                 else:
                     # skip if already at largest limit
@@ -14914,10 +14927,10 @@ class DBProxy:
                         _logger.debug("{0} : {1}".format(methodName,dbgStr))
                     else:
                         #If maxPSS is present, then jump all the levels until the one above
-                        if job.maxPSS:
-                            minimumRam = job.maxPSS
+                        if job.maxPSS and job.maxPSS/1024>maxJobTaskRam:
+                            minimumRam = job.maxPSS/1024
                         else:
-                            minimumRam = jobRamCount
+                            minimumRam = maxJobTaskRam
 
                         for nextLimit in limitList:
                             if minimumRam < nextLimit:
@@ -14944,7 +14957,7 @@ class DBProxy:
                             sqlRL += "AND pandaID=:pandaID AND fileID=:fileID AND attemptNr=:attemptNr"
 
                             self.cur.execute(sqlRL+comment,varMap)
-                            _logger.debug("{0} : increased RAM limit to {1} from {2} for PandaID {3}".format(methodName, nextLimit, jobRamCount, job.PandaID))
+                            _logger.debug("{0} : increased RAM limit to {1} from {2} for PandaID {3} fileID {4}".format(methodName, nextLimit, jobRamCount, job.PandaID, fileId))
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
