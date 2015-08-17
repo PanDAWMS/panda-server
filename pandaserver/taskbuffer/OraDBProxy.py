@@ -14185,7 +14185,7 @@ class DBProxy:
             sqlCE  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sqlCE += "SET status=:status "
             sqlCE += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-            sqlCE += "AND NOT status IN (:esFinished,:esDone,::esDiscarded,:esCancelled,:esFailed,:esFatal) "
+            sqlCE += "AND NOT status IN (:esFinished,:esDone,:esDiscarded,:esCancelled,:esFailed,:esFatal) "
             # look for consumers for each input
             killPandaIDs = []
             for fileSpec in job.Files:
