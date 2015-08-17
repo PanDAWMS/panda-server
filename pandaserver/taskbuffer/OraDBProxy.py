@@ -14900,9 +14900,9 @@ class DBProxy:
             else:
                 # RAM limit
                 limitList = [1000,2000,3000,4000,6000,8000]
-                            self.conn.begin()
-
-                # get currnet limit
+                
+                # get current task limit
+                self.conn.begin()
                 varMap = {}
                 varMap[':jediTaskID'] = jediTaskID
                 sqlUE  = "SELECT ramCount FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
