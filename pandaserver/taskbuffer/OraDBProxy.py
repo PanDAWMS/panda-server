@@ -14908,7 +14908,7 @@ class DBProxy:
                 sqlUE += "WHERE jediTaskID=:jediTaskID "
                 self.cur.execute(sqlUE+comment,varMap)
                 taskRamCount, = self.cur.fetchone()
-                _logger.debug("{0} : RAM limit task={1} job={2}".format(methodName,taskRamCount,jobRamCount))
+                _logger.debug("{0} : RAM limit task={1} job={2} jobPSS={3}".format(methodName, taskRamCount, jobRamCount, job.maxPSS))
                 
                 #To increase, we select the highest requirement in job or task
                 #e.g. ops could have increased task RamCount through direct DB access
