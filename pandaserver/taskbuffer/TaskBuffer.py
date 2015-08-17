@@ -2706,11 +2706,11 @@ class TaskBuffer:
 
 
     # increase memory limit
-    def increaseRamLimitJobJEDI(self, job, jobRamCount):
+    def increaseRamLimitJobJEDI(self, job, jobRamCount, jediTaskID):
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.increaseRamLimitJobJEDI(job, jobRamCount)
+        ret = proxy.increaseRamLimitJobJEDI(job, jobRamCount, jediTaskID)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
