@@ -14902,7 +14902,6 @@ class DBProxy:
                 limitList = [1000,2000,3000,4000,6000,8000]
                 
                 # get current task limit
-                self.conn.begin()
                 varMap = {}
                 varMap[':jediTaskID'] = jediTaskID
                 sqlUE  = "SELECT ramCount FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
