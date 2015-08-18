@@ -5,6 +5,7 @@ dispatch jobs
 
 import re
 import sys
+import json
 import types
 import threading
 import Protocol
@@ -148,13 +149,19 @@ class JobDipatcher:
     # get job
     def getJob(self,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
                atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry,
-               realDN,taskID):
+               realDN,taskID,nJobs):
         jobs = []
         useGLEXEC = False
         useProxyCache = False
+        try:
+            tmpNumJobs = int(nJobs)
+        except:
+            tmpNumJobs = None
+        if tmpNumJobs == None:
+            tmpNumJobs = 1
         # wrapper function for timeout
         tmpWrapper = _TimedMethod(self.taskBuffer.getJobs,timeout)
-        tmpWrapper.run(1,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
+        tmpWrapper.run(tmpNumJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
                        atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry,
                        taskID)
         if isinstance(tmpWrapper.result,types.ListType):
@@ -166,75 +173,83 @@ class JobDipatcher:
             jobs     = jobs[:-2]
         if len(jobs) != 0:
             # succeed
-            response=Protocol.Response(Protocol.SC_Success)
-            # append Job
             self.siteMapperCache.update()
-            response.appendJob(jobs[0],self.siteMapperCache)
-            # append nSent
-            response.appendNode('nSent',nSent)
-            # set proxy key
-            if getProxyKey:
-                response.setProxyKey(proxyKey)
-            # check if glexec or proxy cache is used
-            if hasattr(panda_config,'useProxyCache') and panda_config.useProxyCache == True:
-                self.specialDispatchParams.update()
-                if not 'glexecSites' in self.specialDispatchParams:
-                    glexecSites = {}
-                else:
-                    glexecSites = self.specialDispatchParams['glexecSites']
-                if siteName in glexecSites:
-                    if glexecSites[siteName] == 'True':
-                        useGLEXEC = True
-                    elif glexecSites[siteName] == 'test' and \
-                            (prodSourceLabel in ['test','prod_test'] or \
-                                 (jobs[0].processingType in ['gangarobot'])):
-                        useGLEXEC = True
-                if not 'proxyCacheSites' in self.specialDispatchParams:
-                    proxyCacheSites = {}
-                else:
-                    proxyCacheSites = self.specialDispatchParams['proxyCacheSites']
-                if siteName in proxyCacheSites:
-                    useProxyCache = True
-            # set proxy
-            if useGLEXEC or useProxyCache:
-                try:
-                    #  get compact
-                    compactDN = self.taskBuffer.cleanUserID(realDN)
-                    # check permission
+            responseList = []
+            # append Jobs
+            for tmpJob in jobs:
+                response=Protocol.Response(Protocol.SC_Success)
+                response.appendJob(tmpJob,self.siteMapperCache)
+                # append nSent
+                response.appendNode('nSent',nSent)
+                # set proxy key
+                if getProxyKey:
+                    response.setProxyKey(proxyKey)
+                # check if glexec or proxy cache is used
+                if hasattr(panda_config,'useProxyCache') and panda_config.useProxyCache == True:
                     self.specialDispatchParams.update()
-                    if not 'allowProxy' in self.specialDispatchParams:
-                        allowProxy = []
+                    if not 'glexecSites' in self.specialDispatchParams:
+                        glexecSites = {}
                     else:
-                        allowProxy = self.specialDispatchParams['allowProxy']
-                    if not compactDN in allowProxy:
-                        _logger.warning("getJob : %s %s '%s' no permission to retrive user proxy" % (siteName,node,
-                                                                                                     compactDN))
+                        glexecSites = self.specialDispatchParams['glexecSites']
+                    if siteName in glexecSites:
+                        if glexecSites[siteName] == 'True':
+                            useGLEXEC = True
+                        elif glexecSites[siteName] == 'test' and \
+                                (prodSourceLabel in ['test','prod_test'] or \
+                                     (tmpJob.processingType in ['gangarobot'])):
+                            useGLEXEC = True
+                    if not 'proxyCacheSites' in self.specialDispatchParams:
+                        proxyCacheSites = {}
                     else:
-                        if useProxyCache:
-                            tmpStat,tmpOut = response.setUserProxy(proxyCacheSites[siteName]['dn'],
-                                                                   proxyCacheSites[siteName]['role'])
+                        proxyCacheSites = self.specialDispatchParams['proxyCacheSites']
+                    if siteName in proxyCacheSites:
+                        useProxyCache = True
+                # set proxy
+                if useGLEXEC or useProxyCache:
+                    try:
+                        #  get compact
+                        compactDN = self.taskBuffer.cleanUserID(realDN)
+                        # check permission
+                        self.specialDispatchParams.update()
+                        if not 'allowProxy' in self.specialDispatchParams:
+                            allowProxy = []
                         else:
-                            tmpStat,tmpOut = response.setUserProxy()
-                        if not tmpStat:
-                            _logger.warning("getJob : %s %s failed to get user proxy : %s" % (siteName,node,
-                                                                                              tmpOut))
-                except:
-                    errtype,errvalue = sys.exc_info()[:2]
-                    _logger.warning("getJob : %s %s failed to get user proxy with %s:%s" % (siteName,node,
-                                                                                            errtype.__name__,errvalue))
-            # panda proxy
-            if 'pandaProxySites' in self.specialDispatchParams and siteName in self.specialDispatchParams['pandaProxySites'] \
-                    and (EventServiceUtils.isEventServiceJob(jobs[0]) or EventServiceUtils.isEventServiceMerge(jobs[0])):
-                # get secret key
-                tmpSecretKey,tmpErrMsg = DispatcherUtils.getSecretKey(jobs[0].PandaID)
-                if tmpSecretKey == None:
-                    _logger.warning("getJob : PandaID=%s site=%s failed to get panda proxy secret key : %s" % (jobs[0].PandaID,
-                                                                                                               siteName,
-                                                                                                               tmpErrMsg))
-                else:
-                    # set secret key
-                    _logger.debug("getJob : PandaID=%s key=%s" % (jobs[0].PandaID,tmpSecretKey))
-                    response.setPandaProxySecretKey(tmpSecretKey)
+                            allowProxy = self.specialDispatchParams['allowProxy']
+                        if not compactDN in allowProxy:
+                            _logger.warning("getJob : %s %s '%s' no permission to retrive user proxy" % (siteName,node,
+                                                                                                         compactDN))
+                        else:
+                            if useProxyCache:
+                                tmpStat,tmpOut = response.setUserProxy(proxyCacheSites[siteName]['dn'],
+                                                                       proxyCacheSites[siteName]['role'])
+                            else:
+                                tmpStat,tmpOut = response.setUserProxy()
+                            if not tmpStat:
+                                _logger.warning("getJob : %s %s failed to get user proxy : %s" % (siteName,node,
+                                                                                                  tmpOut))
+                    except:
+                        errtype,errvalue = sys.exc_info()[:2]
+                        _logger.warning("getJob : %s %s failed to get user proxy with %s:%s" % (siteName,node,
+                                                                                                errtype.__name__,errvalue))
+                # panda proxy
+                if 'pandaProxySites' in self.specialDispatchParams and siteName in self.specialDispatchParams['pandaProxySites'] \
+                        and (EventServiceUtils.isEventServiceJob(tmpJob) or EventServiceUtils.isEventServiceMerge(tmpJob)):
+                    # get secret key
+                    tmpSecretKey,tmpErrMsg = DispatcherUtils.getSecretKey(tmpJob.PandaID)
+                    if tmpSecretKey == None:
+                        _logger.warning("getJob : PandaID=%s site=%s failed to get panda proxy secret key : %s" % (tmpJob.PandaID,
+                                                                                                                   siteName,
+                                                                                                                   tmpErrMsg))
+                    else:
+                        # set secret key
+                        _logger.debug("getJob : PandaID=%s key=%s" % (tmpJob.PandaID,tmpSecretKey))
+                        response.setPandaProxySecretKey(tmpSecretKey)
+                # add
+                responseList.append(response.data)
+            # make response for bulk
+            if nJobs != None:
+                response = Protocol.Response(Protocol.SC_Success)
+                response.appendNode('jobs',json.dumps(responseList))
         else:
             if tmpWrapper.result == Protocol.TimeOutToken:
                 # timeout
@@ -609,7 +624,7 @@ web service interface
 # get job
 def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,prodSourceLabel=None,node=None,
            computingElement=None,AtlasRelease=None,prodUserID=None,getProxyKey=None,countryGroup=None,
-           workingGroup=None,allowOtherCountry=None,taskID=None):
+           workingGroup=None,allowOtherCountry=None,taskID=None,nJobs=None):
     _logger.debug("getJob(%s)" % siteName)
     # get DN
     realDN = _getDN(req)
@@ -645,8 +660,8 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
             diskSpace = 0
     except:
         diskSpace = 0        
-    _logger.debug("getJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,taskID=%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s)" \
-                  % (siteName,cpu,mem,diskSpace,prodSourceLabel,node,
+    _logger.debug("getJob(%s,nJobs=%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,taskID=%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s)" \
+                  % (siteName,nJobs,cpu,mem,diskSpace,prodSourceLabel,node,
                      computingElement,AtlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,
                      allowOtherCountry,taskID,realDN,prodManager,token,validToken,str(fqans)))
     _pilotReqLogger.info('method=getJob,site=%s,node=%s,type=%s' % (siteName,node,prodSourceLabel))    
@@ -661,7 +676,7 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
     # invoke JD
     return jobDispatcher.getJob(siteName,prodSourceLabel,cpu,mem,diskSpace,node,int(timeout),
                                 computingElement,AtlasRelease,prodUserID,getProxyKey,countryGroup,
-                                workingGroup,allowOtherCountry,realDN,taskID)
+                                workingGroup,allowOtherCountry,realDN,taskID,nJobs)
     
 
 # update job status

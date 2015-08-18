@@ -647,6 +647,70 @@ if len(jobs):
         taskBuffer.reassignJobs(jobs[iJob:iJob+nJob],joinThr=True)
         iJob += nJob
 
+# reassign activated jobs in inactive sites
+inactiveTimeLimitSite = 2
+inactiveTimeLimitJob  = 4
+inactivePrioLimit = 900
+timeLimitSite = datetime.datetime.utcnow() - datetime.timedelta(hours=inactiveTimeLimitSite)
+timeLimitJob  = datetime.datetime.utcnow() - datetime.timedelta(hours=inactiveTimeLimitJob)
+# get PandaIDs
+sql  = 'SELECT distinct computingSite FROM ATLAS_PANDA.jobsActive4 '
+sql += 'WHERE prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) '
+sql += 'AND (modificationTime<:timeLimit OR stateChangeTime<:timeLimit) '
+sql += 'AND lockedby=:lockedby AND currentPriority>=:prioLimit '
+sql += 'AND NOT processingType IN (:pType1) AND relocationFlag<>:rFlag1 '
+varMap = {}
+varMap[':prodSourceLabel'] = 'managed'
+varMap[':jobStatus1'] = 'activated'
+varMap[':jobStatus2'] = 'starting'
+varMap[':lockedby']  = 'jedi'
+varMap[':timeLimit'] = timeLimitJob
+varMap[':prioLimit'] = inactivePrioLimit
+varMap[':pType1']    = 'pmerge'
+varMap[':rFlag1']    = 2
+stDS,resDS = taskBuffer.querySQLS(sql,varMap)
+sqlSS  = 'SELECT laststart FROM ATLAS_PANDAMETA.siteData '
+sqlSS += 'WHERE site=:site AND flag=:flag AND hours=:hours AND laststart<:laststart '
+sqlPI  = 'SELECT PandaID FROM ATLAS_PANDA.jobsActive4 '
+sqlPI += 'WHERE prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) '
+sqlPI += 'AND (modificationTime<:timeLimit OR stateChangeTime<:timeLimit) '
+sqlPI += 'AND lockedby=:lockedby AND currentPriority>=:prioLimit '
+sqlPI += 'AND computingSite=:site AND NOT processingType IN (:pType1) AND relocationFlag<>:rFlag1 '
+for tmpSite, in resDS:
+    # check if the site is inactive
+    varMap = {}
+    varMap[':site']  = tmpSite
+    varMap[':flag']  = 'production'
+    varMap[':hours'] = 3
+    varMap[':laststart'] = timeLimitSite
+    stSS,resSS = taskBuffer.querySQLS(sqlSS,varMap)
+    if stSS != None and len(resSS) > 0:
+        # get jobs
+        varMap = {}
+        varMap[':prodSourceLabel'] = 'managed'
+        varMap[':jobStatus1'] = 'activated'
+        varMap[':jobStatus2'] = 'starting'
+        varMap[':lockedby']  = 'jedi'
+        varMap[':timeLimit'] = timeLimitJob
+        varMap[':prioLimit'] = inactivePrioLimit
+        varMap[':site']      = tmpSite
+        varMap[':pType1']    = 'pmerge'
+        varMap[':rFlag1']    = 2
+        stPI,resPI = taskBuffer.querySQLS(sqlPI,varMap)
+        jediJobs = []
+        if resPI != None:
+            for id, in resPI:
+                jediJobs.append(id)
+        # reassign
+        _logger.debug('reassignJobs for JEDI at inactive site %s laststart=%s -> #%s' % (tmpSite,resSS[0][0],len(jediJobs)))
+        if len(jediJobs) != 0:
+            nJob = 100
+            iJob = 0
+            while iJob < len(jediJobs):
+                _logger.debug('reassignJobs for JEDI at inactive site %s (%s)' % (tmpSite,jediJobs[iJob:iJob+nJob]))
+                Client.killJobs(jediJobs[iJob:iJob+nJob],51)
+                iJob += nJob
+
 # reassign defined jobs in defined table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=4)
 # get PandaIDs

@@ -46,6 +46,8 @@ if not tmpSelf.__dict__.has_key('backend'):
     tmpSelf.__dict__['backend'] = 'oracle'
 if not tmpSelf.__dict__.has_key('dbport'):
     tmpSelf.__dict__['dbport'] = 0
+if not tmpSelf.__dict__.has_key('dbtimeout'):
+    tmpSelf.__dict__['dbtimeout'] = 60
     
 # Directory for certs
 if not tmpSelf.__dict__.has_key('certdir'):

@@ -1088,17 +1088,15 @@ class TaskBuffer:
                     if not dsFileMap.has_key(tmpFile.dataset):
                         dsFileMap[tmpFile.dataset] = []
                     if not tmpFile.lfn in dsFileMap[tmpFile.dataset]:    
-                        dsFileMap[tmpFile.dataset].append(tmpFile.lfn)
-            # dq2            
+                        dsFileMap[tmpFile.dataset].append(tmpFile.scope+':'+tmpFile.lfn)
+            # get
             for tmpDS,tmpFileList in dsFileMap.iteritems():
-                scrStr += "dq2-get --files "
                 for tmpLFN in tmpFileList:
-                    scrStr += "%s," % tmpLFN
-                scrStr = scrStr[:-1]    
-                scrStr += " %s\n" % tmpDS
-                # ln
-                for tmpLFN in tmpFileList:
-                    scrStr += "ln -fs %s*/%s ./%s\n" % (tmpDS.split(':')[-1].rstrip("/"),tmpLFN,tmpLFN)
+                    scrStr += "rucio download "
+                    scrStr += "%s\n" % tmpLFN
+                    # ln
+                    tmpScope,tmpBareLFN = tmpLFN.split(':')
+                    scrStr += "ln -fs %s/%s ./%s\n" % (tmpScope,tmpBareLFN,tmpBareLFN)
             scrStr += "\n#transform commands\n\n"
             for tmpIdx,tmpRel in enumerate(tmpRels):
                 # asetup

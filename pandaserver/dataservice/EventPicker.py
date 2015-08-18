@@ -17,9 +17,9 @@ from dataservice.MailUtils import MailUtils
 from dataservice.Notifier import Notifier
 from taskbuffer.JobSpec import JobSpec
 from userinterface import Client
-from dataservice.datriHandler import datriHandler
 
 from dataservice.DDM import ddm
+from dataservice.DDM import rucioAPI,dq2Common,dq2Info
 
 from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
@@ -257,33 +257,24 @@ class EventPicker:
                         self.endWithError('brokerage failed with %s' % tmpJob.computingSite)
                         return False
                     self.putLog("site -> %s" % tmpJob.computingSite)
-                    # send request to DaTRI
-                    if self.lockedBy.startswith('ganga'):
-                        tmpHandler = datriHandler(type='ganga')
-                    else:
-                        tmpHandler = datriHandler(type='pathena')
-                    tmpMsg = "%s ds=%s site=%s id=%s" % ('datriHandler.sendRequest',
-                                                         tmpUserDatasetName,
-                                                         self.siteMapper.getSite(tmpJob.computingSite).ddm,
-                                                         tmpDN)
-                    self.putLog(tmpMsg)
-                    tmpHandler.setParameters(data_pattern=tmpUserDatasetName,
-                                             site=self.siteMapper.getSite(tmpJob.computingSite).ddm,
-                                             userid=tmpDN)
-                    nTry = 3
-                    for iTry in range(nTry):
-                        dhStatus,dhOut = tmpHandler.sendRequest()
-                        # succeeded
-                        if dhStatus == 0 or "such request is exist" in dhOut:
-                            self.putLog("%s %s" % (dhStatus,dhOut))
-                            break
-                        if iTry+1 < nTry:
-                            # sleep
-                            time.sleep(60)
-                        else:
-                            # final attempt failed
-                            self.endWithError('Failed to send request to DaTRI : %s %s' % (dhStatus,dhOut))
-                            return False
+                    # send transfer request
+                    try:
+                        tmpStatus,tmpDN = dq2Common.parse_dn(tmpDN)
+                        tmpStatus,strUserInfo = dq2Info.finger(tmpDN)
+                        exec "userInfo=%s" % strUserInfo
+                        tmpDN = userInfo['nickname']
+                        tmpDQ2ID = self.siteMapper.getSite(tmpJob.computingSite).ddm
+                        tmpMsg = "%s ds=%s site=%s id=%s" % ('registerDatasetLocation for DaTRI ',
+                                                             tmpUserDatasetName,
+                                                             tmpDQ2ID,
+                                                             tmpDN)
+                        self.putLog(tmpMsg)
+                        rucioAPI.registerDatasetLocation(tmpDS,[tmpDQ2ID],lifetime=14,owner=tmpDN)
+                        self.putLog('OK')
+                    except:
+                        errType,errValue = sys.exc_info()[:2]
+                        self.endWithError('Failed to send transfer request : %s %s' % (errType,errValue))
+                        return False
                     # list of sites already used
                     sitesUsed.append(tmpJob.computingSite)
                     self.putLog("used %s sites" % len(sitesUsed))

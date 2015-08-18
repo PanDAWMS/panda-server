@@ -89,7 +89,7 @@ class DBProxy:
     # connect to DB
     def connect(self,dbhost=panda_config.dbhost,dbpasswd=panda_config.dbpasswd,
                 dbuser=panda_config.dbuser,dbname=panda_config.dbname,
-                dbtimeout=None,reconnect=False,dbport=panda_config.dbport):
+                dbtimeout=panda_config.dbtimeout,reconnect=False,dbport=panda_config.dbport):
         _logger.debug("connect : re=%s" % reconnect)
         # keep parameters for reconnect
         if not reconnect:
@@ -101,11 +101,11 @@ class DBProxy:
             self.dbport    = dbport
         # close old connection
         if reconnect:
-            _logger.debug("closing old connection")                            
+            _logger.debug("closing old connection")
             try:
                 self.conn.close()
             except:
-                _logger.debug("failed to close old connection")                                                
+                _logger.debug("failed to close old connection")
         # connect    
         try:
 
@@ -1889,7 +1889,8 @@ class DBProxy:
                                 _logger.debug(sqlJediDU+comment+str(varMap))
                                 self.cur.execute(sqlJediDU+comment, varMap)
                         # update lastStart
-                        if oldJobStatus in ('starting','sent') and jobStatus=='running':
+                        if oldJobStatus in ('starting','sent') and jobStatus=='running' and \
+                                prodSourceLabel in ('managed','user','panda'):
                             sqlLS  = "UPDATE ATLAS_PANDAMETA.siteData SET lastStart=CURRENT_DATE "
                             sqlLS += "WHERE site=:site AND hours=:hours AND flag IN (:flag1,:flag2) "
                             varMap = {}
@@ -1898,6 +1899,7 @@ class DBProxy:
                             varMap[':flag1'] = 'production'
                             varMap[':flag2'] = 'analysis'
                             self.cur.execute(sqlLS+comment, varMap)
+                            _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s updated lastStart" % (pandaID,attemptNr))
                 else:
                     _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s notFound" % (pandaID,attemptNr))
                     # already deleted or bad attempt number
@@ -2747,7 +2749,8 @@ class DBProxy:
         sql2 = "SELECT %s FROM ATLAS_PANDA.jobsActive4 " % JobSpec.columnNames()
         sql2+= "WHERE PandaID=:PandaID"
         retJobs = []
-        nSent = 0           
+        nSent = 0
+        getValMapOrig = copy.copy(getValMap)
         try:
             timeLimit = datetime.timedelta(seconds=timeout-10)
             timeStart = datetime.datetime.utcnow()
@@ -2756,6 +2759,7 @@ class DBProxy:
             attSQL    = "AND ((creationTime<:creationTime AND attemptNr>1) OR attemptNr<=1) "
             # get nJobs
             for iJob in range(nJobs):
+                getValMap = copy.copy(getValMapOrig)
                 pandaID = 0
                 fileMapForMem = {}
                 # select channel for ddm jobs
@@ -2855,13 +2859,14 @@ class DBProxy:
                                 toGetPandaIDs = False
                             else:
                                 # set priority
-                                sql1 += "AND currentPriority=:currentPriority"
                                 getValMap[':currentPriority'] = tmpPriority
                         maxAttemptIDx = 10
                         if toGetPandaIDs:
                             # get PandaIDs
                             sqlP = "SELECT /*+ INDEX_RS_ASC(tab (PRODSOURCELABEL COMPUTINGSITE JOBSTATUS) ) */ PandaID,currentPriority,specialHandling FROM ATLAS_PANDA.jobsActive4 tab "
                             sqlP+= sql1
+                            if ':currentPriority' in getValMap:
+                                sqlP += "AND currentPriority=:currentPriority "
                             _logger.debug(sqlP+comment+str(getValMap))
                             # start transaction
                             self.conn.begin()
@@ -3165,11 +3170,13 @@ class DBProxy:
                     _logger.error('recordStatusChange in getJobs')
             return retJobs,nSent
         except:
+            errtype,errvalue = sys.exc_info()[:2]
+            errStr = "getJobs : %s %s" % (errtype,errvalue)
+            errStr.strip()
+            errStr += traceback.format_exc()
+            _logger.error(errStr)
             # roll back
             self._rollback()
-            # error report
-            type, value, traceBack = sys.exc_info()
-            _logger.error("getJobs : %s %s" % (type,value))
             return [],0
         
 
@@ -3550,7 +3557,7 @@ class DBProxy:
                 varMap[':PandaID'] = pandaID
                 varMap[':commandToPilot'] = 'tobekilled'
                 varMap[':taskBufferErrorDiag'] = 'killed by %s' % user
-                if userProdSourceLabel in ['managed','test'] and code in ['9','52']:
+                if code in ['9','52','2']:
                     # ignore commandToPilot for force kill
                     self.cur.execute((sql1F+comment) % table, varMap)
                 elif useEventService or jobStatusInDB in ['merging']:
@@ -8485,6 +8492,7 @@ class DBProxy:
         comment = ' /* DBProxy.updateSiteData */'                            
         _logger.debug("updateSiteData start")
         sqlDel =  "DELETE FROM ATLAS_PANDAMETA.SiteData WHERE HOURS=:HOURS AND LASTMOD<:LASTMOD"
+        sqlRst =  "UPDATE ATLAS_PANDAMETA.SiteData SET GETJOB=:GETJOB,UPDATEJOB=:UPDATEJOB WHERE HOURS=:HOURS AND LASTMOD<:LASTMOD"
         sqlCh  =  "SELECT count(*) FROM ATLAS_PANDAMETA.SiteData WHERE FLAG=:FLAG AND HOURS=:HOURS AND SITE=:SITE"
         sqlIn  =  "INSERT INTO ATLAS_PANDAMETA.SiteData (SITE,FLAG,HOURS,GETJOB,UPDATEJOB,LASTMOD,"
         sqlIn  += "NSTART,FINISHED,FAILED,DEFINED,ASSIGNED,WAITING,ACTIVATED,HOLDING,RUNNING,TRANSFERRING) "
@@ -8494,12 +8502,19 @@ class DBProxy:
         sqlUp  += "WHERE FLAG=:FLAG AND HOURS=:HOURS AND SITE=:SITE"
         sqlAll  = "SELECT getJob,updateJob,FLAG FROM ATLAS_PANDAMETA.SiteData WHERE HOURS=:HOURS AND SITE=:SITE"
         try:
+            self.conn.begin()
             # delete old records
             varMap = {}
-            varMap[':HOURS'] = 3
+            varMap[':HOURS'] = 48
             varMap[':LASTMOD'] = datetime.datetime.utcnow()-datetime.timedelta(hours=varMap[':HOURS'])
-            self.conn.begin()
             self.cur.execute(sqlDel+comment,varMap)
+            # set 0 to old records
+            varMap = {}
+            varMap[':HOURS'] = 3
+            varMap[':GETJOB'] = 0
+            varMap[':UPDATEJOB'] = 0
+            varMap[':LASTMOD'] = datetime.datetime.utcnow()-datetime.timedelta(hours=varMap[':HOURS'])
+            self.cur.execute(sqlRst+comment,varMap)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -9724,8 +9739,10 @@ class DBProxy:
                 retVarMap[':shareLabel3'] = 'prod_test'
                 retVarMap[':shareLabel4'] = 'install'
                 retVarMap[':shareLabel5'] = 'pmerge'
+                retVarMap[':shareLabel6'] = 'urgent'
                 newRetStr  = 'AND (prodSourceLabel IN (:shareLabel2,:shareLabel3,:shareLabel4) '
-                newRetStr += 'OR processingType=:shareLabel5 OR (prodSourceLabel=:shareLabel1 ' + retStr + '))'
+                newRetStr += 'OR (processingType IN (:shareLabel5,:shareLabel6)) '
+                newRetStr += 'OR (prodSourceLabel=:shareLabel1 ' + retStr + '))'
                 retStr = newRetStr
             return retStr,retVarMap
         except:
@@ -13647,16 +13664,34 @@ class DBProxy:
             _logger.debug("{0} : set done to {1} event ranges".format(methodName,nRowDone))
             # release unprocessed event ranges
             sqlEC  = "UPDATE {0}.JEDI_Events SET status=:newStatus,attemptNr=attemptNr-1,pandaID=:jobsetID ".format(panda_config.schemaJEDI)
-            sqlEC += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND status<>:esDone "
+            sqlEC += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND NOT status IN (:esDone,:esFailed) "
             varMap = {}
             varMap[':jediTaskID']  = jobSpec.jediTaskID
             varMap[':pandaID']     = pandaID
             varMap[':jobsetID']    = jobSpec.jobsetID
             varMap[':esDone']      = EventServiceUtils.ST_done
-            varMap[':newStatus'] = EventServiceUtils.ST_ready
+            varMap[':esFailed']    = EventServiceUtils.ST_failed
+            varMap[':newStatus']   = EventServiceUtils.ST_ready
             self.cur.execute(sqlEC+comment, varMap)
             nRowReleased = self.cur.rowcount
             _logger.debug("{0} : released {1} event ranges".format(methodName,nRowReleased))
+            # copy failed event ranges
+            varMap = {}
+            varMap[':jediTaskID']  = jobSpec.jediTaskID
+            varMap[':pandaID']     = pandaID
+            varMap[':jobsetID']    = jobSpec.jobsetID
+            varMap[':esFailed']    = EventServiceUtils.ST_failed
+            varMap[':newStatus']   = EventServiceUtils.ST_ready
+            sqlEF  = "INSERT INTO {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlEF += "(jediTaskID,datasetID,PandaID,fileID,attemptNr,status,"
+            sqlEF += "job_processID,def_min_eventID,def_max_eventID,processed_upto_eventID) "
+            sqlEF += "SELECT jediTaskID,datasetID,:jobsetID,fileID,attemptNr-1,:newStatus,"
+            sqlEF += "job_processID,def_min_eventID,def_max_eventID,processed_upto_eventID "
+            sqlEF += "FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlEF += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND status=:esFailed "
+            self.cur.execute(sqlEF+comment, varMap)
+            nRowCopied = self.cur.rowcount
+            _logger.debug("{0} : copied {1} failed event ranges".format(methodName,nRowCopied))
             # look for hopeless event ranges
             sqlEU  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sqlEU += "WHERE jediTaskID=:jediTaskID AND pandaID=:jobsetID AND attemptNr=:minAttempt AND rownum=1 "
@@ -13707,7 +13742,7 @@ class DBProxy:
                 # check if other consumers finished
                 sqlEOC  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
                 sqlEOC += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-                sqlEOC += "AND NOT status IN (:esDone,:esDiscarded,:esCancelled,:esFatal) AND rownum=1 "
+                sqlEOC += "AND NOT status IN (:esDone,:esDiscarded,:esCancelled,:esFatal,:esFailed) AND rownum=1 "
                 # count the number of done ranges
                 sqlCDO  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
                 sqlCDO += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
@@ -13722,6 +13757,7 @@ class DBProxy:
                         varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
                         varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
                         varMap[':esFatal']     = EventServiceUtils.ST_fatal
+                        varMap[':esFailed']    = EventServiceUtils.ST_failed
                         _logger.debug(sqlEOC+comment+str(varMap))
                         self.cur.execute(sqlEOC+comment, varMap)
                         resEOC = self.cur.fetchone()
@@ -14165,7 +14201,7 @@ class DBProxy:
             sqlCE  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sqlCE += "SET status=:status "
             sqlCE += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-            sqlCE += "AND NOT status IN (:esFinished,:esDone) "
+            sqlCE += "AND NOT status IN (:esFinished,:esDone,:esDiscarded,:esCancelled,:esFailed,:esFatal) "
             # look for consumers for each input
             killPandaIDs = []
             for fileSpec in job.Files:
@@ -14195,6 +14231,10 @@ class DBProxy:
                     varMap[':esDone']     = EventServiceUtils.ST_done
                     self.cur.execute(sqlDE+comment, varMap)
                     varMap[':status']     = EventServiceUtils.ST_cancelled
+                    varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
+                    varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
+                    varMap[':esFatal']     = EventServiceUtils.ST_fatal
+                    varMap[':esFailed']    = EventServiceUtils.ST_failed
                     self.cur.execute(sqlCE+comment, varMap)
             # kill consumers
             sqlDJS = "SELECT %s " % JobSpec.columnNames()
@@ -14215,7 +14255,6 @@ class DBProxy:
                 # skip jobsetID
                 if pandaID == job.jobsetID:
                     continue
-                _logger.debug("{0} : kill associated consumer {1}".format(methodName,pandaID))
                 # read job
                 varMap = {}
                 varMap[':PandaID'] = pandaID
@@ -14224,6 +14263,7 @@ class DBProxy:
                 resJob = self.cur.fetchall()
                 if len(resJob) == 0:
                     continue
+                _logger.debug("{0} : kill associated consumer {1}".format(methodName,pandaID))
                 # instantiate JobSpec
                 dJob = JobSpec()
                 dJob.pack(resJob[0])
@@ -14430,11 +14470,11 @@ class DBProxy:
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <PandaID={0}>".format(job.PandaID)
         _logger.debug("{0} : start".format(methodName))
-        # dql to get files
+        # sql to get files
         sqlGF  = "SELECT datasetID,fileID,attemptNr FROM ATLAS_PANDA.filesTable4 "
         sqlGF += "WHERE PandaID=:PandaID AND type IN (:type1,:type2) "
         # sql to check file
-        sqlFJ  = "SELECT attemptNr,maxAttempt FROM {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
+        sqlFJ  = "SELECT attemptNr,maxAttempt,failedAttempt,maxFailure FROM {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
         sqlFJ += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
         sqlFJ += "AND attemptNr=:attemptNr AND keepTrack=:keepTrack AND PandaID=:PandaID "
         # get files
@@ -14457,7 +14497,7 @@ class DBProxy:
             resFJ = self.cur.fetchone()
             if resFJ == None:
                 continue
-            attemptNr,maxAttempt = resFJ
+            attemptNr,maxAttempt,failedAttempt,maxFailure = resFJ
             if maxAttempt == None:
                 continue
             if attemptNr+1 >= maxAttempt:
@@ -14466,6 +14506,13 @@ class DBProxy:
                                                                                                                fileID,
                                                                                                                attemptNr,
                                                                                                                maxAttempt))
+                return False
+            if maxFailure != None and failedAttempt != None and failedAttempt+1 >= maxFailure:
+                # hit the limit
+                _logger.debug("{0} : NG - fileID={1} no more attempt failedAttempt({2})+1>=maxFailure({3})".format(methodName,
+                                                                                                                   fileID,
+                                                                                                                   failedAttempt,
+                                                                                                                   maxFailure))
                 return False
         _logger.debug("{0} : OK".format(methodName))
         return True

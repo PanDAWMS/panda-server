@@ -97,3 +97,15 @@ class SiteSpec(object):
             if tmpMatch != None:
                 return tmpMatch.group(1)
         return None
+
+
+
+    # has value in catchall
+    def hasValueInCatchall(self,key):
+        if self.catchall == None:
+            return False
+        for tmpItem in self.catchall.split(','):
+            tmpMatch = re.search('^{0}(=|)*'.format(key),tmpItem)
+            if tmpMatch != None:
+                return True
+        return False

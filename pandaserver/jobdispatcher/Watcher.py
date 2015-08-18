@@ -13,6 +13,8 @@ import ErrorCode
 
 import taskbuffer.ErrorCode
 
+from taskbuffer import EventServiceUtils
+
 from brokerage.PandaSiteIDs import PandaSiteIDs
 
 from dataservice.Closer  import Closer
@@ -160,6 +162,11 @@ class Watcher (threading.Thread):
                                 file.status = 'failed'
                                 if not file.destinationDBlock in destDBList:
                                     destDBList.append(file.destinationDBlock)
+                    # retry ES merge jobs
+                    if EventServiceUtils.isEventServiceMerge(job):
+                        self.taskBuffer.retryJob(job.PandaID,{},getNewPandaID=True,
+                                                 attemptNr=job.attemptNr,
+                                                 recoverableEsMerge=True)
                     # update job
                     self.taskBuffer.updateJobs([job],False)
                     # start closer

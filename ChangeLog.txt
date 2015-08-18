@@ -1,7 +1,19 @@
 Release Notes
 
 * current
-  * added converRSE for PRODDISK retirement
+  * fixed bulk getJob for user jobs
+  * changed ppEvt to keep failed event records for ES
+  * changed getCriteriaForProdShare for urgent to ignore fairshare
+  * added nJobs in getJob
+  * removed datri stuff from EP
+  * added hasValueInCatchall
+  * keep records in SiteData for 48h
+  * changed to reassign high prio jobs in activated/starting when sites are inactive
+  * changed lastStart to be updated only by managed/user/panda
+  * using rucio in getScriptOfflineRunning
+  * removed registerDispatchDatasetLocation
+  * changed to retry ES merge when lost heartbeat
+  * added convertRSE for PRODDISK retirement
   * added updateEventRanges
   * using rucio API instead of DaTRI
   * updating lastStart
