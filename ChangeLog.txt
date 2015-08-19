@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * sending tobekilled to updateJob for already killed jobs
   * fixed bulk getJob for user jobs
   * changed ppEvt to keep failed event records for ES
   * changed getCriteriaForProdShare for urgent to ignore fairshare

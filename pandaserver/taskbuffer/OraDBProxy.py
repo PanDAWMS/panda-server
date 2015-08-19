@@ -1887,8 +1887,7 @@ class DBProxy:
                 else:
                     _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s notFound" % (pandaID,attemptNr))
                     # already deleted or bad attempt number
-                    ret = "badattemptnr"
-                    #ret = 'tobekilled'
+                    ret = 'tobekilled'
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
@@ -4680,7 +4679,7 @@ class DBProxy:
             varMap[':jobStatus'] = 'transferring'
             varMap[':currentPriority'] = 800
             varMap[':pLabel1'] = 'managed'
-            varMap[':pLabel2'] = 'rucio_test'
+            varMap[':pLabel2'] = 'test'
             # make sql
             sql  = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
             sql += "WHERE jobStatus=:jobStatus AND modificationTime<:modificationTime AND prodSourceLabel IN (:pLabel1,:pLabel2) "
