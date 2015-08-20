@@ -429,7 +429,7 @@ class RucioAPI:
 
 
     # register dataset location
-    def registerDatasetLocation(self,dsn,rses,lifetime=None,owner=None):
+    def registerDatasetLocation(self,dsn,rses,lifetime=None,owner=None,activity=None):
         if lifetime != None:
             lifetime = lifetime*24*60*60
         scope,dsn = self.extract_scope(dsn)    
@@ -450,7 +450,8 @@ class RucioAPI:
         try:
             client.add_replication_rule(dids=dids,copies=1,rse_expression=location,weight=None,
                                         lifetime=lifetime, grouping='DATASET', account=owner,
-                                        locked=False, notify='N',ignore_availability=True)
+                                        locked=False,activity=activity,notify='N',
+                                        ignore_availability=True)
         except (Duplicate,DuplicateRule):
             pass
         return True

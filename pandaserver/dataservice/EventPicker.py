@@ -269,7 +269,8 @@ class EventPicker:
                                                              tmpDQ2ID,
                                                              tmpDN)
                         self.putLog(tmpMsg)
-                        rucioAPI.registerDatasetLocation(tmpDS,[tmpDQ2ID],lifetime=14,owner=tmpDN)
+                        rucioAPI.registerDatasetLocation(tmpDS,[tmpDQ2ID],lifetime=14,owner=tmpDN,
+                                                         activity="User Subscriptions")
                         self.putLog('OK')
                     except:
                         errType,errValue = sys.exc_info()[:2]

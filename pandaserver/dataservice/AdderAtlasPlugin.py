@@ -622,7 +622,8 @@ class AdderAtlasPlugin (AdderPluginBase):
                                 continue
                             tmpMsg = "registerDatasetLocation for DaTRI ds=%s site=%s id=%s" % (tmpDsName,tmpDQ2ID,tmpDN)
                             self.logger.debug(tmpMsg)
-                            rucioAPI.registerDatasetLocation(tmpDsName,[tmpDQ2ID],owner=tmpDN)
+                            rucioAPI.registerDatasetLocation(tmpDsName,[tmpDQ2ID],owner=tmpDN,
+                                                             activity="User Subscriptions")
                     # set dataset status
                     for tmpName,tmpVal in subMap.iteritems():
                         self.datasetMap[tmpName].status = 'running'
