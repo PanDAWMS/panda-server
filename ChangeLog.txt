@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * changed the limit to reassign jobs at inactive sites to prio=800
   * sending tobekilled to updateJob for already killed jobs
   * fixed bulk getJob for user jobs
   * changed ppEvt to keep failed event records for ES
