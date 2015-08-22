@@ -614,13 +614,17 @@ class AdderAtlasPlugin (AdderPluginBase):
                     status,tmpDN = dq2Common.parse_dn(tmpDN)
                     status,strUserInfo = dq2Info.finger(tmpDN)
                     exec "userInfo=%s" % strUserInfo
-                    tmpDN = userInfo['nickname']
                     # loop over all output datasets
                     for tmpDsName,dq2IDlist in tmpTopDatasets.iteritems():
                         for tmpDQ2ID in dq2IDlist:
                             if tmpDQ2ID == 'NULL':
                                 continue
-                            tmpMsg = "registerDatasetLocation for DaTRI ds=%s site=%s id=%s" % (tmpDsName,tmpDQ2ID,tmpDN)
+                            # use group account for group.*
+                            if tmpDsName.startswith('group') and not job.workingGroup in ['','NULL',None]:
+                                tmpDN = job.workingGroup
+                            else:
+                                tmpDN = userInfo['nickname']
+                            tmpMsg = "registerDatasetLocation for Rucio ds=%s site=%s id=%s" % (tmpDsName,tmpDQ2ID,tmpDN)
                             self.logger.debug(tmpMsg)
                             rucioAPI.registerDatasetLocation(tmpDsName,[tmpDQ2ID],owner=tmpDN,
                                                              activity="User Subscriptions")
@@ -632,7 +636,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                     tmpMsg = "registerDatasetLocation failed with %s %s" % (errType,errValue)
                     self.logger.error(tmpMsg)
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
-                    self.job.ddmErrorDiag = "DaTRI failed with %s %s" % (errType,errValue)
+                    self.job.ddmErrorDiag = "Rucio failed with %s %s" % (errType,errValue)
         # collect list of merging files
         if self.goToMerging and not self.jobStatus in ['failed','cancelled']:
             for tmpFileList in idMap.values():
