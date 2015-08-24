@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * refreshing fairshre table every 15min
   * using group account for group.* with destSE
   * using "User Subscriptions" for user's rules
   * changed the limit to reassign jobs at inactive sites to prio=800

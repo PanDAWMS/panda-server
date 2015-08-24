@@ -9804,7 +9804,7 @@ class DBProxy:
         comment = ' /* DBProxy.getFaresharePolicy */'
         # check utime
         if not getNewMap and self.updateTimeForFaresharePolicy != None and \
-               (datetime.datetime.utcnow()-self.updateTimeForFaresharePolicy) < datetime.timedelta(hours=3):
+               (datetime.datetime.utcnow()-self.updateTimeForFaresharePolicy) < datetime.timedelta(minutes=15):
             return
         if not getNewMap:
             # update utime

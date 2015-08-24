@@ -620,8 +620,8 @@ class AdderAtlasPlugin (AdderPluginBase):
                             if tmpDQ2ID == 'NULL':
                                 continue
                             # use group account for group.*
-                            if tmpDsName.startswith('group') and not job.workingGroup in ['','NULL',None]:
-                                tmpDN = job.workingGroup
+                            if tmpDsName.startswith('group') and not self.job.workingGroup in ['','NULL',None]:
+                                tmpDN = self.job.workingGroup
                             else:
                                 tmpDN = userInfo['nickname']
                             tmpMsg = "registerDatasetLocation for Rucio ds=%s site=%s id=%s" % (tmpDsName,tmpDQ2ID,tmpDN)
