@@ -612,16 +612,17 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                             tmpStat,tmpIsTape = toa.getSiteProperty(dq2ID,'tape')
                                             if tmpIsTape == 'True':
                                                 acl_alias = 'custodial'
-                                        tmpStr = 'registerDatasetLocation {name} {dq2ID} {repLifeTime} acl_alias={acl_alias} backend={backend}'
+                                        activity = DataServiceUtils.getActivityForOut(job.prodSourceLabel)
+                                        tmpStr = 'registerDatasetLocation {name} {dq2ID} {repLifeTime} acl_alias={acl_alias} activity={activity}'
                                         self.logger.debug(tmpStr.format(name=name,
                                                                         dq2ID=dq2ID,
                                                                         repLifeTime=repLifeTime,
-                                                                        backend=ddmBackEnd,
+                                                                        activity=activity,
                                                                         acl_alias=acl_alias,
                                                                         ))
                                         for iDDMTry in range(3):                            
                                             status,out = ddm.DQ2.main('registerDatasetLocation',name,dq2ID,0,0,None,None,acl_alias,repLifeTime,
-                                                                      force_backend=ddmBackEnd)
+                                                                      None,activity,force_backend=ddmBackEnd)
                                             if status != 0 and out.find('DQLocationExistsException') != -1:
                                                 break
                                             elif status != 0 or out.find("DQ2 internal server exception") != -1 \

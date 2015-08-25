@@ -415,3 +415,14 @@ def extractImportantError(out):
         pass
     return retStr
 
+
+
+# get activity for output
+def getActivityForOut(prodSourceLabel):
+    if prodSourceLabel in ['managed']:
+        activity = "Production Output"
+    elif prodSourceLabel in ['user','panda']:
+        activity = "User Subscriptions"
+    else:
+        activity = "Functional Test" 
+    return activity
