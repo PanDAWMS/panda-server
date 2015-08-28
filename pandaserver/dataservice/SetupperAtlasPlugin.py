@@ -2256,6 +2256,11 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                             for tmpRepSite in tmpRepSitesMap.keys():
                                 if tmpRepSite.startswith(srcDQ2IDprefix) \
                                        and not 'TAPE' in tmpRepSite \
+                                       and not '_LOCALGROUP' in tmpRepSite \
+                                       and not '_DAQ' in tmpRepSite \
+                                       and not '_TZERO' in tmpRepSite \
+                                       and not '_USERDISK' in tmpRepSite \
+                                       and not '_RAW' in tmpRepSite \
                                        and not 'SCRATCH' in tmpRepSite:
                                     tmpKey = (tmpDsName,tmpRepSite)
                                     # already done

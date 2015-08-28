@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * changed SA not to pin replicas at LOCALGROUP etc
   * setting activity for registerDatasetLocation
   * refreshing fairshre table every 15min
   * using group account for group.* with destSE
