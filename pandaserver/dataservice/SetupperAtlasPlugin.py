@@ -604,6 +604,10 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                     if (name != originalName and re.search('_sub\d+$',name) != None) or \
                                             (name == originalName and name.startswith('panda.um.')):
                                         repLifeTime = "14 days"
+                                    elif name.startswith('hc_test') or \
+                                            name.startswith('panda.install.') or \
+                                            name.startswith('user.gangarbt.'):
+                                        repLifeTime = "7 days"
                                     # register location
                                     for dq2ID in dq2IDList:
                                         # set custodial to TAPE
@@ -613,7 +617,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                             if tmpIsTape == 'True':
                                                 acl_alias = 'custodial'
                                         activity = DataServiceUtils.getActivityForOut(job.prodSourceLabel)
-                                        tmpStr = 'registerDatasetLocation {name} {dq2ID} {repLifeTime} acl_alias={acl_alias} activity={activity}'
+                                        tmpStr = 'registerDatasetLocation {name} {dq2ID} lifetime={repLifeTime} acl_alias={acl_alias} activity={activity}'
                                         self.logger.debug(tmpStr.format(name=name,
                                                                         dq2ID=dq2ID,
                                                                         repLifeTime=repLifeTime,

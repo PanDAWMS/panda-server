@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * setting rule lifetime to hc_test,install,gangarbt
   * changed SA not to pin replicas at LOCALGROUP etc
   * setting activity for registerDatasetLocation
   * refreshing fairshre table every 15min
