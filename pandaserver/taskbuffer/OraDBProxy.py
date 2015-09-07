@@ -13675,6 +13675,16 @@ class DBProxy:
             self.cur.execute(sqlEF+comment, varMap)
             nRowCopied = self.cur.rowcount
             _logger.debug("{0} : copied {1} failed event ranges".format(methodName,nRowCopied))
+            # unset processed_upto for failed events
+            sqlUP  = "UPDATE {0}.JEDI_Events SET processed_upto_eventID=NULL ".format(panda_config.schemaJEDI)
+            sqlUP += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND status=:esFailed "
+            varMap = {}
+            varMap[':jediTaskID']  = jobSpec.jediTaskID
+            varMap[':pandaID']     = pandaID
+            varMap[':esFailed']    = EventServiceUtils.ST_failed
+            self.cur.execute(sqlUP+comment, varMap)
+            nRowFailed = self.cur.rowcount
+            _logger.debug("{0} : failed {1} event ranges".format(methodName,nRowFailed))
             # look for hopeless event ranges
             sqlEU  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sqlEU += "WHERE jediTaskID=:jediTaskID AND pandaID=:jobsetID AND attemptNr=:minAttempt AND rownum=1 "
@@ -13725,7 +13735,8 @@ class DBProxy:
                 # check if other consumers finished
                 sqlEOC  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
                 sqlEOC += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-                sqlEOC += "AND NOT status IN (:esDone,:esDiscarded,:esCancelled,:esFatal,:esFailed) AND rownum=1 "
+                sqlEOC += "AND ((NOT status IN (:esDone,:esDiscarded,:esCancelled,:esFatal,:esFailed)) "
+                sqlEOC += "OR (status=:esFailed AND processed_upto_eventID IS NOT NULL)) AND rownum=1 "
                 # count the number of done ranges
                 sqlCDO  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
                 sqlCDO += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
