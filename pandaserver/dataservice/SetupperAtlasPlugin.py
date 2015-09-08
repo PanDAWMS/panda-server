@@ -548,13 +548,13 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                     ddmBackEnd = 'rucio'
                                 # register dataset
                                 self.logger.debug('registerNewDataset {name} force_backend={force_backend} rse={rse}'.format(name=name,
-                                                                                                                             rse=dq2IDList[0],
+                                                                                                                             rse=None,
                                                                                                                              force_backend=ddmBackEnd))
                                 atFailed = 0
                                 for iDDMTry in range(3):
                                     status,out = ddm.DQ2.main('registerNewDataset',name,[],[],[],[],
                                                               None,None,None,tmpHiddenFlag,
-                                                              rse=dq2IDList[0],
+                                                              rse=None,
                                                               activity=tmpActivity,
                                                               force_backend=ddmBackEnd)
                                     if status != 0 and out.find('DQDatasetExistsException') != -1:

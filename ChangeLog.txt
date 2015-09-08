@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * removed rse from registerNewDataset for _sub
   * fixed ppEvent not to generate merge jobs when there are failed events in another process
   * setting rule lifetime to hc_test,install,gangarbt
   * changed SA not to pin replicas at LOCALGROUP etc
