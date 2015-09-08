@@ -339,3 +339,21 @@ class JobSpec(object):
             return False
         else:
             return token in self.specialHandling.split(',')
+
+
+    # set home cloud
+    def setHomeCloud(self,homeCloud):
+        if self.specialHandling in ['',None,'NULL']:
+            self.specialHandling = 'hc:{0}'.format(homeCloud)
+        else:
+            self.specialHandling += ',hc:{0}'.format(homeCloud)
+
+
+
+    # get cloud
+    def getCloud(self):
+        if self.specialHandling != None:
+            for tmpItem in self.specialHandling.split(','):
+                if tmpItem.startswith('hc:'):
+                    return tmpItem.split(':')[-1]
+        return self.cloud
