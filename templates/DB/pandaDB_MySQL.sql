@@ -5620,3 +5620,74 @@ UNLOCK TABLES;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
 -- Dump completed on 2015-04-20 13:30:14
+
+--------------------------------------------------------
+--  Stored procedure migrated to MySQL - 11.09.2015 by Ruslan Mashinistov
+--------------------------------------------------------
+
+--------------------------------------------------------
+--  Stored procedure `update_jobsactive_stats`
+--------------------------------------------------------
+
+DELIMITER //
+DROP PROCEDURE IF EXISTS `update_jobsactive_stats`//
+CREATE PROCEDURE `update_jobsactive_stats` ()
+COMMENT 'Aggregates data for the active jobs'
+BEGIN
+    DELETE from mv_jobsactive4_stats;
+    INSERT INTO mv_jobsactive4_stats
+  	(CUR_DATE,
+  	CLOUD,
+  	COMPUTINGSITE,
+  	COUNTRYGROUP,
+  	WORKINGGROUP,
+  	RELOCATIONFLAG,
+  	JOBSTATUS,
+  	PROCESSINGTYPE,
+  	PRODSOURCELABEL,
+  	CURRENTPRIORITY,
+  	VO,
+  	WORKQUEUE_ID,
+  	NUM_OF_JOBS
+  	)
+  	SELECT
+    	sysdate(),
+    	cloud,
+    	computingSite,
+    	countrygroup,
+    	workinggroup,
+    	relocationflag,
+    	jobStatus,
+    	processingType,
+    	prodSourceLabel,
+    	TRUNCATE(currentPriority, -1) AS currentPriority,
+    	VO,
+    	WORKQUEUE_ID,
+    	COUNT(*)  AS num_of_jobs
+  	FROM jobsActive4
+  	GROUP BY
+    	sysdate(),
+    	cloud,
+    	computingSite,
+    	countrygroup,
+    	workinggroup,
+    	relocationflag,
+    	jobStatus,
+    	processingType,
+    	prodSourceLabel,
+    	TRUNCATE(currentPriority, -1),
+    	VO,
+    	WORKQUEUE_ID;
+commit;
+END//
+DELIMITER ;
+
+--------------------------------------------------------
+--  Event `update_jobsactive_stats_event`
+--------------------------------------------------------
+
+DROP EVENT IF EXISTS `update_jobsactive_stats_event`;
+CREATE EVENT update_jobsactive_stats_event
+    ON SCHEDULE EVERY 2 MINUTE
+    DO
+      CALL update_jobsactive_stats();
