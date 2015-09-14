@@ -2313,9 +2313,10 @@ class DBProxy:
                             # set new GUID
                             if file.type == 'log':
                                 file.GUID = commands.getoutput('uuidgen')
-                            # don't change input and lib.tgz    
+                            # don't change input or lib.tgz, or ES merge output/log since it causes a problem with input name construction
                             if file.type in ['input','pseudo_input'] or (file.type == 'output' and job.prodSourceLabel == 'panda') or \
-                                   (file.type == 'output' and file.lfn.endswith('.lib.tgz') and job.prodSourceLabel in ['rc_test','ptest']):
+                                   (file.type == 'output' and file.lfn.endswith('.lib.tgz') and job.prodSourceLabel in ['rc_test','ptest']) or \
+                                   recoverableEsMerge:
                                 continue
                             # append attemptNr to LFN
                             oldName = file.lfn

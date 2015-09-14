@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * fixed retryJob for ES merge
   * added WORLD
   * removed rse from registerNewDataset for _sub
   * fixed ppEvent not to generate merge jobs when there are failed events in another process
