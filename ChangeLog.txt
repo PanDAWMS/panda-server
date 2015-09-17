@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * added hint for JEDI_Events
   * using executemany to insert event ranges
   * fixed retryJob for ES merge
   * added WORLD

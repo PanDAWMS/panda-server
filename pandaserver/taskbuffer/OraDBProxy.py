@@ -407,7 +407,8 @@ class DBProxy:
                     # insert event tables
                     if origEsJob and eventServiceInfo != None and file.lfn in eventServiceInfo:
                         # discard old successful event ranges
-                        sqlJediOdEvt  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+                        sqlJediOdEvt  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_PK) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+                        sqlJediOdEvt += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
                         sqlJediOdEvt += "SET status=:esDiscarded "
                         sqlJediOdEvt += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                         sqlJediOdEvt += "AND status=:esDone "
@@ -14193,11 +14194,13 @@ class DBProxy:
             sqlCP += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
             sqlCP += "AND NOT status IN (:esDiscarded,:esCancelled) "
             # sql to discard or cancel event ranges
-            sqlDE  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlDE  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_PK) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+            sqlDE += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
             sqlDE += "SET status=:status "
             sqlDE += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
             sqlDE += "AND status IN (:esFinished,:esDone) "
-            sqlCE  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlCE  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_PK) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+            sqlCE += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
             sqlCE += "SET status=:status "
             sqlCE += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
             sqlCE += "AND NOT status IN (:esFinished,:esDone,:esDiscarded,:esCancelled,:esFailed,:esFatal) "
