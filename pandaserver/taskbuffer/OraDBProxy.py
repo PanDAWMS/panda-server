@@ -15527,8 +15527,8 @@ class DBProxy:
             UPDATE ATLAS_PANDA.JEDI_Dataset_Contents 
             SET maxAttempt=:maxAttempt
             WHERE JEDITaskID = :taskID
-            AND datasetID in (%s) 
-            AND fileID in (%s)
+            AND datasetID IN (%s)
+            AND fileID IN (%s)
             """ %(input_datasetIDs_string, input_fileIDs_string)
             varMap = {}
             varMap[':maxAttempt'] = maxAttempt
