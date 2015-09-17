@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * using executemany to insert event ranges
   * fixed retryJob for ES merge
   * added WORLD
   * removed rse from registerNewDataset for _sub

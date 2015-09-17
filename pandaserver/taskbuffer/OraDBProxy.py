@@ -425,6 +425,7 @@ class DBProxy:
                         sqlJediEvent += "VALUES(:jediTaskID,:datasetID,:pandaID,:fileID,:attemptNr,:eventStatus,"
                         sqlJediEvent += ":startEvent,:startEvent,:lastEvent,:processedEvent) "
                         iEvent = 1
+                        varMaps = []
                         while iEvent <= eventServiceInfo[file.lfn]['nEvents']:
                             varMap = {}
                             varMap[':jediTaskID'] = file.jediTaskID
@@ -440,7 +441,10 @@ class DBProxy:
                                 iEvent = eventServiceInfo[file.lfn]['nEvents'] + 1
                             lastEvent = eventServiceInfo[file.lfn]['startEvent'] + iEvent -1
                             varMap[':lastEvent'] = lastEvent
-                            self.cur.execute(sqlJediEvent+comment, varMap)
+                            varMaps.append(varMap)
+                        self.cur.executemany(sqlJediEvent+comment, varMaps)
+                        _logger.debug("insertNewJob : %s inserted %s event ranges jediTaskID:%s" % (job.PandaID,len(varMaps),
+                                                                                                        job.jediTaskID))
             # update t_task
             if useJEDI and not job.prodSourceLabel in ['panda'] and job.processingType != 'pmerge':
                 varMap = {}

@@ -254,8 +254,11 @@ class WrappedCursor(object):
     def executemany(self, sql, params):
         if sql is None:
             sql = self.statement
-        for paramsItem in params:
-            self.execute(sql, paramsItem)
+        if self.backend == 'oracle':
+            self.cur.executemany(sql,params)
+        else: 
+            for paramsItem in params:
+                self.execute(sql, paramsItem)
 
     # get_description
     @property

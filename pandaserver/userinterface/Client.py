@@ -546,7 +546,7 @@ def reassignJobs(ids,forPending=False,firstSubmission=None):
         type, value, traceBack = sys.exc_info()
         errStr = "ERROR reassignJobs : %s %s" % (type,value)
         print errStr
-        return EC_Failed,output+'\n'+errStr
+        return EC_Failed,"stat=%s err=%s %s" % (status,output,errStr)
 
 
 # query PandaIDs (obsolete)
