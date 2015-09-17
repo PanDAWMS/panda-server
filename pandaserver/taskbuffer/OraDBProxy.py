@@ -15535,20 +15535,32 @@ class DBProxy:
         input_datasetIDs = [input_file.datasetID for input_file in input_files]
         
         if input_fileIDs:
-            input_fileIDs_string = ','.join(':%d' % i for i in xrange(len(input_fileIDs)))
-            input_datasetIDs_string = ','.join(':%d' % i for i in xrange(len(input_datasetIDs))) 
+            
+            file_bindings = ','.join(':file{0}'.format(i) for i in xrange(len(input_fileIDs)))
+            dataset_bindings = ','.join(':dataset{0}'.format(i) for i in xrange(len(input_fileIDs)))
 
             sql  = """
             UPDATE ATLAS_PANDA.JEDI_Dataset_Contents 
             SET maxAttempt=:maxAttempt
             WHERE JEDITaskID = :taskID
-            AND datasetID IN (%s)
-            AND fileID IN (%s)
-            """ %(input_datasetIDs_string, input_fileIDs_string)
+            AND datasetID IN {0}
+            AND fileID IN {1}
+            """ .format(dataset_bindings, file_bindings)
             varMap = {}
             varMap[':maxAttempt'] = maxAttempt
             varMap[':taskID'] = taskID
             
+            #Bind the files and datasets
+            f = 0
+            for fileID in input_fileIDs:
+                varMap[':file{0}'.format(f)] = fileID
+                f+=1
+            
+            d = 0
+            for datasetID in input_datasetIDs:
+                varMap[':dataset{0}'.format(d)] = datasetID
+                d+=1
+                
             self.cur.execute(sql+comment, varMap)
         
         #Commit updates
