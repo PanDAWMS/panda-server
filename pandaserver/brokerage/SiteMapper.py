@@ -21,6 +21,8 @@ defSite.gatekeeper = panda_config.def_gatekeeper
 defSite.status     = panda_config.def_status
 defSite.setokens   = {}
 
+worldCloudName = 'WORLD'
+
 
 ########################################################################
 
@@ -39,21 +41,30 @@ class SiteMapper:
             # cloud specification
             self.cloudSpec = {}
             
+            # spec for WORLD cloud
+            self.worldCloudSpec = {}
+
             # create CloudSpec list 
             tmpCloudListDB = taskBuffer.getCloudList()
             for tmpName,tmpCloudSpec in tmpCloudListDB.iteritems():
-                self.cloudSpec[tmpName] = {}
+                cloudSpec = {}
                 # copy attributes from CloudSepc
                 for tmpAttr in tmpCloudSpec._attributes:
-                    self.cloudSpec[tmpName][tmpAttr] = getattr(tmpCloudSpec,tmpAttr)
+                    cloudSpec[tmpAttr] = getattr(tmpCloudSpec,tmpAttr)
                 # append additional attributes
                 #    source : Panda siteID for source
                 #    dest   : Panda siteID for dest
                 #    sites  : Panda siteIDs in the cloud
-                self.cloudSpec[tmpName]['source'] = self.cloudSpec[tmpName]['tier1']
-                self.cloudSpec[tmpName]['dest']   = self.cloudSpec[tmpName]['tier1']
-                self.cloudSpec[tmpName]['sites']  = []
-                _logger.debug('Cloud->%s %s' % (tmpName,str(self.cloudSpec[tmpName])))
+                cloudSpec['source'] = cloudSpec['tier1']
+                cloudSpec['dest']   = cloudSpec['tier1']
+                cloudSpec['sites']  = []
+                if tmpName == worldCloudName:
+                    self.worldCloudSpec = cloudSpec
+                else:
+                    self.cloudSpec[tmpName] = cloudSpec
+                    _logger.debug('Cloud->%s %s' % (tmpName,str(self.cloudSpec[tmpName])))
+            # add WORLD cloud
+            self.worldCloudSpec['sites']  = []
             # get list of PandaIDs
             siteIDsList = taskBuffer.getSiteList()
             firstDefault = True
@@ -128,6 +139,9 @@ class SiteMapper:
                         if not siteSpec.sitename in self.defCloudSites:
                             # append
                             self.defCloudSites.append(siteSpec.sitename)
+                        if tmpCloud == worldCloudName:
+                            # add to WORLD cloud
+                            self.worldCloudSpec['sites'].append(siteSpec.sitename)
             # set defCloudSites for backward compatibility
             if self.cloudSpec.has_key('US'):
                 # use US sites
@@ -182,6 +196,8 @@ class SiteMapper:
     def getCloud(self,cloud):
         if self.cloudSpec.has_key(cloud):
             return self.cloudSpec[cloud]
+        elif cloud == worldCloudName:
+            return self.worldCloudSpec
         else:
             # return sites in default cloud
             ret = { 'source'      : 'default',
@@ -196,6 +212,8 @@ class SiteMapper:
     # accessor for cloud
     def checkCloud(self,cloud):
         if self.cloudSpec.has_key(cloud):
+            return True
+        elif cloud == worldCloudName:
             return True
         else:
             return False

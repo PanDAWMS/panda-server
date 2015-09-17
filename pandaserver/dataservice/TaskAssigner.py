@@ -624,7 +624,12 @@ class TaskAssigner:
                     return None
                 _logger.info('%s makeSubscription to use T2 end with %s' % (self.taskID,retSub))
             # set CloudTask in DB
-            self.cloudTask.cloud = definedCloud
+            if not self.job.destinationSE in [None,'NULL','']:
+                # set T1 name for WORLD cloud
+                tmpCloudT1Name = self.siteMapper.getCloud(definedCloud)['source']
+                self.cloudTask.cloud = tmpCloudT1Name
+            else:
+                self.cloudTask.cloud = definedCloud
             retCloudTask = self.taskBuffer.setCloudTask(self.cloudTask)
             if retCloudTask == None:
                 _logger.error('%s cannot set CloudTask' % self.taskID)

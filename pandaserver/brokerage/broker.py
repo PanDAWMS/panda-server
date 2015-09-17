@@ -154,7 +154,7 @@ def _isReproJob(tmpJob):
 def _setReadyToFiles(tmpJob,okFiles,siteMapper,tmpLog):
     allOK = True
     tmpSiteSpec = siteMapper.getSite(tmpJob.computingSite)
-    tmpSrcSpec  = siteMapper.getSite(siteMapper.getCloud(tmpJob.cloud)['source'])
+    tmpSrcSpec  = siteMapper.getSite(siteMapper.getCloud(tmpJob.getCloud())['source'])
     # direct usage of remote SE
     if tmpSiteSpec.ddm != tmpSrcSpec.ddm and tmpSrcSpec.ddm in tmpSiteSpec.setokens.values():
         tmpSiteSpec = tmpSrcSpec
@@ -169,7 +169,7 @@ def _setReadyToFiles(tmpJob,okFiles,siteMapper,tmpLog):
                 # cached file
                 tmpFile.status = 'cached'
                 tmpFile.dispatchDBlock = 'NULL'
-            elif (tmpJob.computingSite.endswith('_REPRO') or tmpJob.computingSite == siteMapper.getCloud(tmpJob.cloud)['source'] \
+            elif (tmpJob.computingSite.endswith('_REPRO') or tmpJob.computingSite == siteMapper.getCloud(tmpJob.getCloud())['source'] \
                 or tmpSiteSpec.ddm == tmpSrcSpec.ddm) \
                    and (not tmpJob.computingSite in prestageSites):
                 # EGEE T1. use DQ2 prestage only for on-tape files
@@ -197,7 +197,7 @@ def _setReadyToFiles(tmpJob,okFiles,siteMapper,tmpLog):
                     tmpFile.dispatchDBlock = 'NULL'                                
             elif (((tmpFile.lfn in okFiles) or (tmpJob.computingSite == tmpJob.destinationSE)) \
                      and (not tmpJob.computingSite in prestageSites or \
-                          (tmpJob.computingSite in prestageSites and not tmpJob.cloud in ['US']))) \
+                          (tmpJob.computingSite in prestageSites and not tmpJob.getCloud() in ['US']))) \
                   or tmpFile.status == 'missing':
                 # don't use TAPE replicas when T1 is used as T2
                 if okFiles.has_key(tmpFile.lfn) and \
@@ -314,26 +314,26 @@ def getT2CandList(tmpJob,siteMapper,t2FilesMap):
     if tmpJob == None:
         return []
     # no cloud info
-    if not t2FilesMap.has_key(tmpJob.cloud):
+    if not t2FilesMap.has_key(tmpJob.getCloud()):
         return []
     # loop over all files
     tmpCandT2s = None
     for tmpFile in tmpJob.Files:
         if tmpFile.type == 'input' and tmpFile.status == 'missing':
             # no dataset info
-            if not t2FilesMap[tmpJob.cloud].has_key(tmpFile.dataset):
+            if not t2FilesMap[tmpJob.getCloud()].has_key(tmpFile.dataset):
                 return []
             # initial candidates
             if tmpCandT2s == None:
-                tmpCandT2s = t2FilesMap[tmpJob.cloud][tmpFile.dataset]['sites']
+                tmpCandT2s = t2FilesMap[tmpJob.getCloud()][tmpFile.dataset]['sites']
             # check all candidates
             newCandT2s = []
             for tmpCandT2 in tmpCandT2s:
                 # site doesn't have the dataset
-                if not t2FilesMap[tmpJob.cloud][tmpFile.dataset]['sites'].has_key(tmpCandT2):
+                if not t2FilesMap[tmpJob.getCloud()][tmpFile.dataset]['sites'].has_key(tmpCandT2):
                     continue
                 # site has the file
-                if tmpFile.lfn in t2FilesMap[tmpJob.cloud][tmpFile.dataset]['sites'][tmpCandT2]:
+                if tmpFile.lfn in t2FilesMap[tmpJob.getCloud()][tmpFile.dataset]['sites'][tmpCandT2]:
                     if not tmpCandT2 in newCandT2s:
                         newCandT2s.append(tmpCandT2)
             # set new candidates
@@ -651,16 +651,16 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             # set computingSite to T1 for high priority jobs
             if job != None and job.currentPriority >= 950 and job.computingSite == 'NULL' \
                    and job.prodSourceLabel in ('test','managed') and specialBrokergageSiteList == []:
-                specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source']]
+                specialBrokergageSiteList = [siteMapper.getCloud(job.getCloud())['source']]
                 # set site list to use T1 and T1_VL
-                if hospitalQueueMap.has_key(job.cloud):
-                    specialBrokergageSiteList += hospitalQueueMap[job.cloud]
+                if hospitalQueueMap.has_key(job.getCloud()):
+                    specialBrokergageSiteList += hospitalQueueMap[job.getCloud()]
                 tmpLog.debug('PandaID:%s -> set SiteList=%s for high prio' % (job.PandaID,specialBrokergageSiteList))
                 brokerageNote = 'highPrio'
             # use limited sites for MP jobs
             if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
                    and not job.coreCount in [None,'NULL'] and job.coreCount > 1 and specialBrokergageSiteList == []:
-                for tmpSiteName in siteMapper.getCloud(job.cloud)['sites']:
+                for tmpSiteName in siteMapper.getCloud(job.getCloud())['sites']:
                     if siteMapper.checkSite(tmpSiteName):
                         tmpSiteSpec = siteMapper.getSite(tmpSiteName)
                         if tmpSiteSpec.coreCount > 1:
@@ -677,17 +677,17 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     if tmpFile.type == 'input':
                         tmpTotalInput += 1
                 if tmpTotalInput >= manyInputsThr:
-                    specialBrokergageSiteList = [siteMapper.getCloud(job.cloud)['source']]
+                    specialBrokergageSiteList = [siteMapper.getCloud(job.getCloud())['source']]
                     # set site list to use T1 and T1_VL
-                    if hospitalQueueMap.has_key(job.cloud):
-                        specialBrokergageSiteList += hospitalQueueMap[job.cloud]
+                    if hospitalQueueMap.has_key(job.getCloud()):
+                        specialBrokergageSiteList += hospitalQueueMap[job.getCloud()]
                     tmpLog.debug('PandaID:%s -> set SiteList=%s for too many inputs' % (job.PandaID,specialBrokergageSiteList))
                     brokerageNote = 'manyInput'
             """        
             # use limited sites for reprocessing
             if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
                    and job.processingType in ['reprocessing'] and specialBrokergageSiteList == []:
-                for tmpSiteName in siteMapper.getCloud(job.cloud)['sites']:
+                for tmpSiteName in siteMapper.getCloud(job.getCloud())['sites']:
                     if siteMapper.checkSite(tmpSiteName):
                         tmpSiteSpec = siteMapper.getSite(tmpSiteName)
                         if _checkRelease(job.AtlasRelease,tmpSiteSpec.validatedreleases):
@@ -710,7 +710,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             if job == None or len(fileList) >= nFile \
                    or (dispatchDBlock == None and job.homepackage.startswith('AnalysisTransforms')) \
                    or prodDBlock != job.prodDBlock or job.computingSite != computingSite or iJob > nJob \
-                   or previousCloud != job.cloud or prevRelease != job.AtlasRelease \
+                   or previousCloud != job.getCloud() or prevRelease != job.AtlasRelease \
                    or prevCmtConfig != job.cmtConfig \
                    or (computingSite in ['RAL_REPRO','INFN-T1_REPRO'] and len(fileList)>=2) \
                    or (prevProType in skipBrokerageProTypes and iJob > 0) \
@@ -1548,13 +1548,13 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         if not forAnalysis and prevSourceLabel in ['managed','test']:
                             if not newJobStatWithPrio.has_key(prevPriority):
                                 newJobStatWithPrio[prevPriority] = {}
-                            if not newJobStatWithPrio[prevPriority].has_key(tmpJob.cloud):
-                                newJobStatWithPrio[prevPriority][tmpJob.cloud] = {}
-                            if not newJobStatWithPrio[prevPriority][tmpJob.cloud].has_key(tmpJob.computingSite):
-                                newJobStatWithPrio[prevPriority][tmpJob.cloud][tmpJob.computingSite] = {}
-                            if not newJobStatWithPrio[prevPriority][tmpJob.cloud][tmpJob.computingSite].has_key(tmpProGroup):
-                                newJobStatWithPrio[prevPriority][tmpJob.cloud][tmpJob.computingSite][tmpProGroup] = 0
-                            newJobStatWithPrio[prevPriority][tmpJob.cloud][tmpJob.computingSite][tmpProGroup] += 1
+                            if not newJobStatWithPrio[prevPriority].has_key(tmpJob.getCloud()):
+                                newJobStatWithPrio[prevPriority][tmpJob.getCloud()] = {}
+                            if not newJobStatWithPrio[prevPriority][tmpJob.getCloud()].has_key(tmpJob.computingSite):
+                                newJobStatWithPrio[prevPriority][tmpJob.getCloud()][tmpJob.computingSite] = {}
+                            if not newJobStatWithPrio[prevPriority][tmpJob.getCloud()][tmpJob.computingSite].has_key(tmpProGroup):
+                                newJobStatWithPrio[prevPriority][tmpJob.getCloud()][tmpJob.computingSite][tmpProGroup] = 0
+                            newJobStatWithPrio[prevPriority][tmpJob.getCloud()][tmpJob.computingSite][tmpProGroup] += 1
                 # terminate
                 if job == None:
                     break
@@ -1603,7 +1603,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             iJob += 1
             # reserve computingSite and cloud
             computingSite   = job.computingSite
-            previousCloud   = job.cloud
+            previousCloud   = job.getCloud()
             prevRelease     = job.AtlasRelease
             prevMemory      = job.minRamCount
             prevCmtConfig   = job.cmtConfig
@@ -1643,14 +1643,14 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     job.cloud = chosen_ce.cloud
             # set destinationSE
             destSE = job.destinationSE
-            if siteMapper.checkCloud(job.cloud):
+            if siteMapper.checkCloud(job.getCloud()):
                 # use cloud dest for non-exsiting sites
                 if job.prodSourceLabel != 'user' and (not job.destinationSE in siteMapper.siteSpecList.keys()) \
                        and job.destinationSE != 'local':
                     if DataServiceUtils.checkJobDestinationSE(job) != None:
                         destSE = DataServiceUtils.checkJobDestinationSE(job)
                     else:
-                        destSE = siteMapper.getCloud(job.cloud)['dest'] 
+                        destSE = siteMapper.getCloud(job.getCloud())['dest'] 
                     job.destinationSE = destSE
             # use CERN-PROD_EOSDATADISK for CERN-EOS jobs
             if job.computingSite in ['CERN-EOS']:

@@ -650,7 +650,7 @@ if len(jobs):
 # reassign activated jobs in inactive sites
 inactiveTimeLimitSite = 2
 inactiveTimeLimitJob  = 4
-inactivePrioLimit = 900
+inactivePrioLimit = 800
 timeLimitSite = datetime.datetime.utcnow() - datetime.timedelta(hours=inactiveTimeLimitSite)
 timeLimitJob  = datetime.datetime.utcnow() - datetime.timedelta(hours=inactiveTimeLimitJob)
 # get PandaIDs

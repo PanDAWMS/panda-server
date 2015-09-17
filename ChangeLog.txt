@@ -1,6 +1,19 @@
 Release Notes
 
 * current
+  * using executemany to insert event ranges
+  * fixed retryJob for ES merge
+  * added WORLD
+  * removed rse from registerNewDataset for _sub
+  * fixed ppEvent not to generate merge jobs when there are failed events in another process
+  * setting rule lifetime to hc_test,install,gangarbt
+  * changed SA not to pin replicas at LOCALGROUP etc
+  * setting activity for registerDatasetLocation
+  * refreshing fairshre table every 15min
+  * using group account for group.* with destSE
+  * using "User Subscriptions" for user's rules
+  * changed the limit to reassign jobs at inactive sites to prio=800
+  * sending tobekilled to updateJob for already killed jobs
   * fixed bulk getJob for user jobs
   * changed ppEvt to keep failed event records for ES
   * changed getCriteriaForProdShare for urgent to ignore fairshare

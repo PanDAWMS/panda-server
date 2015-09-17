@@ -441,6 +441,7 @@ class DBProxy:
                         sqlJediEvent += "VALUES(:jediTaskID,:datasetID,:pandaID,:fileID,:attemptNr,:eventStatus,"
                         sqlJediEvent += ":startEvent,:startEvent,:lastEvent,:processedEvent) "
                         iEvent = 1
+                        varMaps = []
                         while iEvent <= eventServiceInfo[file.lfn]['nEvents']:
                             varMap = {}
                             varMap[':jediTaskID'] = file.jediTaskID
@@ -456,7 +457,10 @@ class DBProxy:
                                 iEvent = eventServiceInfo[file.lfn]['nEvents'] + 1
                             lastEvent = eventServiceInfo[file.lfn]['startEvent'] + iEvent -1
                             varMap[':lastEvent'] = lastEvent
-                            self.cur.execute(sqlJediEvent+comment, varMap)
+                            varMaps.append(varMap)
+                        self.cur.executemany(sqlJediEvent+comment, varMaps)
+                        _logger.debug("insertNewJob : %s inserted %s event ranges jediTaskID:%s" % (job.PandaID,len(varMaps),
+                                                                                                        job.jediTaskID))
             # update t_task
             if useJEDI and not job.prodSourceLabel in ['panda'] and job.processingType != 'pmerge':
                 varMap = {}
@@ -1903,8 +1907,7 @@ class DBProxy:
                 else:
                     _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s notFound" % (pandaID,attemptNr))
                     # already deleted or bad attempt number
-                    ret = "badattemptnr"
-                    #ret = 'tobekilled'
+                    ret = 'tobekilled'
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
@@ -2330,9 +2333,10 @@ class DBProxy:
                             # set new GUID
                             if file.type == 'log':
                                 file.GUID = commands.getoutput('uuidgen')
-                            # don't change input and lib.tgz    
+                            # don't change input or lib.tgz, or ES merge output/log since it causes a problem with input name construction
                             if file.type in ['input','pseudo_input'] or (file.type == 'output' and job.prodSourceLabel == 'panda') or \
-                                   (file.type == 'output' and file.lfn.endswith('.lib.tgz') and job.prodSourceLabel in ['rc_test','ptest']):
+                                   (file.type == 'output' and file.lfn.endswith('.lib.tgz') and job.prodSourceLabel in ['rc_test','ptest']) or \
+                                   recoverableEsMerge:
                                 continue
                             # append attemptNr to LFN
                             oldName = file.lfn
@@ -4696,7 +4700,7 @@ class DBProxy:
             varMap[':jobStatus'] = 'transferring'
             varMap[':currentPriority'] = 800
             varMap[':pLabel1'] = 'managed'
-            varMap[':pLabel2'] = 'rucio_test'
+            varMap[':pLabel2'] = 'test'
             # make sql
             sql  = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
             sql += "WHERE jobStatus=:jobStatus AND modificationTime<:modificationTime AND prodSourceLabel IN (:pLabel1,:pLabel2) "
@@ -9821,7 +9825,7 @@ class DBProxy:
         comment = ' /* DBProxy.getFaresharePolicy */'
         # check utime
         if not getNewMap and self.updateTimeForFaresharePolicy != None and \
-               (datetime.datetime.utcnow()-self.updateTimeForFaresharePolicy) < datetime.timedelta(hours=3):
+               (datetime.datetime.utcnow()-self.updateTimeForFaresharePolicy) < datetime.timedelta(minutes=15):
             return
         if not getNewMap:
             # update utime
@@ -13692,6 +13696,16 @@ class DBProxy:
             self.cur.execute(sqlEF+comment, varMap)
             nRowCopied = self.cur.rowcount
             _logger.debug("{0} : copied {1} failed event ranges".format(methodName,nRowCopied))
+            # unset processed_upto for failed events
+            sqlUP  = "UPDATE {0}.JEDI_Events SET processed_upto_eventID=NULL ".format(panda_config.schemaJEDI)
+            sqlUP += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND status=:esFailed "
+            varMap = {}
+            varMap[':jediTaskID']  = jobSpec.jediTaskID
+            varMap[':pandaID']     = pandaID
+            varMap[':esFailed']    = EventServiceUtils.ST_failed
+            self.cur.execute(sqlUP+comment, varMap)
+            nRowFailed = self.cur.rowcount
+            _logger.debug("{0} : failed {1} event ranges".format(methodName,nRowFailed))
             # look for hopeless event ranges
             sqlEU  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sqlEU += "WHERE jediTaskID=:jediTaskID AND pandaID=:jobsetID AND attemptNr=:minAttempt AND rownum=1 "
@@ -13742,7 +13756,8 @@ class DBProxy:
                 # check if other consumers finished
                 sqlEOC  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
                 sqlEOC += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-                sqlEOC += "AND NOT status IN (:esDone,:esDiscarded,:esCancelled,:esFatal,:esFailed) AND rownum=1 "
+                sqlEOC += "AND ((NOT status IN (:esDone,:esDiscarded,:esCancelled,:esFatal,:esFailed)) "
+                sqlEOC += "OR (status=:esFailed AND processed_upto_eventID IS NOT NULL)) AND rownum=1 "
                 # count the number of done ranges
                 sqlCDO  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
                 sqlCDO += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
