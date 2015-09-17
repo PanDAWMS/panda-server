@@ -15535,8 +15535,22 @@ class DBProxy:
         input_datasetIDs = [input_file.datasetID for input_file in input_files]
         
         if input_fileIDs:
+            varMap = {}
+            varMap[':maxAttempt'] = maxAttempt
+            varMap[':taskID'] = taskID
             
+            #Bind the files
+            f = 0
+            for fileID in input_fileIDs:
+                varMap[':file{0}'.format(f)] = fileID
+                f+=1
             file_bindings = ','.join(':file{0}'.format(i) for i in xrange(len(input_fileIDs)))
+            
+            #Bind the datasets
+            d = 0
+            for datasetID in input_datasetIDs:
+                varMap[':dataset{0}'.format(d)] = datasetID
+                d+=1
             dataset_bindings = ','.join(':dataset{0}'.format(i) for i in xrange(len(input_fileIDs)))
 
             sql  = """
@@ -15546,21 +15560,7 @@ class DBProxy:
             AND datasetID IN {0}
             AND fileID IN {1}
             """ .format(dataset_bindings, file_bindings)
-            varMap = {}
-            varMap[':maxAttempt'] = maxAttempt
-            varMap[':taskID'] = taskID
-            
-            #Bind the files and datasets
-            f = 0
-            for fileID in input_fileIDs:
-                varMap[':file{0}'.format(f)] = fileID
-                f+=1
-            
-            d = 0
-            for datasetID in input_datasetIDs:
-                varMap[':dataset{0}'.format(d)] = datasetID
-                d+=1
-                
+
             self.cur.execute(sql+comment, varMap)
         
         #Commit updates
