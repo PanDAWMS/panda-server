@@ -3453,6 +3453,7 @@ class DBProxy:
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += ' <PandaID={0}>'.format(pandaID)
         _logger.debug("%s : code=%s role=%s user=%s wg=%s" % (methodName,code,prodManager,user,wgProdRole))
+        timeStart = datetime.datetime.utcnow()
         # check PandaID
         try:
             long(pandaID)
@@ -3690,7 +3691,8 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
-            _logger.debug("%s com=%s kill=%s " % (methodName,flagCommand,flagKilled))
+            timeDelta = datetime.datetime.utcnow()-timeStart
+            _logger.debug("%s com=%s kill=%s time=%s" % (methodName,flagCommand,flagKilled,timeDelta.seconds))
             # record status change
             try:
                 if updatedFlag:
@@ -3707,6 +3709,8 @@ class DBProxy:
             self.dumpErrorMessage(_logger,methodName)
             # roll back
             self._rollback()
+            timeDelta = datetime.datetime.utcnow()-timeStart
+            _logger.debug("%s time=%s" % (methodName,timeDelta.seconds))
             if getUserInfo:
                 return False,{}                
             return False

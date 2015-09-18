@@ -279,6 +279,9 @@ try:
                 if resC[0][0] == 0:
                     jobSpecs = taskBuffer.peekJobs([pandaID],fromDefined=False,fromArchived=False,fromWaiting=False)
                     jobSpec = jobSpecs[0]
+                    if jobSpec == None:
+                        _logger.debug("skip PandaID={0} not found in jobsActive".format(pandaID))
+                        continue
                     _logger.debug("finalize %s %s" % (prodUserName,jobDefinitionID)) 
                     finalizedFlag = taskBuffer.finalizePendingJobs(prodUserName,jobDefinitionID)
                     _logger.debug("finalized with %s" % finalizedFlag)
