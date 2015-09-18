@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * added disableFurtherAttempt not to retry killed pmerge
   * added hint for JEDI_Events
   * using executemany to insert event ranges
   * fixed retryJob for ES merge

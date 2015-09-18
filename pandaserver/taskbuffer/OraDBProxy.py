@@ -3681,6 +3681,9 @@ class DBProxy:
                     if useEventService:
                         self.killEventServiceConsumers(job,True,False)
                         self.killUnusedEventServiceConsumers(job,False)
+                    # disable reattempt
+                    if job.processingType == 'pmerge':
+                        self.disableFurtherReattempt(job)
                     # update JEDI
                     self.propagateResultToJEDI(job,self.cur,oldJobStatus)
                 break
@@ -13002,6 +13005,39 @@ class DBProxy:
 
 
 
+    # disable further reattempt for pmerge
+    def disableFurtherReattempt(self,jobSpec):
+        comment = ' /* JediDBProxy.disableFurtherReattempt */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <PandaID={0}>".format(jobSpec.PandaID)
+        # sql to update file
+        sqlFJ  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
+        sqlFJ += "SET maxAttempt=attemptNr-1 "
+        sqlFJ += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+        sqlFJ += "AND attemptNr=:attemptNr AND keepTrack=:keepTrack "
+        nRow = 0
+        for tmpFile in jobSpec.Files:
+            # skip if no JEDI
+            if tmpFile.fileID == 'NULL':
+                continue
+            # only input
+            if not tmpFile.type in ['input','pseudo_input']:
+                continue
+            # update JEDI contents
+            varMap = {}
+            varMap[':jediTaskID'] = tmpFile.jediTaskID
+            varMap[':datasetID']  = tmpFile.datasetID
+            varMap[':fileID']     = tmpFile.fileID
+            varMap[':attemptNr']  = tmpFile.attemptNr
+            varMap[':keepTrack']  = 1
+            self.cur.execute(sqlFJ+comment,varMap)
+            nRow += self.cur.rowcount
+        # finish
+        _logger.debug('{0} done with nRows={1}'.format(methodName,nRow))
+        return
+
+
+
     # update unmerged datasets to trigger merging
     def updateUnmergedDatasets(self,job,finalStatusDS):
         comment = ' /* JediDBProxy.updateUnmergedDatasets */'
@@ -14205,7 +14241,8 @@ class DBProxy:
             if useCommit:
                 self.conn.begin()
             # sql to get consumers
-            sqlCP  = "SELECT distinct PandaID FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlCP  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_PK) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+            sqlCP += "distinct PandaID FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
             sqlCP += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
             sqlCP += "AND NOT status IN (:esDiscarded,:esCancelled) "
             # sql to discard or cancel event ranges
