@@ -15592,3 +15592,96 @@ class DBProxy:
             self.dumpErrorMessage(_logger,methodName)
             return {}
 
+
+
+    # check validity of merge job
+    def isValidMergeJob(self,pandaID,jediTaskID):
+        comment = ' /* DBProxy.isValidMergeJob */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <Panda={0}>".format(pandaID)
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        try:
+            retVal = True
+            retMsg = ''
+            # sql to check if merge job is active
+            sqlJ  = "SELECT jobStatus FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID "
+            sqlJ += "UNION "
+            sqlJ += "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
+            # sql to get input files
+            sqlF  = "SELECT datasetID,fileID FROM ATLAS_PANDA.filesTable4 "
+            sqlF += "WHERE PandaID=:PandaID AND type IN (:type1,:type2) "
+            # sql to get PandaIDs for pre-merged jobs
+            sqlP  = "SELECT outPandaID FROM ATLAS_PANDA.JEDI_Dataset_Contents "
+            sqlP += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND type<>:type1"
+            # sql to check if pre-merge job is active
+            sqlC  = "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
+            # begin transaction
+            self.conn.begin()
+            # check if merge job is active
+            varMap = {}
+            varMap[':PandaID'] = pandaID
+            self.cur.execute(sqlJ+comment,varMap)
+            resJ = self.cur.fetchone()
+            if resJ == None:
+                tmpLog.debug("merge job not found")
+            else:
+                # get input files
+                varMap = {}
+                varMap[':PandaID'] = pandaID
+                varMap[':type1'] = 'input'
+                varMap[':type2'] = 'pseudo_input'
+                self.cur.execute(sqlF+comment,varMap)
+                resF = self.cur.fetchall()
+                firstDatasetID = None
+                fileIDsMap = {}
+                for datasetID,fileID in resF:
+                    if not datasetID in fileIDsMap:
+                        fileIDsMap[datasetID] = set()
+                    fileIDsMap[datasetID].add(fileID)
+                # get PandaIDs for pre-merged jobs
+                pandaIDs = set()
+                for datasetID,fileIDs in fileIDsMap.iteritems():
+                    for fileID in fileIDs:
+                        varMap = {}
+                        varMap[':jediTaskID'] = jediTaskID
+                        varMap[':datasetID']  = datasetID
+                        varMap[':fileID']     = fileID
+                        varMap[':type1']      = 'lib'
+                        self.cur.execute(sqlP+comment,varMap)
+                        resP = self.cur.fetchone()
+                        if resP != None and resP[0] != None:
+                            pandaIDs.add(resP[0])
+                    # only files in the first dataset are enough
+                    if len(pandaIDs) > 0:
+                        break
+                # check pre-merge job
+                for tmpPandaID in pandaIDs:
+                    varMap = {}
+                    varMap[':PandaID'] = tmpPandaID
+                    self.cur.execute(sqlC+comment,varMap)
+                    resC = self.cur.fetchone()
+                    if resC == None:
+                        # not found
+                        tmpLog.debug("pre-merge job {0} not found".format(tmpPandaID))
+                        retVal = False
+                        retMsg = tmpPandaID
+                        break
+                    elif resC[0] != 'merging':
+                        # not in merging
+                        tmpLog.debug("pre-merge job in {0} != merging".format(tmpPandaID,resC[0]))
+                        retVal = False
+                        retMsg = tmpPandaID
+                        break
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug("ret={0}".format(retVal))
+            return retVal,retMsg
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return None,""
+

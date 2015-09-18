@@ -2779,6 +2779,19 @@ class TaskBuffer:
 
 
 
+    # check validity of merge job
+    def isValidMergeJob(self,pandaID,jediTaskID):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.isValidMergeJob(pandaID,jediTaskID)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 
