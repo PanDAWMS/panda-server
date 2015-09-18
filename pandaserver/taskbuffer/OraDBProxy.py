@@ -15523,7 +15523,7 @@ class DBProxy:
     
     def setMaxAttempt(self, jobID, taskID, files, maxAttempt):
         #Logging
-        comment = ' /* DBProxy.blockRetries */'
+        comment = ' /* DBProxy.setMaxAttempt */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         tmpLog = LogWrapper(_logger,methodName)
         tmpLog.debug("start")
@@ -15557,8 +15557,8 @@ class DBProxy:
             UPDATE ATLAS_PANDA.JEDI_Dataset_Contents 
             SET maxAttempt=:maxAttempt
             WHERE JEDITaskID = :taskID
-            AND datasetID IN {0}
-            AND fileID IN {1}
+            AND datasetID IN ({0})
+            AND fileID IN ({1})
             """ .format(dataset_bindings, file_bindings)
 
             self.cur.execute(sql+comment, varMap)

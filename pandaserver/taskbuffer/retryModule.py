@@ -190,6 +190,8 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
                 wqid = rule['wqid'] #work queue ID
                 active = rule['active'] #If False, don't apply rule, only log
                 
+                _logger.debug("error_diag_rule {0}, action {1}, parameters {2}, architecture {3}, release {4}, wqid {5}, active {6}".format(error_diag_rule, action, parameters, architecture, release, wqid, active))
+                
                 _logger.debug("Processing rule %s for jobID %s, error_source %s, error_code %s, attemptNr %s" %(rule, jobID, error_source, error_code, attemptNr))
                 if not conditions_apply(error_diag, job.cmtConfig, job.AtlasRelease, job.workQueue_ID, error_diag_rule, architecture, release, wqid):
                     _logger.debug("Skipped rule %s. cmtConfig (%s : %s) or Release (%s : %s) did NOT match" %(rule, architecture, job.cmtConfig, release, job.AtlasRelease))
