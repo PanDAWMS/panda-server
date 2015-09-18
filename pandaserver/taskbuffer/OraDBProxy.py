@@ -3020,8 +3020,9 @@ class DBProxy:
                 job = JobSpec()
                 job.pack(res)
                 # sql to read range
-                sqlRR  = "SELECT PandaID,job_processID,attemptNr "
-                sqlRR += "FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+                sqlRR  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_PK) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+                sqlRR += "PandaID,job_processID,attemptNr "
+                sqlRR += "FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
                 sqlRR += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND status=:eventStatus "
                 # read parent PandaID
                 sqlPP  = "SELECT DISTINCT oldPandaID FROM {0}.JEDI_Job_Retry_History ".format(panda_config.schemaJEDI)
@@ -13377,6 +13378,13 @@ class DBProxy:
             sql += "WHERE PandaID=:jobsetID AND status=:eventStatus AND attemptNr>:minAttemptNr "
             sql += "ORDER BY def_min_eventID "
             sql += ") WHERE rownum<={0} ".format(nRanges)
+            # sql to get ranges with jediTaskID
+            sqlW  = 'SELECT * FROM ('
+            sqlW += 'SELECT jediTaskID,datasetID,fileID,attemptNr,job_processID,def_min_eventID,def_max_eventID '
+            sqlW += "FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
+            sqlW += "WHERE jediTaskID=:jediTaskID AND PandaID=:jobsetID AND status=:eventStatus AND attemptNr>:minAttemptNr "
+            sqlW += "ORDER BY def_min_eventID "
+            sqlW += ") WHERE rownum<={0} ".format(nRanges)
             # sql to get file info
             sqlF  = "SELECT lfn,GUID,scope FROM {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
             sqlF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID " 
@@ -13390,12 +13398,17 @@ class DBProxy:
             varMap[':jobsetID'] = jobsetID
             varMap[':eventStatus']  = EventServiceUtils.ST_ready
             varMap[':minAttemptNr'] = 0
+            if jediTaskID != None:
+                varMap[':jediTaskID'] = jediTaskID
             # start transaction
             self.conn.begin()
             # select
             self.cur.arraysize = 100000
-            _logger.debug(sql+comment+str(varMap))                
-            self.cur.execute(sql+comment, varMap)
+            _logger.debug(sql+comment+str(varMap))
+            if jediTaskID != None:
+                self.cur.execute(sqlW+comment, varMap)
+            else:
+                self.cur.execute(sql+comment, varMap)
             resList = self.cur.fetchall()
             # make dict
             fileInfo = {}
@@ -13739,12 +13752,14 @@ class DBProxy:
             hasDoneRange = False
             if nRow == 0:
                 # check if other consumers finished
-                sqlEOC  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+                sqlEOC  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_PK) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+                sqlEOC += "COUNT(*) FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
                 sqlEOC += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                 sqlEOC += "AND ((NOT status IN (:esDone,:esDiscarded,:esCancelled,:esFatal,:esFailed)) "
                 sqlEOC += "OR (status=:esFailed AND processed_upto_eventID IS NOT NULL)) AND rownum=1 "
                 # count the number of done ranges
-                sqlCDO  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+                sqlCDO  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_PK) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+                sqlCDO += "COUNT(*) FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
                 sqlCDO += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                 sqlCDO += "AND status=:esDone AND rownum=1 "
                 for fileSpec in job.Files:
