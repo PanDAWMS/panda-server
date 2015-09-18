@@ -2767,11 +2767,11 @@ class TaskBuffer:
 
 
     # get Error Definitions
-    def setMaxAttempt(self, jobID, files, attemptNr):
+    def setMaxAttempt(self, jobID, jediTaskID, files, attemptNr):
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.setMaxAttempt(jobID, files, attemptNr)
+        ret = proxy.setMaxAttempt(jobID, jediTaskID, files, attemptNr)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
