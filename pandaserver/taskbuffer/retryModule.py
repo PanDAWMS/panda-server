@@ -128,7 +128,7 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
             else:
                 filtered_rules.append(rule)
                 
-        #See if there is a LIMIT_RETRY rule. Take the narrowest rule, in case of draw take the strictest
+        #See if there is a LIMIT_RETRY rule. Take the narrowest rule, in case of draw take the strictest conditions
         limit_retry_rule = {}
         for rule in rules:
             if (not conditions_apply(error_diag_job, architecture_job, release_job, wqid_job, rule['error_diag'], rule['architecture'], rule['release'], rule['wqid']) or
@@ -178,7 +178,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
     try:
         job = task_buffer.peekJobs([jobID], fromDefined=False, fromArchived=True, fromWaiting=False)[0]
         applicable_rules = preprocess_rules(retrial_rules[error_source][error_code], error_diag, job.AtlasRelease, job.cmtConfig, job.workQueue_ID)
-        
+        _logger.debug("Applicable rules for PandaID {0}: {1}".format(jobID, applicable_rules))
         for rule in applicable_rules:
             try:
                 
