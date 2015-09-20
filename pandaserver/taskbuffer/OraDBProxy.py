@@ -15002,8 +15002,8 @@ class DBProxy:
                         varMap[':jediTaskID'] = job.jediTaskID
                         varMap[':pandaID'] = job.PandaID
                         varMap[':ramCount'] = nextLimit
-                        
-                        input_files = filter(lambda pandafile: pandafile.type in ('input', 'pseudo_input'), job.Files)
+                        input_types = ('input', 'pseudo_input', 'pp_input', 'trn_log','trn_output')
+                        input_files = filter(lambda pandafile: pandafile.type in input_types, job.Files)
                         input_tuples = [(input_file.datasetID, input_file.fileID, input_file.attemptNr) for input_file in input_files]
 
                         for entry in input_tuples:
@@ -15521,6 +15521,7 @@ class DBProxy:
         _logger.debug("Loaded retrial rules from DB: %s" %retrial_rules)
         return retrial_rules
     
+    
     def setMaxAttempt(self, jobID, taskID, files, maxAttempt):
         #Logging
         comment = ' /* DBProxy.setMaxAttempt */'
@@ -15529,14 +15530,17 @@ class DBProxy:
         tmpLog.debug("start")
         
         #Update the file entries to avoid JEDI generating new jobs
-        #fileIDs = [pandafile.fileID for pandafile in files]
-        input_files = filter(lambda pandafile: pandafile.type in ('input', 'pseudo_input'), files)
+        input_types = ('input', 'pseudo_input', 'pp_input', 'trn_log','trn_output')
+        input_files = filter(lambda pandafile: pandafile.type in input_types and re.search('DBRelease', pandafile.lfn) != None, files)
         input_fileIDs = [input_file.fileID for input_file in input_files]
         input_datasetIDs = [input_file.datasetID for input_file in input_files]
-        
+                
         if input_fileIDs:
+            #Start transaction
+            self.conn.begin()
+
+            
             varMap = {}
-            varMap[':maxAttempt'] = maxAttempt
             varMap[':taskID'] = taskID
             
             #Bind the files
@@ -15553,19 +15557,35 @@ class DBProxy:
                 d+=1
             dataset_bindings = ','.join(':dataset{0}'.format(i) for i in xrange(len(input_fileIDs)))
 
-            sql  = """
-            UPDATE ATLAS_PANDA.JEDI_Dataset_Contents 
-            SET maxAttempt=:maxAttempt
+            #Get the minimum maxAttempt value of the files
+            sql_select = """
+            select min(maxattempt) from ATLAS_PANDA.JEDI_Dataset_Contents 
             WHERE JEDITaskID = :taskID
             AND datasetID IN ({0})
             AND fileID IN ({1})
-            """ .format(dataset_bindings, file_bindings)
-
-            self.cur.execute(sql+comment, varMap)
+            """
+            self.cur.execute(sql_select+comment, varMap)
+            maxAttempt_select = self.cur.fetchone()
+            
+            #Don't update the maxAttempt if the value in the retrial table is lower
+            #than the value defined in the task 
+            if maxAttempt_select and maxAttempt_select > maxAttempt:
+                varMap[':maxAttempt'] = min(maxAttempt, maxAttempt_select)
+    
+                sql_update  = """
+                UPDATE ATLAS_PANDA.JEDI_Dataset_Contents 
+                SET maxAttempt=:maxAttempt
+                WHERE JEDITaskID = :taskID
+                AND datasetID IN ({0})
+                AND fileID IN ({1})
+                """ .format(dataset_bindings, file_bindings)
+    
+                self.cur.execute(sql_update+comment, varMap)
         
-        #Commit updates
-        if not self._commit():
-            raise RuntimeError, 'Commit error'
+            #Commit updates
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+
         tmpLog.debug("done")
         return True
 
