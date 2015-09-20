@@ -15563,7 +15563,7 @@ class DBProxy:
             WHERE JEDITaskID = :taskID
             AND datasetID IN ({0})
             AND fileID IN ({1})
-            """
+            """.format(dataset_bindings, file_bindings)
             self.cur.execute(sql_select+comment, varMap)
             maxAttempt_select = self.cur.fetchone()
             
@@ -15578,7 +15578,7 @@ class DBProxy:
                 WHERE JEDITaskID = :taskID
                 AND datasetID IN ({0})
                 AND fileID IN ({1})
-                """ .format(dataset_bindings, file_bindings)
+                """.format(dataset_bindings, file_bindings)
     
                 self.cur.execute(sql_update+comment, varMap)
         
