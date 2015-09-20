@@ -3462,7 +3462,8 @@ class DBProxy:
             if getUserInfo:
                 return False,{}                
             return False
-        sql0  = "SELECT prodUserID,prodSourceLabel,jobDefinitionID,jobsetID,workingGroup,specialHandling,jobStatus FROM %s WHERE PandaID=:PandaID"        
+        sql0  = "SELECT prodUserID,prodSourceLabel,jobDefinitionID,jobsetID,workingGroup,specialHandling,jobStatus FROM %s WHERE PandaID=:PandaID "
+        sql0 += "FOR UPDATE NOWAIT "
         sql1  = "UPDATE %s SET commandToPilot=:commandToPilot,taskBufferErrorDiag=:taskBufferErrorDiag WHERE PandaID=:PandaID AND commandToPilot IS NULL"
         sql1F = "UPDATE %s SET commandToPilot=:commandToPilot,taskBufferErrorDiag=:taskBufferErrorDiag WHERE PandaID=:PandaID"
         sql2  = "SELECT %s " % JobSpec.columnNames()
