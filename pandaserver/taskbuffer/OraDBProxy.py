@@ -15568,6 +15568,7 @@ class DBProxy:
             """.format(dataset_bindings, file_bindings)
             self.cur.execute(sql_select+comment, varMap)
             maxAttempt_select = self.cur.fetchone()
+            tmpLog.debug("maxAttempt found in DB for jobID {0} is {1}. Target maxAttempt is {2}".format(jobID, maxAttempt_select, maxAttempt))
             
             #Don't update the maxAttempt if the value in the retrial table is lower
             #than the value defined in the task 
