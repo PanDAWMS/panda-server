@@ -15531,7 +15531,7 @@ class DBProxy:
         
         #Update the file entries to avoid JEDI generating new jobs
         input_types = ('input', 'pseudo_input', 'pp_input', 'trn_log','trn_output')
-        input_files = filter(lambda pandafile: pandafile.type in input_types and re.search('DBRelease', pandafile.lfn) != None, files)
+        input_files = filter(lambda pandafile: pandafile.type in input_types and re.search('DBRelease', pandafile.lfn) == None, files)
         input_fileIDs = [input_file.fileID for input_file in input_files]
         input_datasetIDs = [input_file.datasetID for input_file in input_files]
                 
