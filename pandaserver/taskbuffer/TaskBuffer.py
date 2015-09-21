@@ -2778,17 +2778,6 @@ class TaskBuffer:
         return ret
 
 
-    # get Error Definitions
-    def setMemLimit(self, memLimit):
-        # get proxy
-        proxy = self.proxyPool.getProxy()
-        # exec
-        ret = proxy.getErrorDefinitions()
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
     # throttle jobs for resource shares
     def throttleJobsForResourceShare(self,site):
         # get proxy
