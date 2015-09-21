@@ -14262,7 +14262,7 @@ class DBProxy:
             sqlCE += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
             sqlCE += "AND NOT status IN (:esFinished,:esDone,:esDiscarded,:esCancelled,:esFailed,:esFatal) "
             # look for consumers for each input
-            killPandaIDs = []
+            killPandaIDs = {}
             for fileSpec in job.Files:
                 if fileSpec.type != 'input':
                     continue
@@ -14278,26 +14278,11 @@ class DBProxy:
                 resPs = self.cur.fetchall()
                 for esPandaID, in resPs:
                     if not esPandaID in killPandaIDs:
-                        killPandaIDs.append(esPandaID)
-                # discard event ranges
-                if resPs != []:
-                    varMap = {}
-                    varMap[':jediTaskID'] = fileSpec.jediTaskID
-                    varMap[':datasetID']  = fileSpec.datasetID
-                    varMap[':fileID']     = fileSpec.fileID
-                    varMap[':status']     = EventServiceUtils.ST_discarded
-                    varMap[':esFinished'] = EventServiceUtils.ST_finished
-                    varMap[':esDone']     = EventServiceUtils.ST_done
-                    self.cur.execute(sqlDE+comment, varMap)
-                    varMap[':status']     = EventServiceUtils.ST_cancelled
-                    varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
-                    varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
-                    varMap[':esFatal']     = EventServiceUtils.ST_fatal
-                    varMap[':esFailed']    = EventServiceUtils.ST_failed
-                    self.cur.execute(sqlCE+comment, varMap)
+                        killPandaIDs[esPandaID] = (fileSpec.jediTaskID,fileSpec.datasetID,fileSpec.fileID)
             # kill consumers
             sqlDJS = "SELECT %s " % JobSpec.columnNames()
-            sqlDJS+= "FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID"
+            sqlDJS+= "FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
+            sqlDJS+= "FOR UPDATE NOWAIT "
             sqlDJD = "DELETE FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID"
             sqlDJI = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
             sqlDJI+= JobSpec.bindValuesExpression()
@@ -14307,7 +14292,9 @@ class DBProxy:
             sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
             sqlPMod = "UPDATE ATLAS_PANDA.jobParamsTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
             nKilled = 0
-            for pandaID in killPandaIDs:
+            killPandaIDsList = killPandaIDs.keys()
+            killPandaIDsList.sort()
+            for pandaID in killPandaIDsList:
                 # ignore original PandaID since it will be killed by caller
                 if pandaID == job.PandaID:
                     continue
@@ -14360,6 +14347,23 @@ class DBProxy:
                 self.cur.execute(sqlMMod+comment,varMap)
                 self.cur.execute(sqlPMod+comment,varMap)
                 nKilled += 1
+            # discard event ranges
+            for pandaID in killPandaIDsList:
+                jediTaskID,datasetID,fileID = killPandaIDs[pandaID]
+                varMap = {}
+                varMap[':jediTaskID'] = jediTaskID
+                varMap[':datasetID']  = datasetID
+                varMap[':fileID']     = fileID
+                varMap[':status']     = EventServiceUtils.ST_discarded
+                varMap[':esFinished'] = EventServiceUtils.ST_finished
+                varMap[':esDone']     = EventServiceUtils.ST_done
+                self.cur.execute(sqlDE+comment, varMap)
+                varMap[':status']      = EventServiceUtils.ST_cancelled
+                varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
+                varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
+                varMap[':esFatal']     = EventServiceUtils.ST_fatal
+                varMap[':esFailed']    = EventServiceUtils.ST_failed
+                self.cur.execute(sqlCE+comment, varMap)
             # commit
             if useCommit:
                 if not self._commit():
@@ -14372,6 +14376,8 @@ class DBProxy:
                 self._rollback()
             # error
             self.dumpErrorMessage(_logger,methodName)
+            if not useCommit:
+                raise RuntimeError, "{0} failed".format(methodName)
             return False
 
 
@@ -14499,6 +14505,8 @@ class DBProxy:
                 self._rollback()
             # error
             self.dumpErrorMessage(_logger,methodName)
+            if not useCommit:
+                raise RuntimeError, "{0} failed".format(methodName)
             return False
 
 
