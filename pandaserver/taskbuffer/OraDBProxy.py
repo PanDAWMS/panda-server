@@ -15475,9 +15475,9 @@ class DBProxy:
         
         # SQL to extract the error definitions
         sql  = """
-        SELECT re.errorsource, re.errorcode, re.errorDiag, re.parameters, re.architecture, re.release, re.workqueue_id, ra.name, re.active, ra.active
+        SELECT re.errorsource, re.errorcode, re.errorDiag, re.parameters, re.architecture, re.release, re.workqueue_id, ra.retry_action, re.active, ra.active
         FROM ATLAS_PANDA.RETRYERRORS re, ATLAS_PANDA.RETRYACTIONS ra
-        WHERE re.RetryAction_FK=ra.ID
+        WHERE re.retryaction=ra.retryaction_id
         AND (CURRENT_TIMESTAMP > re.expiration_date or re.expiration_date IS NULL)
         """
         self.cur.execute(sql+comment, {})
