@@ -1,6 +1,11 @@
 Release Notes
 
 * current
+  * added NOWAIT in killEventServiceConsumers
+  * added NOWAIT in killJob
+  * added validation check for pmerge 
+  * added disableFurtherAttempt not to retry killed pmerge
+  * added hint for JEDI_Events
   * using executemany to insert event ranges
   * fixed retryJob for ES merge
   * added WORLD

@@ -279,6 +279,9 @@ try:
                 if resC[0][0] == 0:
                     jobSpecs = taskBuffer.peekJobs([pandaID],fromDefined=False,fromArchived=False,fromWaiting=False)
                     jobSpec = jobSpecs[0]
+                    if jobSpec == None:
+                        _logger.debug("skip PandaID={0} not found in jobsActive".format(pandaID))
+                        continue
                     _logger.debug("finalize %s %s" % (prodUserName,jobDefinitionID)) 
                     finalizedFlag = taskBuffer.finalizePendingJobs(prodUserName,jobDefinitionID)
                     _logger.debug("finalized with %s" % finalizedFlag)
@@ -1050,37 +1053,31 @@ if len(jobs):
     Client.killJobs(jobs,2)
     _logger.debug("killJobs for DDM (%s)" % str(jobs))
 
+
+# check if merge job is valid
+_logger.debug('kill invalid pmerge')
+varMap = {}
+varMap[':processingType'] = 'pmerge'
+varMap[':timeLimit'] = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
+sql  = "SELECT PandaID,jediTaskID FROM ATLAS_PANDA.jobsDefined4 WHERE processingType=:processingType AND modificationTime<:timeLimit "
+sql += "UNION "
+sql += "SELECT PandaID,jediTaskID FROM ATLAS_PANDA.jobsActive4 WHERE processingType=:processingType AND modificationTime<:timeLimit "
+status,res = taskBuffer.querySQLS(sql,varMap)
+nPmerge = 0
+badPmerge = 0
+_logger.debug('check {0} pmerge'.format(len(res)))
+for pandaID,jediTaskID in res:
+    nPmerge += 1
+    isValid,tmpMsg = taskBuffer.isValidMergeJob(pandaID,jediTaskID)
+    if isValid == False:
+        _logger.debug("kill pmerge {0} since {1} gone".format(pandaID,tmpMsg))
+        taskBuffer.killJobs([pandaID],'killed since pre-merge job {0} gone'.format(tmpMsg),
+                            '52',True)
+        badPmerge += 1
+_logger.debug('killed invalid pmerge {0}/{1}'.format(badPmerge,nPmerge))
+
+
 _memoryCheck("closing")
-
-
-# delete old datasets
-"""
-timeLimitDnS = datetime.datetime.utcnow() - datetime.timedelta(days=60)
-timeLimitTop = datetime.datetime.utcnow() - datetime.timedelta(days=90)
-nDelDS = 1000
-for dsType,dsPrefix in [('','top'),]:
-    sql = 'DELETE FROM ATLAS_PANDA.Datasets '
-    if dsType != '':
-        # dis or sub
-        sql += 'WHERE type=:type AND modificationdate<:modificationdate '
-        sql += 'AND REGEXP_LIKE(name,:pattern) AND rownum <= %s' % nDelDS
-        varMap = {}
-        varMap[':modificationdate'] = timeLimitDnS
-        varMap[':type'] = dsType
-        varMap[':pattern'] = '_%s[[:digit:]]+$' % dsPrefix
-    else:
-        # top level datasets
-        sql+= 'WHERE modificationdate<:modificationdate AND rownum <= %s' % nDelDS
-        varMap = {}
-        varMap[':modificationdate'] = timeLimitTop
-    for i in range(100):
-        # del datasets
-        ret,res = taskBuffer.querySQLS(sql, varMap)
-        _logger.debug('# of %s datasets deleted: %s' % (dsPrefix,res))
-        # no more datasets    
-        if res != nDelDS:
-            break
-"""            
 
 # thread pool
 class ThreadPool:
