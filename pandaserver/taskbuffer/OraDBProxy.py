@@ -2,7 +2,6 @@
 proxy for database connection
 
 """
-
 import re
 import os
 import sys
@@ -35,6 +34,7 @@ from pandalogger.PandaLogger import PandaLogger
 from pandalogger.LogWrapper import LogWrapper
 from config import panda_config
 from brokerage.PandaSiteIDs import PandaSiteIDs
+from __builtin__ import True
 
 if panda_config.backend == 'oracle':
     import cx_Oracle
@@ -44,9 +44,6 @@ else:
     varNUMBER = long
 
 warnings.filterwarnings('ignore')
-
-# logger
-_logger = PandaLogger().getLogger('DBProxy')
 
 # lock file
 _lockGetSN   = open(panda_config.lockfile_getSN, 'w')
@@ -82,6 +79,11 @@ class DBProxy:
         # hostname
         self.myHostName = socket.getfqdn()
         self.backend = panda_config.backend
+        
+        # logger
+        global _logger
+        _logger = PandaLogger().getLogger('DBProxy')
+
         
         
     # connect to DB
@@ -128,7 +130,21 @@ class DBProxy:
             type, value, traceBack = sys.exc_info()
             _logger.error("connect : %s %s" % (type,value))
             return False
-
+    
+    #Internal caching of a result. Use only for information 
+    #with low update frequency and low memory footprint
+    def memoize(f):
+        memo = {}
+        kwd_mark = object()
+        def helper(self, *args, **kwargs):
+            now = datetime.datetime.now()
+            key = args + (kwd_mark,) + tuple(sorted(kwargs.items()))
+            if key not in memo or memo[key]['timestamp'] < now - datetime.timedelta(hours=1):
+                memo[key] = {}
+                memo[key]['value'] = f(self, *args, **kwargs)
+                memo[key]['timestamp'] = now
+            return memo[key]['value']
+        return helper
 
     # query an SQL   
     def querySQL(self,sql,arraySize=1000):
@@ -14998,6 +15014,93 @@ class DBProxy:
             return False
 
 
+    # increase memory limit
+    def increaseRamLimitJobJEDI(self, job, jobRamCount, jediTaskID):
+        """Note that this function only increases the min RAM count for the job,
+        not for the entire task (for the latter use increaseRamLimitJEDI)
+        """
+        comment = ' /* DBProxy.increaseRamLimitJobJEDI */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <PanDAID={0}>".format(job.PandaID)
+        _logger.debug("{0} : start".format(methodName))
+        try:
+            #If no task associated to job don't take any action
+            if job.jediTaskID in [None, 0, 'NULL']:
+                _logger.debug("No task(%s) associated to job(%s). Skipping increase of RAM limit"%(job.jediTaskID, job.PandaID))
+            else:
+                # RAM limit
+                limitList = [1000,2000,3000,4000,6000,8000]
+                
+                # get current task limit
+                varMap = {}
+                varMap[':jediTaskID'] = jediTaskID
+                sqlUE  = "SELECT ramCount FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+                sqlUE += "WHERE jediTaskID=:jediTaskID "
+                self.cur.execute(sqlUE+comment,varMap)
+                taskRamCount, = self.cur.fetchone()
+                _logger.debug("{0} : RAM limit task={1} job={2} jobPSS={3}".format(methodName, taskRamCount, jobRamCount, job.maxPSS))
+                
+                #To increase, we select the highest requirement in job or task
+                #e.g. ops could have increased task RamCount through direct DB access
+                maxJobTaskRam = max(jobRamCount, taskRamCount)
+                
+                # do nothing if the job doesn't define RAM limit
+                if maxJobTaskRam in [0,None]:
+                    _logger.debug("{0} : no change since job RAM limit is {1}".format(methodName, jobRamCount))
+                else:
+                    # skip if already at largest limit
+                    if jobRamCount >= limitList[-1]:
+                        dbgStr  = "no change "
+                        dbgStr += "since job RAM limit ({0}) is larger than or equal to the highest limit ({1})".format(jobRamCount,
+                                                                                                                         limitList[-1])
+                        _logger.debug("{0} : {1}".format(methodName,dbgStr))
+                    else:
+                        #If maxPSS is present, then jump all the levels until the one above
+                        if job.maxPSS and job.maxPSS/1024>maxJobTaskRam:
+                            minimumRam = job.maxPSS/1024
+                        else:
+                            minimumRam = maxJobTaskRam
+
+                        for nextLimit in limitList:
+                            if minimumRam < nextLimit:
+                                break
+                        
+                        # update RAM limit
+                        varMap = {}
+                        varMap[':jediTaskID'] = job.jediTaskID
+                        varMap[':pandaID'] = job.PandaID
+                        varMap[':ramCount'] = nextLimit
+                        input_types = ('input', 'pseudo_input', 'pp_input', 'trn_log','trn_output')
+                        input_files = filter(lambda pandafile: pandafile.type in input_types, job.Files)
+                        input_tuples = [(input_file.datasetID, input_file.fileID, input_file.attemptNr) for input_file in input_files]
+
+                        for entry in input_tuples:
+                            datasetID, fileId, attemptNr = entry
+                            varMap[':datasetID'] = datasetID
+                            varMap[':fileID'] = fileId
+                            varMap[':attemptNr'] = attemptNr
+                            
+                            sqlRL  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
+                            sqlRL += "SET ramCount=:ramCount "
+                            sqlRL += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+                            sqlRL += "AND pandaID=:pandaID AND fileID=:fileID AND attemptNr=:attemptNr"
+
+                            self.cur.execute(sqlRL+comment,varMap)
+                            _logger.debug("{0} : increased RAM limit to {1} from {2} for PandaID {3} fileID {4}".format(methodName, nextLimit, jobRamCount, job.PandaID, fileId))
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+
+            _logger.debug("{0} : done".format(methodName))
+            return True
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return False
+
+
 
     # reset files in JEDI
     def resetFileStatusInJEDI(self,dn,prodManager,datasetName,lostFiles,lostInputDatasets):
@@ -15430,7 +15533,135 @@ class DBProxy:
             self.dumpErrorMessage(_logger,methodName)
             return False
 
+    # get error definitions from DB (values cached for 1 hour)
+    @memoize
+    def getRetrialRules(self):
+        #Logging
+        comment = ' /* DBProxy.getRetrialRules */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        _logger.debug("%s start"%methodName)
+        
+        # SQL to extract the error definitions
+        sql  = """
+        SELECT re.errorsource, re.errorcode, re.errorDiag, re.parameters, re.architecture, re.release, re.workqueue_id, ra.retry_action, re.active, ra.active
+        FROM ATLAS_PANDA.RETRYERRORS re, ATLAS_PANDA.RETRYACTIONS ra
+        WHERE re.retryaction=ra.retryaction_id
+        AND (CURRENT_TIMESTAMP > re.expiration_date or re.expiration_date IS NULL)
+        """
+        self.cur.execute(sql+comment, {})
+        definitions = self.cur.fetchall()   #example of output: [('pilotErrorCode', 1, None, None, None, None, 'no_retry', 'Y', 'Y'),...]
 
+        # commit
+        if not self._commit():
+            raise RuntimeError, 'Commit error'
+
+        _logger.debug("definitions %s"%(definitions))
+         
+        retrial_rules = {} #TODO: Consider if we want a class RetrialRule
+        for definition in definitions:
+            error_source, error_code, error_diag, parameters, architecture, release, wqid, action, e_active, a_active = definition
+                
+            #TODO: Need to define a formatting and naming convention for setting the parameters
+            #Convert the parameter string into a dictionary
+            try:
+                #1. Convert a string like "key1=value1&key2=value2" into [[key1, value1],[key2,value2]]
+                params_list = map(lambda key_value_pair: key_value_pair.split("="), parameters.split("&"))
+                #2. Convert a list [[key1, value1],[key2,value2]] into {key1: value1, key2: value2}
+                params_dict = dict((key, value) for (key, value) in params_list)
+            except AttributeError:
+                params_dict = {}
+             
+            #Calculate if action and error combination should be active
+            if e_active == 'Y' and a_active == 'Y':
+                active = True #Apply the action for this error
+            else:
+                active = False #Do not apply the action for this error, only log 
+             
+            retrial_rules.setdefault(error_source,{})
+            retrial_rules[error_source].setdefault(error_code,[])
+            retrial_rules[error_source][error_code].append({'error_diag': error_diag,
+                                                            'action': action, 
+                                                            'params': params_dict, 
+                                                            'architecture': architecture, 
+                                                            'release': release,
+                                                            'wqid': wqid,
+                                                            'active': active})
+        _logger.debug("Loaded retrial rules from DB: %s" %retrial_rules)
+        return retrial_rules
+    
+    
+    def setMaxAttempt(self, jobID, taskID, files, maxAttempt):
+        #Logging
+        comment = ' /* DBProxy.setMaxAttempt */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        
+        #Update the file entries to avoid JEDI generating new jobs
+        input_types = ('input', 'pseudo_input', 'pp_input', 'trn_log','trn_output')
+        input_files = filter(lambda pandafile: pandafile.type in input_types and re.search('DBRelease', pandafile.lfn) == None, files)
+        input_fileIDs = [input_file.fileID for input_file in input_files]
+        input_datasetIDs = [input_file.datasetID for input_file in input_files]
+                
+        if input_fileIDs:
+            #Start transaction
+            self.conn.begin()
+
+            
+            varMap = {}
+            varMap[':taskID'] = taskID
+            varMap[':pandaID'] = jobID
+            
+            #Bind the files
+            f = 0
+            for fileID in input_fileIDs:
+                varMap[':file{0}'.format(f)] = fileID
+                f+=1
+            file_bindings = ','.join(':file{0}'.format(i) for i in xrange(len(input_fileIDs)))
+            
+            #Bind the datasets
+            d = 0
+            for datasetID in input_datasetIDs:
+                varMap[':dataset{0}'.format(d)] = datasetID
+                d+=1
+            dataset_bindings = ','.join(':dataset{0}'.format(i) for i in xrange(len(input_fileIDs)))
+
+            #Get the minimum maxAttempt value of the files
+            sql_select = """
+            select min(maxattempt) from ATLAS_PANDA.JEDI_Dataset_Contents 
+            WHERE JEDITaskID = :taskID
+            AND datasetID IN ({0})
+            AND fileID IN ({1})
+            AND pandaID = :pandaID
+            """.format(dataset_bindings, file_bindings)
+            self.cur.execute(sql_select+comment, varMap)
+            try:
+                maxAttempt_select = self.cur.fetchone()[0]
+            except TypeError, IndexError:
+                maxAttempt_select = None
+            
+            #Don't update the maxAttempt if the value in the retrial table is lower
+            #than the value defined in the task 
+            if maxAttempt_select and maxAttempt_select > maxAttempt:
+                varMap[':maxAttempt'] = min(maxAttempt, maxAttempt_select)
+    
+                sql_update  = """
+                UPDATE ATLAS_PANDA.JEDI_Dataset_Contents 
+                SET maxAttempt=:maxAttempt
+                WHERE JEDITaskID = :taskID
+                AND datasetID IN ({0})
+                AND fileID IN ({1})
+                AND pandaID = :pandaID
+                """.format(dataset_bindings, file_bindings)
+    
+                self.cur.execute(sql_update+comment, varMap)
+        
+            #Commit updates
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+
+        tmpLog.debug("done")
+        return True
 
     # throttle jobs for resource shares
     def throttleJobsForResourceShare(self,site):

@@ -19,13 +19,13 @@ from dataservice.Adder import Adder
 from pandalogger.PandaLogger import PandaLogger
 import DispatcherUtils
 from taskbuffer import EventServiceUtils
+from taskbuffer import retryModule
 from brokerage.SiteMapper import SiteMapper
-
 
 # logger
 _logger = PandaLogger().getLogger('JobDispatcher')
 _pilotReqLogger = PandaLogger().getLogger('PilotRequests')
-
+_logger = PandaLogger().getLogger('JobDispatcher')
 
 # a wrapper to install timpout into a method
 class _TimedMethod:
@@ -263,7 +263,9 @@ class JobDipatcher:
 
 
     # update job status
-    def updateJob(self,jobID,jobStatus,timeout,xml,siteName,param,metadata,attemptNr=None,stdout=''):
+    def updateJob(self, jobID, jobStatus, timeout, xml, siteName, param, metadata, attemptNr=None, stdout=''):
+
+        _logger.debug("entered updateJob with params %s" % ([jobID,jobStatus,timeout,xml,siteName,param,metadata,attemptNr]))
         # recoverable error for ES merge
         recoverableEsMerge = False
         if 'pilotErrorCode' in param and param['pilotErrorCode'] in ['1224']:

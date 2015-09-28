@@ -26,6 +26,9 @@ from taskbuffer.FileSpec import FileSpec
 from taskbuffer.TaskBuffer import taskBuffer
 from config import panda_config
 
+from pandalogger.PandaLogger import PandaLogger
+_logger = PandaLogger().getLogger('testJobFlowATLAS')
+
 def sendCommand(function, node):
     """
     Send a command to the panda server. 
@@ -55,7 +58,7 @@ def sendCommand(function, node):
     conn.close()
     elapsed = round(time.time()-st, 2)
     
-    print ("Called URL %s with request %s. Took %.2f"%(url, request, elapsed))
+    _logger.info("Called URL %s with request %s. Took %.2f"%(url, request, elapsed))
     
     return data
 
@@ -185,16 +188,16 @@ class JobFlowATLAS(object):
         for job, ids in zip(self.__jobList, output):
             jobID = ids[0]
             job['jobID'] = jobID
-            print("Generated job PandaID = %s" %jobID)
+            _logger.info("Generated job PandaID = %s" %jobID)
 
         return
 
     def getStatus(self, expectedStates):
 
         idList = [job['jobID'] for job in self.__jobList]
-        print idList
+        _logger.info("%s"%idList)
         status, jobInfoList = Client.getJobStatus(idList)
-        print jobInfoList
+        _logger.info("%s"%jobInfoList)
 
         assert status == 0, "Retrieval of job state finished with status: %s" %status
 
@@ -249,14 +252,15 @@ class JobFlowATLAS(object):
                 srm = "srm://srm-eosatlas.cern.ch/eos/atlas/atlasdatadisk/rucio/panda/"
                 path = self.__calculate_path(file.lfn)
                 pfn = srm+path+file.lfn
-                print("pfn: %s"%pfn)
+
+                _logger.info("pfn: %s"%pfn)
                 files_xml += self.__XMLTEMPLATE_FILE.format(lfn=file.lfn, guid=file.GUID, srm=srm, pfn=pfn)
                 files_meta += self.__XMLTEMPLATE_FILEMETA.format(guid=file.GUID, lfn=file.lfn)
         
         xml = self.__XMLTEMPLATE_BASE.format(info=files_xml)
-        print (xml)
+        _logger.info("%s"%xml)
         meta = self.__XMLTEMPLATE_BASE.format(info=self.__XMLTEMPLATE_META.format(files=files_meta))
-        print (meta)
+        _logger.info("%s"%meta)
 
         node = {}
         node['jobId'] = jobID
@@ -274,7 +278,7 @@ class JobFlowATLAS(object):
         
         function = "updateJob"
         data = sendCommand(function, node)
-        print data
+        _logger.info("%s"%data)
 
 
     def finishJobs(self):

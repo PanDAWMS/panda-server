@@ -19,6 +19,7 @@ from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
 from pandalogger.LogWrapper import LogWrapper
 from taskbuffer import EventServiceUtils
+from taskbuffer import retryModule
 
 # logger
 _logger = PandaLogger().getLogger('Adder')
@@ -144,6 +145,7 @@ class AdderGen:
                         addResult = None
                         self.job.ddmErrorCode = ErrorCode.EC_Adder
                         self.job.ddmErrorDiag = "AdderPlugin failure"
+                        
                     # ignore temporary errors
                     if self.ignoreTmpError and addResult != None and addResult.isTemporary():
                         self.logger.debug(': ignore %s ' % self.job.ddmErrorDiag)
@@ -162,6 +164,31 @@ class AdderGen:
                         self.job.jobStatus = 'failed'
                 # set file status for failed jobs or failed transferring jobs
                 if self.job.jobStatus == 'failed' or self.jobStatus == 'failed':
+                    # First of all: check if job failed and in this case take first actions according to error table
+                    source, error_code, error_diag = None, None, None
+                    if self.job.pilotErrorCode:
+                        source = 'pilotErrorCode'
+                        error_code = self.job.pilotErrorCode
+                        error_diag = self.job.pilotErrorDiag
+                    elif self.job.exeErrorCode:
+                        source = 'exeErrorCode'
+                        error_code = self.job.exeErrorCode
+                        error_diag = self.job.exeErrorDiag
+                    elif self.job.ddmErrorCode:
+                        source = 'ddmErrorCode'
+                        error_code = self.job.ddmErrorCode
+                        error_diag = self.job.ddmErrorDiag
+            
+                    _logger.debug("updatejob has source %s, error_code %s and error_diag %s"%(source, error_code, error_diag))
+                    
+                    if source and error_code:
+                        try:
+                            self.logger.debug("AdderGen.run will call apply_retrial_rules")
+                            retryModule.apply_retrial_rules(self.taskBuffer, self.job.PandaID, source, error_code, error_diag, self.job.attemptNr)
+                            self.logger.debug("apply_retrial_rules is back")
+                        except Exception as e:
+                            self.logger.debug("apply_retrial_rules excepted and needs to be investigated (%s)"%(e))
+                    
                     self.job.jobStatus = 'failed'
                     for file in self.job.Files:
                         if file.type in ['output','log']:
@@ -229,7 +256,7 @@ class AdderGen:
                         self.logger.debug(": %s %s" % (type,value))
                         self.logger.debug("cannot unlock XML")
                     return
-                # increase RAM limit
+                # increase RAM limit for the whole task. Should be removed at some point when the job level one works
                 try:
                     if self.job.lockedby == 'jedi' and self.job.pilotErrorCode in [1223,1212] \
                             and not self.job.minRamCount in [0,None,'NULL']:
