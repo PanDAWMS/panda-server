@@ -15,6 +15,7 @@ import ErrorCode
 import brokerage.broker_util
 from DDM import ddm
 from Closer import Closer
+from taskbuffer import retryModule
 
 from config import panda_config
 from pandalogger.PandaLogger import PandaLogger

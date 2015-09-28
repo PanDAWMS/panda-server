@@ -79,6 +79,7 @@ class WrappedCursor(object):
             sql = re.sub('ATLAS_PANDAMETA\.', panda_config.schemaMETA + '.',      sql)
             sql = re.sub('ATLAS_GRISLI\.',    panda_config.schemaGRISLI + '.',    sql)
             sql = re.sub('ATLAS_PANDAARCH\.', panda_config.schemaPANDAARCH + '.', sql)
+
             # remove `
             sql = re.sub('`','',sql)
             ret = cur.execute(sql, varDict)

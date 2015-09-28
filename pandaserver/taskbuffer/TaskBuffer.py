@@ -31,6 +31,8 @@ class TaskBuffer:
         self.lock = Lock()
         self.processLimiter = None
 
+    def __repr__(self):
+        return "TaskBuffer"
 
     # initialize
     def init(self,dbname,dbpass,nDBConnection=10,useTimeout=False):
@@ -2701,6 +2703,19 @@ class TaskBuffer:
 
 
 
+    # increase memory limit
+    def increaseRamLimitJobJEDI(self, job, jobRamCount, jediTaskID):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.increaseRamLimitJobJEDI(job, jobRamCount, jediTaskID)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
     # reset files in JEDI
     def resetFileStatusInJEDI(self,dn,prodManager,datasetName,lostFiles,lostInputDatasets):
         # get proxy
@@ -2738,6 +2753,29 @@ class TaskBuffer:
         # return
         return ret
 
+
+    # get Error Definitions
+    def getRetrialRules(self):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getRetrialRules()
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # get Error Definitions
+    def setMaxAttempt(self, jobID, jediTaskID, files, attemptNr):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.setMaxAttempt(jobID, jediTaskID, files, attemptNr)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
 
 
     # throttle jobs for resource shares

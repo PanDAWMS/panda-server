@@ -22,6 +22,7 @@ from dataservice.DDM import dq2Common
 from taskbuffer.JobSpec import JobSpec
 from taskbuffer.FileSpec import FileSpec
 from taskbuffer.DatasetSpec import DatasetSpec
+from taskbuffer import retryModule
 from brokerage.SiteMapper import SiteMapper
 from brokerage.PandaSiteIDs import PandaMoverIDs
 import brokerage.broker
