@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * using Express for urgent or prio>1000
   * added NOWAIT in killEventServiceConsumers
   * added NOWAIT in killJob
   * added validation check for pmerge 

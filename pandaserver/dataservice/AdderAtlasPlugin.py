@@ -480,7 +480,10 @@ class AdderAtlasPlugin (AdderPluginBase):
                 self.logger.debug('%s' % str(out))
                 break
         # register dataset subscription
-        subActivity = 'Production Output'
+        if self.job.processingType == 'urgent' or self.job.currentPriority>1000:
+            subActivity = 'Express'
+        else:
+            subActivity = 'Production Output'
         if not self.job.prodSourceLabel in ['user']:
             for tmpName,tmpVal in subMap.iteritems():
                 for dq2ID,optSub,optSource in tmpVal:
