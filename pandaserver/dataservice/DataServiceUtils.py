@@ -331,11 +331,11 @@ def getSitesShareDDM(siteMapper,siteName):
     return retSites
 
 
-# check if destination is specified
+ # check if destination is specified
 def getDestinationSE(destinationDBlockToken):
     if destinationDBlockToken != None:
         for tmpToken in destinationDBlockToken.split(','):
-            tmpMatch = re.search('^dst:(.*)$',tmpToken)
+            tmpMatch = re.search('^dst:(.*)(/.*)*$',tmpToken)
             if tmpMatch != None:
                 return tmpMatch.group(1)
     return None
@@ -346,6 +346,17 @@ def checkJobDestinationSE(tmpJob):
     for tmpFile in tmpJob.Files:
         if getDestinationSE(tmpFile.destinationDBlockToken) != None:
             return tmpFile.destinationSE
+    return None
+
+
+
+ # check if destination is distributed
+def getDistributedDestination(destinationDBlockToken):
+    if destinationDBlockToken != None:
+        for tmpToken in destinationDBlockToken.split(','):
+            tmpMatch = re.search('^ddd:(.*)(/.*)*$',tmpToken)
+            if tmpMatch != None:
+                return tmpMatch.group(1)
     return None
 
 

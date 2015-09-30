@@ -178,6 +178,7 @@ class AdderAtlasPlugin (AdderPluginBase):
         fileList = []
         subMap = {}        
         dsDestMap = {}
+        distDSs = set()
         for file in self.job.Files:
             if file.type == 'output' or file.type == 'log':
                 # append to fileList
@@ -218,6 +219,11 @@ class AdderAtlasPlugin (AdderPluginBase):
                             elif DataServiceUtils.getDestinationSE(file.destinationDBlockToken) != None and \
                                     self.siteMapper.getSite(self.job.computingSite).ddm == self.siteMapper.getSite(file.destinationSE).ddm:
                                 tmpDestList = [DataServiceUtils.getDestinationSE(file.destinationDBlockToken)]
+                                # RSE is specified
+                                toConvert = False
+                            elif DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) != None:
+                                tmpDestList = [DataServiceUtils.getDistributedDestination(file.destinationDBlockToken)]
+                                distDSs.add(file.destinationDBlock)
                                 # RSE is specified
                                 toConvert = False
                             elif self.siteMapper.getSite(self.job.computingSite).cloud != self.job.cloud and \
@@ -372,10 +378,10 @@ class AdderAtlasPlugin (AdderPluginBase):
             if match != None:
                 # add files to top-level datasets
                 origDBlock = match.group(1)
-                if not self.goToTransferring:
+                if (not self.goToTransferring) or (not self.addToTopOnly and destinationDBlock in distDSs):
                     idMap[origDBlock] = idMap[destinationDBlock]
             # add files to top-level datasets only 
-            if self.addToTopOnly or self.goToMerging:
+            if self.addToTopOnly or self.goToMerging or destinationDBlock in distDSs:
                 del idMap[destinationDBlock]
             # skip sub unless getting transferred
             if origDBlock != None:
@@ -593,6 +599,9 @@ class AdderAtlasPlugin (AdderPluginBase):
                         # don't go to tranferring for successful ES jobs 
                         if self.job.jobStatus == 'finished' and EventServiceUtils.isEventServiceJob(self.job) \
                                 and not EventServiceUtils.isJobCloningJob(self.job):
+                            continue
+                        # skip distributed datasets
+                        if tmpFile.destinationDBlock in distDSs:
                             continue
                         self.result.transferringFiles.append(tmpFile.lfn)
         elif not "--mergeOutput" in self.job.jobParameters:

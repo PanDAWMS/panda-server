@@ -497,7 +497,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                             else:
                                 tmpDstDDM = self.siteMapper.getSite(file.destinationSE).ddm
                             # skip registration for _sub when src=dest
-                            if tmpSrcDDM == tmpDstDDM and name != originalName and re.search('_sub\d+$',name) != None:
+                            if (tmpSrcDDM == tmpDstDDM or DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) != None) \
+                                    and name != originalName and re.search('_sub\d+$',name) != None:
                                 # create a fake vuidStr
                                 vuidStr = 'vuid="%s"' % commands.getoutput('uuidgen')
                             else:
@@ -596,7 +597,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                     self.logger.debug(out)
                                     vuidStr = "vuid = %s['vuid']" % out
                                 # register dataset locations
-                                if job.lockedby == 'jedi' and job.getDdmBackEnd() == 'rucio' and job.prodSourceLabel in ['panda','user']:
+                                if (job.lockedby == 'jedi' and job.getDdmBackEnd() == 'rucio' and job.prodSourceLabel in ['panda','user']) or \
+                                        DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) != None:
                                     # skip registerDatasetLocations
                                     status,out = 0,''
                                 elif name == originalName or tmpSrcDDM != tmpDstDDM or \

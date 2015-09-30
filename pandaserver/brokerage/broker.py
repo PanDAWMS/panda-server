@@ -1690,6 +1690,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         pass
                     elif destSE == 'local':
                         pass
+                    elif DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) != None:
+                        pass
                     else:
                         file.destinationSE = destSE
                 # pre-assign GUID to log
