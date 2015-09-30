@@ -322,6 +322,10 @@ adder_plugins = local:dataservice.AdderDummyPlugin:AdderDummyPlugin
 # plugins for Setupper. format=vo1(|vo2(vo3...):moduleName:className(,vo4...) 
 setupper_plugins = local:dataservice.SetupperDummyPlugin:SetupperDummyPlugin
 
+# plugins for Closer
+setupper_plugins = atlas:dataservice.CloserAtlasPlugin:CloserAtlasPlugin
+
+
 
 ##########################
 #

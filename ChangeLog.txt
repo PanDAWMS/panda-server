@@ -1,6 +1,8 @@
 Release Notes
 
 * current
+  * added CloserAtlasPlugin
+  * initializing DBProxy._logger when importing module since resetting in JediDBProxy was broken 
   * added machinery to leave files where they are produced
   * using Express for urgent or prio>1000
   * added NOWAIT in killEventServiceConsumers

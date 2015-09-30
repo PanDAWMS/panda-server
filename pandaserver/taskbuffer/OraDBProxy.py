@@ -45,6 +45,9 @@ else:
 
 warnings.filterwarnings('ignore')
 
+# logger
+_logger = PandaLogger().getLogger('DBProxy')
+
 # lock file
 _lockGetSN   = open(panda_config.lockfile_getSN, 'w')
 _lockSetDS   = open(panda_config.lockfile_setDS, 'w')
@@ -80,10 +83,6 @@ class DBProxy:
         self.myHostName = socket.getfqdn()
         self.backend = panda_config.backend
         
-        # logger
-        global _logger
-        _logger = PandaLogger().getLogger('DBProxy')
-
         
         
     # connect to DB
@@ -1820,7 +1819,7 @@ class DBProxy:
                             nUE = self.cur.rowcount
                             _logger.debug("updateJobStatus : PandaID=%s updated %s ES jobs" % (pandaID,nUE))
                         # update nFilesOnHold for JEDI RW calculation
-                        if updatedFlag and oldJobStatus != jobStatus and (jobStatus == 'transferring' or oldJobStatus == 'transferring') and \
+                        if updatedFlag and jobStatus == 'transferring' and oldJobStatus == 'holding' and \
                                 hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and \
                                 lockedby == 'jedi' and self.checkTaskStatusJEDI(jediTaskID,self.cur):
                             # SQL to get file list from Panda
