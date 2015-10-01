@@ -54,6 +54,12 @@ EC_EventServiceLastUnprocessed = 118
 # all event ranges failed
 EC_EventServiceAllFailed = 119
 
+# associated consumer generated ES merge
+EC_EventServiceKillOK = 120
+
+# associated consumer failed
+EC_EventServiceKillNG = 121
+
 
 
 # file not found

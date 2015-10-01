@@ -1,6 +1,8 @@
 Release Notes
 
 * current
+  * added some ES error codes
+  * updating nEventsUsed only for input datasets
   * added CloserAtlasPlugin
   * initializing DBProxy._logger when importing module since resetting in JediDBProxy was broken 
   * added machinery to leave files where they are produced

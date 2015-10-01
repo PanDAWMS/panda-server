@@ -12099,7 +12099,8 @@ class DBProxy:
                 hasInput = True
                 if jobSpec.jobStatus == 'finished':
                     varMap[':status'] = 'finished'
-                    updateNumEvents = True
+                    if fileSpec.type in ['input']:
+                        updateNumEvents = True
                 else:
                     # set ready for next attempt
                     varMap[':status'] = 'ready'
@@ -12193,7 +12194,7 @@ class DBProxy:
                         tmpNumEvents,tmpKeepTrack = resEVT
                         if tmpNumEvents != None:
                             try:
-                                if fileSpec.type in ['input','pseudo_input']:
+                                if fileSpec.type in ['input']:
                                     if tmpKeepTrack == 1:
                                         # keep track on how many events successfully used
                                         datasetContentsStat[datasetID]['nEventsUsed'] += tmpNumEvents
@@ -14338,11 +14339,13 @@ class DBProxy:
                     continue
                 # set error code
                 dJob.jobStatus = 'cancelled'
+                dJob.jobSubStatus = 'finished'
                 dJob.endTime   = datetime.datetime.utcnow()
-                dJob.taskBufferErrorCode = ErrorCode.EC_Kill
                 if killedFlag:
+                    dJob.taskBufferErrorCode = ErrorCode.EC_EventServiceKillOK
                     dJob.taskBufferErrorDiag = 'killed since an associated consumer PandaID={0} was killed'.format(job.PandaID)
                 else:
+                    dJob.taskBufferErrorCode = ErrorCode.EC_EventServiceKillNG
                     dJob.taskBufferErrorDiag = 'killed since an associated consumer PandaID={0} failed'.format(job.PandaID)
                 dJob.modificationTime = dJob.endTime
                 dJob.stateChangeTime  = dJob.endTime
