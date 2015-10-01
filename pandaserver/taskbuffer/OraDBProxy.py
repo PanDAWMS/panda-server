@@ -45,6 +45,9 @@ else:
 
 warnings.filterwarnings('ignore')
 
+# logger
+_logger = PandaLogger().getLogger('DBProxy')
+
 # lock file
 _lockGetSN   = open(panda_config.lockfile_getSN, 'w')
 _lockSetDS   = open(panda_config.lockfile_setDS, 'w')
@@ -80,10 +83,6 @@ class DBProxy:
         self.myHostName = socket.getfqdn()
         self.backend = panda_config.backend
         
-        # logger
-        global _logger
-        _logger = PandaLogger().getLogger('DBProxy')
-
         
         
     # connect to DB
@@ -1820,7 +1819,7 @@ class DBProxy:
                             nUE = self.cur.rowcount
                             _logger.debug("updateJobStatus : PandaID=%s updated %s ES jobs" % (pandaID,nUE))
                         # update nFilesOnHold for JEDI RW calculation
-                        if updatedFlag and oldJobStatus != jobStatus and (jobStatus == 'transferring' or oldJobStatus == 'transferring') and \
+                        if updatedFlag and jobStatus == 'transferring' and oldJobStatus == 'holding' and \
                                 hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and \
                                 lockedby == 'jedi' and self.checkTaskStatusJEDI(jediTaskID,self.cur):
                             # SQL to get file list from Panda
@@ -12100,13 +12099,8 @@ class DBProxy:
                 hasInput = True
                 if jobSpec.jobStatus == 'finished':
                     varMap[':status'] = 'finished'
+                    updateNumEvents = True
                 else:
-                    """ WILL MOVE TO RETRY MODULE
-                    if fileSpec.status == 'missing' and jobSpec.processingType != 'pmerge':
-                        # lost file
-                        varMap[':status'] = 'lost'
-                    else:
-                    """
                     # set ready for next attempt
                     varMap[':status'] = 'ready'
                     updateAttemptNr = True
@@ -12180,10 +12174,11 @@ class DBProxy:
                 if not datasetContentsStat.has_key(datasetID):
                     datasetContentsStat[datasetID] = {'nFilesUsed':0,'nFilesFinished':0,
                                                       'nFilesFailed':0,'nFilesOnHold':0,
-                                                      'nFilesTobeUsed':0,'nEvents':0}
+                                                      'nFilesTobeUsed':0,'nEvents':0,
+                                                      'nEventsUsed':0}
                 # read nEvents
                 if updateNumEvents:
-                    sqlEVT = "SELECT nEvents FROM ATLAS_PANDA.JEDI_Dataset_Contents "
+                    sqlEVT = "SELECT nEvents,keepTrack FROM ATLAS_PANDA.JEDI_Dataset_Contents "
                     sqlEVT += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                     if not waitLock:
                         sqlEVT += "FOR UPDATE NOWAIT "
@@ -12195,10 +12190,15 @@ class DBProxy:
                     cur.execute(sqlEVT+comment,varMap)
                     resEVT = self.cur.fetchone()
                     if resEVT != None:
-                        tmpNumEvents, = resEVT
+                        tmpNumEvents,tmpKeepTrack = resEVT
                         if tmpNumEvents != None:
                             try:
-                                datasetContentsStat[datasetID]['nEvents'] += tmpNumEvents 
+                                if fileSpec.type in ['input','pseudo_input']:
+                                    if tmpKeepTrack == 1:
+                                        # keep track on how many events successfully used
+                                        datasetContentsStat[datasetID]['nEventsUsed'] += tmpNumEvents
+                                else:
+                                    datasetContentsStat[datasetID]['nEvents'] += tmpNumEvents 
                             except:
                                 pass
                 # update file counts

@@ -142,7 +142,7 @@ class Response:
                     strScopeOut += '%s,' % file.scope                        
                 if strDestToken != '':
                     strDestToken += ','
-                strDestToken += file.destinationDBlockToken.split(',')[0]
+                strDestToken += re.sub('^ddd:','dst:',file.destinationDBlockToken.split(',')[0])
                 strDisTokenForOutput += '%s,' % file.dispatchDBlockToken
                 strProdTokenForOutput += '%s,' % file.prodDBlockToken
                 ddmEndPointOut.append(self.getDdmEndpoint(siteSpec,file.destinationDBlockToken.split(',')[0]))
@@ -289,6 +289,9 @@ class Response:
         if siteSpec == None:
             return ''
         endPoint = DataServiceUtils.getDestinationSE(spaceToken)
+        if endPoint != None:
+            return endPoint
+        endPoint = DataServiceUtils.getDistributedDestination(spaceToken)
         if endPoint != None:
             return endPoint
         if spaceToken in siteSpec.setokens:

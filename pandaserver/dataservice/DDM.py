@@ -574,6 +574,19 @@ class RucioAPI:
 
 
 
+    # close dataset
+    def closeDataset(self,dsn):
+        # register dataset
+        client = RucioClient()
+        try:
+            scope,dsn = self.extract_scope(dsn)
+            client.set_status(scope,dsn,open=False)
+        except (UnsupportedOperation,DataIdentifierNotFound):
+            pass
+        return True
+
+
+
 # instantiate
 rucioAPI = RucioAPI()
 del RucioAPI

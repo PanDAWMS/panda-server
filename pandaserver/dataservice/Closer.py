@@ -53,7 +53,6 @@ class Closer:
         try:
             _logger.debug('%s Start %s' % (self.pandaID,self.job.jobStatus))
             flagComplete    = True
-            ddmJobs         = []
             topUserDsList   = []
             usingMerger     = False        
             disableNotifier = False
@@ -189,66 +188,6 @@ class Closer:
                                                     _logger.debug('%s set %s to parent dataset : %s' % (self.pandaID,unmergedDs.status,unmergedDsName))
                                                 else:
                                                     _logger.debug('%s failed to update parent dataset : %s' % (self.pandaID,unmergedDsName))
-                        if self.pandaDDM and self.job.prodSourceLabel=='managed':
-                            # instantiate SiteMapper
-                            if self.siteMapper == None:
-                                self.siteMapper = SiteMapper(self.taskBuffer)
-                            # get file list for PandaDDM
-                            retList = self.taskBuffer.queryFilesWithMap({'destinationDBlock':destinationDBlock})
-                            lfnsStr = ''
-                            guidStr = ''
-                            for tmpFile in retList:
-                                if tmpFile.type in ['log','output']:
-                                    lfnsStr += '%s,' % tmpFile.lfn
-                                    guidStr += '%s,' % tmpFile.GUID
-                            if lfnsStr != '':
-                                guidStr = guidStr[:-1]
-                                lfnsStr = lfnsStr[:-1]
-                                # create a DDM job
-                                ddmjob = JobSpec()
-                                ddmjob.jobDefinitionID   = int(time.time()) % 10000
-                                ddmjob.jobName           = "%s" % commands.getoutput('uuidgen')
-                                ddmjob.transformation    = 'http://pandaserver.cern.ch:25080/trf/mover/run_dq2_cr'
-                                ddmjob.destinationDBlock = 'testpanda.%s' % ddmjob.jobName
-                                ddmjob.computingSite     = "BNL_ATLAS_DDM"
-                                ddmjob.destinationSE     = ddmjob.computingSite
-                                ddmjob.currentPriority   = 200000
-                                ddmjob.prodSourceLabel   = 'ddm'
-                                ddmjob.transferType      = 'sub'
-                                # append log file
-                                fileOL = FileSpec()
-                                fileOL.lfn = "%s.job.log.tgz" % ddmjob.jobName
-                                fileOL.destinationDBlock = ddmjob.destinationDBlock
-                                fileOL.destinationSE     = ddmjob.destinationSE
-                                fileOL.dataset           = ddmjob.destinationDBlock
-                                fileOL.type = 'log'
-                                ddmjob.addFile(fileOL)
-                                # make arguments
-                                dstDQ2ID = 'BNLPANDA'
-                                srcDQ2ID = self.siteMapper.getSite(self.job.computingSite).ddm
-                                callBackURL = 'https://%s:%s/server/panda/datasetCompleted?vuid=%s&site=%s' % \
-                                              (panda_config.pserverhost,panda_config.pserverport,
-                                               dataset.vuid,dstDQ2ID)
-                                _logger.debug(callBackURL)
-                                # set src/dest
-                                ddmjob.sourceSite      = srcDQ2ID
-                                ddmjob.destinationSite = dstDQ2ID
-                                # if src==dst, send callback without ddm job
-                                if dstDQ2ID == srcDQ2ID:
-                                    comout = commands.getoutput('curl -k %s' % callBackURL)
-                                    _logger.debug(comout)
-                                else:
-                                    # run dq2_cr
-                                    callBackURL = urllib.quote(callBackURL)
-                                    # get destination dir
-                                    destDir = brokerage.broker_util._getDefaultStorage(self.siteMapper.getSite(self.job.computingSite).dq2url)
-                                    argStr = "-s %s -r %s --guids %s --lfns %s --callBack %s -d %s/%s %s" % \
-                                             (srcDQ2ID,dstDQ2ID,guidStr,lfnsStr,callBackURL,destDir,
-                                              destinationDBlock,destinationDBlock)
-                                    # set job parameters
-                                    ddmjob.jobParameters = argStr
-                                    _logger.debug('%s pdq2_cr %s' % (self.pandaID,ddmjob.jobParameters))
-                                    ddmJobs.append(ddmjob)
                         # start Activator
                         if re.search('_sub\d+$',dataset.name) == None:
                             if self.job.prodSourceLabel=='panda' and self.job.processingType in ['merge','unmerge']:
@@ -271,9 +210,16 @@ class Closer:
                     flagComplete = False
                 # end
                 _logger.debug('%s end %s' % (self.pandaID,destinationDBlock))
-            # start DDM jobs
-            if ddmJobs != []:
-                self.taskBuffer.storeJobs(ddmJobs,self.job.prodUserID,joinThr=True)
+            # special actions for vo
+            if flagComplete:
+                closerPluginClass = panda_config.getPlugin('closer_plugins',self.job.VO)
+                if closerPluginClass == None and self.job.VO == 'atlas':
+                    # use ATLAS plugin for ATLAS
+                    from CloserAtlasPlugin import CloserAtlasPlugin
+                    closerPluginClass = CloserAtlasPlugin
+                if closerPluginClass != None:
+                    closerPlugin = closerPluginClass(self.job,finalStatusDS,_logger)
+                    closerPlugin.execute()
             # change pending jobs to failed
             finalizedFlag = True
             if flagComplete and self.job.prodSourceLabel=='user':
