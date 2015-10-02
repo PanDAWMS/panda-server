@@ -36,6 +36,10 @@ from config import panda_config
 from brokerage.PandaSiteIDs import PandaSiteIDs
 from __builtin__ import True
 
+# logger
+global _logger
+_logger = PandaLogger().getLogger('DBProxy')
+
 if panda_config.backend == 'oracle':
     import cx_Oracle
     varNUMBER = cx_Oracle.NUMBER
@@ -44,9 +48,6 @@ else:
     varNUMBER = long
 
 warnings.filterwarnings('ignore')
-
-# logger
-_logger = PandaLogger().getLogger('DBProxy')
 
 # lock file
 _lockGetSN   = open(panda_config.lockfile_getSN, 'w')
@@ -59,6 +60,7 @@ class DBProxy:
 
     # constructor
     def __init__(self,useOtherError=False):
+
         # connection object
         self.conn = None
         # cursor object
@@ -82,7 +84,6 @@ class DBProxy:
         # hostname
         self.myHostName = socket.getfqdn()
         self.backend = panda_config.backend
-        
         
         
     # connect to DB
@@ -422,7 +423,7 @@ class DBProxy:
                     # insert event tables
                     if origEsJob and eventServiceInfo != None and file.lfn in eventServiceInfo:
                         # discard old successful event ranges
-                        sqlJediOdEvt  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+                        sqlJediOdEvt  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_PK) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
                         sqlJediOdEvt += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
                         sqlJediOdEvt += "SET status=:esDiscarded "
                         sqlJediOdEvt += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
@@ -3035,7 +3036,7 @@ class DBProxy:
                 job = JobSpec()
                 job.pack(res)
                 # sql to read range
-                sqlRR  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+                sqlRR  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_PK) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
                 sqlRR += "PandaID,job_processID,attemptNr "
                 sqlRR += "FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
                 sqlRR += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND status=:eventStatus "
@@ -12099,8 +12100,7 @@ class DBProxy:
                 hasInput = True
                 if jobSpec.jobStatus == 'finished':
                     varMap[':status'] = 'finished'
-                    if fileSpec.type in ['input']:
-                        updateNumEvents = True
+                    updateNumEvents = True
                 else:
                     # set ready for next attempt
                     varMap[':status'] = 'ready'
@@ -12179,7 +12179,7 @@ class DBProxy:
                                                       'nEventsUsed':0}
                 # read nEvents
                 if updateNumEvents:
-                    sqlEVT = "SELECT nEvents,startEvent,endEvent,keepTrack FROM ATLAS_PANDA.JEDI_Dataset_Contents "
+                    sqlEVT = "SELECT nEvents,keepTrack FROM ATLAS_PANDA.JEDI_Dataset_Contents "
                     sqlEVT += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                     if not waitLock:
                         sqlEVT += "FOR UPDATE NOWAIT "
@@ -12191,16 +12191,13 @@ class DBProxy:
                     cur.execute(sqlEVT+comment,varMap)
                     resEVT = self.cur.fetchone()
                     if resEVT != None:
-                        tmpNumEvents,tmpStartEvent,tmpEndEvent,tmpKeepTrack = resEVT
+                        tmpNumEvents,tmpKeepTrack = resEVT
                         if tmpNumEvents != None:
                             try:
-                                if fileSpec.type in ['input']:
+                                if fileSpec.type in ['input','pseudo_input']:
                                     if tmpKeepTrack == 1:
                                         # keep track on how many events successfully used
-                                        if tmpStartEvent != None and tmpEndEvent != None:
-                                            datasetContentsStat[datasetID]['nEventsUsed'] += (tmpEndEvent-tmpStartEvent+1)
-                                        else:
-                                            datasetContentsStat[datasetID]['nEventsUsed'] += tmpNumEvents
+                                        datasetContentsStat[datasetID]['nEventsUsed'] += tmpNumEvents
                                 else:
                                     datasetContentsStat[datasetID]['nEvents'] += tmpNumEvents 
                             except:
@@ -13813,13 +13810,13 @@ class DBProxy:
             hasDoneRange = False
             if nRow == 0:
                 # check if other consumers finished
-                sqlEOC  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+                sqlEOC  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_PK) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
                 sqlEOC += "COUNT(*) FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
                 sqlEOC += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                 sqlEOC += "AND ((NOT status IN (:esDone,:esDiscarded,:esCancelled,:esFatal,:esFailed)) "
                 sqlEOC += "OR (status=:esFailed AND processed_upto_eventID IS NOT NULL)) AND rownum=1 "
                 # count the number of done ranges
-                sqlCDO  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+                sqlCDO  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_PK) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
                 sqlCDO += "COUNT(*) FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
                 sqlCDO += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                 sqlCDO += "AND status=:esDone AND rownum=1 "
@@ -14266,17 +14263,17 @@ class DBProxy:
             if useCommit:
                 self.conn.begin()
             # sql to get consumers
-            sqlCP  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+            sqlCP  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_PK) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
             sqlCP += "distinct PandaID FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
             sqlCP += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
             sqlCP += "AND NOT status IN (:esDiscarded,:esCancelled) "
             # sql to discard or cancel event ranges
-            sqlDE  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+            sqlDE  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_PK) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
             sqlDE += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
             sqlDE += "SET status=:status "
             sqlDE += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
             sqlDE += "AND status IN (:esFinished,:esDone) "
-            sqlCE  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+            sqlCE  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_PK) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
             sqlCE += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
             sqlCE += "SET status=:status "
             sqlCE += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
@@ -14342,13 +14339,11 @@ class DBProxy:
                     continue
                 # set error code
                 dJob.jobStatus = 'cancelled'
-                dJob.jobSubStatus = 'finished'
                 dJob.endTime   = datetime.datetime.utcnow()
+                dJob.taskBufferErrorCode = ErrorCode.EC_Kill
                 if killedFlag:
-                    dJob.taskBufferErrorCode = ErrorCode.EC_EventServiceKillOK
                     dJob.taskBufferErrorDiag = 'killed since an associated consumer PandaID={0} was killed'.format(job.PandaID)
                 else:
-                    dJob.taskBufferErrorCode = ErrorCode.EC_EventServiceKillNG
                     dJob.taskBufferErrorDiag = 'killed since an associated consumer PandaID={0} failed'.format(job.PandaID)
                 dJob.modificationTime = dJob.endTime
                 dJob.stateChangeTime  = dJob.endTime
@@ -14958,9 +14953,8 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return None
-
-
-
+        
+        
     # increase memory limit
     def increaseRamLimitJEDI(self,jediTaskID,jobRamCount):
         comment = ' /* DBProxy.increaseRamLimitJEDI */'
@@ -14995,8 +14989,9 @@ class DBProxy:
                                                                                                                      limitList[-1])
                     _logger.debug("{0} : {1}".format(methodName,dbgStr))
                 else:
+                    limit = max(taskRamCount, jobRamCount) 
                     for nextLimit in limitList:
-                        if taskRamCount < nextLimit:
+                        if limit < nextLimit:
                             break
                     # update RAM limit
                     varMap = {}
@@ -15029,14 +15024,17 @@ class DBProxy:
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <PanDAID={0}>".format(job.PandaID)
         _logger.debug("{0} : start".format(methodName))
+        
+        # RAM limit
+        limitList = [1000,2000,3000,4000,6000,8000]
+        # Files defined as input types
+        input_types = ('input', 'pseudo_input', 'pp_input', 'trn_log','trn_output')
+
         try:
             #If no task associated to job don't take any action
             if job.jediTaskID in [None, 0, 'NULL']:
                 _logger.debug("No task(%s) associated to job(%s). Skipping increase of RAM limit"%(job.jediTaskID, job.PandaID))
             else:
-                # RAM limit
-                limitList = [1000,2000,3000,4000,6000,8000]
-                
                 # get current task limit
                 varMap = {}
                 varMap[':jediTaskID'] = jediTaskID
@@ -15046,6 +15044,38 @@ class DBProxy:
                 taskRamCount, = self.cur.fetchone()
                 _logger.debug("{0} : RAM limit task={1} job={2} jobPSS={3}".format(methodName, taskRamCount, jobRamCount, job.maxPSS))
                 
+                # If more than x% of the task's jobs needed a memory increase, increase the task's memory instead
+                varMap = {}
+                varMap[':jediTaskID'] = jediTaskID
+                i = 0
+                for input_type in input_types:
+                    varMap[':type{0}'.format(i)] = input_type
+                    i += 1
+                input_type_bindings = ','.join(':type{0}'.format(i) for i in xrange(len(input_types)))
+                
+                sqlMS  = """
+                         SELECT ramCount, count(*) 
+                         FROM {0}.JEDI_Dataset_Contents
+                         WHERE jediTaskID=:jediTaskID
+                         AND type in ({1})
+                         GROUP BY ramCount
+                         """.format(panda_config.schemaJEDI, input_type_bindings)
+                self.cur.execute(sqlMS+comment,varMap)
+                memory_stats = self.cur.fetchall()
+                total = sum([entry[1] for entry in memory_stats])
+                above_task = sum(tuple[1] for tuple in filter(lambda entry: entry[0] > taskRamCount, memory_stats))
+                max_task = max([entry[0] for entry in memory_stats])
+                
+                if (1.0*above_task)/total > 0.3:
+                    if job.maxPSS:
+                        minimumRam = job.maxPSS/1024
+                    if jobRamCount not in [0,None,'NULL'] and jobRamCount > minimumRam:
+                        minimumRam = jobRamCount
+                    if max_task > minimumRam:
+                        minimumRam = jobRamCount
+                    if minimumRam: 
+                        return self.increaseRamLimitJEDI(jediTaskID, minimumRam)
+
                 #To increase, we select the highest requirement in job or task
                 #e.g. ops could have increased task RamCount through direct DB access
                 maxJobTaskRam = max(jobRamCount, taskRamCount)
@@ -15076,7 +15106,6 @@ class DBProxy:
                         varMap[':jediTaskID'] = job.jediTaskID
                         varMap[':pandaID'] = job.PandaID
                         varMap[':ramCount'] = nextLimit
-                        input_types = ('input', 'pseudo_input', 'pp_input', 'trn_log','trn_output')
                         input_files = filter(lambda pandafile: pandafile.type in input_types, job.Files)
                         input_tuples = [(input_file.datasetID, input_file.fileID, input_file.attemptNr) for input_file in input_files]
 
