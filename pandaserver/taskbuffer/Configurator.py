@@ -5,6 +5,8 @@ from taskbuffer.TaskBuffer import taskBuffer as task_buffer
 import urllib2
 import json
 import sys
+import datetime
+
 # logger
 logger = PandaLogger().getLogger(__name__.split('.')[-1])
 
@@ -84,6 +86,13 @@ class Configurator():
 
 
 if __name__ == "__main__":
+    t1 = time.time()
     configurator = Configurator()
-    nuclei = configurator.get_nuclei()
-    print nuclei
+    t2 = time.time()
+    nuclei1 = configurator.get_nuclei()
+    t3 = time.time()
+    nuclei2 = configurator.get_nuclei()
+    t4 = time.time()
+    print "Instantiation:{0} Get1: {1} Get2: {2}".format(t2-t1, t3-t2, t4-t3)
+    print nuclei1
+    print nuclei2
