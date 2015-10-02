@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * added giveGUID to EventPicking
   * changed hint for JEDI_Events
   * added some ES error codes
   * updating nEventsUsed only for input datasets

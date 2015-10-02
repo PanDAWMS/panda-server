@@ -1206,7 +1206,7 @@ class DynDataDistributer:
 
 
     # conver event/run list to datasets
-    def convertEvtRunToDatasets(self,runEvtList,dsType,streamName,dsFilters,amiTag,user):
+    def convertEvtRunToDatasets(self,runEvtList,dsType,streamName,dsFilters,amiTag,user,runEvtGuidMap):
         self.putLog('convertEvtRunToDatasets type=%s stream=%s dsPatt=%s amitag=%s' % \
                     (dsType,streamName,str(dsFilters),amiTag))
         # check data type
@@ -1222,39 +1222,39 @@ class DynDataDistributer:
             self.putLog("invalid data type %s for EventRun conversion" % dsType,type='error')
             return failedRet
         # import event lookup client
-        from eventLookupClientEI import eventLookupClientEI
-        elssiIF = eventLookupClientEI()
-        # loop over all events
-        runEvtGuidMap = {}
-        nEventsPerLoop = 500
-        iEventsTotal = 0
-        while iEventsTotal < len(runEvtList):
-            tmpRunEvtList = runEvtList[iEventsTotal:iEventsTotal+nEventsPerLoop]
-            iEventsTotal += nEventsPerLoop
-            guidListELSSI,tmpCom,tmpOut,tmpErr = elssiIF.doLookup(tmpRunEvtList,stream=streamName,tokens=streamRef,
-                                                                  amitag=amiTag,user=user)
-            # failed
-            if not tmpErr in [None,''] or len(guidListELSSI) == 0:
-                self.putLog(tmpCom)
-                self.putLog(tmpOut)
-                self.putLog(tmpErr)
-                self.putLog("invalid retrun from EventLookup",type='error')
-                return failedRet
-            # check events
-            for runNr,evtNr in tmpRunEvtList:
-                paramStr = 'Run:%s Evt:%s Stream:%s' % (runNr,evtNr,streamName)
-                self.putLog(paramStr)
-                tmpRunEvtKey = (long(runNr),long(evtNr))
-                # not found
-                if not tmpRunEvtKey in guidListELSSI:
+        if runEvtGuidMap == {}:
+            from eventLookupClientEI import eventLookupClientEI
+            elssiIF = eventLookupClientEI()
+            # loop over all events
+            nEventsPerLoop = 500
+            iEventsTotal = 0
+            while iEventsTotal < len(runEvtList):
+                tmpRunEvtList = runEvtList[iEventsTotal:iEventsTotal+nEventsPerLoop]
+                iEventsTotal += nEventsPerLoop
+                guidListELSSI,tmpCom,tmpOut,tmpErr = elssiIF.doLookup(tmpRunEvtList,stream=streamName,tokens=streamRef,
+                                                                      amitag=amiTag,user=user)
+                # failed
+                if not tmpErr in [None,''] or len(guidListELSSI) == 0:
                     self.putLog(tmpCom)
                     self.putLog(tmpOut)
                     self.putLog(tmpErr)
-                    errStr = "no GUIDs were found in Event Lookup service for %s" % paramStr
-                    self.putLog(errStr,type='error')
-                    return fatalRet
-                # append
-                runEvtGuidMap[tmpRunEvtKey] = guidListELSSI[tmpRunEvtKey]
+                    self.putLog("invalid retrun from EventLookup",type='error')
+                    return failedRet
+                # check events
+                for runNr,evtNr in tmpRunEvtList:
+                    paramStr = 'Run:%s Evt:%s Stream:%s' % (runNr,evtNr,streamName)
+                    self.putLog(paramStr)
+                    tmpRunEvtKey = (long(runNr),long(evtNr))
+                    # not found
+                    if not tmpRunEvtKey in guidListELSSI:
+                        self.putLog(tmpCom)
+                        self.putLog(tmpOut)
+                        self.putLog(tmpErr)
+                        errStr = "no GUIDs were found in Event Lookup service for %s" % paramStr
+                        self.putLog(errStr,type='error')
+                        return fatalRet
+                    # append
+                    runEvtGuidMap[tmpRunEvtKey] = guidListELSSI[tmpRunEvtKey]
         # convert to datasets
         allDatasets  = []
         allFiles     = []

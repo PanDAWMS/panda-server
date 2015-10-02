@@ -12179,7 +12179,7 @@ class DBProxy:
                                                       'nEventsUsed':0}
                 # read nEvents
                 if updateNumEvents:
-                    sqlEVT = "SELECT nEvents,keepTrack FROM ATLAS_PANDA.JEDI_Dataset_Contents "
+                    sqlEVT = "SELECT nEvents,startEvent,endEvent,keepTrack FROM ATLAS_PANDA.JEDI_Dataset_Contents "
                     sqlEVT += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                     if not waitLock:
                         sqlEVT += "FOR UPDATE NOWAIT "
@@ -12191,13 +12191,16 @@ class DBProxy:
                     cur.execute(sqlEVT+comment,varMap)
                     resEVT = self.cur.fetchone()
                     if resEVT != None:
-                        tmpNumEvents,tmpKeepTrack = resEVT
+                        tmpNumEvents,tmpStartEvent,tmpEndEvent,tmpKeepTrack = resEVT
                         if tmpNumEvents != None:
                             try:
                                 if fileSpec.type in ['input']:
                                     if tmpKeepTrack == 1:
                                         # keep track on how many events successfully used
-                                        datasetContentsStat[datasetID]['nEventsUsed'] += tmpNumEvents
+                                        if tmpStartEvent != None and tmpEndEvent != None:
+                                            datasetContentsStat[datasetID]['nEventsUsed'] += (tmpEndEvent-tmpStartEvent+1)
+                                        else:
+                                            datasetContentsStat[datasetID]['nEventsUsed'] += tmpNumEvents
                                 else:
                                     datasetContentsStat[datasetID]['nEvents'] += tmpNumEvents 
                             except:

@@ -364,7 +364,8 @@ def getFile(req,fileName):
 # get event picking request
 def putEventPickingRequest(req,runEventList='',eventPickDataType='',eventPickStreamName='',
                            eventPickDS='',eventPickAmiTag='',userDatasetName='',lockedBy='',
-                           params='',inputFileList='',eventPickNumSites='',userTaskName=''):
+                           params='',inputFileList='',eventPickNumSites='',userTaskName='',
+                           giveGUID=None):
     if not Protocol.isSecure(req):
         return "ERROR : no HTTPS"
     userName = req.subprocess_env['SSL_CLIENT_S_DN']
@@ -386,6 +387,10 @@ def putEventPickingRequest(req,runEventList='',eventPickDataType='',eventPickStr
         _logger.error("putEventPickingRequest : " + errStr + " " + userName)
         _logger.debug("putEventPickingRequest : %s end" % userName)
         return "ERROR : " + errStr
+    if giveGUID == 'True':
+        giveGUID = True
+    else:
+        giveGUID = False
     try:
         # make filename
         evpFileName = '%s/evp.%s' % (panda_config.cache_dir,str(uuid.uuid4()))
@@ -404,11 +409,16 @@ def putEventPickingRequest(req,runEventList='',eventPickDataType='',eventPickStr
         fo.write("lockedBy=%s\n" % lockedBy)
         fo.write("params=%s\n" % params)
         fo.write("inputFileList=%s\n" % inputFileList)
+        runEvtGuidMap = {}
         for tmpLine in runEventList.split('\n'):
             tmpItems = tmpLine.split()
-            if len(tmpItems) != 2:
+            if (len(tmpItems) != 2 and not giveGUID) or \
+                    (len(tmpItems) != 3 and giveGUID):
                 continue
-            fo.write("runEvent=%s,%s\n" % tuple(tmpItems))
+            fo.write("runEvent=%s,%s\n" % tuple(tmpItems[:2]))
+            if giveGUID:
+                runEvtGuidMap[tuple(tmpItems[:2])] = [tmpItems[2]]
+        fo.write("runEvtGuidMap=%s\n" % str(runEvtGuidMap))
         fo.close()
     except:
         errType,errValue = sys.exc_info()[:2]

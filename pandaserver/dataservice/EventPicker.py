@@ -80,6 +80,7 @@ class EventPicker:
             tagQuery            = ''
             tagStreamRef        = ''
             skipDaTRI           = False
+            runEvtGuidMap       = {}
             # read evp file
             for tmpLine in self.evpFile:
                 tmpMatch = re.search('^([^=]+)=(.+)$',tmpLine)
@@ -147,6 +148,12 @@ class EventPicker:
                     tagStreamRef = tmpItems[1]
                     if not tagStreamRef.endswith('_ref'):
                         tagStreamRef += '_ref'
+                elif tmpItems[0] == 'runEvtGuidMap':
+                    # GUIDs
+                    try:
+                        exec "runEvtGuidMap="+tmpItems[1]
+                    except:
+                        pass
             # extract task name
             if self.userTaskName == '' and self.params != '':
                 try:
@@ -173,7 +180,8 @@ class EventPicker:
                                                                                 eventPickStreamName,
                                                                                 eventPickDS,
                                                                                 eventPickAmiTag,
-                                                                                self.userDN
+                                                                                self.userDN,
+                                                                                runEvtGuidMap
                                                                                 )
                 if not tmpRet:
                     if 'isFatal' in locationMap and locationMap['isFatal'] == True:
