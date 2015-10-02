@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * added ESMERGERECOVERABLE. Eventually should be taken care of by retrial module
   * added giveGUID to EventPicking
   * changed hint for JEDI_Events
   * added some ES error codes

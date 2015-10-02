@@ -268,7 +268,7 @@ class JobDipatcher:
         _logger.debug("entered updateJob with params %s" % ([jobID,jobStatus,timeout,xml,siteName,param,metadata,attemptNr]))
         # recoverable error for ES merge
         recoverableEsMerge = False
-        if 'pilotErrorCode' in param and param['pilotErrorCode'] in ['1224']:
+        if 'pilotErrorCode' in param and param['pilotErrorCode'] in ['1225','1137']:
             recoverableEsMerge = True
         # retry failed analysis job and ddm job
         if jobStatus=='failed' \
