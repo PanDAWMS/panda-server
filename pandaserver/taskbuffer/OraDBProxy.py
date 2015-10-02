@@ -12198,9 +12198,9 @@ class DBProxy:
                                     if tmpKeepTrack == 1:
                                         # keep track on how many events successfully used
                                         if tmpStartEvent != None and tmpEndEvent != None:
-                                             datasetContentsStat[datasetID]['nEventsUsed'] += (tmpEndEvent-tmpStartEvent+1)
-                                         else:
-                                             datasetContentsStat[datasetID]['nEventsUsed'] += tmpNumEvents
+                                            datasetContentsStat[datasetID]['nEventsUsed'] += (tmpEndEvent-tmpStartEvent+1)
+                                        else:
+                                            datasetContentsStat[datasetID]['nEventsUsed'] += tmpNumEvents
                                 else:
                                     datasetContentsStat[datasetID]['nEvents'] += tmpNumEvents 
                             except:
@@ -13813,13 +13813,13 @@ class DBProxy:
             hasDoneRange = False
             if nRow == 0:
                 # check if other consumers finished
-                sqlEOC  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_PK) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+                sqlEOC  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
                 sqlEOC += "COUNT(*) FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
                 sqlEOC += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                 sqlEOC += "AND ((NOT status IN (:esDone,:esDiscarded,:esCancelled,:esFatal,:esFailed)) "
                 sqlEOC += "OR (status=:esFailed AND processed_upto_eventID IS NOT NULL)) AND rownum=1 "
                 # count the number of done ranges
-                sqlCDO  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_PK) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+                sqlCDO  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
                 sqlCDO += "COUNT(*) FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
                 sqlCDO += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                 sqlCDO += "AND status=:esDone AND rownum=1 "
