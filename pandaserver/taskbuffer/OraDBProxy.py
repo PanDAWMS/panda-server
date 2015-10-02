@@ -422,7 +422,7 @@ class DBProxy:
                     # insert event tables
                     if origEsJob and eventServiceInfo != None and file.lfn in eventServiceInfo:
                         # discard old successful event ranges
-                        sqlJediOdEvt  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_PK) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+                        sqlJediOdEvt  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
                         sqlJediOdEvt += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
                         sqlJediOdEvt += "SET status=:esDiscarded "
                         sqlJediOdEvt += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
@@ -3035,7 +3035,7 @@ class DBProxy:
                 job = JobSpec()
                 job.pack(res)
                 # sql to read range
-                sqlRR  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_PK) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+                sqlRR  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
                 sqlRR += "PandaID,job_processID,attemptNr "
                 sqlRR += "FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
                 sqlRR += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND status=:eventStatus "
@@ -12099,7 +12099,8 @@ class DBProxy:
                 hasInput = True
                 if jobSpec.jobStatus == 'finished':
                     varMap[':status'] = 'finished'
-                    updateNumEvents = True
+                    if fileSpec.type in ['input']:
+                         updateNumEvents = True
                 else:
                     # set ready for next attempt
                     varMap[':status'] = 'ready'
@@ -12178,7 +12179,7 @@ class DBProxy:
                                                       'nEventsUsed':0}
                 # read nEvents
                 if updateNumEvents:
-                    sqlEVT = "SELECT nEvents,keepTrack FROM ATLAS_PANDA.JEDI_Dataset_Contents "
+                    sqlEVT = "SELECT nEvents,startEvent,endEvent,keepTrack FROM ATLAS_PANDA.JEDI_Dataset_Contents "
                     sqlEVT += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                     if not waitLock:
                         sqlEVT += "FOR UPDATE NOWAIT "
@@ -12190,13 +12191,16 @@ class DBProxy:
                     cur.execute(sqlEVT+comment,varMap)
                     resEVT = self.cur.fetchone()
                     if resEVT != None:
-                        tmpNumEvents,tmpKeepTrack = resEVT
+                        tmpNumEvents,tmpStartEvent,tmpEndEvent,tmpKeepTrack = resEVT
                         if tmpNumEvents != None:
                             try:
-                                if fileSpec.type in ['input','pseudo_input']:
+                                if fileSpec.type in ['input']:
                                     if tmpKeepTrack == 1:
                                         # keep track on how many events successfully used
-                                        datasetContentsStat[datasetID]['nEventsUsed'] += tmpNumEvents
+                                        if tmpStartEvent != None and tmpEndEvent != None:
+                                             datasetContentsStat[datasetID]['nEventsUsed'] += (tmpEndEvent-tmpStartEvent+1)
+                                         else:
+                                             datasetContentsStat[datasetID]['nEventsUsed'] += tmpNumEvents
                                 else:
                                     datasetContentsStat[datasetID]['nEvents'] += tmpNumEvents 
                             except:
@@ -14262,17 +14266,17 @@ class DBProxy:
             if useCommit:
                 self.conn.begin()
             # sql to get consumers
-            sqlCP  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_PK) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+            sqlCP  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
             sqlCP += "distinct PandaID FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
             sqlCP += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
             sqlCP += "AND NOT status IN (:esDiscarded,:esCancelled) "
             # sql to discard or cancel event ranges
-            sqlDE  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_PK) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+            sqlDE  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
             sqlDE += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
             sqlDE += "SET status=:status "
             sqlDE += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
             sqlDE += "AND status IN (:esFinished,:esDone) "
-            sqlCE  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_PK) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+            sqlCE  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
             sqlCE += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
             sqlCE += "SET status=:status "
             sqlCE += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
@@ -14338,11 +14342,13 @@ class DBProxy:
                     continue
                 # set error code
                 dJob.jobStatus = 'cancelled'
+                dJob.jobSubStatus = 'finished'
                 dJob.endTime   = datetime.datetime.utcnow()
-                dJob.taskBufferErrorCode = ErrorCode.EC_Kill
                 if killedFlag:
+                    dJob.taskBufferErrorCode = ErrorCode.EC_EventServiceKillOK
                     dJob.taskBufferErrorDiag = 'killed since an associated consumer PandaID={0} was killed'.format(job.PandaID)
                 else:
+                    dJob.taskBufferErrorCode = ErrorCode.EC_EventServiceKillNG
                     dJob.taskBufferErrorDiag = 'killed since an associated consumer PandaID={0} failed'.format(job.PandaID)
                 dJob.modificationTime = dJob.endTime
                 dJob.stateChangeTime  = dJob.endTime
