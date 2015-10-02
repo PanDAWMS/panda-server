@@ -15,6 +15,22 @@ class Configurator():
         site_mapper = SiteMapper(task_buffer)
 
 
+    #Internal caching of a result. Use only for information 
+    #with low update frequency and low memory footprint
+    def memoize(f):
+        memo = {}
+        kwd_mark = object()
+        def helper(self, *args, **kwargs):
+            now = datetime.datetime.now()
+            key = args + (kwd_mark,) + tuple(sorted(kwargs.items()))
+            if key not in memo or memo[key]['timestamp'] < now - datetime.timedelta(hours=1):
+                memo[key] = {}
+                memo[key]['value'] = f(self, *args, **kwargs)
+                memo[key]['timestamp'] = now
+            return memo[key]['value']
+        return helper
+
+    @memoize
     def get_nuclei(self):
         return self.__get_tier1s_agis()
 
@@ -45,6 +61,8 @@ class Configurator():
         try:
             logger.debug('start')
             jsonStr = ''
+            #TODO: read the documentation and see if there is some filtering option to avoid getting the whole grid information
+            #TODO: I guess it also needs to return CERN in the list
             response = urllib2.urlopen('http://atlas-agis-api.cern.ch/request/site/query/?json&tier_level=1&vo_name=atlas')
             json_str = response.read()
             
