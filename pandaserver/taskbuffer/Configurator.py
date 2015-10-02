@@ -4,6 +4,7 @@ from brokerage.SiteMapper import SiteMapper
 from taskbuffer.TaskBuffer import taskBuffer as task_buffer
 import urllib2
 import json
+import sys
 # logger
 logger = PandaLogger().getLogger(__name__.split('.')[-1])
 
@@ -42,7 +43,7 @@ class Configurator():
     def __get_tier1s_agis(self):
         # get json
         try:
-            tmpLog.debug('start')
+            logger.debug('start')
             jsonStr = ''
             response = urllib2.urlopen('http://atlas-agis-api.cern.ch/request/site/query/?json&tier_level=1&vo_name=atlas')
             json_str = response.read()
