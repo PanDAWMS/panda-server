@@ -36,10 +36,6 @@ from config import panda_config
 from brokerage.PandaSiteIDs import PandaSiteIDs
 from __builtin__ import True
 
-# logger
-global _logger
-_logger = PandaLogger().getLogger('DBProxy')
-
 if panda_config.backend == 'oracle':
     import cx_Oracle
     varNUMBER = cx_Oracle.NUMBER
@@ -48,6 +44,9 @@ else:
     varNUMBER = long
 
 warnings.filterwarnings('ignore')
+
+# logger
+_logger = PandaLogger().getLogger('DBProxy')
 
 # lock file
 _lockGetSN   = open(panda_config.lockfile_getSN, 'w')
