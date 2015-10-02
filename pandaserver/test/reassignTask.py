@@ -18,8 +18,8 @@ optP.add_argument('taskid',action='store',
                   metavar='TASKID',help='taskID of the task')
 optP.add_argument('-m',dest='limit',type=int,action='store', default=60,
                     metavar='MIMUTES',help='time limit in minute')
-optP.add_option('-9',action='store_const',const=True,dest='forceKill',
-                default=False,help='kill jobs before next heartbeat is coming')
+optP.add_argument('-9',action='store_const',const=True,dest='forceKill',
+                  default=False,help='kill jobs before next heartbeat is coming')
 options = optP.parse_args()
 taskid = options.taskid
 
