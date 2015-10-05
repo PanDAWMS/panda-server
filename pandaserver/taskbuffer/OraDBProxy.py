@@ -9248,7 +9248,7 @@ class DBProxy:
             usingCloud = self.faresharePolicy[siteName]['usingCloud']
             shareDefList   = []
             for tmpDefItem in self.faresharePolicy[siteName]['policyList']:
-                shareDefList.append({'policy':tmpDefItem,'count':{},'maxprio':{}})
+                shareDefList.append({'policy':tmpDefItem,'count':{},'maxprio':{},'hs06':{}})
             # check if countryGroup has activated jobs
             varMapAll = {}
             varMapAll[':prodSourceLabel'] = 'managed'
@@ -9261,9 +9261,12 @@ class DBProxy:
                 sqlH += 'workqueue_id,'
             if usingPrio:
                 sqlH += 'currentPriority,'
-            sqlH += "SUM(num_of_jobs),MAX(currentPriority) FROM ATLAS_PANDA.MV_JOBSACTIVE4_STATS "
+            sqlH += "SUM(num_of_jobs),MAX(currentPriority),SUM(num_of_jobs*coreCount*corePower) FROM ("
+            sqlH += "SELECT num_of_jobs,jobStatus,workingGroup,processingType,workqueue_id,currentPriority,tabS.corePower,"
+            sqlH += "CASE WHEN tabS.coreCount IS NULL THEN 1 ELSE tabS.corecount END coreCount "
+            sqlH += "FROM ATLAS_PANDA.MV_JOBSACTIVE4_STATS tabJ,ATLAS_PANDAMETA.schedconfig tabS "
             varMapSite = {}
-            sqlSite = "WHERE computingSite IN ("
+            sqlSite = "WHERE computingSite=tabS.siteid AND computingSite IN ("
             tmpIdx = 0
             for tmpSiteName in [siteName]+aggSites:
                 tmpKey = ':computingSite%s' % tmpIdx
@@ -9274,9 +9277,9 @@ class DBProxy:
             sqlSite += ") "
             if usingCloud != '':
                 varMapCloud = {}
-                sqlCloud = "WHERE cloud=:cloud "
+                sqlCloud = "WHERE computingSite=tabS.siteid AND tabJ.cloud=:cloud "
                 varMapCloud[':cloud'] = usingCloud
-            sqlT = "AND prodSourceLabel=:prodSourceLabel "
+            sqlT = "AND prodSourceLabel=:prodSourceLabel) "
             sqlT += "GROUP BY jobStatus"
             if usingGroup:
                 sqlT += ',workingGroup'
@@ -9365,6 +9368,8 @@ class DBProxy:
                 cnt = tmpItem[tmpIdx]
                 tmpIdx += 1
                 maxPriority = tmpItem[tmpIdx]
+                tmpIdx += 1
+                hs06 = tmpItem[tmpIdx]
                 # append processingType list    
                 if not processGroupInQueueMap.has_key(processGroup):
                     processGroupInQueueMap[processGroup] = []
@@ -9452,6 +9457,9 @@ class DBProxy:
                         tmpShareDef['count'][jobStatus] = 0
                     # sum
                     tmpShareDef['count'][jobStatus] += cnt
+                    if not tmpShareDef['hs06'].has_key(jobStatus):
+                        tmpShareDef['hs06'][jobStatus] = 0
+                    tmpShareDef['hs06'][jobStatus] += hs06
                     # max priority
                     if not tmpShareDef['maxprio'].has_key(jobStatus):
                         tmpShareDef['maxprio'][jobStatus] = maxPriority
@@ -9459,6 +9467,7 @@ class DBProxy:
                         tmpShareDef['maxprio'][jobStatus] = maxPriority
             # loop over all policies to calcurate total number of running jobs and total share
             totalRunning = 0
+            totalRunHS06 = 0
             shareMap     = {}
             msgShare     = 'share->'
             msgShareMap  = {}
@@ -9484,8 +9493,14 @@ class DBProxy:
                     tmpNumRunning = 0
                 else:
                     tmpNumRunning = tmpNumMap['running']
+                # get HS06
+                if 'running' in tmpShareDef['hs06']:
+                    tmpNumRunHS06 = tmpShareDef['hs06']['running']
+                else:
+                    tmpNumRunHS06 = 0
                 # debug message for share
-                msgShareMap[policyName] = '%s:activated=%s:running=%s' % (policyName,tmpNumActivated,tmpNumRunning)
+                msgShareMap[policyName] = '%s:activated=%s:running=%s:hs06=%s' % (policyName,tmpNumActivated,
+                                                                                  tmpNumRunning,tmpNumRunHS06)
                 # get total share and total number of running jobs for non-GP
                 if tmpShareDef['policy']['group'] == None:
                     totalShareNonGP += tmpShareValue
@@ -9495,6 +9510,7 @@ class DBProxy:
                         totalActiveShareNonGP += tmpShareValue
                 # sum
                 totalRunning += tmpNumRunning
+                totalRunHS06 += tmpNumRunHS06
                 # not use the policy if no activated jobs
                 if tmpNumActivated == 0:
                     continue
@@ -9508,6 +9524,7 @@ class DBProxy:
                     'running':tmpNumRunning,
                     'policy':tmpShareDef['policy'],
                     'maxprio':maxPriority,
+                    'runHS06':tmpNumRunHS06,
                     }
             # re-normalize when some non-GP policies are inactive
             if totalShareNonGP != totalActiveShareNonGP and totalActiveShareNonGP != 0:
@@ -9554,9 +9571,14 @@ class DBProxy:
                     # check if more jobs are running than the limit
                     toBeImposed = False
                     if tmpLimitValue.endswith('%'):
+                        # get HS06 for running jobs
+                        if 'running' in tmpShareDef['hs06']:
+                            tmpNumRunHS06 = tmpShareDef['hs06']['running']
+                        else:
+                            tmpNumRunHS06 = 0
                         # percentage based
                         tmpLimitValue = tmpLimitValue[:-1]
-                        if float(tmpNumRunning) > float(totalRunning) * float(tmpLimitValue) / 100.0:
+                        if float(tmpNumRunHS06) > float(totalRunHS06) * float(tmpLimitValue) / 100.0:
                             toBeImposed = True
                         # debug message for prio
                         msgPrio += '%s:total=%s:running=%s:impose=%s,' % (policyName,totalRunning,tmpNumRunning,toBeImposed)
@@ -9575,7 +9597,7 @@ class DBProxy:
                 _logger.debug("getCriteriaForProdShare %s : ret=None - no activated" % siteName)
                 return retForNone
             # no running
-            if totalRunning == 0:
+            if totalRunning == 0 or totalRunHS06 == 0:
                 _logger.debug("getCriteriaForProdShare %s : ret=None - no running" % siteName)
                 return retForNone
             # zero share
@@ -9590,7 +9612,7 @@ class DBProxy:
                 if tmpVarMap['share'] == 0:
                     continue
                 tmpShareDef = float(tmpVarMap['share']) / float(totalShare)
-                tmpShareNow = float(tmpVarMap['running']) / float(totalRunning) 
+                tmpShareNow = float(tmpVarMap['runHS06']) / float(totalRunHS06) 
                 tmpShareRatio = tmpShareNow / tmpShareDef
                 # take max priority into account for cloud share
                 if usingCloud != '':
@@ -9874,9 +9896,6 @@ class DBProxy:
                     if faresharePolicyStr in ['',None,' None']:
                         # skip if share is not defined at site or cloud 
                         if not cloudShareMap.has_key(cloudName):
-                            continue
-                        # skip if T1 doesn't define share
-                        if cloudTier1Map.has_key(cloudName) and siteid in cloudTier1Map[cloudName]:
                             continue
                         # use cloud share
                         faresharePolicyStr = cloudShareMap[cloudName]
