@@ -2586,12 +2586,51 @@ class TaskBuffer:
 
 
 
+    # throttle user jobs
+    def throttleUserJobs(self,prodUserName):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.throttleUserJobs(prodUserName)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
     # unthrottle job
     def unThrottleJob(self,pandaID):
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
         ret = proxy.unThrottleJob(pandaID)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
+    # unthrottle user jobs
+    def unThrottleUserJobs(self,prodUserName):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.unThrottleUserJobs(prodUserName)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
+    # get throttled users
+    def getThrottledUsers(self):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getThrottledUsers()
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

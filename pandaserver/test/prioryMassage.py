@@ -2,9 +2,12 @@ import os
 import re
 import sys
 import datetime
+import traceback
 from taskbuffer.TaskBuffer import taskBuffer
 from pandalogger.PandaLogger import PandaLogger
+from pandalogger.LogWrapper import LogWrapper
 from brokerage.SiteMapper import SiteMapper
+
 
 # password
 from config import panda_config
@@ -12,8 +15,10 @@ passwd = panda_config.dbpasswd
 
 # logger
 _logger = PandaLogger().getLogger('prioryMassage')
+tmpLog = LogWrapper(_logger)
 
-_logger.debug("================= start ==================")
+
+tmpLog.debug("================= start ==================")
 
 # instantiate TB
 taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
@@ -37,9 +42,9 @@ for table in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsArchived4']:
 	# exec 	
 	status,res = taskBuffer.querySQLS(sql,varMap,arraySize=10000)
 	if res == None:
-		_logger.debug("total %s " % res)
+		tmpLog.debug("total %s " % res)
 	else:
-		_logger.debug("total %s " % len(res))
+		tmpLog.debug("total %s " % len(res))
 		# make map
 		for cnt,prodUserName,jobStatus,workingGroup,computingSite in res:
 			# use workingGroup name as prodUserName
@@ -54,7 +59,7 @@ for table in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsArchived4']:
 			if not usageBreakDownPerUser[prodUserName].has_key(workingGroup):
 				usageBreakDownPerUser[prodUserName][workingGroup] = {}
 			if not usageBreakDownPerUser[prodUserName][workingGroup].has_key(computingSite):
-				usageBreakDownPerUser[prodUserName][workingGroup][computingSite] = {'rundone':0,'activated':0}
+				usageBreakDownPerUser[prodUserName][workingGroup][computingSite] = {'rundone':0,'activated':0,'running':0}
 			# append to PerSite map
 			if not usageBreakDownPerSite.has_key(computingSite):
 				usageBreakDownPerSite[computingSite] = {}
@@ -69,12 +74,15 @@ for table in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsArchived4']:
 			elif jobStatus in ['cancelled','holding']:
 				pass
 			else:
+				if jobStatus in ['running','starting','sent']:
+					usageBreakDownPerUser[prodUserName][workingGroup][computingSite]['running'] += cnt
 				usageBreakDownPerUser[prodUserName][workingGroup][computingSite]['rundone'] += cnt
 				usageBreakDownPerSite[computingSite][prodUserName][workingGroup]['rundone'] += cnt				
 
 # get total number of users and running/done jobs
 totalUsers = 0
 totalRunDone = 0
+usersTotalJobs = {}
 for prodUserName,wgValMap in usageBreakDownPerUser.iteritems():
 	for workingGroup,siteValMap in wgValMap.iteritems():
 		# ignore group production
@@ -83,18 +91,52 @@ for prodUserName,wgValMap in usageBreakDownPerUser.iteritems():
 		totalUsers += 1
 		for computingSite,statValMap in siteValMap.iteritems():
 			totalRunDone += statValMap['rundone']
+		if not prodUserName in usersTotalJobs:
+			usersTotalJobs[prodUserName] = 0 
+		usersTotalJobs[prodUserName] += statValMap['running']
 
-_logger.debug("total users    : %s" % totalUsers)
-_logger.debug("total RunDone  : %s" % totalRunDone)
-_logger.debug("")
+tmpLog.debug("total users    : %s" % totalUsers)
+tmpLog.debug("total RunDone  : %s" % totalRunDone)
 
 if totalUsers == 0:
 	sys.exit(0)
 
+
+# cap num of running jobs
+try:
+	maxNumRunPerUser = 10000
+	tmpLog.debug("cap running jobs : max={0}".format(maxNumRunPerUser))
+	throttledUsers = taskBuffer.getThrottledUsers()
+	for prodUserName,tmpNumTotal in usersTotalJobs.iteritems():
+		if tmpNumTotal >= maxNumRunPerUser:
+			# throttle user
+			tmpNumJobs = taskBuffer.throttleUserJobs(prodUserName)
+			if tmpNumJobs != None and tmpNumJobs > 0:
+				msg = 'throttled {0} jobs for user="{1}" since too many ({2}) running jobs'.format(tmpNumJobs,
+														   prodUserName,
+														   maxNumRunPerUser)
+				tmpLog.debug(msg)
+				tmpLog.sendMsg(msg,panda_config.loggername,'userCap','warning')
+		elif tmpNumTotal < maxNumRunPerUser*0.9 and prodUserName in throttledUsers:
+			# throttle user
+			tmpNumJobs = taskBuffer.unThrottleUserJobs(prodUserName)
+			if tmpNumJobs != None and tmpNumJobs > 0:
+				msg = 'released jobs for user="{0}" since number of running jobs is less than {1}'.format(prodUserName,
+															  maxNumRunPerUser)
+				tmpLog.debug(msg)
+				tmpLog.sendMsg(msg,panda_config.loggername,'userCap')
+except:
+	errtype,errvalue = sys.exc_info()[:2]
+	errStr = "cap failed: %s %s" % (job.PandaID,errtype,errvalue)
+	errStr.strip()
+	errStr += traceback.format_exc()
+	tmpLog.error(errStr)
+	
+
 # global average 
 globalAverageRunDone = float(totalRunDone)/float(totalUsers)
 
-_logger.debug("global average : %s" % globalAverageRunDone)
+tmpLog.debug("global average : %s" % globalAverageRunDone)
 
 # count the number of users and run/done jobs for each site
 siteRunDone = {}
@@ -114,18 +156,18 @@ for computingSite,userValMap in usageBreakDownPerSite.iteritems():
 			siteRunDone[computingSite] += statValMap['rundone']
 
 # get site average
-_logger.debug("site average")
+tmpLog.debug("site average")
 siteAverageRunDone = {}
 for computingSite,nRunDone in siteRunDone.iteritems():
 	siteAverageRunDone[computingSite] = float(nRunDone)/float(siteUsers[computingSite])
-	_logger.debug(" %-25s : %s" % (computingSite,siteAverageRunDone[computingSite]))	
+	tmpLog.debug(" %-25s : %s" % (computingSite,siteAverageRunDone[computingSite]))	
 	
 # check if the number of user's jobs is lower than the average 
 for prodUserName,wgValMap in usageBreakDownPerUser.iteritems():
-	_logger.debug("---> %s" % prodUserName)
+	tmpLog.debug("---> %s" % prodUserName)
 	# no private jobs
 	if not wgValMap.has_key(None):
-		_logger.debug("no private jobs")
+		tmpLog.debug("no private jobs")
 		continue
 	# count the number of running/done jobs 
 	userTotalRunDone = 0
@@ -136,23 +178,23 @@ for prodUserName,wgValMap in usageBreakDownPerUser.iteritems():
 			userTotalRunDone += statValMap['rundone']
 	# no priority boost when the number of jobs is higher than the average			
 	if userTotalRunDone >= globalAverageRunDone:
-		_logger.debug("enough running %s > %s (global average)" % (userTotalRunDone,globalAverageRunDone))
+		tmpLog.debug("enough running %s > %s (global average)" % (userTotalRunDone,globalAverageRunDone))
 		continue
-	_logger.debug("user total:%s global average:%s" % (userTotalRunDone,globalAverageRunDone))
+	tmpLog.debug("user total:%s global average:%s" % (userTotalRunDone,globalAverageRunDone))
 	# check with site average
 	toBeBoostedSites = [] 
 	for computingSite,statValMap in wgValMap[None].iteritems():
 		# the number of running/done jobs is lower than the average and activated jobs are waiting
 		if statValMap['rundone'] >= siteAverageRunDone[computingSite]:
-			_logger.debug("enough running %s > %s (site average) at %s" % \
+			tmpLog.debug("enough running %s > %s (site average) at %s" % \
 						  (statValMap['rundone'],siteAverageRunDone[computingSite],computingSite))
 		elif statValMap['activated'] == 0:
-			_logger.debug("no activated jobs at %s" % computingSite)
+			tmpLog.debug("no activated jobs at %s" % computingSite)
 		else:
 			toBeBoostedSites.append(computingSite)
 	# no boost is required
 	if toBeBoostedSites == []:
-		_logger.debug("no sites to be boosted")
+		tmpLog.debug("no sites to be boosted")
 		continue
 	# check special prioritized site 
 	siteAccessForUser = {}
@@ -185,7 +227,7 @@ for prodUserName,wgValMap in usageBreakDownPerUser.iteritems():
 	numBoostedJobs = globalAverageRunDone - float(userTotalRunDone)
 	# get quota
 	quotaFactor = 1.0 + taskBuffer.checkQuota(prodUserName)
-	_logger.debug("quota factor:%s" % quotaFactor)	
+	tmpLog.debug("quota factor:%s" % quotaFactor)	
 	# make priority boost
 	nJobsPerPrioUnit = 5
 	highestPrio = 1000
@@ -196,9 +238,9 @@ for prodUserName,wgValMap in usageBreakDownPerUser.iteritems():
 		weight /= totalW
 		# the number of boosted jobs at the site
 		numBoostedJobsSite = int(numBoostedJobs * weight / quotaFactor)
-		_logger.debug("nSite:%s nAll:%s W:%s Q:%s at %s" % (numBoostedJobsSite,numBoostedJobs,weight,quotaFactor,computingSite))
+		tmpLog.debug("nSite:%s nAll:%s W:%s Q:%s at %s" % (numBoostedJobsSite,numBoostedJobs,weight,quotaFactor,computingSite))
 		if numBoostedJobsSite/nJobsPerPrioUnit == 0:
-			_logger.debug("too small number of jobs %s to be boosted at %s" % (numBoostedJobsSite,computingSite))
+			tmpLog.debug("too small number of jobs %s to be boosted at %s" % (numBoostedJobsSite,computingSite))
 			continue
 		# get the highest prio of activated jobs at the site
 		varMap = {}
@@ -215,13 +257,13 @@ for prodUserName,wgValMap in usageBreakDownPerUser.iteritems():
 			except:
 				pass
 		if maxPrio == None:
-			_logger.debug("cannot get the highest prio at %s" % computingSite)
+			tmpLog.debug("cannot get the highest prio at %s" % computingSite)
 			continue
 		# delta for priority boost
 		prioDelta = highestPrio - maxPrio
 		# already boosted
 		if prioDelta <= 0:
-			_logger.debug("already boosted (prio=%s) at %s" % (maxPrio,computingSite))
+			tmpLog.debug("already boosted (prio=%s) at %s" % (maxPrio,computingSite))
 			continue
 		# lower limit
 		minPrio = maxPrio - numBoostedJobsSite/nJobsPerPrioUnit
@@ -243,13 +285,13 @@ for prodUserName,wgValMap in usageBreakDownPerUser.iteritems():
 			sql += "AND prodUserName=:prodUserName AND workingGroup IS NULL "
 		sql += "AND jobStatus=:jobStatus AND computingSite=:computingSite AND currentPriority>:minPrio "
 		sql += "AND currentPriority<=:maxPrio AND rownum<=:rlimit"
-		_logger.debug("boost %s" % str(varMap))
+		tmpLog.debug("boost %s" % str(varMap))
 		status,res = taskBuffer.querySQLS(sql,varMap,arraySize=10)	
-		_logger.debug("   database return : %s" % res)
+		tmpLog.debug("   database return : %s" % res)
 
 
 # redo stalled analysis jobs
-_logger.debug("=== redo stalled jobs")
+tmpLog.debug("=== redo stalled jobs")
 try:
 	varMap = {}
 	varMap[':prodSourceLabel'] = 'user'
@@ -271,7 +313,7 @@ try:
 	else:
 		# loop over all jobID/users
 		for jobDefinitionID,prodUserName in resJ:
-			_logger.debug(" user:%s jobID:%s" % (prodUserName,jobDefinitionID))
+			tmpLog.debug(" user:%s jobID:%s" % (prodUserName,jobDefinitionID))
 			# get stalled jobs
 			varMap = {}
 			varMap[':prodSourceLabel'] = 'user'
@@ -279,7 +321,7 @@ try:
 			varMap[':prodUserName']    = prodUserName
 			stP,resP = taskBuffer.querySQLS(sqlP,varMap)
 			if resP == None or len(resP) == 0:
-				_logger.debug("  no PandaID")
+				tmpLog.debug("  no PandaID")
 				continue
 			useLib    = False
 			libStatus = None
@@ -289,14 +331,14 @@ try:
 			destReady = False
 			# use the first PandaID
 			for PandaID, in resP:
-				_logger.debug("  check PandaID:%s" % PandaID)
+				tmpLog.debug("  check PandaID:%s" % PandaID)
 				# get files
 				varMap = {}
 				varMap[':PandaID'] = PandaID
 				varMap[':status']  = 'unknown'
 				stF,resF = taskBuffer.querySQLS(sqlF,varMap)
 				if resF == None or len(resF) == 0:
-					_logger.debug("  no files")
+					tmpLog.debug("  no files")
 				else:
 					# get lib.tgz and destDBlock
 					for lfn,filetype,destinationDBlock in resF:
@@ -309,11 +351,11 @@ try:
 							stL,resL = taskBuffer.querySQLS(sqlL,varMap)
 							# not found
 							if resL == None or len(resL) == 0:
-								_logger.error("  cannot find status of %s" % lfn)
+								tmpLog.error("  cannot find status of %s" % lfn)
 								continue
 							# check status
 							guid,outFileStatus,pandaIDOutLibTgz,tmpLibDsName = resL[0]
-							_logger.debug("  PandaID:%s produces %s:%s GUID=%s status=%s" % (pandaIDOutLibTgz,tmpLibDsName,lfn,guid,outFileStatus))
+							tmpLog.debug("  PandaID:%s produces %s:%s GUID=%s status=%s" % (pandaIDOutLibTgz,tmpLibDsName,lfn,guid,outFileStatus))
 							libStatus = outFileStatus
 							libGUID   = guid
 							libDSName = tmpLibDsName
@@ -321,22 +363,22 @@ try:
 							if destinationDBlock != None and re.search('_sub\d+$',destinationDBlock) != None:
 								destReady = True
 					break
-			_logger.debug("  useLib:%s libStatus:%s libDsName:%s libLFN:%s libGUID:%s destReady:%s" % (useLib,libStatus,libDSName,libLFN,libGUID,destReady))
+			tmpLog.debug("  useLib:%s libStatus:%s libDsName:%s libLFN:%s libGUID:%s destReady:%s" % (useLib,libStatus,libDSName,libLFN,libGUID,destReady))
 			if libStatus == 'failed':
 				# delete downstream jobs
-				_logger.debug("  -> delete downstream jobs")
+				tmpLog.debug("  -> delete downstream jobs")
 				# FIXME
 				#taskBuffer.deleteStalledJobs(libLFN)
 			else:
 				# activate
 				if useLib and libStatus == 'ready' and (not libGUID in [None,'']) and (not libDSName in [None,'']):
 					# update GUID
-					_logger.debug("  set GUID:%s for %s" % (libGUID,libLFN))
+					tmpLog.debug("  set GUID:%s for %s" % (libGUID,libLFN))
 					#retG = taskBuffer.setGUIDs([{'lfn':libLFN,'guid':libGUID}])
 					# FIXME
 					retG = True
 					if not retG:
-						_logger.error("  failed to update GUID for %s" % libLFN)
+						tmpLog.error("  failed to update GUID for %s" % libLFN)
 					else:
 						# get PandaID with lib.tgz
 						#ids = taskBuffer.updateInFilesReturnPandaIDs(libDSName,'ready')
@@ -350,11 +392,11 @@ try:
 								continue
 							acJobs.append(job)
 						# activate
-						_logger.debug("  -> activate downstream jobs")
+						tmpLog.debug("  -> activate downstream jobs")
 						#taskBuffer.activateJobs(acJobs)
 				else:
 					# wait
-					_logger.debug("  -> wait")
+					tmpLog.debug("  -> wait")
 					varMap = {}
 					varMap[':prodSourceLabel'] = 'user'
 					varMap[':jobDefinitionID'] = jobDefinitionID
@@ -363,11 +405,11 @@ try:
 					#stU,resU = taskBuffer.querySQLS(sqlU,varMap)
 except:
 	errtype,errvalue = sys.exc_info()[:2]
-	_logger.error("failed to redo stalled jobs with %s %s" % (errtype,errvalue))
+	tmpLog.error("failed to redo stalled jobs with %s %s" % (errtype,errvalue))
 
 
 # throttle WAN data access
-_logger.debug("=== throttle WAN data access")
+tmpLog.debug("=== throttle WAN data access")
 try:
 	# max number of activated jobs with WAN access
 	maxActivated = 5
@@ -377,7 +419,7 @@ try:
 	throttleForSource   = {}
 	totalFlowFromSource = {}
 	# loop over all sources to get total flows
-	_logger.debug(" >>> checking limits")
+	tmpLog.debug(" >>> checking limits")
 	for sinkSite,sinkMap in wanMX.iteritems():
 		totalFlowToSink = 0 
 		# loop over all sinks
@@ -391,25 +433,25 @@ try:
 		tmpSiteSpec = siteMapper.getSite(sinkSite)
 		if siteMapper.checkSite(sinkSite) and tmpSiteSpec.wansinklimit*1024*1024*1024 > totalFlowToSink:
 			throttleForSink[sinkSite] = False
-			_logger.debug(" release Sink {0} : {1}bps (total) < {2}Gbps (limit)".format(sinkSite,totalFlowToSink,
+			tmpLog.debug(" release Sink {0} : {1}bps (total) < {2}Gbps (limit)".format(sinkSite,totalFlowToSink,
 												    tmpSiteSpec.wansinklimit))
 		else:
 			throttleForSink[sinkSite] = True
-			_logger.debug(" throttle Sink {0} : {1}bps (total) > {2}Gbps (limit)".format(sinkSite,totalFlowToSink,
+			tmpLog.debug(" throttle Sink {0} : {1}bps (total) > {2}Gbps (limit)".format(sinkSite,totalFlowToSink,
 												     tmpSiteSpec.wansinklimit))
 	# check limit for source
 	for sourceSite,totalFlow in totalFlowFromSource.iteritems():
 		tmpSiteSpec = siteMapper.getSite(sourceSite)
 		if siteMapper.checkSite(sourceSite) and tmpSiteSpec.wansourcelimit*1024*1024*1024 > totalFlow:
                         throttleForSource[sourceSite] = False
-			_logger.debug(" release Src {0} : {1}bps (total) < {2}Gbps (limit)".format(sourceSite,totalFlow,
+			tmpLog.debug(" release Src {0} : {1}bps (total) < {2}Gbps (limit)".format(sourceSite,totalFlow,
 												   tmpSiteSpec.wansourcelimit))
                 else:
                         throttleForSource[sourceSite] = True
-			_logger.debug(" throttle Src {0} : {1}bps (total) > {2}Gbps (limit)".format(sourceSite,totalFlow,
+			tmpLog.debug(" throttle Src {0} : {1}bps (total) > {2}Gbps (limit)".format(sourceSite,totalFlow,
 												    tmpSiteSpec.wansourcelimit))
 	# lopp over all sources to adjust flows
-	_logger.debug(" >>> adjusting flows")
+	tmpLog.debug(" >>> adjusting flows")
 	for sinkSite,sinkMap in wanMX.iteritems():
 		if throttleForSink[sinkSite]:
 			# sink is throttled
@@ -421,7 +463,7 @@ try:
 							tmpStat = taskBuffer.throttleJob(pandaID)
 							if tmpStat == 1:
 								iJobs += 1
-			_logger.debug(" throttled {0} jobs to {1}".format(iJobs,sinkSite))
+			tmpLog.debug(" throttled {0} jobs to {1}".format(iJobs,sinkSite))
 		else:
 			# no throttle on sink
 			for sourceSite,sourceMap in sinkMap.iteritems():
@@ -435,7 +477,7 @@ try:
 								tmpStat = taskBuffer.throttleJob(pandaID)
 								if tmpStat == 1:
 									iJobs += 1
-					_logger.debug(" throttled {0} jobs from {1} to {2}".format(iJobs,sourceSite,sinkSite)) 
+					tmpLog.debug(" throttled {0} jobs from {1} to {2}".format(iJobs,sourceSite,sinkSite)) 
 				else:
 					# unthrottled
 					iJobs = 0
@@ -458,11 +500,11 @@ try:
 										iJobs += 1
 									if nActivated > maxActivated:
 										break
-					_logger.debug(" activated {0} jobs from {1} to {2}".format(iJobs,sourceSite,sinkSite)) 
+					tmpLog.debug(" activated {0} jobs from {1} to {2}".format(iJobs,sourceSite,sinkSite)) 
 except:
 	errtype,errvalue = sys.exc_info()[:2]
-	_logger.error("failed to throttle WAN data access with %s %s" % (errtype,errvalue))
+	tmpLog.error("failed to throttle WAN data access with %s %s" % (errtype,errvalue))
 
 
 			    
-_logger.debug("-------------- end")
+tmpLog.debug("-------------- end")

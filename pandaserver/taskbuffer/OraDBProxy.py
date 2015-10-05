@@ -14136,7 +14136,7 @@ class DBProxy:
             sqlT += 'FROM ATLAS_PANDA.jobsActive4 '
             sqlT += 'WHERE prodSourceLabel=:prodSourceLabel '
             sqlT += 'AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3,:jobStatus4,:jobStatus5) '
-            sqlT += 'AND transferType=:transferType '
+            sqlT += 'AND transferType=:transferType AND relocationFlag=:relocationFlag '
             # start transaction
             self.conn.begin()
             # select
@@ -14149,6 +14149,7 @@ class DBProxy:
             varMap[':jobStatus5']   = 'starting'
             varMap[':transferType'] = 'fax'
             varMap[':prodSourceLabel'] = 'user'
+            varMap[':relocationFlag'] = 1
             # get data
             self.cur.execute(sqlT+comment,varMap)
             resFs = self.cur.fetchall()
@@ -14235,6 +14236,46 @@ class DBProxy:
 
 
 
+    # throttle user jobs
+    def throttleUserJobs(self,prodUserName):
+        comment = ' /* DBProxy.throttleUserJobs */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <user={0}>".format(prodUserName)
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        try:
+            # sql to update job
+            sqlT  = 'UPDATE ATLAS_PANDA.jobsActive4 SET jobStatus=:newJobStatus,relocationFlag=:newRelFlag '
+            sqlT += 'WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName '
+            sqlT += 'AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag '
+            # start transaction
+            self.conn.begin()
+            # select
+            self.cur.arraysize = 10
+            varMap = {}
+            varMap[':prodSourceLabel'] = 'user'
+            varMap[':newRelFlag'] = 3
+            varMap[':oldRelFlag'] = 1
+            varMap[':prodUserName'] = prodUserName
+            varMap[':newJobStatus'] = 'throttled'
+            varMap[':oldJobStatus'] = 'activated'
+            # get datasets
+            self.cur.execute(sqlT+comment, varMap)
+            nRow = self.cur.rowcount
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug("done with {0}".format(nRow))
+            return nRow
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return None
+
+
+
     # unthrottle job
     def unThrottleJob(self,pandaID):
         comment = ' /* DBProxy.unThrottleJob */'
@@ -14271,6 +14312,84 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return None
+
+
+
+    # unthrottle user jobs
+    def unThrottleUserJobs(self,prodUserName):
+        comment = ' /* DBProxy.unThrottleUserJobs */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <user={0}>".format(prodUserName)
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        try:
+            # sql to update job
+            sqlT  = 'UPDATE ATLAS_PANDA.jobsActive4 SET jobStatus=:newJobStatus,relocationFlag=:newRelFlag '
+            sqlT += 'WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName '
+            sqlT += 'AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag '
+            # start transaction
+            self.conn.begin()
+            # select
+            self.cur.arraysize = 10
+            varMap = {}
+            varMap[':prodSourceLabel'] = 'user'
+            varMap[':oldRelFlag'] = 3
+            varMap[':newRelFlag'] = 1
+            varMap[':prodUserName'] = prodUserName
+            varMap[':oldJobStatus'] = 'throttled'
+            varMap[':newJobStatus'] = 'activated'
+            # get datasets
+            self.cur.execute(sqlT+comment, varMap)
+            nRow = self.cur.rowcount
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug("done with {0}".format(nRow))
+            return nRow
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return None
+
+
+
+    # get throttled users
+    def getThrottledUsers(self):
+        comment = ' /* DBProxy.getThrottledUsers */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        retVal = set()
+        try:
+            # sql to get users
+            sqlT  = 'SELECT distinct prodUserName FROM ATLAS_PANDA.jobsActive4 '
+            sqlT += 'WHERE prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus AND relocationFlag=:relocationFlag '
+            # start transaction
+            self.conn.begin()
+            # select
+            self.cur.arraysize = 10
+            varMap = {}
+            varMap[':prodSourceLabel'] = 'user'
+            varMap[':relocationFlag'] = 3
+            varMap[':jobStatus'] = 'throttled'
+            # get datasets
+            self.cur.execute(sqlT+comment, varMap)
+            resPs = self.cur.fetchall()
+            for prodUserName, in resPs:
+                retVal.add(prodUserName)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug("done with {0}".format(str(retVal)))
+            return retVal
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return []
 
 
 

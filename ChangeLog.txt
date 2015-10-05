@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * capping number of running user jobs 
   * changed fairshare to work with HS06
   * removed exception in fairshare so that T1 uses cloud.fairshare if empty
   * added ESMERGERECOVERABLE. Eventually should be taken care of by retrial module
