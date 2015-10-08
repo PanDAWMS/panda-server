@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * fixed user group accounting for mergeOutput
   * capping number of running user jobs 
   * changed fairshare to work with HS06
   * removed exception in fairshare so that T1 uses cloud.fairshare if empty

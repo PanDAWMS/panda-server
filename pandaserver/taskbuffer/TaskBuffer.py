@@ -72,7 +72,8 @@ class TaskBuffer:
         if withProdRole and jobs != []:
             # check dataset name
             for tmpFile in jobs[-1].Files:
-                if tmpFile.type in ['output','log'] and not tmpFile.lfn.startswith('group'):
+                if tmpFile.type in ['output','log'] and \
+                        not (tmpFile.lfn.startswith('group') or tmpFile.lfn.startswith('panda.um.group')):
                     # reset
                     withProdRole,workingGroup = False,None
                     break
