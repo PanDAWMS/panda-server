@@ -2162,7 +2162,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         else:
                             self.logger.debug(out)
                         # register location
-                        """
                         isOK = False
                         self.logger.debug('ext registerDatasetLocation {ds} {dq2ID} {lifeTime}days'.format(ds=disDBlock,
                                                                                                            dq2ID=tmpLocation,
@@ -2186,7 +2185,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         # failure
                         if not isOK:
                             continue
-                        """    
         # insert datasets to DB
         self.taskBuffer.insertDatasets(dispList)
         self.logger.debug('finished to make dis datasets for existing files')

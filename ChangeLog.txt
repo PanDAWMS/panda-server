@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * registring location for GEN
   * fixed user group accounting for mergeOutput
   * capping number of running user jobs 
   * changed fairshare to work with HS06
