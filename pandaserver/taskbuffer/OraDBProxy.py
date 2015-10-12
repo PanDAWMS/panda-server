@@ -15060,11 +15060,15 @@ class DBProxy:
                 
                 sqlMS  = """
                          SELECT ramCount, count(*) 
-                         FROM {0}.JEDI_Dataset_Contents
-                         WHERE jediTaskID=:jediTaskID
-                         AND type in ({1})
+                         FROM {0}.JEDI_Datasets tabD,{0}.JEDI_Dataset_Contents tabC 
+                         WHERE tabD.jediTaskID=tabC.jediTaskID 
+                         AND tabD.datasetID=tabC.datasetID 
+                         AND tabD.jediTaskID=:jediTaskID 
+                         AND tabD.type IN ({1}) 
+                         AND tabD.masterID IS NULL 
                          GROUP BY ramCount
                          """.format(panda_config.schemaJEDI, input_type_bindings)
+
                 self.cur.execute(sqlMS+comment,varMap)
                 memory_stats = self.cur.fetchall()
                 total = sum([entry[1] for entry in memory_stats])
