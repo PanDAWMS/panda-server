@@ -15074,6 +15074,7 @@ class DBProxy:
                 total = sum([entry[1] for entry in memory_stats])
                 above_task = sum(tuple[1] for tuple in filter(lambda entry: entry[0] > taskRamCount, memory_stats))
                 max_task = max([entry[0] for entry in memory_stats])
+                _logger.debug("{0} : #increased_files: {1}; #total_files: {2}".format(methodName, above_task, total))
                 
                 if (1.0*above_task)/total > 0.3:
                     if job.maxPSS:
@@ -15082,7 +15083,8 @@ class DBProxy:
                         minimumRam = jobRamCount
                     if max_task > minimumRam:
                         minimumRam = jobRamCount
-                    if minimumRam: 
+                    if minimumRam:
+                        _logger.debug("{0} : calling increaseRamLimitJEDI with minimumRam {1}".format(methodName, minimumRam)) 
                         return self.increaseRamLimitJEDI(jediTaskID, minimumRam)
 
                 #To increase, we select the highest requirement in job or task
