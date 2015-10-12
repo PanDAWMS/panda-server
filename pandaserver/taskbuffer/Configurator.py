@@ -66,6 +66,7 @@ class Configurator():
             jsonStr = ''
             #TODO: read the documentation and see if there is some filtering option to avoid getting the whole grid information
             #TODO: I guess it also needs to return CERN in the list
+            #TODO: Discuss whether we want to create tables to store this type of information and collect it asynchronously
             response = urllib2.urlopen('http://atlas-agis-api.cern.ch/request/site/query/?json&tier_level=1&vo_name=atlas')
             json_str = response.read()
             
@@ -94,6 +95,6 @@ if __name__ == "__main__":
     t3 = time.time()
     nuclei2 = configurator.get_nuclei()
     t4 = time.time()
-    print "Instantiation:{0} Get1: {1} Get2: {2}".format(t2-t1, t3-t2, t4-t3)
+    print "Instantiation: {0}s Get1: {1}s Get2: {2}s".format(t2-t1, t3-t2, t4-t3)
     print nuclei1
     print nuclei2
