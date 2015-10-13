@@ -59,6 +59,7 @@ class DBProxy:
 
     # constructor
     def __init__(self,useOtherError=False):
+
         # connection object
         self.conn = None
         # cursor object
@@ -82,7 +83,6 @@ class DBProxy:
         # hostname
         self.myHostName = socket.getfqdn()
         self.backend = panda_config.backend
-        
         
         
     # connect to DB
@@ -12119,7 +12119,7 @@ class DBProxy:
                 if jobSpec.jobStatus == 'finished':
                     varMap[':status'] = 'finished'
                     if fileSpec.type in ['input']:
-                        updateNumEvents = True
+                         updateNumEvents = True
                 else:
                     # set ready for next attempt
                     varMap[':status'] = 'ready'
@@ -15096,9 +15096,8 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return None
-
-
-
+        
+        
     # increase memory limit
     def increaseRamLimitJEDI(self,jediTaskID,jobRamCount):
         comment = ' /* DBProxy.increaseRamLimitJEDI */'
@@ -15133,8 +15132,9 @@ class DBProxy:
                                                                                                                      limitList[-1])
                     _logger.debug("{0} : {1}".format(methodName,dbgStr))
                 else:
+                    limit = max(taskRamCount, jobRamCount) 
                     for nextLimit in limitList:
-                        if taskRamCount < nextLimit:
+                        if limit < nextLimit:
                             break
                     # update RAM limit
                     varMap = {}
@@ -15167,14 +15167,17 @@ class DBProxy:
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <PanDAID={0}>".format(job.PandaID)
         _logger.debug("{0} : start".format(methodName))
+        
+        # RAM limit
+        limitList = [1000,2000,3000,4000,6000,8000]
+        # Files defined as input types
+        input_types = ('input', 'pseudo_input', 'pp_input', 'trn_log','trn_output')
+
         try:
             #If no task associated to job don't take any action
             if job.jediTaskID in [None, 0, 'NULL']:
                 _logger.debug("No task(%s) associated to job(%s). Skipping increase of RAM limit"%(job.jediTaskID, job.PandaID))
             else:
-                # RAM limit
-                limitList = [1000,2000,3000,4000,6000,8000]
-                
                 # get current task limit
                 varMap = {}
                 varMap[':jediTaskID'] = jediTaskID
@@ -15184,6 +15187,44 @@ class DBProxy:
                 taskRamCount, = self.cur.fetchone()
                 _logger.debug("{0} : RAM limit task={1} job={2} jobPSS={3}".format(methodName, taskRamCount, jobRamCount, job.maxPSS))
                 
+                # If more than x% of the task's jobs needed a memory increase, increase the task's memory instead
+                varMap = {}
+                varMap[':jediTaskID'] = jediTaskID
+                i = 0
+                for input_type in input_types:
+                    varMap[':type{0}'.format(i)] = input_type
+                    i += 1
+                input_type_bindings = ','.join(':type{0}'.format(i) for i in xrange(len(input_types)))
+                
+                sqlMS  = """
+                         SELECT ramCount, count(*) 
+                         FROM {0}.JEDI_Datasets tabD,{0}.JEDI_Dataset_Contents tabC 
+                         WHERE tabD.jediTaskID=tabC.jediTaskID 
+                         AND tabD.datasetID=tabC.datasetID 
+                         AND tabD.jediTaskID=:jediTaskID 
+                         AND tabD.type IN ({1}) 
+                         AND tabD.masterID IS NULL 
+                         GROUP BY ramCount
+                         """.format(panda_config.schemaJEDI, input_type_bindings)
+
+                self.cur.execute(sqlMS+comment,varMap)
+                memory_stats = self.cur.fetchall()
+                total = sum([entry[1] for entry in memory_stats])
+                above_task = sum(tuple[1] for tuple in filter(lambda entry: entry[0] > taskRamCount, memory_stats))
+                max_task = max([entry[0] for entry in memory_stats])
+                _logger.debug("{0} : #increased_files: {1}; #total_files: {2}".format(methodName, above_task, total))
+                
+                if (1.0*above_task)/total > 0.3:
+                    if job.maxPSS:
+                        minimumRam = (job.maxPSS*1.0)/1024
+                    if jobRamCount not in [0,None,'NULL'] and jobRamCount > minimumRam:
+                        minimumRam = jobRamCount
+                    if max_task > minimumRam:
+                        minimumRam = max_task-1 #otherwise we go over the max_task step
+                    if minimumRam:
+                        _logger.debug("{0} : calling increaseRamLimitJEDI with minimumRam {1}".format(methodName, minimumRam)) 
+                        return self.increaseRamLimitJEDI(jediTaskID, minimumRam)
+
                 #To increase, we select the highest requirement in job or task
                 #e.g. ops could have increased task RamCount through direct DB access
                 maxJobTaskRam = max(jobRamCount, taskRamCount)
@@ -15214,7 +15255,6 @@ class DBProxy:
                         varMap[':jediTaskID'] = job.jediTaskID
                         varMap[':pandaID'] = job.PandaID
                         varMap[':ramCount'] = nextLimit
-                        input_types = ('input', 'pseudo_input', 'pp_input', 'trn_log','trn_output')
                         input_files = filter(lambda pandafile: pandafile.type in input_types, job.Files)
                         input_tuples = [(input_file.datasetID, input_file.fileID, input_file.attemptNr) for input_file in input_files]
 
