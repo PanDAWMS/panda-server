@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * changed regexp to look for unmerged files 
   * registring location for GEN
   * fixed user group accounting for mergeOutput
   * capping number of running user jobs 

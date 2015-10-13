@@ -559,7 +559,7 @@ class AdderGen:
             if not newLFN in origOutputs:
                 # look for corresponding original output
                 for origLFN in origOutputs.keys():
-                    tmpPatt = '^{0}_\d+$'.format(origLFN)
+                    tmpPatt = '^{0}\.*_\d+$'.format(origLFN)
                     if re.search(tmpPatt,newLFN) != None:
                         # copy file record
                         tmpStat = self.taskBuffer.copyFileRecord(newLFN,origOutputs[origLFN])
