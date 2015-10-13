@@ -15225,52 +15225,48 @@ class DBProxy:
                         _logger.debug("{0} : calling increaseRamLimitJEDI with minimumRam {1}".format(methodName, minimumRam)) 
                         return self.increaseRamLimitJEDI(jediTaskID, minimumRam)
 
-                #To increase, we select the highest requirement in job or task
-                #e.g. ops could have increased task RamCount through direct DB access
-                maxJobTaskRam = max(jobRamCount, taskRamCount-1)
+                #Ops could have increased task RamCount through direct DB access. In this case don't do anything
+                if (taskRamCount > jobRamCount) and (taskRamCount > job.maxPSS/1024):
+                    return True
                 
-                # do nothing if the job doesn't define RAM limit
-                if maxJobTaskRam in [0,None]:
-                    _logger.debug("{0} : no change since job RAM limit is {1}".format(methodName, jobRamCount))
+                # skip if already at largest limit
+                if jobRamCount >= limitList[-1]:
+                    dbgStr  = "no change "
+                    dbgStr += "since job RAM limit ({0}) is larger than or equal to the highest limit ({1})".format(jobRamCount,
+                                                                                                                     limitList[-1])
+                    _logger.debug("{0} : {1}".format(methodName,dbgStr))
                 else:
-                    # skip if already at largest limit
-                    if jobRamCount >= limitList[-1]:
-                        dbgStr  = "no change "
-                        dbgStr += "since job RAM limit ({0}) is larger than or equal to the highest limit ({1})".format(jobRamCount,
-                                                                                                                         limitList[-1])
-                        _logger.debug("{0} : {1}".format(methodName,dbgStr))
+                    #If maxPSS is present, then jump all the levels until the one above
+                    if job.maxPSS and job.maxPSS/1024>jobRamCount:
+                        minimumRam = job.maxPSS/1024
                     else:
-                        #If maxPSS is present, then jump all the levels until the one above
-                        if job.maxPSS and job.maxPSS/1024>maxJobTaskRam:
-                            minimumRam = job.maxPSS/1024
-                        else:
-                            minimumRam = maxJobTaskRam
+                        minimumRam = jobRamCount
 
-                        for nextLimit in limitList:
-                            if minimumRam < nextLimit:
-                                break
+                    for nextLimit in limitList:
+                        if minimumRam < nextLimit:
+                            break
+                    
+                    # update RAM limit
+                    varMap = {}
+                    varMap[':jediTaskID'] = job.jediTaskID
+                    varMap[':pandaID'] = job.PandaID
+                    varMap[':ramCount'] = nextLimit
+                    input_files = filter(lambda pandafile: pandafile.type in input_types, job.Files)
+                    input_tuples = [(input_file.datasetID, input_file.fileID, input_file.attemptNr) for input_file in input_files]
+
+                    for entry in input_tuples:
+                        datasetID, fileId, attemptNr = entry
+                        varMap[':datasetID'] = datasetID
+                        varMap[':fileID'] = fileId
+                        varMap[':attemptNr'] = attemptNr
                         
-                        # update RAM limit
-                        varMap = {}
-                        varMap[':jediTaskID'] = job.jediTaskID
-                        varMap[':pandaID'] = job.PandaID
-                        varMap[':ramCount'] = nextLimit
-                        input_files = filter(lambda pandafile: pandafile.type in input_types, job.Files)
-                        input_tuples = [(input_file.datasetID, input_file.fileID, input_file.attemptNr) for input_file in input_files]
+                        sqlRL  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
+                        sqlRL += "SET ramCount=:ramCount "
+                        sqlRL += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+                        sqlRL += "AND pandaID=:pandaID AND fileID=:fileID AND attemptNr=:attemptNr"
 
-                        for entry in input_tuples:
-                            datasetID, fileId, attemptNr = entry
-                            varMap[':datasetID'] = datasetID
-                            varMap[':fileID'] = fileId
-                            varMap[':attemptNr'] = attemptNr
-                            
-                            sqlRL  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
-                            sqlRL += "SET ramCount=:ramCount "
-                            sqlRL += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
-                            sqlRL += "AND pandaID=:pandaID AND fileID=:fileID AND attemptNr=:attemptNr"
-
-                            self.cur.execute(sqlRL+comment,varMap)
-                            _logger.debug("{0} : increased RAM limit to {1} from {2} for PandaID {3} fileID {4}".format(methodName, nextLimit, jobRamCount, job.PandaID, fileId))
+                        self.cur.execute(sqlRL+comment,varMap)
+                        _logger.debug("{0} : increased RAM limit to {1} from {2} for PandaID {3} fileID {4}".format(methodName, nextLimit, jobRamCount, job.PandaID, fileId))
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
