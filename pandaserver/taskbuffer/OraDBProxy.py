@@ -15650,21 +15650,22 @@ class DBProxy:
 
 
     # copy file record
-    def copyFileRecord(self,newLFN,fileSpec):
+    def copyFileRecord(self,newLFN,fileSpec,updateOrig):
         comment = ' /* DBProxy.copyFileRecord */'
         methodName = comment.split(' ')[-2].split('.')[-1]
-        methodName += " <newLFN={0}>".format(newLFN)
+        methodName += " <oldLFN={0} newLFN={1} updateOrig={2}>".format(fileSpec.lfn,newLFN,updateOrig)
         tmpLog = LogWrapper(_logger,methodName)
         tmpLog.debug("start")
         try:
             # reset rowID
             tmpFileSpec = copy.copy(fileSpec)
-            tmpFileSpec.row_ID = None
             tmpFileSpec.lfn = newLFN
+            if not updateOrig:
+                tmpFileSpec.row_ID = None
             # begin transaction
             self.conn.begin()
             # insert file in JEDI
-            if not tmpFileSpec.jediTaskID in [None,'NULL']:
+            if not updateOrig and not tmpFileSpec.jediTaskID in [None,'NULL']:
                 # get fileID
                 sqlFileID = "SELECT ATLAS_PANDA.JEDI_DATASET_CONT_FILEID_SEQ.nextval FROM dual "
                 self.cur.execute(sqlFileID+comment)
@@ -15696,11 +15697,20 @@ class DBProxy:
                     sqlJI += ") "
                     # insert file in JEDI
                     self.cur.execute(sqlJI+comment,varMap)
-            # insert file in Panda
-            sqlFile = "INSERT INTO ATLAS_PANDA.filesTable4 ({0}) ".format(FileSpec.columnNames())
-            sqlFile+= FileSpec.bindValuesExpression(useSeq=True)
-            varMap = tmpFileSpec.valuesMap(useSeq=True)
-            self.cur.execute(sqlFile+comment, varMap)
+            if not updateOrig:
+                # insert file in Panda
+                sqlFile = "INSERT INTO ATLAS_PANDA.filesTable4 ({0}) ".format(FileSpec.columnNames())
+                sqlFile+= FileSpec.bindValuesExpression(useSeq=True)
+                varMap = tmpFileSpec.valuesMap(useSeq=True)
+                self.cur.execute(sqlFile+comment, varMap)
+            else:
+                # update LFN
+                sqlFSF  = "UPDATE ATLAS_PANDA.filesTable4 SET lfn=:lfn "
+                sqlFSF += "WHERE row_ID=:row_ID "
+                varMap = {}
+                varMap[':lfn']    = tmpFileSpec.lfn
+                varMap[':row_ID'] = tmpFileSpec.row_ID
+                self.cur.execute(sqlFSF+comment,varMap)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
