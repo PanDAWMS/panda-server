@@ -7,6 +7,7 @@ import json
 import sys
 import datetime
 import time
+import threading
 
 # logger
 logger = PandaLogger().getLogger(__name__.split('.')[-1])
@@ -16,7 +17,6 @@ class Configurator():
     def __init__(self):
         task_buffer.init(panda_config.dbhost, panda_config.dbpasswd, panda_config.nDBConnection ,True)
         site_mapper = SiteMapper(task_buffer)
-
 
     #Internal caching of a result. Use only for information 
     #with low update frequency and low memory footprint
@@ -32,6 +32,7 @@ class Configurator():
                 memo[key]['timestamp'] = now
             return memo[key]['value']
         return helper
+
 
     @memoize
     def get_nuclei(self):
@@ -85,6 +86,13 @@ class Configurator():
                                                                            jsonStr)
             tmpLog.error(errStr)
         return
+
+
+class ConfiguratorCron(threading.Thread):
+        # constructor
+    def __init__(self):
+        threading.Thread.__init__(self)
+
 
 
 if __name__ == "__main__":
