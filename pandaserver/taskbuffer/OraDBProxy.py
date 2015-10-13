@@ -15227,7 +15227,7 @@ class DBProxy:
 
                 #To increase, we select the highest requirement in job or task
                 #e.g. ops could have increased task RamCount through direct DB access
-                maxJobTaskRam = max(jobRamCount, taskRamCount)
+                maxJobTaskRam = max(jobRamCount, taskRamCount-1)
                 
                 # do nothing if the job doesn't define RAM limit
                 if maxJobTaskRam in [0,None]:
