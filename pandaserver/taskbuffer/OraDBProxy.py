@@ -12381,6 +12381,7 @@ class DBProxy:
     def checkTaskStatusJEDI(self,jediTaskID,cur):
         comment = ' /* DBProxy.checkTaskStatusJEDI */'
         retVal = False
+        curStat = None
         if not jediTaskID in ['NULL',None]:
             sql = "SELECT status FROM ATLAS_PANDA.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
             varMap = {}
@@ -12388,12 +12389,11 @@ class DBProxy:
             cur.execute(sql+comment,varMap)
             res = cur.fetchone()
             if res != None:
-                if res[0] in ['ready','running','scouting','pending',
-                              'topreprocess','preprocessing','aborting',
-                              'finishing','scouted','toreassign','paused',
-                              'throttled']:
+                curStat = res[0]
+                if not curStat in ['done','finished','exhausted','failed',
+                                   'broken','aborted','prepared','passed']:
                     retVal = True
-        _logger.debug('checkTaskStatusJEDI jediTaskID=%s with %s' % (jediTaskID,retVal))            
+        _logger.debug('checkTaskStatusJEDI jediTaskID=%s in %s with %s' % (jediTaskID,curStat,retVal))
         return retVal
 
 

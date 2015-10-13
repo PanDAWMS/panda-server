@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * changed checkTaskStatus
   * changed copyFileRecord to work with original or w/o original
   * changed regexp to look for unmerged files 
   * registring location for GEN
