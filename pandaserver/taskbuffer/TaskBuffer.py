@@ -2783,11 +2783,11 @@ class TaskBuffer:
 
 
     # copy file record
-    def copyFileRecord(self,newLFN,fileSpec):
+    def copyFileRecord(self,newLFN,fileSpec,updateOrig):
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.copyFileRecord(newLFN,fileSpec)
+        ret = proxy.copyFileRecord(newLFN,fileSpec,updateOrig)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

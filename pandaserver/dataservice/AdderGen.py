@@ -477,7 +477,7 @@ class AdderGen:
         # copy files for variable number of outputs
         tmpStat = self.copyFilesForVariableNumOutputs(lfns)
         if not tmpStat:
-            self.logger.error("failed to copy files for ariable number of outputs")
+            self.logger.error("failed to copy files for variable number of outputs")
             return 2
         # check files
         fileList = []
@@ -550,9 +550,16 @@ class AdderGen:
     def copyFilesForVariableNumOutputs(self,lfns):
         # get original output files
         origOutputs = {}
+        updateOrig  = {}
         for tmpFile in self.job.Files:
             if tmpFile.type in ['output','log']:
                 origOutputs[tmpFile.lfn] = tmpFile
+                if tmpFile.lfn in lfns:
+                    # keep original
+                    updateOrig[tmpFile.lfn] = False
+                else:
+                    # overwrite original
+                    updateOrig[tmpFile.lfn] = True
         # look for unkown files
         addedNewFiles = False
         for newLFN in lfns:
@@ -562,10 +569,12 @@ class AdderGen:
                     tmpPatt = '^{0}\.*_\d+$'.format(origLFN)
                     if re.search(tmpPatt,newLFN) != None:
                         # copy file record
-                        tmpStat = self.taskBuffer.copyFileRecord(newLFN,origOutputs[origLFN])
+                        tmpStat = self.taskBuffer.copyFileRecord(newLFN,origOutputs[origLFN],updateOrig[origLFN])
                         if not tmpStat:
                             return False
                         addedNewFiles = True
+                        # disable further overwriting
+                        updateOrig[origLFN] = False
                         break
         # refresh job info
         if addedNewFiles:
