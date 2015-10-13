@@ -15117,34 +15117,32 @@ class DBProxy:
             self.cur.execute(sqlUE+comment,varMap)
             taskRamCount, = self.cur.fetchone()
             _logger.debug("{0} : RAM limit task={1} job={2}".format(methodName,taskRamCount,jobRamCount))
-            # do nothing if the task doesn't define RAM limit
-            if taskRamCount in [0,None]:
-                _logger.debug("{0} : no change since task RAM limit is {1}".format(methodName,taskRamCount))
+
+            # skip if already increased or largest limit
+            if taskRamCount > jobRamCount:
+                dbgStr = "no change since task RAM limit ({0}) is larger than job limit ({1})".format(taskRamCount,
+                                                                                                      jobRamCount)
+                _logger.debug("{0} : {1}".format(methodName,dbgStr))
+            elif taskRamCount >= limitList[-1]:
+                dbgStr  = "no change "
+                dbgStr += "since task RAM limit ({0}) is larger than or equal to the highest limit ({1})".format(taskRamCount,
+                                                                                                                 limitList[-1])
+                _logger.debug("{0} : {1}".format(methodName,dbgStr))
             else:
-                # skip if already increased or largest limit
-                if taskRamCount > jobRamCount:
-                    dbgStr = "no change since task RAM limit ({0}) is larger than job limit ({1})".format(taskRamCount,
-                                                                                                          jobRamCount)
-                    _logger.debug("{0} : {1}".format(methodName,dbgStr))
-                elif taskRamCount >= limitList[-1]:
-                    dbgStr  = "no change "
-                    dbgStr += "since task RAM limit ({0}) is larger than or equal to the highest limit ({1})".format(taskRamCount,
-                                                                                                                     limitList[-1])
-                    _logger.debug("{0} : {1}".format(methodName,dbgStr))
-                else:
-                    limit = max(taskRamCount, jobRamCount) 
-                    for nextLimit in limitList:
-                        if limit < nextLimit:
-                            break
-                    # update RAM limit
-                    varMap = {}
-                    varMap[':jediTaskID'] = jediTaskID
-                    varMap[':ramCount'] = nextLimit
-                    sqlRL  = "UPDATE {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
-                    sqlRL += "SET ramCount=:ramCount "
-                    sqlRL += "WHERE jediTaskID=:jediTaskID "
-                    self.cur.execute(sqlRL+comment,varMap)
-                    _logger.debug("{0} : increased RAM limit to {1} from {2}".format(methodName,nextLimit,taskRamCount))
+                limit = max(taskRamCount, jobRamCount) 
+                for nextLimit in limitList:
+                    if limit < nextLimit:
+                        break
+                # update RAM limit
+                varMap = {}
+                varMap[':jediTaskID'] = jediTaskID
+                varMap[':ramCount'] = nextLimit
+                sqlRL  = "UPDATE {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+                sqlRL += "SET ramCount=:ramCount "
+                sqlRL += "WHERE jediTaskID=:jediTaskID "
+                self.cur.execute(sqlRL+comment,varMap)
+                _logger.debug("{0} : increased RAM limit to {1} from {2}".format(methodName,nextLimit,taskRamCount))
+            
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -15279,7 +15277,6 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return False
-
 
 
     # reset files in JEDI
