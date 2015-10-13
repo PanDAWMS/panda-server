@@ -15185,7 +15185,7 @@ class DBProxy:
                 sqlUE += "WHERE jediTaskID=:jediTaskID "
                 self.cur.execute(sqlUE+comment,varMap)
                 taskRamCount, = self.cur.fetchone()
-                _logger.debug("{0} : RAM limit task={1} job={2} jobPSS={3}".format(methodName, taskRamCount, jobRamCount, job.maxPSS))
+                _logger.debug("{0} : RAM limit task={1}MB job={2}MB jobPSS={3}kB".format(methodName, taskRamCount, jobRamCount, job.maxPSS))
                 
                 # If more than x% of the task's jobs needed a memory increase, increase the task's memory instead
                 varMap = {}
@@ -15227,13 +15227,13 @@ class DBProxy:
 
                 #Ops could have increased task RamCount through direct DB access. In this case don't do anything
                 if (taskRamCount > jobRamCount) and (taskRamCount > job.maxPSS/1024):
+                    _logger.debug("{0} : task ramcount has already been increased and is higher than maxPSS. Skipping")
                     return True
                 
                 # skip if already at largest limit
                 if jobRamCount >= limitList[-1]:
                     dbgStr  = "no change "
-                    dbgStr += "since job RAM limit ({0}) is larger than or equal to the highest limit ({1})".format(jobRamCount,
-                                                                                                                     limitList[-1])
+                    dbgStr += "since job RAM limit ({0}) is larger than or equal to the highest limit ({1})".format(jobRamCount,                                                                                                                     limitList[-1])
                     _logger.debug("{0} : {1}".format(methodName,dbgStr))
                 else:
                     #If maxPSS is present, then jump all the levels until the one above
