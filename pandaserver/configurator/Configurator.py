@@ -104,9 +104,14 @@ class Configurator(threading.Thread):
                         panda_queue_name = panda_queue['name']
                     panda_sites_list.append({'panda_site_name': panda_site_name, 'panda_queue_name': panda_queue_name, 'site_name': site_name})
         
-        _session.execute(Site.insert(), [site_list]) 
+        #write the sites to the DB
+        sites_objects = []
+        for site in sites_list:
+            sites_objects.append(Site(site_name = site['site_name'], datapolicies = site['role']))
+        _session.add_all(sites_objects)   
+        _session.flush()
         
-        return sites_list, ddm_endpoints_list, panda_sites_list
+        return True
 
 
 if __name__ == "__main__":
