@@ -65,9 +65,6 @@ class Configurator():
         try:
             logger.debug('start')
             jsonStr = ''
-            #TODO: read the documentation and see if there is some filtering option to avoid getting the whole grid information
-            #TODO: I guess it also needs to return CERN in the list
-            #TODO: Discuss whether we want to create tables to store this type of information and collect it asynchronously
             response = urllib2.urlopen('http://atlas-agis-api.cern.ch/request/site/query/?json&tier_level=1&vo_name=atlas')
             json_str = response.read()
             
