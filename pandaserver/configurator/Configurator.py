@@ -1,12 +1,15 @@
-from config import panda_config
-from pandalogger.PandaLogger import PandaLogger
 import urllib2
 import json
 import time
 import threading
-import models
+
+from config import panda_config
+from pandalogger.PandaLogger import PandaLogger
+import db_interface as dbif
+from models import Site, PandaSite, DdmEndpoint, PandaDdmRelation
 
 _logger = PandaLogger().getLogger(__name__.split('.')[-1])
+_session = dbif.get_session()
 
 class Configurator(threading.Thread):
 
@@ -100,7 +103,9 @@ class Configurator(threading.Thread):
                     for panda_queue in site['presources'][panda_resource][panda_site]['pandaqueues']:
                         panda_queue_name = panda_queue['name']
                     panda_sites_list.append({'panda_site_name': panda_site_name, 'panda_queue_name': panda_queue_name, 'site_name': site_name})
-            
+        
+        _session.execute(Site.insert(), [site_list]) 
+        
         return sites_list, ddm_endpoints_list, panda_sites_list
 
 
