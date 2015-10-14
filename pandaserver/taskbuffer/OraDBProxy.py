@@ -15278,7 +15278,7 @@ class DBProxy:
                 _logger.debug("{0} : #increased_files: {1}; #total_files: {2}".format(methodName, above_task, total))
                 
                 if (1.0*above_task)/total > 0.3:
-                    if job.maxPSS:
+                    if job.maxPSS not in [None, 0, 'NULL']:
                         minimumRam = (job.maxPSS*1.0)/1024
                     if jobRamCount not in [0,None,'NULL'] and jobRamCount > minimumRam:
                         minimumRam = jobRamCount
@@ -15289,7 +15289,7 @@ class DBProxy:
                         return self.increaseRamLimitJEDI(jediTaskID, minimumRam)
 
                 #Ops could have increased task RamCount through direct DB access. In this case don't do anything
-                if (taskRamCount > jobRamCount) and job.maxPSS and (taskRamCount > job.maxPSS/1024):
+                if (taskRamCount > jobRamCount) and (job.maxPSS not in [None, 0, 'NULL']) and (taskRamCount > job.maxPSS/1024):
                     _logger.debug("{0} : task ramcount has already been increased and is higher than maxPSS. Skipping")
                     return True
                 
@@ -15300,7 +15300,7 @@ class DBProxy:
                     _logger.debug("{0} : {1}".format(methodName,dbgStr))
                 else:
                     #If maxPSS is present, then jump all the levels until the one above
-                    if job.maxPSS and job.maxPSS/1024>jobRamCount:
+                    if (job.maxPSS not in [None, 0, 'NULL']) and job.maxPSS/1024>jobRamCount:
                         minimumRam = job.maxPSS/1024
                     else:
                         minimumRam = jobRamCount
