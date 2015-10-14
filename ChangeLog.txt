@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * patched AdderAtlas for MWT2 PRODDISK
   * added dynamicNumEvents stuff
   * changed checkTaskStatus
   * changed copyFileRecord to work with original or w/o original

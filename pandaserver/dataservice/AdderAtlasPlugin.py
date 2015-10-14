@@ -778,6 +778,8 @@ class AdderAtlasPlugin (AdderPluginBase):
                         newDest = tmpDest.replace('DATADISK','PRODDISK')
                     else:
                         newDest = tmpDest.replace('PRODDISK','DATADISK')
+            if newDest == 'MWT2_PRODDISK':
+                newDest = 'MWT2_UC_PRODDISK'
             # use old one
             if newDest == None:
                 newDest = tmpDest
