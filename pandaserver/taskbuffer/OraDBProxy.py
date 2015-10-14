@@ -15289,7 +15289,7 @@ class DBProxy:
                         return self.increaseRamLimitJEDI(jediTaskID, minimumRam)
 
                 #Ops could have increased task RamCount through direct DB access. In this case don't do anything
-                if (taskRamCount > jobRamCount) and (taskRamCount > job.maxPSS/1024):
+                if (taskRamCount > jobRamCount) and job.maxPSS and (taskRamCount > job.maxPSS/1024):
                     _logger.debug("{0} : task ramcount has already been increased and is higher than maxPSS. Skipping")
                     return True
                 
