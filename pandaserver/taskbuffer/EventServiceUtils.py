@@ -21,6 +21,7 @@ esMergeToken = 'esmerge'
 singleToken = 'sc'
 singleConsumerType = {'runonce':  '1',
                       'storeonce':'2'}
+dynamicNumEventsToken = 'dy'
 
 
 # encode file info
@@ -198,3 +199,29 @@ def getJobCloningValue(scType):
         return singleConsumerType[scType]
     return ''
 
+
+
+# set header for dynamic number of events
+def setHeaderForDynNumEvents(specialHandling):
+    if specialHandling == None:
+        specialHandling = ''
+    tokens = specialHandling.split(',')
+    while True:
+        try:
+            tokens.remove('')
+        except:
+            break
+    tokens.append(dynamicNumEventsToken)
+    return ','.join(tokens)
+
+
+
+# check if specialHandling for dynamic number of events
+def isDynNumEventsSH(specialHandling):
+    try:
+        if specialHandling != None:
+            if dynamicNumEventsToken in specialHandling.split(','):
+                return True
+    except:
+        pass
+    return False

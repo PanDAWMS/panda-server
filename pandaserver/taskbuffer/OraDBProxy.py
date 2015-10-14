@@ -372,6 +372,9 @@ class DBProxy:
             if hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and \
                     job.lockedby == 'jedi' and self.checkTaskStatusJEDI(job.jediTaskID,self.cur):
                 useJEDI = True
+            dynNumEvents = EventServiceUtils.isDynNumEventsSH(job.specialHandling)
+            dynFileMap = {}
+            dynLfnIdMap = {}
             for file in job.Files:
                 file.row_ID = None
                 if not file.status in ['ready','cached']:
@@ -386,17 +389,27 @@ class DBProxy:
                         file.lfn = re.sub('\$JEDITASKID', strJediTaskID, file.lfn)
                     except:
                         pass
+                # avoid duplicated files for dynamic number of events
+                toSkipInsert = False
+                if dynNumEvents and file.type in ['input','pseudo_input']:
+                    if not file.lfn in dynFileMap:
+                        dynFileMap[file.lfn] = set()
+                    else:
+                        toSkipInsert = True
+                        dynFileMap[file.lfn].add((file.jediTaskID,file.datasetID,file.fileID,file.attemptNr))
                 # set scope
                 if file.type in ['output','log'] and job.VO in ['atlas']:
                     file.scope = self.extractScope(file.dataset)
                 # insert
-                varMap = file.valuesMap(useSeq=True)
-                varMap[':newRowID'] = self.cur.var(varNUMBER)
-                self.cur.execute(sqlFile+comment, varMap)
-                # get rowID
-                file.row_ID = long(self.cur.getvalue(varMap[':newRowID']))
-                # reset changed attribute list
-                file.resetChangedList()
+                if not toSkipInsert:
+                    varMap = file.valuesMap(useSeq=True)
+                    varMap[':newRowID'] = self.cur.var(varNUMBER)
+                    self.cur.execute(sqlFile+comment, varMap)
+                    # get rowID
+                    file.row_ID = long(self.cur.getvalue(varMap[':newRowID']))
+                    dynLfnIdMap[file.lfn] = file.row_ID
+                    # reset changed attribute list
+                    file.resetChangedList()
                 # update JEDI table
                 if useJEDI:
                     # skip if no JEDI
@@ -419,7 +432,10 @@ class DBProxy:
                     sqlJediFile += " WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                     sqlJediFile += "AND attemptNr=:attemptNr AND status IN (:oldStatusI,:oldStatusO) AND keepTrack=:keepTrack "
                     self.cur.execute(sqlJediFile+comment, varMap)
-                    # insert event tables
+                    # no insert for dynamic number of events
+                    if toSkipInsert:
+                        continue
+                    # insert events for ES
                     if origEsJob and eventServiceInfo != None and file.lfn in eventServiceInfo:
                         # discard old successful event ranges
                         sqlJediOdEvt  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
@@ -440,8 +456,8 @@ class DBProxy:
                         sqlJediEvent += "job_processID,def_min_eventID,def_max_eventID,processed_upto_eventID) "
                         sqlJediEvent += "VALUES(:jediTaskID,:datasetID,:pandaID,:fileID,:attemptNr,:eventStatus,"
                         sqlJediEvent += ":startEvent,:startEvent,:lastEvent,:processedEvent) "
-                        iEvent = 1
                         varMaps = []
+                        iEvent = 1
                         while iEvent <= eventServiceInfo[file.lfn]['nEvents']:
                             varMap = {}
                             varMap[':jediTaskID'] = file.jediTaskID
@@ -460,7 +476,33 @@ class DBProxy:
                             varMaps.append(varMap)
                         self.cur.executemany(sqlJediEvent+comment, varMaps)
                         _logger.debug("insertNewJob : %s inserted %s event ranges jediTaskID:%s" % (job.PandaID,len(varMaps),
-                                                                                                        job.jediTaskID))
+                                                                                                    job.jediTaskID))
+            # insert events for dynamic number of events
+            if dynFileMap != {}:
+                # insert new ranges
+                sqlJediEvent  = "INSERT INTO {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+                sqlJediEvent += "(jediTaskID,datasetID,PandaID,fileID,attemptNr,status,"
+                sqlJediEvent += "job_processID,def_min_eventID,def_max_eventID,processed_upto_eventID) "
+                sqlJediEvent += "VALUES(:jediTaskID,:datasetID,:pandaID,:fileID,:attemptNr,:eventStatus,"
+                sqlJediEvent += ":processID,:startEvent,:lastEvent,:processedEvent) "
+                varMaps = []
+                for tmpLFN,dynFiles in dynFileMap.iteritems():
+                    for tmpJediTaskID,tmpDatasetID,tmpFileID,tmpAttemptNr in dynFiles:
+                        varMap = {}
+                        varMap[':jediTaskID'] = tmpJediTaskID
+                        varMap[':datasetID'] = tmpDatasetID
+                        varMap[':pandaID'] = job.PandaID
+                        varMap[':fileID'] = tmpFileID
+                        varMap[':attemptNr'] = tmpAttemptNr+1 # to avoid 0
+                        varMap[':eventStatus'] = EventServiceUtils.ST_discarded
+                        varMap[':processID'] = dynLfnIdMap[tmpLFN]
+                        varMap[':processedEvent'] = -1
+                        varMap[':startEvent'] = 0
+                        varMap[':lastEvent'] = 0
+                        varMaps.append(varMap)
+                self.cur.executemany(sqlJediEvent+comment, varMaps)
+                _logger.debug("insertNewJob : %s inserted %s dyn events jediTaskID:%s" % (job.PandaID,len(varMaps),
+                                                                                          job.jediTaskID))
             # update t_task
             if useJEDI and not job.prodSourceLabel in ['panda'] and job.processingType != 'pmerge':
                 varMap = {}
@@ -12073,7 +12115,30 @@ class DBProxy:
         finishUnmerge = False
         hasInput = False
         _logger.debug(methodName+' waitLock={0}'.format(waitLock))
-        for fileSpec in jobSpec.Files:
+        # make pseudo files for dynamic number of events
+        pseudoFiles = []
+        if EventServiceUtils.isDynNumEventsSH(jobSpec.specialHandling):
+            # make row_ID and fileSpec map
+            rowIdSpecMap = {}
+            for fileSpec in jobSpec.Files:
+                rowIdSpecMap[fileSpec.row_ID] = fileSpec
+            # get pseudo files
+            varMap = {}
+            varMap[':PandaID']    = jobSpec.PandaID
+            varMap[':jediTaskID'] = jobSpec.jediTaskID
+            varMap[':eventID']    = -1
+            sqlPF  = "SELECT fileID,attemptNr,job_processID "
+            sqlPF += "FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI) 
+            sqlPF += "WHERE jediTaskID=:jediTaskID AND PandaID=:PandaID AND processed_upto_eventID=:eventID "
+            cur.execute(sqlPF+comment,varMap)
+            resPF = self.cur.fetchall()
+            for tmpFileID,tmpAttemptNr,tmpRow_ID in resPF:
+                tmpFileSpec = copy.copy(rowIdSpecMap[tmpRow_ID])
+                tmpFileSpec.row_ID = tmpFileID
+                tmpFileSpec.attemptNr = tmpAttemptNr-1
+                pseudoFiles.append(tmpFileSpec)
+            _logger.debug(methodName+' {0} pseudo files'.format(len(pseudoFiles)))
+        for fileSpec in jobSpec.Files+pseudoFiles:
             # skip if no JEDI
             if fileSpec.fileID == 'NULL':
                 continue
