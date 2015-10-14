@@ -1,105 +1,112 @@
 from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
-from brokerage.SiteMapper import SiteMapper
-from taskbuffer.TaskBuffer import taskBuffer as task_buffer
 import urllib2
 import json
-import sys
-import datetime
 import time
 import threading
+import models
 
-# logger
-logger = PandaLogger().getLogger(__name__.split('.')[-1])
+_logger = PandaLogger().getLogger(__name__.split('.')[-1])
 
-class Configurator():
-    
-    def __init__(self):
-        task_buffer.init(panda_config.dbhost, panda_config.dbpasswd, panda_config.nDBConnection ,True)
-        site_mapper = SiteMapper(task_buffer)
+class Configurator(threading.Thread):
 
-    #Internal caching of a result. Use only for information 
-    #with low update frequency and low memory footprint
-    def memoize(f):
-        memo = {}
-        kwd_mark = object()
-        def helper(self, *args, **kwargs):
-            now = datetime.datetime.now()
-            key = args + (kwd_mark,) + tuple(sorted(kwargs.items()))
-            if key not in memo or memo[key]['timestamp'] < now - datetime.timedelta(hours=1):
-                memo[key] = {}
-                memo[key]['value'] = f(self, *args, **kwargs)
-                memo[key]['timestamp'] = now
-            return memo[key]['value']
-        return helper
-
-
-    @memoize
-    def get_nuclei(self):
-        return self.__get_tier1s_agis()
-
-
-    def get_satellites(self, site=None, task_id=None):
-        return []
-
-
-    def __get_tier1s_schedconfig(self):
-        """
-        First implementation: return the Tier1s...
-        """
-        #TODO: discuss with Tadashi what format he wants, if he wants sitenames, queues, SE...
-        tier1s = []
-        for cloud_name in site_mapper.getCloudList():
-            # get cloud
-            cloud_spec = site_mapper.getCloud(cloud_name)
-            # get T1
-            t1_name = cloud_spec['source']
-            
-            tier1s.append(t1_name)
-        return tier1s
-
-
-    # update endpoint dict
-    def __get_tier1s_agis(self):
-        # get json
-        try:
-            logger.debug('start')
-            jsonStr = ''
-            response = urllib2.urlopen('http://atlas-agis-api.cern.ch/request/site/query/?json&tier_level=1&vo_name=atlas')
-            json_str = response.read()
-            
-            #This loads 
-            tier1s = json.loads(json_str)
-            
-            tier1_names = []
-            for entry in tier1s:
-                tier1_names.append(entry['rc_site'])
-            
-            return tier1_names
-        except:
-            errtype,errvalue = sys.exc_info()[:2]
-            errStr = 'failed to update EP with {0} {1} jsonStr={2}'.format(errtype.__name__,
-                                                                           errvalue,
-                                                                           jsonStr)
-            tmpLog.error(errStr)
-        return
-
-
-class ConfiguratorCron(threading.Thread):
-        # constructor
     def __init__(self):
         threading.Thread.__init__(self)
+        
+        if hasattr(panda_config,'AGIS_URL_SITES'):
+            self.AGIS_URL_SITES = panda_config.AGIS_URL_SITES
+        else:
+            self.AGIS_URL_SITES = 'http://atlas-agis-api.cern.ch/request/site/query/?json&vo_name=atlas'
+         
+        if hasattr(panda_config,'AGIS_URL_DDMENDPOINTS'):
+             self.AGIS_URL_DDMENDPOINTS = panda_config.AGIS_URL_DDMENDPOINTS
+        else:
+            self.AGIS_URL_DDMENDPOINTS = 'http://atlas-agis-api.cern.ch/request/ddmendpoint/query/list/?json'
 
+
+    def get_dump(self, url):
+        response = urllib2.urlopen(url)
+        json_str = response.read()
+        dump = json.loads(json_str)
+        return dump
+    
+    
+    def get_site_info(self, site):
+        """
+        Gets the relevant information from a site
+        """
+        
+        name = site['rc_site']
+        
+        #TODO: Think about the best way to store this information, also considering future requests
+        if 'TaskNucleus' in site['datapolicies'] or site['rc_tier_level'] == 1:
+            role = 'nucleus'
+        else:
+            role = 'satelite'
+        
+        #TODO: parse out any other fields Tadashi needs
+        return (name, role)
+    
+    
+    def parse_endpoints(self, endpoint_dump):
+        """
+        Puts the relavant information from endpoint_dump into a more usable format 
+        """
+        endpoint_token_dict = {}
+        for endpoint in endpoint_dump:
+            endpoint_token_dict[endpoint['name']] = endpoint['token']
+        return endpoint_token_dict
+    
+    
+    def process_dumps(self):
+        """
+        Principal function. Parses the AGIS site and endpoint dumps for loading into the DB
+        """
+        
+        #Get the list of sites
+        site_dump = self.get_dump(self.AGIS_URL_SITES)
+        
+        #Get the list of endpoints and convert the info we need to a more usable format
+        endpoint_dump = self.get_dump(self.AGIS_URL_DDMENDPOINTS)
+        endpoint_token_dict = self.parse_endpoints(endpoint_dump)
+        
+        #Variables that will contain only the relevant information
+        sites_list = []
+        ddm_endpoints_list = []
+        panda_sites_list = []
+        
+        #Iterate the site dump
+        for site in site_dump:
+            #Add the site info to a list
+            (site_name, site_role) = self.get_site_info(site)
+            sites_list.append({'site_name': site_name, 'role': site_role})
+            
+            #Get the DDM endpoints for the site we are inspecting
+            for ddm_endpoint_name in site['ddmendpoints']:
+                
+                try:
+                    ddm_spacetoken_name = endpoint_token_dict[ddm_endpoint_name]
+                except KeyError:
+                    ddm_spacetoken_name = None
+                
+                ddm_endpoints_list.append({'ddm_endpoint_name': ddm_endpoint_name, 'site_name': site_name, 'ddm_spacetoken_name': ddm_spacetoken_name})
+                
+                
+            #Get the PanDA resources 
+            for panda_resource in site['presources']:
+                for panda_site in site['presources'][panda_resource]:
+                    panda_site_name = panda_site
+                    panda_queue_name = None
+                    for panda_queue in site['presources'][panda_resource][panda_site]['pandaqueues']:
+                        panda_queue_name = panda_queue['name']
+                    panda_sites_list.append({'panda_site_name': panda_site_name, 'panda_queue_name': panda_queue_name, 'site_name': site_name})
+            
+        return sites_list, ddm_endpoints_list, panda_sites_list
 
 
 if __name__ == "__main__":
     t1 = time.time()
     configurator = Configurator()
+    sites_list, ddm_endpoints_list, panda_sites_list = configurator.process_dumps()
     t2 = time.time()
-    nuclei1 = configurator.get_nuclei()
-    t3 = time.time()
-    nuclei2 = configurator.get_nuclei()
-    t4 = time.time()
-    print "Instantiation: {0}s Get1: {1}s Get2: {2}s".format(t2-t1, t3-t2, t4-t3)
-    print nuclei1
-    print nuclei2
+    _logger("Processing AGIS dumps took {0}s".format(t2-t1))
