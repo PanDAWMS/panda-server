@@ -47,20 +47,5 @@ def db_session(method):
     return session_wrapper
 
 
-@db_session
-@timeit
-def ping(session):
-    """Dummy query to test that we can query the database
-    """
-    try:
-        dummy = session.execute("select * from dual")
-        for value in dummy:
-            if value == ('X',):
-                return True
-        return False
-    except exc.SQLAlchemyError:
-        __logger.critical("Ping excepted with error: %s"%sys.exc_info())
-
-
 def get_session():
     return sessionmaker(bind=__engine)()
