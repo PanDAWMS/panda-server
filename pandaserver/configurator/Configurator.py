@@ -69,54 +69,58 @@ class Configurator(threading.Thread):
         """
         Principal function. Parses the AGIS site and endpoint dumps for loading into the DB
         """
-        
-        #Get the list of sites
-        site_dump = self.get_dump(self.AGIS_URL_SITES)
-        
-        #Get the list of endpoints and convert the info we need to a more usable format
-        endpoint_dump = self.get_dump(self.AGIS_URL_DDMENDPOINTS)
-        endpoint_token_dict = self.parse_endpoints(endpoint_dump)
-        
-        #Variables that will contain only the relevant information
-        sites_list = []
-        included_sites = []
-        ddm_endpoints_list = []
-        panda_sites_list = []
-        
-        #Iterate the site dump
-        for site in site_dump:
-            #Add the site info to a list
-            (site_name, site_role) = self.get_site_info(site)
-            if site_name not in included_sites: #Avoid duplicate entries
-                sites_list.append({'site_name': site_name, 'role': site_role})
-                included_sites.append(site_name)
+        try:
+            #Get the list of sites
+            site_dump = self.get_dump(self.AGIS_URL_SITES)
             
-            #Get the DDM endpoints for the site we are inspecting
-            for ddm_endpoint_name in site['ddmendpoints']:
+            #Get the list of endpoints and convert the info we need to a more usable format
+            endpoint_dump = self.get_dump(self.AGIS_URL_DDMENDPOINTS)
+            endpoint_token_dict = self.parse_endpoints(endpoint_dump)
+            
+            #Variables that will contain only the relevant information
+            sites_list = []
+            included_sites = []
+            ddm_endpoints_list = []
+            panda_sites_list = []
+            
+            #Iterate the site dump
+            for site in site_dump:
+                #Add the site info to a list
+                (site_name, site_role) = self.get_site_info(site)
+                if site_name not in included_sites: #Avoid duplicate entries
+                    sites_list.append({'site_name': site_name, 'role': site_role})
+                    included_sites.append(site_name)
                 
-                try:
-                    ddm_spacetoken_name = endpoint_token_dict[ddm_endpoint_name]
-                except KeyError:
-                    ddm_spacetoken_name = None
-                
-                ddm_endpoints_list.append({'ddm_endpoint_name': ddm_endpoint_name, 'site_name': site_name, 'ddm_spacetoken_name': ddm_spacetoken_name})
-                
-                
-            #Get the PanDA resources 
-            for panda_resource in site['presources']:
-                for panda_site in site['presources'][panda_resource]:
-                    panda_site_name = panda_site
-                    panda_queue_name = None
-                    for panda_queue in site['presources'][panda_resource][panda_site]['pandaqueues']:
-                        panda_queue_name = panda_queue['name']
-                    panda_sites_list.append({'panda_site_name': panda_site_name, 'panda_queue_name': panda_queue_name, 'site_name': site_name, 'datapolicies': site_role})
+                #Get the DDM endpoints for the site we are inspecting
+                for ddm_endpoint_name in site['ddmendpoints']:
+                    
+                    try:
+                        ddm_spacetoken_name = endpoint_token_dict[ddm_endpoint_name]
+                    except KeyError:
+                        ddm_spacetoken_name = None
+                    
+                    ddm_endpoints_list.append({'ddm_endpoint_name': ddm_endpoint_name, 'site_name': site_name, 'ddm_spacetoken_name': ddm_spacetoken_name})
+                    
+                    
+                #Get the PanDA resources 
+                for panda_resource in site['presources']:
+                    for panda_site in site['presources'][panda_resource]:
+                        panda_site_name = panda_site
+                        panda_queue_name = None
+                        for panda_queue in site['presources'][panda_resource][panda_site]['pandaqueues']:
+                            panda_queue_name = panda_queue['name']
+                        panda_sites_list.append({'panda_site_name': panda_site_name, 'panda_queue_name': panda_queue_name, 'site_name': site_name, 'datapolicies': site_role})
+            
+            #Persist the information to the PanDA DB
+            self.write_sites_db(sites_list)
+            self.write_panda_sites_db(panda_sites_list)
+            self.write_ddm_endpoints_db(ddm_endpoints_list)
+            
+            return True
         
-        #Persist the information to the PanDA DB
-        self.write_sites_db(sites_list)
-        self.write_panda_sites_db(panda_sites_list)
-        self.write_ddm_endpoints_db(ddm_endpoints_list)
-        
-        return True
+        except:
+            _logger.critical('process_dumps: Excepted with --> {0}'.format(sys.exc_info()))
+            return False
 
 
     def write_sites_db(self, sites_list):
@@ -124,7 +128,9 @@ class Configurator(threading.Thread):
         Cache the AGIS site information in the PanDA database
         """
         try: #TODO: Improve this error handling. Consider writing a decorator
+            _logger.debug("Starting write_sites_db")
             for site in sites_list:
+                _logger.debug("Site: {0}".format(site['site_name']))
                 _session.merge(Site(site_name = site['site_name'], 
                                           datapolicies = site['role']))
             _session.flush()
