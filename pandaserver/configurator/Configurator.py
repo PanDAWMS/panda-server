@@ -109,7 +109,7 @@ class Configurator(threading.Thread):
 
         sites_list_sorted = sorted(sites_list, key=lambda k: k['site_name'])
         for site in sites_list_sorted:
-            _logger.debug("{0}-->{1}".format(site['site_name'], datapolicies = site['role']))
+            _logger.debug("{0}-->{1}".format(site['site_name'], site['role']))
             
         for site in sites_list:
             sites_objects.append(Site(site_name = site['site_name'], datapolicies = site['role']))
