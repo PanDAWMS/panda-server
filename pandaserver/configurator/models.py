@@ -29,8 +29,6 @@ class PandaSite(Base):
     site_name = Column(ForeignKey(u'atlas_panda.site.site_name'))
     datapolicies = Column(String(256))
 
-    site = relationship(u'Site')
-
 
 class DdmEndpoint(Base):
     __tablename__ = 'ddm_endpoint'
@@ -39,8 +37,6 @@ class DdmEndpoint(Base):
     ddm_endpoint_name = Column(String(52), primary_key=True)
     site_name = Column(ForeignKey(u'atlas_panda.site.site_name'))
     ddm_spacetoken_name = Column(String(52))
-
-    site = relationship(u'Site')
 
 
 class PandaDdmRelation(Base):
@@ -51,6 +47,3 @@ class PandaDdmRelation(Base):
     panda_ddm_name = Column(ForeignKey(u'atlas_panda.ddm_endpoint.ddm_endpoint_name'), primary_key=True, nullable=False)
     is_local = Column(String(1))
     is_default = Column(String(1))
-
-    ddm_endpoint = relationship(u'DdmEndpoint')
-    panda_site = relationship(u'PandaSite')
