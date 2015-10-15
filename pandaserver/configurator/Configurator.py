@@ -113,7 +113,7 @@ class Configurator(threading.Thread):
         #Persist the information to the PanDA DB
         self.write_sites_db(sites_list)
         self.write_panda_sites_db(panda_sites_list)
-        self.write_ddm_endpoints_db()
+        self.write_ddm_endpoints_db(ddm_endpoints_list)
         
         return True
 
