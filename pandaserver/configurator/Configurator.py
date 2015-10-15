@@ -2,6 +2,7 @@ import urllib2
 import json
 import time
 import threading
+import sys
 
 from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
@@ -32,8 +33,8 @@ class Configurator(threading.Thread):
         json_str = response.read()
         dump = json.loads(json_str)
         return dump
-    
-    
+
+
     def get_site_info(self, site):
         """
         Gets the relevant information from a site
@@ -49,8 +50,8 @@ class Configurator(threading.Thread):
         
         #TODO: parse out any other fields Tadashi needs
         return (name, role)
-    
-    
+
+
     def parse_endpoints(self, endpoint_dump):
         """
         Puts the relavant information from endpoint_dump into a more usable format 
@@ -59,8 +60,8 @@ class Configurator(threading.Thread):
         for endpoint in endpoint_dump:
             endpoint_token_dict[endpoint['name']] = endpoint['token']
         return endpoint_token_dict
-    
-    
+
+
     def process_dumps(self):
         """
         Principal function. Parses the AGIS site and endpoint dumps for loading into the DB
@@ -105,21 +106,73 @@ class Configurator(threading.Thread):
                     panda_queue_name = None
                     for panda_queue in site['presources'][panda_resource][panda_site]['pandaqueues']:
                         panda_queue_name = panda_queue['name']
-                    panda_sites_list.append({'panda_site_name': panda_site_name, 'panda_queue_name': panda_queue_name, 'site_name': site_name})
+                    panda_sites_list.append({'panda_site_name': panda_site_name, 'panda_queue_name': panda_queue_name, 'site_name': site_name, 'datapolicies': site_role})
         
-        #write the sites to the DB
-        sites_objects = []
-
-        sites_list_sorted = sorted(sites_list, key=lambda k: k['site_name'])
-        for site in sites_list_sorted:
-            _logger.debug("{0}-->{1}".format(site['site_name'], site['role']))
-            
-        for site in sites_list:
-            sites_objects.append(Site(site_name = site['site_name'], datapolicies = site['role']))
-        _session.add_all(sites_objects)   
-        _session.flush()
+        #Persist the information to the PanDA DB
+        self.write_sites_db(sites_list)
+        self.write_panda_sites_db(panda_sites_list)
+        self.write_ddm_endpoints_db()
         
         return True
+
+
+    def write_sites_db(self, sites_list):
+        """
+        Cache the AGIS site information in the PanDA database
+        """
+        sites_objects = []
+
+        for site in sites_list:
+            sites_objects.append(Site(site_name = site['site_name'], 
+                                      datapolicies = site['role']))
+        try: #TODO: Improve this error handling. Consider writing a decorator
+            _session.add_all(sites_objects)
+        except:
+            type, value, traceBack = sys.exc_info()
+            _logger.critical('write_sites_db: Could not persist information --> {0}'.format(traceBack))
+        finally:
+            _session.flush()
+            _session.commit()
+
+
+    def write_panda_sites_db(self, panda_sites_list):
+        """
+        Cache the AGIS panda site information in the PanDA database
+        """
+        panda_sites_objects = []
+            
+        for panda_site in panda_sites_list:
+            panda_sites_objects.append(PandaSite(panda_site_name = panda_site['panda_site_name'], 
+                                                 site_name = panda_site['site_name'], 
+                                                 datapolicies = panda_site['datapolicies']))
+        try: #TODO: Improve this error handling. Consider writing a decorator
+            _session.add_all(panda_sites_objects)
+        except:
+            type, value, traceBack = sys.exc_info()
+            _logger.critical('write_panda_sites_db: Could not persist information --> {0}'.format(traceBack))
+        finally:
+            _session.flush()
+            _session.commit()
+
+
+    def write_ddm_endpoints_db(self, ddm_endpoints_list):
+        """
+        Cache the AGIS ddm endpoints in the PanDA database
+        """
+        ddm_endpoint_objects = []
+            
+        for ddm_endpoint in ddm_endpoints_list:
+            ddm_endpoint_objects.append(DdmEndpoint(ddm_endpoint_name = ddm_endpoint['ddm_endpoint_name'], 
+                                                    site_name = ddm_endpoint['site_name'], 
+                                                    ddm_spacetoken_name = ddm_endpoint['ddm_spacetoken_name']))
+        try: #TODO: Improve this error handling. Consider writing a decorator
+            _session.add_all(ddm_endpoint_objects)
+        except:
+            type, value, traceBack = sys.exc_info()
+            _logger.critical('write_ddm_endpoints_db: Could not persist information --> {0}'.format(traceBack))
+        finally:
+            _session.flush()
+            _session.commit()
 
 
 if __name__ == "__main__":
