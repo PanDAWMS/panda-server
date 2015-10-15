@@ -4,6 +4,8 @@ import time
 import threading
 import sys
 
+from sqlalchemy import exc
+
 from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
 import db_interface as dbif
@@ -127,12 +129,11 @@ class Configurator(threading.Thread):
                                       datapolicies = site['role']))
         try: #TODO: Improve this error handling. Consider writing a decorator
             _session.add_all(sites_objects)
-        except:
-            type, value, traceBack = sys.exc_info()
-            _logger.critical('write_sites_db: Could not persist information --> {0}'.format(traceBack))
-        finally:
             _session.flush()
             _session.commit()
+        except exc.SQLAlchemyError:
+            type, value, traceBack = sys.exc_info()
+            _logger.critical('write_sites_db: Could not persist information --> {0}'.format(traceBack))
 
 
     def write_panda_sites_db(self, panda_sites_list):
@@ -147,12 +148,11 @@ class Configurator(threading.Thread):
                                                  datapolicies = panda_site['datapolicies']))
         try: #TODO: Improve this error handling. Consider writing a decorator
             _session.add_all(panda_sites_objects)
-        except:
-            type, value, traceBack = sys.exc_info()
-            _logger.critical('write_panda_sites_db: Could not persist information --> {0}'.format(traceBack))
-        finally:
             _session.flush()
             _session.commit()
+        except  exc.SQLAlchemyError:
+            type, value, traceBack = sys.exc_info()
+            _logger.critical('write_panda_sites_db: Could not persist information --> {0}'.format(traceBack))
 
 
     def write_ddm_endpoints_db(self, ddm_endpoints_list):
@@ -167,12 +167,11 @@ class Configurator(threading.Thread):
                                                     ddm_spacetoken_name = ddm_endpoint['ddm_spacetoken_name']))
         try: #TODO: Improve this error handling. Consider writing a decorator
             _session.add_all(ddm_endpoint_objects)
-        except:
-            type, value, traceBack = sys.exc_info()
-            _logger.critical('write_ddm_endpoints_db: Could not persist information --> {0}'.format(traceBack))
-        finally:
             _session.flush()
             _session.commit()
+        except exc.SQLAlchemyError:
+            type, value, traceBack = sys.exc_info()
+            _logger.critical('write_ddm_endpoints_db: Could not persist information --> {0}'.format(traceBack))
 
 
 if __name__ == "__main__":
@@ -182,3 +181,4 @@ if __name__ == "__main__":
         _logger.critical("Configurator loop FAILED")
     t2 = time.time()
     _logger.debug("Processing AGIS dumps took {0}s".format(t2-t1))
+    
