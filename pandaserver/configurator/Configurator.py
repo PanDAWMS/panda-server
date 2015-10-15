@@ -124,8 +124,6 @@ class Configurator(threading.Thread):
         Cache the AGIS site information in the PanDA database
         """
         try: #TODO: Improve this error handling. Consider writing a decorator
-            sites_objects = []
-
             for site in sites_list:
                 _session.merge(Site(site_name = site['site_name'], 
                                           datapolicies = site['role']))
@@ -139,14 +137,11 @@ class Configurator(threading.Thread):
         """
         Cache the AGIS panda site information in the PanDA database
         """
-        panda_sites_objects = []
-            
-        for panda_site in panda_sites_list:
-            panda_sites_objects.append(PandaSite(panda_site_name = panda_site['panda_site_name'], 
-                                                 site_name = panda_site['site_name'], 
-                                                 datapolicies = panda_site['datapolicies']))
         try: #TODO: Improve this error handling. Consider writing a decorator
-            _session.add_all(panda_sites_objects)
+            for panda_site in panda_sites_list:
+                _session.merge(PandaSite(panda_site_name = panda_site['panda_site_name'], 
+                                                     site_name = panda_site['site_name'], 
+                                                     datapolicies = panda_site['datapolicies']))
             _session.flush()
             _session.commit()
         except  exc.SQLAlchemyError:
@@ -157,14 +152,11 @@ class Configurator(threading.Thread):
         """
         Cache the AGIS ddm endpoints in the PanDA database
         """
-        ddm_endpoint_objects = []
-            
-        for ddm_endpoint in ddm_endpoints_list:
-            ddm_endpoint_objects.append(DdmEndpoint(ddm_endpoint_name = ddm_endpoint['ddm_endpoint_name'], 
-                                                    site_name = ddm_endpoint['site_name'], 
-                                                    ddm_spacetoken_name = ddm_endpoint['ddm_spacetoken_name']))
         try: #TODO: Improve this error handling. Consider writing a decorator
-            _session.add_all(ddm_endpoint_objects)
+            for ddm_endpoint in ddm_endpoints_list:
+                _session.merge(DdmEndpoint(ddm_endpoint_name = ddm_endpoint['ddm_endpoint_name'], 
+                                            site_name = ddm_endpoint['site_name'], 
+                                            ddm_spacetoken_name = ddm_endpoint['ddm_spacetoken_name']))
             _session.flush()
             _session.commit()
         except exc.SQLAlchemyError:
