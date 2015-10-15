@@ -136,6 +136,7 @@ class Configurator(threading.Thread):
             _session.flush()
             _session.commit()
         except exc.SQLAlchemyError:
+            _session.rollback()
             _logger.critical('write_sites_db: Could not persist information --> {0}'.format(sys.exc_info()))
 
 
@@ -151,6 +152,7 @@ class Configurator(threading.Thread):
             _session.flush()
             _session.commit()
         except  exc.SQLAlchemyError:
+            _session.rollback()
             _logger.critical('write_panda_sites_db: Could not persist information --> {0}'.format(sys.exc_info()))
 
 
@@ -166,6 +168,7 @@ class Configurator(threading.Thread):
             _session.flush()
             _session.commit()
         except exc.SQLAlchemyError:
+            _session.rollback()
             _logger.critical('write_ddm_endpoints_db: Could not persist information --> {0}'.format(sys.exc_info()))
 
 
