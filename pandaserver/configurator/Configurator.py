@@ -8,7 +8,7 @@ from pandalogger.PandaLogger import PandaLogger
 import db_interface as dbif
 from models import Site, PandaSite, DdmEndpoint, PandaDdmRelation
 
-_logger = PandaLogger().getLogger(__name__.split('.')[-1])
+_logger = PandaLogger().getLogger('configurator')
 _session = dbif.get_session()
 
 class Configurator(threading.Thread):
@@ -75,6 +75,7 @@ class Configurator(threading.Thread):
         
         #Variables that will contain only the relevant information
         sites_list = []
+        included_sites = []
         ddm_endpoints_list = []
         panda_sites_list = []
         
@@ -82,7 +83,9 @@ class Configurator(threading.Thread):
         for site in site_dump:
             #Add the site info to a list
             (site_name, site_role) = self.get_site_info(site)
-            sites_list.append({'site_name': site_name, 'role': site_role})
+            if site_name not in included_sites: #Avoid duplicate entries
+                sites_list.append({'site_name': site_name, 'role': site_role})
+                included_sites.append(site_name)
             
             #Get the DDM endpoints for the site we are inspecting
             for ddm_endpoint_name in site['ddmendpoints']:
