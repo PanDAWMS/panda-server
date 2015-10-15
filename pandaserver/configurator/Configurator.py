@@ -125,6 +125,7 @@ class Configurator(threading.Thread):
 if __name__ == "__main__":
     t1 = time.time()
     configurator = Configurator()
-    sites_list, ddm_endpoints_list, panda_sites_list = configurator.process_dumps()
+    if not configurator.process_dumps():
+        _logger.critical("Configurator loop FAILED")
     t2 = time.time()
-    _logger("Processing AGIS dumps took {0}s".format(t2-t1))
+    _logger.debug("Processing AGIS dumps took {0}s".format(t2-t1))
