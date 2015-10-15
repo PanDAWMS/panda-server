@@ -14,6 +14,7 @@ from models import Site, PandaSite, DdmEndpoint, PandaDdmRelation
 _logger = PandaLogger().getLogger('configurator')
 _session = dbif.get_session()
 
+
 class Configurator(threading.Thread):
 
     def __init__(self):
@@ -122,18 +123,16 @@ class Configurator(threading.Thread):
         """
         Cache the AGIS site information in the PanDA database
         """
-        sites_objects = []
-
-        for site in sites_list:
-            sites_objects.append(Site(site_name = site['site_name'], 
-                                      datapolicies = site['role']))
         try: #TODO: Improve this error handling. Consider writing a decorator
-            _session.add_all(sites_objects)
+            sites_objects = []
+
+            for site in sites_list:
+                _session.merge(Site(site_name = site['site_name'], 
+                                          datapolicies = site['role']))
             _session.flush()
             _session.commit()
         except exc.SQLAlchemyError:
-            type, value, traceBack = sys.exc_info()
-            _logger.critical('write_sites_db: Could not persist information --> {0}'.format(traceBack))
+            _logger.critical('write_sites_db: Could not persist information --> {0}'.format(sys.exc_info()))
 
 
     def write_panda_sites_db(self, panda_sites_list):
@@ -151,8 +150,7 @@ class Configurator(threading.Thread):
             _session.flush()
             _session.commit()
         except  exc.SQLAlchemyError:
-            type, value, traceBack = sys.exc_info()
-            _logger.critical('write_panda_sites_db: Could not persist information --> {0}'.format(traceBack))
+            _logger.critical('write_panda_sites_db: Could not persist information --> {0}'.format(sys.exc_info()))
 
 
     def write_ddm_endpoints_db(self, ddm_endpoints_list):
@@ -170,8 +168,7 @@ class Configurator(threading.Thread):
             _session.flush()
             _session.commit()
         except exc.SQLAlchemyError:
-            type, value, traceBack = sys.exc_info()
-            _logger.critical('write_ddm_endpoints_db: Could not persist information --> {0}'.format(traceBack))
+            _logger.critical('write_ddm_endpoints_db: Could not persist information --> {0}'.format(sys.exc_info()))
 
 
 if __name__ == "__main__":
