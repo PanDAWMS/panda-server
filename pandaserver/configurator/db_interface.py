@@ -1,7 +1,7 @@
 #Standard python libraries
 import sys
 
-#Specific pythong libraries
+#Specific python libraries
 import sqlalchemy
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import exc

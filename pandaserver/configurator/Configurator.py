@@ -64,14 +64,6 @@ class Configurator(threading.Thread):
         return endpoint_token_dict
 
 
-    def establish_panda_ddm_relationships(self):
-        """
-        Establish relationships between PanDA sites and DDM endpoints. 
-        We will use schedconfig as a temporary solution, but ultimately 
-        this information should be in AGIS
-        """
-
-
     def process_dumps(self):
         """
         Parses the AGIS site and endpoint dumps 
