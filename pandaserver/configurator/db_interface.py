@@ -126,7 +126,7 @@ def read_panda_ddm_relationships_schedconfig(session):
             site = entry.site
             panda_site = entry.siteid
             #Schedconfig stores DDM endpoints as a comma separated string. Strip just in case
-            ddm_endpoints = [ddm_endpoint.strip() for ddm_endpoint in entry.ddm.split('')]
+            ddm_endpoints = [ddm_endpoint.strip() for ddm_endpoint in entry.ddm.split(',')]
             #Return the tuples and let the caller mingle it the way he wants
             relationship_tuples.append((site, panda_site, ddm_endpoints))
         _logger.debug("Done with read_panda_ddm_relationships_schedconfig")
