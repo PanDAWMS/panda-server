@@ -156,5 +156,5 @@ def write_panda_ddm_relations(session, relationships_list):
                                                                                                            relationship['is_default'])
                                                                                                           , sys.exc_info()))
         
-        _logger.debug("Done with write_panda_ddm_relations")
+    _logger.debug("Done with write_panda_ddm_relations")
 
