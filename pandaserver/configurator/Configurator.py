@@ -159,10 +159,10 @@ class Configurator(threading.Thread):
             relationships_list = self.process_schedconfig()
             
             #Persist the information to the PanDA DB
-            dbif.write_sites_db(sites_list)
-            dbif.write_panda_sites_db(panda_sites_list)
-            dbif.write_ddm_endpoints_db(ddm_endpoints_list)
-            dbif.write_panda_ddm_relations(relationships_list)
+            dbif.write_sites_db(_session, sites_list)
+            dbif.write_panda_sites_db(_session, panda_sites_list)
+            dbif.write_ddm_endpoints_db(_session, ddm_endpoints_list)
+            dbif.write_panda_ddm_relations(_session, relationships_list)
             
             return True
         except:
