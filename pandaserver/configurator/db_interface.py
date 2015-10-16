@@ -120,11 +120,11 @@ def read_panda_ddm_relationships_schedconfig(session):
     """
     try:
         _logger.debug("Starting read_panda_ddm_relationships_schedconfig")
-        schedconfig = session.query(Schedconfig, Schedconfig.site, Schedconfig.siteid, Schedconfig.ddm)
+        schedconfig = session.query(Schedconfig.site, Schedconfig.siteid, Schedconfig.ddm).all()
         relationship_tuples = []
         for entry in schedconfig:
             site = entry.site
-            panda_site = entry.sideid
+            panda_site = entry.siteid
             #Schedconfig stores DDM endpoints as a comma separated string. Strip just in case
             ddm_endpoints = [ddm_endpoint.strip() for ddm_endpoint in entry.ddm.split('')]
             #Return the tuples and let the caller mingle it the way he wants

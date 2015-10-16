@@ -176,5 +176,5 @@ if __name__ == "__main__":
     if not configurator.run():
         _logger.critical("Configurator loop FAILED")
     t2 = time.time()
-    _logger.debug("Processing AGIS dumps took {0}s".format(t2-t1))
+    _logger.debug("Configurator run took {0}s".format(t2-t1))
     
