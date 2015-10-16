@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * fixed propageteResult for killed merging after pmerge incremented attemptNr
   * added RSENotFound
   * patched AdderAtlas for MWT2 PRODDISK
   * added dynamicNumEvents stuff

@@ -12151,9 +12151,13 @@ class DBProxy:
             varMap[':fileID']     = fileSpec.fileID
             varMap[':datasetID']  = fileSpec.datasetID
             varMap[':jediTaskID'] = jobSpec.jediTaskID
-            varMap[':attemptNr']  = fileSpec.attemptNr
+            # no attemptNr check for premerge since attemptNr can be incremented by pmerge
+            if not (jobSpec.jobStatus == 'cancelled' and fileSpec.isUnMergedOutput()):
+                varMap[':attemptNr']  = fileSpec.attemptNr
             sqlFileStat  = "SELECT status FROM ATLAS_PANDA.JEDI_Dataset_Contents "
-            sqlFileStat += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND attemptNr=:attemptNr "
+            sqlFileStat += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+            if not (jobSpec.jobStatus == 'cancelled' and fileSpec.isUnMergedOutput()):
+                sqlFileStat += "AND attemptNr=:attemptNr "
             sqlFileStat += "FOR UPDATE "
             if not waitLock:
                 sqlFileStat += "NOWAIT "
@@ -12177,7 +12181,8 @@ class DBProxy:
             varMap[':datasetID']  = fileSpec.datasetID
             varMap[':keepTrack']  = 1
             varMap[':jediTaskID'] = jobSpec.jediTaskID
-            varMap[':attemptNr']  = fileSpec.attemptNr
+            if not (jobSpec.jobStatus == 'cancelled' and fileSpec.isUnMergedOutput()):
+                varMap[':attemptNr']  = fileSpec.attemptNr
             # set file status
             if fileSpec.type in ['input','pseudo_input']:
                 hasInput = True
@@ -12249,7 +12254,9 @@ class DBProxy:
                     # set max attempt
                     sqlFile += ",maxAttempt=attemptNr+3"
             sqlFile += " WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-            sqlFile += "AND attemptNr=:attemptNr AND keepTrack=:keepTrack "
+            sqlFile += "AND keepTrack=:keepTrack "
+            if not (jobSpec.jobStatus == 'cancelled' and fileSpec.isUnMergedOutput()):
+                sqlFile += "AND attemptNr=:attemptNr "    
             _logger.debug(methodName+' '+sqlFile+comment+str(varMap))
             cur.execute(sqlFile+comment,varMap)
             nRow = cur.rowcount
@@ -13214,7 +13221,7 @@ class DBProxy:
                         tmpNumReady = 0
                         for tmpFileStatus,tmpFileCount in resListGFC:
                             if tmpFileStatus in ['finished','failed','cancelled','notmerged',
-                                                 'ready','lost','broken']:
+                                                 'ready','lost','broken','picked']:
                                 tmpNumFiles += tmpFileCount
                                 if tmpFileStatus in ['ready']:
                                     tmpNumReady += tmpFileCount
@@ -15140,7 +15147,14 @@ class DBProxy:
                 varMap[':attemptNr']  = fileSpec.attemptNr
                 self.cur.execute(sqlFileStat+comment,varMap)
                 resFileStat = self.cur.fetchone()
-                if resFileStat != None:
+                if resFileStat == None:
+                    tmpLog.debug("jediTaskID={0} datasetID={1} fileID={2} attemptNr={3} is not found".format(fileSpec.jediTaskID,
+                                                                                                             fileSpec.datasetID,
+                                                                                                             fileSpec.fileID,
+                                                                                                             fileSpec.attemptNr))
+                    allOK = False
+                    break
+                else:
                     fileStatus, = resFileStat
                     if fileStatus in ['cancelled']:
                         tmpLog.debug("jediTaskID={0} datasetID={1} fileID={2} attemptNr={3} is in wrong status ({4})".format(fileSpec.jediTaskID,
