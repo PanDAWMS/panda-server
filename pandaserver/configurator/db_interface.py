@@ -59,7 +59,9 @@ def db_interaction(method):
             raise
     return session_wrapper
 
-
+#TODO: The performance of all write methods could significantly be improved by writing in bulks.
+#The current implementation was the fastest way to get it done with the merge method and avoiding
+#issues with duplicate keys  
 def write_sites_db(session, sites_list):
     """
     Cache the AGIS site information in the PanDA database
@@ -70,7 +72,6 @@ def write_sites_db(session, sites_list):
             _logger.debug("Site: {0}".format(site['site_name']))
             session.merge(Site(site_name = site['site_name'], 
                                       role = site['role']))
-        session.flush()
         session.commit()
         _logger.debug("Done with write_sites_db")
     except exc.SQLAlchemyError:
@@ -88,7 +89,6 @@ def write_panda_sites_db(session, panda_sites_list):
             session.merge(PandaSite(panda_site_name = panda_site['panda_site_name'], 
                                                  site_name = panda_site['site_name'], 
                                                  role = panda_site['role']))
-        session.flush()
         session.commit()
         _logger.debug("Done with write_panda_sites_db")
     except exc.SQLAlchemyError:
@@ -106,7 +106,6 @@ def write_ddm_endpoints_db(session, ddm_endpoints_list):
             session.merge(DdmEndpoint(ddm_endpoint_name = ddm_endpoint['ddm_endpoint_name'], 
                                         site_name = ddm_endpoint['site_name'], 
                                         ddm_spacetoken_name = ddm_endpoint['ddm_spacetoken_name']))
-        session.flush()
         session.commit()
         _logger.debug("Done with write_ddm_endpoints_db")
     except exc.SQLAlchemyError:
@@ -142,17 +141,20 @@ def write_panda_ddm_relations(session, relationships_list):
     """
     Cache the AGIS ddm endpoints in the PanDA database
     """
-    try:
-        _logger.debug("Starting write_panda_ddm_relations")
-        for relationship in relationships_list:
+
+    _logger.debug("Starting write_panda_ddm_relations")
+    for relationship in relationships_list:
+        try:
             session.merge(PandaDdmRelation(panda_site_name = relationship['panda_site_name'],
                                            ddm_endpoint_name = relationship['ddm_endpoint_name'],
                                            is_default = relationship['is_default']))
-
-        session.flush()
-        session.commit()
+            session.commit()
+        except exc.IntegrityError:
+            session.rollback()
+            _logger.error('write_ddm_endpoints_db: Could not persist information for relationship {0}. Exception: {1}'.format((relationship['panda_site_name'],
+                                                                                                           relationship['ddm_endpoint_name'],
+                                                                                                           relationship['is_default'])
+                                                                                                          , sys.exc_info()))
+        
         _logger.debug("Done with write_panda_ddm_relations")
-    except exc.SQLAlchemyError:
-        session.rollback()
-        _logger.critical('write_ddm_endpoints_db: Could not persist information --> {0}'.format(sys.exc_info()))
 
