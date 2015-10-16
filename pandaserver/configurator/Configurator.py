@@ -48,7 +48,7 @@ class Configurator(threading.Thread):
         if 'TaskNucleus' in site['datapolicies'] or site['rc_tier_level'] == 1:
             role = 'nucleus'
         else:
-            role = 'satelite'
+            role = 'satellite'
         
         #TODO: parse out any other fields Tadashi needs
         return (name, role)
