@@ -15787,6 +15787,16 @@ class DBProxy:
                 varMap[':lfn']    = tmpFileSpec.lfn
                 varMap[':row_ID'] = tmpFileSpec.row_ID
                 self.cur.execute(sqlFSF+comment,varMap)
+            # update LFN in JEDI
+            sqlJF  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
+            sqlJF += "SET lfn=:lfn "
+            sqlJF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+            varMap = {}
+            varMap[':lfn']    = tmpFileSpec.lfn
+            varMap[':jediTaskID'] = tmpFileSpec.jediTaskID
+            varMap[':datasetID']  = tmpFileSpec.datasetID
+            varMap[':fileID']     = tmpFileSpec.fileID
+            self.cur.execute(sqlJF+comment,varMap)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'

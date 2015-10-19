@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * changed copyFileRecord to update JEDI files too
   * diabled inputFileCheck in Adder for pilotRetry
   * fixed propageteResult for killed merging after pmerge incremented attemptNr
   * added RSENotFound
