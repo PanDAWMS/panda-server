@@ -20,6 +20,7 @@ class Site(Base):
 
     site_name = Column(String(52), primary_key=True)
     role = Column(String(256))
+    state = Column(String(20))
 
 
 class PandaSite(Base):
@@ -29,7 +30,8 @@ class PandaSite(Base):
     panda_site_name = Column(String(52), primary_key=True)
     site_name = Column(ForeignKey(u'atlas_panda.site.site_name'))
     role = Column(String(256))
-    
+    state = Column(String(20))
+
     site = relationship('Site') 
 
 
@@ -40,7 +42,8 @@ class DdmEndpoint(Base):
     ddm_endpoint_name = Column(String(52), primary_key=True)
     site_name = Column(ForeignKey(u'atlas_panda.site.site_name'))
     ddm_spacetoken_name = Column(String(52))
-    
+    state = Column(String(20))
+
     site = relationship('Site')
 
 
