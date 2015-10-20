@@ -89,7 +89,6 @@ def write_panda_sites_db(session, panda_sites_list):
         for panda_site in panda_sites_list:
             session.merge(PandaSite(panda_site_name = panda_site['panda_site_name'], 
                                                  site_name = panda_site['site_name'], 
-                                                 role = panda_site['role'],
                                                  state = panda_site['state']))
         session.commit()
         _logger.debug("Done with write_panda_sites_db")
