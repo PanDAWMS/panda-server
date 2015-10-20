@@ -50,8 +50,9 @@ class Configurator(threading.Thread):
         else:
             role = 'satelite'
         
-        #TODO: parse out any other fields Tadashi needs
-        return (name, role)
+        state = site['state']
+        
+        return (name, role, state)
 
 
     def parse_endpoints(self, endpoint_dump):
@@ -85,9 +86,9 @@ class Configurator(threading.Thread):
         #Iterate the site dump
         for site in site_dump:
             #Add the site info to a list
-            (site_name, site_role) = self.get_site_info(site)
+            (site_name, site_role, site_state) = self.get_site_info(site)
             if site_name not in included_sites: #Avoid duplicate entries
-                sites_list.append({'site_name': site_name, 'role': site_role})
+                sites_list.append({'site_name': site_name, 'role': site_role, 'state': site_state})
                 included_sites.append(site_name)
             
             #Get the DDM endpoints for the site we are inspecting
@@ -97,18 +98,20 @@ class Configurator(threading.Thread):
                     ddm_spacetoken_name = endpoint_token_dict[ddm_endpoint_name]
                 except KeyError:
                     ddm_spacetoken_name = None
+                    
+                ddm_spacetoken_state = site['ddmendpoints'][ddm_endpoint_name]['state']
                 
-                ddm_endpoints_list.append({'ddm_endpoint_name': ddm_endpoint_name, 'site_name': site_name, 'ddm_spacetoken_name': ddm_spacetoken_name})
-                
-                
+                ddm_endpoints_list.append({'ddm_endpoint_name': ddm_endpoint_name, 'site_name': site_name, 'ddm_spacetoken_name': ddm_spacetoken_name, 'state': ddm_spacetoken_state})
+
             #Get the PanDA resources 
             for panda_resource in site['presources']:
                 for panda_site in site['presources'][panda_resource]:
                     panda_site_name = panda_site
+                    panda_site_state = site['presources'][panda_resource][panda_site]['state']
                     panda_queue_name = None
                     for panda_queue in site['presources'][panda_resource][panda_site]['pandaqueues']:
                         panda_queue_name = panda_queue['name']
-                    panda_sites_list.append({'panda_site_name': panda_site_name, 'panda_queue_name': panda_queue_name, 'site_name': site_name, 'role': site_role})
+                    panda_sites_list.append({'panda_site_name': panda_site_name, 'panda_queue_name': panda_queue_name, 'site_name': site_name, 'state': panda_site_state})
         
         return sites_list, panda_sites_list, ddm_endpoints_list
     
