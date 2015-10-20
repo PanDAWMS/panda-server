@@ -15130,38 +15130,48 @@ class DBProxy:
             if jobSpec.lockedby != 'jedi':
                 return True
             # sql to check file status
-            sqlFileStat  = "SELECT status FROM ATLAS_PANDA.JEDI_Dataset_Contents "
-            sqlFileStat += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND attemptNr=:attemptNr "
+            sqlFileStat  = "SELECT status,attemptNr,keepTrack FROM ATLAS_PANDA.JEDI_Dataset_Contents "
+            sqlFileStat += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
             # begin transaction
             self.conn.begin()
             # loop over all input files
             allOK = True
             for fileSpec in jobSpec.Files:
                 # only input file
-                if not fileSpec.type in ['input']:
+                if not fileSpec.type in ['input','pseudo_input']:
                     continue
                 varMap = {}
                 varMap[':jediTaskID'] = fileSpec.jediTaskID
                 varMap[':datasetID']  = fileSpec.datasetID
                 varMap[':fileID']     = fileSpec.fileID
-                varMap[':attemptNr']  = fileSpec.attemptNr
                 self.cur.execute(sqlFileStat+comment,varMap)
                 resFileStat = self.cur.fetchone()
                 if resFileStat == None:
-                    tmpLog.debug("jediTaskID={0} datasetID={1} fileID={2} attemptNr={3} is not found".format(fileSpec.jediTaskID,
-                                                                                                             fileSpec.datasetID,
-                                                                                                             fileSpec.fileID,
-                                                                                                             fileSpec.attemptNr))
+                    tmpLog.debug("jediTaskID={0} datasetID={1} fileID={2} is not found".format(fileSpec.jediTaskID,
+                                                                                               fileSpec.datasetID,
+                                                                                               fileSpec.fileID))
                     allOK = False
                     break
                 else:
-                    fileStatus, = resFileStat
-                    if fileStatus in ['cancelled']:
-                        tmpLog.debug("jediTaskID={0} datasetID={1} fileID={2} attemptNr={3} is in wrong status ({4})".format(fileSpec.jediTaskID,
-                                                                                                                             fileSpec.datasetID,
-                                                                                                                             fileSpec.fileID,
-                                                                                                                             fileSpec.attemptNr,
-                                                                                                                             fileStatus))
+                    fileStatus,attemptNr,keepTrack = resFileStat
+                    if attemptNr == None:
+                        continue
+                    if keepTrack != 1:
+                        continue
+                    if attemptNr != fileSpec.attemptNr:
+                        tmpLog.debug("jediTaskID={0} datasetID={1} fileID={2} attemptNr={3} is inconsitent with attemptNr={4} in JEDI".format(fileSpec.jediTaskID,
+                                                                                                                                              fileSpec.datasetID,
+                                                                                                                                              fileSpec.fileID,
+                                                                                                                                              fileSpec.attemptNr,
+                                                                                                                                              attemptNr))
+                        allOK = False
+                        break
+                    if not fileStatus in ['running']:
+                        tmpLog.debug("jediTaskID={0} datasetID={1} fileID={2} attemptNr={3} is in wrong status ({4}) in JEDI".format(fileSpec.jediTaskID,
+                                                                                                                                     fileSpec.datasetID,
+                                                                                                                                     fileSpec.fileID,
+                                                                                                                                     fileSpec.attemptNr,
+                                                                                                                                     fileStatus))
                         allOK = False
                         break
             # commit

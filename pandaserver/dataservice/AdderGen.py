@@ -104,7 +104,7 @@ class AdderGen:
                         self.jobStatus = 'failed'
                         self.job.ddmErrorCode = ErrorCode.EC_Adder
                         self.job.ddmErrorDiag = "wrong file status in source database"
-                        self.logger.debug("set jobStatus={0} since input are already cancelled in JEDI".format(self.jobStatus))
+                        self.logger.debug("set jobStatus={0} since input is inconsistent between Panda and JEDI".format(self.jobStatus))
                 # keep old status
                 oldJobStatus = self.job.jobStatus
                 # set job status
