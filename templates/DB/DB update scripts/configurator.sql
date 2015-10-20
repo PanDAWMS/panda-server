@@ -2,7 +2,8 @@ create table atlas_panda.site
 (
 site_name varchar(52),
 role varchar(256),
-constraint site_name_pk primary key(site_name)
+constraint site_name_pk primary key(site_name),
+state varchar(20)
 )
 
 create table atlas_panda.panda_site
@@ -11,7 +12,8 @@ panda_site_name varchar(52),
 site_name varchar(52),
 role varchar(256),
 constraint panda_site_name_pk primary key(panda_site_name),
-constraint site_fk foreign key(site_name) references atlas_panda.site(site_name)
+constraint site_fk foreign key(site_name) references atlas_panda.site(site_name),
+state varchar(20)
 )
 
 create table atlas_panda.ddm_endpoint
@@ -20,7 +22,8 @@ ddm_endpoint_name varchar(52),
 site_name varchar(52),
 ddm_spacetoken_name varchar(52),
 constraint ddm_endpoint_name_pk primary key(ddm_endpoint_name),
-constraint ddm_site_fk foreign key(site_name) references atlas_panda.site(site_name)
+constraint ddm_site_fk foreign key(site_name) references atlas_panda.site(site_name),
+state varchar(20)
 )
 
 --m to n relationship between panda and ddm sites 
