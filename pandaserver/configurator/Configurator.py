@@ -50,7 +50,7 @@ class Configurator(threading.Thread):
         else:
             role = 'satelite'
         
-        state = site['state']
+        state = site['rc_site_state']
         
         return (name, role, state)
 
