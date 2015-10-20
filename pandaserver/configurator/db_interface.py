@@ -71,7 +71,8 @@ def write_sites_db(session, sites_list):
         for site in sites_list:
             _logger.debug("Site: {0}".format(site['site_name']))
             session.merge(Site(site_name = site['site_name'], 
-                                      role = site['role']))
+                                      role = site['role'],
+                                      state = site['state']))
         session.commit()
         _logger.debug("Done with write_sites_db")
     except exc.SQLAlchemyError:
@@ -88,7 +89,8 @@ def write_panda_sites_db(session, panda_sites_list):
         for panda_site in panda_sites_list:
             session.merge(PandaSite(panda_site_name = panda_site['panda_site_name'], 
                                                  site_name = panda_site['site_name'], 
-                                                 role = panda_site['role']))
+                                                 role = panda_site['role'],
+                                                 state = panda_site['state']))
         session.commit()
         _logger.debug("Done with write_panda_sites_db")
     except exc.SQLAlchemyError:
@@ -105,7 +107,8 @@ def write_ddm_endpoints_db(session, ddm_endpoints_list):
         for ddm_endpoint in ddm_endpoints_list:
             session.merge(DdmEndpoint(ddm_endpoint_name = ddm_endpoint['ddm_endpoint_name'], 
                                         site_name = ddm_endpoint['site_name'], 
-                                        ddm_spacetoken_name = ddm_endpoint['ddm_spacetoken_name']))
+                                        ddm_spacetoken_name = ddm_endpoint['ddm_spacetoken_name'],
+                                        state = ddm_endpoint['state']))
         session.commit()
         _logger.debug("Done with write_ddm_endpoints_db")
     except exc.SQLAlchemyError:
