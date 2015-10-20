@@ -87,7 +87,9 @@ class WrappedCursor(object):
             print "DEBUG execute : original SQL     %s " % sql
             print "DEBUG execute : original varDict %s " % varDict
             # CURRENT_DATE interval
-            sql = re.sub("CURRENT_DATE\s*-\s*(\d+|:[^\s\)]+)", "DATE_SUB(CURRENT_DATE,INTERVAL \g<1> DAY)", sql)
+            sql = re.sub("CURRENT_DATE\s*-\s*(\d+|:[^\s\)]+)", "DATE_SUB(CURRENT_TIMESTAMP,INTERVAL \g<1> DAY)", sql)
+            #CURRENT_DATE
+            sql = re.sub('CURRENT_DATE', 'CURRENT_TIMESTAMP', sql)
             # SYSDATE interval
             sql = re.sub("SYSDATE\s*-\s*(\d+|:[^\s\)]+)", "DATE_SUB(SYSDATE,INTERVAL \g<1> DAY)", sql)
             # SYSDATE
