@@ -12198,7 +12198,9 @@ class DBProxy:
                         updateFailedAttempt = True
             else:
                 varMap[':status'] = jobSpec.jobStatus
-                if jobSpec.jobStatus == 'finished':
+                if fileSpec.status == 'nooutput':
+                    varMap[':status'] = fileSpec.status
+                elif jobSpec.jobStatus == 'finished':
                     varMap[':status'] = 'finished'
                     # update metadata
                     updateMetadata = True
@@ -12260,7 +12262,7 @@ class DBProxy:
             _logger.debug(methodName+' '+sqlFile+comment+str(varMap))
             cur.execute(sqlFile+comment,varMap)
             nRow = cur.rowcount
-            if nRow == 1:
+            if nRow == 1 and not fileSpec.status in ['nooutput']:
                 datasetID = fileSpec.datasetID
                 fileStatus = varMap[':status']
                 if not datasetContentsStat.has_key(datasetID):

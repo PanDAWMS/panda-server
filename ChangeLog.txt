@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * added allowNoOutput
   * improved checkInputFiles
   * changed copyFileRecord to update JEDI files too
   * diabled inputFileCheck in Adder for pilotRetry

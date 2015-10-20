@@ -115,11 +115,14 @@ class Finisher (threading.Thread):
                     if job.jobStatus == 'transferring':
                         jobReady = True
                         failedFiles = []
+                        noOutFiles = []
                         # check file status
                         for file in job.Files:
                             if file.type == 'output' or file.type == 'log':
                                 if file.status == 'failed':
                                     failedFiles.append(file.lfn)
+                                elif file.status == 'nooutput':
+                                    noOutFiles.append(file.lfn)
                                 elif file.status != 'ready':
                                     _logger.debug("Job: %s file:%s %s != ready" % (job.PandaID,file.lfn,file.status))
                                     jobReady = False
@@ -138,8 +141,8 @@ class Finisher (threading.Thread):
                                 topNode = doc.createElement("POOLFILECATALOG")
                                 for file in job.Files:
                                     if file.type in ['output','log']:
-                                        # skip failed files
-                                        if file.lfn in failedFiles:
+                                        # skip failed or no-output files
+                                        if file.lfn in failedFiles+noOutFiles:
                                             continue
                                         # File
                                         fileNode = doc.createElement("File")

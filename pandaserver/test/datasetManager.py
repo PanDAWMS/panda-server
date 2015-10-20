@@ -853,6 +853,8 @@ class FinisherThr (threading.Thread):
                 for file in job.Files:
                     # only output files are checked
                     if file.type == 'output' or file.type == 'log':
+                        if file.status == 'nooutput':
+                            continue
                         lfns.append(file.lfn)
                         guids.append(file.GUID)
                         scopes.append(file.scope)
@@ -871,7 +873,8 @@ class FinisherThr (threading.Thread):
                     _logger.debug("%s Finisher : Finish" % job.PandaID)
                     for file in job.Files:
                         if file.type == 'output' or file.type == 'log':
-                            file.status = 'ready'
+                            if file.status != 'nooutput':
+                                file.status = 'ready'
                     # append to run Finisher
                     finJobs.append(job)                        
                 else:

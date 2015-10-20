@@ -503,6 +503,10 @@ class AdderGen:
                     if self.job.jobStatus == 'finished' and EventServiceUtils.isEventServiceJob(self.job):
                         # unset file status for ES jobs
                         pass
+                    elif file.isAllowedNoOutput():
+                        # allowed not to be produced
+                        file.status = 'nooutput'
+                        self.logger.debug('set {0} to status={1}'.format(file.lfn,file.status))
                     else:
                         file.status = 'failed'
                     continue

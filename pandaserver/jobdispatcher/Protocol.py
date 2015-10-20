@@ -92,6 +92,7 @@ class Response:
         logGUID = ''        
         ddmEndPointIn = []
         ddmEndPointOut = []
+        noOutput = []
         siteSpec = None
         if siteMapperCache != None:
             siteMapper = siteMapperCache.getObj()
@@ -146,6 +147,8 @@ class Response:
                 strDisTokenForOutput += '%s,' % file.dispatchDBlockToken
                 strProdTokenForOutput += '%s,' % file.prodDBlockToken
                 ddmEndPointOut.append(self.getDdmEndpoint(siteSpec,file.destinationDBlockToken.split(',')[0]))
+                if file.isAllowedNoOutput():
+                    noOutput.append(file.lfn)
         # inFiles
         self.data['inFiles'] = strIFiles
         # dispatch DBlock
@@ -246,6 +249,9 @@ class Response:
             except:
                 pass
             self.data['writeToFile'] = writeToFileStr
+        # no output
+        if noOutput != []:
+            self.data['allowNoOutput'] = ','.join(noOutput)
 
 
     # set proxy key

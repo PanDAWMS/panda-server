@@ -234,6 +234,26 @@ class FileSpec(object):
         if self.type in ['output','log'] and self.destinationDBlockToken == 'TOMERGE':
             return True
         return False
-        
 
-                       
+
+    # allow no output
+    def allowNoOutput(self):
+        if self.dispatchDBlockToken in ['NULL',None,'']:
+            items = []
+        else:
+            items = self.dispatchDBlockToken.split(',')
+        if not 'an' in items:
+            items.append('an')
+            self.dispatchDBlockToken = ','.join(items)
+
+
+    # check if no output is allowed
+    def isAllowedNoOutput(self):
+        try:
+            if 'an' in self.dispatchDBlockToken.split(','):
+                return True
+        except:
+            pass
+        return False
+
+        

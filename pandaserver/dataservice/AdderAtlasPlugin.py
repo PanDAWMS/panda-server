@@ -190,6 +190,9 @@ class AdderAtlasPlugin (AdderPluginBase):
                 if self.job.jobStatus == 'finished' and EventServiceUtils.isEventServiceJob(self.job) \
                         and not EventServiceUtils.isJobCloningJob(self.job) and file.type != 'log':
                     continue
+                # skip no output
+                if file.status == 'nooutput':
+                    continue
                 try:
                     # fsize
                     fsize = None
@@ -362,7 +365,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                                                     subMap[file.destinationDBlock].append((dq2ID,optSub,optSource))
                 except:
                     errStr = '%s %s' % sys.exc_info()[:2]
-                    self.logger.error(errStr)
+                    self.logger.error(traceback.format_exc())
                     self.result.setFatal()
                     self.job.ddmErrorDiag = 'failed before adding files : ' + errStr
                     return 1
@@ -603,6 +606,9 @@ class AdderAtlasPlugin (AdderPluginBase):
                             continue
                         # skip distributed datasets
                         if tmpFile.destinationDBlock in distDSs:
+                            continue
+                        # skip no output
+                        if tmpFile.status == 'nooutput':
                             continue
                         self.result.transferringFiles.append(tmpFile.lfn)
         elif not "--mergeOutput" in self.job.jobParameters:
