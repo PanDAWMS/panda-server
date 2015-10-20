@@ -18,12 +18,12 @@ class Configurator(threading.Thread):
 
     def __init__(self):
         threading.Thread.__init__(self)
-        
+
         if hasattr(panda_config,'AGIS_URL_SITES'):
             self.AGIS_URL_SITES = panda_config.AGIS_URL_SITES
         else:
             self.AGIS_URL_SITES = 'http://atlas-agis-api.cern.ch/request/site/query/?json&vo_name=atlas'
-         
+
         if hasattr(panda_config,'AGIS_URL_DDMENDPOINTS'):
              self.AGIS_URL_DDMENDPOINTS = panda_config.AGIS_URL_DDMENDPOINTS
         else:
