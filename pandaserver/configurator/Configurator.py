@@ -142,7 +142,6 @@ class Configurator(threading.Thread):
                 continue
             ddm_endpoints = [ddm_endpoint.strip() for ddm_endpoint in self.schedconfig_dump[panda_site_name]['ddm'].split(',')]
             _logger.debug('panda_site_name: {0}. DDM endopints: {1}'.format(panda_site_name, ddm_endpoints))
-            if ddm_endpoints in [None, [], '']:
             for ddm_endpoint_name in ddm_endpoints:
                 #The first DDM endpoint in the list should be the primary
                 if count == 0:
