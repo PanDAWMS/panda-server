@@ -23,12 +23,21 @@ class Configurator(threading.Thread):
             self.AGIS_URL_SITES = panda_config.AGIS_URL_SITES
         else:
             self.AGIS_URL_SITES = 'http://atlas-agis-api.cern.ch/request/site/query/?json&vo_name=atlas'
+        self.site_dump = self.get_dump(self.AGIS_URL_SITES)
 
         if hasattr(panda_config,'AGIS_URL_DDMENDPOINTS'):
              self.AGIS_URL_DDMENDPOINTS = panda_config.AGIS_URL_DDMENDPOINTS
         else:
             self.AGIS_URL_DDMENDPOINTS = 'http://atlas-agis-api.cern.ch/request/ddmendpoint/query/list/?json'
+        self.endpoint_dump = self.get_dump(self.AGIS_URL_DDMENDPOINTS)
+        self.endpoint_token_dict = self.parse_endpoints()
 
+        if hasattr(panda_config,'AGIS_URL_SCHEDCONFIG'):
+             self.AGIS_URL_SCHEDCONFIG = panda_config.AGIS_URL_SCHEDCONFIG
+        else:
+            self.AGIS_URL_SCHEDCONFIG = 'http://atlas-agis-api.cern.ch/request/pandaqueue/query/list/?json&preset=schedconf.all&vo_name=atlas'
+        self.schedconfig_dump = self.get_dump(self.AGIS_URL_SCHEDCONFIG)
+        
 
     def get_dump(self, url):
         response = urllib2.urlopen(url)
@@ -55,13 +64,15 @@ class Configurator(threading.Thread):
         return (name, role, state)
 
 
-    def parse_endpoints(self, endpoint_dump):
+    def parse_endpoints(self):
         """
         Puts the relevant information from endpoint_dump into a more usable format 
         """
         endpoint_token_dict = {}
-        for endpoint in endpoint_dump:
-            endpoint_token_dict[endpoint['name']] = endpoint['token']
+        for endpoint in self.endpoint_dump:
+            endpoint_token_dict[endpoint['name']] = {}
+            endpoint_token_dict[endpoint['name']]['token'] = endpoint['token']
+            endpoint_token_dict[endpoint['name']]['site_name'] = endpoint['rc_site']
         return endpoint_token_dict
 
 
@@ -69,14 +80,7 @@ class Configurator(threading.Thread):
         """
         Parses the AGIS site and endpoint dumps 
         and prepares a format loadable to the DB
-        """
-        #Get the list of sites
-        site_dump = self.get_dump(self.AGIS_URL_SITES)
-        
-        #Get the list of endpoints and convert the info we need to a more usable format
-        endpoint_dump = self.get_dump(self.AGIS_URL_DDMENDPOINTS)
-        endpoint_token_dict = self.parse_endpoints(endpoint_dump)
-        
+        """        
         #Variables that will contain only the relevant information
         sites_list = []
         included_sites = []
@@ -84,7 +88,7 @@ class Configurator(threading.Thread):
         panda_sites_list = []
         
         #Iterate the site dump
-        for site in site_dump:
+        for site in self.site_dump:
             #Add the site info to a list
             (site_name, site_role, site_state) = self.get_site_info(site)
             if site_name not in included_sites: #Avoid duplicate entries
@@ -95,7 +99,7 @@ class Configurator(threading.Thread):
             for ddm_endpoint_name in site['ddmendpoints']:
                 
                 try:
-                    ddm_spacetoken_name = endpoint_token_dict[ddm_endpoint_name]
+                    ddm_spacetoken_name = self.endpoint_token_dict[ddm_endpoint_name]['token']
                 except KeyError:
                     ddm_spacetoken_name = None
                     
@@ -114,29 +118,39 @@ class Configurator(threading.Thread):
                     panda_sites_list.append({'panda_site_name': panda_site_name, 'panda_queue_name': panda_queue_name, 'site_name': site_name, 'state': panda_site_state})
         
         return sites_list, panda_sites_list, ddm_endpoints_list
-    
-    
+
+
     def process_schedconfig(self):
         """
         Gets PanDA site to DDM endpoint relationships from Schedconfig 
         and prepares a format loadable to the DB  
         """
 
-        relationship_tuples = dbif.read_panda_ddm_relationships_schedconfig(_session) #data almost as it comes from schedconfig
+        #relationship_tuples = dbif.read_panda_ddm_relationships_schedconfig(_session) #data almost as it comes from schedconfig
         relationships_list = [] #data to be loaded to configurator DB 
         
-        for (site, panda_site_name, ddm_endpoints) in relationship_tuples:
+        for panda_site in self.schedconfig_dump:
             count = 0
+            ddm_endpoints = [ddm_endpoint.strip() for ddm_endpoint in self.schedconfig_dump[panda_site]['ddm'].split(',')]
             for ddm_endpoint_name in ddm_endpoints:
                 #The first DDM endpoint in the list should be the primary
                 if count == 0:
                     is_default = 'Y'
                 else:
                     is_default = 'N'
-                #TODO: Figure out if the CPU is local to the storage and store it 
+                
+                #Check if the ddm_endpoint and the panda_site belong to the same site
+                site_name_endpoint = self.endpoint_token_dict[ddm_endpoint_name]['site_name']
+                site_name_pandasite = self.schedconfig_dump[panda_site]['rc_site']
+                if site_name_endpoint == site_name_pandasite:
+                    is_local = 'Y'
+                else:
+                    is_local = 'N'
+                 
                 relationships_list.append({'panda_site_name': panda_site_name, 
                                            'ddm_endpoint_name': ddm_endpoint_name,
-                                           'is_default': is_default})
+                                           'is_default': is_default,
+                                           'is_local': is_local})
                 count += 1
         
         return relationships_list

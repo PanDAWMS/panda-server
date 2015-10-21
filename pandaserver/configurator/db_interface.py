@@ -149,7 +149,8 @@ def write_panda_ddm_relations(session, relationships_list):
         try:
             session.merge(PandaDdmRelation(panda_site_name = relationship['panda_site_name'],
                                            ddm_endpoint_name = relationship['ddm_endpoint_name'],
-                                           is_default = relationship['is_default']))
+                                           is_default = relationship['is_default'],
+                                           is_local = relationship['is_local']))
             session.commit()
         except exc.IntegrityError:
             session.rollback()
