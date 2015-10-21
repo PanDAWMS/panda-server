@@ -25,7 +25,7 @@ class Configurator(threading.Thread):
             self.AGIS_URL_SITES = 'http://atlas-agis-api.cern.ch/request/site/query/?json&vo_name=atlas'
         _logger.debug('Getting site dump...')
         self.site_dump = self.get_dump(self.AGIS_URL_SITES)
-        _logger.debug('...done')
+        _logger.debug('Done')
 
         if hasattr(panda_config,'AGIS_URL_DDMENDPOINTS'):
              self.AGIS_URL_DDMENDPOINTS = panda_config.AGIS_URL_DDMENDPOINTS
@@ -33,10 +33,10 @@ class Configurator(threading.Thread):
             self.AGIS_URL_DDMENDPOINTS = 'http://atlas-agis-api.cern.ch/request/ddmendpoint/query/list/?json'
         _logger.debug('Getting DDM endpoints dump...')
         self.endpoint_dump = self.get_dump(self.AGIS_URL_DDMENDPOINTS)
-        _logger.debug('...done')
+        _logger.debug('Done')
         _logger.debug('Parsing endpoints...')
         self.endpoint_token_dict = self.parse_endpoints()
-        _logger.debug('...done')
+        _logger.debug('Done')
 
         if hasattr(panda_config,'AGIS_URL_SCHEDCONFIG'):
              self.AGIS_URL_SCHEDCONFIG = panda_config.AGIS_URL_SCHEDCONFIG
@@ -44,7 +44,7 @@ class Configurator(threading.Thread):
             self.AGIS_URL_SCHEDCONFIG = 'http://atlas-agis-api.cern.ch/request/pandaqueue/query/list/?json&preset=schedconf.all&vo_name=atlas'
         _logger.debug('Getting schedconfig dump...')
         self.schedconfig_dump = self.get_dump(self.AGIS_URL_SCHEDCONFIG)
-        _logger.debug('...done')
+        _logger.debug('Done')
         
 
     def get_dump(self, url):
@@ -84,10 +84,9 @@ class Configurator(threading.Thread):
         return endpoint_token_dict
 
 
-    def process_dumps(self):
+    def process_site_dumps(self):
         """
-        Parses the AGIS site and endpoint dumps 
-        and prepares a format loadable to the DB
+        Parses the AGIS site and endpoint dumps and prepares a format loadable to the DB
         """        
         #Variables that will contain only the relevant information
         sites_list = []
@@ -128,7 +127,7 @@ class Configurator(threading.Thread):
         return sites_list, panda_sites_list, ddm_endpoints_list
 
 
-    def process_schedconfig(self):
+    def process_schedconfig_dump(self):
         """
         Gets PanDA site to DDM endpoint relationships from Schedconfig 
         and prepares a format loadable to the DB  
@@ -139,7 +138,11 @@ class Configurator(threading.Thread):
         
         for panda_site_name in self.schedconfig_dump:
             count = 0
+            if not self.schedconfig_dump[panda_site_name]['ddm']:
+                continue
             ddm_endpoints = [ddm_endpoint.strip() for ddm_endpoint in self.schedconfig_dump[panda_site_name]['ddm'].split(',')]
+            _logger.debug('panda_site_name: {0}. DDM endopints: {1}'.format(panda_site_name, ddm_endpoints))
+            if ddm_endpoints in [None, [], '']:
             for ddm_endpoint_name in ddm_endpoints:
                 #The first DDM endpoint in the list should be the primary
                 if count == 0:
@@ -168,23 +171,19 @@ class Configurator(threading.Thread):
         """
         Principal function
         """
-        try:
-            #Get pre-processed AGIS dumps
-            sites_list, panda_sites_list, ddm_endpoints_list = self.process_dumps()
-            
-            #Get pre-processed PanDA site to DDM endpoint relationships from Schedconfig
-            relationships_list = self.process_schedconfig()
-            
-            #Persist the information to the PanDA DB
-            dbif.write_sites_db(_session, sites_list)
-            dbif.write_panda_sites_db(_session, panda_sites_list)
-            dbif.write_ddm_endpoints_db(_session, ddm_endpoints_list)
-            dbif.write_panda_ddm_relations(_session, relationships_list)
-            
-            return True
-        except:
-            _logger.critical('process_dumps: Excepted with --> {0}'.format(sys.exc_info()))
-            return False
+        #Get pre-processed AGIS dumps
+        sites_list, panda_sites_list, ddm_endpoints_list = self.process_site_dumps()
+
+        #Get pre-processed PanDA site to DDM endpoint relationships from Schedconfig
+        relationships_list = self.process_schedconfig_dump()
+
+        #Persist the information to the PanDA DB
+        dbif.write_sites_db(_session, sites_list)
+        dbif.write_panda_sites_db(_session, panda_sites_list)
+        dbif.write_ddm_endpoints_db(_session, ddm_endpoints_list)
+        dbif.write_panda_ddm_relations(_session, relationships_list)
+
+        return True
 
 
 if __name__ == "__main__":
