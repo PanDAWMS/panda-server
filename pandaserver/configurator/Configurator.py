@@ -138,30 +138,31 @@ class Configurator(threading.Thread):
         
         for panda_site_name in self.schedconfig_dump:
             count = 0
-            if not self.schedconfig_dump[panda_site_name]['ddm']:
-                continue
             ddm_endpoints = [ddm_endpoint.strip() for ddm_endpoint in self.schedconfig_dump[panda_site_name]['ddm'].split(',')]
             _logger.debug('panda_site_name: {0}. DDM endopints: {1}'.format(panda_site_name, ddm_endpoints))
             for ddm_endpoint_name in ddm_endpoints:
-                #The first DDM endpoint in the list should be the primary
-                if count == 0:
-                    is_default = 'Y'
-                else:
-                    is_default = 'N'
-                
-                #Check if the ddm_endpoint and the panda_site belong to the same site
-                site_name_endpoint = self.endpoint_token_dict[ddm_endpoint_name]['site_name']
-                site_name_pandasite = self.schedconfig_dump[panda_site_name]['rc_site']
-                if site_name_endpoint == site_name_pandasite:
-                    is_local = 'Y'
-                else:
-                    is_local = 'N'
-                 
-                relationships_list.append({'panda_site_name': panda_site_name, 
-                                           'ddm_endpoint_name': ddm_endpoint_name,
-                                           'is_default': is_default,
-                                           'is_local': is_local})
-                count += 1
+                try:
+                    #The first DDM endpoint in the list should be the primary
+                    if count == 0:
+                        is_default = 'Y'
+                    else:
+                        is_default = 'N'
+                    
+                    #Check if the ddm_endpoint and the panda_site belong to the same site
+                    site_name_endpoint = self.endpoint_token_dict[ddm_endpoint_name]['site_name']
+                    site_name_pandasite = self.schedconfig_dump[panda_site_name]['rc_site']
+                    if site_name_endpoint == site_name_pandasite:
+                        is_local = 'Y'
+                    else:
+                        is_local = 'N'
+                     
+                    relationships_list.append({'panda_site_name': panda_site_name, 
+                                               'ddm_endpoint_name': ddm_endpoint_name,
+                                               'is_default': is_default,
+                                               'is_local': is_local})
+                    count += 1
+                except KeyError:
+                    _logger.debug('DDM endpoint {0} could not be found'.format(ddm_endpoint_name))
         
         return relationships_list
 
