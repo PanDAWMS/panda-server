@@ -136,10 +136,13 @@ class Configurator(threading.Thread):
         #relationship_tuples = dbif.read_panda_ddm_relationships_schedconfig(_session) #data almost as it comes from schedconfig
         relationships_list = [] #data to be loaded to configurator DB 
         
-        for panda_site_name in self.schedconfig_dump:
-            count = 0
-            ddm_endpoints = [ddm_endpoint.strip() for ddm_endpoint in self.schedconfig_dump[panda_site_name]['ddm'].split(',')]
+        for long_panda_site_name in self.schedconfig_dump:
+            
+            panda_site_name = self.schedconfig_dump[long_panda_site_name]['panda_resource']
+            
+            ddm_endpoints = [ddm_endpoint.strip() for ddm_endpoint in self.schedconfig_dump[long_panda_site_name]['ddm'].split(',')]
             _logger.debug('panda_site_name: {0}. DDM endopints: {1}'.format(panda_site_name, ddm_endpoints))
+            count = 0
             for ddm_endpoint_name in ddm_endpoints:
                 try:
                     #The first DDM endpoint in the list should be the primary
@@ -150,7 +153,7 @@ class Configurator(threading.Thread):
                     
                     #Check if the ddm_endpoint and the panda_site belong to the same site
                     site_name_endpoint = self.endpoint_token_dict[ddm_endpoint_name]['site_name']
-                    site_name_pandasite = self.schedconfig_dump[panda_site_name]['rc_site']
+                    site_name_pandasite = self.schedconfig_dump[long_panda_site_name]['rc_site']
                     if site_name_endpoint == site_name_pandasite:
                         is_local = 'Y'
                     else:

@@ -37,3 +37,28 @@ constraint panda_ddm_relation_pk primary key(panda_site_name, panda_ddm_name),
 constraint panda_site_fk foreign key(panda_site_name) references atlas_panda.panda_site(panda_site_name),
 constraint panda_ddm_endpoint_fk foreign key(panda_ddm_name) references atlas_panda.ddm_endpoint(ddm_endpoint_name)
 )
+
+select * from ATLAS_PANDA.site s, ATLAS_PANDA.panda_site ps, ATLAS_PANDA.ddm_endpoint de, ATLAS_PANDA.panda_ddm_relation pdr
+where s.site_name = ps.site_name
+and s.site_name = de.site_name
+and pdr.panda_site_name = ps.panda_site_name
+and pdr.ddm_endpoint_name = de.ddm_endpoint_name
+and s.site_name like '%HELIX%'
+
+select * from ATLAS_PANDA.site s
+where s.site_name like '%HELIX%'
+
+select * from ATLAS_PANDA.panda_site
+where site_name like '%HELIX%'
+
+select * from ATLAS_PANDA.ddm_endpoint
+where site_name like '%HELIX%'
+
+select * from ATLAS_PANDA.panda_ddm_relation
+order by 
+where panda_site_name like '%HELIX%'
+
+select * from ATLAS_PANDAMETA.schedconfig
+where nickname like '%Titan%'
+
+
