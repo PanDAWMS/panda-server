@@ -23,20 +23,28 @@ class Configurator(threading.Thread):
             self.AGIS_URL_SITES = panda_config.AGIS_URL_SITES
         else:
             self.AGIS_URL_SITES = 'http://atlas-agis-api.cern.ch/request/site/query/?json&vo_name=atlas'
+        _logger.debug('Getting site dump...')
         self.site_dump = self.get_dump(self.AGIS_URL_SITES)
+        _logger.debug('...done')
 
         if hasattr(panda_config,'AGIS_URL_DDMENDPOINTS'):
              self.AGIS_URL_DDMENDPOINTS = panda_config.AGIS_URL_DDMENDPOINTS
         else:
             self.AGIS_URL_DDMENDPOINTS = 'http://atlas-agis-api.cern.ch/request/ddmendpoint/query/list/?json'
+        _logger.debug('Getting DDM endpoints dump...')
         self.endpoint_dump = self.get_dump(self.AGIS_URL_DDMENDPOINTS)
+        _logger.debug('...done')
+        _logger.debug('Parsing endpoints...')
         self.endpoint_token_dict = self.parse_endpoints()
+        _logger.debug('...done')
 
         if hasattr(panda_config,'AGIS_URL_SCHEDCONFIG'):
              self.AGIS_URL_SCHEDCONFIG = panda_config.AGIS_URL_SCHEDCONFIG
         else:
             self.AGIS_URL_SCHEDCONFIG = 'http://atlas-agis-api.cern.ch/request/pandaqueue/query/list/?json&preset=schedconf.all&vo_name=atlas'
+        _logger.debug('Getting schedconfig dump...')
         self.schedconfig_dump = self.get_dump(self.AGIS_URL_SCHEDCONFIG)
+        _logger.debug('...done')
         
 
     def get_dump(self, url):
@@ -129,9 +137,9 @@ class Configurator(threading.Thread):
         #relationship_tuples = dbif.read_panda_ddm_relationships_schedconfig(_session) #data almost as it comes from schedconfig
         relationships_list = [] #data to be loaded to configurator DB 
         
-        for panda_site in self.schedconfig_dump:
+        for panda_site_name in self.schedconfig_dump:
             count = 0
-            ddm_endpoints = [ddm_endpoint.strip() for ddm_endpoint in self.schedconfig_dump[panda_site]['ddm'].split(',')]
+            ddm_endpoints = [ddm_endpoint.strip() for ddm_endpoint in self.schedconfig_dump[panda_site_name]['ddm'].split(',')]
             for ddm_endpoint_name in ddm_endpoints:
                 #The first DDM endpoint in the list should be the primary
                 if count == 0:
@@ -141,7 +149,7 @@ class Configurator(threading.Thread):
                 
                 #Check if the ddm_endpoint and the panda_site belong to the same site
                 site_name_endpoint = self.endpoint_token_dict[ddm_endpoint_name]['site_name']
-                site_name_pandasite = self.schedconfig_dump[panda_site]['rc_site']
+                site_name_pandasite = self.schedconfig_dump[panda_site_name]['rc_site']
                 if site_name_endpoint == site_name_pandasite:
                     is_local = 'Y'
                 else:
