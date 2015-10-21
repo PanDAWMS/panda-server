@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * changed AdderGen and AdderAtlas to treat missing files more properly
   * added allowNoOutput
   * improved checkInputFiles
   * changed copyFileRecord to update JEDI files too

@@ -509,6 +509,10 @@ class AdderGen:
                         self.logger.debug('set {0} to status={1}'.format(file.lfn,file.status))
                     else:
                         file.status = 'failed'
+                        self.job.jobStatus = 'failed'
+                        self.job.ddmErrorCode = ErrorCode.EC_Adder
+                        self.job.ddmErrorDiag = "expected output {0} is missing in pilot XML".format(file.lfn)
+                        self.logger.error(self.job.ddmErrorDiag)
                     continue
                 # look for GUID with LFN
                 try:

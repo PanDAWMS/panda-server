@@ -190,8 +190,8 @@ class AdderAtlasPlugin (AdderPluginBase):
                 if self.job.jobStatus == 'finished' and EventServiceUtils.isEventServiceJob(self.job) \
                         and not EventServiceUtils.isJobCloningJob(self.job) and file.type != 'log':
                     continue
-                # skip no output
-                if file.status == 'nooutput':
+                # skip no output or failed
+                if file.status in ['nooutput','failed']:
                     continue
                 try:
                     # fsize
