@@ -177,8 +177,11 @@ class Configurator(threading.Thread):
         """
         #Check for site inconsistencies
         agis_sites = (self.site_dump[site]['rc_site'] for site in self.site_dump)
+        _logger.debug("Sites in AGIS {0}".format(agis_sites))
         configurator_sites = dbif.read_configurator_sites(_session)
+        _logger.debug("Sites in Configurator {0}".format(configurator_sites))
         schedconfig_sites = dbif.read_schedconfig_sites(_session)
+        _logger.debug("Sites in Schedconfig {0}".format(schedconfig_sites))
         
         inconsistencies_agis_schedconfig = agis_sites - schedconfig_sites
         if inconsistencies_agis_schedconfig:
@@ -220,7 +223,9 @@ class Configurator(threading.Thread):
         dbif.write_panda_sites_db(_session, panda_sites_list)
         dbif.write_ddm_endpoints_db(_session, ddm_endpoints_list)
         dbif.write_panda_ddm_relations(_session, relationships_list)
-
+        
+        #Do a data quality check
+        self.data_quality_check()
         return True
 
 
