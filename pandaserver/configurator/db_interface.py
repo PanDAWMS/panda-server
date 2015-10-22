@@ -135,7 +135,7 @@ def read_panda_ddm_relationships_schedconfig(session):
         return relationship_tuples
     except exc.SQLAlchemyError:
         session.rollback()
-        _logger.critical('write_ddm_endpoints_db: Could not persist information --> {0}'.format(sys.exc_info()))
+        _logger.critical('read_panda_ddm_relationships_schedconfig excepted --> {0}'.format(sys.exc_info()))
         return []
 
 
@@ -154,10 +154,42 @@ def write_panda_ddm_relations(session, relationships_list):
             session.commit()
         except exc.IntegrityError:
             session.rollback()
-            _logger.error('write_ddm_endpoints_db: Could not persist information for relationship {0}. Exception: {1}'.format((relationship['panda_site_name'],
+            _logger.error('write_panda_ddm_relations: Could not persist information for relationship {0}. Exception: {1}'.format((relationship['panda_site_name'],
                                                                                                            relationship['ddm_endpoint_name'],
                                                                                                            relationship['is_default'])
                                                                                                           , sys.exc_info()))
         
     _logger.debug("Done with write_panda_ddm_relations")
+
+
+def read_configurator_sites(session):
+    """
+    Read the site names from the configurator tables
+    """
+    try:
+        _logger.debug("Starting read_configurator_sites")
+        site_object_list = session.query(Site.site_name).all()
+        site_set = (entry.site_name for entry in site_object_list)
+        _logger.debug("Done with read_configurator_sites")
+        return site_set
+    except exc.SQLAlchemyError:
+        session.rollback()
+        _logger.critical('read_configurator_sites excepted --> {0}'.format(sys.exc_info()))
+        return []
+
+
+def read_schedconfig_sites(session):
+    """
+    Read the site names from the schedconfig table
+    """
+    try:
+        _logger.debug("Starting read_schedconfig_sites")
+        site_object_list = session.query(Schedconfig.site).all()
+        site_set = (entry.site for entry in site_object_list)
+        _logger.debug("Done with read_schedconfig_sites")
+        return site_set
+    except exc.SQLAlchemyError:
+        session.rollback()
+        _logger.critical('read_schedconfig_sites excepted --> {0}'.format(sys.exc_info()))
+        return []
 

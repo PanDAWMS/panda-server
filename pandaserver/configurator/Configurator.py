@@ -9,6 +9,7 @@ from sqlalchemy import exc
 from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
 import db_interface as dbif
+from configurator.models import Schedconfig
 
 _logger = PandaLogger().getLogger('configurator')
 _session = dbif.get_session()
@@ -168,6 +169,40 @@ class Configurator(threading.Thread):
                     _logger.debug('DDM endpoint {0} could not be found'.format(ddm_endpoint_name))
         
         return relationships_list
+    
+    
+    def data_quality_check(self):
+        """
+        Point out sites, panda sites and DDM endpoints that are missing in one of the sources 
+        """
+        #Check for site inconsistencies
+        agis_sites = (self.site_dump[site]['rc_site'] for site in self.site_dump)
+        configurator_sites = dbif.read_configurator_sites(_session)
+        schedconfig_sites = dbif.read_schedconfig_sites(_session)
+        
+        inconsistencies_agis_schedconfig = agis_sites - schedconfig_sites
+        if inconsistencies_agis_schedconfig:
+            _logger.error("Following sites are in AGIS but not in schedconfig: {0}".format(inconsistencies_agis_schedconfig))
+
+        inconsistencies_schedconfig_agis = schedconfig_sites - agis_sites
+        if inconsistencies_schedconfig_agis:
+            _logger.error("Following sites are in schedconfig but not in AGIS: {0}".format(inconsistencies_schedconfig_agis))
+
+        inconsistencies_agis_configurator = agis_sites - configurator_sites
+        if inconsistencies_agis_configurator:
+            _logger.error("Following sites are in AGIS but not in configurator: {0}".format(inconsistencies_agis_configurator))
+
+        inconsistencies_configurator_agis = configurator_sites - agis_sites
+        if inconsistencies_configurator_agis:
+            _logger.error("Following sites are in schedconfig but not in AGIS: {0}".format(inconsistencies_configurator_agis))
+
+        #Check for panda-site inconsistencies
+        
+        
+        #Check for DDM endpoint inconsistencies
+        
+        
+        #Print out results
 
 
     def run(self):
