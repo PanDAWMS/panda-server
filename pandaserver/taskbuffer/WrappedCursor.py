@@ -98,7 +98,7 @@ class WrappedCursor(object):
             sql = re.sub('EMPTY_CLOB\(\)', "''", sql)
             # ROWNUM
             sql = re.sub("(?i)(AND)*\s*ROWNUM.*(\d+)", " LIMIT \g<2>", sql)
-            sql = re.sub("(?i)(WHERE)\s*ROWNUM\s*(\d+)", " LIMIT \g<2>" , sql)
+            sql = re.sub("(?i)(WHERE)\s*LIMIT\s*(\d+)", " LIMIT \g<2>" , sql)
             # NOWAIT
             sql = re.sub('NOWAIT', "", sql)
             # RETURNING INTO
