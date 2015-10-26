@@ -5,6 +5,7 @@ from rucio.client import Client as RucioClient
 from pandalogger.PandaLogger import PandaLogger
 
 _logger = PandaLogger().getLogger('configurator_ddm_interface')
+_client = RucioClient()
 GB = 1024**3
 
 def get_rse_usage(rse, src='srm'):
@@ -16,8 +17,7 @@ def get_rse_usage(rse, src='srm'):
     
     rse_usage = {}
     try:
-        client = RucioClient()
-        rse_usage_itr = client.get_rse_usage(rse)
+        rse_usage_itr = _client.get_rse_usage(rse)
         #Look for the specified information source
         for item in rse_usage_itr:
             if item['source'] == src:

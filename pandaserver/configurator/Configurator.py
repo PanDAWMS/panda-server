@@ -210,12 +210,18 @@ class Configurator(threading.Thread):
         
     
     def collect_rse_usage(self):
+        """
+        Iterates the DDM endpoints and gets their storage occupancy (one by one)
+        """
         for ddm_endpoint in self.endpoint_token_dict:
             try:
+                _logger.debug("Querying storage space for {0}".format(ddm_endpoint))
                 rse_usage = ddm_interface.get_rse_usage(ddm_endpoint)
+                _logger.debug("Storage space for {0} is {1}".format(ddm_endpoint, rse_usage))
                 dbif.update_storage(_session, ddm_endpoint, rse_usage)
+                _logger.debug("Persisted storage space for {0}".format(ddm_endpoint))
             except:
-                _logger.error("Excepted with: {0}".format(sys.exc_info()))
+                _logger.error("Collect_rse_usage excepted with: {0}".format(sys.exc_info()))
 
 
     def run(self):
@@ -229,10 +235,10 @@ class Configurator(threading.Thread):
         relationships_list = self.process_schedconfig_dump()
 
         #Persist the information to the PanDA DB
-        dbif.write_sites_db(_session, sites_list)
-        dbif.write_panda_sites_db(_session, panda_sites_list)
-        dbif.write_ddm_endpoints_db(_session, ddm_endpoints_list)
-        dbif.write_panda_ddm_relations(_session, relationships_list)
+        #dbif.write_sites_db(_session, sites_list)
+        #dbif.write_panda_sites_db(_session, panda_sites_list)
+        #dbif.write_ddm_endpoints_db(_session, ddm_endpoints_list)
+        #dbif.write_panda_ddm_relations(_session, relationships_list)
         
         #Do a data quality check
         self.data_quality_check()
