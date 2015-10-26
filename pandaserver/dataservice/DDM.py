@@ -574,6 +574,21 @@ class RucioAPI:
 
 
 
+    # get metadata
+    def getMetaData(self,dsn):
+        # register dataset
+        client = RucioClient()
+        try:
+            scope,dsn = self.extract_scope(dsn)
+            return True,client.get_metadata(scope,dsn)
+        except DataIdentifierNotFound:
+            return True,None
+        except:
+            errType,errVale = sys.exc_info()[:2]
+            return False,'%s %s' % (errType,errVale)
+
+
+
     # close dataset
     def closeDataset(self,dsn):
         # register dataset

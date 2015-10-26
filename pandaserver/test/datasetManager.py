@@ -259,7 +259,14 @@ class CloserThr (threading.Thread):
                         or name.startswith('hc_test.') or name.startswith('panda.um.'):
                     dsExists = False
                 if dsExists:
-                    status,out = ddm.DQ2.main('freezeDataset',name)
+                    # check if dataset exists
+                    status,out = rucioAPI.getMetaData(name)
+                    if status == True:
+                        if out != None:
+                            status,out = ddm.DQ2.main('freezeDataset',name)
+                        else:
+                            # dataset not exist
+                            status,out = 0,''
                 else:
                     status,out = 0,''
                 if status != 0 and out.find('DQFrozenDatasetException') == -1 and \
@@ -413,7 +420,14 @@ class Freezer (threading.Thread):
                                 _logger.debug("failed to get merging file for %s " % name)
                             status,out = 0,''
                         elif dsExists:
-                            status,out = ddm.DQ2.main('freezeDataset',name)
+                            # check if dataset exists
+                            status,out = rucioAPI.getMetaData(name)
+                            if status == True:
+                                if out != None:
+                                    status,out = ddm.DQ2.main('freezeDataset',name)
+                                else:
+                                    # dataset not exist
+                                    status,out = 0,''
                         else:
                             status,out = 0,''
                         if status != 0 and out.find('DQFrozenDatasetException') == -1 and \

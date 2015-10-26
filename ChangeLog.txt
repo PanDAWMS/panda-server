@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * checking metadata before closing sub datasets to avoid a rucio bug
   * fixed datasetMgr to avoid lookup for nonexistent datasets
   * fixed datasetMgr to take distributed dataset into account
   * fixed for internal merge + zero suppression
