@@ -143,7 +143,6 @@ def write_panda_ddm_relations(session, relationships_list):
     """
     Cache the AGIS ddm endpoints in the PanDA database
     """
-
     _logger.debug("Starting write_panda_ddm_relations")
     for relationship in relationships_list:
         try:
@@ -192,4 +191,11 @@ def read_schedconfig_sites(session):
         session.rollback()
         _logger.critical('read_schedconfig_sites excepted --> {0}'.format(sys.exc_info()))
         return []
+
+def update_storage(session, ddm_endpoint, rse_usage):
+    """
+    Updates the storage of a DDM endpoint
+    """
+    DdmEndpoint.update().where(DdmEndpoint.ddm_endpoint_name==ddm_endpoint).values(space_total=rse_usage['total'], space_used=rse_usage['used'], space_free=rse_usage['free'])
+
 

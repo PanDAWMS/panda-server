@@ -10,10 +10,10 @@ from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
 import db_interface as dbif
 from configurator.models import Schedconfig
+import ddm_interface
 
 _logger = PandaLogger().getLogger('configurator')
 _session = dbif.get_session()
-
 
 class Configurator(threading.Thread):
 
@@ -170,8 +170,8 @@ class Configurator(threading.Thread):
                     _logger.debug('DDM endpoint {0} could not be found'.format(ddm_endpoint_name))
         
         return relationships_list
-    
-    
+
+
     def data_quality_check(self):
         """
         Point out sites, panda sites and DDM endpoints that are missing in one of the sources 
@@ -207,6 +207,15 @@ class Configurator(threading.Thread):
         
         
         #Print out results
+        
+    
+    def collect_rse_usage(self):
+        for ddm_endpoint in self.endpoint_token_dict:
+            try:
+                rse_usage = ddm_interface.get_rse_usage(ddm_endpoint)
+                dbif.update_storage(_session, ddm_endpoint, rse_usage)
+            except:
+                _logger.error("Excepted with: {0}".format(sys.exc_info()))
 
 
     def run(self):
@@ -227,6 +236,10 @@ class Configurator(threading.Thread):
         
         #Do a data quality check
         self.data_quality_check()
+        
+        #Get the storage occupancy
+        self.collect_rse_usage()
+        
         return True
 
 
