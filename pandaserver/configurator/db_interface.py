@@ -168,7 +168,7 @@ def read_configurator_sites(session):
     try:
         _logger.debug("Starting read_configurator_sites")
         site_object_list = session.query(Site.site_name).all()
-        site_set = (entry.site_name for entry in site_object_list)
+        site_set = set([entry.site_name for entry in site_object_list])
         _logger.debug("Done with read_configurator_sites")
         return site_set
     except exc.SQLAlchemyError:
@@ -184,7 +184,7 @@ def read_schedconfig_sites(session):
     try:
         _logger.debug("Starting read_schedconfig_sites")
         site_object_list = session.query(Schedconfig.site).all()
-        site_set = (entry.site for entry in site_object_list)
+        site_set = set([entry.site for entry in site_object_list])
         _logger.debug("Done with read_schedconfig_sites")
         return site_set
     except exc.SQLAlchemyError:
