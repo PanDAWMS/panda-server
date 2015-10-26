@@ -256,8 +256,7 @@ class CloserThr (threading.Thread):
                 _logger.debug("Close %s %s" % (modDate,name))
                 dsExists = True
                 if name.startswith('pandaddm_') or name.startswith('user.') or name.startswith('group.') \
-                        or name.startswith('hc_test.') or name.startswith('panda.um.user.') \
-                        or name.startswith('panda.um.group.'):
+                        or name.startswith('hc_test.') or name.startswith('panda.um.'):
                     dsExists = False
                 if dsExists:
                     status,out = ddm.DQ2.main('freezeDataset',name)
@@ -266,7 +265,7 @@ class CloserThr (threading.Thread):
                 if status != 0 and out.find('DQFrozenDatasetException') == -1 and \
                        out.find("DQUnknownDatasetException") == -1 and out.find("DQSecurityException") == -1 and \
                        out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1:
-                    _logger.error(out)
+                    _logger.error('{0} failed to close with {1}'.format(name,out))
                 else:
                     self.proxyLock.acquire()
                     varMap = {}
@@ -376,8 +375,7 @@ class Freezer (threading.Thread):
                         _logger.debug("freeze %s " % name)
                         dsExists = True
                         if name.startswith('pandaddm_') or name.startswith('user.') or name.startswith('group.') \
-                                or name.startswith('hc_test.') or name.startswith('panda.um.user.') \
-                                or name.startswith('panda.um.group.'):
+                                or name.startswith('hc_test.') or name.startswith('panda.um.'):
                             dsExists = False
                         if name.startswith('panda.um.'):
                             self.proxyLock.acquire()
@@ -421,7 +419,7 @@ class Freezer (threading.Thread):
                         if status != 0 and out.find('DQFrozenDatasetException') == -1 and \
                                out.find("DQUnknownDatasetException") == -1 and out.find("DQSecurityException") == -1 and \
                                out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1:
-                            _logger.error(out)
+                            _logger.error('{0} failed to freeze with {1}'.format(name,out))
                         else:
                             self.proxyLock.acquire()
                             varMap = {}
