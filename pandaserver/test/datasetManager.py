@@ -254,7 +254,12 @@ class CloserThr (threading.Thread):
             # loop over all datasets
             for vuid,name,modDate in self.datasets:
                 _logger.debug("Close %s %s" % (modDate,name))
-                if not name.startswith('pandaddm_'):
+                dsExists = True
+                if name.startswith('pandaddm_') or name.startswith('user.') or name.startswith('group.') \
+                        or name.startswith('hc_test.') or name.startswith('panda.um.user.') \
+                        or name.startswith('panda.um.group.'):
+                    dsExists = False
+                if dsExists:
                     status,out = ddm.DQ2.main('freezeDataset',name)
                 else:
                     status,out = 0,''
@@ -271,7 +276,7 @@ class CloserThr (threading.Thread):
                     taskBuffer.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status=:newstatus,modificationdate=CURRENT_DATE WHERE vuid=:vuid AND status=:oldstatus",
                                      varMap)
                     self.proxyLock.release()                    
-                    if name.startswith('pandaddm_'):
+                    if not dsExists:
                         continue
                     # set tobedeleted to dis
                     setTobeDeletedToDis(name)
@@ -369,6 +374,11 @@ class Freezer (threading.Thread):
                     # no files in filesTable
                     if len(resF) == 0:
                         _logger.debug("freeze %s " % name)
+                        dsExists = True
+                        if name.startswith('pandaddm_') or name.startswith('user.') or name.startswith('group.') \
+                                or name.startswith('hc_test.') or name.startswith('panda.um.user.') \
+                                or name.startswith('panda.um.group.'):
+                            dsExists = False
                         if name.startswith('panda.um.'):
                             self.proxyLock.acquire()
                             retMer,resMer = taskBuffer.querySQLS("SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock AND status IN (:statusM,:statusF) ",
@@ -404,7 +414,7 @@ class Freezer (threading.Thread):
                             else:
                                 _logger.debug("failed to get merging file for %s " % name)
                             status,out = 0,''
-                        elif not name.startswith('pandaddm_'):
+                        elif dsExists:
                             status,out = ddm.DQ2.main('freezeDataset',name)
                         else:
                             status,out = 0,''
@@ -420,7 +430,7 @@ class Freezer (threading.Thread):
                             taskBuffer.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status=:status,modificationdate=CURRENT_DATE WHERE vuid=:vuid",
                                              varMap)
                             self.proxyLock.release()                            
-                            if name.startswith('pandaddm_') or name.startswith('panda.um.'):
+                            if name.startswith('pandaddm_') or name.startswith('panda.um.') or not dsExists:
                                 continue
                             # set tobedeleted to dis
                             setTobeDeletedToDis(name)
