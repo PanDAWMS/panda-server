@@ -83,6 +83,7 @@ class Configurator(threading.Thread):
                 endpoint_token_dict[endpoint['name']] = {}
                 endpoint_token_dict[endpoint['name']]['token'] = endpoint['token']
                 endpoint_token_dict[endpoint['name']]['site_name'] = endpoint['rc_site']
+                endpoint_token_dict[endpoint['name']]['state'] = endpoint['state']
         return endpoint_token_dict
 
 
@@ -100,7 +101,7 @@ class Configurator(threading.Thread):
         for site in self.site_dump:
             #Add the site info to a list
             (site_name, site_role, site_state) = self.get_site_info(site)
-            if site_name not in included_sites: #Avoid duplicate entries
+            if site_state == 'ACTIVE' and site_name not in included_sites: #Avoid duplicate entries
                 sites_list.append({'site_name': site_name, 'role': site_role, 'state': site_state})
                 included_sites.append(site_name)
             
@@ -113,14 +114,20 @@ class Configurator(threading.Thread):
                     ddm_spacetoken_name = None
                     
                 ddm_spacetoken_state = site['ddmendpoints'][ddm_endpoint_name]['state']
-                
-                ddm_endpoints_list.append({'ddm_endpoint_name': ddm_endpoint_name, 'site_name': site_name, 'ddm_spacetoken_name': ddm_spacetoken_name, 'state': ddm_spacetoken_state})
+                if ddm_spacetoken_state == 'ACTIVE':
+                    ddm_endpoints_list.append({'ddm_endpoint_name': ddm_endpoint_name, 'site_name': site_name, 'ddm_spacetoken_name': ddm_spacetoken_name, 'state': ddm_spacetoken_state})
+                    _logger.debug('Added DDM endpoint {0}'.format(ddm_endpoint_name))
+                else:
+                    _logger.debug('Ignored DDM endpoint {0} because of state {1}'.format(ddm_endpoint_name, ddm_spacetoken_state))
+
 
             #Get the PanDA resources 
             for panda_resource in site['presources']:
                 for panda_site in site['presources'][panda_resource]:
-                    panda_site_name = panda_site
                     panda_site_state = site['presources'][panda_resource][panda_site]['state']
+                    if panda_site_state != 'ACTIVE':
+                        continue
+                    panda_site_name = panda_site
                     panda_queue_name = None
                     for panda_queue in site['presources'][panda_resource][panda_site]['pandaqueues']:
                         panda_queue_name = panda_queue['name']
@@ -214,14 +221,15 @@ class Configurator(threading.Thread):
         Iterates the DDM endpoints and gets their storage occupancy (one by one)
         """
         for ddm_endpoint in self.endpoint_token_dict:
-            try:
-                _logger.debug("Querying storage space for {0}".format(ddm_endpoint))
-                rse_usage = ddm_interface.get_rse_usage(ddm_endpoint)
-                _logger.debug("Storage space for {0} is {1}".format(ddm_endpoint, rse_usage))
-                dbif.update_storage(_session, ddm_endpoint, rse_usage)
-                _logger.debug("Persisted storage space for {0}".format(ddm_endpoint))
-            except:
-                _logger.error("Collect_rse_usage excepted with: {0}".format(sys.exc_info()))
+            if self.endpoint_token_dict[ddm_endpoint]['state'] == 'ACTIVE':
+                try:
+                    _logger.debug("Querying storage space for {0}".format(ddm_endpoint))
+                    rse_usage = ddm_interface.get_rse_usage(ddm_endpoint)
+                    _logger.debug("Storage space for {0} is {1}".format(ddm_endpoint, rse_usage))
+                    dbif.update_storage(_session, ddm_endpoint, rse_usage)
+                    _logger.debug("Persisted storage space for {0}".format(ddm_endpoint))
+                except:
+                    _logger.error("Collect_rse_usage excepted with: {0}".format(sys.exc_info()))
 
 
     def run(self):
