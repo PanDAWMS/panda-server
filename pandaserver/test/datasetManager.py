@@ -855,6 +855,8 @@ class FinisherThr (threading.Thread):
                     if file.type == 'output' or file.type == 'log':
                         if file.status == 'nooutput':
                             continue
+                        if DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) != None:
+                            continue
                         lfns.append(file.lfn)
                         guids.append(file.GUID)
                         scopes.append(file.scope)

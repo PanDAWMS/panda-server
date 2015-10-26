@@ -1,6 +1,8 @@
 Release Notes
 
 * current
+  * fixed datasetMgr to take distributed dataset into account
+  * fixed for internal merge + zero suppression
   * changed AdderGen and AdderAtlas to treat missing files more properly
   * added allowNoOutput
   * improved checkInputFiles

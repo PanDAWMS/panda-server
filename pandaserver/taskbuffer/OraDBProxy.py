@@ -2054,7 +2054,8 @@ class DBProxy:
                                 else:
                                     # decrement nOnHold
                                     datasetContentsStat[file.datasetID]['diff'] -= 1
-                        elif useJEDI and job.jobStatus == 'merging' and file.type in ['log','output']:
+                        elif useJEDI and job.jobStatus == 'merging' and file.type in ['log','output'] and \
+                                file.status != 'nooutput':
                             # SQL to update JEDI files
                             varMap = {}
                             varMap[':fileID']     = file.fileID
@@ -12188,7 +12189,7 @@ class DBProxy:
                 hasInput = True
                 if jobSpec.jobStatus == 'finished':
                     varMap[':status'] = 'finished'
-                    if fileSpec.type in ['input']:
+                    if fileSpec.type in ['input','pseudo_input']:
                          updateNumEvents = True
                 else:
                     # set ready for next attempt
@@ -12287,7 +12288,7 @@ class DBProxy:
                         tmpNumEvents,tmpStartEvent,tmpEndEvent,tmpKeepTrack = resEVT
                         if tmpNumEvents != None:
                             try:
-                                if fileSpec.type in ['input']:
+                                if fileSpec.type in ['input','pseudo_input']:
                                     if tmpKeepTrack == 1:
                                         # keep track on how many events successfully used
                                         if tmpStartEvent != None and tmpEndEvent != None:
@@ -13223,7 +13224,7 @@ class DBProxy:
                         tmpNumReady = 0
                         for tmpFileStatus,tmpFileCount in resListGFC:
                             if tmpFileStatus in ['finished','failed','cancelled','notmerged',
-                                                 'ready','lost','broken','picked']:
+                                                 'ready','lost','broken','picked','nooutput']:
                                 tmpNumFiles += tmpFileCount
                                 if tmpFileStatus in ['ready']:
                                     tmpNumReady += tmpFileCount
