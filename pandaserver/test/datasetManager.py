@@ -267,6 +267,7 @@ class CloserThr (threading.Thread):
                         else:
                             # dataset not exist
                             status,out = 0,''
+                            dsExists = False
                 else:
                     status,out = 0,''
                 if status != 0 and out.find('DQFrozenDatasetException') == -1 and \
@@ -428,6 +429,7 @@ class Freezer (threading.Thread):
                                 else:
                                     # dataset not exist
                                     status,out = 0,''
+                                    dsExists = False
                         else:
                             status,out = 0,''
                         if status != 0 and out.find('DQFrozenDatasetException') == -1 and \
