@@ -192,10 +192,20 @@ def read_schedconfig_sites(session):
         _logger.critical('read_schedconfig_sites excepted --> {0}'.format(sys.exc_info()))
         return []
 
-def update_storage(session, ddm_endpoint, rse_usage):
+def update_storage(session, ddm_endpoint_name, rse_usage):
     """
     Updates the storage of a DDM endpoint
     """
-    DdmEndpoint.update().where(DdmEndpoint.ddm_endpoint_name==ddm_endpoint).values(space_total=rse_usage['total'], space_used=rse_usage['used'], space_free=rse_usage['free'])
+    try:
+        _logger.debug("Starting update_storage for {0} with usage {1}".format(ddm_endpoint_name, rse_usage))
+        ddm_endpoint = session.query(DdmEndpoint).filter(DdmEndpoint.ddm_endpoint_name==ddm_endpoint_name).one()
+        ddm_endpoint.space_total = rse_usage['total']
+        ddm_endpoint.space_free = rse_usage['free']
+        ddm_endpoint.space_used = rse_usage['used']
+        session.commit()
+        _logger.debug("Done with update_storage")
+    except exc.SQLAlchemyError:
+        session.rollback()
+        _logger.critical('update_storage excepted --> {0}'.format(sys.exc_info()))
 
 
