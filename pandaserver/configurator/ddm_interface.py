@@ -13,7 +13,7 @@ def get_rse_usage(rse, src='srm'):
     Gets disk usage at RSE (Rucio Storage Element)
     """
     method_name = "get_rse_usage <rse={0}>".format(rse)
-    _logger.debug('{0} start'.method_name)
+    _logger.debug('{0} start'.format(method_name))
     
     rse_usage = {}
     try:
