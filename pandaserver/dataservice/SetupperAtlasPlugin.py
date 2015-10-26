@@ -960,7 +960,10 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                             optActivity = "Staging"
                         else:
                             optShare = "production"
-                            optActivity = "Production Input"
+                            if job.processingType == 'urgent' or job.currentPriority > 1000:
+                                optActivity = 'Express'
+                            else:
+                                optActivity = "Production Input"
                         if not isOK:
                             dispError[disp] = "Setupper._subscribeDistpatchDB() could not register location for prestage"
                         else:

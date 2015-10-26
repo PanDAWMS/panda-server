@@ -490,7 +490,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                 self.logger.debug('%s' % str(out))
                 break
         # register dataset subscription
-        if self.job.processingType == 'urgent' or self.job.currentPriority>1000:
+        if self.job.processingType == 'urgent' or self.job.currentPriority > 1000:
             subActivity = 'Express'
         else:
             subActivity = 'Production Output'
