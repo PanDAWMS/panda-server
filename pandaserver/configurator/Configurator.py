@@ -190,7 +190,7 @@ class Configurator(threading.Thread):
         schedconfig_sites = dbif.read_schedconfig_sites(_session)
         _logger.debug("Sites in Schedconfig {0}".format(schedconfig_sites))
         
-        all_sites = agis_sites | configurator_sites | schedconfig_sites
+        all_sites = list(agis_sites | configurator_sites | schedconfig_sites).sort()
         
         for site in all_sites:
             missing = []
@@ -200,7 +200,7 @@ class Configurator(threading.Thread):
                 missing.append('Configurator')
             if site not in schedconfig_sites:
                 missing.append('Schedconfig')
-            _logger.error("{0} was not found in {1}".format(site, missing))
+            _logger.error("SITE inconsistency: {0} was not found in {1}".format(site, missing))
 
         #Check for panda-site inconsistencies
         agis_panda_sites = set([self.schedconfig_dump[long_panda_site_name]['panda_resource'] for long_panda_site_name in self.schedconfig_dump])
@@ -210,7 +210,7 @@ class Configurator(threading.Thread):
         schedconfig_panda_sites = dbif.read_schedconfig_panda_sites(_session)
         _logger.debug("PanDA sites in Schedconfig {0}".format(schedconfig_panda_sites))
 
-        all_panda_sites = agis_panda_sites | configurator_panda_sites | schedconfig_panda_sites
+        all_panda_sites = list(agis_panda_sites | configurator_panda_sites | schedconfig_panda_sites).sort()
         
         for site in all_panda_sites:
             missing = []
@@ -220,7 +220,7 @@ class Configurator(threading.Thread):
                 missing.append('Configurator')
             if site not in schedconfig_panda_sites:
                 missing.append('Schedconfig')
-            _logger.error("{0} was not found in {1}".format(site, missing))
+            _logger.error("PanDA SITE inconsistency: {0} was not found in {1}".format(site, missing))
 
         #Check for DDM endpoint inconsistencies
 
@@ -230,15 +230,14 @@ class Configurator(threading.Thread):
         Iterates the DDM endpoints and gets their storage occupancy (one by one)
         """
         for ddm_endpoint in self.endpoint_token_dict:
-            if self.endpoint_token_dict[ddm_endpoint]['state'] == 'ACTIVE':
-                try:
-                    _logger.debug("Querying storage space for {0}".format(ddm_endpoint))
-                    rse_usage = ddm_interface.get_rse_usage(ddm_endpoint)
-                    _logger.debug("Storage space for {0} is {1}".format(ddm_endpoint, rse_usage))
-                    dbif.update_storage(_session, ddm_endpoint, rse_usage)
-                    _logger.debug("Persisted storage space for {0}".format(ddm_endpoint))
-                except:
-                    _logger.error("Collect_rse_usage excepted with: {0}".format(sys.exc_info()))
+            try:
+                _logger.debug("Querying storage space for {0}".format(ddm_endpoint))
+                rse_usage = ddm_interface.get_rse_usage(ddm_endpoint)
+                _logger.debug("Storage space for {0} is {1}".format(ddm_endpoint, rse_usage))
+                dbif.update_storage(_session, ddm_endpoint, rse_usage)
+                _logger.debug("Persisted storage space for {0}".format(ddm_endpoint))
+            except:
+                _logger.error("Collect_rse_usage excepted with: {0}".format(sys.exc_info()))
 
 
     def run(self):
