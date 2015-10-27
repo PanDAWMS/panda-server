@@ -46,7 +46,7 @@ class Configurator(threading.Thread):
         _logger.debug('Getting schedconfig dump...')
         self.schedconfig_dump = self.get_dump(self.AGIS_URL_SCHEDCONFIG)
         _logger.debug('Done')
-        
+
 
     def get_dump(self, url):
         response = urllib2.urlopen(url)
@@ -75,7 +75,7 @@ class Configurator(threading.Thread):
 
     def parse_endpoints(self):
         """
-        Puts the relevant information from endpoint_dump into a more usable format 
+        Puts the relevant information from endpoint_dump into a more usable format
         """
         endpoint_token_dict = {}
         for endpoint in self.endpoint_dump:
@@ -227,6 +227,22 @@ class Configurator(threading.Thread):
                 _logger.error("PanDA SITE inconsistency: {0} was not found in {1}".format(site, missing))
 
         #Check for DDM endpoint inconsistencies
+        agis_ddm_endpoints = set([ddm_endpoint_name for ddm_endpoint_name in self.endpoint_token_dict])
+        _logger.debug("DDM endpoints in AGIS {0}".format(agis_ddm_endpoints))
+        configurator_ddm_endpoints = dbif.read_configurator_ddm_endpoints(_session)
+        _logger.debug("DDM endpoints in Configurator {0}".format(configurator_ddm_endpoints))
+
+        all_ddm_endpoints = list(agis_ddm_endpoints | configurator_ddm_endpoints)
+        all_ddm_endpoints.sort()
+
+        for site in all_ddm_endpoints:
+            missing = []
+            if site not in agis_ddm_endpoints:
+                missing.append('AGIS')
+            if site not in configurator_ddm_endpoints:
+                missing.append('Configurator')
+            if missing:
+                _logger.error("DDM ENDPOINT inconsistency: {0} was not found in {1}".format(site, missing))
 
 
     def collect_rse_usage(self):

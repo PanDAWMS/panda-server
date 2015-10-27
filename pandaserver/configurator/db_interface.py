@@ -179,7 +179,7 @@ def read_configurator_sites(session):
 
 def read_configurator_panda_sites(session):
     """
-    Read the site names from the configurator tables
+    Read the panda site names from the configurator tables
     """
     try:
         _logger.debug("Starting read_configurator_panda_sites")
@@ -190,6 +190,22 @@ def read_configurator_panda_sites(session):
     except exc.SQLAlchemyError:
         session.rollback()
         _logger.critical('read_configurator_panda_sites excepted --> {0}'.format(sys.exc_info()))
+        return []
+
+
+def read_configurator_ddm_endpoints(session):
+    """
+    Read the DDM endpoint names from the configurator tables
+    """
+    try:
+        _logger.debug("Starting read_configurator_ddm_endpoints")
+        ddm_endpoint_object_list = session.query(DdmEndpoint.ddm_endpoint_name).all()
+        ddm_endpoint_set = set([entry.ddm_endpoint_name for entry in ddm_endpoint_object_list])
+        _logger.debug("Done with read_configurator_ddm_endpoints")
+        return ddm_endpoint_set
+    except exc.SQLAlchemyError:
+        session.rollback()
+        _logger.critical('read_configurator_ddm_endpoints excepted --> {0}'.format(sys.exc_info()))
         return []
 
 
@@ -211,7 +227,7 @@ def read_schedconfig_sites(session):
 
 def read_schedconfig_panda_sites(session):
     """
-    Read the site names from the schedconfig table
+    Read the panda site names from the schedconfig table
     """
     try:
         _logger.debug("Starting read_schedconfig_panda_sites")
