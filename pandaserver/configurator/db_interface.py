@@ -216,7 +216,7 @@ def read_schedconfig_panda_sites(session):
     try:
         _logger.debug("Starting read_schedconfig_panda_sites")
         panda_site_object_list = session.query(Schedconfig.siteid).all()
-        panda_site_set = set([entry.site for entry in panda_site_object_list])
+        panda_site_set = set([entry.siteid for entry in panda_site_object_list])
         _logger.debug("Done with read_schedconfig_panda_sites")
         return panda_site_set
     except exc.SQLAlchemyError:
