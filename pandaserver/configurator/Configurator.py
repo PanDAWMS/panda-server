@@ -201,7 +201,8 @@ class Configurator(threading.Thread):
                 missing.append('Configurator')
             if site not in schedconfig_sites:
                 missing.append('Schedconfig')
-            _logger.error("SITE inconsistency: {0} was not found in {1}".format(site, missing))
+            if missing:
+                _logger.error("SITE inconsistency: {0} was not found in {1}".format(site, missing))
 
         #Check for panda-site inconsistencies
         agis_panda_sites = set([self.schedconfig_dump[long_panda_site_name]['panda_resource'] for long_panda_site_name in self.schedconfig_dump])
@@ -222,7 +223,8 @@ class Configurator(threading.Thread):
                 missing.append('Configurator')
             if site not in schedconfig_panda_sites:
                 missing.append('Schedconfig')
-            _logger.error("PanDA SITE inconsistency: {0} was not found in {1}".format(site, missing))
+            if missing:
+                _logger.error("PanDA SITE inconsistency: {0} was not found in {1}".format(site, missing))
 
         #Check for DDM endpoint inconsistencies
 
