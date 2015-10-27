@@ -190,7 +190,8 @@ class Configurator(threading.Thread):
         schedconfig_sites = dbif.read_schedconfig_sites(_session)
         _logger.debug("Sites in Schedconfig {0}".format(schedconfig_sites))
         
-        all_sites = list(agis_sites | configurator_sites | schedconfig_sites).sort()
+        all_sites = list(agis_sites | configurator_sites | schedconfig_sites)
+        all_sites.sort()
         
         for site in all_sites:
             missing = []
@@ -210,7 +211,8 @@ class Configurator(threading.Thread):
         schedconfig_panda_sites = dbif.read_schedconfig_panda_sites(_session)
         _logger.debug("PanDA sites in Schedconfig {0}".format(schedconfig_panda_sites))
 
-        all_panda_sites = list(agis_panda_sites | configurator_panda_sites | schedconfig_panda_sites).sort()
+        all_panda_sites = list(agis_panda_sites | configurator_panda_sites | schedconfig_panda_sites)
+        all_panda_sites.sort()
         
         for site in all_panda_sites:
             missing = []
