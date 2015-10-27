@@ -79,18 +79,18 @@ class Configurator(threading.Thread):
         """
         endpoint_token_dict = {}
         for endpoint in self.endpoint_dump:
-            if endpoint['type'] != 'TEST': #Filter out testing endpoints
+            #Filter out testing and inactive endpoints
+            if endpoint['type'] != 'TEST' and endpoint['state'] != 'ACTIVE': 
                 endpoint_token_dict[endpoint['name']] = {}
                 endpoint_token_dict[endpoint['name']]['token'] = endpoint['token']
                 endpoint_token_dict[endpoint['name']]['site_name'] = endpoint['rc_site']
-                endpoint_token_dict[endpoint['name']]['state'] = endpoint['state']
         return endpoint_token_dict
 
 
     def process_site_dumps(self):
         """
         Parses the AGIS site and endpoint dumps and prepares a format loadable to the DB
-        """        
+        """
         #Variables that will contain only the relevant information
         sites_list = []
         included_sites = []
@@ -119,7 +119,6 @@ class Configurator(threading.Thread):
                     _logger.debug('Added DDM endpoint {0}'.format(ddm_endpoint_name))
                 else:
                     _logger.debug('Ignored DDM endpoint {0} because of state {1}'.format(ddm_endpoint_name, ddm_spacetoken_state))
-
 
             #Get the PanDA resources 
             for panda_resource in site['presources']:
@@ -179,43 +178,53 @@ class Configurator(threading.Thread):
         return relationships_list
 
 
-    def data_quality_check(self):
+    def consistency_check(self):
         """
         Point out sites, panda sites and DDM endpoints that are missing in one of the sources 
         """
         #Check for site inconsistencies
-        agis_sites = set([site['rc_site'] for site in self.site_dump])
+        agis_sites = set([site['rc_site'] for site in self.site_dump if site['state']=='ACTIVE'])
         _logger.debug("Sites in AGIS {0}".format(agis_sites))
         configurator_sites = dbif.read_configurator_sites(_session)
         _logger.debug("Sites in Configurator {0}".format(configurator_sites))
         schedconfig_sites = dbif.read_schedconfig_sites(_session)
         _logger.debug("Sites in Schedconfig {0}".format(schedconfig_sites))
         
-        inconsistencies_agis_schedconfig = agis_sites - schedconfig_sites
-        if inconsistencies_agis_schedconfig:
-            _logger.error("Following sites are in AGIS but not in schedconfig: {0}".format(inconsistencies_agis_schedconfig))
-
-        inconsistencies_schedconfig_agis = schedconfig_sites - agis_sites
-        if inconsistencies_schedconfig_agis:
-            _logger.error("Following sites are in schedconfig but not in AGIS: {0}".format(inconsistencies_schedconfig_agis))
-
-        inconsistencies_agis_configurator = agis_sites - configurator_sites
-        if inconsistencies_agis_configurator:
-            _logger.error("Following sites are in AGIS but not in configurator: {0}".format(inconsistencies_agis_configurator))
-
-        inconsistencies_configurator_agis = configurator_sites - agis_sites
-        if inconsistencies_configurator_agis:
-            _logger.error("Following sites are in schedconfig but not in AGIS: {0}".format(inconsistencies_configurator_agis))
+        all_sites = agis_sites + configurator_sites + schedconfig_sites
+        
+        for site in all_sites:
+            missing = []
+            if site not in agis_sites:
+                missing.append('AGIS')
+            if site not in configurator_sites:
+                missing.append('Configurator')
+            if site not in schedconfig_sites:
+                missing.append('Schedconfig')
+            _logger.error("{0} was not found in {1}".format(site, missing))
 
         #Check for panda-site inconsistencies
+        agis_panda_sites = set([self.schedconfig_dump[long_panda_site_name]['panda_resource'] for long_panda_site_name in self.schedconfig_dump])
+        _logger.debug("PanDA sites in AGIS {0}".format(agis_panda_sites))
+        configurator_panda_sites = dbif.read_configurator_sites(_session)
+        _logger.debug("PanDA sites in Configurator {0}".format(configurator_panda_sites))
+        schedconfig_panda_sites = dbif.read_schedconfig_panda_sites(_session)
+        _logger.debug("PanDA sites in Schedconfig {0}".format(schedconfig_panda_sites))
+
+        all_panda_sites = agis_panda_sites + configurator_panda_sites + schedconfig_panda_sites
         
-        
+        for site in all_panda_sites:
+            missing = []
+            if site not in agis_panda_sites:
+                missing.append('AGIS')
+            if site not in configurator_panda_sites:
+                missing.append('Configurator')
+            if site not in schedconfig_panda_sites:
+                missing.append('Schedconfig')
+            _logger.error("{0} was not found in {1}".format(site, missing))
+
         #Check for DDM endpoint inconsistencies
-        
-        
-        #Print out results
-        
-    
+
+
     def collect_rse_usage(self):
         """
         Iterates the DDM endpoints and gets their storage occupancy (one by one)
@@ -249,7 +258,7 @@ class Configurator(threading.Thread):
         #dbif.write_panda_ddm_relations(_session, relationships_list)
         
         #Do a data quality check
-        self.data_quality_check()
+        self.consistency_check()
         
         #Get the storage occupancy
         self.collect_rse_usage()
