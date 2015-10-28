@@ -31,7 +31,7 @@ class PandaSite(Base):
     site_name = Column(ForeignKey(u'atlas_panda.site.site_name'))
     state = Column(String(20))
 
-    site = relationship('Site') 
+    site = relationship('Site', cascade="delete") 
 
 
 class DdmEndpoint(Base):
@@ -46,7 +46,7 @@ class DdmEndpoint(Base):
     space_free = Column(Numeric(10, 0, asdecimal=False))
     space_used = Column(Numeric(10, 0, asdecimal=False))
 
-    site = relationship('Site')
+    site = relationship('Site', cascade="delete")
 
 
 class PandaDdmRelation(Base):
@@ -58,8 +58,8 @@ class PandaDdmRelation(Base):
     is_local = Column(String(1))
     is_default = Column(String(1))
     
-    panda_site = relationship('PandaSite')
-    ddm_endpoint = relationship('DdmEndpoint')
+    panda_site = relationship('PandaSite', cascade="delete")
+    ddm_endpoint = relationship('DdmEndpoint', cascade="delete")
 
 
 class Schedconfig(Base):

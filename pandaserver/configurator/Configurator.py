@@ -101,10 +101,10 @@ class Configurator(threading.Thread):
         for site in self.site_dump:
             #Add the site info to a list
             (site_name, site_role, site_state) = self.get_site_info(site)
-            if site_state == 'ACTIVE' and site_name not in included_sites: #Avoid duplicate entries
+            if site_state == 'ACTIVE' and site_name not in included_sites:
                 sites_list.append({'site_name': site_name, 'role': site_role, 'state': site_state})
                 included_sites.append(site_name)
-            
+
             #Get the DDM endpoints for the site we are inspecting
             for ddm_endpoint_name in site['ddmendpoints']:
                 
@@ -243,6 +243,29 @@ class Configurator(threading.Thread):
                 missing.append('Configurator')
             if missing:
                 _logger.error("DDM ENDPOINT inconsistency: {0} was not found in {1}".format(site, missing))
+        
+        if hasattr(panda_config,'configurator_cleanup'):
+            self.cleanup(agis_sites, agis_panda_sites, agis_ddm_endpoints, configurator_sites, configurator_panda_sites, configurator_ddm_endpoints)
+
+
+    def cleanup_configurator(self, agis_sites, agis_panda_sites, agis_ddm_endpoints, configurator_sites, configurator_panda_sites, configurator_ddm_endpoints):
+        """
+        Cleans up information from configurator that is not in AGIS
+        """
+        if not agis_sites or not agis_panda_sites or not agis_ddm_endpoints:
+            _logger.warning("Exiting cleanup because one of AGIS sets was empty")
+        
+        #Clean up sites
+        sites_to_delete = configurator_sites - agis_sites
+        dbif.delete_sites(_session, sites_to_delete)
+        
+        #Clean up panda sites
+        panda_sites_to_delete = configurator_panda_sites - agis_panda_sites
+        dbif.delete_panda_sites(_session, panda_sites_to_delete)
+        
+        #Clean up DDM endpoints
+        ddm_endpoints_to_delete = configurator_ddm_endpoints - agis_ddm_endpoints
+        dbif.delete_ddm_endpoitns(_session, ddm_endpoints_to_delete)
 
 
     def collect_rse_usage(self):
@@ -271,10 +294,10 @@ class Configurator(threading.Thread):
         relationships_list = self.process_schedconfig_dump()
 
         #Persist the information to the PanDA DB
-        #dbif.write_sites_db(_session, sites_list)
-        #dbif.write_panda_sites_db(_session, panda_sites_list)
-        #dbif.write_ddm_endpoints_db(_session, ddm_endpoints_list)
-        #dbif.write_panda_ddm_relations(_session, relationships_list)
+        dbif.write_sites_db(_session, sites_list)
+        dbif.write_panda_sites_db(_session, panda_sites_list)
+        dbif.write_ddm_endpoints_db(_session, ddm_endpoints_list)
+        dbif.write_panda_ddm_relations(_session, relationships_list)
         
         #Do a data quality check
         self.consistency_check()

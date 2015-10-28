@@ -258,3 +258,53 @@ def update_storage(session, ddm_endpoint_name, rse_usage):
         _logger.critical('update_storage excepted --> {0}'.format(sys.exc_info()))
 
 
+def delete_sites(session, sites_to_delete):
+    """
+    Delete sites and all dependent entries (panda_sites, ddm_endpoints, panda_ddm_relations).
+    Deletion of dependent entries is done through cascade definition in models 
+    """
+    site_objects = session.query(Site).filter_by(Site.site_name in sites_to_delete).all()
+    for site_object in site_objects:
+        site_name = site_object.site_name
+        try:
+            _logger.debug('Going to delete site  --> {0}'.format(site_name))
+            session.delete(site_object)
+            session.commit()
+            _logger.debug('Delete site  --> {0}'.format(site_name))
+        except exc.SQLAlchemyError:
+            session.rollback()
+            _logger.critical('delete_sites excepted for site {0} with {1}'.format(site_name, sys.exc_info()))
+
+
+def delete_panda_sites(session, panda_sites_to_delete):
+    """
+    Delete PanDA sites and dependent entries in panda_ddm_relations 
+    """
+    panda_site_objects = session.query(PandaSite).filter_by(PandaSite.panda_site_name in panda_sites_to_delete).all()
+    for panda_site_object in panda_site_objects:
+        panda_site_name = panda_site_object.panda_site_name
+        try:
+            _logger.debug('Going to delete panda_site  --> {0}'.format(panda_site_name))
+            session.delete(panda_site_object)
+            session.commit()
+            _logger.debug('Delete panda_site  --> {0}'.format(panda_site_name))
+        except exc.SQLAlchemyError:
+            session.rollback()
+            _logger.critical('delete_panda_sites excepted for panda_site {0} with {1}'.format(panda_site_name, sys.exc_info()))
+
+
+def delete_ddm_endpoitns(session, ddm_endpoints_to_delete):
+    """
+    Delete DDM endpoints dependent entries in panda_ddm_relations
+    """
+    ddm_endpoint_objects = session.query(DdmEndpoint).filter_by(DdmEndpoint.ddm_endpoint_name in ddm_endpoints_to_delete).all()
+    for ddm_endpoint_object in ddm_endpoint_objects:
+        ddm_endpoint_name = ddm_endpoint_object.ddm_endpoint_name
+        try:
+            _logger.debug('Going to delete ddm_endpoint  --> {0}'.format(ddm_endpoint_name))
+            session.delete(ddm_endpoint_object)
+            session.commit()
+            _logger.debug('Delete ddm_endpoint  --> {0}'.format(ddm_endpoint_name))
+        except exc.SQLAlchemyError:
+            session.rollback()
+            _logger.critical('delete_ddm_endpoints excepted for ddm_endpoint {0} with {1}'.format(ddm_endpoint_name, sys.exc_info()))
