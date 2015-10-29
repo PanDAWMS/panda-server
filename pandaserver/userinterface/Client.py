@@ -1577,6 +1577,41 @@ def changeTaskWalltime(jediTaskID,wallTime):
 
 
 
+# change task cputime
+def changeTaskCputime(jediTaskID,cpuTime):
+    """Change task cpuTime
+
+       args:
+           jediTaskID: jediTaskID of the task to change the priority
+           cpuTime: new cputime for the task
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           return code
+                 0: unknown task
+                 1: succeeded
+                 None: database error 
+    """     
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+    # execute
+    url = baseURLSSL + '/changeTaskAttributePanda'
+    data = {'jediTaskID':jediTaskID,
+            'attrName':'cpuTime',
+            'attrValue':cpuTime}
+    status,output = curl.post(url,data)
+    try:
+        return status,pickle.loads(output)
+    except:
+        errtype,errvalue = sys.exc_info()[:2]
+        errStr = "ERROR changeTaskCputime : %s %s" % (errtype,errvalue)
+        return EC_Failed,output+'\n'+errStr
+
+
+
 # change task RAM count
 def changeTaskRamCount(jediTaskID,ramCount):
     """Change task priority

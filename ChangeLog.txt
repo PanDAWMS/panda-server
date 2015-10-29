@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * added changeTaskCputime
   * using Express for urgent or high prio input
   * checking metadata before closing sub datasets to avoid a rucio bug
   * fixed datasetMgr to avoid lookup for nonexistent datasets

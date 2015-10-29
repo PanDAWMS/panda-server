@@ -2045,7 +2045,7 @@ def changeTaskAttributePanda(req,jediTaskID,attrName,attrValue):
     except:
         return pickle.dumps((False,'jediTaskID must be an integer'))        
     # check attribute
-    if not attrName in ['ramCount','wallTime']:
+    if not attrName in ['ramCount','wallTime','cpuTime']:
         return "Failed : disallowed to update {0}".format(attrName)
     ret = userIF.changeTaskAttributePanda(jediTaskID,attrName,attrValue)
     return pickle.dumps(ret)
