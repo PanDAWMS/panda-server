@@ -174,7 +174,7 @@ class Configurator(threading.Thread):
                     count += 1
                 except KeyError:
                     _logger.debug('DDM endpoint {0} could not be found'.format(ddm_endpoint_name))
-        
+
         return relationships_list
 
 
@@ -244,8 +244,8 @@ class Configurator(threading.Thread):
             if missing:
                 _logger.error("DDM ENDPOINT inconsistency: {0} was not found in {1}".format(site, missing))
         
-        if hasattr(panda_config,'configurator_cleanup'):
-            self.cleanup(agis_sites, agis_panda_sites, agis_ddm_endpoints, configurator_sites, configurator_panda_sites, configurator_ddm_endpoints)
+        #if hasattr(panda_config,'configurator_cleanup'):
+        self.cleanup(agis_sites, agis_panda_sites, agis_ddm_endpoints, configurator_sites, configurator_panda_sites, configurator_ddm_endpoints)
 
 
     def cleanup_configurator(self, agis_sites, agis_panda_sites, agis_ddm_endpoints, configurator_sites, configurator_panda_sites, configurator_ddm_endpoints):
