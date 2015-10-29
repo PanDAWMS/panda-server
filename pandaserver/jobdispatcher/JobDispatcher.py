@@ -206,6 +206,7 @@ class JobDipatcher:
                     _logger.warning("getJob : %s %s failed to get user proxy with %s:%s" % (siteName,node,
                                                                                             errtype.__name__,errvalue))
             # panda proxy
+            self.specialDispatchParams.update()
             if 'pandaProxySites' in self.specialDispatchParams and siteName in self.specialDispatchParams['pandaProxySites'] \
                     and (EventServiceUtils.isEventServiceJob(jobs[0]) or EventServiceUtils.isEventServiceMerge(jobs[0])):
                 # get secret key
