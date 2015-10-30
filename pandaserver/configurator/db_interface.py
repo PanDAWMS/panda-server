@@ -186,7 +186,7 @@ def read_configurator_panda_sites(session):
     try:
         _logger.debug("Starting read_configurator_panda_sites")
         panda_site_object_list = session.query(PandaSite.panda_site_name).all()
-        panda_site_set = set([entry.site_name for entry in panda_site_object_list])
+        panda_site_set = set([entry.panda_site_name for entry in panda_site_object_list])
         _logger.debug("Done with read_configurator_panda_sites")
         return panda_site_set
     except exc.SQLAlchemyError:
