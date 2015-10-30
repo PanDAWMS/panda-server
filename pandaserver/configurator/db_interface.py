@@ -264,6 +264,8 @@ def delete_sites(session, sites_to_delete):
     Deletion of dependent entries is done through cascade definition in models 
     """
     site_objects = session.query(Site).filter(Site.site_name.in_(sites_to_delete)).all()
+    panda_site_objects = session.query(PandaSite).filter(PandaSite.site_name.in_(panda_sites_to_delete)).all()
+    panda_site_objects = session.query(PandaSite).filter(PandaSite.panda_site_name.in_(panda_sites_to_delete)).all()
     for site_object in site_objects:
         site_name = site_object.site_name
         try:

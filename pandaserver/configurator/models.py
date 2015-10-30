@@ -20,7 +20,7 @@ class Site(Base):
 
     site_name = Column(String(52), primary_key=True)
     role = Column(String(256))
-    state = Column(String(20))
+    state = Column(String(20)) 
 
 
 class PandaSite(Base):
@@ -28,10 +28,10 @@ class PandaSite(Base):
     __table_args__ = {u'schema': 'atlas_panda'}
 
     panda_site_name = Column(String(52), primary_key=True)
-    site_name = Column(ForeignKey(u'atlas_panda.site.site_name'))
+    site_name = Column(ForeignKey(u'atlas_panda.site.site_name', ondelete='CASCADE'))
     state = Column(String(20))
 
-    site = relationship('Site', cascade="delete") 
+    site = relationship('Site') 
 
 
 class DdmEndpoint(Base):
@@ -39,27 +39,27 @@ class DdmEndpoint(Base):
     __table_args__ = {u'schema': 'atlas_panda'}
 
     ddm_endpoint_name = Column(String(52), primary_key=True)
-    site_name = Column(ForeignKey(u'atlas_panda.site.site_name'))
+    site_name = Column(ForeignKey(u'atlas_panda.site.site_name', ondelete='CASCADE'))
     ddm_spacetoken_name = Column(String(52))
     state = Column(String(20))
     space_total = Column(Numeric(10, 0, asdecimal=False))
     space_free = Column(Numeric(10, 0, asdecimal=False))
     space_used = Column(Numeric(10, 0, asdecimal=False))
 
-    site = relationship('Site', cascade="delete")
+    site = relationship('Site')
 
 
 class PandaDdmRelation(Base):
     __tablename__ = 'panda_ddm_relation'
     __table_args__ = {u'schema': 'atlas_panda'}
 
-    panda_site_name = Column(ForeignKey(u'atlas_panda.panda_site.panda_site_name'), primary_key=True, nullable=False)
-    ddm_endpoint_name = Column(ForeignKey(u'atlas_panda.ddm_endpoint.ddm_endpoint_name'), primary_key=True, nullable=False)
+    panda_site_name = Column(ForeignKey(u'atlas_panda.panda_site.panda_site_name', ondelete='CASCADE'), primary_key=True, nullable=False)
+    ddm_endpoint_name = Column(ForeignKey(u'atlas_panda.ddm_endpoint.ddm_endpoint_name', ondelete='CASCADE'), primary_key=True, nullable=False)
     is_local = Column(String(1))
     is_default = Column(String(1))
     
-    panda_site = relationship('PandaSite', cascade="delete")
-    ddm_endpoint = relationship('DdmEndpoint', cascade="delete")
+    panda_site = relationship('PandaSite')
+    ddm_endpoint = relationship('DdmEndpoint')
 
 
 class Schedconfig(Base):

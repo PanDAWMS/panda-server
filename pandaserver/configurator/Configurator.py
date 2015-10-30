@@ -299,11 +299,12 @@ class Configurator(threading.Thread):
         dbif.write_ddm_endpoints_db(_session, ddm_endpoints_list)
         dbif.write_panda_ddm_relations(_session, relationships_list)
         
-        #Do a data quality check
-        self.consistency_check()
-        
         #Get the storage occupancy
         self.collect_rse_usage()
+        
+        #Do a data quality check
+        self.consistency_check()
+
         
         return True
 
