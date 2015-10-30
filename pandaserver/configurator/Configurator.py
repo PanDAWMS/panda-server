@@ -60,7 +60,7 @@ class Configurator(threading.Thread):
         Gets the relevant information from a site
         """
         
-        name = site['rc_site']
+        name = site['name']
         
         #TODO: Think about the best way to store this information, also considering future requests
         if 'TaskNucleus' in site['datapolicies'] or site['rc_tier_level'] <= 1:
@@ -83,7 +83,7 @@ class Configurator(threading.Thread):
             if endpoint['type'] != 'TEST' and endpoint['state'] == 'ACTIVE': 
                 endpoint_token_dict[endpoint['name']] = {}
                 endpoint_token_dict[endpoint['name']]['token'] = endpoint['token']
-                endpoint_token_dict[endpoint['name']]['site_name'] = endpoint['rc_site']
+                endpoint_token_dict[endpoint['name']]['site_name'] = endpoint['site']
                 endpoint_token_dict[endpoint['name']]['type'] = endpoint['type']
                 if endpoint['is_tape']:
                     endpoint_token_dict[endpoint['name']]['is_tape'] = 'Y'
@@ -174,7 +174,7 @@ class Configurator(threading.Thread):
                     
                     #Check if the ddm_endpoint and the panda_site belong to the same site
                     site_name_endpoint = self.endpoint_token_dict[ddm_endpoint_name]['site_name']
-                    site_name_pandasite = self.schedconfig_dump[long_panda_site_name]['rc_site']
+                    site_name_pandasite = self.schedconfig_dump[long_panda_site_name]['site']
                     if site_name_endpoint == site_name_pandasite:
                         is_local = 'Y'
                     else:
@@ -196,7 +196,7 @@ class Configurator(threading.Thread):
         Point out sites, panda sites and DDM endpoints that are missing in one of the sources 
         """
         #Check for site inconsistencies
-        agis_sites = set([site['rc_site'] for site in self.site_dump if site['state']=='ACTIVE'])
+        agis_sites = set([site['name'] for site in self.site_dump if site['state']=='ACTIVE'])
         _logger.debug("Sites in AGIS {0}".format(agis_sites))
         configurator_sites = dbif.read_configurator_sites(_session)
         _logger.debug("Sites in Configurator {0}".format(configurator_sites))

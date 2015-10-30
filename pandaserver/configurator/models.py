@@ -29,7 +29,6 @@ class PandaSite(Base):
 
     panda_site_name = Column(String(52), primary_key=True)
     site_name = Column(ForeignKey(u'atlas_panda.site.site_name', ondelete='CASCADE'))
-    state = Column(String(20))
 
     site = relationship('Site') 
 
@@ -41,7 +40,6 @@ class DdmEndpoint(Base):
     ddm_endpoint_name = Column(String(52), primary_key=True)
     site_name = Column(ForeignKey(u'atlas_panda.site.site_name', ondelete='CASCADE'))
     ddm_spacetoken_name = Column(String(52))
-    state = Column(String(20))
     space_total = Column(Numeric(10, 0, asdecimal=False))
     space_free = Column(Numeric(10, 0, asdecimal=False))
     space_used = Column(Numeric(10, 0, asdecimal=False))
