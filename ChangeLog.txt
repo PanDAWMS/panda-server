@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * improved error message when pilot produced a wrong file
   * added changeTaskCputime
   * using Express for urgent or high prio input
   * checking metadata before closing sub datasets to avoid a rucio bug

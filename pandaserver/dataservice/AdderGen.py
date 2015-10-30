@@ -548,7 +548,7 @@ class AdderGen:
                 for tmpFile in self.job.Files:
                     tmpFile.status = 'failed'
                 self.job.ddmErrorCode = ErrorCode.EC_Adder
-                self.job.ddmErrorDiag = "pilot XML is inconsistent with filesTable"
+                self.job.ddmErrorDiag = "pilot produced {0} inconsistently with jobdef".format(lfn)
                 return 2
         # return
         self.logger.debug("parseXML end")
