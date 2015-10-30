@@ -220,7 +220,7 @@ class Configurator(threading.Thread):
         #Check for panda-site inconsistencies
         agis_panda_sites = set([self.schedconfig_dump[long_panda_site_name]['panda_resource'] for long_panda_site_name in self.schedconfig_dump])
         _logger.debug("PanDA sites in AGIS {0}".format(agis_panda_sites))
-        configurator_panda_sites = dbif.read_configurator_sites(_session)
+        configurator_panda_sites = dbif.read_configurator_panda_sites(_session)
         _logger.debug("PanDA sites in Configurator {0}".format(configurator_panda_sites))
         schedconfig_panda_sites = dbif.read_schedconfig_panda_sites(_session)
         _logger.debug("PanDA sites in Schedconfig {0}".format(schedconfig_panda_sites))
