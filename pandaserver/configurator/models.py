@@ -19,8 +19,7 @@ class Site(Base):
     __table_args__ = {u'schema': 'atlas_panda'}
 
     site_name = Column(String(52), primary_key=True)
-    role = Column(String(256))
-    state = Column(String(20)) 
+    role = Column(String(256)) 
 
 
 class PandaSite(Base):
