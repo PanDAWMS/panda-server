@@ -61,6 +61,8 @@ class Configurator(threading.Thread):
         """
         
         name = site['name']
+        state = site['rc_site_state']
+        tier_level = site['tier_level']
         
         #TODO: Think about the best way to store this information, also considering future requests
         if 'TaskNucleus' in site['datapolicies'] or site['rc_tier_level'] <= 1:
@@ -68,9 +70,7 @@ class Configurator(threading.Thread):
         else:
             role = 'satelite'
         
-        state = site['rc_site_state']
-        
-        return (name, role, state)
+        return (name, role, state, tier_level)
 
 
     def parse_endpoints(self):
@@ -105,9 +105,9 @@ class Configurator(threading.Thread):
         #Iterate the site dump
         for site in self.site_dump:
             #Add the site info to a list
-            (site_name, site_role, site_state) = self.get_site_info(site)
+            (site_name, site_role, site_state, tier_level) = self.get_site_info(site)
             if site_state == 'ACTIVE' and site_name not in included_sites:
-                sites_list.append({'site_name': site_name, 'role': site_role, 'state': site_state})
+                sites_list.append({'site_name': site_name, 'role': site_role, 'state': site_state, 'tier_level': tier_level})
                 included_sites.append(site_name)
 
             #Get the DDM endpoints for the site we are inspecting

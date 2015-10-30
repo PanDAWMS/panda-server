@@ -28,6 +28,7 @@ class PandaSite(Base):
 
     panda_site_name = Column(String(52), primary_key=True)
     site_name = Column(ForeignKey(u'atlas_panda.site.site_name', ondelete='CASCADE'))
+    tier_level = Column(Numeric(1, 0, asdecimal=False))
 
     site = relationship('Site') 
 

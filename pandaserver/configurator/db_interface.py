@@ -71,7 +71,8 @@ def write_sites_db(session, sites_list):
         for site in sites_list:
             _logger.debug("Site: {0}".format(site['site_name']))
             session.merge(Site(site_name = site['site_name'], 
-                                      role = site['role']))
+                                      role = site['role'],
+                                      tier_level = site['tier_level']))
         session.commit()
         _logger.debug("Done with write_sites_db")
     except exc.SQLAlchemyError:

@@ -2,6 +2,7 @@ create table atlas_panda.site
 (
 site_name varchar(52),
 role varchar(256),
+tier_level NUMBER(1,0),
 constraint site_name_pk primary key(site_name)
 )
 
