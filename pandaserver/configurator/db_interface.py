@@ -107,7 +107,9 @@ def write_ddm_endpoints_db(session, ddm_endpoints_list):
             session.merge(DdmEndpoint(ddm_endpoint_name = ddm_endpoint['ddm_endpoint_name'], 
                                         site_name = ddm_endpoint['site_name'], 
                                         ddm_spacetoken_name = ddm_endpoint['ddm_spacetoken_name'],
-                                        state = ddm_endpoint['state']))
+                                        state = ddm_endpoint['state'],
+                                        type = ddm_endpoint['type'],
+                                        is_tape = ddm_endpoint['is_tape']))
         session.commit()
         _logger.debug("Done with write_ddm_endpoints_db")
     except exc.SQLAlchemyError:
@@ -270,7 +272,7 @@ def delete_sites(session, sites_to_delete):
             _logger.debug('Going to delete site  --> {0}'.format(site_name))
             session.delete(site_object)
             session.commit()
-            _logger.debug('Delete site  --> {0}'.format(site_name))
+            _logger.debug('Deleted site  --> {0}'.format(site_name))
         except exc.SQLAlchemyError:
             session.rollback()
             _logger.critical('delete_sites excepted for site {0} with {1}'.format(site_name, sys.exc_info()))
@@ -287,7 +289,7 @@ def delete_panda_sites(session, panda_sites_to_delete):
             _logger.debug('Going to delete panda_site  --> {0}'.format(panda_site_name))
             session.delete(panda_site_object)
             session.commit()
-            _logger.debug('Delete panda_site  --> {0}'.format(panda_site_name))
+            _logger.debug('Deleted panda_site  --> {0}'.format(panda_site_name))
         except exc.SQLAlchemyError:
             session.rollback()
             _logger.critical('delete_panda_sites excepted for panda_site {0} with {1}'.format(panda_site_name, sys.exc_info()))
@@ -304,7 +306,7 @@ def delete_ddm_endpoitns(session, ddm_endpoints_to_delete):
             _logger.debug('Going to delete ddm_endpoint  --> {0}'.format(ddm_endpoint_name))
             session.delete(ddm_endpoint_object)
             session.commit()
-            _logger.debug('Delete ddm_endpoint  --> {0}'.format(ddm_endpoint_name))
+            _logger.debug('Deleted ddm_endpoint  --> {0}'.format(ddm_endpoint_name))
         except exc.SQLAlchemyError:
             session.rollback()
             _logger.critical('delete_ddm_endpoints excepted for ddm_endpoint {0} with {1}'.format(ddm_endpoint_name, sys.exc_info()))

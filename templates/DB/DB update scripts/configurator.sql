@@ -27,7 +27,9 @@ constraint ddm_site_fk foreign key(site_name) references atlas_panda.site(site_n
 state varchar(20),
 space_total NUMBER(11,0),
 space_free NUMBER(11,0),
-space_used NUMBER(11,0);
+space_used NUMBER(11,0),
+is_tape varchar(1),
+type varchar(20)
 )
 
 CREATE INDEX ATLAS_PANDA.ddm_endpoint_site_name ON ATLAS_PANDA.ddm_endpoint(site_name) COMPRESS 1;

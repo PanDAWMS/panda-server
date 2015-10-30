@@ -45,6 +45,8 @@ class DdmEndpoint(Base):
     space_total = Column(Numeric(10, 0, asdecimal=False))
     space_free = Column(Numeric(10, 0, asdecimal=False))
     space_used = Column(Numeric(10, 0, asdecimal=False))
+    is_tape = Column(String(1))
+    type = Column(String(20))
 
     site = relationship('Site')
 

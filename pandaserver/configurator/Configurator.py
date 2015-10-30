@@ -84,6 +84,11 @@ class Configurator(threading.Thread):
                 endpoint_token_dict[endpoint['name']] = {}
                 endpoint_token_dict[endpoint['name']]['token'] = endpoint['token']
                 endpoint_token_dict[endpoint['name']]['site_name'] = endpoint['rc_site']
+                endpoint_token_dict[endpoint['name']]['type'] = endpoint['type']
+                if endpoint['is_tape']:
+                    endpoint_token_dict[endpoint['name']]['is_tape'] = 'Y'
+                else:
+                    endpoint_token_dict[endpoint['name']]['is_tape'] = 'N'
         return endpoint_token_dict
 
 
@@ -110,12 +115,20 @@ class Configurator(threading.Thread):
                 
                 try:
                     ddm_spacetoken_name = self.endpoint_token_dict[ddm_endpoint_name]['token']
+                    ddm_endpoint_type = self.endpoint_token_dict[ddm_endpoint_name]['type']
+                    ddm_endpoint_is_tape = self.endpoint_token_dict[ddm_endpoint_name]['is_tape']
                 except KeyError:
                     ddm_spacetoken_name = None
                     
                 ddm_spacetoken_state = site['ddmendpoints'][ddm_endpoint_name]['state']
                 if ddm_spacetoken_state == 'ACTIVE':
-                    ddm_endpoints_list.append({'ddm_endpoint_name': ddm_endpoint_name, 'site_name': site_name, 'ddm_spacetoken_name': ddm_spacetoken_name, 'state': ddm_spacetoken_state})
+                    ddm_endpoints_list.append({'ddm_endpoint_name': ddm_endpoint_name, 
+                                               'site_name': site_name, 
+                                               'ddm_spacetoken_name': ddm_spacetoken_name, 
+                                               'state': ddm_spacetoken_state,
+                                               'type': ddm_endpoint_type,
+                                               'is_tape': ddm_endpoint_is_tape
+                                               })
                     _logger.debug('Added DDM endpoint {0}'.format(ddm_endpoint_name))
                 else:
                     _logger.debug('Ignored DDM endpoint {0} because of state {1}'.format(ddm_endpoint_name, ddm_spacetoken_state))
@@ -243,8 +256,7 @@ class Configurator(threading.Thread):
                 missing.append('Configurator')
             if missing:
                 _logger.error("DDM ENDPOINT inconsistency: {0} was not found in {1}".format(site, missing))
-        
-        #if hasattr(panda_config,'configurator_cleanup'):
+
         self.cleanup_configurator(agis_sites, agis_panda_sites, agis_ddm_endpoints, configurator_sites, configurator_panda_sites, configurator_ddm_endpoints)
 
 
