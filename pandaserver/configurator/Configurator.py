@@ -61,11 +61,11 @@ class Configurator(threading.Thread):
         """
         
         name = site['name']
-        state = site['rc_site_state']
+        state = site['state']
         tier_level = site['tier_level']
         
         #TODO: Think about the best way to store this information, also considering future requests
-        if 'TaskNucleus' in site['datapolicies'] or site['rc_tier_level'] <= 1:
+        if 'TaskNucleus' in site['datapolicies'] or site['tier_level'] <= 1:
             role = 'nucleus'
         else:
             role = 'satelite'
@@ -89,6 +89,9 @@ class Configurator(threading.Thread):
                     endpoint_token_dict[endpoint['name']]['is_tape'] = 'Y'
                 else:
                     endpoint_token_dict[endpoint['name']]['is_tape'] = 'N'
+            else:
+                _logger.debug('parse_endpoints: skipped endpoint {0} (type: {1}, state: {2})'.format(endpoint['name'], endpoint['type'], endpoint['state']))
+
         return endpoint_token_dict
 
 
@@ -109,6 +112,8 @@ class Configurator(threading.Thread):
             if site_state == 'ACTIVE' and site_name not in included_sites:
                 sites_list.append({'site_name': site_name, 'role': site_role, 'state': site_state, 'tier_level': tier_level})
                 included_sites.append(site_name)
+            else:
+                _logger.debug('process_site_dumps: skipped site {0} (state: {1})'.format(site_name, site_state))
 
             #Get the DDM endpoints for the site we are inspecting
             for ddm_endpoint_name in site['ddmendpoints']:
@@ -129,15 +134,16 @@ class Configurator(threading.Thread):
                                                'type': ddm_endpoint_type,
                                                'is_tape': ddm_endpoint_is_tape
                                                })
-                    _logger.debug('Added DDM endpoint {0}'.format(ddm_endpoint_name))
+                    _logger.debug('process_site_dumps: added DDM endpoint {0}'.format(ddm_endpoint_name))
                 else:
-                    _logger.debug('Ignored DDM endpoint {0} because of state {1}'.format(ddm_endpoint_name, ddm_spacetoken_state))
+                    _logger.debug('process_site_dumps: skipped DDM endpoint {0} because of state {1}'.format(ddm_endpoint_name, ddm_spacetoken_state))
 
             #Get the PanDA resources 
             for panda_resource in site['presources']:
                 for panda_site in site['presources'][panda_resource]:
                     panda_site_state = site['presources'][panda_resource][panda_site]['state']
                     if panda_site_state != 'ACTIVE':
+                        _logger.debug('process_site_dumps: skipped PanDA site {0} (state: {1})'.format(panda_site, panda_site_state))
                         continue
                     panda_site_name = panda_site
                     panda_queue_name = None
