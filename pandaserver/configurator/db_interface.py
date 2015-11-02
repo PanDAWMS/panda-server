@@ -263,6 +263,9 @@ def delete_sites(session, sites_to_delete):
     Delete sites and all dependent entries (panda_sites, ddm_endpoints, panda_ddm_relations).
     Deletion of dependent entries is done through cascade definition in models 
     """
+    if not sites_to_delete:
+        _logger.debug("delete_sites: nothing to delete")
+        return
     site_objects = session.query(Site).filter(Site.site_name.in_(sites_to_delete)).all()
     for site_object in site_objects:
         site_name = site_object.site_name
@@ -274,12 +277,16 @@ def delete_sites(session, sites_to_delete):
         except exc.SQLAlchemyError:
             session.rollback()
             _logger.critical('delete_sites excepted for site {0} with {1}'.format(site_name, sys.exc_info()))
+    return
 
 
 def delete_panda_sites(session, panda_sites_to_delete):
     """
     Delete PanDA sites and dependent entries in panda_ddm_relations 
     """
+    if not panda_sites_to_delete:
+        _logger.debug("delete_panda_sites: nothing to delete")
+        return
     panda_site_objects = session.query(PandaSite).filter(PandaSite.panda_site_name.in_(panda_sites_to_delete)).all()
     for panda_site_object in panda_site_objects:
         panda_site_name = panda_site_object.panda_site_name
@@ -297,6 +304,9 @@ def delete_ddm_endpoitns(session, ddm_endpoints_to_delete):
     """
     Delete DDM endpoints dependent entries in panda_ddm_relations
     """
+    if not ddm_endpoints_to_delete:
+        _logger.debug("delete_ddm_endpoitns: nothing to delete")
+        return
     ddm_endpoint_objects = session.query(DdmEndpoint).filter(DdmEndpoint.ddm_endpoint_name.in_(ddm_endpoints_to_delete)).all()
     for ddm_endpoint_object in ddm_endpoint_objects:
         ddm_endpoint_name = ddm_endpoint_object.ddm_endpoint_name
