@@ -1,3 +1,6 @@
+"""
+Configurator module
+"""
 import urllib2
 import json
 import time
