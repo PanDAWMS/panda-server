@@ -182,6 +182,7 @@ setup(
                'pandaserver.test.alice',
                'pandaserver.userinterface',
                'pandaserver.proxycache',
+               'pandaserver.configurator'
               ],
     package_data = {'pandaserver.server': ['.gacl']},
     data_files=[
