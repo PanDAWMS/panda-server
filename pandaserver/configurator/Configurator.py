@@ -53,6 +53,7 @@ class Configurator(threading.Thread):
             self.AGIS_URL_DDMBLACKLIST = 'http://atlas-agis-api.cern.ch/request/ddmendpointstatus/query/list/?json&fstate=OFF&activity=w'
         _logger.debug('Getting schedconfig dump...')
         self.blacklisted_endpoints = self.get_dump(self.AGIS_URL_DDMBLACKLIST).keys()
+        _logger.debug('Blacklisted endpoints {0}'.format(self.blacklisted_endpoints))
         _logger.debug('Done')
 
 
@@ -132,8 +133,10 @@ class Configurator(threading.Thread):
                     ddm_endpoint_is_tape = self.endpoint_token_dict[ddm_endpoint_name]['is_tape']
                     if ddm_spacetoken_name in self.blacklisted_endpoints:
                         ddm_endpoint_blacklisted = 'Y'
+                        _logger.debug('process_site_dumps: endpoint {0} is blacklisted'.format(ddm_endpoint_name))
                     else:
                         ddm_endpoint_blacklisted = 'N'
+                        _logger.debug('process_site_dumps: endpoint {0} is NOT blacklisted'.format(ddm_endpoint_name))
                 except KeyError:
                     continue
 

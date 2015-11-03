@@ -21,7 +21,7 @@ class Site(Base):
     site_name = Column(String(52), primary_key=True)
     role = Column(String(256))
     tier_level = Column(Numeric(1, 0, asdecimal=False))
-
+    state = Column(String(52))
 
 class PandaSite(Base):
     __tablename__ = 'panda_site'
@@ -29,7 +29,6 @@ class PandaSite(Base):
 
     panda_site_name = Column(String(52), primary_key=True)
     site_name = Column(ForeignKey(u'atlas_panda.site.site_name', ondelete='CASCADE'))
-    state = Column(String(52))
 
     site = relationship('Site') 
 
