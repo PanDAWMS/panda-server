@@ -33,8 +33,15 @@ def get_rse_usage(rse, src='srm'):
                     free = item['free']/GB
                 except:
                     free = None
+                try:
+                    space_timestamp = item['updated_at']
+                except:
+                    space_timestamp = None
                 
-                rse_usage = {'total': total, 'used': used, 'free': free}
+                rse_usage = {'total': total, 
+                             'used': used, 
+                             'free': free, 
+                             'space_timestamp': space_timestamp}
                 break
     except:
         _logger.error('{0} Excepted with: {1}'.format(method_name, sys.exc_info()))

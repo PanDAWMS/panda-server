@@ -1,6 +1,3 @@
-"""
-Configurator module
-"""
 import urllib2
 import json
 import time
@@ -48,6 +45,14 @@ class Configurator(threading.Thread):
             self.AGIS_URL_SCHEDCONFIG = 'http://atlas-agis-api.cern.ch/request/pandaqueue/query/list/?json&preset=schedconf.all&vo_name=atlas&state=ACTIVE'
         _logger.debug('Getting schedconfig dump...')
         self.schedconfig_dump = self.get_dump(self.AGIS_URL_SCHEDCONFIG)
+        _logger.debug('Done')
+
+        if hasattr(panda_config,'AGIS_URL_DDMBLACKLIST'):
+             self.AGIS_URL_DDMBLACKLIST = panda_config.AGIS_URL_DDMBLACKLIST
+        else:
+            self.AGIS_URL_DDMBLACKLIST = 'http://atlas-agis-api.cern.ch/request/ddmendpointstatus/query/list/?json&fstate=OFF&activity=w'
+        _logger.debug('Getting schedconfig dump...')
+        self.blacklisted_endpoints = self.get_dump(self.AGIS_URL_DDMBLACKLIST).keys()
         _logger.debug('Done')
 
 
@@ -125,9 +130,13 @@ class Configurator(threading.Thread):
                     ddm_spacetoken_name = self.endpoint_token_dict[ddm_endpoint_name]['token']
                     ddm_endpoint_type = self.endpoint_token_dict[ddm_endpoint_name]['type']
                     ddm_endpoint_is_tape = self.endpoint_token_dict[ddm_endpoint_name]['is_tape']
+                    if ddm_spacetoken_name in self.blacklisted_endpoints:
+                        ddm_endpoint_blacklisted = 'Y'
+                    else:
+                        ddm_endpoint_blacklisted = 'N'
                 except KeyError:
-                    ddm_spacetoken_name = None
-                    
+                    continue
+
                 ddm_spacetoken_state = site['ddmendpoints'][ddm_endpoint_name]['state']
                 if ddm_spacetoken_state == 'ACTIVE':
                     ddm_endpoints_list.append({'ddm_endpoint_name': ddm_endpoint_name, 
@@ -135,7 +144,8 @@ class Configurator(threading.Thread):
                                                'ddm_spacetoken_name': ddm_spacetoken_name, 
                                                'state': ddm_spacetoken_state,
                                                'type': ddm_endpoint_type,
-                                               'is_tape': ddm_endpoint_is_tape
+                                               'is_tape': ddm_endpoint_is_tape,
+                                               'blacklisted': ddm_endpoint_blacklisted
                                                })
                     _logger.debug('process_site_dumps: added DDM endpoint {0}'.format(ddm_endpoint_name))
                 else:

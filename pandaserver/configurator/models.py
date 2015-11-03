@@ -29,6 +29,7 @@ class PandaSite(Base):
 
     panda_site_name = Column(String(52), primary_key=True)
     site_name = Column(ForeignKey(u'atlas_panda.site.site_name', ondelete='CASCADE'))
+    state = Column(String(52))
 
     site = relationship('Site') 
 
@@ -43,8 +44,10 @@ class DdmEndpoint(Base):
     space_total = Column(Numeric(10, 0, asdecimal=False))
     space_free = Column(Numeric(10, 0, asdecimal=False))
     space_used = Column(Numeric(10, 0, asdecimal=False))
+    space_timestamp = Column(DateTime)
     is_tape = Column(String(1))
     type = Column(String(20))
+    blacklisted = Column(String(1))
 
     site = relationship('Site')
 

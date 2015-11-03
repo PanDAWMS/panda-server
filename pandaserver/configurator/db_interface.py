@@ -107,7 +107,8 @@ def write_ddm_endpoints_db(session, ddm_endpoints_list):
                                         site_name = ddm_endpoint['site_name'], 
                                         ddm_spacetoken_name = ddm_endpoint['ddm_spacetoken_name'],
                                         type = ddm_endpoint['type'],
-                                        is_tape = ddm_endpoint['is_tape']))
+                                        is_tape = ddm_endpoint['is_tape'],
+                                        blacklisted = ddm_endpoint['blacklisted']))
         session.commit()
         _logger.debug("Done with write_ddm_endpoints_db")
     except exc.SQLAlchemyError:
@@ -251,6 +252,7 @@ def update_storage(session, ddm_endpoint_name, rse_usage):
         ddm_endpoint.space_total = rse_usage['total']
         ddm_endpoint.space_free = rse_usage['free']
         ddm_endpoint.space_used = rse_usage['used']
+        ddm_endpoint.space_timestamp = rse_usage['space_timestamp']
         session.commit()
         _logger.debug("Done with update_storage")
     except exc.SQLAlchemyError:
