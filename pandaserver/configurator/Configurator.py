@@ -23,7 +23,7 @@ class Configurator(threading.Thread):
         if hasattr(panda_config,'AGIS_URL_SITES'):
             self.AGIS_URL_SITES = panda_config.AGIS_URL_SITES
         else:
-            self.AGIS_URL_SITES = 'http://atlas-agis-api.cern.ch/request/site/query/?json&vo_name=atlas'
+            self.AGIS_URL_SITES = 'http://atlas-agis-api.cern.ch/request/site/query/?json&vo_name=atlas&state=ACTIVE'
         _logger.debug('Getting site dump...')
         self.site_dump = self.get_dump(self.AGIS_URL_SITES)
         _logger.debug('Done')
@@ -31,7 +31,7 @@ class Configurator(threading.Thread):
         if hasattr(panda_config,'AGIS_URL_DDMENDPOINTS'):
              self.AGIS_URL_DDMENDPOINTS = panda_config.AGIS_URL_DDMENDPOINTS
         else:
-            self.AGIS_URL_DDMENDPOINTS = 'http://atlas-agis-api.cern.ch/request/ddmendpoint/query/list/?json'
+            self.AGIS_URL_DDMENDPOINTS = 'http://atlas-agis-api.cern.ch/request/ddmendpoint/query/list/?json&state=ACTIVE'
         _logger.debug('Getting DDM endpoints dump...')
         self.endpoint_dump = self.get_dump(self.AGIS_URL_DDMENDPOINTS)
         _logger.debug('Done')
@@ -42,7 +42,7 @@ class Configurator(threading.Thread):
         if hasattr(panda_config,'AGIS_URL_SCHEDCONFIG'):
              self.AGIS_URL_SCHEDCONFIG = panda_config.AGIS_URL_SCHEDCONFIG
         else:
-            self.AGIS_URL_SCHEDCONFIG = 'http://atlas-agis-api.cern.ch/request/pandaqueue/query/list/?json&preset=schedconf.all&vo_name=atlas'
+            self.AGIS_URL_SCHEDCONFIG = 'http://atlas-agis-api.cern.ch/request/pandaqueue/query/list/?json&preset=schedconf.all&vo_name=atlas&state=ACTIVE'
         _logger.debug('Getting schedconfig dump...')
         self.schedconfig_dump = self.get_dump(self.AGIS_URL_SCHEDCONFIG)
         _logger.debug('Done')

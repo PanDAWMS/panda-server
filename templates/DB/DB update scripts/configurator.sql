@@ -10,7 +10,6 @@ create table atlas_panda.panda_site
 (
 panda_site_name varchar(52),
 site_name varchar(52),
-role varchar(256),
 constraint panda_site_name_pk primary key(panda_site_name),
 constraint site_fk foreign key(site_name) references atlas_panda.site(site_name) on delete cascade
 )
