@@ -27,6 +27,7 @@ class Configurator(threading.Thread):
         _logger.debug('Getting site dump...')
         self.site_dump = self.get_dump(self.AGIS_URL_SITES)
         _logger.debug('Done')
+        self.site_endpoint_dict = self.get_site_endpoint_dictionary()
 
         if hasattr(panda_config,'AGIS_URL_DDMENDPOINTS'):
              self.AGIS_URL_DDMENDPOINTS = panda_config.AGIS_URL_DDMENDPOINTS
@@ -102,6 +103,17 @@ class Configurator(threading.Thread):
                 _logger.debug('parse_endpoints: skipped endpoint {0} (type: {1}, state: {2})'.format(endpoint['name'], endpoint['type'], endpoint['state']))
 
         return endpoint_token_dict
+    
+    
+    def get_site_endpoint_dictionary(self):
+        """
+        Converts the AGIS site dump into a site dictionary containint the list of DDM endpoints for each site 
+        """
+        site_to_endpoints_dict = {} 
+        for site in self.site_dump:
+            site_to_endpoints_dict[site['name']] = site['ddmendpoint'].keys()
+        
+        return site_to_endpoints_dict
 
 
     def process_site_dumps(self):
@@ -183,7 +195,9 @@ class Configurator(threading.Thread):
             
             panda_site_name = self.schedconfig_dump[long_panda_site_name]['panda_resource']
             
-            ddm_endpoints = [ddm_endpoint.strip() for ddm_endpoint in self.schedconfig_dump[long_panda_site_name]['ddm'].split(',')]
+            primary_ddm_endpoint = [ddm_endpoint.strip() for ddm_endpoint in self.schedconfig_dump[long_panda_site_name]['ddm'].split(',')][0]
+            site_name_endpoint = self.endpoint_token_dict[primary_ddm_endpoint]['site_name']
+            ddm_endpoints = self.site_endpoint_dict[site_name_endpoint]
             _logger.debug('panda_site_name: {0}. DDM endopints: {1}'.format(panda_site_name, ddm_endpoints))
             count = 0
             for ddm_endpoint_name in ddm_endpoints:
@@ -195,7 +209,6 @@ class Configurator(threading.Thread):
                         is_default = 'N'
                     
                     #Check if the ddm_endpoint and the panda_site belong to the same site
-                    site_name_endpoint = self.endpoint_token_dict[ddm_endpoint_name]['site_name']
                     site_name_pandasite = self.schedconfig_dump[long_panda_site_name]['site']
                     if site_name_endpoint == site_name_pandasite \
                         and not self.schedconfig_dump[long_panda_site_name]['resource_type'] in ['cloud', 'hpc']:
