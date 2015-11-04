@@ -21,7 +21,7 @@ class Site(Base):
     site_name = Column(String(52), primary_key=True)
     role = Column(String(256))
     tier_level = Column(Numeric(1, 0, asdecimal=False))
-
+    state = Column(String(52))
 
 class PandaSite(Base):
     __tablename__ = 'panda_site'
@@ -43,8 +43,11 @@ class DdmEndpoint(Base):
     space_total = Column(Numeric(10, 0, asdecimal=False))
     space_free = Column(Numeric(10, 0, asdecimal=False))
     space_used = Column(Numeric(10, 0, asdecimal=False))
+    space_expired = Column(Numeric(10, 0, asdecimal=False))
+    space_timestamp = Column(DateTime)
     is_tape = Column(String(1))
     type = Column(String(20))
+    blacklisted = Column(String(1))
 
     site = relationship('Site')
 

@@ -47,6 +47,15 @@ class Configurator(threading.Thread):
         self.schedconfig_dump = self.get_dump(self.AGIS_URL_SCHEDCONFIG)
         _logger.debug('Done')
 
+        if hasattr(panda_config,'AGIS_URL_DDMBLACKLIST'):
+             self.AGIS_URL_DDMBLACKLIST = panda_config.AGIS_URL_DDMBLACKLIST
+        else:
+            self.AGIS_URL_DDMBLACKLIST = 'http://atlas-agis-api.cern.ch/request/ddmendpointstatus/query/list/?json&fstate=OFF&activity=w'
+        _logger.debug('Getting schedconfig dump...')
+        self.blacklisted_endpoints = self.get_dump(self.AGIS_URL_DDMBLACKLIST).keys()
+        _logger.debug('Blacklisted endpoints {0}'.format(self.blacklisted_endpoints))
+        _logger.debug('Done')
+
 
     def get_dump(self, url):
         response = urllib2.urlopen(url)
@@ -65,7 +74,7 @@ class Configurator(threading.Thread):
         tier_level = site['tier_level']
         
         #TODO: Think about the best way to store this information, also considering future requests
-        if 'TaskNucleus' in site['datapolicies'] or site['tier_level'] <= 1:
+        if 'Nucleus' in site['datapolicies']: #or site['tier_level'] <= 1:
             role = 'nucleus'
         else:
             role = 'satelite'
@@ -122,9 +131,15 @@ class Configurator(threading.Thread):
                     ddm_spacetoken_name = self.endpoint_token_dict[ddm_endpoint_name]['token']
                     ddm_endpoint_type = self.endpoint_token_dict[ddm_endpoint_name]['type']
                     ddm_endpoint_is_tape = self.endpoint_token_dict[ddm_endpoint_name]['is_tape']
+                    if ddm_endpoint_name in self.blacklisted_endpoints:
+                        ddm_endpoint_blacklisted = 'Y'
+                        _logger.debug('process_site_dumps: endpoint {0} is blacklisted'.format(ddm_endpoint_name))
+                    else:
+                        ddm_endpoint_blacklisted = 'N'
+                        _logger.debug('process_site_dumps: endpoint {0} is NOT blacklisted'.format(ddm_endpoint_name))
                 except KeyError:
-                    ddm_spacetoken_name = None
-                    
+                    continue
+
                 ddm_spacetoken_state = site['ddmendpoints'][ddm_endpoint_name]['state']
                 if ddm_spacetoken_state == 'ACTIVE':
                     ddm_endpoints_list.append({'ddm_endpoint_name': ddm_endpoint_name, 
@@ -132,7 +147,8 @@ class Configurator(threading.Thread):
                                                'ddm_spacetoken_name': ddm_spacetoken_name, 
                                                'state': ddm_spacetoken_state,
                                                'type': ddm_endpoint_type,
-                                               'is_tape': ddm_endpoint_is_tape
+                                               'is_tape': ddm_endpoint_is_tape,
+                                               'blacklisted': ddm_endpoint_blacklisted
                                                })
                     _logger.debug('process_site_dumps: added DDM endpoint {0}'.format(ddm_endpoint_name))
                 else:

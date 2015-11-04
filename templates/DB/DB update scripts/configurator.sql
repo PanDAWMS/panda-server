@@ -25,6 +25,7 @@ constraint ddm_site_fk foreign key(site_name) references atlas_panda.site(site_n
 space_total NUMBER(11,0),
 space_free NUMBER(11,0),
 space_used NUMBER(11,0),
+space_expired NUMBER(11,0),
 is_tape varchar(1),
 type varchar(20)
 )
