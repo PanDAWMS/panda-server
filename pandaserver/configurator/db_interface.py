@@ -252,6 +252,7 @@ def update_storage(session, ddm_endpoint_name, rse_usage):
         ddm_endpoint.space_total = rse_usage['total']
         ddm_endpoint.space_free = rse_usage['free']
         ddm_endpoint.space_used = rse_usage['used']
+        ddm_endpoint.space_expired = rse_usage['expired']
         ddm_endpoint.space_timestamp = rse_usage['space_timestamp']
         session.commit()
         _logger.debug("Done with update_storage")

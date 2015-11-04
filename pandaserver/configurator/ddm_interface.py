@@ -8,7 +8,7 @@ _logger = PandaLogger().getLogger('configurator_ddm_interface')
 _client = RucioClient()
 GB = 1024**3
 
-def get_rse_usage(rse, src='srm'):
+def get_rse_usage(rse):
     """
     Gets disk usage at RSE (Rucio Storage Element)
     """
@@ -20,29 +20,32 @@ def get_rse_usage(rse, src='srm'):
         rse_usage_itr = _client.get_rse_usage(rse)
         #Look for the specified information source
         for item in rse_usage_itr:
-            if item['source'] == src:
+            if item['source'] == 'srm':
                 try:
-                    total = item['total']/GB
-                except:
-                    total = None
-                try:
-                    used = item['used']/GB
-                except:
-                    used = None
-                try:
-                    free = item['free']/GB
-                except:
-                    free = None
-                try:
-                    space_timestamp = item['updated_at']
-                except:
-                    space_timestamp = None
+                    rse_usage['total'] = item['total']/GB
+                except KeyError:
+                    rse_usage['total'] = None
                 
-                rse_usage = {'total': total, 
-                             'used': used, 
-                             'free': free, 
-                             'space_timestamp': space_timestamp}
-                break
+                try:
+                    rse_usage['used'] = item['used']/GB
+                except KeyError:
+                    rse_usage['used'] = None
+                
+                try:
+                    rse_usage['free'] = item['free']/GB
+                except KeyError:
+                    rse_usage['free'] = None
+                    
+                try:
+                    rse_usage['space_timestamp'] = item['updated_at']
+                except KeyError:
+                    rse_usage['space_timestamp'] = None
+
+            if item['source'] == 'expired':
+                try:
+                    rse_usage['expired'] = item['used']/GB
+                except KeyError:
+                    rse_usage['expired'] = None
     except:
         _logger.error('{0} Excepted with: {1}'.format(method_name, sys.exc_info()))
         return {}

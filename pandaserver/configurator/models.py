@@ -43,6 +43,7 @@ class DdmEndpoint(Base):
     space_total = Column(Numeric(10, 0, asdecimal=False))
     space_free = Column(Numeric(10, 0, asdecimal=False))
     space_used = Column(Numeric(10, 0, asdecimal=False))
+    space_expired = Column(Numeric(10, 0, asdecimal=False))
     space_timestamp = Column(DateTime)
     is_tape = Column(String(1))
     type = Column(String(20))
