@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * added nucleus stuff
   * improved error message when pilot produced a wrong file
   * added changeTaskCputime
   * using Express for urgent or high prio input

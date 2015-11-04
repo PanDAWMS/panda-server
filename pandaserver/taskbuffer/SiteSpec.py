@@ -15,7 +15,8 @@ class SiteSpec(object):
                    'countryGroup','availableCPU','pledgedCPU','coreCount','reliabilityLevel',
                    'iscvmfs','transferringlimit','maxwdir','fairsharePolicy','minmemory','maxmemory',
                    'mintime','allowfax','wansourcelimit','wansinklimit','pandasite',
-                   'sitershare','cloudrshare','corepower','wnconnectivity','catchall')
+                   'sitershare','cloudrshare','corepower','wnconnectivity','catchall',
+                   'role','pandasite_state','ddm_endpoints')
 
     # constructor
     def __init__(self):

@@ -1,5 +1,6 @@
 import re
 import sys
+import traceback
 from config import panda_config
 
 # logger
@@ -11,6 +12,8 @@ from PandaSiteIDs import PandaSiteIDs
 
 # default site
 from taskbuffer.SiteSpec import SiteSpec
+from taskbuffer.NucleusSpec import NucleusSpec
+
 defSite = SiteSpec()
 defSite.sitename   = panda_config.def_sitename
 defSite.nickname   = panda_config.def_nickname
@@ -43,6 +46,9 @@ class SiteMapper:
             
             # spec for WORLD cloud
             self.worldCloudSpec = {}
+
+            # nuclei
+            self.nuclei = {}
 
             # create CloudSpec list 
             tmpCloudListDB = taskBuffer.getCloudList()
@@ -123,6 +129,13 @@ class SiteMapper:
                             except:
                                 errtype, errvalue = sys.exc_info()[:2]
                                 _logger.error("%s memory/inputsize failuer : %s %s" % (tmpID,errtype,errvalue))
+                    # collect nuclei
+                    if ret.role == 'nucleus' and ret.type == 'production':# and worldCloudName in ret.cloudlist:
+                        if not ret.pandasite in self.nuclei:
+                            nucleus = NucleusSpec(ret.pandasite)
+                            nucleus.state = ret.pandasite_state
+                            self.nuclei[ret.pandasite] = nucleus
+                        self.nuclei[ret.pandasite].add(ret.sitename,ret.ddm_endpoints)
             # make cloudSpec
             for siteSpec in self.siteSpecList.values():
                 # choose only prod sites
@@ -175,6 +188,7 @@ class SiteMapper:
         except:
             type, value, traceBack = sys.exc_info()
             _logger.error("__init__ SiteMapper : %s %s" % (type,value))
+            _logger.error(traceback.format_exc())
         _logger.debug('__init__ SiteMapper done')
         
 

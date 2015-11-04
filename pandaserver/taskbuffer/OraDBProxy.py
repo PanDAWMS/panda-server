@@ -25,6 +25,7 @@ import CloudSpec
 import PrioUtil
 import ProcessGroups
 import EventServiceUtils
+from DdmSpec  import DdmSpec
 from JobSpec  import JobSpec
 from FileSpec import FileSpec
 from DatasetSpec import DatasetSpec
@@ -8919,6 +8920,8 @@ class DBProxy:
             for tmpItem, in tmpList:
                 if not tmpItem in cvmfsSites:
                     cvmfsSites.append(tmpItem)
+            # get DDM endpoints
+            pandaEndpointMap = self.getDdmEndpoints()
             # select
             sql = "SELECT nickname,dq2url,cloud,ddm,lfchost,se,gatekeeper,releases,memory,"
             sql+= "maxtime,status,space,retry,cmtconfig,setokens,seprodpath,glexec,"
@@ -8927,9 +8930,13 @@ class DBProxy:
             sql+= "allowdirectaccess,comment_,lastmod,multicloud,lfcregister,"
             sql+= "countryGroup,availableCPU,pledgedCPU,coreCount,transferringlimit,"
             sql+= "maxwdir,fairsharePolicy,minmemory,maxmemory,mintime,"
-            sql+= "catchall,allowfax,wansourcelimit,wansinklimit,site,"
-            sql+= "sitershare,cloudrshare,corepower,wnconnectivity,catchall "
-            sql+= "FROM ATLAS_PANDAMETA.schedconfig WHERE siteid IS NOT NULL"
+            sql+= "catchall,allowfax,wansourcelimit,wansinklimit,b.site_name,"
+            sql+= "sitershare,cloudrshare,corepower,wnconnectivity,catchall,"
+            sql+= "c.role "
+            sql+= "FROM (ATLAS_PANDAMETA.schedconfig a "
+            sql+= "LEFT JOIN ATLAS_PANDA.panda_site b ON a.siteid=b.panda_site_name) "
+            sql+= "LEFT JOIN ATLAS_PANDA.site c ON b.site_name=c.site_name "
+            sql+= "WHERE siteid IS NOT NULL "
             self.cur.arraysize = 10000            
             self.cur.execute(sql+comment)
             resList = self.cur.fetchall()
@@ -8954,7 +8961,8 @@ class DBProxy:
                        countryGroup,availableCPU,pledgedCPU,coreCount,transferringlimit, \
                        maxwdir,fairsharePolicy,minmemory,maxmemory,mintime, \
                        catchall,allowfax,wansourcelimit,wansinklimit,pandasite, \
-                       sitershare,cloudrshare,corepower,wnconnectivity,catchall \
+                       sitershare,cloudrshare,corepower,wnconnectivity,catchall, \
+                       role \
                        = resTmp
                     # skip invalid siteid
                     if siteid in [None,'']:
@@ -8986,10 +8994,12 @@ class DBProxy:
                     ret.pandasite     = pandasite
                     ret.corepower     = corepower
                     ret.catchall      = catchall
+                    ret.role          = role
                     ret.wnconnectivity = wnconnectivity
                     if ret.wnconnectivity == '':
                         ret.wnconnectivity = None
                     ret.fairsharePolicy = fairsharePolicy
+                    ret.pandasite_state = 'ACTIVE' #pandasite_state
                     # resource shares
                     ret.sitershare = None
                     """
@@ -9175,6 +9185,12 @@ class DBProxy:
                     ret.wansinklimit = 0
                     if not wansinklimit in [None,'']:
                         ret.wansinklimit = wansinklimit
+                    # DDM endpoints
+                    if siteid in pandaEndpointMap:
+                        ret.ddm_endpoints = pandaEndpointMap[siteid]
+                    else:
+                        # empty
+                        ret.ddm_endpoints = DdmSpec()
                     # append
                     retList[ret.nickname] = ret
             _logger.debug("getSiteInfo done")
@@ -9185,6 +9201,45 @@ class DBProxy:
             # roll back
             self._rollback()
             return {}
+
+
+    # get list of ddm endpoints
+    def getDdmEndpoints(self):
+        comment = ' /* DBProxy.getDdmEndpoints */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        _logger.debug("{0} start".format(methodName))
+        # get endpoints
+        sqlD  = "SELECT * FROM ATLAS_PANDA.ddm_endpoint "
+        self.cur.arraysize = 10000            
+        self.cur.execute(sqlD)
+        resD = self.cur.fetchall()
+        columNames = [i[0].lower() for i in self.cur.description]
+        endpointDict = {}
+        for tmpRes in resD:
+            tmpEP = {}
+            for columName,columVal in zip(columNames,tmpRes):
+                tmpEP[columName] = columVal
+            # ignore TEST
+            if tmpEP['type'] == 'TEST':
+                continue
+            endpointDict[tmpEP['ddm_endpoint_name']] = tmpEP
+        # get panda sites
+        sqlP  = "SELECT * FROM ATLAS_PANDA.panda_ddm_relation "
+        self.cur.execute(sqlP)
+        resP = self.cur.fetchall()
+        columNames = [i[0].lower() for i in self.cur.description]
+        pandaEndpointMap = {}
+        for tmpRes in resP:
+            tmpMap = {}
+            for columName,columVal in zip(columNames,tmpRes):
+                tmpMap[columName] = columVal
+            panda_site_name = tmpMap['panda_site_name']
+            if not panda_site_name in pandaEndpointMap:
+                pandaEndpointMap[panda_site_name] = DdmSpec()
+            pandaEndpointMap[panda_site_name].add(tmpMap,endpointDict)
+        _logger.debug("{0} done".format(methodName))
+        return pandaEndpointMap
+
 
 
     # check if countryGroup is used for beyond-pledge
@@ -10448,6 +10503,7 @@ class DBProxy:
             tmpPandaProxy = set()
             # FIXME
             tmpPandaProxy.add('AGLT2_SL6')
+            tmpPandaProxy.add('CERN-P1_preprod_MCORE')
             sql = "SELECT dn FROM ATLAS_PANDAMETA.users WHERE name=:name "
             for siteID,catchAll in resList:
                 try:
