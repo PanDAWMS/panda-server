@@ -74,7 +74,7 @@ class Configurator(threading.Thread):
         tier_level = site['tier_level']
         
         #TODO: Think about the best way to store this information, also considering future requests
-        if 'TaskNucleus' in site['datapolicies'] or site['tier_level'] <= 1:
+        if 'Nucleus' in site['datapolicies']: #or site['tier_level'] <= 1:
             role = 'nucleus'
         else:
             role = 'satelite'
