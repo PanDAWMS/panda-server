@@ -629,6 +629,8 @@ class UserIF:
                 # convert to map
                 tmpSpec = {}
                 for attr in spec._attributes:
+                    if attr in ['ddm_endpoints']:
+                        continue
                     tmpSpec[attr] = getattr(spec,attr)
                 specList[id] = tmpSpec
         # serialize

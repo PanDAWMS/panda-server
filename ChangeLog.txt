@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * fixed getSiteSpecs not to propagate ddm endpoints to clients
   * added nucleus stuff
   * improved error message when pilot produced a wrong file
   * added changeTaskCputime

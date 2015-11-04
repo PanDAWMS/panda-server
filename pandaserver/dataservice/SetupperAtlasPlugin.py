@@ -1550,10 +1550,12 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 for tmpCatURL in checkLfcSeMap.keys():  
                     # get SEs
                     tmpSEList = []
+                    tmpSiteNameList = []
                     for tmpSiteName in checkLfcSeMap[tmpCatURL].keys():
                         tmpSEList += checkLfcSeMap[tmpCatURL][tmpSiteName]
+                        tmpSiteNameList.append(tmpSiteName)
                     # get available file list
-                    self.logger.debug('checking T2 LFC=%s for %s' % (tmpCatURL,tmpSEList))
+                    self.logger.debug('checking T2 LFC=%s for %s %s' % (tmpCatURL,tmpSEList,','.join(tmpSiteNameList)))
                     bulkAvFiles = brokerage.broker_util.getFilesFromLRC(self.availableLFNsInT2[cloudKey][tmpDsName]['allfiles'],
                                                                         tmpCatURL,
                                                                         self.availableLFNsInT2[cloudKey][tmpDsName]['allguids'],
