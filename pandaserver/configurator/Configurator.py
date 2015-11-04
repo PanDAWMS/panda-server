@@ -196,11 +196,16 @@ class Configurator(threading.Thread):
             panda_site_name = self.schedconfig_dump[long_panda_site_name]['panda_resource']
             
             primary_ddm_endpoint = [ddm_endpoint.strip() for ddm_endpoint in self.schedconfig_dump[long_panda_site_name]['ddm'].split(',')][0]
-            site_name_endpoint = self.endpoint_token_dict[primary_ddm_endpoint]['site_name']
+            try:
+                site_name_endpoint = self.endpoint_token_dict[primary_ddm_endpoint]['site_name']
+            except KeyError:
+                _logger.warning("Skipped {0}, because primary associated DDM endpoint {1} not found (e.g. in TEST mode or DISABLED)".format(long_panda_site_name, primary_ddm_endpoint))
+                continue
             ddm_endpoints = self.site_endpoint_dict[site_name_endpoint]
             _logger.debug('panda_site_name: {0}. DDM endopints: {1}'.format(panda_site_name, ddm_endpoints))
             count = 0
             for ddm_endpoint_name in ddm_endpoints:
+                
                 try:
                     #The first DDM endpoint in the list should be the primary
                     if count == 0:
