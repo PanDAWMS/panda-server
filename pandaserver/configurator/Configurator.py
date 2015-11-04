@@ -111,7 +111,7 @@ class Configurator(threading.Thread):
         """
         site_to_endpoints_dict = {} 
         for site in self.site_dump:
-            site_to_endpoints_dict[site['name']] = site['ddmendpoint'].keys()
+            site_to_endpoints_dict[site['name']] = site['ddmendpoints'].keys()
         
         return site_to_endpoints_dict
 
