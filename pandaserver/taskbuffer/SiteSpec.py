@@ -84,7 +84,7 @@ class SiteSpec(object):
     def getJobSeed(self):
         tmpVal = self.getValueFromCatchall('jobseed')
         if tmpVal == None:
-            return 'all'
+            return 'std'
         return tmpVal
 
 
