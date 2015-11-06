@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * changed not to reset nooutput when pmerge is done
   * fixed getSiteSpecs not to propagate ddm endpoints to clients
   * added nucleus stuff
   * improved error message when pilot produced a wrong file

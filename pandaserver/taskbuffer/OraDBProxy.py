@@ -13171,7 +13171,8 @@ class DBProxy:
             for resJFF in resJFFs:
                 umFile = FileSpec()
                 umFile.pack(resJFF)
-                umFile.status = umJob.jobStatus
+                if not umFile.status in ['nooutput']:
+                    umFile.status = umJob.jobStatus
                 umJob.addFile(umFile)
             # finish
             _logger.debug('updateUnmerged PandaID={0}'.format(umJob.PandaID))
