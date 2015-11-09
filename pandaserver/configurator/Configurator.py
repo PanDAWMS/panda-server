@@ -126,6 +126,8 @@ class Configurator(threading.Thread):
         ddm_endpoints_list = []
         panda_sites_list = []
         
+        relationship_dict = self.process_schedconfig_dump()
+        
         #Iterate the site dump
         for site in self.site_dump:
             #Add the site info to a list
@@ -177,7 +179,20 @@ class Configurator(threading.Thread):
                     panda_queue_name = None
                     for panda_queue in site['presources'][panda_resource][panda_site]['pandaqueues']:
                         panda_queue_name = panda_queue['name']
-                    panda_sites_list.append({'panda_site_name': panda_site_name, 'panda_queue_name': panda_queue_name, 'site_name': site_name, 'state': panda_site_state})
+
+                    #Get information regarding relationship to storage
+                    relationship_info = relationship_dict[panda_site_name]
+                    default_ddm_endpoint = relationship_info['default_ddm_endpoint']
+                    storage_site = relationship_info['storage_site']
+                    is_local = relationship_info['is_local']
+
+                    panda_sites_list.append({'panda_site_name': panda_site_name,
+                                             'panda_queue_name': panda_queue_name,
+                                             'site_name': site_name,
+                                             'state': panda_site_state,
+                                             'default_ddm_endpoint': default_ddm_endpoint,
+                                             'storage_site': storage_site,
+                                             'is_local': is_local})
         
         return sites_list, panda_sites_list, ddm_endpoints_list
 
@@ -185,51 +200,36 @@ class Configurator(threading.Thread):
     def process_schedconfig_dump(self):
         """
         Gets PanDA site to DDM endpoint relationships from Schedconfig 
-        and prepares a format loadable to the DB  
+        and prepares a format loadable to the DB
         """
 
         #relationship_tuples = dbif.read_panda_ddm_relationships_schedconfig(_session) #data almost as it comes from schedconfig
-        relationships_list = [] #data to be loaded to configurator DB 
+        relationships_dict = [] #data to be loaded to configurator DB 
         
         for long_panda_site_name in self.schedconfig_dump:
             
             panda_site_name = self.schedconfig_dump[long_panda_site_name]['panda_resource']
             
-            primary_ddm_endpoint = [ddm_endpoint.strip() for ddm_endpoint in self.schedconfig_dump[long_panda_site_name]['ddm'].split(',')][0]
+            default_ddm_endpoint = [ddm_endpoint.strip() for ddm_endpoint in self.schedconfig_dump[long_panda_site_name]['ddm'].split(',')][0]
             try:
-                site_name_endpoint = self.endpoint_token_dict[primary_ddm_endpoint]['site_name']
+                storage_site = self.endpoint_token_dict[default_ddm_endpoint]['site_name']
             except KeyError:
-                _logger.warning("Skipped {0}, because primary associated DDM endpoint {1} not found (e.g. in TEST mode or DISABLED)".format(long_panda_site_name, primary_ddm_endpoint))
+                _logger.warning("Skipped {0}, because primary associated DDM endpoint {1} not found (e.g. in TEST mode or DISABLED)".format(long_panda_site_name, default_ddm_endpoint))
                 continue
-            ddm_endpoints = self.site_endpoint_dict[site_name_endpoint]
-            _logger.debug('panda_site_name: {0}. DDM endopints: {1}'.format(panda_site_name, ddm_endpoints))
-            count = 0
-            for ddm_endpoint_name in ddm_endpoints:
-                
-                try:
-                    #The first DDM endpoint in the list should be the primary
-                    if count == 0:
-                        is_default = 'Y'
-                    else:
-                        is_default = 'N'
-                    
-                    #Check if the ddm_endpoint and the panda_site belong to the same site
-                    site_name_pandasite = self.schedconfig_dump[long_panda_site_name]['site']
-                    if site_name_endpoint == site_name_pandasite \
-                        and not self.schedconfig_dump[long_panda_site_name]['resource_type'] in ['cloud', 'hpc']:
-                        is_local = 'Y'
-                    else:
-                        is_local = 'N'
-                     
-                    relationships_list.append({'panda_site_name': panda_site_name, 
-                                               'ddm_endpoint_name': ddm_endpoint_name,
-                                               'is_default': is_default,
-                                               'is_local': is_local})
-                    count += 1
-                except KeyError:
-                    _logger.debug('DDM endpoint {0} could not be found'.format(ddm_endpoint_name))
 
-        return relationships_list
+            #Check if the ddm_endpoint and the panda_site belong to the same site
+            cpu_site = self.schedconfig_dump[long_panda_site_name]['site']
+            if storage_site == cpu_site and not self.schedconfig_dump[long_panda_site_name]['resource_type'] in ['cloud', 'hpc']:
+                is_local = 'Y'
+            else:
+                is_local = 'N'
+            
+            _logger.warning("process_schedconfig_dump: long_panda_site_name {0}, panda_site_name {1}, default_ddm_endpoint {2}, storage_site {3}, is_local {4}".format(long_panda_site_name, panda_site_name, default_ddm_endpoint, storage_site, is_local))
+            relationships_dict[panda_site_name] = {'default_ddm_endpoint': default_ddm_endpoint,
+                                                    'storage_site': storage_site,
+                                                    'is_local': is_local}
+
+        return relationships_dict
 
 
     def consistency_check(self):
@@ -343,14 +343,11 @@ class Configurator(threading.Thread):
         #Get pre-processed AGIS dumps
         sites_list, panda_sites_list, ddm_endpoints_list = self.process_site_dumps()
 
-        #Get pre-processed PanDA site to DDM endpoint relationships from Schedconfig
-        relationships_list = self.process_schedconfig_dump()
-
         #Persist the information to the PanDA DB
         dbif.write_sites_db(_session, sites_list)
         dbif.write_panda_sites_db(_session, panda_sites_list)
         dbif.write_ddm_endpoints_db(_session, ddm_endpoints_list)
-        dbif.write_panda_ddm_relations(_session, relationships_list)
+        #dbif.write_panda_ddm_relations(_session, relationships_list)
         
         #Get the storage occupancy
         self.collect_rse_usage()
