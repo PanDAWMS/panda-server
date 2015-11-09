@@ -181,10 +181,16 @@ class Configurator(threading.Thread):
                         panda_queue_name = panda_queue['name']
 
                     #Get information regarding relationship to storage
-                    relationship_info = relationship_dict[panda_site_name]
-                    default_ddm_endpoint = relationship_info['default_ddm_endpoint']
-                    storage_site = relationship_info['storage_site']
-                    is_local = relationship_info['is_local']
+                    try:
+                        relationship_info = relationship_dict[panda_site_name]
+                        default_ddm_endpoint = relationship_info['default_ddm_endpoint']
+                        storage_site = relationship_info['storage_site']
+                        is_local = relationship_info['is_local']
+                    except KeyError:
+                        _logger.error('process_site_dumps: Investigate why panda_site_name {0} not in relationship_info dictionary'.format(panda_site_name))
+                        default_ddm_endpoint = None
+                        storage_site = None
+                        is_local = None
 
                     panda_sites_list.append({'panda_site_name': panda_site_name,
                                              'panda_queue_name': panda_queue_name,
