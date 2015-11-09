@@ -225,9 +225,7 @@ class Configurator(threading.Thread):
                 is_local = 'N'
             
             _logger.warning("process_schedconfig_dump: long_panda_site_name {0}, panda_site_name {1}, default_ddm_endpoint {2}, storage_site {3}, is_local {4}".format(long_panda_site_name, panda_site_name, default_ddm_endpoint, storage_site, is_local))
-            relationships_dict[panda_site_name] = {'default_ddm_endpoint': default_ddm_endpoint,
-                                                    'storage_site': storage_site,
-                                                    'is_local': is_local}
+            relationships_dict[panda_site_name] = {'default_ddm_endpoint': default_ddm_endpoint, 'storage_site': storage_site, 'is_local': is_local}
 
         return relationships_dict
 
