@@ -204,7 +204,7 @@ class Configurator(threading.Thread):
         """
 
         #relationship_tuples = dbif.read_panda_ddm_relationships_schedconfig(_session) #data almost as it comes from schedconfig
-        relationships_dict = [] #data to be loaded to configurator DB 
+        relationships_dict = {} #data to be loaded to configurator DB 
         
         for long_panda_site_name in self.schedconfig_dump:
             
@@ -224,7 +224,7 @@ class Configurator(threading.Thread):
             else:
                 is_local = 'N'
             
-            _logger.warning("process_schedconfig_dump: long_panda_site_name {0}, panda_site_name {1}, default_ddm_endpoint {2}, storage_site {3}, is_local {4}".format(long_panda_site_name, panda_site_name, default_ddm_endpoint, storage_site, is_local))
+            _logger.debug("process_schedconfig_dump: long_panda_site_name {0}, panda_site_name {1}, default_ddm_endpoint {2}, storage_site {3}, is_local {4}".format(long_panda_site_name, panda_site_name, default_ddm_endpoint, storage_site, is_local))
             relationships_dict[panda_site_name] = {'default_ddm_endpoint': default_ddm_endpoint, 'storage_site': storage_site, 'is_local': is_local}
 
         return relationships_dict
