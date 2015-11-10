@@ -1,6 +1,7 @@
 Release Notes
 
 * current
+  * added max/minrss
   * using std by default for jobSeed
   * changed not to reset nooutput when pmerge is done
   * fixed getSiteSpecs not to propagate ddm endpoints to clients
