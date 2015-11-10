@@ -78,7 +78,7 @@ class Configurator(threading.Thread):
         if 'Nucleus' in site['datapolicies']: #or site['tier_level'] <= 1:
             role = 'nucleus'
         else:
-            role = 'satelite'
+            role = 'satellite'
         
         return (name, role, state, tier_level)
 
