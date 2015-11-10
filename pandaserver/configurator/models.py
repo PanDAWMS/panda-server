@@ -33,8 +33,9 @@ class PandaSite(Base):
     default_ddm_endpoint = Column(ForeignKey(u'atlas_panda.ddm_endpoint.ddm_endpoint_name'))
     is_local = Column(String(1))
 
-    site = relationship('Site') 
-
+    site = relationship('Site', foreign_keys=site_name)
+    storage_site = relationship('Site', foreign_keys=storage_site_name)
+    default_endpoint = relationship('DdmEndpoint', foreign_keys=default_ddm_endpoint)
 
 class DdmEndpoint(Base):
     __tablename__ = 'ddm_endpoint'
