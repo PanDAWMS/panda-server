@@ -90,7 +90,7 @@ def write_panda_sites_db(session, panda_sites_list):
             session.merge(PandaSite(panda_site_name = panda_site['panda_site_name'], 
                                                  site_name = panda_site['site_name'],
                                                  default_ddm_endpoint = panda_site['default_ddm_endpoint'],
-                                                 storage_site = panda_site['storage_site'],
+                                                 storage_site_name = panda_site['storage_site_name'],
                                                  is_local = panda_site['is_local']))
         session.commit()
         _logger.debug("Done with write_panda_sites_db")
