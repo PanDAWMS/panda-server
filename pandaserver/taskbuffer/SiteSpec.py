@@ -16,7 +16,7 @@ class SiteSpec(object):
                    'iscvmfs','transferringlimit','maxwdir','fairsharePolicy','minmemory','maxmemory',
                    'mintime','allowfax','wansourcelimit','wansinklimit','pandasite',
                    'sitershare','cloudrshare','corepower','wnconnectivity','catchall',
-                   'role','pandasite_state','ddm_endpoints')
+                   'role','pandasite_state','ddm_endpoints','maxrss','minrss')
 
     # constructor
     def __init__(self):
