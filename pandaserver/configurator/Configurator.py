@@ -1,6 +1,7 @@
 import urllib2
 import json
 import time
+from datetime import datetime
 import threading
 import sys
 
@@ -10,10 +11,10 @@ from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
 import db_interface as dbif
 from configurator.models import Schedconfig
-import ddm_interface
 
 _logger = PandaLogger().getLogger('configurator')
 _session = dbif.get_session()
+GB = 1024**3
 
 class Configurator(threading.Thread):
 
@@ -55,6 +56,14 @@ class Configurator(threading.Thread):
         _logger.debug('Getting schedconfig dump...')
         self.blacklisted_endpoints = self.get_dump(self.AGIS_URL_DDMBLACKLIST).keys()
         _logger.debug('Blacklisted endpoints {0}'.format(self.blacklisted_endpoints))
+        _logger.debug('Done')
+        
+        if hasattr(panda_config,'RUCIO_RSE_USAGE'):
+             self.RUCIO_RSE_USAGE = panda_config.RUCIO_RSE_USAGE
+        else:
+            self.RUCIO_RSE_USAGE = 'https://rucio-hadoop.cern.ch/dumps/rse_usage/current.json'
+        _logger.debug('Getting Rucio RSE usage dump...')
+        self.rse_usage = self.get_dump(self.RUCIO_RSE_USAGE)
         _logger.debug('Done')
 
 
@@ -154,6 +163,22 @@ class Configurator(threading.Thread):
                 except KeyError:
                     continue
 
+                #Get the SRM space
+                try: 
+                    space_used = self.rse_usage[ddm_endpoint_name]['srm']['used']/GB
+                    space_free = self.rse_usage[ddm_endpoint_name]['srm']['free']/GB
+                    space_total = space_used + space_free
+                    space_timestamp = datetime.strptime(self.rse_usage[ddm_endpoint_name]['srm']['updated_at'], '%Y-%m-%d %H:%M:%S')
+                except KeyError:
+                    space_used, space_free, space_total, space_timestamp = None, None, None, None
+                    _logger.error('process_site_dumps: no rse SRM usage information for {0}'.format(ddm_endpoint_name))
+
+                #Get the Expired space
+                try:
+                    space_expired = self.rse_usage[ddm_endpoint_name]['expired']['used']/GB
+                except KeyError:
+                    _logger.error('process_site_dumps: no rse EXPIRED usage information for {0}'.format(ddm_endpoint_name))
+
                 ddm_spacetoken_state = site['ddmendpoints'][ddm_endpoint_name]['state']
                 if ddm_spacetoken_state == 'ACTIVE':
                     ddm_endpoints_list.append({'ddm_endpoint_name': ddm_endpoint_name, 
@@ -162,7 +187,12 @@ class Configurator(threading.Thread):
                                                'state': ddm_spacetoken_state,
                                                'type': ddm_endpoint_type,
                                                'is_tape': ddm_endpoint_is_tape,
-                                               'blacklisted': ddm_endpoint_blacklisted
+                                               'blacklisted': ddm_endpoint_blacklisted,
+                                               'space_used': space_used,
+                                               'space_free': space_free,
+                                               'space_total': space_total,
+                                               'space_expired': space_expired,
+                                               'space_timestamp': space_timestamp
                                                })
                     _logger.debug('process_site_dumps: added DDM endpoint {0}'.format(ddm_endpoint_name))
                 else:
