@@ -111,7 +111,13 @@ def write_ddm_endpoints_db(session, ddm_endpoints_list):
                                         ddm_spacetoken_name = ddm_endpoint['ddm_spacetoken_name'],
                                         type = ddm_endpoint['type'],
                                         is_tape = ddm_endpoint['is_tape'],
-                                        blacklisted = ddm_endpoint['blacklisted']))
+                                        blacklisted = ddm_endpoint['blacklisted'],
+                                        space_used = ddm_endpoint['space_used'],
+                                        space_free = ddm_endpoint['space_free'],
+                                        space_total = ddm_endpoint['space_total'],
+                                        space_expired = ddm_endpoint['space_expired'],
+                                        space_timestamp = ddm_endpoint['space_timestamp']
+                                        ))
         session.commit()
         _logger.debug("Done with write_ddm_endpoints_db")
     except exc.SQLAlchemyError:
