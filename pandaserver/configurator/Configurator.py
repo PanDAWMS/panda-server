@@ -62,7 +62,7 @@ class Configurator(threading.Thread):
         else:
             self.RUCIO_RSE_USAGE = 'https://rucio-hadoop.cern.ch/dumps/rse_usage/current.json'
         _logger.debug('Getting Rucio RSE usage dump...')
-        self.rse_usage = self.get_dump(self.RUCIO_RSE_USAGE).keys()
+        self.rse_usage = self.get_dump(self.RUCIO_RSE_USAGE)
         _logger.debug('Done')
 
 
