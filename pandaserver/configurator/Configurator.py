@@ -164,8 +164,8 @@ class Configurator(threading.Thread):
 
                 #Get the SRM space
                 try: 
-                    space_used = self.rse_usage[ddm_endpoint_name]['srm']['used']
-                    space_free = self.rse_usage[ddm_endpoint_name]['srm']['free']
+                    space_used = self.rse_usage[ddm_endpoint_name]['srm']['used']/GB
+                    space_free = self.rse_usage[ddm_endpoint_name]['srm']['free']/GB
                     space_total = space_used + space_free
                     space_timestamp = self.rse_usage[ddm_endpoint_name]['srm']['updated_at']
                 except KeyError:
@@ -174,7 +174,7 @@ class Configurator(threading.Thread):
 
                 #Get the Expired space
                 try:
-                    space_expired = self.rse_usage[ddm_endpoint_name]['expired']['used']
+                    space_expired = self.rse_usage[ddm_endpoint_name]['expired']['used']/GB
                 except KeyError:
                     _logger.error('process_site_dumps: no rse EXPIRED usage information for {0}'.format(ddm_endpoint_name))
 
