@@ -167,7 +167,7 @@ class Configurator(threading.Thread):
                     space_used = self.rse_usage[ddm_endpoint_name]['srm']['used']/GB
                     space_free = self.rse_usage[ddm_endpoint_name]['srm']['free']/GB
                     space_total = space_used + space_free
-                    space_timestamp = self.rse_usage[ddm_endpoint_name]['srm']['updated_at']
+                    space_timestamp = time.strptime(self.rse_usage[ddm_endpoint_name]['srm']['updated_at'], '%Y-%m-%d %H:%M:%S')
                 except KeyError:
                     space_used, space_free, space_total, space_timestamp = None, None, None, None
                     _logger.error('process_site_dumps: no rse SRM usage information for {0}'.format(ddm_endpoint_name))
