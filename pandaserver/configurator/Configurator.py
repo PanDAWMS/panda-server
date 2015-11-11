@@ -224,7 +224,7 @@ class Configurator(threading.Thread):
                 continue
 
             #Check if the ddm_endpoint and the panda_site belong to the same site
-            cpu_site = self.schedconfig_dump[long_panda_site_name]['site']
+            cpu_site = self.schedconfig_dump[long_panda_site_name]['atlas_site']
             if storage_site_name == cpu_site and not self.schedconfig_dump[long_panda_site_name]['resource_type'] in ['cloud', 'hpc']:
                 is_local = 'Y'
             else:
