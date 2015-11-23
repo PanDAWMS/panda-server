@@ -1,5 +1,8 @@
 Release Notes
 
+* 11/23/2015
+  * fixed pseudo files in propagateResult
+
 * current
   * added max/minrss
   * using std by default for jobSeed

@@ -12193,7 +12193,7 @@ class DBProxy:
             resPF = self.cur.fetchall()
             for tmpFileID,tmpAttemptNr,tmpRow_ID in resPF:
                 tmpFileSpec = copy.copy(rowIdSpecMap[tmpRow_ID])
-                tmpFileSpec.row_ID = tmpFileID
+                tmpFileSpec.fileID = tmpFileID
                 tmpFileSpec.attemptNr = tmpAttemptNr-1
                 pseudoFiles.append(tmpFileSpec)
             _logger.debug(methodName+' {0} pseudo files'.format(len(pseudoFiles)))
