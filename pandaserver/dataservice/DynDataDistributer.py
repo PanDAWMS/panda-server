@@ -1223,6 +1223,9 @@ class DynDataDistributer:
             return failedRet
         # import event lookup client
         if runEvtGuidMap == {}:
+            if len(runEvtList) == 0:
+                self.putLog("Empty list for run and events was provided",type='error')
+                return failedRet
             from eventLookupClientEI import eventLookupClientEI
             elssiIF = eventLookupClientEI()
             # loop over all events
