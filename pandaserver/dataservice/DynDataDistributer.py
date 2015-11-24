@@ -1241,7 +1241,7 @@ class DynDataDistributer:
                     self.putLog(tmpCom)
                     self.putLog(tmpOut)
                     self.putLog(tmpErr)
-                    self.putLog("invalid retrun from EventLookup",type='error')
+                    self.putLog("invalid retrun from EventIndex",type='error')
                     return failedRet
                 # check events
                 for runNr,evtNr in tmpRunEvtList:
@@ -1253,7 +1253,7 @@ class DynDataDistributer:
                         self.putLog(tmpCom)
                         self.putLog(tmpOut)
                         self.putLog(tmpErr)
-                        errStr = "no GUIDs were found in Event Lookup service for %s" % paramStr
+                        errStr = "no GUIDs were found in EventIndex for %s" % paramStr
                         self.putLog(errStr,type='error')
                         return fatalRet
                     # append
