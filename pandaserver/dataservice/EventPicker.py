@@ -296,8 +296,8 @@ class EventPicker:
                         # remove site
                         allCandidates.remove(tmpJob.computingSite)
                 # send email notification for success
-                tmpMsg =  'A transfer request was successfully sent to DaTRI.\n'
-                tmpMsg += 'You will receive a notification from DaTRI when it completed.'
+                tmpMsg =  'A transfer request was successfully sent to Rucio.\n'
+                tmpMsg += 'Your task will get started once transfer is completed.'
                 self.sendEmail(True,tmpMsg)
             try:
                 # unlock and delete evp file
@@ -361,7 +361,7 @@ class EventPicker:
         # message
         mailBody = "Hello,\n\nHere is your request status for event picking\n\n"
         if isSucceeded:
-            mailBody += "Status  : Passed to DaTRI\n"
+            mailBody += "Status  : Passed to Rucio\n"
         else:
             mailBody += "Status  : Failed\n"
         mailBody +=     "Created : %s\n" % self.creationTime
