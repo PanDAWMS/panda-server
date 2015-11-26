@@ -198,7 +198,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         # extract prodDBlock
         for job in self.jobs:
             # ignore failed jobs
-            if job.jobStatus in ['failed','cancelled']:
+            if job.jobStatus in ['failed','cancelled'] or job.isCancelled():
                 continue
             # production datablock
             if job.prodDBlock != 'NULL' and (not self.pandaDDM) and (not job.prodSourceLabel in ['user','panda']):
@@ -431,7 +431,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             jobsList = self.jobs[startIdx:startIdx+nJobsInLoop]
         for job in jobsList:
             # ignore failed jobs
-            if job.jobStatus in ['failed','cancelled']:
+            if job.jobStatus in ['failed','cancelled'] or job.isCancelled():
                 continue
             for file in job.Files:
                 # ignore input files
@@ -725,7 +725,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         ddmUser    = 'NULL'
         for job in self.jobs:
             # ignore failed jobs
-            if job.jobStatus in ['failed','cancelled']:
+            if job.jobStatus in ['failed','cancelled'] or job.isCancelled():
                 continue
             # ignore no dispatch jobs
             if job.dispatchDBlock=='NULL' or job.computingSite=='NULL':
@@ -1976,7 +1976,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         if len(self.jobs) == 0:
             return
         # only successful analysis
-        if self.jobs[0].jobStatus in ['failed','cancelled'] or (not self.jobs[0].prodSourceLabel in ['user','panda']):
+        if self.jobs[0].jobStatus in ['failed','cancelled'] or self.jobs[0].isCancelled() \
+                or (not self.jobs[0].prodSourceLabel in ['user','panda']):
             return
         # disable for JEDI
         if self.jobs[0].lockedby == 'jedi':
@@ -2002,7 +2003,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             if not tmpJob.prodSourceLabel in ['managed','test']:
                 continue
             # ignore inappropriate status
-            if tmpJob.jobStatus in ['failed','cancelled','waiting']:
+            if tmpJob.jobStatus in ['failed','cancelled','waiting'] or tmpJob.isCancelled():
                 continue
             # check cloud
             if (tmpJob.getCloud() == 'ND' and self.siteMapper.getSite(tmpJob.computingSite).cloud == 'ND'):
@@ -2218,7 +2219,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             if not tmpJob.prodSourceLabel in ['managed','test','user']:
                 continue
             # ignore inappropriate status
-            if tmpJob.jobStatus in ['failed','cancelled','waiting']:
+            if tmpJob.jobStatus in ['failed','cancelled','waiting'] or tmpJob.isCancelled():
                 continue
             # set lifetime
             if tmpJob.prodSourceLabel in ['managed','test']:

@@ -88,7 +88,7 @@ class AdderGen:
             # check if job has finished
             if self.job == None:
                 self.logger.debug(': job not found in DB')
-            elif self.job.jobStatus in ['finished','failed','unknown','cancelled','merging']:
+            elif self.job.jobStatus in ['finished','failed','unknown','cancelled','merging'] or self.job.isCancelled():
                 self.logger.error(': invalid state -> %s' % self.job.jobStatus)
             elif self.attemptNr != None and self.job.attemptNr != self.attemptNr:
                 self.logger.error('wrong attemptNr -> job=%s <> %s' % (self.job.attemptNr,self.attemptNr))
@@ -268,7 +268,7 @@ class AdderGen:
                 #    errtype,errvalue = sys.exc_info()[:2]
                 #    self.logger.debug("failed to increase RAM limit : %s %s" % (errtype,errvalue))
                 # setup for closer
-                if not (EventServiceUtils.isEventServiceJob(self.job) and self.job.jobStatus == 'cancelled'):
+                if not (EventServiceUtils.isEventServiceJob(self.job) and self.job.isCancelled()):
                     destDBList = []
                     guidList = []
                     for file in self.job.Files:

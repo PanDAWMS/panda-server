@@ -657,7 +657,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
                     self.job.ddmErrorDiag = "Rucio failed with %s %s" % (errType,errValue)
         # collect list of merging files
-        if self.goToMerging and not self.jobStatus in ['failed','cancelled']:
+        if self.goToMerging and not self.jobStatus in ['failed','cancelled','closed']:
             for tmpFileList in idMap.values():
                 for tmpFile in tmpFileList:
                     if not tmpFile['lfn'] in self.result.mergingFiles:
