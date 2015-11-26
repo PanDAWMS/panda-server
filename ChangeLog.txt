@@ -2,6 +2,7 @@ Release Notes
 
 * 11/26/2015
   * added jobStatus=closed
+  * changed Nucleus to remove ATLAS when getting endpoint with spacetoken
 
 * 11/23/2015
   * fixed pseudo files in propagateResult

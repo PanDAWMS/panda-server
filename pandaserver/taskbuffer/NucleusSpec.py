@@ -69,8 +69,9 @@ class NucleusSpec(object):
             # check name
             if re.search(patt,endPointName) != None:
                 return self.allDdmEndPoints[endPointName]
-            # check token
-            if self.allDdmEndPoints[endPointName]['ddm_spacetoken_name'] == patt:
+            # check type
+            pattwoVO = re.sub('ATLAS','',patt)
+            if self.allDdmEndPoints[endPointName]['type'] == pattwoVO:
                 return self.allDdmEndPoints[endPointName]
         return None
 
