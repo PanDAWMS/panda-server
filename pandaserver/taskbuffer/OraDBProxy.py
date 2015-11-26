@@ -1269,16 +1269,16 @@ class DBProxy:
                         raise RuntimeError, 'Faied to retry for Event Service'
                     elif retEvS == 0:
                         # retry event ranges
-                        job.jobStatus = 'cancelled'
-                        job.jobSubStatus = 'finished'
+                        job.jobStatus = 'closed'
+                        job.jobSubStatus = 'es_retry'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceRetried
-                        job.taskBufferErrorDiag = 'cancelled to retry unprocessed even ranges in PandaID={0}'.format(retNewPandaID)
+                        job.taskBufferErrorDiag = 'closed to retry unprocessed even ranges in PandaID={0}'.format(retNewPandaID)
                     elif retEvS == 2:
                         # goes to merging
-                        job.jobStatus = 'cancelled'
-                        job.jobSubStatus = 'finished'
+                        job.jobStatus = 'closed'
+                        job.jobSubStatus = 'es_merge'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceMerge
-                        job.taskBufferErrorDiag = 'cancelled to merge pre-merged files in PandaID={0}'.format(retNewPandaID)
+                        job.taskBufferErrorDiag = 'closed to merge pre-merged files in PandaID={0}'.format(retNewPandaID)
                         # kill unused event service consumers
                         self.killUnusedEventServiceConsumers(job,False,killAll=True)
                     elif retEvS == 3:
@@ -1291,16 +1291,16 @@ class DBProxy:
                         self.killUnusedEventServiceConsumers(job,False)
                     elif retEvS == 4:
                         # other consumers are running
-                        job.jobStatus = 'cancelled'
-                        job.jobSubStatus = 'finished'
+                        job.jobStatus = 'closed'
+                        job.jobSubStatus = 'es_wait'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceWaitOthers
                         job.taskBufferErrorDiag = 'no further action since other Event ServiceEvent Service consumers were still running'
                         # kill unused
                         self.killUnusedEventServiceConsumers(job,False)
                     elif retEvS == 5:
                         # didn't process any event ranges
-                        job.jobStatus = 'cancelled'
-                        job.jobSubStatus = 'finished'
+                        job.jobStatus = 'closed'
+                        job.jobSubStatus = 'es_inaction'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceUnprocessed
                         job.taskBufferErrorDiag = "didn't process any events on WN for Event Service"
                     elif retEvS == 6:
@@ -1385,7 +1385,7 @@ class DBProxy:
                     # collect to record state change
                     updatedJobList.append(job)
                     # update JEDI tables unless it is an ES consumer job which was successful but waits for merging or other running consumers
-                    if useJEDI and not (EventServiceUtils.isEventServiceJob(job) and job.jobStatus == 'cancelled'):
+                    if useJEDI and not (EventServiceUtils.isEventServiceJob(job) and job.isCancelled()):
                         self.propagateResultToJEDI(job,self.cur,extraInfo=extraInfo)
                 # propagate successful result to unmerge job
                 if useJEDI and job.processingType == 'pmerge' and job.jobStatus == 'finished':
@@ -3667,14 +3667,10 @@ class DBProxy:
                     job.modificationTime = currentTime
                     if code in ['2','4']:
                         # expire
-                        if code == '2':
-                            job.taskBufferErrorCode = ErrorCode.EC_Expire
-                            job.taskBufferErrorDiag = 'expired after 7 days since submission'
-                        else:
-                            # waiting timeout 
-                            job.taskBufferErrorCode = ErrorCode.EC_Expire
-                            #job.taskBufferErrorCode = ErrorCode.EC_WaitTimeout
-                            job.taskBufferErrorDiag = 'expired after waiting for input data for 2 days'
+                        job.jobStatus = 'closed'
+                        jobSpec.jobSubStatus = 'toreassign'
+                        job.taskBufferErrorCode = ErrorCode.EC_Expire
+                        job.taskBufferErrorDiag = 'expired in {0}. status unchanged since {1}'.format(oldJobStatus,str(job.stateChangeTime))
                     elif code=='3':
                         # aborted
                         job.taskBufferErrorCode = ErrorCode.EC_Aborted
@@ -3690,14 +3686,17 @@ class DBProxy:
                         job.taskBufferErrorDiag = user
                     elif code=='51':
                         # reassigned by JEDI
+                        job.jobStatus = 'closed'
+                        jobSpec.jobSubStatus = 'toreassign'
                         job.taskBufferErrorCode = ErrorCode.EC_Kill
                         job.taskBufferErrorDiag = 'reassigned by JEDI'
                     else:
                         # killed
                         job.taskBufferErrorCode = ErrorCode.EC_Kill
                         job.taskBufferErrorDiag = 'killed by %s' % user
-                    # set job status    
-                    job.jobStatus = 'cancelled'
+                    # set job status
+                    if job.jobStatus != 'closed':
+                        job.jobStatus = 'cancelled'
                 else:
                     # keep status for failed jobs
                     job.modificationTime = datetime.datetime.utcnow()
@@ -4036,7 +4035,7 @@ class DBProxy:
                                 tmp_jobDefinitionID,tmp_jobsetID,tmp_startTime,tmp_endTime \
                                 in resJobs:
                             # collect active jobs
-                            if not tmp_jobStatus in ['finished','failed','cancelled']:
+                            if not tmp_jobStatus in ['finished','failed','cancelled','closed']:
                                 activeExpressU.append((tmp_PandaID,tmp_jobsetID,tmp_jobDefinitionID))
                             # get time usage
                             if not tmp_jobStatus in ['defined','activated']:
@@ -5020,7 +5019,7 @@ class DBProxy:
                             errMsg = "could not find buildJob=%s in database" % buildJobPandaID
                     # check status
                     if errMsg != '':
-                        if not buildJobStatus in ['defined','activated','finished','cancelled']:
+                        if not buildJobStatus in ['defined','activated','finished','cancelled','closed']:
                             errMsg = "status of buildJob is '%s' != defined/activated/finished/cancelled so that jobs cannot be reassigned" \
                                      % buildJobStatus
             # get max/min PandaIDs using the libDS
@@ -5041,7 +5040,7 @@ class DBProxy:
             if errMsg == '':
                 # buildJob has already finished
                 timeLimit = datetime.datetime.utcnow()-datetime.timedelta(days=6)
-                if buildJobStatus in ['finished','cancelled'] and buildCreationTime < timeLimit:
+                if buildJobStatus in ['finished','cancelled','closed'] and buildCreationTime < timeLimit:
                     errMsg = "corresponding buildJob %s is too old %s" % (buildJobPandaID,buildCreationTime.strftime('%Y-%m-%d %H:%M:%S'))
             # check modificationTime
             if errMsg == '':
@@ -5634,7 +5633,7 @@ class DBProxy:
                 table = 'ATLAS_PANDA.jobsWaiting4'
             elif param['jobStatus'] in ['activated','sent','starting','running','holding','transferring']:
                 table = 'ATLAS_PANDA.jobsActive4'
-            elif param['jobStatus'] in ['finished','failed','cancelled']:
+            elif param['jobStatus'] in ['finished','failed','cancelled','closed']:
                 table = 'ATLAS_PANDA.jobsArchived4'
             else:
                 _logger.error("invalid status %s" % param['jobStatus'])
@@ -6798,7 +6797,7 @@ class DBProxy:
                         subDSpandaIDmap[subDataset] = []
                     for tmpPandaID in tmpPandaIDs:
                         # reuse failed files if jobs are in Archived since they cannot change back to active
-                        if checkedPandaIDs[tmpPandaID] in ['failed','cancelled']:
+                        if checkedPandaIDs[tmpPandaID] in ['failed','cancelled','closed']:
                             continue
                         # collect PandaIDs
                         subDSpandaIDmap[subDataset].append(tmpPandaID)
@@ -6906,7 +6905,7 @@ class DBProxy:
                         if len(resP) != 0:
                             checkedPandaIDs[pandaID], = resP[0]
                             # reuse failed files if jobs are in Archived since they cannot change back to active
-                            if checkedPandaIDs[pandaID] in ['failed','cancelled']:
+                            if checkedPandaIDs[pandaID] in ['failed','cancelled','closed']:
                                 continue
                             # collect PandaIDs
                             subDSpandaIDmap[subDataset].append(pandaID)
@@ -12211,11 +12210,11 @@ class DBProxy:
             varMap[':datasetID']  = fileSpec.datasetID
             varMap[':jediTaskID'] = jobSpec.jediTaskID
             # no attemptNr check for premerge since attemptNr can be incremented by pmerge
-            if not (jobSpec.jobStatus == 'cancelled' and fileSpec.isUnMergedOutput()):
+            if not (jobSpec.isCancelled() and fileSpec.isUnMergedOutput()):
                 varMap[':attemptNr']  = fileSpec.attemptNr
             sqlFileStat  = "SELECT status FROM ATLAS_PANDA.JEDI_Dataset_Contents "
             sqlFileStat += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-            if not (jobSpec.jobStatus == 'cancelled' and fileSpec.isUnMergedOutput()):
+            if not (jobSpec.isCancelled() and fileSpec.isUnMergedOutput()):
                 sqlFileStat += "AND attemptNr=:attemptNr "
             sqlFileStat += "FOR UPDATE "
             if not waitLock:
@@ -12240,7 +12239,7 @@ class DBProxy:
             varMap[':datasetID']  = fileSpec.datasetID
             varMap[':keepTrack']  = 1
             varMap[':jediTaskID'] = jobSpec.jediTaskID
-            if not (jobSpec.jobStatus == 'cancelled' and fileSpec.isUnMergedOutput()):
+            if not (jobSpec.isCancelled() and fileSpec.isUnMergedOutput()):
                 varMap[':attemptNr']  = fileSpec.attemptNr
             # set file status
             if fileSpec.type in ['input','pseudo_input']:
@@ -12256,7 +12255,11 @@ class DBProxy:
                     if jobSpec.jobStatus == 'failed':
                         updateFailedAttempt = True
             else:
-                varMap[':status'] = jobSpec.jobStatus
+                if jobSpec.isCancelled():
+                    # use only cancelled for all flavors
+                    varMap[':status'] = 'cancelled'
+                else:
+                    varMap[':status'] = jobSpec.jobStatus
                 if fileSpec.status == 'nooutput':
                     varMap[':status'] = fileSpec.status
                 elif jobSpec.jobStatus == 'finished':
@@ -12316,7 +12319,7 @@ class DBProxy:
                     sqlFile += ",maxAttempt=attemptNr+3"
             sqlFile += " WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
             sqlFile += "AND keepTrack=:keepTrack "
-            if not (jobSpec.jobStatus == 'cancelled' and fileSpec.isUnMergedOutput()):
+            if not (jobSpec.isCancelled() and fileSpec.isUnMergedOutput()):
                 sqlFile += "AND attemptNr=:attemptNr "    
             _logger.debug(methodName+' '+sqlFile+comment+str(varMap))
             cur.execute(sqlFile+comment,varMap)
@@ -12411,8 +12414,8 @@ class DBProxy:
                 if fileSpec.type in ['input','pseudo_input']:
                     if oldJobStatus == 'transferring':
                         datasetContentsStat[datasetID]['nFilesOnHold'] -= 1
-                # killed dring merging
-                if jobSpec.jobStatus == 'cancelled' and oldJobStatus == 'merging' and fileSpec.isUnMergedOutput():
+                # killed during merging
+                if jobSpec.isCancelled() and oldJobStatus == 'merging' and fileSpec.isUnMergedOutput():
                     # get corresponding sub
                     varMap = {}
                     varMap[':pandaID']    = jobSpec.PandaID
@@ -13163,7 +13166,7 @@ class DBProxy:
             umJob = JobSpec()
             umJob.pack(resJFJ)
             umJob.jobStatus = job.jobStatus
-            if umJob.jobStatus in ['failed','cancelled']:
+            if umJob.jobStatus in ['failed'] or umJob.isCancelled():
                 umJob.taskBufferErrorCode = ErrorCode.EC_MergeFailed
                 umJob.taskBufferErrorDiag = "merge job {0}".format(umJob.jobStatus)
             # read files
@@ -14613,8 +14616,8 @@ class DBProxy:
                 if retD == 0:
                     continue
                 # set error code
-                dJob.jobStatus = 'cancelled'
-                dJob.jobSubStatus = 'finished'
+                dJob.jobStatus = 'closed'
+                dJob.jobSubStatus = 'es_killed'
                 dJob.endTime   = datetime.datetime.utcnow()
                 if killedFlag:
                     dJob.taskBufferErrorCode = ErrorCode.EC_EventServiceKillOK
@@ -14763,8 +14766,8 @@ class DBProxy:
                     if not deletedFlag:
                         continue
                     # set error code
-                    dJob.jobStatus = 'cancelled'
-                    dJob.jobSubStatus = 'finished'
+                    dJob.jobStatus = 'closed'
+                    dJob.jobSubStatus = 'es_unused'
                     dJob.endTime   = datetime.datetime.utcnow()
                     dJob.taskBufferErrorCode = ErrorCode.EC_EventServiceUnused
                     dJob.taskBufferErrorDiag = 'killed since all event ranges were processed by other consumers while waiting in the queue'

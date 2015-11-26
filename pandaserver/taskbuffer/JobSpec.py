@@ -357,3 +357,9 @@ class JobSpec(object):
                 if tmpItem.startswith('hc:'):
                     return tmpItem.split(':')[-1]
         return self.cloud
+
+
+    # check if cancelled or it's flavor
+    def isCancelled(self):
+        return self.jobStatus in ['cancelled','closed']
+
