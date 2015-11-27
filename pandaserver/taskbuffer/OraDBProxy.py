@@ -1269,13 +1269,13 @@ class DBProxy:
                         raise RuntimeError, 'Faied to retry for Event Service'
                     elif retEvS == 0:
                         # retry event ranges
-                        job.jobStatus = 'closed'
+                        job.jobStatus = 'cancelled'
                         job.jobSubStatus = 'es_retry'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceRetried
                         job.taskBufferErrorDiag = 'closed to retry unprocessed even ranges in PandaID={0}'.format(retNewPandaID)
                     elif retEvS == 2:
                         # goes to merging
-                        job.jobStatus = 'closed'
+                        job.jobStatus = 'cancelled'
                         job.jobSubStatus = 'es_merge'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceMerge
                         job.taskBufferErrorDiag = 'closed to merge pre-merged files in PandaID={0}'.format(retNewPandaID)
@@ -1291,7 +1291,7 @@ class DBProxy:
                         self.killUnusedEventServiceConsumers(job,False)
                     elif retEvS == 4:
                         # other consumers are running
-                        job.jobStatus = 'closed'
+                        job.jobStatus = 'cancelled'
                         job.jobSubStatus = 'es_wait'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceWaitOthers
                         job.taskBufferErrorDiag = 'no further action since other Event ServiceEvent Service consumers were still running'
@@ -1299,7 +1299,7 @@ class DBProxy:
                         self.killUnusedEventServiceConsumers(job,False)
                     elif retEvS == 5:
                         # didn't process any event ranges
-                        job.jobStatus = 'closed'
+                        job.jobStatus = 'cancelled'
                         job.jobSubStatus = 'es_inaction'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceUnprocessed
                         job.taskBufferErrorDiag = "didn't process any events on WN for Event Service"
@@ -3667,7 +3667,7 @@ class DBProxy:
                     job.modificationTime = currentTime
                     if code in ['2','4']:
                         # expire
-                        job.jobStatus = 'closed'
+                        job.jobStatus = 'cancelled'
                         jobSpec.jobSubStatus = 'toreassign'
                         job.taskBufferErrorCode = ErrorCode.EC_Expire
                         job.taskBufferErrorDiag = 'expired in {0}. status unchanged since {1}'.format(oldJobStatus,str(job.stateChangeTime))
@@ -3686,7 +3686,7 @@ class DBProxy:
                         job.taskBufferErrorDiag = user
                     elif code=='51':
                         # reassigned by JEDI
-                        job.jobStatus = 'closed'
+                        job.jobStatus = 'cancelled'
                         jobSpec.jobSubStatus = 'toreassign'
                         job.taskBufferErrorCode = ErrorCode.EC_Kill
                         job.taskBufferErrorDiag = 'reassigned by JEDI'
@@ -14616,7 +14616,7 @@ class DBProxy:
                 if retD == 0:
                     continue
                 # set error code
-                dJob.jobStatus = 'closed'
+                dJob.jobStatus = 'cancelled'
                 dJob.jobSubStatus = 'es_killed'
                 dJob.endTime   = datetime.datetime.utcnow()
                 if killedFlag:
@@ -14766,7 +14766,7 @@ class DBProxy:
                     if not deletedFlag:
                         continue
                     # set error code
-                    dJob.jobStatus = 'closed'
+                    dJob.jobStatus = 'cancelled'
                     dJob.jobSubStatus = 'es_unused'
                     dJob.endTime   = datetime.datetime.utcnow()
                     dJob.taskBufferErrorCode = ErrorCode.EC_EventServiceUnused
