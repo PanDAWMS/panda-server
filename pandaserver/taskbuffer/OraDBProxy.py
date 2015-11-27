@@ -3668,7 +3668,7 @@ class DBProxy:
                     if code in ['2','4']:
                         # expire
                         job.jobStatus = 'cancelled'
-                        jobSpec.jobSubStatus = 'toreassign'
+                        job.jobSubStatus = 'toreassign'
                         job.taskBufferErrorCode = ErrorCode.EC_Expire
                         job.taskBufferErrorDiag = 'expired in {0}. status unchanged since {1}'.format(oldJobStatus,str(job.stateChangeTime))
                     elif code=='3':
@@ -3687,7 +3687,7 @@ class DBProxy:
                     elif code=='51':
                         # reassigned by JEDI
                         job.jobStatus = 'cancelled'
-                        jobSpec.jobSubStatus = 'toreassign'
+                        job.jobSubStatus = 'toreassign'
                         job.taskBufferErrorCode = ErrorCode.EC_Kill
                         job.taskBufferErrorDiag = 'reassigned by JEDI'
                     else:
