@@ -1,5 +1,8 @@
 Release Notes
 
+* 11/30/2015
+  * added a protection for late insert of metadata
+
 * 11/26/2015
   * added jobStatus=closed
   * changed Nucleus to remove ATLAS when getting endpoint with spacetoken

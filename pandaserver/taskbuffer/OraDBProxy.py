@@ -5662,8 +5662,11 @@ class DBProxy:
 
     # add metadata
     def addMetadata(self,pandaID,metadata):
-        comment = ' /* DBProxy.addMetaData */'        
-        _logger.debug("addMetaData : %s" % pandaID)
+        comment = ' /* DBProxy.addMetaData */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger,methodName+" <PandaID={0}>".format(pandaID))
+        tmpLog.debug("start")
+        sqlJ = "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
         sql0 = "SELECT PandaID FROM ATLAS_PANDA.metaTable WHERE PandaID=:PandaID"        
         sql1 = "INSERT INTO ATLAS_PANDA.metaTable (PandaID,metaData) VALUES (:PandaID,:metaData)"
         nTry=3        
@@ -5671,6 +5674,21 @@ class DBProxy:
             try:
                 # autocommit on
                 self.conn.begin()
+                self.cur.arraysize = 10
+                # check job status
+                varMap = {}
+                varMap[':PandaID'] = pandaID
+                self.cur.execute(sqlJ+comment, varMap)
+                resJ = self.cur.fetchone()
+                if resJ != None:
+                    jobStatus, = resJ
+                else:
+                    jobStatus = 'unknown'
+                if jobStatus in ['unknown']:
+                    tmpLog.debug("skip jobStatus={0}".format(jobStatus))
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+                    return False
                 # select
                 varMap = {}
                 varMap[':PandaID'] = pandaID
@@ -5679,6 +5697,7 @@ class DBProxy:
                 res = self.cur.fetchone()
                 # already exist
                 if res != None:
+                    tmpLog.debug("skip duplicated during jobStatus={0}".format(jobStatus))
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
                     return True
@@ -5690,16 +5709,16 @@ class DBProxy:
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
+                tmpLog.debug("done in jobStatus={0}".format(jobStatus))
                 return True
             except:
                 # roll back
                 self._rollback()
                 if iTry+1 < nTry:
-                    _logger.debug("addMetaData : %s retry : %s" % (pandaID,iTry))
+                    tmpLog.debug("retry : %s" % iTry)
                     time.sleep(random.randint(10,20))
                     continue
-                type, value, traceBack = sys.exc_info()
-                _logger.error("addMetaData : %s %s" % (type,value))
+                self.dumpErrorMessage(_logger,methodName)
                 return False
 
 
