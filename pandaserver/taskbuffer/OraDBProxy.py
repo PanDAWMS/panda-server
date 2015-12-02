@@ -326,7 +326,7 @@ class DBProxy:
             # check input
             if useJEDI:
                 allInputOK = True
-                sqlCheckJediFile  = "SELECT status,keepTrack,attemptNr "
+                sqlCheckJediFile  = "SELECT status,keepTrack,attemptNr,type "
                 sqlCheckJediFile += "FROM ATLAS_PANDA.JEDI_Dataset_Contents "
                 sqlCheckJediFile += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                 sqlCheckJediFile += "FOR UPDATE "
@@ -347,9 +347,12 @@ class DBProxy:
                         allInputOK = False
                         _logger.debug("insertNewJob : input check failed - missing jediTaskID:%s datasetID=%s fileID=%s" % (file.jediTaskID,file.datasetID,file.fileID))
                         break
-                    tmpStatus,tmpKeepTrack,tmpAttemptNr = retFC
+                    tmpStatus,tmpKeepTrack,tmpAttemptNr,tmpType = retFC
                     # only keep track
                     if tmpKeepTrack != 1:
+                        continue
+                    # ignore lib
+                    if tmpType in ['lib']:
                         continue
                     # check attemptNr
                     if tmpAttemptNr != file.attemptNr:
