@@ -232,6 +232,8 @@ class DBProxy:
     def insertNewJob(self,job,user,serNum,weight=0.0,priorityOffset=0,userVO=None,groupJobSN=0,toPending=False,
                      origEsJob=False,eventServiceInfo=None,oldPandaIDs=None,relationType=None):
         comment = ' /* DBProxy.insertNewJob */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += ' <JediTaskID={0}>'.format(job.jediTaskID)
         if not toPending:
             sql1 = "INSERT INTO ATLAS_PANDA.jobsDefined4 (%s) " % JobSpec.columnNames()
         else:
@@ -297,6 +299,12 @@ class DBProxy:
                 if job.maxAttempt <= job.attemptNr:    
                     job.maxAttempt = job.attemptNr + 2    
         try:
+            # use JEDI
+            if hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and \
+                    job.lockedby == 'jedi':
+                useJEDI = True
+            else:
+                useJEDI = False
             # begin transaction
             self.conn.begin()
             # get jobsetID for event service
@@ -315,6 +323,51 @@ class DBProxy:
                     sql2 = """ SELECT LAST_INSERT_ID() """
                     self.cur.execute(sql2 + comment, {})
                     job.jobsetID, = self.cur.fetchone()
+            # check input
+            if useJEDI:
+                allInputOK = True
+                sqlCheckJediFile  = "SELECT status,keepTrack,attemptNr "
+                sqlCheckJediFile += "FROM ATLAS_PANDA.JEDI_Dataset_Contents "
+                sqlCheckJediFile += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+                sqlCheckJediFile += "FOR UPDATE "
+                for file in job.Files:
+                    # skip if no JEDI
+                    if file.fileID == 'NULL':
+                        continue
+                    # only input
+                    if not file.type in ['input','pseudo_input']:
+                        continue
+                    varMap = {}
+                    varMap[':fileID'] = file.fileID
+                    varMap[':datasetID']  = file.datasetID
+                    varMap[':jediTaskID'] = file.jediTaskID
+                    self.cur.execute(sqlCheckJediFile+comment, varMap)
+                    retFC = self.cur.fetchone()
+                    if retFC == None:
+                        allInputOK = False
+                        _logger.debug("insertNewJob : input check failed - missing jediTaskID:%s datasetID=%s fileID=%s" % (file.jediTaskID,file.datasetID,file.fileID))
+                        break
+                    tmpStatus,tmpKeepTrack,tmpAttemptNr = retFC
+                    # only keep track
+                    if tmpKeepTrack != 1:
+                        continue
+                    # check attemptNr
+                    if tmpAttemptNr != file.attemptNr:
+                        allInputOK = False
+                        _logger.debug("insertNewJob : input check failed - bad attemptNr %s:%s jediTaskID:%s datasetID=%s fileID=%s" % (tmpAttemptNr,file.attemptNr,
+                                                                                                                                        file.jediTaskID,file.datasetID,file.fileID))
+                        break
+                    # check status
+                    if tmpStatus != 'picked':
+                        allInputOK = False
+                        _logger.debug("insertNewJob : input check failed - bad status %s jediTaskID:%s datasetID=%s fileID=%s" % (tmpStatus,
+                                                                                                                                  file.jediTaskID,file.datasetID,file.fileID))
+                        break
+                if not allInputOK:
+                    # commit
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+                    return False
             # insert job
             varMap = job.valuesMap(useSeq=True)
             varMap[':newPandaID'] = self.cur.var(varNUMBER)
@@ -369,10 +422,6 @@ class DBProxy:
             sqlFile = "INSERT INTO ATLAS_PANDA.filesTable4 (%s) " % FileSpec.columnNames()
             sqlFile+= FileSpec.bindValuesExpression(useSeq=True)
             sqlFile+= " RETURNING row_ID INTO :newRowID"
-            useJEDI = False
-            if hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and \
-                    job.lockedby == 'jedi' and self.checkTaskStatusJEDI(job.jediTaskID,self.cur):
-                useJEDI = True
             dynNumEvents = EventServiceUtils.isDynNumEventsSH(job.specialHandling)
             dynFileMap = {}
             dynLfnIdMap = {}
@@ -555,10 +604,10 @@ class DBProxy:
                 _logger.error('recordStatusChange in insertNewJob')
             return True
         except:
-            type, value, traceBack = sys.exc_info()
-            _logger.error("insertNewJob : jediTaskID:%s %s %s" % (job.jediTaskID,type,value))
             # roll back
             self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
             return False
 
 

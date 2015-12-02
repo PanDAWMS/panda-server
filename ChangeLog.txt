@@ -1,5 +1,8 @@
 Release Notes
 
+* 12/2/2015
+  * added a protection in insertNewJob to avoid duplicated input usage
+
 * 11/30/2015
   * added a protection for late insert of metadata
 
