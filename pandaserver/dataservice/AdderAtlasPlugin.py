@@ -17,7 +17,8 @@ import ErrorCode
 from dq2.clientapi import DQ2
 from dq2.filecatalog.FileCatalogUnknownFactory import FileCatalogUnknownFactory
 from dq2.filecatalog.FileCatalogException import FileCatalogException
-from rucio.common.exception import FileConsistencyMismatch,DataIdentifierNotFound,UnsupportedOperation,InvalidPath,RSENotFound
+from rucio.common.exception import FileConsistencyMismatch,DataIdentifierNotFound,UnsupportedOperation,\
+    InvalidPath,RSENotFound,InsufficientAccountLimit
 
 from DDM import rucioAPI,dq2Common,dq2Info
 
@@ -38,6 +39,7 @@ from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
 from AdderPluginBase import AdderPluginBase
 from taskbuffer import EventServiceUtils
+from MailUtils import MailUtils
 import DataServiceUtils
 
    
@@ -632,12 +634,16 @@ class AdderAtlasPlugin (AdderPluginBase):
                 try:
                     status,tmpDN = dq2Common.parse_dn(tmpDN)
                     status,strUserInfo = dq2Info.finger(tmpDN)
+                    userInfo = None
+                    userEPs = []
                     exec "userInfo=%s" % strUserInfo
                     # loop over all output datasets
                     for tmpDsName,dq2IDlist in tmpTopDatasets.iteritems():
                         for tmpDQ2ID in dq2IDlist:
                             if tmpDQ2ID == 'NULL':
                                 continue
+                            if not tmpDQ2ID in userEPs:
+                                userEPs.append(tmpDQ2ID)
                             # use group account for group.*
                             if tmpDsName.startswith('group') and not self.job.workingGroup in ['','NULL',None]:
                                 tmpDN = self.job.workingGroup
@@ -650,6 +656,16 @@ class AdderAtlasPlugin (AdderPluginBase):
                     # set dataset status
                     for tmpName,tmpVal in subMap.iteritems():
                         self.datasetMap[tmpName].status = 'running'
+                except InsufficientAccountLimit as (errType,errValue):
+                    tmpMsg = "Rucio failed to make subscriptions at {0} since {1}".format(','.join(userEPs),errType[0])
+                    self.logger.error(tmpMsg)
+                    self.job.ddmErrorCode = ErrorCode.EC_Adder
+                    self.job.ddmErrorDiag = "Rucio failed with {0}".format(errType[0])
+                    # set dataset status
+                    for tmpName,tmpVal in subMap.iteritems():
+                        self.datasetMap[tmpName].status = 'running'
+                    if userInfo != None:
+                        self.sendEmail(userInfo['email'],tmpMsg,self.job.jediTaskID)
                 except:
                     errType,errValue = sys.exc_info()[:2]
                     tmpMsg = "registerDatasetLocation failed with %s %s" % (errType,errValue)
@@ -793,3 +809,17 @@ class AdderAtlasPlugin (AdderPluginBase):
             newDestList.append(newDest)
         # return
         return newDestList
+
+
+
+    # send email notification
+    def sendEmail(self,toAdder,message,jediTaskID):
+        # subject
+        mailSubject = "PANDA warning for TaskID:{0} with --destSE".format(jediTaskID)
+        # message
+        mailBody = "Hello,\n\nTaskID:{0} cannot process the --destSE request\n\n".format(jediTaskID)
+        mailBody +=     "Reason : %s\n" % message
+        # send
+        retVal = MailUtils().send(toAdder,mailSubject,mailBody)
+        # return
+        return

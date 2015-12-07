@@ -1,5 +1,10 @@
 Release Notes
 
+* 12/7/2015
+  * inroduced jobStatus=closed
+  * changed Adder to send notification when --destSE doesn't work
+
+
 * 12/2/2015
   * added a protection in insertNewJob to avoid duplicated input usage
 
