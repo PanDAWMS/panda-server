@@ -29,9 +29,13 @@ class PandaSite(Base):
 
     panda_site_name = Column(String(52), primary_key=True)
     site_name = Column(ForeignKey(u'atlas_panda.site.site_name', ondelete='CASCADE'))
+    storage_site_name = Column(ForeignKey(u'atlas_panda.site.site_name'))
+    default_ddm_endpoint = Column(ForeignKey(u'atlas_panda.ddm_endpoint.ddm_endpoint_name'))
+    is_local = Column(String(1))
 
-    site = relationship('Site') 
-
+    site = relationship('Site', foreign_keys=site_name)
+    storage_site = relationship('Site', foreign_keys=storage_site_name)
+    default_endpoint = relationship('DdmEndpoint', foreign_keys=default_ddm_endpoint)
 
 class DdmEndpoint(Base):
     __tablename__ = 'ddm_endpoint'
@@ -52,17 +56,17 @@ class DdmEndpoint(Base):
     site = relationship('Site')
 
 
-class PandaDdmRelation(Base):
-    __tablename__ = 'panda_ddm_relation'
-    __table_args__ = {u'schema': 'atlas_panda'}
-
-    panda_site_name = Column(ForeignKey(u'atlas_panda.panda_site.panda_site_name', ondelete='CASCADE'), primary_key=True, nullable=False)
-    ddm_endpoint_name = Column(ForeignKey(u'atlas_panda.ddm_endpoint.ddm_endpoint_name', ondelete='CASCADE'), primary_key=True, nullable=False)
-    is_local = Column(String(1))
-    is_default = Column(String(1))
-    
-    panda_site = relationship('PandaSite')
-    ddm_endpoint = relationship('DdmEndpoint')
+# class PandaDdmRelation(Base):
+#     __tablename__ = 'panda_ddm_relation'
+#     __table_args__ = {u'schema': 'atlas_panda'}
+# 
+#     panda_site_name = Column(ForeignKey(u'atlas_panda.panda_site.panda_site_name', ondelete='CASCADE'), primary_key=True, nullable=False)
+#     ddm_endpoint_name = Column(ForeignKey(u'atlas_panda.ddm_endpoint.ddm_endpoint_name', ondelete='CASCADE'), primary_key=True, nullable=False)
+#     is_local = Column(String(1))
+#     is_default = Column(String(1))
+#     
+#     panda_site = relationship('PandaSite')
+#     ddm_endpoint = relationship('DdmEndpoint')
 
 
 class Schedconfig(Base):

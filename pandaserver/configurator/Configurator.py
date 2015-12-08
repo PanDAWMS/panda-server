@@ -1,6 +1,7 @@
 import urllib2
 import json
 import time
+from datetime import datetime
 import threading
 import sys
 
@@ -10,10 +11,10 @@ from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
 import db_interface as dbif
 from configurator.models import Schedconfig
-import ddm_interface
 
 _logger = PandaLogger().getLogger('configurator')
 _session = dbif.get_session()
+GB = 1024**3
 
 class Configurator(threading.Thread):
 
@@ -27,6 +28,7 @@ class Configurator(threading.Thread):
         _logger.debug('Getting site dump...')
         self.site_dump = self.get_dump(self.AGIS_URL_SITES)
         _logger.debug('Done')
+        self.site_endpoint_dict = self.get_site_endpoint_dictionary()
 
         if hasattr(panda_config,'AGIS_URL_DDMENDPOINTS'):
              self.AGIS_URL_DDMENDPOINTS = panda_config.AGIS_URL_DDMENDPOINTS
@@ -55,6 +57,14 @@ class Configurator(threading.Thread):
         self.blacklisted_endpoints = self.get_dump(self.AGIS_URL_DDMBLACKLIST).keys()
         _logger.debug('Blacklisted endpoints {0}'.format(self.blacklisted_endpoints))
         _logger.debug('Done')
+        
+        if hasattr(panda_config,'RUCIO_RSE_USAGE'):
+             self.RUCIO_RSE_USAGE = panda_config.RUCIO_RSE_USAGE
+        else:
+            self.RUCIO_RSE_USAGE = 'https://rucio-hadoop.cern.ch/dumps/rse_usage/current.json'
+        _logger.debug('Getting Rucio RSE usage dump...')
+        self.rse_usage = self.get_dump(self.RUCIO_RSE_USAGE)
+        _logger.debug('Done')
 
 
     def get_dump(self, url):
@@ -77,7 +87,7 @@ class Configurator(threading.Thread):
         if 'Nucleus' in site['datapolicies']: #or site['tier_level'] <= 1:
             role = 'nucleus'
         else:
-            role = 'satelite'
+            role = 'satellite'
         
         return (name, role, state, tier_level)
 
@@ -102,6 +112,17 @@ class Configurator(threading.Thread):
                 _logger.debug('parse_endpoints: skipped endpoint {0} (type: {1}, state: {2})'.format(endpoint['name'], endpoint['type'], endpoint['state']))
 
         return endpoint_token_dict
+    
+    
+    def get_site_endpoint_dictionary(self):
+        """
+        Converts the AGIS site dump into a site dictionary containint the list of DDM endpoints for each site 
+        """
+        site_to_endpoints_dict = {} 
+        for site in self.site_dump:
+            site_to_endpoints_dict[site['name']] = site['ddmendpoints'].keys()
+        
+        return site_to_endpoints_dict
 
 
     def process_site_dumps(self):
@@ -113,6 +134,8 @@ class Configurator(threading.Thread):
         included_sites = []
         ddm_endpoints_list = []
         panda_sites_list = []
+        
+        relationship_dict = self.process_schedconfig_dump()
         
         #Iterate the site dump
         for site in self.site_dump:
@@ -140,6 +163,22 @@ class Configurator(threading.Thread):
                 except KeyError:
                     continue
 
+                #Get the SRM space
+                try: 
+                    space_used = self.rse_usage[ddm_endpoint_name]['srm']['used']/GB
+                    space_free = self.rse_usage[ddm_endpoint_name]['srm']['free']/GB
+                    space_total = space_used + space_free
+                    space_timestamp = datetime.strptime(self.rse_usage[ddm_endpoint_name]['srm']['updated_at'], '%Y-%m-%d %H:%M:%S')
+                except KeyError:
+                    space_used, space_free, space_total, space_timestamp = None, None, None, None
+                    _logger.error('process_site_dumps: no rse SRM usage information for {0}'.format(ddm_endpoint_name))
+
+                #Get the Expired space
+                try:
+                    space_expired = self.rse_usage[ddm_endpoint_name]['expired']['used']/GB
+                except KeyError:
+                    _logger.error('process_site_dumps: no rse EXPIRED usage information for {0}'.format(ddm_endpoint_name))
+
                 ddm_spacetoken_state = site['ddmendpoints'][ddm_endpoint_name]['state']
                 if ddm_spacetoken_state == 'ACTIVE':
                     ddm_endpoints_list.append({'ddm_endpoint_name': ddm_endpoint_name, 
@@ -148,7 +187,12 @@ class Configurator(threading.Thread):
                                                'state': ddm_spacetoken_state,
                                                'type': ddm_endpoint_type,
                                                'is_tape': ddm_endpoint_is_tape,
-                                               'blacklisted': ddm_endpoint_blacklisted
+                                               'blacklisted': ddm_endpoint_blacklisted,
+                                               'space_used': space_used,
+                                               'space_free': space_free,
+                                               'space_total': space_total,
+                                               'space_expired': space_expired,
+                                               'space_timestamp': space_timestamp
                                                })
                     _logger.debug('process_site_dumps: added DDM endpoint {0}'.format(ddm_endpoint_name))
                 else:
@@ -165,7 +209,26 @@ class Configurator(threading.Thread):
                     panda_queue_name = None
                     for panda_queue in site['presources'][panda_resource][panda_site]['pandaqueues']:
                         panda_queue_name = panda_queue['name']
-                    panda_sites_list.append({'panda_site_name': panda_site_name, 'panda_queue_name': panda_queue_name, 'site_name': site_name, 'state': panda_site_state})
+
+                    #Get information regarding relationship to storage
+                    try:
+                        relationship_info = relationship_dict[panda_site_name]
+                        default_ddm_endpoint = relationship_info['default_ddm_endpoint']
+                        storage_site_name = relationship_info['storage_site_name']
+                        is_local = relationship_info['is_local']
+                    except KeyError:
+                        _logger.error('process_site_dumps: Investigate why panda_site_name {0} not in relationship_info dictionary'.format(panda_site_name))
+                        default_ddm_endpoint = None
+                        storage_site_name = None
+                        is_local = None
+
+                    panda_sites_list.append({'panda_site_name': panda_site_name,
+                                             'panda_queue_name': panda_queue_name,
+                                             'site_name': site_name,
+                                             'state': panda_site_state,
+                                             'default_ddm_endpoint': default_ddm_endpoint,
+                                             'storage_site_name': storage_site_name,
+                                             'is_local': is_local})
         
         return sites_list, panda_sites_list, ddm_endpoints_list
 
@@ -173,45 +236,34 @@ class Configurator(threading.Thread):
     def process_schedconfig_dump(self):
         """
         Gets PanDA site to DDM endpoint relationships from Schedconfig 
-        and prepares a format loadable to the DB  
+        and prepares a format loadable to the DB
         """
 
         #relationship_tuples = dbif.read_panda_ddm_relationships_schedconfig(_session) #data almost as it comes from schedconfig
-        relationships_list = [] #data to be loaded to configurator DB 
+        relationships_dict = {} #data to be loaded to configurator DB 
         
         for long_panda_site_name in self.schedconfig_dump:
             
             panda_site_name = self.schedconfig_dump[long_panda_site_name]['panda_resource']
             
-            ddm_endpoints = [ddm_endpoint.strip() for ddm_endpoint in self.schedconfig_dump[long_panda_site_name]['ddm'].split(',')]
-            _logger.debug('panda_site_name: {0}. DDM endopints: {1}'.format(panda_site_name, ddm_endpoints))
-            count = 0
-            for ddm_endpoint_name in ddm_endpoints:
-                try:
-                    #The first DDM endpoint in the list should be the primary
-                    if count == 0:
-                        is_default = 'Y'
-                    else:
-                        is_default = 'N'
-                    
-                    #Check if the ddm_endpoint and the panda_site belong to the same site
-                    site_name_endpoint = self.endpoint_token_dict[ddm_endpoint_name]['site_name']
-                    site_name_pandasite = self.schedconfig_dump[long_panda_site_name]['site']
-                    if site_name_endpoint == site_name_pandasite \
-                        and not self.schedconfig_dump[long_panda_site_name]['resource_type'] in ['cloud', 'hpc']:
-                        is_local = 'Y'
-                    else:
-                        is_local = 'N'
-                     
-                    relationships_list.append({'panda_site_name': panda_site_name, 
-                                               'ddm_endpoint_name': ddm_endpoint_name,
-                                               'is_default': is_default,
-                                               'is_local': is_local})
-                    count += 1
-                except KeyError:
-                    _logger.debug('DDM endpoint {0} could not be found'.format(ddm_endpoint_name))
+            default_ddm_endpoint = [ddm_endpoint.strip() for ddm_endpoint in self.schedconfig_dump[long_panda_site_name]['ddm'].split(',')][0]
+            try:
+                storage_site_name = self.endpoint_token_dict[default_ddm_endpoint]['site_name']
+            except KeyError:
+                _logger.warning("Skipped {0}, because primary associated DDM endpoint {1} not found (e.g. in TEST mode or DISABLED)".format(long_panda_site_name, default_ddm_endpoint))
+                continue
 
-        return relationships_list
+            #Check if the ddm_endpoint and the panda_site belong to the same site
+            cpu_site = self.schedconfig_dump[long_panda_site_name]['atlas_site']
+            if storage_site_name == cpu_site and not self.schedconfig_dump[long_panda_site_name]['resource_type'] in ['cloud', 'hpc']:
+                is_local = 'Y'
+            else:
+                is_local = 'N'
+            
+            _logger.debug("process_schedconfig_dump: long_panda_site_name {0}, panda_site_name {1}, default_ddm_endpoint {2}, storage_site_name {3}, is_local {4}".format(long_panda_site_name, panda_site_name, default_ddm_endpoint, storage_site_name, is_local))
+            relationships_dict[panda_site_name] = {'default_ddm_endpoint': default_ddm_endpoint, 'storage_site_name': storage_site_name, 'is_local': is_local}
+
+        return relationships_dict
 
 
     def consistency_check(self):
@@ -325,14 +377,11 @@ class Configurator(threading.Thread):
         #Get pre-processed AGIS dumps
         sites_list, panda_sites_list, ddm_endpoints_list = self.process_site_dumps()
 
-        #Get pre-processed PanDA site to DDM endpoint relationships from Schedconfig
-        relationships_list = self.process_schedconfig_dump()
-
         #Persist the information to the PanDA DB
         dbif.write_sites_db(_session, sites_list)
         dbif.write_panda_sites_db(_session, panda_sites_list)
         dbif.write_ddm_endpoints_db(_session, ddm_endpoints_list)
-        dbif.write_panda_ddm_relations(_session, relationships_list)
+        #dbif.write_panda_ddm_relations(_session, relationships_list)
         
         #Get the storage occupancy
         self.collect_rse_usage()

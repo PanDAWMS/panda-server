@@ -11,7 +11,7 @@ from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
 
 #Configurator libraries
-from models import Site, PandaSite, DdmEndpoint, PandaDdmRelation, Schedconfig
+from models import Site, PandaSite, DdmEndpoint, Schedconfig #, PandaDdmRelation
 
 #Read connection parameters
 __host = panda_config.dbhost
@@ -88,7 +88,10 @@ def write_panda_sites_db(session, panda_sites_list):
         _logger.debug("Starting write_panda_sites_db")
         for panda_site in panda_sites_list:
             session.merge(PandaSite(panda_site_name = panda_site['panda_site_name'], 
-                                                 site_name = panda_site['site_name']))
+                                                 site_name = panda_site['site_name'],
+                                                 default_ddm_endpoint = panda_site['default_ddm_endpoint'],
+                                                 storage_site_name = panda_site['storage_site_name'],
+                                                 is_local = panda_site['is_local']))
         session.commit()
         _logger.debug("Done with write_panda_sites_db")
     except exc.SQLAlchemyError:
@@ -108,7 +111,13 @@ def write_ddm_endpoints_db(session, ddm_endpoints_list):
                                         ddm_spacetoken_name = ddm_endpoint['ddm_spacetoken_name'],
                                         type = ddm_endpoint['type'],
                                         is_tape = ddm_endpoint['is_tape'],
-                                        blacklisted = ddm_endpoint['blacklisted']))
+                                        blacklisted = ddm_endpoint['blacklisted'],
+                                        space_used = ddm_endpoint['space_used'],
+                                        space_free = ddm_endpoint['space_free'],
+                                        space_total = ddm_endpoint['space_total'],
+                                        space_expired = ddm_endpoint['space_expired'],
+                                        space_timestamp = ddm_endpoint['space_timestamp']
+                                        ))
         session.commit()
         _logger.debug("Done with write_ddm_endpoints_db")
     except exc.SQLAlchemyError:
@@ -140,26 +149,26 @@ def read_panda_ddm_relationships_schedconfig(session):
         return []
 
 
-def write_panda_ddm_relations(session, relationships_list):
-    """
-    Cache the AGIS ddm endpoints in the PanDA database
-    """
-    _logger.debug("Starting write_panda_ddm_relations")
-    for relationship in relationships_list:
-        try:
-            session.merge(PandaDdmRelation(panda_site_name = relationship['panda_site_name'],
-                                           ddm_endpoint_name = relationship['ddm_endpoint_name'],
-                                           is_default = relationship['is_default'],
-                                           is_local = relationship['is_local']))
-            session.commit()
-        except exc.IntegrityError:
-            session.rollback()
-            _logger.error('write_panda_ddm_relations: Could not persist information for relationship {0}. Exception: {1}'.format((relationship['panda_site_name'],
-                                                                                                           relationship['ddm_endpoint_name'],
-                                                                                                           relationship['is_default'])
-                                                                                                          , sys.exc_info()))
-        
-    _logger.debug("Done with write_panda_ddm_relations")
+# def write_panda_ddm_relations(session, relationships_list):
+#     """
+#     Cache the AGIS ddm endpoints in the PanDA database
+#     """
+#     _logger.debug("Starting write_panda_ddm_relations")
+#     for relationship in relationships_list:
+#         try:
+#             session.merge(PandaDdmRelation(panda_site_name = relationship['panda_site_name'],
+#                                            ddm_endpoint_name = relationship['ddm_endpoint_name'],
+#                                            is_default = relationship['is_default'],
+#                                            is_local = relationship['is_local']))
+#             session.commit()
+#         except exc.IntegrityError:
+#             session.rollback()
+#             _logger.error('write_panda_ddm_relations: Could not persist information for relationship {0}. Exception: {1}'.format((relationship['panda_site_name'],
+#                                                                                                            relationship['ddm_endpoint_name'],
+#                                                                                                            relationship['is_default'])
+#                                                                                                           , sys.exc_info()))
+#         
+#     _logger.debug("Done with write_panda_ddm_relations")
 
 
 def read_configurator_sites(session):
