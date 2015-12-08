@@ -326,46 +326,47 @@ class DBProxy:
             # check input
             if useJEDI:
                 allInputOK = True
-                sqlCheckJediFile  = "SELECT status,keepTrack,attemptNr,type "
-                sqlCheckJediFile += "FROM ATLAS_PANDA.JEDI_Dataset_Contents "
-                sqlCheckJediFile += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-                sqlCheckJediFile += "FOR UPDATE "
-                for file in job.Files:
-                    # skip if no JEDI
-                    if file.fileID == 'NULL':
-                        continue
-                    # only input
-                    if not file.type in ['input','pseudo_input']:
-                        continue
-                    varMap = {}
-                    varMap[':fileID'] = file.fileID
-                    varMap[':datasetID']  = file.datasetID
-                    varMap[':jediTaskID'] = file.jediTaskID
-                    self.cur.execute(sqlCheckJediFile+comment, varMap)
-                    retFC = self.cur.fetchone()
-                    if retFC == None:
-                        allInputOK = False
-                        _logger.debug("insertNewJob : input check failed - missing jediTaskID:%s datasetID=%s fileID=%s" % (file.jediTaskID,file.datasetID,file.fileID))
-                        break
-                    tmpStatus,tmpKeepTrack,tmpAttemptNr,tmpType = retFC
-                    # only keep track
-                    if tmpKeepTrack != 1:
-                        continue
-                    # ignore lib
-                    if tmpType in ['lib']:
-                        continue
-                    # check attemptNr
-                    if tmpAttemptNr != file.attemptNr:
-                        allInputOK = False
-                        _logger.debug("insertNewJob : input check failed - bad attemptNr %s:%s jediTaskID:%s datasetID=%s fileID=%s" % (tmpAttemptNr,file.attemptNr,
-                                                                                                                                        file.jediTaskID,file.datasetID,file.fileID))
-                        break
-                    # check status
-                    if tmpStatus != 'picked':
-                        allInputOK = False
-                        _logger.debug("insertNewJob : input check failed - bad status %s jediTaskID:%s datasetID=%s fileID=%s" % (tmpStatus,
-                                                                                                                                  file.jediTaskID,file.datasetID,file.fileID))
-                        break
+                if eventServiceInfo == None or eventServiceInfo == {} or origEsJob:
+                    sqlCheckJediFile  = "SELECT status,keepTrack,attemptNr,type "
+                    sqlCheckJediFile += "FROM ATLAS_PANDA.JEDI_Dataset_Contents "
+                    sqlCheckJediFile += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+                    sqlCheckJediFile += "FOR UPDATE "
+                    for file in job.Files:
+                        # skip if no JEDI
+                        if file.fileID == 'NULL':
+                            continue
+                        # only input
+                        if not file.type in ['input','pseudo_input']:
+                            continue
+                        varMap = {}
+                        varMap[':fileID'] = file.fileID
+                        varMap[':datasetID']  = file.datasetID
+                        varMap[':jediTaskID'] = file.jediTaskID
+                        self.cur.execute(sqlCheckJediFile+comment, varMap)
+                        retFC = self.cur.fetchone()
+                        if retFC == None:
+                            allInputOK = False
+                            _logger.debug("insertNewJob : input check failed - missing jediTaskID:%s datasetID=%s fileID=%s" % (file.jediTaskID,file.datasetID,file.fileID))
+                            break
+                        tmpStatus,tmpKeepTrack,tmpAttemptNr,tmpType = retFC
+                        # only keep track
+                        if tmpKeepTrack != 1:
+                            continue
+                        # ignore lib
+                        if tmpType in ['lib']:
+                            continue
+                        # check attemptNr
+                        if tmpAttemptNr != file.attemptNr:
+                            allInputOK = False
+                            _logger.debug("insertNewJob : input check failed - bad attemptNr %s:%s jediTaskID:%s datasetID=%s fileID=%s" % (tmpAttemptNr,file.attemptNr,
+                                                                                                                                            file.jediTaskID,file.datasetID,file.fileID))
+                            break
+                        # check status
+                        if tmpStatus != 'picked':
+                            allInputOK = False
+                            _logger.debug("insertNewJob : input check failed - bad status %s jediTaskID:%s datasetID=%s fileID=%s" % (tmpStatus,
+                                                                                                                                      file.jediTaskID,file.datasetID,file.fileID))
+                            break
                 if not allInputOK:
                     # commit
                     if not self._commit():

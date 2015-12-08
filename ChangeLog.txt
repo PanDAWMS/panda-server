@@ -1,5 +1,8 @@
 Release Notes
 
+* 12/8/2015
+  * fixed input duplication check for multiple consumers
+
 * 12/7/2015
   * inroduced jobStatus=closed
   * changed Adder to send notification when --destSE doesn't work
