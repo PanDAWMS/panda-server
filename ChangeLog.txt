@@ -2,6 +2,7 @@ Release Notes
 
 * 12/8/2015
   * fixed input duplication check for multiple consumers
+  * using DISK for tape prestaging for analysis
 
 * 12/7/2015
   * inroduced jobStatus=closed

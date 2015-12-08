@@ -879,16 +879,14 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         dq2ID = dstDQ2ID
                         # prestaging
                         if srcDQ2ID == dstDQ2ID and not missingAtT1:
-                            # stage-in callback
-                            optSub['DATASET_STAGED_EVENT'] = ['http://%s:%s/server/panda/datasetCompleted' % \
-                                                              (panda_config.pserverhosthttp,panda_config.pserverporthttp)]
                             # look for associated tape endpoints for analysis
                             if job.prodSourceLabel in ['user','panda']:
-                                tmpEndPoints = DataServiceUtils.getAssociatedTapeEndPoints(srcDQ2ID,toa,self.replicaMap[job.dispatchDBlock])
-                                for tmpEndPoint in tmpEndPoints:
-                                    dq2ID = tmpEndPoint
-                                    optSource[tmpEndPoint] = {'policy' : 0}
-                            else:    
+                                # use SCRATCHDISK for pre-staging
+                                self.logger.debug('use {0} for tape prestaging'.format(dq2ID))
+                            else:
+                                # stage-in callback
+                                optSub['DATASET_STAGED_EVENT'] = ['http://%s:%s/server/panda/datasetCompleted' % \
+                                                                      (panda_config.pserverhosthttp,panda_config.pserverporthttp)]
                                 # use ATLAS*TAPE
                                 seTokens = self.siteMapper.getSite(tmpDstID).setokens
                                 if seTokens.has_key('ATLASDATATAPE') and seTokens.has_key('ATLASMCTAPE'):
