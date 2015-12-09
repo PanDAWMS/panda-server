@@ -9284,7 +9284,7 @@ class DBProxy:
         # get endpoints
         sqlD  = "SELECT * FROM ATLAS_PANDA.ddm_endpoint "
         self.cur.arraysize = 10000            
-        self.cur.execute(sqlD)
+        self.cur.execute(sqlD+comment)
         resD = self.cur.fetchall()
         columNames = [i[0].lower() for i in self.cur.description]
         endpointDict = {}
@@ -9297,8 +9297,11 @@ class DBProxy:
                 continue
             endpointDict[tmpEP['ddm_endpoint_name']] = tmpEP
         # get panda sites
-        sqlP  = "SELECT * FROM ATLAS_PANDA.panda_ddm_relation "
-        self.cur.execute(sqlP)
+        sqlP  = "SELECT ps.panda_site_name,de.ddm_endpoint_name,ps.is_local,"
+        sqlP += "CASE WHEN de.ddm_endpoint_name=ps.default_ddm_endpoint THEN 'Y' ELSE 'N' END is_default "
+        sqlP += "FROM ATLAS_PANDA.panda_site ps,ATLAS_PANDA.ddm_endpoint de "
+        sqlP += "WHERE ps.storage_site_name=de.site_name "
+        self.cur.execute(sqlP+comment)
         resP = self.cur.fetchall()
         columNames = [i[0].lower() for i in self.cur.description]
         pandaEndpointMap = {}
@@ -14689,12 +14692,13 @@ class DBProxy:
                     continue
                 # set error code
                 dJob.jobStatus = 'closed'
-                dJob.jobSubStatus = 'es_killed'
                 dJob.endTime   = datetime.datetime.utcnow()
                 if killedFlag:
+                    dJob.jobSubStatus = 'es_killed'
                     dJob.taskBufferErrorCode = ErrorCode.EC_EventServiceKillOK
                     dJob.taskBufferErrorDiag = 'killed since an associated consumer PandaID={0} was killed'.format(job.PandaID)
                 else:
+                    dJob.jobSubStatus = 'es_aborted'
                     dJob.taskBufferErrorCode = ErrorCode.EC_EventServiceKillNG
                     dJob.taskBufferErrorDiag = 'killed since an associated consumer PandaID={0} failed'.format(job.PandaID)
                 dJob.modificationTime = dJob.endTime
