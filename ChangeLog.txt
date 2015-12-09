@@ -1,6 +1,7 @@
 Release Notes
 
 * 12/9/2014
+  * changed AtlasAdder so that jobs don't go to transferring if only log
   * removed panda_ddm_relation
 
 * 12/8/2015

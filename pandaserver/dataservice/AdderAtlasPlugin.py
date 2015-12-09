@@ -112,6 +112,13 @@ class AdderAtlasPlugin (AdderPluginBase):
                 # set fatal error code and return
                 self.result.setFatal()
                 return
+            # check if the job has something to transfer
+            somethingToTranfer = False
+            for file in self.job.Files:
+                if file.type == 'output' or file.type == 'log':
+                    if DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) == None:
+                        somethingToTranfer = True
+                        break
             self.logger.debug('DDM src:%s dst:%s' % (tmpSrcDDM,tmpDstDDM))
             self.logger.debug('SE src:%s dst:%s' % (tmpSrcSEs,tmpDstSEs))
             if re.search('^ANALY_',self.job.computingSite) != None:
@@ -140,8 +147,12 @@ class AdderAtlasPlugin (AdderPluginBase):
                     and not EventServiceUtils.isJobCloningJob(self.job):
                 # transfer only log file for normal ES jobs 
                 self.logTransferring = True
+            elif not somethingToTranfer:
+                # nothing to transfer
+                pass
             else:
                 self.goToTransferring = True
+            self.logger.debug('somethingToTranfer={0}'.format(somethingToTranfer))
             self.logger.debug('goToTransferring=%s' % self.goToTransferring)
             self.logger.debug('logTransferring=%s' % self.logTransferring)
             self.logger.debug('goToMerging=%s' % self.goToMerging)
