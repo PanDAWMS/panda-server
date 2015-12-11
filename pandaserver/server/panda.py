@@ -123,8 +123,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
         methodName = ''
         if environ.has_key('SCRIPT_NAME'):
             methodName = environ['SCRIPT_NAME'].split('/')[-1]
-        if panda_config.entryVerbose:
-            _logger.debug("PID=%s %s in" % (os.getpid(),methodName))
+        _logger.debug("PID=%s %s start" % (os.getpid(),methodName))
         regStart = datetime.datetime.utcnow()
         # check method name    
         if not methodName in allowedMethods:
@@ -142,23 +141,23 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                 _logger.error("PID=%s %s is undefined" % (os.getpid(),methodName))
                 exeRes = "False"
             else:
-                # get params 
-                tmpPars = cgi.FieldStorage(environ['wsgi.input'], environ=environ,
-                                           keep_blank_values=1)
-                # convert to map
-                params = {}
-                for tmpKey in tmpPars.keys():
-                    if tmpPars[tmpKey].file != None and tmpPars[tmpKey].filename != None:
-                        # file
-                        params[tmpKey] = tmpPars[tmpKey]
-                    else:
-                        # string
-                        params[tmpKey] = tmpPars.getfirst(tmpKey)
-                if panda_config.entryVerbose:
-                    _logger.debug("PID=%s %s with %s" % (os.getpid(),methodName,str(params.keys())))
-                # dummy request object
-                dummyReq = DummyReq(environ)
                 try:
+                    # get params 
+                    tmpPars = cgi.FieldStorage(environ['wsgi.input'], environ=environ,
+                                               keep_blank_values=1)
+                    # convert to map
+                    params = {}
+                    for tmpKey in tmpPars.keys():
+                        if tmpPars[tmpKey].file != None and tmpPars[tmpKey].filename != None:
+                            # file
+                            params[tmpKey] = tmpPars[tmpKey]
+                        else:
+                            # string
+                            params[tmpKey] = tmpPars.getfirst(tmpKey)
+                    if panda_config.entryVerbose:
+                        _logger.debug("PID=%s %s with %s" % (os.getpid(),methodName,str(params.keys())))
+                    # dummy request object
+                    dummyReq = DummyReq(environ)
                     # exec
                     exeRes = apply(tmpMethod,[dummyReq],params)
                     # convert bool to string
@@ -177,9 +176,10 @@ if panda_config.useFastCGI or panda_config.useWSGI:
         if panda_config.entryVerbose:
             _logger.debug("PID=%s %s out" % (os.getpid(),methodName))
         regTime = datetime.datetime.utcnow() - regStart
-        _logger.debug("%s exec time: %s.%03d sec, return len: %s B" % (methodName,regTime.seconds,
-                                                                       regTime.microseconds/1000,
-                                                                       len(str(exeRes))))
+        _logger.debug("PID=%s %s exec time: %s.%03d sec, return len: %s B" % (os.getpid(),
+                                                                              methodName,regTime.seconds,
+                                                                              regTime.microseconds/1000,
+                                                                              len(str(exeRes))))
         # return
         if exeRes == taskbuffer.ErrorCode.EC_NotFound:
             start_response('404 Not Found', [('Content-Type', 'text/plain')])

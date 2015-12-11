@@ -1,5 +1,8 @@
 Release Notes
 
+* 12/12/2014
+  * added protection in panda.py for cgi exception
+
 * 12/9/2014
   * changed AtlasAdder so that jobs don't go to transferring if only log
   * removed panda_ddm_relation
