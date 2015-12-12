@@ -165,10 +165,10 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                         exeRes = str(exeRes)
                 except:
                     errType,errValue = sys.exc_info()[:2]
+                    _logger.error("execution failure : %s %s" % (errType,errValue))
                     errStr = ""
                     for tmpKey,tmpVal in environ.iteritems():
                         errStr += "%s : %s\n" % (tmpKey,str(tmpVal))
-                    _logger.error("execution failure : %s %s" % (errType,errValue))
                     _logger.error(errStr)
                     # return internal server error
                     start_response('500 INTERNAL SERVER ERROR', [('Content-Type', 'text/plain')]) 

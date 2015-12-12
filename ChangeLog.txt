@@ -1,6 +1,7 @@
 Release Notes
 
 * 12/12/2014
+  * killing pending jobs in small chunks to avoid timeout
   * added protection in panda.py for cgi exception
 
 * 12/9/2014

@@ -967,8 +967,13 @@ if res != None:
         jobs.append(id)
 # kill
 if len(jobs):
-    Client.killJobs(jobs,4)
-    _logger.debug("killJobs for Pending (%s)" % str(jobs))
+    if len(jobs):
+        nJob = 100
+        iJob = 0
+        while iJob < len(jobs):
+            _logger.debug("killJobs for Pending (%s)" % str(jobs[iJob:iJob+nJob]))
+            Client.killJobs(jobs[iJob:iJob+nJob],4)
+            iJob += nJob
 
 # kill too long waiting jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=1)
