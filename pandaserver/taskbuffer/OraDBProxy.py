@@ -11726,18 +11726,21 @@ class DBProxy:
 
         
     # peek at job 
-    def peekJobLog(self,pandaID):
+    def peekJobLog(self,pandaID,days=None):
         comment = ' /* DBProxy.peekJobLog */'                        
-        _logger.debug("peekJobLog : %s" % pandaID)
+        _logger.debug("peekJobLog : %s days=%s" % (pandaID,days))
         # return None for NULL PandaID
         if pandaID in ['NULL','','None',None]:
             return None
         sql1_0 = "SELECT %s FROM %s "
-        sql1_1 = "WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-30) "
+        sql1_1 = "WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-:days) "
         # select
         varMap = {}
         varMap[':PandaID'] = pandaID
-        nTry=3        
+        if days == None:
+            days = 30
+        varMap[':days'] = days
+        nTry=1
         for iTry in range(nTry):
             try:
                 # get list of archived tables
@@ -11766,11 +11769,13 @@ class DBProxy:
                         sqlFile = "SELECT /*+ INDEX(tab FILES_ARCH_PANDAID_IDX)*/ %s " % FileSpec.columnNames()
                         sqlFile+= "FROM %s tab " % fileTableName
                         # put constraint on modificationTime to avoid full table scan
-                        sqlFile+= "WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-60)"
+                        sqlFile+= "WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-:days)"
                         self.cur.arraysize = 10000
                         self.cur.execute(sqlFile+comment, varMap)
                         resFs = self.cur.fetchall()
                         # metadata
+                        varMap = {}
+                        varMap[':PandaID'] = job.PandaID
                         job.metadata = None
                         metaTableName = re.sub('jobsArchived','metaTable_ARCH',table)
                         sqlMeta = "SELECT metaData FROM %s WHERE PandaID=:PandaID" % metaTableName

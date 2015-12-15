@@ -554,26 +554,6 @@ class UserIF:
                     wgProdRole.append('gr_%s' % tmpWG)
         # kill jobs
         ret = self.taskBuffer.killJobs(ids,user,code,prodManager,wgProdRole)
-        # logging
-        try:
-            # make message
-            message = '%s - PandaID =' % host
-            maxID = 10            
-            for id in ids[:maxID]:
-                message += ' %s' % id
-            if len(ids) > maxID:
-                message += ' ...'
-            # get logger
-            _pandaLogger = PandaLogger()            
-            _pandaLogger.lock()
-            _pandaLogger.setParams({'Type':'killJobs','User':user})
-            logger = _pandaLogger.getHttpLogger(panda_config.loggername)
-            # add message
-            logger.info(message)
-            # release HTTP handler
-            _pandaLogger.release()
-        except:
-            pass
         # serialize 
         return pickle.dumps(ret)
 
@@ -585,26 +565,6 @@ class UserIF:
         # reassign jobs
         ret = self.taskBuffer.reassignJobs(ids,forkSetupper=True,forPending=forPending,
                                            firstSubmission=firstSubmission)
-        # logging
-        try:
-            # make message
-            message = '%s - PandaID =' % host
-            maxID = 10
-            for id in ids[:maxID]:
-                message += ' %s' % id
-            if len(ids) > maxID:
-                message += ' ...'
-            # get logger
-            _pandaLogger = PandaLogger()            
-            _pandaLogger.lock()
-            _pandaLogger.setParams({'Type':'reassignJobs','User':user})
-            logger = _pandaLogger.getHttpLogger(panda_config.loggername)
-            # add message
-            logger.info(message)
-            # release HTTP handler
-            _pandaLogger.release()
-        except:
-            pass
         # serialize 
         return pickle.dumps(ret)
         
@@ -754,9 +714,9 @@ class UserIF:
 
 
     # get script for offline running
-    def getScriptOfflineRunning(self,pandaID):
+    def getScriptOfflineRunning(self,pandaID,days=None):
         # register
-        ret = self.taskBuffer.getScriptOfflineRunning(pandaID)
+        ret = self.taskBuffer.getScriptOfflineRunning(pandaID,days)
         # return
         return ret
 
@@ -1560,8 +1520,13 @@ def getSerialNumberForGroupJob(req):
 
 
 # get script for offline running
-def getScriptOfflineRunning(req,pandaID):
-    return userIF.getScriptOfflineRunning(pandaID)
+def getScriptOfflineRunning(req,pandaID,days=None):
+    try:
+        if days != None:
+            days = int(days)
+    except:
+        days=None
+    return userIF.getScriptOfflineRunning(pandaID,days)
 
 
 # register proxy key

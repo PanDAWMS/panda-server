@@ -1034,7 +1034,8 @@ class TaskBuffer:
 
 
     # get full job status
-    def getFullJobStatus(self,jobIDs,fromDefined=True,fromActive=True,fromArchived=True,fromWaiting=True,forAnal=True):
+    def getFullJobStatus(self,jobIDs,fromDefined=True,fromActive=True,fromArchived=True,fromWaiting=True,forAnal=True,
+                         days=30):
         retJobMap = {}
         # peek at job
         for jobID in jobIDs:
@@ -1051,7 +1052,7 @@ class TaskBuffer:
                 # get ArchiveDBproxy
                 proxy = self.proxyPool.getProxy()
                 # peek job
-                res = proxy.peekJobLog(jobID)
+                res = proxy.peekJobLog(jobID,days)
                 retJobMap[jobID] = res
                 # release proxy
                 self.proxyPool.putProxy(proxy)
@@ -1064,12 +1065,17 @@ class TaskBuffer:
 
 
     # get script for offline running 
-    def getScriptOfflineRunning(self,pandaID):
+    def getScriptOfflineRunning(self,pandaID,days=None):
         try:
             # get job
-            tmpJobs = self.getFullJobStatus([pandaID])
+            tmpJobs = self.getFullJobStatus([pandaID],days=days)
             if tmpJobs == [] or tmpJobs[0] == None:
-                return "ERROR: Cannot get PandaID=%s in DB for the last 30 days" % pandaID
+                errStr = "ERROR: Cannot get PandaID=%s in DB " % pandaID
+                if days == None:
+                    errStr += "for the last 30 days. You may add &days=N to the URL"
+                else:
+                    errStr += "for the last {0} days. You may change &days=N in the URL".format(days)
+                return errStr
             tmpJob = tmpJobs[0]
             # check prodSourceLabel
             if not tmpJob.prodSourceLabel in ['managed','test']:

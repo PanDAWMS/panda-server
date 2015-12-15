@@ -1,5 +1,9 @@
 Release Notes
 
+* 12/15/2014
+  * removed redundant log sending
+  * added days to getScriptOfflineRunning
+
 * 12/12/2014
   * killing pending jobs in small chunks to avoid timeout
   * added protection in panda.py for cgi exception

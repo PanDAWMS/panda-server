@@ -4,6 +4,7 @@ dispatch jobs
 """
 
 import re
+import os
 import sys
 import json
 import types
@@ -17,6 +18,7 @@ from threading import Lock
 from config import panda_config
 from dataservice.Adder import Adder
 from pandalogger.PandaLogger import PandaLogger
+from pandalogger.LogWrapper import LogWrapper
 import DispatcherUtils
 from taskbuffer import EventServiceUtils
 from taskbuffer import retryModule
@@ -619,7 +621,6 @@ def _checkToken(token,jdCore):
     return tokenDN.has_key(token)
     
 
-
 """
 web service interface
 
@@ -691,7 +692,8 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
               startTime=None,endTime=None,nEvents=None,nInputFiles=None,batchID=None,attemptNr=None,jobMetrics=None,
               stdout='',jobSubStatus=None,coreCount=None,maxRSS=None,maxVMEM=None,maxSWAP=None,maxPSS=None,
               avgRSS=None,avgVMEM=None,avgSWAP=None,avgPSS=None):
-    _logger.debug("updateJob(%s)" % jobId)
+    tmpLog = LogWrapper(_logger,'updateJob PandaID={0} PID={1}'.format(jobId,os.getpid()))
+    tmpLog.debug('start')
     # get DN
     realDN = _getDN(req)
     # get FQANs
@@ -724,6 +726,7 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
         _logger.warning("invalid state=%s for updateJob" % state)
         return Protocol.Response(Protocol.SC_Success).encode()        
     # pilot log
+    tmpLog.debug('sending log')
     if pilotLog != '':
         try:
             # make message
@@ -739,6 +742,7 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
             _pandaLogger.release()
         except:
             pass
+    tmpLog.debug('sent log')
     # create parameter map
     param = {}
     if cpuConsumptionTime != None:
@@ -813,6 +817,7 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
     if stdout != '':
         stdout = stdout[:2048]
     # invoke JD
+    tmpLog.debug('executing')
     return jobDispatcher.updateJob(int(jobId),state,int(timeout),xml,siteName,
                                    param,metaData,attemptNr,stdout)
 
