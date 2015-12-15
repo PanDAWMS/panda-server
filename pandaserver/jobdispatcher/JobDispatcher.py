@@ -14,6 +14,7 @@ import time
 import socket
 import datetime
 import commands
+import traceback
 from threading import Lock
 from config import panda_config
 from dataservice.Adder import Adder
@@ -738,11 +739,16 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
             logger = _pandaLogger.getHttpLogger(panda_config.loggername)
             # add message
             logger.info(message)                
-            # release HTTP handler
-            _pandaLogger.release()
         except:
-            pass
-    tmpLog.debug('sent log')
+            tmpLog.debug('failed to send log')
+        finally:
+            tmpLog.debug('release lock')
+            try:
+                # release HTTP handler
+                _pandaLogger.release()
+            except:
+                pass
+    tmpLog.debug('done log')
     # create parameter map
     param = {}
     if cpuConsumptionTime != None:
