@@ -12250,7 +12250,7 @@ class DBProxy:
         methodName += " <PandaID={0}>".format(jobSpec.PandaID)
         datasetContentsStat = {}
         # loop over all files
-        finishUnmerge = False
+        finishUnmerge = set()
         hasInput = False
         _logger.debug(methodName+' waitLock={0}'.format(waitLock))
         # make pseudo files for dynamic number of events
@@ -12483,7 +12483,7 @@ class DBProxy:
                                     _logger.debug(methodName+' '+sqlUmFile+comment+str(varMap))
                                     cur.execute(sqlUmFile+comment,varMap)
                                     # set flag to update unmerged jobs
-                                    finishUnmerge = True
+                                    finishUnmerge.add(fileSpec.fileID)
                 elif fileStatus in ['finished','lost']:
                     # successfully used or produced, or lost
                     datasetContentsStat[datasetID]['nFilesFinished'] += 1
@@ -12586,8 +12586,8 @@ class DBProxy:
             _logger.debug(methodName+' '+sqlTtask+comment+str(varMap))
             cur.execute(sqlTtask+comment,varMap)
         # propagate failed result to unmerge job
-        if finishUnmerge:
-            self.updateUnmergedJobs(jobSpec)
+        if len(finishUnmerge) > 0:
+            self.updateUnmergedJobs(jobSpec,finishUnmerge)
         # return
         return True
 
@@ -13189,11 +13189,16 @@ class DBProxy:
 
 
     # update unmerged jobs
-    def updateUnmergedJobs(self,job):
+    def updateUnmergedJobs(self,job,fileIDs=None):
         comment = ' /* JediDBProxy.updateUnmergedJobs */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <PandaID={0}>".format(job.PandaID)
+        tmpLog = LogWrapper(_logger,methodName)
         # get PandaID which produced unmerged files
         umPandaIDs = []
         umCheckedIDs = []
+        if fileIDs == None:
+            fileIDs = set()
         # sql to get PandaIDs
         sqlUMP  = "SELECT PandaID,attemptNr FROM ATLAS_PANDA.filesTable4 "
         sqlUMP += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
@@ -13203,6 +13208,9 @@ class DBProxy:
         # look for unmerged files
         for tmpFile in job.Files:
             if tmpFile.isUnMergedInput():
+                # only fileIDs which reach max attempt
+                if len(fileIDs) > 0 and not tmpFile.fileID in fileIDs:
+                    continue
                 varMap = {}
                 varMap[':jediTaskID'] = tmpFile.jediTaskID
                 varMap[':datasetID']  = tmpFile.datasetID
@@ -13210,7 +13218,6 @@ class DBProxy:
                 varMap[':type1']  = 'output'
                 varMap[':type2']  = 'log'
                 self.cur.arraysize = 100
-                _logger.debug(sqlUMP+comment+str(varMap))
                 self.cur.execute(sqlUMP+comment, varMap)
                 resUMP = self.cur.fetchall()
                 # loop for job in merging state
@@ -13223,7 +13230,6 @@ class DBProxy:
                     # check job status
                     varMap = {}
                     varMap[':PandaID'] = tmpPandaID
-                    _logger.debug(sqlUMS+comment+str(varMap))
                     self.cur.execute(sqlUMS+comment, varMap)
                     resUMS = self.cur.fetchone()
                     # unmerged job should be in merging state
@@ -13260,7 +13266,7 @@ class DBProxy:
                     umFile.status = umJob.jobStatus
                 umJob.addFile(umFile)
             # finish
-            _logger.debug('updateUnmerged PandaID={0}'.format(umJob.PandaID))
+            tmpLog.debug('update unmerged PandaID={0}'.format(umJob.PandaID))
             self.archiveJob(umJob,False,useCommit=False)
         return
 
