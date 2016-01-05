@@ -1,18 +1,21 @@
 Release Notes
 
-* 12/28/2014
+* 1/5/2016
+  * using DISK for prestaging
+
+* 12/28/2015
   * fixed updateUnmerged so that merging jobs fail only when max attempt is reached
 
-* 12/15/2014
+* 12/15/2015
   * removed redundant log sending
   * added days to getScriptOfflineRunning
   * fixed dispatcher to release lock in finally
 
-* 12/12/2014
+* 12/12/2015
   * killing pending jobs in small chunks to avoid timeout
   * added protection in panda.py for cgi exception
 
-* 12/9/2014
+* 12/9/2015
   * changed AtlasAdder so that jobs don't go to transferring if only log
   * removed panda_ddm_relation
 
