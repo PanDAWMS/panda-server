@@ -1,5 +1,8 @@
 Release Notes
 
+* 1/11/2016
+  * changed killJob so that 51 goes forward even if commandToPilot was already set
+
 * 1/5/2016
   * using DISK for prestaging
 
