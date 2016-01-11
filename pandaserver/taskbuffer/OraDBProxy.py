@@ -16010,6 +16010,112 @@ class DBProxy:
 
         tmpLog.debug("done")
         return True
+    
+    
+    def increaseCpuTimeTask(self, jobID, taskID, siteid, files):
+        """
+        Increases the CPU time of a task
+        walltime = basewalltime + cpuefficiency*CPUTime*nEvents/Corepower/Corecount
+        
+        CPU time: execution time per event
+        Walltime: time for a job
+        Corepower: HS06 score
+        Basewalltime: Setup time, time to download, etc. taken by the pilot
+        """
+        comment = ' /* DBProxy.increaseCpuTimeTask */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        
+        #1. Get the site information from schedconfig
+        sql  = """
+        SELECT sc.maxtime, sc.corepower, sc.corecount
+        FROM atlas_pandameta.schedconfig sc
+        WHERE siteid=:siteid 
+        """
+        varMap={"siteid": siteid}
+        self.cur.execute(sql+comment, varMap)
+        siteParameters = self.cur.fetchone()   #example of output: [('pilotErrorCode', 1, None, None, None, None, 'no_retry', 'Y', 'Y'),...]
+        
+        tmpLog.debug("siteParameters={0}".format(siteParameters))
+        
+        (maxtime, corepower, corecount) = siteParameters
+        
+        tmpLog.debug("siteid {0} has parameters: maxtime {1}, corepower {2}, corecount {3}".format(siteid, maxtime, corepower, corecount))
+        
+        #2. Get the task information
+        sql = """
+        SELECT jt.cputime, jt.walltime, jt.basewalltime, jt.cpuefficiency, jt.cputimeunit
+        FROM ATLAS_PANDA.jedi_tasks jt
+        WHERE jt.jeditaskid=:jeditaskid
+        """
+        varMap={"jeditaskid": taskID, "jobid": jobID}
+        self.cur.execute(sql+comment, varMap)
+        taskParameters = self.cur.fetchone()
+        
+        tmpLog.debug("taskParameters={0}".format(taskParameters))
+        
+        (cputime, walltime, basewalltime, cpuefficiency, cputimeunit) = taskParameters
+        
+        tmpLog.debug("task {0} has parameters: cputime {1}, walltime {2}, basewalltime {3}, cpuefficiency {4}, cputimeunit {5}".\
+                     format(cputime, walltime, basewalltime, cpuefficiency, cputimeunit))
+        
+        #2. Get the file information
+        #Update the file entries to avoid JEDI generating new jobs
+        input_types = ('input', 'pseudo_input', 'pp_input', 'trn_log','trn_output')
+        input_files = filter(lambda pandafile: pandafile.type in input_types and re.search('DBRelease', pandafile.lfn) == None, files)
+        input_fileIDs = [input_file.fileID for input_file in input_files]
+        input_datasetIDs = [input_file.datasetID for input_file in input_files]
+                
+        if input_fileIDs:
+            #Start transaction
+            self.conn.begin()
+
+            
+            varMap = {}
+            varMap[':taskID'] = taskID
+            varMap[':pandaID'] = jobID
+            
+            #Bind the files
+            f = 0
+            for fileID in input_fileIDs:
+                varMap[':file{0}'.format(f)] = fileID
+                f+=1
+            file_bindings = ','.join(':file{0}'.format(i) for i in xrange(len(input_fileIDs)))
+            
+            #Bind the datasets
+            d = 0
+            for datasetID in input_datasetIDs:
+                varMap[':dataset{0}'.format(d)] = datasetID
+                d+=1
+            dataset_bindings = ','.join(':dataset{0}'.format(i) for i in xrange(len(input_fileIDs)))
+
+            #Get the minimum maxAttempt value of the files
+            sql_select = """
+            SELECT jdc.nevents, jdc.fileid
+            FROM ATLAS_PANDA.JEDI_Dataset_Contents 
+            WHERE JEDITaskID = :taskID
+            AND datasetID IN ({0})
+            AND fileID IN ({1})
+            AND pandaID = :pandaID
+            """.format(dataset_bindings, file_bindings)
+            self.cur.execute(sql_select+comment, varMap)
+            try:
+                nevents, fileid = self.cur.fetchone()[0]
+            except TypeError, IndexError:
+                nevents, fileid = None, None
+        
+        else:
+            return None
+
+        
+        tmpLog.debug("taskParameters={0}".format(taskParameters))
+        
+        (cputime, walltime, basewalltime, cpuefficiency, cputimeunit) = taskParameters
+        
+        tmpLog.debug("task {0} has parameters: cputime {1}, walltime {2}, basewalltime {3}, cpuefficiency {4}, cputimeunit {5}".\
+                     format(cputime, walltime, basewalltime, cpuefficiency, cputimeunit))
+
 
     # throttle jobs for resource shares
     def throttleJobsForResourceShare(self,site):
