@@ -16114,7 +16114,11 @@ class DBProxy:
 
         try:
             new_cputime = (walltime - basewalltime) * corepower * corecount * 1.1 / cpuefficiency / nevents_job
-            tmpLog.debug("throttled {0} jobs".format(nRow))
+
+            if cputime > new_cputime:
+                tmpLog.debug("Skipping CPU time increase since old CPU time {0} > new CPU time {1}".format(cputime, new_cputime))
+                return None
+
             sql_update_cputime = """
             UPDATE ATLAS_PANDA.jedi_tasks SET cputime=:cputime
             WHERE jeditaskid=:jeditaskid
