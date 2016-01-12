@@ -15976,7 +15976,7 @@ class DBProxy:
 
             #Get the minimum maxAttempt value of the files
             sql_select = """
-            select min(maxattempt) from ATLAS_PANDA.JEDI_Dataset_Contents 
+            select min(maxattempt) from ATLAS_PANDA.JEDI_Dataset_Contents
             WHERE JEDITaskID = :taskID
             AND datasetID IN ({0})
             AND fileID IN ({1})
@@ -15987,23 +15987,23 @@ class DBProxy:
                 maxAttempt_select = self.cur.fetchone()[0]
             except TypeError, IndexError:
                 maxAttempt_select = None
-            
+
             #Don't update the maxAttempt if the value in the retrial table is lower
-            #than the value defined in the task 
+            #than the value defined in the task
             if maxAttempt_select and maxAttempt_select > maxAttempt:
                 varMap[':maxAttempt'] = min(maxAttempt, maxAttempt_select)
-    
+
                 sql_update  = """
-                UPDATE ATLAS_PANDA.JEDI_Dataset_Contents 
+                UPDATE ATLAS_PANDA.JEDI_Dataset_Contents
                 SET maxAttempt=:maxAttempt
                 WHERE JEDITaskID = :taskID
                 AND datasetID IN ({0})
                 AND fileID IN ({1})
                 AND pandaID = :pandaID
                 """.format(dataset_bindings, file_bindings)
-    
+
                 self.cur.execute(sql_update+comment, varMap)
-        
+
             #Commit updates
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -16031,7 +16031,7 @@ class DBProxy:
         sql  = """
         SELECT sc.maxtime, sc.corepower, sc.corecount
         FROM atlas_pandameta.schedconfig sc
-        WHERE siteid=:siteid 
+        WHERE siteid=:siteid
         """
         varMap={"siteid": siteid}
         self.cur.execute(sql+comment, varMap)
@@ -16061,16 +16061,15 @@ class DBProxy:
                      format(cputime, walltime, basewalltime, cpuefficiency, cputimeunit))
         
         #2. Get the file information
-        #Update the file entries to avoid JEDI generating new jobs
         input_types = ('input', 'pseudo_input', 'pp_input', 'trn_log','trn_output')
-        input_files = filter(lambda pandafile: pandafile.type in input_types and re.search('DBRelease', pandafile.lfn) == None, files)
+        input_files = filter(lambda pandafile: pandafile.type in input_types
+                                               and re.search('DBRelease', pandafile.lfn) == None, files)
         input_fileIDs = [input_file.fileID for input_file in input_files]
         input_datasetIDs = [input_file.datasetID for input_file in input_files]
                 
         if input_fileIDs:
             #Start transaction
             self.conn.begin()
-
             
             varMap = {}
             varMap[':taskID'] = taskID
@@ -16090,9 +16089,8 @@ class DBProxy:
                 d+=1
             dataset_bindings = ','.join(':dataset{0}'.format(i) for i in xrange(len(input_fileIDs)))
 
-            #Get the minimum maxAttempt value of the files
             sql_select = """
-            SELECT jdc.nevents, jdc.fileid
+            SELECT jdc.fileid, jdc.nevents. jdc.startevent, jdc.endevent
             FROM ATLAS_PANDA.JEDI_Dataset_Contents 
             WHERE JEDITaskID = :taskID
             AND datasetID IN ({0})
@@ -16100,21 +16098,38 @@ class DBProxy:
             AND pandaID = :pandaID
             """.format(dataset_bindings, file_bindings)
             self.cur.execute(sql_select+comment, varMap)
-            try:
-                nevents, fileid = self.cur.fetchone()[0]
-            except TypeError, IndexError:
-                nevents, fileid = None, None
-        
+
+            resList = self.cur.fetchall()
+            nevents_job = None
+            for fileid, nevents, startevent, endevent in resList:
+                tmpLog.debug("event information: fileid {0}, nevents {1}, startevetn {2}, endevent {3}".format(fileid, nevents, startevent, endevent))
+                if nevents:
+                    nevents_job = nevents
+
+            if not nevents_job:
+                return None
         else:
+            tmpLog.debug("No input files for job {0}, so could not update CPU time for task {1}".format(jobID, taskID))
             return None
 
-        
-        tmpLog.debug("taskParameters={0}".format(taskParameters))
-        
-        (cputime, walltime, basewalltime, cpuefficiency, cputimeunit) = taskParameters
-        
-        tmpLog.debug("task {0} has parameters: cputime {1}, walltime {2}, basewalltime {3}, cpuefficiency {4}, cputimeunit {5}".\
-                     format(cputime, walltime, basewalltime, cpuefficiency, cputimeunit))
+        try:
+            new_cputime = (walltime - basewalltime) * corepower * corecount * 1.1 / cpuefficiency / nevents_job
+            tmpLog.debug("throttled {0} jobs".format(nRow))
+            sql_update_cputime = """
+            UPDATE ATLAS_PANDA.jedi_tasks SET cputime=:cputime
+            WHERE jeditaskid=:jeditaskid
+            """
+            varMap = {}
+            varMap[':cputime'] = new_cputime
+            varMap[':jeditaskid'] = taskID
+
+            self.conn.begin()
+            self.cur.execute(sql+comment,varMap)
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+
+        except (ZeroDivisionError, TypeError):
+            return None
 
 
     # throttle jobs for resource shares

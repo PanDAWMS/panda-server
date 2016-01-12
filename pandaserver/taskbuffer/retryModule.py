@@ -10,6 +10,7 @@ _logger = PandaLogger().getLogger('RetrialModule')
 NO_RETRY = 'no_retry'
 INCREASE_MEM = 'increase_memory'
 LIMIT_RETRY = 'limit_retry'
+INCREASE_CPU = 'increase_cputime'
 
 
 def pandalog(message):
@@ -127,12 +128,22 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
                 continue
             else:
                 filtered_rules.append(rule)
+                break
+
+        #See if there is a INCREASE_CPU rule. The effect of INCREASE_CPU rules is the same, so take the first one that appears
+        for rule in rules:
+            if (rule['action']!= INCREASE_CPU or
+                not conditions_apply(error_diag_job, architecture_job, release_job, wqid_job, rule['error_diag'], rule['architecture'], rule['release'], rule['wqid'])):
+                continue
+            else:
+                filtered_rules.append(rule)
+                break
                 
         #See if there is a LIMIT_RETRY rule. Take the narrowest rule, in case of draw take the strictest conditions
         limit_retry_rule = {}
         for rule in rules:
-            if (not conditions_apply(error_diag_job, architecture_job, release_job, wqid_job, rule['error_diag'], rule['architecture'], rule['release'], rule['wqid']) or
-                rule['action']!= LIMIT_RETRY): 
+            if (rule['action']!= LIMIT_RETRY or
+                not conditions_apply(error_diag_job, architecture_job, release_job, wqid_job, rule['error_diag'], rule['architecture'], rule['release'], rule['wqid'])):
                 continue
             elif not limit_retry_rule:
                 limit_retry_rule = rule
@@ -218,7 +229,6 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
                 
                 elif action == INCREASE_MEM:
                     try:
-                        #TODO 1: Complete as in AdderGen (232-240) and delete lines from AdderGen
                         if active:
                             task_buffer.increaseRamLimitJobJEDI(job, job.minRamCount, job.jediTaskID)
                         #Log to pandamon and logfile
@@ -228,6 +238,18 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
                     except:
                         errtype,errvalue = sys.exc_info()[:2]
                         _logger.debug("Failed to increase RAM limit : %s %s" % (errtype,errvalue))
+
+                elif action == INCREASE_CPU:
+                    try:
+                        if active:
+                            task_buffer.increaseCpuTimeTask(jobID, job.jediTaskID, job.computingSite, job.Files)
+                        #Log to pandamon and logfile
+                        message = "increaseCpuTime for PandaID: {0}, jediTaskID: {1}. (ErrorSource: {2}. ErrorCode: {3}. ErrorDiag: {4}. Error/action active: {5})".format(jobID, job.jediTaskID,  error_source, error_code, error_diag_rule, active)
+                        pandalog(message)
+                        _logger.debug(message)
+                    except:
+                        errtype,errvalue = sys.exc_info()[:2]
+                        _logger.debug("Failed to increase CPU-Time : %s %s" % (errtype,errvalue))
 
                 _logger.debug("Finished rule %s for jobID %s, error_source %s, error_code %s, attemptNr %s" %(rule, jobID, error_source, error_code, attemptNr))
             
