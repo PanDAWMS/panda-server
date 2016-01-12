@@ -1,4 +1,5 @@
 import os
+import tempfile
 import subprocess
 
 
@@ -11,22 +12,23 @@ class eventLookupClientEI:
     def doLookup(self,runEvtList,stream=None,tokens=None,amitag=None,user=None):
         command = 'java -jar ' + \
             os.getenv('EIDIR', '/afs/cern.ch/sw/lcg/external/Java/TagConvertor/head/share') + \
-            '/lib/EventLookup.exe.jar '
-        command += "-e '"
+            '/lib/EIHadoopEL.exe.jar '
+        tempEvtFile = tempfile.NamedTemporaryFile()
+        command += "-f {0} ".format(tempEvtFile.name)
         for runEvt in runEvtList:
-            tmpStr = '{0:08d} {1:09d},'.format(long(runEvt[0]),long(runEvt[1]))
-            command += tmpStr
-        command = command[:-1]
-        command += "' "
+            tmpStr = '{0:08d} {1:09d}\n'.format(long(runEvt[0]),long(runEvt[1]))
+            tempEvtFile.write(tmpStr)
+        tempEvtFile.flush()
         if not stream in [None,'']:
             command += "-s {0} ".format(stream)
         if not amitag in [None,'']:
             command += "-p {0} ".format(amitag)
         if user != None:
             command += '-info "{0}" '.format(user)
-        command += r"""-filter 'String RunNumber_EventNumber + "\n" + guids()' """
+        command += r"""-api rich """
         p = subprocess.Popen(command, stdout=subprocess.PIPE,shell=True)
         tmpOut,tmpErr = p.communicate()
+        tempEvtFile.close()
         guids = {}
         if tokens == '':
             tokens = None
