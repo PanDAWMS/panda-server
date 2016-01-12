@@ -2495,11 +2495,11 @@ class TaskBuffer:
 
 
     # update an even range
-    def updateEventRange(self,eventRangeID,eventStatus,cpuCore,cpuConsumptionTime):
+    def updateEventRange(self,eventRangeID,eventStatus,cpuCore,cpuConsumptionTime,objstoreID=None):
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.updateEventRange(eventRangeID,eventStatus,cpuCore,cpuConsumptionTime)
+        ret = proxy.updateEventRange(eventRangeID,eventStatus,cpuCore,cpuConsumptionTime,objstoreID)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -2526,13 +2526,16 @@ class TaskBuffer:
                 cpuConsumptionTime = None
                 if 'cpuConsumptionTime' in eventRange:
                     cpuConsumptionTime = eventRange['cpuConsumptionTime']
+                objstoreID = None
+                if 'objstoreID' in eventRange:
+                    objstoreID = eventRange['objstoreID']
             except:
                 retList.append(False)
                 continue
             # get proxy
             proxy = self.proxyPool.getProxy()
             # exec
-            ret = proxy.updateEventRange(eventRangeID,eventStatus,cpuCore,cpuConsumptionTime)
+            ret = proxy.updateEventRange(eventRangeID,eventStatus,cpuCore,cpuConsumptionTime,objstoreID)
             # release proxy
             self.proxyPool.putProxy(proxy)
             retList.append(ret)

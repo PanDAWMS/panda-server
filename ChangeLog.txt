@@ -1,6 +1,8 @@
 Release Notes
 
 * 1/12/2016
+  * changed AdderAtlas for alternative stage-out
+  * added objstoreID to updateEventRange
   * changed eventLookupClientEI to use new EI client
 
 * 1/11/2016

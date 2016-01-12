@@ -13785,16 +13785,19 @@ class DBProxy:
 
 
     # get a list of even ranges for a PandaID
-    def updateEventRange(self,eventRangeID,eventStatus,coreCount,cpuConsumptionTime):
+    def updateEventRange(self,eventRangeID,eventStatus,coreCount,cpuConsumptionTime,objstoreID=None):
         comment = ' /* DBProxy.updateEventRange */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <eventRangeID={0}>".format(eventRangeID)
-        _logger.debug("{0} : start status={1} coreCount={2} cpuConsumptionTime={3}".format(methodName,eventStatus,
-                                                                                           coreCount,cpuConsumptionTime))
+        _logger.debug("{0} : start status={1} coreCount={2} cpuConsumptionTime={3} osID={4}".format(methodName,eventStatus,
+                                                                                                    coreCount,cpuConsumptionTime,
+                                                                                                    objstoreID))
         try:
             # sql to update status
             sqlU  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sqlU += "SET status=:eventStatus"
+            if objstoreID != None:
+                sqlU += ",objstore_ID=:objstoreID"
             sqlU += " WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND fileID=:fileID "
             sqlU += "AND job_processID=:job_processID AND attemptNr=:attemptNr "
             # sql to get event range
@@ -13858,6 +13861,8 @@ class DBProxy:
                     varMap[':job_processID'] = job_processID
                     varMap[':attemptNr'] = attemptNr
                     varMap[':eventStatus'] = intEventStatus
+                    if objstoreID != None:
+                        varMap[':objstoreID'] = objstoreID
                     self.cur.execute(sqlU+comment, varMap)
                     nRow = self.cur.rowcount
                     if nRow == 1 and eventStatus in ['finished']:

@@ -363,3 +363,15 @@ class JobSpec(object):
     def isCancelled(self):
         return self.jobStatus in ['cancelled','closed']
 
+
+
+    # get file names which were uploaded to alternative locations
+    def altStgOutFileList(self):
+        try:
+            if self.jobMetrics != None:
+                for item in self.jobMetrics.split():
+                    if item.startswith('altTransferred='):
+                        return item.split('=')[-1].split(',')
+        except:
+            pass
+        return []
