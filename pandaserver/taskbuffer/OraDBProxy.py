@@ -16024,6 +16024,7 @@ class DBProxy:
         """
         comment = ' /* DBProxy.increaseCpuTimeTask */'
         methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <PandaID={0}; TaskID={1}>".format(jobID, taskID)
         tmpLog = LogWrapper(_logger,methodName)
         tmpLog.debug("start")
         
@@ -16096,11 +16097,13 @@ class DBProxy:
 
             sql_select = """
             SELECT jdc.fileid, jdc.nevents, jdc.startevent, jdc.endevent
-            FROM ATLAS_PANDA.JEDI_Dataset_Contents jdc
-            WHERE JEDITaskID = :taskID
-            AND datasetID IN ({0})
-            AND fileID IN ({1})
-            AND pandaID = :pandaID
+            FROM ATLAS_PANDA.JEDI_Dataset_Contents jdc, ATLAS_PANDA.JEDI_Datasets jd
+            WHERE jdc.JEDITaskID = :taskID
+            AND jdc.datasetID IN ({0})
+            AND jdc.fileID IN ({1})
+            AND jd.datasetID = jdc.datasetID
+            AND jd.masterID IS NULL
+            AND jdc.pandaID = :pandaID
             """.format(dataset_bindings, file_bindings)
             self.cur.execute(sql_select+comment, varMap)
 
@@ -16119,6 +16122,7 @@ class DBProxy:
             return None
 
         try:
+            #TODO: Is cpuefficiency a percentage????
             new_cputime = (maxtime - basewalltime) * corepower * corecount * 1.1 / cpuefficiency / nevents_job
 
             if cputime > new_cputime:
@@ -16132,13 +16136,9 @@ class DBProxy:
             varMap = {}
             varMap[':cputime'] = new_cputime
             varMap[':jeditaskid'] = taskID
-            tmpLog.debug("0")
             self.conn.begin()
-            tmpLog.debug("1")
             self.cur.execute(sql_update_cputime+comment, varMap)
-            tmpLog.debug("2")
             if not self._commit():
-                tmpLog.debug("3")
                 raise RuntimeError, 'Commit error'
 
         except (ZeroDivisionError, TypeError):
