@@ -84,7 +84,7 @@ class DBProxy:
         # hostname
         self.myHostName = socket.getfqdn()
         self.backend = panda_config.backend
-        
+
         
     # connect to DB
     def connect(self,dbhost=panda_config.dbhost,dbpasswd=panda_config.dbpasswd,
@@ -16036,29 +16036,37 @@ class DBProxy:
         varMap={"siteid": siteid}
         self.cur.execute(sql+comment, varMap)
         siteParameters = self.cur.fetchone()   #example of output: [('pilotErrorCode', 1, None, None, None, None, 'no_retry', 'Y', 'Y'),...]
-        
-        tmpLog.debug("siteParameters={0}".format(siteParameters))
-        
+
+        if not siteParameters:
+            tmpLog.debug("No site parameters retrieved for {0}".format(siteid))
+
         (maxtime, corepower, corecount) = siteParameters
-        
         tmpLog.debug("siteid {0} has parameters: maxtime {1}, corepower {2}, corecount {3}".format(siteid, maxtime, corepower, corecount))
-        
+        if (not maxtime) or (not corepower) or (not corecount):
+            tmpLog.debug("One or more site parameters are not defined for {0}... nothing to do".format(siteid))
+            return None
+
         #2. Get the task information
         sql = """
         SELECT jt.cputime, jt.walltime, jt.basewalltime, jt.cpuefficiency, jt.cputimeunit
         FROM ATLAS_PANDA.jedi_tasks jt
         WHERE jt.jeditaskid=:jeditaskid
         """
-        varMap={"jeditaskid": taskID, "jobid": jobID}
+        varMap={"jeditaskid": taskID}
         self.cur.execute(sql+comment, varMap)
         taskParameters = self.cur.fetchone()
         
-        tmpLog.debug("taskParameters={0}".format(taskParameters))
+        if not taskParameters:
+            tmpLog.debug("No site parameters retrieved for jeditaskid {0}".format(taskID))
+            return None
         
         (cputime, walltime, basewalltime, cpuefficiency, cputimeunit) = taskParameters
-        
+        if not cpuefficiency or not basewalltime:
+            tmpLog.debug("CPU efficiency or basewalltime are not defined for task {0}... nothing to do".format(taskID))
+            return None
+
         tmpLog.debug("task {0} has parameters: cputime {1}, walltime {2}, basewalltime {3}, cpuefficiency {4}, cputimeunit {5}".\
-                     format(cputime, walltime, basewalltime, cpuefficiency, cputimeunit))
+                     format(taskID, cputime, walltime, basewalltime, cpuefficiency, cputimeunit))
         
         #2. Get the file information
         input_types = ('input', 'pseudo_input', 'pp_input', 'trn_log','trn_output')
@@ -16068,9 +16076,6 @@ class DBProxy:
         input_datasetIDs = [input_file.datasetID for input_file in input_files]
                 
         if input_fileIDs:
-            #Start transaction
-            self.conn.begin()
-            
             varMap = {}
             varMap[':taskID'] = taskID
             varMap[':pandaID'] = jobID
@@ -16090,8 +16095,8 @@ class DBProxy:
             dataset_bindings = ','.join(':dataset{0}'.format(i) for i in xrange(len(input_fileIDs)))
 
             sql_select = """
-            SELECT jdc.fileid, jdc.nevents. jdc.startevent, jdc.endevent
-            FROM ATLAS_PANDA.JEDI_Dataset_Contents 
+            SELECT jdc.fileid, jdc.nevents, jdc.startevent, jdc.endevent
+            FROM ATLAS_PANDA.JEDI_Dataset_Contents jdc
             WHERE JEDITaskID = :taskID
             AND datasetID IN ({0})
             AND fileID IN ({1})
@@ -16102,18 +16107,19 @@ class DBProxy:
             resList = self.cur.fetchall()
             nevents_job = None
             for fileid, nevents, startevent, endevent in resList:
-                tmpLog.debug("event information: fileid {0}, nevents {1}, startevetn {2}, endevent {3}".format(fileid, nevents, startevent, endevent))
+                tmpLog.debug("event information: fileid {0}, nevents {1}, startevent {2}, endevent {3}".format(fileid, nevents, startevent, endevent))
                 if nevents:
                     nevents_job = nevents
 
             if not nevents_job:
+                tmpLog.debug("No nevents found for job {0}... nothing to do".format(jobID))
                 return None
         else:
             tmpLog.debug("No input files for job {0}, so could not update CPU time for task {1}".format(jobID, taskID))
             return None
 
         try:
-            new_cputime = (walltime - basewalltime) * corepower * corecount * 1.1 / cpuefficiency / nevents_job
+            new_cputime = (maxtime - basewalltime) * corepower * corecount * 1.1 / cpuefficiency / nevents_job
 
             if cputime > new_cputime:
                 tmpLog.debug("Skipping CPU time increase since old CPU time {0} > new CPU time {1}".format(cputime, new_cputime))
@@ -16126,13 +16132,17 @@ class DBProxy:
             varMap = {}
             varMap[':cputime'] = new_cputime
             varMap[':jeditaskid'] = taskID
-
+            tmpLog.debug("0")
             self.conn.begin()
-            self.cur.execute(sql+comment,varMap)
+            tmpLog.debug("1")
+            self.cur.execute(sql_update_cputime+comment, varMap)
+            tmpLog.debug("2")
             if not self._commit():
+                tmpLog.debug("3")
                 raise RuntimeError, 'Commit error'
 
         except (ZeroDivisionError, TypeError):
+
             return None
 
 

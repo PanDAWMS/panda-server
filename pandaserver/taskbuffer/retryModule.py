@@ -178,7 +178,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
     try:
         error_code = int(error_code)
     except ValueError:
-        _logger.error("Error code  (%s) can not be casted to int" %(error_code))
+        _logger.error("Error code ({0}) can not be casted to int".format(error_code))
         return
 
     retrial_rules = task_buffer.getRetrialRules()
@@ -203,9 +203,9 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
                 
                 _logger.debug("error_diag_rule {0}, action {1}, parameters {2}, architecture {3}, release {4}, wqid {5}, active {6}".format(error_diag_rule, action, parameters, architecture, release, wqid, active))
                 
-                _logger.debug("Processing rule %s for jobID %s, error_source %s, error_code %s, attemptNr %s" %(rule, jobID, error_source, error_code, attemptNr))
+                _logger.debug("Processing rule {0} for jobID {1}, error_source {2}, error_code {3}, attemptNr {4}".format(rule, jobID, error_source, error_code, attemptNr))
                 if not conditions_apply(error_diag, job.cmtConfig, job.AtlasRelease, job.workQueue_ID, error_diag_rule, architecture, release, wqid):
-                    _logger.debug("Skipped rule %s. cmtConfig (%s : %s) or Release (%s : %s) did NOT match" %(rule, architecture, job.cmtConfig, release, job.AtlasRelease))
+                    _logger.debug("Skipped rule {0}. cmtConfig ({1} : {2}) or Release ({3} : {4}) did NOT match".format(rule, architecture, job.cmtConfig, release, job.AtlasRelease))
                     continue
                 
                 if action == NO_RETRY:
@@ -251,10 +251,10 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
                         errtype,errvalue = sys.exc_info()[:2]
                         _logger.debug("Failed to increase CPU-Time : %s %s" % (errtype,errvalue))
 
-                _logger.debug("Finished rule %s for jobID %s, error_source %s, error_code %s, attemptNr %s" %(rule, jobID, error_source, error_code, attemptNr))
+                _logger.debug("Finished rule {0} for jobID {1}, error_source {2}, error_code {3}, attemptNr {4}".format(rule, jobID, error_source, error_code, attemptNr))
             
             except KeyError:
                 _logger.debug("Rule was missing some field(s). Rule: %s" %rule)
     except KeyError as e:
-        _logger.debug("No retrial rules to apply for jobID %s, attemptNr %s, failed with %s=%s. (Exception %s)" %(jobID, attemptNr, error_source, error_code, e))
+        _logger.debug("No retrial rules to apply for jobID {0}, attemptNr {1}, failed with {2}={3}. (Exception {4})".format(jobID, attemptNr, error_source, error_code, e))
 

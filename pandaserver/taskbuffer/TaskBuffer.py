@@ -2794,7 +2794,7 @@ class TaskBuffer:
         return ret
 
 
-    # get Error Definitions
+    # retry module: get the defined rules
     def getRetrialRules(self):
         # get proxy
         proxy = self.proxyPool.getProxy()
@@ -2806,7 +2806,7 @@ class TaskBuffer:
         return ret
 
 
-    # get Error Definitions
+    # retry module action: set max number of retries
     def setMaxAttempt(self, jobID, jediTaskID, files, attemptNr):
         # get proxy
         proxy = self.proxyPool.getProxy()
@@ -2816,6 +2816,20 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         # return
         return ret
+
+
+
+    # retry module action: increase CPU Time
+    def increaseCpuTimeTask(self, jobID, taskID, siteid, files):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.increaseCpuTimeTask(jobID, taskID, siteid, files)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
 
 
     # throttle jobs for resource shares
