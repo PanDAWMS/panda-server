@@ -16108,22 +16108,24 @@ class DBProxy:
             self.cur.execute(sql_select+comment, varMap)
 
             resList = self.cur.fetchall()
-            nevents_job = None
+            nevents_total = 0
             for fileid, nevents, startevent, endevent in resList:
                 tmpLog.debug("event information: fileid {0}, nevents {1}, startevent {2}, endevent {3}".format(fileid, nevents, startevent, endevent))
-                if nevents:
-                    nevents_job = nevents
 
-            if not nevents_job:
-                tmpLog.debug("No nevents found for job {0}... nothing to do".format(jobID))
+                if endevent != None and startevent != None:
+                    nevents_total += endevent - startevent
+                elif nevents:
+                    nevents_total += nevents
+
+            if not nevents_total:
+                tmpLog.debug("nevents could not be calculated for job {0}... nothing to do".format(jobID))
                 return None
         else:
             tmpLog.debug("No input files for job {0}, so could not update CPU time for task {1}".format(jobID, taskID))
             return None
 
         try:
-            #TODO: Is cpuefficiency a percentage????
-            new_cputime = (maxtime - basewalltime) * corepower * corecount * 1.1 / cpuefficiency / nevents_job
+            new_cputime = (maxtime - basewalltime) * corepower * corecount * 1.1 / (cpuefficiency/100.0) / nevents_total
 
             if cputime > new_cputime:
                 tmpLog.debug("Skipping CPU time increase since old CPU time {0} > new CPU time {1}".format(cputime, new_cputime))
