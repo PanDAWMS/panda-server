@@ -16143,8 +16143,10 @@ class DBProxy:
             if not self._commit():
                 raise RuntimeError, 'Commit error'
 
-        except (ZeroDivisionError, TypeError):
+            tmpLog.debug("Successfully updated the task CPU time from {0} to {1}".format(cputime, new_cputime))
+            return new_cputime
 
+        except (ZeroDivisionError, TypeError):
             return None
 
 
