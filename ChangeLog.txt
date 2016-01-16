@@ -1,5 +1,8 @@
 Release Notes
 
+* 1/16/2016
+  * added a protection for transferring->holding and holding->holding with final heartbeats
+
 * 1/12/2016
   * changed AdderAtlas for alternative stage-out
   * added objstoreID to updateEventRange

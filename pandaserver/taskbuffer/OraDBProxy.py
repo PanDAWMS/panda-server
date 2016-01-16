@@ -1824,7 +1824,7 @@ class DBProxy:
     def updateJobStatus(self,pandaID,jobStatus,param,updateStateChange=False,attemptNr=None):
         comment = ' /* DBProxy.updateJobStatus */'        
         _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s status=%s" % (pandaID,attemptNr,jobStatus))
-        sql0  = "SELECT commandToPilot,endTime,specialHandling,jobStatus,computingSite,cloud,prodSourceLabel,lockedby,jediTaskID,jobsetID "
+        sql0  = "SELECT commandToPilot,endTime,specialHandling,jobStatus,computingSite,cloud,prodSourceLabel,lockedby,jediTaskID,jobsetID,jobDispatcherErrorDiag "
         sql0 += "FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
         varMap0 = {}
         varMap0[':PandaID'] = pandaID
@@ -1833,7 +1833,7 @@ class DBProxy:
         varMap[':jobStatus'] = jobStatus
         presetEndTime = False
         for key in param.keys():
-            if param[key] != None:
+            if param[key] != None or key in ['jobDispatcherErrorDiag']:
                 param[key] = JobSpec.truncateStringAttr(key,param[key])
                 sql1 += ',%s=:%s' % (key,key)
                 varMap[':%s' % key] = param[key]
@@ -1868,7 +1868,7 @@ class DBProxy:
                 res = self.cur.fetchone()
                 if res != None:
                     ret = ''
-                    commandToPilot,endTime,specialHandling,oldJobStatus,computingSite,cloud,prodSourceLabel,lockedby,jediTaskID,jobsetID = res
+                    commandToPilot,endTime,specialHandling,oldJobStatus,computingSite,cloud,prodSourceLabel,lockedby,jediTaskID,jobsetID,jobDispatcherErrorDiag = res
                     # debug mode
                     if not specialHandling in [None,''] and 'debug' in specialHandling:
                         ret += 'debug,'
@@ -1882,10 +1882,22 @@ class DBProxy:
                     # convert empty to NULL
                     if ret == '':
                         ret = 'NULL'
-                    # don't update holding or merging
-                    if oldJobStatus == 'holding' and jobStatus == 'holding':
+                    if oldJobStatus == 'transferring' and jobStatus == 'holding' and jobDispatcherErrorDiag in [None,'']:
+                        # skip transferring -> holding
+                        _logger.debug("updateJobStatus : PandaID=%s skip to set holding since it is in transferring" \
+                                          % pandaID)
+                        #ret = 'alreadydone'
+                    if oldJobStatus == 'holding' and jobStatus == 'holding' and (not 'jobDispatcherErrorDiag' in param or not param['jobDispatcherErrorDiag'] in [None,'']):
+                        # just ignore hearbeats for job recovery
                         _logger.debug("updateJobStatus : PandaID=%s skip to reset holding" % pandaID)
+                    elif oldJobStatus == 'holding' and jobStatus == 'holding' and jobDispatcherErrorDiag in [None,''] \
+                            and 'jobDispatcherErrorDiag' in param and param['jobDispatcherErrorDiag'] in [None,'']:
+                        # special return to avoid duplicated XMLs
+                        _logger.debug("updateJobStatus : PandaID=%s skip to set holding since it was already set to holding by the final heartbeat" \
+                                          % pandaID)
+                        #ret = 'alreadydone'
                     elif oldJobStatus == 'merging':
+                        # don't update merging
                         _logger.debug("updateJobStatus : PandaID=%s skip to change from merging" % pandaID)
                     else:
                         # update stateChangeTime
@@ -5722,7 +5734,8 @@ class DBProxy:
         sqlJ = "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
         sql0 = "SELECT PandaID FROM ATLAS_PANDA.metaTable WHERE PandaID=:PandaID"        
         sql1 = "INSERT INTO ATLAS_PANDA.metaTable (PandaID,metaData) VALUES (:PandaID,:metaData)"
-        nTry=3        
+        nTry=3
+        regStart = datetime.datetime.utcnow()
         for iTry in range(nTry):
             try:
                 # autocommit on
@@ -5762,7 +5775,8 @@ class DBProxy:
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
-                tmpLog.debug("done in jobStatus={0}".format(jobStatus))
+                regTime = datetime.datetime.utcnow() - regStart
+                tmpLog.debug("done in jobStatus={0} took {1} sec".format(jobStatus,regTime.seconds))
                 return True
             except:
                 # roll back

@@ -309,6 +309,9 @@ class JobDipatcher:
             tmpStatus = 'holding'
             # update stateChangeTime to prevent Watcher from finding this job
             updateStateChange = True
+            param['jobDispatcherErrorDiag'] = None
+        elif jobStatus in ['holding','transferring']:
+            param['jobDispatcherErrorDiag'] = 'set to {0} by the pilot at {1}'.format(jobStatus,datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'))
         if tmpStatus == 'holding':
             tmpWrapper = _TimedMethod(self.taskBuffer.updateJobStatus,None)
         else:
@@ -328,7 +331,7 @@ class JobDipatcher:
                 else:
                     response.appendNode('command','NULL')
                 # add output to dataset
-                if tmpWrapper.result != "badattemptnr" and (jobStatus == 'failed' or jobStatus == 'finished'):
+                if not tmpWrapper.result in ["badattemptnr","alreadydone"] and (jobStatus == 'failed' or jobStatus == 'finished'):
                     Adder(self.taskBuffer,jobID,xml,jobStatus,attemptNr=attemptNr).start()
             else:
                 # failed
