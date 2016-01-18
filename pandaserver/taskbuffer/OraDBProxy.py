@@ -1440,6 +1440,10 @@ class DBProxy:
                     # update JEDI tables unless it is an ES consumer job which was successful but waits for merging or other running consumers
                     if useJEDI and not (EventServiceUtils.isEventServiceJob(job) and job.isCancelled()):
                         self.propagateResultToJEDI(job,self.cur,extraInfo=extraInfo)
+                    # update related ES jobs when ES-merge job is done
+                    if useJEDI and EventServiceUtils.isEventServiceMerge(job) and not job.taskBufferErrorCode in [ErrorCode.EC_PilotRetried] \
+                            and not job.isCancelled():
+                        self.updateRelatedEventServiceJobs(job)
                 # propagate successful result to unmerge job
                 if useJEDI and job.processingType == 'pmerge' and job.jobStatus == 'finished':
                     self.updateUnmergedJobs(job)
@@ -1471,153 +1475,6 @@ class DBProxy:
                 if not useCommit:
                     raise RuntimeError, 'archiveJob failed'
                 return False,[],0,None
-
-
-    # overload of archiveJob
-    def archiveJobLite(self,pandaID,jobStatus,param):
-        comment = ' /* DBProxy.archiveJobLite */'                        
-        _logger.debug("archiveJobLite : %s" % pandaID)        
-        sql1 = "SELECT %s FROM ATLAS_PANDA.jobsActive4 " % JobSpec.columnNames()
-        sql1+= "WHERE PandaID=:PandaID"
-        sql2 = "DELETE FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID"
-        sql3 = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
-        sql3+= JobSpec.bindValuesExpression()
-        sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
-        sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
-        sqlPMod = "UPDATE ATLAS_PANDA.jobParamsTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
-        nTry=3
-        for iTry in range(nTry):
-            try:
-                # begin transaction
-                self.conn.begin()
-                # select
-                varMap = {}
-                varMap[':PandaID'] = pandaID
-                self.cur.arraysize = 10
-                self.cur.execute(sql1+comment, varMap)
-                res = self.cur.fetchall()
-                if len(res) == 0:
-                    _logger.error("archiveJobLite() : PandaID %d not found" % pandaID)
-                    self._rollback()
-                    return False
-                job = JobSpec()
-                job.pack(res[0])
-                job.jobStatus = jobStatus
-                for key in param.keys():
-                    if param[key] != None:
-                        setattr(job,key,param[key])
-                job.modificationTime = datetime.datetime.utcnow()
-                job.endTime          = job.modificationTime
-                job.stateChangeTime  = job.modificationTime
-                # delete
-                self.cur.execute(sql2+comment, varMap)
-                n = self.cur.rowcount
-                if n==0:
-                    # already killed
-                    _logger.debug("archiveJobLite : Not found %s" % pandaID)        
-                else:        
-                    # insert
-                    self.cur.execute(sql3+comment, job.valuesMap())
-                    # update files
-                    for file in job.Files:
-                        sqlF = ("UPDATE ATLAS_PANDA.filesTable4 SET %s" % file.bindUpdateChangesExpression()) + "WHERE row_ID=:row_ID"
-                        varMap = file.valuesMap(onlyChanged=True)
-                        if varMap != {}:
-                            varMap[':row_ID'] = file.row_ID
-                            _logger.debug(sqlF+comment+str(varMap))                            
-                            self.cur.execute(sqlF+comment, varMap)
-                    # update files,metadata,parametes
-                    varMap = {}
-                    varMap[':PandaID'] = pandaID
-                    varMap[':modificationTime'] = job.modificationTime
-                    self.cur.execute(sqlFMod+comment,varMap)
-                    self.cur.execute(sqlMMod+comment,varMap)
-                    self.cur.execute(sqlPMod+comment,varMap)
-                # delete downstream jobs
-                if job.prodSourceLabel == 'panda' and job.jobStatus == 'failed':
-                    # file select
-                    sqlFile = "SELECT %s FROM ATLAS_PANDA.filesTable4 " % FileSpec.columnNames()
-                    sqlFile+= "WHERE PandaID=:PandaID"
-                    varMap = {}
-                    varMap[':PandaID'] = pandaID
-                    self.cur.arraysize = 100000
-                    self.cur.execute(sqlFile+comment, varMap)
-                    resFs = self.cur.fetchall()
-                    for resF in resFs:
-                        file = FileSpec()
-                        file.pack(resF)
-                        job.addFile(file)
-                    # look for outputs
-                    upOutputs = []
-                    for file in job.Files:
-                        if file.type == 'output':
-                            upOutputs.append(file.lfn)
-                    # look for downstream jobs
-                    sqlD   = "SELECT PandaID FROM ATLAS_PANDA.filesTable4 WHERE type=:type AND lfn=:lfn GROUP BY PandaID"
-                    sqlDJS = "SELECT %s " % JobSpec.columnNames()
-                    sqlDJS+= "FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
-                    sqlDJD = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
-                    sqlDJI = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
-                    sqlDJI+= JobSpec.bindValuesExpression()
-                    for upFile in upOutputs:
-                        _logger.debug("look for downstream jobs for %s" % upFile)
-                        # select PandaID
-                        varMap = {}
-                        varMap[':lfn'] = upFile
-                        varMap[':type'] = 'input'
-                        self.cur.arraysize = 100000
-                        self.cur.execute(sqlD+comment, varMap)
-                        res = self.cur.fetchall()
-                        for downID, in res:
-                            _logger.debug("delete : %s" % downID)        
-                            # select jobs
-                            varMap = {}
-                            varMap[':PandaID'] = downID
-                            self.cur.arraysize = 10
-                            self.cur.execute(sqlDJS+comment, varMap)
-                            resJob = self.cur.fetchall()
-                            if len(resJob) == 0:
-                                continue
-                            # instantiate JobSpec
-                            dJob = JobSpec()
-                            dJob.pack(resJob[0])
-                            # delete
-                            varMap = {}
-                            varMap[':PandaID'] = downID
-                            self.cur.execute(sqlDJD+comment, varMap)                            
-                            retD = self.cur.rowcount
-                            if retD == 0:
-                                continue
-                            # error code
-                            dJob.jobStatus = 'failed'
-                            dJob.endTime   = datetime.datetime.utcnow()
-                            dJob.taskBufferErrorCode = ErrorCode.EC_Kill
-                            dJob.taskBufferErrorDiag = 'killed by Panda server : upstream job failed'
-                            dJob.modificationTime = dJob.endTime
-                            dJob.stateChangeTime  = dJob.endTime
-                            # insert
-                            self.cur.execute(sqlDJI+comment, dJob.valuesMap())
-                            # update files,metadata,parametes
-                            varMap = {}
-                            varMap[':PandaID'] = downID
-                            varMap[':modificationTime'] = dJob.modificationTime
-                            self.cur.execute(sqlFMod+comment,varMap)
-                            self.cur.execute(sqlMMod+comment,varMap)
-                            self.cur.execute(sqlPMod+comment,varMap)
-                # commit
-                if not self._commit():
-                    raise RuntimeError, 'Commit error'
-                return True
-            except:
-                # roll back
-                self._rollback()
-                if iTry+1 < nTry:
-                    _logger.debug("archiveJobLite : %s retry : %s" % (pandaID,iTry))        
-                    time.sleep(random.randint(10,20))
-                    continue
-                type, value, traceBack = sys.exc_info()
-                _logger.error("archiveJobLite : %s %s" % (type,value))
-                return False
 
 
     # finalize pending jobs
@@ -16385,4 +16242,54 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return None,""
+
+
+
+    # update related ES jobs when ES-merge job is done
+    def updateRelatedEventServiceJobs(self,job):
+        comment = ' /* DBProxy.updateRelatedEventServiceJobs */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <Panda={0}>".format(job.PandaID)
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        try:
+            # sql to read range
+            sqlRR  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+            sqlRR += "distinct PandaID "
+            sqlRR += "FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
+            sqlRR += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND status=:eventStatus "
+            # loop over all files
+            esPandaIDs = set()
+            for tmpFile in job.Files:
+                # only for input
+                if not tmpFile.type in ['output','log']:
+                    # get ranges 
+                    varMap = {}
+                    varMap[':jediTaskID']  = tmpFile.jediTaskID
+                    varMap[':datasetID']   = tmpFile.datasetID
+                    varMap[':fileID']      = tmpFile.fileID
+                    varMap[':eventStatus'] = EventServiceUtils.ST_done
+                    self.cur.execute(sqlRR+comment,varMap)
+                    resRR = self.cur.fetchall()
+                    for tmpPandaID, in resRR:
+                        esPandaIDs.add(tmpPandaID)
+            # sql to update ES job
+            sqlUE  = "UPDATE {0} SET jobStatus=:newStatus,modificationTime=CURRENT_DATE "
+            sqlUE += "WHERE PandaID=:PandaID AND jobStatus=:oldStatus AND modificationTime>(CURRENT_DATE-30) "
+            for tmpPandaID in esPandaIDs:
+                varMap = {}
+                varMap[':PandaID']   = tmpPandaID
+                varMap[':newStatus'] = job.jobStatus
+                varMap[':oldStatus'] = 'closed'
+                for tableName in ['ATLAS_PANDA.jobsArchived4','ATLAS_PANDAARCH.jobsArchived']:
+                    self.cur.execute(sqlUE.format(tableName)+comment,varMap)
+                    nRow = self.cur.rowcount
+                    if nRow > 0:
+                        tmpLog.debug('change PandaID={0} to {1}'.format(tmpPandaID,job.jobStatus))
+            tmpLog.debug("done")
+            return True
+        except:
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return False
 

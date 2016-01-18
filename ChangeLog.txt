@@ -1,6 +1,7 @@
 Release Notes
 
 * 1/18/2016
+  * changed to update status of ES jobs when ES-merge is done
   * enabled a protection for transferring->holding and holding->holding with final heartbeats
 
 * 1/12/2016
