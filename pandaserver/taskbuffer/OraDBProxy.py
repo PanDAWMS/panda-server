@@ -16010,8 +16010,8 @@ class DBProxy:
 
         tmpLog.debug("done")
         return True
-    
-    
+
+
     def increaseCpuTimeTask(self, jobID, taskID, siteid, files):
         """
         Increases the CPU time of a task
@@ -16058,12 +16058,12 @@ class DBProxy:
         taskParameters = self.cur.fetchone()
         
         if not taskParameters:
-            tmpLog.debug("No site parameters retrieved for jeditaskid {0}".format(taskID))
+            tmpLog.debug("No task parameters retrieved for jeditaskid {0}... nothing to do".format(taskID))
             return None
         
         (cputime, walltime, basewalltime, cpuefficiency, cputimeunit) = taskParameters
         if not cpuefficiency or not basewalltime:
-            tmpLog.debug("CPU efficiency or basewalltime are not defined for task {0}... nothing to do".format(taskID))
+            tmpLog.debug("CPU efficiency and/or basewalltime are not defined for task {0}... nothing to do".format(taskID))
             return None
 
         tmpLog.debug("task {0} has parameters: cputime {1}, walltime {2}, basewalltime {3}, cpuefficiency {4}, cputimeunit {5}".\
