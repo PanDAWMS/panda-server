@@ -1884,10 +1884,10 @@ class DBProxy:
                         ret = 'NULL'
                     if oldJobStatus == 'transferring' and jobStatus == 'holding' and jobDispatcherErrorDiag in [None,'']:
                         # skip transferring -> holding
-                        _logger.debug("updateJobStatus : PandaID=%s skip to set holding since it is in transferring" \
+                        _logger.debug("updateJobStatus : PandaID=%s skip to set holding since it is alredy in transferring" \
                                           % pandaID)
-                        #ret = 'alreadydone'
-                    if oldJobStatus == 'holding' and jobStatus == 'holding' and (not 'jobDispatcherErrorDiag' in param or not param['jobDispatcherErrorDiag'] in [None,'']):
+                        ret = 'alreadydone'
+                    elif oldJobStatus == 'holding' and jobStatus == 'holding' and (not 'jobDispatcherErrorDiag' in param or not param['jobDispatcherErrorDiag'] in [None,'']):
                         # just ignore hearbeats for job recovery
                         _logger.debug("updateJobStatus : PandaID=%s skip to reset holding" % pandaID)
                     elif oldJobStatus == 'holding' and jobStatus == 'holding' and jobDispatcherErrorDiag in [None,''] \
@@ -1895,7 +1895,7 @@ class DBProxy:
                         # special return to avoid duplicated XMLs
                         _logger.debug("updateJobStatus : PandaID=%s skip to set holding since it was already set to holding by the final heartbeat" \
                                           % pandaID)
-                        #ret = 'alreadydone'
+                        ret = 'alreadydone'
                     elif oldJobStatus == 'merging':
                         # don't update merging
                         _logger.debug("updateJobStatus : PandaID=%s skip to change from merging" % pandaID)
