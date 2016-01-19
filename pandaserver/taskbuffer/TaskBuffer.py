@@ -1619,14 +1619,14 @@ class TaskBuffer:
 
 
     # add metadata
-    def addMetadata(self,ids,metadataList):
+    def addMetadata(self,ids,metadataList,newStatusList):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # add metadata
         index = 0
         retList = []
         for id in ids:
-            ret = proxy.addMetadata(id,metadataList[index])
+            ret = proxy.addMetadata(id,metadataList[index],newStatusList[index])
             retList.append(ret)
             index += 1
         # release proxy

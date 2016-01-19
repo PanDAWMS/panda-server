@@ -1,5 +1,8 @@
 Release Notes
 
+* 1/19/2016
+  * changed addMetaData to limit the size of json for failed jobs
+
 * 1/18/2016
   * changed to update status of ES jobs when ES-merge is done
   * enabled a protection for transferring->holding and holding->holding with final heartbeats

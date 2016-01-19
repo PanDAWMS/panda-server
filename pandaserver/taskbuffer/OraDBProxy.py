@@ -5583,7 +5583,7 @@ class DBProxy:
 
 
     # add metadata
-    def addMetadata(self,pandaID,metadata):
+    def addMetadata(self,pandaID,metadata,newStatus):
         comment = ' /* DBProxy.addMetaData */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         tmpLog = LogWrapper(_logger,methodName+" <PandaID={0}>".format(pandaID))
@@ -5624,6 +5624,14 @@ class DBProxy:
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
                     return True
+                # truncate
+                if metadata != None:
+                    origSize = len(metadata)
+                else:
+                    origSize = 0
+                maxSize = 1024*1024
+                if newStatus in ['failed'] and origSize > maxSize:
+                    metadata = metadata[:maxSize]
                 # insert
                 varMap = {}
                 varMap[':PandaID'] = pandaID
@@ -5633,7 +5641,10 @@ class DBProxy:
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
                 regTime = datetime.datetime.utcnow() - regStart
-                tmpLog.debug("done in jobStatus={0} took {1} sec".format(jobStatus,regTime.seconds))
+                msgStr = "done in jobStatus={0}->{1} took {2} sec".format(jobStatus,newStatus,regTime.seconds)
+                if metadata != None:
+                    msgStr += ' for {0} (orig {1}) bytes'.format(len(metadata),origSize)
+                tmpLog.debug(msgStr)
                 return True
             except:
                 # roll back

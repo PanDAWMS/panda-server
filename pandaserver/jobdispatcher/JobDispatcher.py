@@ -293,7 +293,7 @@ class JobDipatcher:
                 return response.encode()
         # add metadata
         if metadata != '':
-            ret = self.taskBuffer.addMetadata([jobID],[metadata])
+            ret = self.taskBuffer.addMetadata([jobID],[metadata],[jobStatus])
             if len(ret) > 0 and not ret[0]:
                 _logger.debug("updateJob : %s failed to add metadata" % jobID)
                 # return succeed
