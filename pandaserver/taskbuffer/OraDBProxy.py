@@ -16381,7 +16381,7 @@ class DBProxy:
         # delete any data older than a week
         sql_delete = """
         DELETE FROM ATLAS_PANDA.network_matrix_kv
-        WHERE ts < (sysdate - 1)
+        WHERE ts < (sysdate - 7)
         """
         try:
             self.conn.begin()
