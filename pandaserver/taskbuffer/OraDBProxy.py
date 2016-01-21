@@ -31,6 +31,7 @@ from FileSpec import FileSpec
 from DatasetSpec import DatasetSpec
 from CloudTaskSpec import CloudTaskSpec
 from WrappedCursor import WrappedCursor
+from Utils import create_shards
 from pandalogger.PandaLogger import PandaLogger
 from pandalogger.LogWrapper import LogWrapper
 from config import panda_config
