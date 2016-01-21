@@ -476,6 +476,7 @@ class NetworkConfigurator(threading.Thread):
         """
         Principal function
         """
+
         # Process and store the NWS information (NWS=Network Weather Service)
         data_nws = self.process_nws_dump()
         if not data_nws:
@@ -488,7 +489,10 @@ class NetworkConfigurator(threading.Thread):
 
         data_combined = data_nws + data_agis_cm
         if data_combined:
+            # Insert the new data
             taskBuffer.insertNetworkMatrixData(data_combined)
+            # Do some cleanup of old data
+            taskBuffer.deleteOldNetworkData()
             return True
         else:
             return False

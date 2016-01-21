@@ -85,7 +85,7 @@ class DBProxy:
         # hostname
         self.myHostName = socket.getfqdn()
         self.backend = panda_config.backend
-        
+
         
     # connect to DB
     def connect(self,dbhost=panda_config.dbhost,dbpasswd=panda_config.dbpasswd,
@@ -16368,3 +16368,40 @@ class DBProxy:
             tmpLog.debug("Failed to commit bulk with exception {0}".format(repr(traceback.format_exception(exc_type, exc_value, exc_traceback))))
             self.dumpErrorMessage(_logger, methodName)
             return None,""
+
+
+
+    # Configurator function: delete old network data
+    def deleteOldNetworkData(self):
+        comment = ' /* DBProxy.deleteOldNetworkData */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+
+        # delete any data older than a week
+        sql_delete = """
+        DELETE FROM ATLAS_PANDA.network_matrix_kv
+        WHERE ts < (sysdate - 1)
+        """
+        try:
+            self.conn.begin()
+            time1 = time.time()
+            self.cur.execute(sql_delete + comment)
+            time2 = time.time()
+            tmpLog.debug("Deletion of old network data took: {0}s".format(time2 - time1))
+
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+
+        except:
+            # roll back
+            self._rollback()
+            # error
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            tmpLog.debug("Failed to commit: {0}".format(repr(traceback.format_exception(exc_type, exc_value, exc_traceback))))
+            self.dumpErrorMessage(_logger, methodName)
+            return None,""
+
+
+

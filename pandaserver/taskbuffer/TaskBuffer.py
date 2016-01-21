@@ -2889,6 +2889,17 @@ class TaskBuffer:
 
 
 
+    # Configurator: delete old network matrix data
+    def deleteOldNetworkData(self):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.deleteOldNetworkData()
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
 # Singleton
 taskBuffer = TaskBuffer()
 
