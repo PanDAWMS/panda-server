@@ -1,9 +1,8 @@
-import urllib2
-import json
 import time
-from datetime import datetime
 import threading
 import sys
+import aux
+from datetime import datetime, timedelta
 
 from sqlalchemy import exc
 
@@ -11,10 +10,14 @@ from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
 import db_interface as dbif
 from configurator.models import Schedconfig
+from taskbuffer.TaskBuffer import taskBuffer
 
 _logger = PandaLogger().getLogger('configurator')
 _session = dbif.get_session()
+
 GB = 1024**3
+PROD_INPUT = 'Production Input'
+PROD_OUTPUT = 'Production Output'
 
 class Configurator(threading.Thread):
 
@@ -26,7 +29,7 @@ class Configurator(threading.Thread):
         else:
             self.AGIS_URL_SITES = 'http://atlas-agis-api.cern.ch/request/site/query/?json&vo_name=atlas&state=ACTIVE'
         _logger.debug('Getting site dump...')
-        self.site_dump = self.get_dump(self.AGIS_URL_SITES)
+        self.site_dump = aux.get_dump(self.AGIS_URL_SITES)
         _logger.debug('Done')
         self.site_endpoint_dict = self.get_site_endpoint_dictionary()
 
@@ -35,7 +38,7 @@ class Configurator(threading.Thread):
         else:
             self.AGIS_URL_DDMENDPOINTS = 'http://atlas-agis-api.cern.ch/request/ddmendpoint/query/list/?json&state=ACTIVE'
         _logger.debug('Getting DDM endpoints dump...')
-        self.endpoint_dump = self.get_dump(self.AGIS_URL_DDMENDPOINTS)
+        self.endpoint_dump = aux.get_dump(self.AGIS_URL_DDMENDPOINTS)
         _logger.debug('Done')
         _logger.debug('Parsing endpoints...')
         self.endpoint_token_dict = self.parse_endpoints()
@@ -46,7 +49,7 @@ class Configurator(threading.Thread):
         else:
             self.AGIS_URL_SCHEDCONFIG = 'http://atlas-agis-api.cern.ch/request/pandaqueue/query/list/?json&preset=schedconf.all&vo_name=atlas&state=ACTIVE'
         _logger.debug('Getting schedconfig dump...')
-        self.schedconfig_dump = self.get_dump(self.AGIS_URL_SCHEDCONFIG)
+        self.schedconfig_dump = aux.get_dump(self.AGIS_URL_SCHEDCONFIG)
         _logger.debug('Done')
 
         if hasattr(panda_config,'AGIS_URL_DDMBLACKLIST'):
@@ -54,7 +57,7 @@ class Configurator(threading.Thread):
         else:
             self.AGIS_URL_DDMBLACKLIST = 'http://atlas-agis-api.cern.ch/request/ddmendpointstatus/query/list/?json&fstate=OFF&activity=w'
         _logger.debug('Getting schedconfig dump...')
-        self.blacklisted_endpoints = self.get_dump(self.AGIS_URL_DDMBLACKLIST).keys()
+        self.blacklisted_endpoints = aux.get_dump(self.AGIS_URL_DDMBLACKLIST).keys()
         _logger.debug('Blacklisted endpoints {0}'.format(self.blacklisted_endpoints))
         _logger.debug('Done')
         
@@ -63,16 +66,8 @@ class Configurator(threading.Thread):
         else:
             self.RUCIO_RSE_USAGE = 'https://rucio-hadoop.cern.ch/dumps/rse_usage/current.json'
         _logger.debug('Getting Rucio RSE usage dump...')
-        self.rse_usage = self.get_dump(self.RUCIO_RSE_USAGE)
+        self.rse_usage = aux.get_dump(self.RUCIO_RSE_USAGE)
         _logger.debug('Done')
-
-
-    def get_dump(self, url):
-        response = urllib2.urlopen(url)
-        json_str = response.read()
-        dump = json.loads(json_str)
-        return dump
-
 
     def get_site_info(self, site):
         """
@@ -83,8 +78,7 @@ class Configurator(threading.Thread):
         state = site['state']
         tier_level = site['tier_level']
         
-        #TODO: Think about the best way to store this information, also considering future requests
-        if 'Nucleus' in site['datapolicies']: #or site['tier_level'] <= 1:
+        if 'Nucleus' in site['datapolicies']: # or site['tier_level'] <= 1:
             role = 'nucleus'
         else:
             role = 'satellite'
@@ -98,7 +92,7 @@ class Configurator(threading.Thread):
         """
         endpoint_token_dict = {}
         for endpoint in self.endpoint_dump:
-            #Filter out testing and inactive endpoints
+            # Filter out testing and inactive endpoints
             if endpoint['type'] != 'TEST' and endpoint['state'] == 'ACTIVE': 
                 endpoint_token_dict[endpoint['name']] = {}
                 endpoint_token_dict[endpoint['name']]['token'] = endpoint['token']
@@ -129,7 +123,7 @@ class Configurator(threading.Thread):
         """
         Parses the AGIS site and endpoint dumps and prepares a format loadable to the DB
         """
-        #Variables that will contain only the relevant information
+        # Variables that will contain only the relevant information
         sites_list = []
         included_sites = []
         ddm_endpoints_list = []
@@ -137,9 +131,9 @@ class Configurator(threading.Thread):
         
         relationship_dict = self.process_schedconfig_dump()
         
-        #Iterate the site dump
+        # Iterate the site dump
         for site in self.site_dump:
-            #Add the site info to a list
+            # Add the site info to a list
             (site_name, site_role, site_state, tier_level) = self.get_site_info(site)
             if site_state == 'ACTIVE' and site_name not in included_sites:
                 sites_list.append({'site_name': site_name, 'role': site_role, 'state': site_state, 'tier_level': tier_level})
@@ -147,7 +141,7 @@ class Configurator(threading.Thread):
             else:
                 _logger.debug('process_site_dumps: skipped site {0} (state: {1})'.format(site_name, site_state))
 
-            #Get the DDM endpoints for the site we are inspecting
+            # Get the DDM endpoints for the site we are inspecting
             for ddm_endpoint_name in site['ddmendpoints']:
                 
                 try:
@@ -163,7 +157,7 @@ class Configurator(threading.Thread):
                 except KeyError:
                     continue
 
-                #Get the SRM space
+                # Get the SRM space
                 try: 
                     space_used = self.rse_usage[ddm_endpoint_name]['srm']['used']/GB
                     space_free = self.rse_usage[ddm_endpoint_name]['srm']['free']/GB
@@ -173,7 +167,7 @@ class Configurator(threading.Thread):
                     space_used, space_free, space_total, space_timestamp = None, None, None, None
                     _logger.error('process_site_dumps: no rse SRM usage information for {0}'.format(ddm_endpoint_name))
 
-                #Get the Expired space
+                # Get the Expired space
                 try:
                     space_expired = self.rse_usage[ddm_endpoint_name]['expired']['used']/GB
                 except KeyError:
@@ -198,7 +192,7 @@ class Configurator(threading.Thread):
                 else:
                     _logger.debug('process_site_dumps: skipped DDM endpoint {0} because of state {1}'.format(ddm_endpoint_name, ddm_spacetoken_state))
 
-            #Get the PanDA resources 
+            # Get the PanDA resources
             for panda_resource in site['presources']:
                 for panda_site in site['presources'][panda_resource]:
                     panda_site_state = site['presources'][panda_resource][panda_site]['state']
@@ -210,7 +204,7 @@ class Configurator(threading.Thread):
                     for panda_queue in site['presources'][panda_resource][panda_site]['pandaqueues']:
                         panda_queue_name = panda_queue['name']
 
-                    #Get information regarding relationship to storage
+                    # Get information regarding relationship to storage
                     try:
                         relationship_info = relationship_dict[panda_site_name]
                         default_ddm_endpoint = relationship_info['default_ddm_endpoint']
@@ -239,8 +233,8 @@ class Configurator(threading.Thread):
         and prepares a format loadable to the DB
         """
 
-        #relationship_tuples = dbif.read_panda_ddm_relationships_schedconfig(_session) #data almost as it comes from schedconfig
-        relationships_dict = {} #data to be loaded to configurator DB 
+        # relationship_tuples = dbif.read_panda_ddm_relationships_schedconfig(_session) #data almost as it comes from schedconfig
+        relationships_dict = {} # data to be loaded to configurator DB
         
         for long_panda_site_name in self.schedconfig_dump:
             
@@ -253,7 +247,7 @@ class Configurator(threading.Thread):
                 _logger.warning("Skipped {0}, because primary associated DDM endpoint {1} not found (e.g. in TEST mode or DISABLED)".format(long_panda_site_name, default_ddm_endpoint))
                 continue
 
-            #Check if the ddm_endpoint and the panda_site belong to the same site
+            # Check if the ddm_endpoint and the panda_site belong to the same site
             cpu_site = self.schedconfig_dump[long_panda_site_name]['atlas_site']
             if storage_site_name == cpu_site and not self.schedconfig_dump[long_panda_site_name]['resource_type'] in ['cloud', 'hpc']:
                 is_local = 'Y'
@@ -270,7 +264,7 @@ class Configurator(threading.Thread):
         """
         Point out sites, panda sites and DDM endpoints that are missing in one of the sources 
         """
-        #Check for site inconsistencies
+        # Check for site inconsistencies
         agis_sites = set([site['name'] for site in self.site_dump if site['state']=='ACTIVE'])
         _logger.debug("Sites in AGIS {0}".format(agis_sites))
         configurator_sites = dbif.read_configurator_sites(_session)
@@ -292,7 +286,7 @@ class Configurator(threading.Thread):
             if missing:
                 _logger.error("SITE inconsistency: {0} was not found in {1}".format(site, missing))
 
-        #Check for panda-site inconsistencies
+        # Check for panda-site inconsistencies
         agis_panda_sites = set([self.schedconfig_dump[long_panda_site_name]['panda_resource'] for long_panda_site_name in self.schedconfig_dump])
         _logger.debug("PanDA sites in AGIS {0}".format(agis_panda_sites))
         configurator_panda_sites = dbif.read_configurator_panda_sites(_session)
@@ -314,7 +308,7 @@ class Configurator(threading.Thread):
             if missing:
                 _logger.error("PanDA SITE inconsistency: {0} was not found in {1}".format(site, missing))
 
-        #Check for DDM endpoint inconsistencies
+        # Check for DDM endpoint inconsistencies
         agis_ddm_endpoints = set([ddm_endpoint_name for ddm_endpoint_name in self.endpoint_token_dict])
         _logger.debug("DDM endpoints in AGIS {0}".format(agis_ddm_endpoints))
         configurator_ddm_endpoints = dbif.read_configurator_ddm_endpoints(_session)
@@ -342,44 +336,183 @@ class Configurator(threading.Thread):
         if not agis_sites or not agis_panda_sites or not agis_ddm_endpoints:
             _logger.warning("Exiting cleanup because one of AGIS sets was empty")
         
-        #Clean up sites
+        # Clean up sites
         sites_to_delete = configurator_sites - agis_sites
         dbif.delete_sites(_session, sites_to_delete)
         
-        #Clean up panda sites
+        # Clean up panda sites
         panda_sites_to_delete = configurator_panda_sites - agis_panda_sites
         dbif.delete_panda_sites(_session, panda_sites_to_delete)
         
-        #Clean up DDM endpoints
+        # Clean up DDM endpoints
         ddm_endpoints_to_delete = configurator_ddm_endpoints - agis_ddm_endpoints
-        dbif.delete_ddm_endpoitns(_session, ddm_endpoints_to_delete)
+        dbif.delete_ddm_endpoints(_session, ddm_endpoints_to_delete)
 
+    def get_corepower_and_cleanup(self):
+        """
+        Get the snapshot of the current corepower provided by each site. Delete old stats
+        """
+        dbif.get_cores_by_site(_session)
+        dbif.clean_site_stats_attribute(_session, 'total_corepower', days=7)
 
     def run(self):
         """
         Principal function
         """
-        #Get pre-processed AGIS dumps
+        # Get pre-processed AGIS dumps
         sites_list, panda_sites_list, ddm_endpoints_list = self.process_site_dumps()
 
-        #Persist the information to the PanDA DB
+        # Persist the information to the PanDA DB
         dbif.write_sites_db(_session, sites_list)
         dbif.write_panda_sites_db(_session, panda_sites_list)
         dbif.write_ddm_endpoints_db(_session, ddm_endpoints_list)
-        #dbif.write_panda_ddm_relations(_session, relationships_list)
-        
-        #Do a data quality check
-        self.consistency_check()
+        # dbif.write_panda_ddm_relations(_session, relationships_list)
 
+        #Get a snapshot of the corecount usage by site
+        self.get_corepower_and_cleanup()
+
+        # Do a data quality check
+        self.consistency_check()
         
         return True
 
+class NetworkConfigurator(threading.Thread):
+
+    def __init__(self):
+        threading.Thread.__init__(self)
+
+        taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
+
+        if hasattr(panda_config,'NWS_URL'):
+            self.NWS_URL = panda_config.NWS_URL
+        else:
+            self.NWS_URL = 'http://rucio-nagios-prod/ett/latest.json'
+        _logger.debug('Getting NWS dump...')
+        self.nws_dump = aux.get_dump(self.NWS_URL)
+        _logger.debug('Done')
+
+        if hasattr(panda_config,'AGIS_URL_CM'):
+            self.AGIS_URL_CM = panda_config.AGIS_URL_CM
+        else:
+            self.AGIS_URL_CM = 'http://atlas-agis-api.cern.ch/request/site/query/list_links/?json'
+        _logger.debug('Getting AGIS cost matrix dump...')
+        self.agis_cm_dump = aux.get_dump(self.AGIS_URL_CM)
+        _logger.debug('Done')
+
+
+    def process_nws_dump(self):
+        """
+        Gets the NWS information dump, filters out irrelevant information
+        and prepares it for insertion into the PanDA DB
+        """
+
+        data = []
+
+        # Ignore outdated values
+        latest_validity = datetime.utcnow() - timedelta(minutes=30)
+
+        for entry in self.nws_dump:
+            _logger.debug('Processing NWS entry {0}'.format(entry))
+
+            src = entry['src']
+            dst = entry['dst']
+
+            values = {}
+            for activity in [PROD_INPUT, PROD_OUTPUT]: # PanDA is only interested in production input and output statistics
+
+                if not entry.has_key(activity):
+                    continue
+
+                try:
+                    done_1h = entry[activity]['done_1h']
+                    done_6h = entry[activity]['done_6h']
+                    queued_for_dst = entry[activity]['queued_for_dst']
+                    updated_at = datetime.strptime(entry[activity]['updated_at'], '%Y-%m-%dT%H:%M:%S.%f')
+                except KeyError:
+                    _logger.error("Entry {0} key {1} does not follow standards".format(entry, activity))
+                    continue
+                except ValueError:
+                    _logger.error("Something wrong with {0}".format(entry[activity]))
+                    continue
+
+                # Do not consider expired data
+                if updated_at < latest_validity:
+                    _logger.warning('Skipped activity {0} because it is expired (ts={1}))'.format(activity, updated_at))
+                    continue
+
+                #Prepare data for bulk upserts
+                data.append((src, dst, activity+'_done_1h', done_1h, updated_at))
+                data.append((src, dst, activity+'_done_6h', done_6h, updated_at))
+                data.append((src, dst, activity+'_queued', queued_for_dst, updated_at))
+
+        return data
+
+    def process_agis_cm_dump(self):
+        """
+        Gets the AGIS CM information dump, filters out irrelevant information
+        and prepares it for insertion into the PanDA DB
+        """
+        data = []
+        latest_validity = datetime.utcnow() - timedelta(minutes=30) # Ignore outdated values
+
+        for entry in self.agis_cm_dump:
+            _logger.debug('Processing AGIS CM entry {0}'.format(entry))
+
+            try:
+                src = entry['src']
+                dst = entry['dst']
+                closeness = entry['closeness']
+                ts = datetime.now()
+            except KeyError:
+                _logger.warning("AGIS CM entry {0} does not contain one or more of the keys src/dst/closeness".format(entry))
+                continue
+
+            #Prepare data for bulk upserts
+            data.append((src, dst, 'AGIS_closeness', closeness, ts))
+
+        return data
+
+    def run(self):
+        """
+        Principal function
+        """
+        # Process and store the NWS information (NWS=Network Weather Service)
+        data_nws = self.process_nws_dump()
+        if not data_nws:
+            _logger.critical("Could not retrieve any data from the NWS!")
+
+        # Process and store the AGIS connectivity information
+        data_agis_cm = self.process_agis_cm_dump()
+        if not data_agis_cm:
+            _logger.critical("Could not retrieve any data from the AGIS Cost Matrix!")
+
+        data_combined = data_nws + data_agis_cm
+        if data_combined:
+            taskBuffer.insertNetworkMatrixData(data_combined)
+            return True
+        else:
+            return False
+
 
 if __name__ == "__main__":
-    t1 = time.time()
-    configurator = Configurator()
-    if not configurator.run():
-        _logger.critical("Configurator loop FAILED")
-    t2 = time.time()
-    _logger.debug("Configurator run took {0}s".format(t2-t1))
-    
+
+    # If no argument, call the basic configurator
+    if len(sys.argv)==1:
+        t1 = time.time()
+        configurator = Configurator()
+        if not configurator.run():
+            _logger.critical("Configurator loop FAILED")
+        t2 = time.time()
+        _logger.debug("Configurator run took {0}s".format(t2-t1))
+
+    # If --network argument, call the network configurator
+    elif len(sys.argv) == 2 and sys.argv[1].lower() == '--network':
+        t1 = time.time()
+        network_configurator = NetworkConfigurator()
+        if not network_configurator.run():
+            _logger.critical("Configurator loop FAILED")
+        t2 = time.time()
+        _logger.debug("Network-Configurator run took {0}s".format(t2-t1))
+
+    else:
+        _logger.error("Configurator being called with wrong arguments. Use either no arguments or --network")

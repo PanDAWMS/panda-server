@@ -56,6 +56,18 @@ class DdmEndpoint(Base):
     site = relationship('Site')
 
 
+class SiteStats(Base):
+    __tablename__ = 'site_stats'
+    __table_args__ = {u'schema': 'atlas_panda'}
+
+    site_name = Column(ForeignKey(u'atlas_panda.site.site_name'), primary_key=True)
+    ts = Column(DateTime, primary_key=True)
+    attrib = Column(String(52), primary_key=True)
+    value = Column(Numeric(10, 0, asdecimal=False))
+
+    site = relationship('Site')
+
+
 # class PandaDdmRelation(Base):
 #     __tablename__ = 'panda_ddm_relation'
 #     __table_args__ = {u'schema': 'atlas_panda'}
@@ -193,3 +205,124 @@ class Schedconfig(Base):
     autosetup_pre = Column(String(512))
     direct_access_lan = Column(String(32), server_default=text("'False' "))
     direct_access_wan = Column(String(32), server_default=text("'False' "))
+
+
+class Jobsactive4(Base):
+    __tablename__ = 'jobsactive4'
+    __table_args__ = (
+        Index('jobsactive4_jeditaskid_idx', 'jeditaskid', 'pandaid', unique=True),
+        Index('jobsactive4_csite_label_prior3', 'computingsite', 'prodsourcelabel', 'currentpriority', 'jobstatus', 'maxdiskcount', 'commandtopilot'),
+        Index('jobsactive4_compsitestatus_idx', 'computingsite', 'jobstatus'),
+        Index('jobsactive4_produsernamest_idx', 'produsername', 'jobstatus'),
+        Index('jobsactive4_prior_idx', 'currentpriority', 'pandaid'),
+        Index('jobsactive4_proddblock_st_idx', 'proddblock', 'jobstatus'),
+        Index('jobsactive4_workqueue_idx', 'workqueue_id', 'cloud', 'jobstatus', 'prodsourcelabel', 'currentpriority'),
+        {u'schema': 'ATLAS_PANDA'}
+    )
+
+    pandaid = Column(Numeric(11, 0, asdecimal=False), primary_key=True, server_default=text("'0' "))
+    jobdefinitionid = Column(Numeric(11, 0, asdecimal=False), nullable=False, index=True, server_default=text("'0' "))
+    schedulerid = Column(String(128))
+    pilotid = Column(String(200))
+    creationtime = Column(DateTime, nullable=False, server_default=text("to_date('01-JAN-70 00:00:00', 'dd-MON-yy hh24:mi:ss') "))
+    creationhost = Column(String(128))
+    modificationtime = Column(DateTime, nullable=False, index=True, server_default=text("to_date('01-JAN-70 00:00:00', 'dd-MON-yy hh24:mi:ss') "))
+    modificationhost = Column(String(128))
+    atlasrelease = Column(String(64))
+    transformation = Column(String(250))
+    homepackage = Column(String(80))
+    prodserieslabel = Column(String(20), server_default=text("'Rome'"))
+    prodsourcelabel = Column(String(20), server_default=text("'managed'"))
+    produserid = Column(String(250))
+    assignedpriority = Column(Numeric(9, 0, asdecimal=False), nullable=False, server_default=text("'0' "))
+    currentpriority = Column(Numeric(9, 0, asdecimal=False), nullable=False, server_default=text("'0' "))
+    attemptnr = Column(Numeric(3, 0, asdecimal=False), nullable=False, server_default=text("'0' "))
+    maxattempt = Column(Numeric(3, 0, asdecimal=False), nullable=False, server_default=text("'0' "))
+    jobstatus = Column(String(15), nullable=False, index=True, server_default=text("'activated' "))
+    jobname = Column(String(256), index=True)
+    maxcpucount = Column(Numeric(10, 0, asdecimal=False), nullable=False, server_default=text("'0' "))
+    maxcpuunit = Column(String(32))
+    maxdiskcount = Column(Numeric(10, 0, asdecimal=False), nullable=False, server_default=text("'0' "))
+    maxdiskunit = Column(String(4))
+    ipconnectivity = Column(String(5))
+    minramcount = Column(Numeric(10, 0, asdecimal=False), nullable=False, server_default=text("'0' "))
+    minramunit = Column(String(2))
+    starttime = Column(DateTime, server_default=text("to_date('01-JAN-70 00:00:00', 'dd-MON-yy hh24:mi:ss')"))
+    endtime = Column(DateTime, server_default=text("to_date('01-JAN-70 00:00:00', 'dd-MON-yy hh24:mi:ss')"))
+    cpuconsumptiontime = Column(Numeric(20, 0, asdecimal=False), nullable=False, server_default=text("'0' "))
+    cpuconsumptionunit = Column(String(128))
+    commandtopilot = Column(String(250))
+    transexitcode = Column(String(128))
+    piloterrorcode = Column(Numeric(7, 0, asdecimal=False), nullable=False, server_default=text("'0' "))
+    piloterrordiag = Column(String(500))
+    exeerrorcode = Column(Numeric(7, 0, asdecimal=False), nullable=False, server_default=text("'0' "))
+    exeerrordiag = Column(String(500))
+    superrorcode = Column(Numeric(7, 0, asdecimal=False), nullable=False, server_default=text("'0' "))
+    superrordiag = Column(String(250), server_default=text("NULL"))
+    ddmerrorcode = Column(Numeric(7, 0, asdecimal=False), nullable=False, server_default=text("'0' "))
+    ddmerrordiag = Column(String(500), server_default=text("NULL"))
+    brokerageerrorcode = Column(Numeric(7, 0, asdecimal=False), nullable=False, server_default=text("'0' "))
+    brokerageerrordiag = Column(String(250), server_default=text("NULL"))
+    jobdispatchererrorcode = Column(Numeric(7, 0, asdecimal=False), nullable=False, server_default=text("'0' "))
+    jobdispatchererrordiag = Column(String(250), server_default=text("NULL"))
+    taskbuffererrorcode = Column(Numeric(7, 0, asdecimal=False), nullable=False, server_default=text("'0' "))
+    taskbuffererrordiag = Column(String(300), server_default=text("NULL"))
+    computingsite = Column(String(128))
+    computingelement = Column(String(128))
+    jobparameters = Column(Text)
+    Metadata = Column(Text)
+    proddblock = Column(String(255))
+    dispatchdblock = Column(String(255))
+    destinationdblock = Column(String(255))
+    destinationse = Column(String(250))
+    nevents = Column(Numeric(10, 0, asdecimal=False), nullable=False, server_default=text("'0' "))
+    grid = Column(String(50))
+    cloud = Column(String(50))
+    cpuconversion = Column(Numeric(9, 4))
+    sourcesite = Column(String(36))
+    destinationsite = Column(String(36))
+    transfertype = Column(String(10))
+    taskid = Column(Numeric(9, 0, asdecimal=False), server_default=text("NULL"))
+    cmtconfig = Column(String(250))
+    statechangetime = Column(DateTime, server_default=text("to_date('01-JAN-70 00:00:00', 'dd-MON-yy hh24:mi:ss')"))
+    proddbupdatetime = Column(DateTime, server_default=text("to_date('01-JAN-70 00:00:00', 'dd-MON-yy hh24:mi:ss')"))
+    lockedby = Column(String(128))
+    relocationflag = Column(Numeric(1, 0, asdecimal=False), server_default=text("'0'"))
+    jobexecutionid = Column(Numeric(11, 0, asdecimal=False), server_default=text("'0'"))
+    vo = Column(String(16))
+    pilottiming = Column(String(100))
+    workinggroup = Column(String(20))
+    processingtype = Column(String(64))
+    produsername = Column(String(60))
+    ninputfiles = Column(Numeric(5, 0, asdecimal=False))
+    countrygroup = Column(String(20))
+    batchid = Column(String(80))
+    parentid = Column(Numeric(11, 0, asdecimal=False))
+    specialhandling = Column(String(80))
+    jobsetid = Column(Numeric(11, 0, asdecimal=False))
+    corecount = Column(Numeric(3, 0, asdecimal=False))
+    ninputdatafiles = Column(Numeric(5, 0, asdecimal=False))
+    inputfiletype = Column(String(32))
+    inputfileproject = Column(String(64))
+    inputfilebytes = Column(Numeric(11, 0, asdecimal=False))
+    noutputdatafiles = Column(Numeric(5, 0, asdecimal=False))
+    outputfilebytes = Column(Numeric(11, 0, asdecimal=False))
+    jobmetrics = Column(String(500))
+    workqueue_id = Column(ForeignKey(u'atlas_panda.jedi_work_queue.queue_id'))
+    jeditaskid = Column(ForeignKey(u'atlas_panda.jedi_tasks.jeditaskid'))
+    jobsubstatus = Column(String(80))
+    actualcorecount = Column(Numeric(6, 0, asdecimal=False))
+    reqid = Column(Numeric(9, 0, asdecimal=False), index=True)
+    maxrss = Column(Numeric(10, 0, asdecimal=False))
+    maxvmem = Column(Numeric(10, 0, asdecimal=False))
+    maxswap = Column(Numeric(10, 0, asdecimal=False))
+    maxpss = Column(Numeric(10, 0, asdecimal=False))
+    avgrss = Column(Numeric(10, 0, asdecimal=False))
+    avgvmem = Column(Numeric(10, 0, asdecimal=False))
+    avgswap = Column(Numeric(10, 0, asdecimal=False))
+    avgpss = Column(Numeric(10, 0, asdecimal=False))
+    maxwalltime = Column(Numeric(10, 0, asdecimal=False))
+
+    #jedi_task = relationship(u'JediTask')
+    #workqueue = relationship(u'JediWorkQueue')
+

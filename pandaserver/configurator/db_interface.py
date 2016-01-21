@@ -1,17 +1,19 @@
 #Standard python libraries
 import sys
+import datetime
+from datetime import timedelta
 
 #Specific python libraries
 import sqlalchemy
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import exc
+from sqlalchemy import exc, func
 
 #PanDA server libraries
 from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
 
 #Configurator libraries
-from models import Site, PandaSite, DdmEndpoint, Schedconfig #, PandaDdmRelation
+from models import Site, PandaSite, DdmEndpoint, Schedconfig, Jobsactive4, SiteStats
 
 #Read connection parameters
 __host = panda_config.dbhost
@@ -312,12 +314,12 @@ def delete_panda_sites(session, panda_sites_to_delete):
             _logger.critical('delete_panda_sites excepted for panda_site {0} with {1}'.format(panda_site_name, sys.exc_info()))
 
 
-def delete_ddm_endpoitns(session, ddm_endpoints_to_delete):
+def delete_ddm_endpoints(session, ddm_endpoints_to_delete):
     """
     Delete DDM endpoints dependent entries in panda_ddm_relations
     """
     if not ddm_endpoints_to_delete:
-        _logger.debug("delete_ddm_endpoitns: nothing to delete")
+        _logger.debug("delete_ddm_endpoints: nothing to delete")
         return
     ddm_endpoint_objects = session.query(DdmEndpoint).filter(DdmEndpoint.ddm_endpoint_name.in_(ddm_endpoints_to_delete)).all()
     for ddm_endpoint_object in ddm_endpoint_objects:
@@ -332,3 +334,48 @@ def delete_ddm_endpoitns(session, ddm_endpoints_to_delete):
             _logger.critical('delete_ddm_endpoints excepted for ddm_endpoint {0} with {1}'.format(ddm_endpoint_name, sys.exc_info()))
 
 
+def get_cores_by_site(session):
+    """
+    Gets the number of cores by site
+    """
+    # SELECT sysdate, ps.site_name, VO, SUM(corecount) AS num_cores
+    # FROM ATLAS_PANDA.jobsActive4 ja4, atlas_panda.panda_site ps
+    # WHERE jobstatus in ('sent', 'starting', 'running', 'holding')
+    # AND ps.panda_site_name = ja4.computingsite
+    # GROUP BY sysdate, ps.site_name, VO
+
+    try:
+        for ts, site_name, core_count in session.query(func.sysdate(), PandaSite.site_name, func.sum(Jobsactive4.corecount)).\
+                                                   filter(Jobsactive4.computingsite==PandaSite.panda_site_name).\
+                                                   filter(Jobsactive4.jobstatus=='running').\
+                                                   group_by(func.sysdate(), PandaSite.site_name).all():
+            try:
+                site_stat = SiteStats(site_name=site_name, ts=ts, attrib='total_corepower', value=core_count)
+                session.add(site_stat)
+                session.commit()
+            except exc.SQLAlchemyError:
+                session.rollback()
+                _logger.critical('get_cores_by_site excepted when adding new site stats (site_name: {0}, ts: {1}, attrib: corecount, value: {2}). Exception {3}'.format(site_name, ts, core_count, sys.exc_info()))
+
+    except exc.SQLAlchemyError:
+        session.rollback()
+        _logger.critical('get_cores_by_site excepted querying the corecount by sites with {0}'.format(sys.exc_info()))
+
+
+def clean_site_stats_attribute(session, attrib, days=7):
+    """
+    Cleans entries older than days
+    """
+    ts_limit = datetime.datetime.now() - timedelta(days=7)
+    try:
+        entries_to_remove = session.query(SiteStats).filter(SiteStats.ts<ts_limit).filter(SiteStats.attrib==attrib).all()
+        for entry_to_remove in entries_to_remove:
+            try:
+                session.delete(entry_to_remove)
+                session.commit()
+            except exc.SQLAlchemyError:
+                session.rollback()
+                _logger.critical('clean_site_stats_attribute excepted when deleting entry {0} with: {1}'.format(entry_to_remove, sys.exc_info()))
+    except exc.SQLAlchemyError:
+        session.rollback()
+        _logger.critical('clean_site_stats_attribute excepted querying stats to remove: {0}'.format(sys.exc_info()))

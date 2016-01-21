@@ -16304,3 +16304,66 @@ class DBProxy:
             self.dumpErrorMessage(_logger,methodName)
             return False
 
+
+    # Configurator function: inserts data into the network matrix
+    def insertNetworkMatrixData(self, data):
+        comment = ' /* DBProxy.insertNetworkMatrixData */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+
+        # For performance reasons we will insert the data into a temporary table
+        # and then merge this data into the permanent table.
+
+        sql_insert = """
+        INSERT INTO ATLAS_PANDA.network_matrix_kv_temp (src, dst, key, value, ts)
+        VALUES (:src, :dst, :key, :value, :ts)
+        """
+
+        sql_merge = """
+        MERGE /*+ FULL(nm_kv) */ INTO ATLAS_PANDA.network_matrix_kv nm_kv USING
+            (SELECT  src, dst, key, value, ts FROM ATLAS_PANDA.NETWORK_MATRIX_KV_TEMP) input
+            ON (nm_kv.src = input.src AND nm_kv.dst= input.dst AND nm_kv.key = input.key)
+        WHEN NOT MATCHED THEN
+            INSERT (src, dst, key, value, ts)
+            VALUES (input.src, input.dst, input.key, input.value, input.ts)
+        WHEN MATCHED THEN
+            UPDATE SET nm_kv.value = input.value, nm_kv.ts = input.ts
+        """
+        try:
+            self.conn.begin()
+            for shard in create_shards(data, 100):
+                time1 = time.time()
+                var_maps = []
+                for entry in shard:
+                    var_map = {
+                        ':src': entry[0],
+                        ':dst': entry[1],
+                        ':key': entry[2],
+                        ':value': entry[3],
+                        ':ts': entry[4]
+                    }
+                    var_maps.append(var_map)
+
+                time2 = time.time()
+                self.cur.executemany(sql_insert+comment, var_maps)
+                time3 = time.time()
+                tmpLog.debug("Processing a shard took: {0}s of data preparation and {1}s of insertion = {2}".format(time2 - time1, time3 - time2, time3 - time1))
+
+            time4 = time.time()
+            self.cur.execute(sql_merge+comment)
+            time5 = time.time()
+            tmpLog.debug("Final merge took: {0}s".format(time5 - time4))
+
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+
+        except:
+            # roll back
+            self._rollback()
+            # error
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            tmpLog.debug("Failed to commit bulk with exception {0}".format(repr(traceback.format_exception(exc_type, exc_value, exc_traceback))))
+            self.dumpErrorMessage(_logger, methodName)
+            return None,""
