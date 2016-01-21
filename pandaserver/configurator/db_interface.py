@@ -350,32 +350,32 @@ def get_cores_by_site(session):
                                                    filter(Jobsactive4.jobstatus=='running').\
                                                    group_by(func.sysdate(), PandaSite.site_name).all():
             try:
-                site_stat = SiteStats(site_name=site_name, ts=ts, attrib='total_corepower', value=core_count)
+                site_stat = SiteStats(site_name=site_name, ts=ts, key='total_corepower', value=core_count)
                 session.add(site_stat)
                 session.commit()
             except exc.SQLAlchemyError:
                 session.rollback()
-                _logger.critical('get_cores_by_site excepted when adding new site stats (site_name: {0}, ts: {1}, attrib: corecount, value: {2}). Exception {3}'.format(site_name, ts, core_count, sys.exc_info()))
+                _logger.critical('get_cores_by_site excepted when adding new site stats (site_name: {0}, ts: {1}, key: corecount, value: {2}). Exception {3}'.format(site_name, ts, core_count, sys.exc_info()))
 
     except exc.SQLAlchemyError:
         session.rollback()
         _logger.critical('get_cores_by_site excepted querying the corecount by sites with {0}'.format(sys.exc_info()))
 
 
-def clean_site_stats_attribute(session, attrib, days=7):
+def clean_site_stats_key(session, key, days=7):
     """
     Cleans entries older than days
     """
     ts_limit = datetime.datetime.now() - timedelta(days=7)
     try:
-        entries_to_remove = session.query(SiteStats).filter(SiteStats.ts<ts_limit).filter(SiteStats.attrib==attrib).all()
+        entries_to_remove = session.query(SiteStats).filter(SiteStats.ts<ts_limit).filter(SiteStats.key==key).all()
         for entry_to_remove in entries_to_remove:
             try:
                 session.delete(entry_to_remove)
                 session.commit()
             except exc.SQLAlchemyError:
                 session.rollback()
-                _logger.critical('clean_site_stats_attribute excepted when deleting entry {0} with: {1}'.format(entry_to_remove, sys.exc_info()))
+                _logger.critical('clean_site_stats_key excepted when deleting entry {0} with: {1}'.format(entry_to_remove, sys.exc_info()))
     except exc.SQLAlchemyError:
         session.rollback()
-        _logger.critical('clean_site_stats_attribute excepted querying stats to remove: {0}'.format(sys.exc_info()))
+        _logger.critical('clean_site_stats_key excepted querying stats to remove: {0}'.format(sys.exc_info()))

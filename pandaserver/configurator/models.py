@@ -62,7 +62,7 @@ class SiteStats(Base):
 
     site_name = Column(ForeignKey(u'atlas_panda.site.site_name'), primary_key=True)
     ts = Column(DateTime, primary_key=True)
-    attrib = Column(String(52), primary_key=True)
+    key = Column(String(52), primary_key=True)
     value = Column(Numeric(10, 0, asdecimal=False))
 
     site = relationship('Site')

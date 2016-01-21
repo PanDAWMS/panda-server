@@ -353,7 +353,7 @@ class Configurator(threading.Thread):
         Get the snapshot of the current corepower provided by each site. Delete old stats
         """
         dbif.get_cores_by_site(_session)
-        dbif.clean_site_stats_attribute(_session, 'total_corepower', days=7)
+        dbif.clean_site_stats_key(_session, 'total_corepower', days=7)
 
     def run(self):
         """
