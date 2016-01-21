@@ -42,7 +42,7 @@ def get_session():
 
 def db_interaction(method):
     """
-    NOTE: THIS FUNCTION IS A REMAINDER FROM PREVIOUS DEVELOPEMENT AND IS NOT CURRENTLY USED, 
+    NOTE: THIS FUNCTION IS A REMAINDER FROM PREVIOUS DEVELOPMENT AND IS NOT CURRENTLY USED,
     BUT SHOULD BE ADAPTED TO REMOVE THE BOILERPLATE CODE IN ALL FUNCTIONS BELOW
     Decorator to wrap a function with the necessary session handling.
     FIXME: Getting a session has a 50ms overhead. See if there are better ways.
@@ -61,9 +61,9 @@ def db_interaction(method):
             raise
     return session_wrapper
 
-#TODO: The performance of all write methods could significantly be improved by writing in bulks.
-#The current implementation was the fastest way to get it done with the merge method and avoiding
-#issues with duplicate keys  
+# TODO: The performance of all write methods could significantly be improved by writing in bulks.
+# The current implementation was the fastest way to get it done with the merge method and avoiding
+# issues with duplicate keys
 def write_sites_db(session, sites_list):
     """
     Cache the AGIS site information in the PanDA database
@@ -138,10 +138,10 @@ def read_panda_ddm_relationships_schedconfig(session):
         for entry in schedconfig:
             site = entry.site
             panda_site = entry.siteid
-            #Schedconfig stores DDM endpoints as a comma separated string. Strip just in case
+            # Schedconfig stores DDM endpoints as a comma separated string. Strip just in case
             if entry.ddm:
                 ddm_endpoints = [ddm_endpoint.strip() for ddm_endpoint in entry.ddm.split(',')]
-            #Return the tuples and let the caller mingle it the way he wants
+            # Return the tuples and let the caller mingle it the way he wants
             relationship_tuples.append((site, panda_site, ddm_endpoints))
         _logger.debug("Done with read_panda_ddm_relationships_schedconfig")
         return relationship_tuples
@@ -149,28 +149,6 @@ def read_panda_ddm_relationships_schedconfig(session):
         session.rollback()
         _logger.critical('read_panda_ddm_relationships_schedconfig excepted --> {0}'.format(sys.exc_info()))
         return []
-
-
-# def write_panda_ddm_relations(session, relationships_list):
-#     """
-#     Cache the AGIS ddm endpoints in the PanDA database
-#     """
-#     _logger.debug("Starting write_panda_ddm_relations")
-#     for relationship in relationships_list:
-#         try:
-#             session.merge(PandaDdmRelation(panda_site_name = relationship['panda_site_name'],
-#                                            ddm_endpoint_name = relationship['ddm_endpoint_name'],
-#                                            is_default = relationship['is_default'],
-#                                            is_local = relationship['is_local']))
-#             session.commit()
-#         except exc.IntegrityError:
-#             session.rollback()
-#             _logger.error('write_panda_ddm_relations: Could not persist information for relationship {0}. Exception: {1}'.format((relationship['panda_site_name'],
-#                                                                                                            relationship['ddm_endpoint_name'],
-#                                                                                                            relationship['is_default'])
-#                                                                                                           , sys.exc_info()))
-#         
-#     _logger.debug("Done with write_panda_ddm_relations")
 
 
 def read_configurator_sites(session):
