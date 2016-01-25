@@ -3002,12 +3002,16 @@ class DBProxy:
                 job.pack(res)
                 # sql to read range
                 sqlRR  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
-                sqlRR += "PandaID,job_processID,attemptNr "
+                sqlRR += "PandaID,job_processID,attemptNr,objStore_ID "
                 sqlRR += "FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
                 sqlRR += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND status=:eventStatus "
                 # read parent PandaID
                 sqlPP  = "SELECT DISTINCT oldPandaID FROM {0}.JEDI_Job_Retry_History ".format(panda_config.schemaJEDI)
                 sqlPP += "WHERE jediTaskID=:jediTaskID AND newPandaID=:pandaID " # FIXME 'to ignore normal retry chain by JEDI' AND type=:esRetry "
+                # sql to read log backet IDs
+                sqlLBK  = "SELECT jobMetrics FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID "
+                sqlLBK += "UNION "
+                sqlLBK += "SELECT jobMetrics FROM ATLAS_PANDAARCH.jobsArchived WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-30) "
                 # read files
                 sqlFile = "SELECT %s FROM ATLAS_PANDA.filesTable4 " % FileSpec.columnNames()
                 sqlFile+= "WHERE PandaID=:PandaID"
@@ -3016,6 +3020,7 @@ class DBProxy:
                 resFs = self.cur.fetchall()
                 eventRangeIDs = {}
                 esDonePandaIDs = []
+                esDoneObjStoreIDs = {}
                 for resF in resFs:
                     file = FileSpec()
                     file.pack(resF)
@@ -3034,7 +3039,7 @@ class DBProxy:
                             varMap[':eventStatus'] = EventServiceUtils.ST_done
                             self.cur.execute(sqlRR+comment, varMap)
                             resRR = self.cur.fetchall()
-                            for esPandaID,job_processID,attemptNr in resRR:
+                            for esPandaID,job_processID,attemptNr,objStoreID in resRR:
                                 tmpEventRangeID = self.makeEventRangeID(file.jediTaskID,esPandaID,file.fileID,job_processID,attemptNr)
                                 if not eventRangeIDs.has_key(file.fileID):
                                     eventRangeIDs[file.fileID] = {}
@@ -3049,12 +3054,24 @@ class DBProxy:
                                             esDonePandaIDs.remove(oldEsPandaID)
                                 if addFlag:
                                     eventRangeIDs[file.fileID][job_processID] = {'pandaID':esPandaID,
-                                                                                 'eventRangeID':tmpEventRangeID}
+                                                                                 'eventRangeID':tmpEventRangeID,
+                                                                                 'objStoreID':objStoreID}
                                     if not esPandaID in esDonePandaIDs:
                                         esDonePandaIDs.append(esPandaID)
+                                        esDoneObjStoreIDs[esPandaID] = None
+                                        # get jobMetrics
+                                        varMap = {}
+                                        varMap[':PandaID'] = esPandaID
+                                        self.cur.execute(sqlLBK+comment,varMap)
+                                        resLBK = self.cur.fetchone()
+                                        if resLBK != None and resLBK[0] != None:
+                                            tmpPatch = re.search('logBucketID=(\d+)',resLBK[0])
+                                            if tmpPatch != None:
+                                                esDoneObjStoreIDs[esPandaID] = tmpPatch.group(1)
                 # make input for event service output merging
                 mergeInputOutputMap = {}
                 mergeInputFiles = []
+                mergeFileObjStoreMap = {}
                 for tmpFileID,tmpMapEventRangeID in eventRangeIDs.iteritems():
                     jobProcessIDs = tmpMapEventRangeID.keys()
                     jobProcessIDs.sort()
@@ -3074,6 +3091,8 @@ class DBProxy:
                             if not mergeInputOutputMap.has_key(tmpFileSpec.lfn):
                                 mergeInputOutputMap[tmpFileSpec.lfn] = []
                             mergeInputOutputMap[tmpFileSpec.lfn].append(tmpInputFileSpec.lfn)
+                            # mapping for ObjStore
+                            mergeFileObjStoreMap[tmpInputFileSpec.lfn] = tmpMapEventRangeID[jobProcessID]['objStoreID']
                 for tmpInputFileSpec in mergeInputFiles:
                     job.addFile(tmpInputFileSpec)
                 # make input for event service log merging
@@ -3094,6 +3113,8 @@ class DBProxy:
                         if not mergeInputOutputMap.has_key(tmpFileSpec.lfn):
                             mergeInputOutputMap[tmpFileSpec.lfn] = []
                         mergeInputOutputMap[tmpFileSpec.lfn].append(tmpInputFileSpec.lfn)
+                        # mapping for ObjStore
+                        mergeFileObjStoreMap[tmpInputFileSpec.lfn] = esDoneObjStoreIDs[esPandaID]
                 for tmpInputFileSpec in mergeLogFiles:
                     job.addFile(tmpInputFileSpec)
                 # job parameters
@@ -3123,7 +3144,7 @@ class DBProxy:
                     except:
                         pass
                     # pass in/out map for merging via metadata
-                    job.metadata = mergeInputOutputMap
+                    job.metadata = mergeInputOutputMap,mergeFileObjStoreMap
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
