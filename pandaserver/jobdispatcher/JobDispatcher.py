@@ -293,7 +293,7 @@ class JobDipatcher:
                 return response.encode()
         # add metadata
         if metadata != '':
-            ret = self.taskBuffer.addMetadata([jobID],[metadata])
+            ret = self.taskBuffer.addMetadata([jobID],[metadata],[jobStatus])
             if len(ret) > 0 and not ret[0]:
                 _logger.debug("updateJob : %s failed to add metadata" % jobID)
                 # return succeed
@@ -309,6 +309,9 @@ class JobDipatcher:
             tmpStatus = 'holding'
             # update stateChangeTime to prevent Watcher from finding this job
             updateStateChange = True
+            param['jobDispatcherErrorDiag'] = None
+        elif jobStatus in ['holding','transferring']:
+            param['jobDispatcherErrorDiag'] = 'set to {0} by the pilot at {1}'.format(jobStatus,datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'))
         if tmpStatus == 'holding':
             tmpWrapper = _TimedMethod(self.taskBuffer.updateJobStatus,None)
         else:
@@ -328,7 +331,7 @@ class JobDipatcher:
                 else:
                     response.appendNode('command','NULL')
                 # add output to dataset
-                if tmpWrapper.result != "badattemptnr" and (jobStatus == 'failed' or jobStatus == 'finished'):
+                if not tmpWrapper.result in ["badattemptnr","alreadydone"] and (jobStatus == 'failed' or jobStatus == 'finished'):
                     Adder(self.taskBuffer,jobID,xml,jobStatus,attemptNr=attemptNr).start()
             else:
                 # failed
@@ -394,10 +397,10 @@ class JobDipatcher:
 
 
     # update an event range
-    def updateEventRange(self,eventRangeID,eventStatus,coreCount,cpuConsumptionTime,timeout):
+    def updateEventRange(self,eventRangeID,eventStatus,coreCount,cpuConsumptionTime,objstoreID,timeout):
         # peek jobs
         tmpWrapper = _TimedMethod(self.taskBuffer.updateEventRange,timeout)
-        tmpWrapper.run(eventRangeID,eventStatus,coreCount,cpuConsumptionTime)
+        tmpWrapper.run(eventRangeID,eventStatus,coreCount,cpuConsumptionTime,objstoreID)
         # make response
         if tmpWrapper.result == Protocol.TimeOutToken:
             # timeout
@@ -848,15 +851,17 @@ def getEventRanges(req,pandaID,jobsetID,taskID=None,nRanges=10,timeout=60):
 
 
 # update an event range
-def updateEventRange(req,eventRangeID,eventStatus,coreCount=None,cpuConsumptionTime=None,timeout=60):
-    tmpStr = "updateEventRange(%s status=%s coreCount=%s cpuConsumptionTime=%s)" % \
-        (eventRangeID,eventStatus,coreCount,cpuConsumptionTime)
+def updateEventRange(req,eventRangeID,eventStatus,coreCount=None,cpuConsumptionTime=None,
+                     objstoreID=None,timeout=60):
+    tmpStr = "updateEventRange(%s status=%s coreCount=%s cpuConsumptionTime=%s osID=%s)" % \
+        (eventRangeID,eventStatus,coreCount,cpuConsumptionTime,objstoreID)
     _logger.debug(tmpStr+' start')
     tmpStat,tmpOut = checkPilotPermission(req)
     if not tmpStat:
         _logger.error(tmpStr+'failed with '+tmpOut)
         #return tmpOut
-    return jobDispatcher.updateEventRange(eventRangeID,eventStatus,coreCount,cpuConsumptionTime,int(timeout))
+    return jobDispatcher.updateEventRange(eventRangeID,eventStatus,coreCount,cpuConsumptionTime,
+                                          objstoreID,int(timeout))
 
 
 

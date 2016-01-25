@@ -77,7 +77,7 @@ class AdderAtlasPlugin (AdderPluginBase):
             if self.job.jobStatus == 'transferring':
                 self.addToTopOnly = True
                 self.logger.debug("adder for transferring")
-            # use PandaDDM for ddm jobs                                                                                                                
+            # use PandaDDM for ddm jobs
             if self.job.prodSourceLabel == 'ddm':
                 self.pandaDDM = True
             # check if the job goes to merging
@@ -113,10 +113,12 @@ class AdderAtlasPlugin (AdderPluginBase):
                 self.result.setFatal()
                 return
             # check if the job has something to transfer
+            self.logger.debug('alt stage-out:{0}'.format(str(self.job.altStgOutFileList())))
             somethingToTranfer = False
             for file in self.job.Files:
                 if file.type == 'output' or file.type == 'log':
-                    if DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) == None:
+                    if DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) == None \
+                            and not file.lfn in self.job.altStgOutFileList():
                         somethingToTranfer = True
                         break
             self.logger.debug('DDM src:%s dst:%s' % (tmpSrcDDM,tmpDstDDM))
@@ -215,9 +217,14 @@ class AdderAtlasPlugin (AdderPluginBase):
                         except:
                             type, value, traceBack = sys.exc_info()
                             self.logger.error("%s : %s %s" % (self.jobID,type,value))
+                    # use top-level dataset name for alternative stage-out
+                    if not file.lfn in self.job.altStgOutFileList():
+                        fileDestinationDBlock = file.destinationDBlock
+                    else:
+                        fileDestinationDBlock = re.sub('_sub\d+$','',file.destinationDBlock)
                     # append to map
-                    if not idMap.has_key(file.destinationDBlock):
-                        idMap[file.destinationDBlock] = []
+                    if not idMap.has_key(fileDestinationDBlock):
+                        idMap[fileDestinationDBlock] = []
                     fileAttrs = {'guid'     : file.GUID,
                                  'lfn'      : file.lfn,
                                  'size'     : fsize,
@@ -228,9 +235,23 @@ class AdderAtlasPlugin (AdderPluginBase):
                         if fileAttrs['surl'] == None:
                             raise TypeError,"{0} has SURL=None".format(file.lfn)
                         # get destination
-                        if not dsDestMap.has_key(file.destinationDBlock):
+                        if not dsDestMap.has_key(fileDestinationDBlock):
                             toConvert = True
-                            if file.destinationDBlockToken in ['',None,'NULL']:
+                            if file.lfn in self.job.altStgOutFileList():
+                                toConvert = False
+                                # alternative stage-out
+                                if DataServiceUtils.getDestinationSE(file.destinationDBlockToken) != None:
+                                    # RSE is specified
+                                    tmpDestList = [DataServiceUtils.getDestinationSE(file.destinationDBlockToken)]
+                                else:
+                                    if self.siteMapper.getSite(file.destinationSE).setokens.has_key(file.destinationDBlockToken):
+                                        # get endpoint for token
+                                        tmpDestList = [self.siteMapper.getSite(file.destinationSE).setokens[file.destinationDBlockToken]]
+                                    else:
+                                        # use defalt endpoint
+                                        tmpDestList = [self.siteMapper.getSite(file.destinationSE).ddm]
+                            elif file.destinationDBlockToken in ['',None,'NULL']:
+                                # use defalt endpoint
                                 tmpDestList = [self.siteMapper.getSite(self.job.computingSite).ddm]
                             elif DataServiceUtils.getDestinationSE(file.destinationDBlockToken) != None and \
                                     self.siteMapper.getSite(self.job.computingSite).ddm == self.siteMapper.getSite(file.destinationSE).ddm:
@@ -239,8 +260,8 @@ class AdderAtlasPlugin (AdderPluginBase):
                                 toConvert = False
                             elif DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) != None:
                                 tmpDestList = [DataServiceUtils.getDistributedDestination(file.destinationDBlockToken)]
-                                distDSs.add(file.destinationDBlock)
-                                # RSE is specified
+                                distDSs.add(fileDestinationDBlock)
+                                # RSE is specified for distributed datasets
                                 toConvert = False
                             elif self.siteMapper.getSite(self.job.computingSite).cloud != self.job.cloud and \
                                     (not self.siteMapper.getSite(self.job.computingSite).ddm.endswith('PRODDISK')) and  \
@@ -268,7 +289,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                                 except:
                                     self.logger.error("%s : " % self.jobID + traceback.format_exc())
                             # add
-                            dsDestMap[file.destinationDBlock] = tmpDestList
+                            dsDestMap[fileDestinationDBlock] = tmpDestList
                     # extra meta data
                     if self.ddmBackEnd == 'rucio':
                         if file.lfn in self.extraInfo['lbnr']:
@@ -280,27 +301,27 @@ class AdderAtlasPlugin (AdderPluginBase):
                         #if not file.jediTaskID in [0,None,'NULL']:
                         #    fileAttrs['task_id'] = file.jediTaskID
                         #fileAttrs['panda_id'] = file.PandaID
-                    idMap[file.destinationDBlock].append(fileAttrs)
+                    idMap[fileDestinationDBlock].append(fileAttrs)
                     # for subscription
                     if self.job.prodSourceLabel in ['managed','test','software','rc_test','ptest','user','rucio_test'] and \
-                           re.search('_sub\d+$',file.destinationDBlock) != None and (not self.addToTopOnly) and \
+                           re.search('_sub\d+$',fileDestinationDBlock) != None and (not self.addToTopOnly) and \
                            self.job.destinationSE != 'local':
                         if self.siteMapper == None:
                             self.logger.error("SiteMapper==None")
                         else:
                             # get dataset spec
-                            if not self.datasetMap.has_key(file.destinationDBlock):
-                                tmpDS = self.taskBuffer.queryDatasetWithMap({'name':file.destinationDBlock})
-                                self.datasetMap[file.destinationDBlock] = tmpDS
+                            if not self.datasetMap.has_key(fileDestinationDBlock):
+                                tmpDS = self.taskBuffer.queryDatasetWithMap({'name':fileDestinationDBlock})
+                                self.datasetMap[fileDestinationDBlock] = tmpDS
                             # check if valid dataset        
-                            if self.datasetMap[file.destinationDBlock] == None:
-                                self.logger.error(": cannot find %s in DB" % file.destinationDBlock)
+                            if self.datasetMap[fileDestinationDBlock] == None:
+                                self.logger.error(": cannot find %s in DB" % fileDestinationDBlock)
                             else:
-                                if not self.datasetMap[file.destinationDBlock].status in ['defined']:
+                                if not self.datasetMap[fileDestinationDBlock].status in ['defined']:
                                     # not a fresh dataset
                                     self.logger.debug(": subscription was already made for %s:%s" % \
-                                                  (self.datasetMap[file.destinationDBlock].status,
-                                                   file.destinationDBlock))
+                                                  (self.datasetMap[fileDestinationDBlock].status,
+                                                   fileDestinationDBlock))
                                 else:
                                     # get DQ2 IDs
                                     tmpSrcDDM = self.siteMapper.getSite(self.job.computingSite).ddm
@@ -321,8 +342,8 @@ class AdderAtlasPlugin (AdderPluginBase):
                                         optSub = {'DATASET_COMPLETE_EVENT' : ['http://%s:%s/server/panda/datasetCompleted' % \
                                                                               (panda_config.pserverhosthttp,panda_config.pserverporthttp)]}
                                         # append
-                                        if not subMap.has_key(file.destinationDBlock):
-                                            subMap[file.destinationDBlock] = []
+                                        if not subMap.has_key(fileDestinationDBlock):
+                                            subMap[fileDestinationDBlock] = []
                                             # sources
                                             optSource = {}
                                             # set sources
@@ -371,11 +392,11 @@ class AdderAtlasPlugin (AdderPluginBase):
                                                         continue
                                                     # avoid duplication
                                                     if not dq2ID in tmpDQ2IDList:
-                                                        subMap[file.destinationDBlock].append((dq2ID,optSub,optSource))
+                                                        subMap[fileDestinationDBlock].append((dq2ID,optSub,optSource))
                                             else:
                                                 # use default DDM
                                                 for dq2ID in tmpDstDDM.split(','):
-                                                    subMap[file.destinationDBlock].append((dq2ID,optSub,optSource))
+                                                    subMap[fileDestinationDBlock].append((dq2ID,optSub,optSource))
                 except:
                     errStr = '%s %s' % sys.exc_info()[:2]
                     self.logger.error(traceback.format_exc())
@@ -622,6 +643,9 @@ class AdderAtlasPlugin (AdderPluginBase):
                             continue
                         # skip no output
                         if tmpFile.status == 'nooutput':
+                            continue
+                        # skip alternative stage-out
+                        if tmpFile.lfn in self.job.altStgOutFileList():
                             continue
                         self.result.transferringFiles.append(tmpFile.lfn)
         elif not "--mergeOutput" in self.job.jobParameters:

@@ -52,6 +52,11 @@ class Response:
                    
     # append job
     def appendJob(self,job,siteMapperCache=None):
+        # event service merge
+        if EventServiceUtils.isEventServiceMerge(job):
+            isEventServiceMerge = True
+        else:
+            isEventServiceMerge = False
         # PandaID
         self.data['PandaID'] = job.PandaID
         # prodSourceLabel
@@ -110,9 +115,10 @@ class Response:
                     strDisToken += ','
                 strDisToken += file.dispatchDBlockToken
                 strProdDBlock += '%s,' % file.prodDBlock 
-                if strProdToken != '':
-                    strProdToken += ','
-                strProdToken += file.prodDBlockToken
+                if not isEventServiceMerge:
+                    strProdToken += '%s,' % file.prodDBlockToken
+                else:
+                    strProdToken += '%s,' % job.metadata[1][file.lfn]
                 if strGUID != '':
                     strGUID += ','
                 strGUID += file.GUID
@@ -166,7 +172,7 @@ class Response:
         # prod DBlocks
         self.data['prodDBlocks'] = strProdDBlock[:-1]
         # prod DBlock space token
-        self.data['prodDBlockToken'] = strProdToken
+        self.data['prodDBlockToken'] = strProdToken[:-1]
         # real output datasets
         self.data['realDatasets'] = strRealDataset
         # real output datasets
@@ -234,12 +240,12 @@ class Response:
             # prod DBlock space token for pre-merging output
             self.data['prodDBlockTokenForOutput'] = strProdTokenForOutput[:-1]
         # event service merge
-        if EventServiceUtils.isEventServiceMerge(job):
+        if isEventServiceMerge:
             self.data['eventServiceMerge'] = 'True'
             # write to file
             writeToFileStr = ''
             try:
-                for outputName,inputList in job.metadata.iteritems():
+                for outputName,inputList in job.metadata[0].iteritems():
                     writeToFileStr += 'inputFor_{0}:'.format(outputName)
                     for tmpInput in inputList:
                         writeToFileStr += '{0},'.format(tmpInput)

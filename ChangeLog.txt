@@ -1,15 +1,39 @@
 Release Notes
 
-* 12/15/2014
+* 1/25/2016
+  * sending objStoreIDs for ES merge
+
+* 1/19/2016
+  * changed addMetaData to limit the size of json for failed jobs
+
+* 1/18/2016
+  * changed to update status of ES jobs when ES-merge is done
+  * enabled a protection for transferring->holding and holding->holding with final heartbeats
+
+* 1/12/2016
+  * changed AdderAtlas for alternative stage-out
+  * added objstoreID to updateEventRange
+  * changed eventLookupClientEI to use new EI client
+
+* 1/11/2016
+  * changed killJob so that 51 goes forward even if commandToPilot was already set
+
+* 1/5/2016
+  * using DISK for prestaging
+
+* 12/28/2015
+  * fixed updateUnmerged so that merging jobs fail only when max attempt is reached
+
+* 12/15/2015
   * removed redundant log sending
   * added days to getScriptOfflineRunning
   * fixed dispatcher to release lock in finally
 
-* 12/12/2014
+* 12/12/2015
   * killing pending jobs in small chunks to avoid timeout
   * added protection in panda.py for cgi exception
 
-* 12/9/2014
+* 12/9/2015
   * changed AtlasAdder so that jobs don't go to transferring if only log
   * removed panda_ddm_relation
 

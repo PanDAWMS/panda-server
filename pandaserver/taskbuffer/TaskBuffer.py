@@ -503,10 +503,7 @@ class TaskBuffer:
         # get DB proxy
         proxy = self.proxyPool.getProxy()        
         # update DB and buffer
-        if re.match('^finished$',jobStatus,re.I) or re.match('^failed$',jobStatus,re.I):
-            ret = proxy.archiveJobLite(jobID,jobStatus,param)
-        else:
-            ret = proxy.updateJobStatus(jobID,jobStatus,param,updateStateChange,attemptNr)
+        ret = proxy.updateJobStatus(jobID,jobStatus,param,updateStateChange,attemptNr)
         # release proxy
         self.proxyPool.putProxy(proxy)
         return ret
@@ -1622,14 +1619,14 @@ class TaskBuffer:
 
 
     # add metadata
-    def addMetadata(self,ids,metadataList):
+    def addMetadata(self,ids,metadataList,newStatusList):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # add metadata
         index = 0
         retList = []
         for id in ids:
-            ret = proxy.addMetadata(id,metadataList[index])
+            ret = proxy.addMetadata(id,metadataList[index],newStatusList[index])
             retList.append(ret)
             index += 1
         # release proxy
@@ -2495,11 +2492,11 @@ class TaskBuffer:
 
 
     # update an even range
-    def updateEventRange(self,eventRangeID,eventStatus,cpuCore,cpuConsumptionTime):
+    def updateEventRange(self,eventRangeID,eventStatus,cpuCore,cpuConsumptionTime,objstoreID=None):
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.updateEventRange(eventRangeID,eventStatus,cpuCore,cpuConsumptionTime)
+        ret = proxy.updateEventRange(eventRangeID,eventStatus,cpuCore,cpuConsumptionTime,objstoreID)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -2526,13 +2523,16 @@ class TaskBuffer:
                 cpuConsumptionTime = None
                 if 'cpuConsumptionTime' in eventRange:
                     cpuConsumptionTime = eventRange['cpuConsumptionTime']
+                objstoreID = None
+                if 'objstoreID' in eventRange:
+                    objstoreID = eventRange['objstoreID']
             except:
                 retList.append(False)
                 continue
             # get proxy
             proxy = self.proxyPool.getProxy()
             # exec
-            ret = proxy.updateEventRange(eventRangeID,eventStatus,cpuCore,cpuConsumptionTime)
+            ret = proxy.updateEventRange(eventRangeID,eventStatus,cpuCore,cpuConsumptionTime,objstoreID)
             # release proxy
             self.proxyPool.putProxy(proxy)
             retList.append(ret)
@@ -2875,6 +2875,30 @@ class TaskBuffer:
         return ret
 
 
+
+    # Configurator: insert network matrix data
+    def insertNetworkMatrixData(self, data):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.insertNetworkMatrixData(data)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
+    # Configurator: delete old network matrix data
+    def deleteOldNetworkData(self):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.deleteOldNetworkData()
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
 
 # Singleton
 taskBuffer = TaskBuffer()

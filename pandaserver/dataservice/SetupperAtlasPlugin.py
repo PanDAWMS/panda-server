@@ -879,42 +879,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         dq2ID = dstDQ2ID
                         # prestaging
                         if srcDQ2ID == dstDQ2ID and not missingAtT1:
-                            # look for associated tape endpoints for analysis
-                            if job.prodSourceLabel in ['user','panda']:
-                                # use SCRATCHDISK for pre-staging
-                                self.logger.debug('use {0} for tape prestaging'.format(dq2ID))
-                            else:
-                                # stage-in callback
-                                optSub['DATASET_STAGED_EVENT'] = ['http://%s:%s/server/panda/datasetCompleted' % \
-                                                                      (panda_config.pserverhosthttp,panda_config.pserverporthttp)]
-                                # use ATLAS*TAPE
-                                seTokens = self.siteMapper.getSite(tmpDstID).setokens
-                                if seTokens.has_key('ATLASDATATAPE') and seTokens.has_key('ATLASMCTAPE'):
-                                    dq2ID = seTokens['ATLASDATATAPE']
-                                    # use MCDISK if needed
-                                    for tmpDataset,tmpRepMap in self.replicaMap[job.dispatchDBlock].iteritems():
-                                        if (not tmpRepMap.has_key(dq2ID)) and tmpRepMap.has_key(seTokens['ATLASMCTAPE']):
-                                            dq2ID = seTokens['ATLASMCTAPE']
-                                            break
-                                    # for CERN and BNL
-                                    if job.getCloud() in ['CERN','US'] and self.replicaMap.has_key(job.dispatchDBlock):
-                                        setNewIDflag = False
-                                        if job.getCloud() == 'CERN':
-                                            otherIDs = ['CERN-PROD_DAQ','CERN-PROD_TZERO','CERN-PROD_TMPDISK']
-                                        else:
-                                            otherIDs = ['BNLPANDA']
-                                        for tmpDataset,tmpRepMap in self.replicaMap[job.dispatchDBlock].iteritems():
-                                            if not tmpRepMap.has_key(dq2ID):
-                                                # look for another id
-                                                for cernID in otherIDs:
-                                                    if tmpRepMap.has_key(cernID):
-                                                        dq2ID = cernID
-                                                        setNewIDflag = True
-                                                        break
-                                                # break
-                                                if setNewIDflag:
-                                                    break
-                                optSource[dq2ID] = {'policy' : 0}
+                            # prestage to associated endpoints 
+                            self.logger.debug('use {0} for tape prestaging'.format(dq2ID))
                             optSrcPolicy = 000010
                             # register dataset locations
                             isOK = True
