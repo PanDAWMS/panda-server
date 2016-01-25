@@ -15,3 +15,4 @@ HOME=/home/@@panda_user@@
 0 4 * * * root /usr/sbin/logrotate -v /etc/logrotate.d/panda_server > /dev/null 2>&1
 */10 * * * * @@panda_user@@ /usr/bin/panda_server-proxyCache > /dev/null 2>&1
 */30 * * * * @@panda_user@@ /usr/bin/panda_server-configurator > /dev/null 2>&1
+15,45 * * * * @@panda_user@@ /usr/bin/panda_server-network_configurator > /dev/null 2>&1
