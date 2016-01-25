@@ -2,6 +2,7 @@ Release Notes
 
 * 1/25/2016
   * sending objStoreIDs for ES merge
+  * added network configurator and corepower collection
 
 * 1/19/2016
   * changed addMetaData to limit the size of json for failed jobs
