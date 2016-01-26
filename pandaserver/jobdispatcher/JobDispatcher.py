@@ -514,6 +514,19 @@ class JobDipatcher:
         return response.encode()
 
 
+    # get DNs authorized for S3
+    def getDNsForS3(self):
+        # check permission
+        self.specialDispatchParams.update()
+        if not 'allowKey' in self.specialDispatchParams:
+            allowKey = []
+        else:
+            allowKey = self.specialDispatchParams['allowKey']
+            allowKey = filter(None,allowKey)
+        # return
+        return json.dumps(allowKey)
+
+
     # get site mapper
     def getSiteMapper(self):
         return SiteMapper(self.taskBuffer)
@@ -918,4 +931,10 @@ def checkPilotPermission(req):
     if realDN == None:
         return False,"failed to retrive DN"
     return True,None
+
+
+
+# get DNs authorized for S3
+def getDNsForS3(req):
+    return jobDispatcher.getDNsForS3()
         
