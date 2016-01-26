@@ -1740,7 +1740,11 @@ class DBProxy:
                     # convert empty to NULL
                     if ret == '':
                         ret = 'NULL'
-                    if oldJobStatus == 'transferring' and jobStatus == 'holding' and jobDispatcherErrorDiag in [None,'']:
+                    if oldJobStatus == 'failed' and jobStatus in ['holding','transferring','starting']:
+                        _logger.debug("updateJobStatus : PandaID=%s skip to set %s since it is alredy %s" \
+                                          % (pandaID,jobStatus,oldJobStatus))
+                        ret = 'alreadydone'
+                    elif oldJobStatus == 'transferring' and jobStatus == 'holding' and jobDispatcherErrorDiag in [None,'']:
                         # skip transferring -> holding
                         _logger.debug("updateJobStatus : PandaID=%s skip to set holding since it is alredy in transferring" \
                                           % pandaID)
