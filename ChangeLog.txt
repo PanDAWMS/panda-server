@@ -1,5 +1,8 @@
 Release Notes
 
+* 1/27/2016
+  * removed __str__ in DdmSpec
+
 * 1/26/2016
   * added getDNsForS3
   * added protection not to change failed jobs to holding

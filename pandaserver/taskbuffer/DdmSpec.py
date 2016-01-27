@@ -15,15 +15,6 @@ class DdmSpec(object):
 
 
 
-    # serialize
-    def __str__(self):
-        str = ''
-        for attr in self._attributes:
-            str += '%s:%s ' % (attr,getattr(self,attr))
-        return str
-
-
-
     # add endpoint
     def add(self,endPoint,endpointDict):
         name = endPoint['ddm_endpoint_name']
