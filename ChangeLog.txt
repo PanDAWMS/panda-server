@@ -1,5 +1,8 @@
 Release Notes
 
+* 1/28/2016
+  * setting nucleus to destinationSE
+
 * 1/27/2016
   * removed __str__ in DdmSpec
 

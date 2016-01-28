@@ -16,15 +16,6 @@ class NucleusSpec(object):
 
 
 
-    # serialize
-    def __str__(self):
-        str = ''
-        for attr in self._attributes:
-            str += '%s:%s ' % (attr,getattr(self,attr))
-        return str
-
-
-
     # add 
     def add(self,siteName,ddmSpec):
         if not siteName in self.allPandaSites:

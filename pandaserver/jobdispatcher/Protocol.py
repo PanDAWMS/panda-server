@@ -102,6 +102,13 @@ class Response:
         if siteMapperCache != None:
             siteMapper = siteMapperCache.getObj()
             siteSpec = siteMapper.getSite(job.computingSite)
+            # resove destSE
+            try:
+                job.destinationSE = siteMapper.resolveNucleus(job.destinationSE)
+                for tmpFile in job.Files:
+                    tmpFile.destinationSE = siteMapper.resolveNucleus(tmpFile.destinationSE)
+            except:
+                pass
             siteMapperCache.releaseObj()
         for file in job.Files:
             if file.type == 'input':

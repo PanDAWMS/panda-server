@@ -25,6 +25,7 @@ defSite.status     = panda_config.def_status
 defSite.setokens   = {}
 
 worldCloudName = 'WORLD'
+nucleusTag = 'nucleus:'
 
 
 ########################################################################
@@ -194,6 +195,12 @@ class SiteMapper:
 
     # accessor for site
     def getSite(self,site):
+        try:
+            if site.startswith(nucleusTag):
+                nucleusName = site.split(':')[-1]
+                site = self.nuclei[nucleusName].getOnePandaSite()
+        except:
+            pass
         if self.siteSpecList.has_key(site):
             return self.siteSpecList[site]
         else:
@@ -203,7 +210,26 @@ class SiteMapper:
 
     # check if site exists
     def checkSite(self,site):
+        try:
+            if site.startswith(nucleusTag):
+                nucleusName = site.split(':')[-1]
+                site = self.nuclei[nucleusName].getOnePandaSite()
+        except:
+            pass
         return self.siteSpecList.has_key(site)
+
+
+    # resolve nucleus
+    def resolveNucleus(self,site):
+        try:
+            if site.startswith(nucleusTag):
+                nucleusName = site.split(':')[-1]
+                site = self.nuclei[nucleusName].getOnePandaSite()
+        except:
+            pass
+        if site == 'NULL':
+            site = None
+        return site
 
 
     # accessor for cloud
