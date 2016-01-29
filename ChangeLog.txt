@@ -1,5 +1,8 @@
 Release Notes
 
+* 1/29/2016
+  * changed to allow satellites in destinationSE
+
 * 1/28/2016
   * setting nucleus to destinationSE
 

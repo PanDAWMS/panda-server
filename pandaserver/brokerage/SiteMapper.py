@@ -51,6 +51,9 @@ class SiteMapper:
             # nuclei
             self.nuclei = {}
 
+            # satellites
+            self.satellites = {}
+
             # create CloudSpec list 
             tmpCloudListDB = taskBuffer.getCloudList()
             for tmpName,tmpCloudSpec in tmpCloudListDB.iteritems():
@@ -131,12 +134,19 @@ class SiteMapper:
                                 errtype, errvalue = sys.exc_info()[:2]
                                 _logger.error("%s memory/inputsize failuer : %s %s" % (tmpID,errtype,errvalue))
                     # collect nuclei
-                    if ret.role == 'nucleus' and ret.type == 'production':# and worldCloudName in ret.cloudlist:
+                    if ret.role == 'nucleus' and ret.type == 'production':
                         if not ret.pandasite in self.nuclei:
                             nucleus = NucleusSpec(ret.pandasite)
                             nucleus.state = ret.pandasite_state
                             self.nuclei[ret.pandasite] = nucleus
                         self.nuclei[ret.pandasite].add(ret.sitename,ret.ddm_endpoints)
+                    # collect satellites
+                    if ret.role == 'satellite' and ret.type == 'production':
+                        if not ret.pandasite in self.satellites:
+                            satellite = NucleusSpec(ret.pandasite)
+                            satellite.state = ret.pandasite_state
+                            self.satellites[ret.pandasite] = satellite
+                        self.satellites[ret.pandasite].add(ret.sitename,ret.ddm_endpoints)
             # make cloudSpec
             for siteSpec in self.siteSpecList.values():
                 # choose only prod sites
@@ -197,8 +207,11 @@ class SiteMapper:
     def getSite(self,site):
         try:
             if site.startswith(nucleusTag):
-                nucleusName = site.split(':')[-1]
-                site = self.nuclei[nucleusName].getOnePandaSite()
+                tmpName = site.split(':')[-1]
+                if tmpName in self.nuclei:
+                    site = self.nuclei[tmpName].getOnePandaSite()
+                elif tmpName in self.satellites:
+                    site = self.satellites[tmpName].getOnePandaSite()
         except:
             pass
         if self.siteSpecList.has_key(site):
@@ -212,8 +225,11 @@ class SiteMapper:
     def checkSite(self,site):
         try:
             if site.startswith(nucleusTag):
-                nucleusName = site.split(':')[-1]
-                site = self.nuclei[nucleusName].getOnePandaSite()
+                tmpName = site.split(':')[-1]
+                if tmpName in self.nuclei:
+                    site = self.nuclei[tmpName].getOnePandaSite()
+                elif tmpName in self.satellites:
+                    site = self.satellites[tmpName].getOnePandaSite()
         except:
             pass
         return self.siteSpecList.has_key(site)
@@ -223,8 +239,11 @@ class SiteMapper:
     def resolveNucleus(self,site):
         try:
             if site.startswith(nucleusTag):
-                nucleusName = site.split(':')[-1]
-                site = self.nuclei[nucleusName].getOnePandaSite()
+                tmpName = site.split(':')[-1]
+                if tmpName in self.nuclei:
+                    site = self.nuclei[tmpName].getOnePandaSite()
+                elif tmpName in self.satellites:
+                    site = self.satellites[tmpName].getOnePandaSite()
         except:
             pass
         if site == 'NULL':
