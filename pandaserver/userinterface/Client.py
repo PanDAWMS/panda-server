@@ -1414,6 +1414,47 @@ def reassignTaskToCloud(jediTaskID,cloud,soft=False):
                                     
 
             
+# reassign task to a nucleus
+def reassignTaskToNucleus(jediTaskID,nucleus,soft=False):
+    """Reassign a task to a nucleus. Existing jobs are killed and new jobs are generated in the cloud
+
+       args:
+           jediTaskID: jediTaskID of the task to be reassigned
+           nucleus: the nucleus name where the task is reassigned
+           soft: If True, only defined/waiting/assigned/activated jobs are killed.
+                 All jobs are killed by default.
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           tuple of return code and diagnostic message
+                 0: request is registered
+                 1: server error
+                 2: task not found
+                 3: permission denied
+                 4: irrelevant task status
+               100: non SSL connection
+               101: irrelevant taskID 
+    """     
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+    # execute
+    url = baseURLSSL + '/reassignTask'
+    data = {'jediTaskID':jediTaskID,'nucleus':nucleus}
+    if soft:
+        data['soft'] = True
+    status,output = curl.post(url,data)
+    try:
+        return status,pickle.loads(output)
+    except:
+        errtype,errvalue = sys.exc_info()[:2]
+        errStr = "ERROR reassignTaskToCloud : %s %s" % (errtype,errvalue)
+        return EC_Failed,output+'\n'+errStr
+                                    
+
+            
 # upload log
 def uploadLog(logStr,logFileName):
     """Upload sandbox

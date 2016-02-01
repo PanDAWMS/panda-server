@@ -1845,7 +1845,7 @@ def retryTask(req,jediTaskID,properErrorCode=None):
 
 
 # reassign task to site/cloud
-def reassignTask(req,jediTaskID,site=None,cloud=None,soft=None):
+def reassignTask(req,jediTaskID,site=None,cloud=None,nucleus=None,soft=None):
     # check security
     if not isSecure(req):
         return pickle.dumps((100,'secure connection is required'))
@@ -1864,6 +1864,8 @@ def reassignTask(req,jediTaskID,site=None,cloud=None,soft=None):
     if site != None:
         # set 'y' to go back to oldStatus immediately
         comComment = 'site:{0}:y'.format(site)
+    elif nucleus != None:
+        comComment = 'nucleus:{0}:n'.format(nucleus)
     else:
         comComment = 'cloud:{0}:n'.format(cloud)
     if soft == 'True':

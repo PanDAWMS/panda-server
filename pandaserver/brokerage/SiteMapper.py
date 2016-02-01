@@ -292,3 +292,13 @@ class SiteMapper:
         if siteSpec.setokens.has_key(storageToken):
             return siteSpec.setokens[storageToken]
         return siteSpec.ddm
+
+
+
+    # get nucleus
+    def getNucleus(self,tmpName):
+        if tmpName in self.nuclei:
+            return self.nuclei[tmpName]
+        if tmpName in self.satellites:
+            return self.satellites[tmpName]
+        return None
