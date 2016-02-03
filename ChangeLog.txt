@@ -1,5 +1,8 @@
 Release Notes
 
+* 2/3/2016
+  * changed retryTask so that failed jobs in pending/running/scouting tasks can be retried
+
 * 2/1/2016
   * added reassignTaskToNucleus
 

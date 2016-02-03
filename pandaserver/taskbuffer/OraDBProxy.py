@@ -13047,10 +13047,10 @@ class DBProxy:
                     retStr = 'Command rejected: the {0} command is not accepted if the task is in {1} status'.format(comStr,taskStatus)
                     _logger.debug("{0} : {1}".format(methodName,retStr))
                     retCode = 4
-            # retry for failed analysis jobs
-            if goForward and properErrorCode and taskStatus in ['running','scouting','pending'] and prodSourceLabel in ['user']:
-                retCode = 5
-                retStr = taskStatus
+                    # retry for failed analysis jobs
+                    if comStr == 'retry' and properErrorCode and taskStatus in ['running','scouting','pending'] and prodSourceLabel in ['user']:
+                        retCode = 5
+                        retStr = taskStatus
             if goForward:
                 # delete command just in case
                 varMap = {}
