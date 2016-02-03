@@ -18,6 +18,7 @@ _session = dbif.get_session()
 GB = 1024**3
 PROD_INPUT = 'Production Input'
 PROD_OUTPUT = 'Production Output'
+EXPRESS = 'Express'
 
 class Configurator(threading.Thread):
 
@@ -418,7 +419,7 @@ class NetworkConfigurator(threading.Thread):
             dst = entry['dst']
 
             values = {}
-            for activity in [PROD_INPUT, PROD_OUTPUT]: # PanDA is only interested in production input and output statistics
+            for activity in [PROD_INPUT, PROD_OUTPUT, EXPRESS]: # PanDA is only interested in production input and output statistics
 
                 if not entry.has_key(activity):
                     continue
