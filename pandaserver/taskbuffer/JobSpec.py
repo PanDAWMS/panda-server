@@ -28,7 +28,7 @@ class JobSpec(object):
                    'coreCount','nInputDataFiles','inputFileType','inputFileProject','inputFileBytes',
                    'nOutputDataFiles','outputFileBytes','jobMetrics','workQueue_ID','jediTaskID',
                    'jobSubStatus','actualCoreCount','reqID','maxRSS','maxVMEM','maxSWAP','maxPSS',
-                   'avgRSS','avgVMEM','avgSWAP','avgPSS','maxWalltime')
+                   'avgRSS','avgVMEM','avgSWAP','avgPSS','maxWalltime','nucleus','eventService')
     # slots
     __slots__ = _attributes+('Files','_changedAttrs')
     # attributes which have 0 by default

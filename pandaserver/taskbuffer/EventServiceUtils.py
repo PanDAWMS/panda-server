@@ -128,6 +128,8 @@ def isEventServiceMergeSH(specialHandling):
 # set event service merge
 def setEventServiceMerge(job):
     try:
+        # set ES flag
+        job.eventService = 2
         # set flag for merging
         if job.specialHandling == None:
             job.specialHandling = esMergeToken
