@@ -402,13 +402,15 @@ class JobDipatcher:
         tmpWrapper = _TimedMethod(self.taskBuffer.updateEventRange,timeout)
         tmpWrapper.run(eventRangeID,eventStatus,coreCount,cpuConsumptionTime,objstoreID)
         # make response
+        _logger.debug(str(tmpWrapper.result))
         if tmpWrapper.result == Protocol.TimeOutToken:
             # timeout
             response=Protocol.Response(Protocol.SC_TimeOut)
         else:
-            if tmpWrapper.result:
+            if tmpWrapper.result[0] == True:
                 # succeed
                 response=Protocol.Response(Protocol.SC_Success)
+                response.appendNode('Command',tmpWrapper.result[1])
             else:
                 # failed
                 response=Protocol.Response(Protocol.SC_Failed)
@@ -428,8 +430,9 @@ class JobDipatcher:
         else:
             # succeed
             response=Protocol.Response(Protocol.SC_Success)
-            # make return                                                                                                                                              
-            response.appendNode('Returns',tmpWrapper.result)
+            # make return
+            response.appendNode('Returns',tmpWrapper.result[0])
+            response.appendNode('Commands',tmpWrapper.result[1])
         _logger.debug("updateEventRanges : ret -> %s" % (response.encode()))
         return response.encode()
 
@@ -880,7 +883,7 @@ def updateEventRange(req,eventRangeID,eventStatus,coreCount=None,cpuConsumptionT
 
 # update an event ranges
 def updateEventRanges(req,eventRanges,timeout=120):
-    tmpStr = "updateEventRange(%s)" % eventRanges
+    tmpStr = "updateEventRanges(%s)" % eventRanges
     _logger.debug(tmpStr+' start')
     tmpStat,tmpOut = checkPilotPermission(req)
     if not tmpStat:

@@ -2493,14 +2493,25 @@ class TaskBuffer:
 
     # update an even range
     def updateEventRange(self,eventRangeID,eventStatus,cpuCore,cpuConsumptionTime,objstoreID=None):
+        eventDict = {}
+        eventDict['eventRangeID'] = eventRangeID
+        eventDict['eventStatus'] = eventStatus
+        eventDict['cpuCore'] = cpuCore
+        eventDict['cpuConsumptionTime'] = cpuConsumptionTime
+        eventDict['objstoreID'] = objstoreID
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.updateEventRange(eventRangeID,eventStatus,cpuCore,cpuConsumptionTime,objstoreID)
+        ret = proxy.updateEventRanges([eventDict])
         # release proxy
         self.proxyPool.putProxy(proxy)
+        # extract return
+        try:
+            retVal = ret[0][0]
+        except:
+            retVal = False
         # return
-        return ret
+        return retVal,json.dumps(ret[1])
 
 
 
@@ -2511,33 +2522,14 @@ class TaskBuffer:
             eventRanges = json.loads(eventRanges)
         except:
             return json.dumps("ERROR : failed to convert eventRanges with json")
-        retList = []
-        for eventRange in eventRanges:
-            # extract parameters
-            try:
-                eventRangeID = eventRange['eventRangeID']
-                eventStatus = eventRange['eventStatus']
-                cpuCore = None
-                if 'cpuCore' in eventRange:
-                    cpuCore = eventRange['cpuCore']
-                cpuConsumptionTime = None
-                if 'cpuConsumptionTime' in eventRange:
-                    cpuConsumptionTime = eventRange['cpuConsumptionTime']
-                objstoreID = None
-                if 'objstoreID' in eventRange:
-                    objstoreID = eventRange['objstoreID']
-            except:
-                retList.append(False)
-                continue
-            # get proxy
-            proxy = self.proxyPool.getProxy()
-            # exec
-            ret = proxy.updateEventRange(eventRangeID,eventStatus,cpuCore,cpuConsumptionTime,objstoreID)
-            # release proxy
-            self.proxyPool.putProxy(proxy)
-            retList.append(ret)
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.updateEventRanges(eventRanges)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
         # return
-        return json.dumps(retList)
+        return json.dumps(ret[0]),json.dumps(ret[1])
 
 
 

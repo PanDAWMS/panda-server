@@ -226,6 +226,7 @@ setup(
                              'templates/panda_server-proxyCache.exe.template',
                              'templates/panda_server-shareMgr.exe.template',
                              'templates/panda_server-configurator.exe.template',
+                             'templates/panda_server-esPreemption.exe.template',
                              ]
                  ),
 

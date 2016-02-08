@@ -13580,8 +13580,12 @@ class DBProxy:
         comment = ' /* DBProxy.getEventRanges */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <PandaID={0} jobsetID={1} jediTaskID={2}>".format(pandaID,jobsetID,jediTaskID)
-        _logger.debug("{0} : start nRanges={1}".format(methodName,nRanges))
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start nRanges={0}".format(nRanges))
         try:
+            # sql to get job
+            sqlJ  = "SELECT jobStatus,commandToPilot FROM {0}.jobsActive4 ".format(panda_config.schemaPANDA)
+            sqlJ += "WHERE PandaID=:pandaID "
             # sql to get ranges
             sql  = 'SELECT * FROM ('
             sql += 'SELECT jediTaskID,datasetID,fileID,attemptNr,job_processID,def_min_eventID,def_max_eventID '
@@ -13605,83 +13609,98 @@ class DBProxy:
             sqlU += "WHERE jediTaskID=:jediTaskID AND fileID=:fileID AND PandaID=:jobsetID "
             sqlU += "AND job_processID=:job_processID AND attemptNr=:attemptNr "
             sqlU += "AND status=:oldEventStatus "
-            varMap = {}
-            varMap[':jobsetID'] = jobsetID
-            varMap[':eventStatus']  = EventServiceUtils.ST_ready
-            varMap[':minAttemptNr'] = 0
-            if jediTaskID != None:
-                varMap[':jediTaskID'] = jediTaskID
             # start transaction
             self.conn.begin()
-            # select
             self.cur.arraysize = 100000
-            _logger.debug(sql+comment+str(varMap))
-            if jediTaskID != None:
-                self.cur.execute(sqlW+comment, varMap)
-            else:
-                self.cur.execute(sql+comment, varMap)
-            resList = self.cur.fetchall()
-            # make dict
-            fileInfo = {}
+            # get job
+            varMap = {}
+            varMap[':pandaID'] = pandaID
+            self.cur.execute(sqlJ+comment,varMap)
+            resJ = self.cur.fetchone()
+            toSkip = True
             retRanges = []
-            for jediTaskID,datasetID,fileID,attemptNr,job_processID,startEvent,lastEvent in resList:
-                # get file info
-                if not fileID in fileInfo:
+            if resJ == None:
+                # job not found
+                tmpLog.debug("skip job not found")
+            elif not resJ[0] in ['sent','running','starting']:
+                # wrong job status
+                tmpLog.debug("skip wrong job status in {0}".format(resJ[0]))
+            elif resJ[1] == 'tobekilled':
+                # job is being killed
+                tmpLog.debug("skip job is being killed")
+            else:
+                toSkip = False
+                # get event ranges
+                varMap = {}
+                varMap[':jobsetID'] = jobsetID
+                varMap[':eventStatus']  = EventServiceUtils.ST_ready
+                varMap[':minAttemptNr'] = 0
+                if jediTaskID != None:
+                    varMap[':jediTaskID'] = jediTaskID
+                if jediTaskID != None:
+                    self.cur.execute(sqlW+comment, varMap)
+                else:
+                    self.cur.execute(sql+comment, varMap)
+                resList = self.cur.fetchall()
+                # make dict
+                fileInfo = {}
+                for jediTaskID,datasetID,fileID,attemptNr,job_processID,startEvent,lastEvent in resList:
+                    # get file info
+                    if not fileID in fileInfo:
+                        varMap = {}
+                        varMap[':jediTaskID'] = jediTaskID
+                        varMap[':datasetID'] = datasetID
+                        varMap[':fileID'] = fileID
+                        self.cur.execute(sqlF+comment, varMap)
+                        resF = self.cur.fetchone()
+                        # not found
+                        if resF == None:
+                            resF = (None,None)
+                            tmpLog.warning("file info is not found for fileID={0}".format(fileID))
+                        fileInfo[fileID] = resF
+                    # get LFN and GUID
+                    tmpLFN,tmpGUID,tmpScope = fileInfo[fileID]
+                    if tmpLFN == None:
+                        continue
+                    # make dict
+                    tmpDict = {'eventRangeID':self.makeEventRangeID(jediTaskID,pandaID,
+                                                                    fileID,job_processID,
+                                                                    attemptNr),
+                               'startEvent':startEvent,
+                               'lastEvent':lastEvent,
+                               'LFN':tmpLFN,
+                               'GUID':tmpGUID,
+                               'scope':tmpScope}
+                    # lock
                     varMap = {}
                     varMap[':jediTaskID'] = jediTaskID
-                    varMap[':datasetID'] = datasetID
                     varMap[':fileID'] = fileID
-                    self.cur.execute(sqlF+comment, varMap)
-                    resF = self.cur.fetchone()
-                    # not found
-                    if resF == None:
-                        resF = (None,None)
-                        _logger.warning("{0} : file info is not found for fileID={1}".format(methodName,fileID))
-                    fileInfo[fileID] = resF
-                # get LFN and GUID
-                tmpLFN,tmpGUID,tmpScope = fileInfo[fileID]
-                if tmpLFN == None:
-                    continue
-                # make dict
-                tmpDict = {'eventRangeID':self.makeEventRangeID(jediTaskID,pandaID,
-                                                                fileID,job_processID,
-                                                                attemptNr),
-                           'startEvent':startEvent,
-                           'lastEvent':lastEvent,
-                           'LFN':tmpLFN,
-                           'GUID':tmpGUID,
-                           'scope':tmpScope}
-                # lock
-                varMap = {}
-                varMap[':jediTaskID'] = jediTaskID
-                varMap[':fileID'] = fileID
-                varMap[':job_processID'] = job_processID
-                varMap[':pandaID'] = pandaID
-                varMap[':jobsetID'] = jobsetID
-                varMap[':attemptNr'] = attemptNr
-                varMap[':eventStatus'] = EventServiceUtils.ST_sent
-                varMap[':oldEventStatus'] = EventServiceUtils.ST_ready
-                _logger.debug(sqlU+comment+str(varMap))
-                self.cur.execute(sqlU+comment, varMap)
-                nRow = self.cur.rowcount
-                if nRow != 1:
-                    # failed to lock
-                    _logger.debug("{0} : failed to lock {1} with nRow={2}".format(methodName,tmpDict['eventRangeID'],
-                                                                                  nRow))
-                else:
-                    # append
-                    retRanges.append(tmpDict)
+                    varMap[':job_processID'] = job_processID
+                    varMap[':pandaID'] = pandaID
+                    varMap[':jobsetID'] = jobsetID
+                    varMap[':attemptNr'] = attemptNr
+                    varMap[':eventStatus'] = EventServiceUtils.ST_sent
+                    varMap[':oldEventStatus'] = EventServiceUtils.ST_ready
+                    self.cur.execute(sqlU+comment, varMap)
+                    nRow = self.cur.rowcount
+                    if nRow != 1:
+                        # failed to lock
+                        tmpLog.debug("failed to lock {0} with nRow={1}".format(tmpDict['eventRangeID'],
+                                                                               nRow))
+                    else:
+                        # append
+                        retRanges.append(tmpDict)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
             # kill unused consumers
-            if retRanges == [] and jediTaskID != None:
+            if not toSkip and retRanges == [] and jediTaskID != None:
                 tmpJobSpec = JobSpec()
                 tmpJobSpec.PandaID = pandaID
                 tmpJobSpec.jobsetID = jobsetID
                 tmpJobSpec.jediTaskID = jediTaskID
                 self.killUnusedEventServiceConsumers(tmpJobSpec,True)
-            _logger.debug("{0} : {1}".format(methodName,str(retRanges)))
+            tmpLog.debug("done {0}".format(str(retRanges)))
             return json.dumps(retRanges)
         except:
             # roll back
@@ -13693,19 +13712,18 @@ class DBProxy:
 
 
     # get a list of even ranges for a PandaID
-    def updateEventRange(self,eventRangeID,eventStatus,coreCount,cpuConsumptionTime,objstoreID=None):
-        comment = ' /* DBProxy.updateEventRange */'
+    def updateEventRanges(self,eventDictList):
+        comment = ' /* DBProxy.updateEventRanges */'
         methodName = comment.split(' ')[-2].split('.')[-1]
-        methodName += " <eventRangeID={0}>".format(eventRangeID)
-        _logger.debug("{0} : start status={1} coreCount={2} cpuConsumptionTime={3} osID={4}".format(methodName,eventStatus,
-                                                                                                    coreCount,cpuConsumptionTime,
-                                                                                                    objstoreID))
+        tmpLog = LogWrapper(_logger,methodName)
         try:
+            retList = []
+            jobAttrs = {}
+            commandMap = {}
             # sql to update status
             sqlU  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sqlU += "SET status=:eventStatus"
-            if objstoreID != None:
-                sqlU += ",objstore_ID=:objstoreID"
+            sqlU += ",objstore_ID=:objstoreID"
             sqlU += " WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND fileID=:fileID "
             sqlU += "AND job_processID=:job_processID AND attemptNr=:attemptNr "
             # sql to get event range
@@ -13713,7 +13731,7 @@ class DBProxy:
             sqlC += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND fileID=:fileID "
             sqlC += "AND job_processID=:job_processID "
             # sql to get nEvents
-            sqlE  = "SELECT jobStatus,nEvents FROM ATLAS_PANDA.jobsActive4 "
+            sqlE  = "SELECT jobStatus,nEvents,commandToPilot FROM ATLAS_PANDA.jobsActive4 "
             sqlE += "WHERE PandaID=:pandaID "
             # sql to set nEvents
             sqlS  = "UPDATE ATLAS_PANDA.jobsActive4 "
@@ -13723,95 +13741,140 @@ class DBProxy:
             sqlT  = "UPDATE ATLAS_PANDA.jobsActive4 "
             sqlT += "SET cpuConsumptionTime=cpuConsumptionTime+:actualCpuTime "
             sqlT += "WHERE PandaID=:PandaID "
-            # decompose eventRangeID
-            try:
-                tmpItems = eventRangeID.split('-')
-                jediTaskID,pandaID,fileID,job_processID,attemptNr = tmpItems
-                jediTaskID = long(jediTaskID)
-                pandaID = long(pandaID)
-                fileID = long(fileID)
-                job_processID = long(job_processID)
-                attemptNr = long(attemptNr)
-            except:
-                _logger.error("{0} : wrongly formatted eventRangeID".format(methodName))
-                return False
-            # map string status to int
-            if eventStatus == 'running':
-                intEventStatus = EventServiceUtils.ST_running
-            elif eventStatus == 'finished':
-                intEventStatus = EventServiceUtils.ST_finished
-            elif eventStatus == 'failed':
-                intEventStatus = EventServiceUtils.ST_failed
-            else:
-                _logger.error("{0} : unknown status".format(methodName))
-                return False
-            # start transaction
-            self.conn.begin()
-            nRow = 0
-            # get jobStatus and nEvents
-            varMap = {}
-            varMap[':pandaID'] = pandaID
-            self.cur.execute(sqlE+comment, varMap)
-            resE = self.cur.fetchone()
-            if resE == None:
-                _logger.debug("{0} : unknown PandaID".format(methodName))
-            else:
-                # check job status
-                jobStatus,nEventsOld = resE
-                if not jobStatus in ['sent','running','starting']:
-                    _logger.debug("{0} : wrong jobStatus={1}".format(methodName,jobStatus))
+            # loop over all events
+            for eventDict in eventDictList:
+                # get event range ID
+                if not 'eventRangeID' in eventDict:
+                    tmpLog.error('eventRangeID is missing in {0}'.format(str(eventDict)))
+                    retList.append(False)
+                    continue
+                eventRangeID = eventDict['eventRangeID']
+                # decompose eventRangeID
+                try:
+                    tmpItems = eventRangeID.split('-')
+                    jediTaskID,pandaID,fileID,job_processID,attemptNr = tmpItems
+                    jediTaskID = long(jediTaskID)
+                    pandaID = long(pandaID)
+                    fileID = long(fileID)
+                    job_processID = long(job_processID)
+                    attemptNr = long(attemptNr)
+                except:
+                    _logger.error("{0} : wrongly formatted eventRangeID".format(methodName))
+                    retList.append(False)
+                    continue
+                # get event status
+                if not 'eventStatus' in eventDict:
+                    tmpLog.error('<eventRangeID={0}> eventStatus is missing in {1}'.format(eventRangeID,str(eventDict)))
+                    retList.append(False)
+                    continue
+                eventStatus = eventDict['eventStatus']
+                # map string status to int
+                if eventStatus == 'running':
+                    intEventStatus = EventServiceUtils.ST_running
+                elif eventStatus == 'finished':
+                    intEventStatus = EventServiceUtils.ST_finished
+                elif eventStatus == 'failed':
+                    intEventStatus = EventServiceUtils.ST_failed
                 else:
-                    # update event
+                    tmpLog.error("<eventRangeID={0}> unknown status {1}".format(eventRangeID,eventStatus))
+                    retList.append(False)
+                    continue
+                # core count
+                if 'coreCount' in eventDict:
+                    coreCount = eventDict['coreCount']
+                else:
+                    coreCount = None
+                # CPU consumption
+                if 'cpuConsumptionTime' in eventDict:
+                    cpuConsumptionTime = eventDict['cpuConsumptionTime']
+                else:
+                    cpuConsumptionTime = None
+                # objectstore ID
+                if 'objstoreID' in eventDict:
+                    objstoreID = eventDict['objstoreID']
+                else:
+                    objstoreID = None
+                # start transaction
+                self.conn.begin()
+                nRow = 0
+                isOK = True
+                # get job attributes
+                if not pandaID in jobAttrs:
                     varMap = {}
-                    varMap[':jediTaskID'] = jediTaskID
                     varMap[':pandaID'] = pandaID
-                    varMap[':fileID'] = fileID
-                    varMap[':job_processID'] = job_processID
-                    varMap[':attemptNr'] = attemptNr
-                    varMap[':eventStatus'] = intEventStatus
-                    if objstoreID != None:
-                        varMap[':objstoreID'] = objstoreID
-                    self.cur.execute(sqlU+comment, varMap)
-                    nRow = self.cur.rowcount
-                    if nRow == 1 and eventStatus in ['finished']:
-                        # get event range
+                    self.cur.execute(sqlE+comment, varMap)
+                    resE = self.cur.fetchone()
+                    jobAttrs[pandaID] = resE
+                resE = jobAttrs[pandaID]
+                if resE == None:
+                    tmpLog.error("<eventRangeID={0}> unknown PandaID".format(eventRangeID))
+                    retList.append(False)
+                    isOK = False
+                    commandToPilot = 'tobekilled'
+                else:
+                    # check job status
+                    jobStatus,nEventsOld,commandToPilot = resE
+                    if not jobStatus in ['sent','running','starting']:
+                        tmpLog.error("<eventRangeID={0}> wrong jobStatus={1}".format(eventRangeID,jobStatus))
+                        _logger.debug("{0} : wrong jobStatus={1}".format(methodName,jobStatus))
+                        retList.append(False)
+                        isOK = False
+                    else:
+                        # update event
                         varMap = {}
                         varMap[':jediTaskID'] = jediTaskID
                         varMap[':pandaID'] = pandaID
                         varMap[':fileID'] = fileID
                         varMap[':job_processID'] = job_processID
-                        self.cur.execute(sqlC+comment, varMap)
-                        resC = self.cur.fetchone()
-                        if resC != None:
-                            minEventID,maxEventID = resC
-                            nEvents = maxEventID-minEventID+1
-                            if nEventsOld != None:
-                                nEvents += nEventsOld
-                            # update nevents
+                        varMap[':attemptNr'] = attemptNr
+                        varMap[':eventStatus'] = intEventStatus
+                        varMap[':objstoreID'] = objstoreID
+                        self.cur.execute(sqlU+comment, varMap)
+                        nRow = self.cur.rowcount
+                        if nRow == 1 and eventStatus in ['finished']:
+                            # get event range
                             varMap = {}
+                            varMap[':jediTaskID'] = jediTaskID
                             varMap[':pandaID'] = pandaID
-                            varMap[':nEvents'] = nEvents
-                            self.cur.execute(sqlS+comment, varMap)
-                    # update cpuConsumptionTime
-                    if cpuConsumptionTime != None and eventStatus in ['finished','failed']:
-                        varMap = {}
-                        varMap[':PandaID'] = pandaID
-                        if coreCount == None:
-                            varMap[':actualCpuTime'] = long(cpuConsumptionTime)
-                        else:
-                            varMap[':actualCpuTime'] = long(coreCount) * long(cpuConsumptionTime)
-                        self.cur.execute(sqlT+comment, varMap)
-            # commit
-            if not self._commit():
-                raise RuntimeError, 'Commit error'
-            _logger.debug("{0} : done with nRow={1}".format(methodName,nRow))
-            return True
+                            varMap[':fileID'] = fileID
+                            varMap[':job_processID'] = job_processID
+                            self.cur.execute(sqlC+comment, varMap)
+                            resC = self.cur.fetchone()
+                            if resC != None:
+                                minEventID,maxEventID = resC
+                                nEvents = maxEventID-minEventID+1
+                                if nEventsOld != None:
+                                    nEvents += nEventsOld
+                                # update nevents
+                                varMap = {}
+                                varMap[':pandaID'] = pandaID
+                                varMap[':nEvents'] = nEvents
+                                self.cur.execute(sqlS+comment, varMap)
+                        # update cpuConsumptionTime
+                        if cpuConsumptionTime != None and eventStatus in ['finished','failed']:
+                            varMap = {}
+                            varMap[':PandaID'] = pandaID
+                            if coreCount == None:
+                                varMap[':actualCpuTime'] = long(cpuConsumptionTime)
+                            else:
+                                varMap[':actualCpuTime'] = long(coreCount) * long(cpuConsumptionTime)
+                            self.cur.execute(sqlT+comment, varMap)
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                if isOK:
+                    tmpLog.debug("<eventRangeID={0}> done with nRow={1}".format(eventRangeID,nRow))
+                    retList.append(True)
+                if not pandaID in commandMap:
+                    commandMap[pandaID] = commandToPilot
+            return retList,commandMap
         except:
             # roll back
             self._rollback()
             # error
             self.dumpErrorMessage(_logger,methodName)
-            return False
+            retList.append(False)
+            return retList,commandMap
 
 
 

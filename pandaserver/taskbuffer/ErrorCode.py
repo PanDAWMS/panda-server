@@ -60,6 +60,9 @@ EC_EventServiceKillOK = 120
 # associated consumer failed
 EC_EventServiceKillNG = 121
 
+# killed for preemption
+EC_EventServicePreemption = 122
+
 
 
 # file not found
