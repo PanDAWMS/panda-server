@@ -4741,6 +4741,55 @@ class DBProxy:
             return False,[]
 
 
+    # lock jobs for activator
+    def lockJobsForActivator(self,timeLimit,rownum,prio):
+        comment = ' /* DBProxy.lockJobsForActivator */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        try:
+            varMap = {}
+            varMap[':jobStatus'] = 'assigned'
+            varMap[':currentPriority'] = prio
+            varMap[':pLabel1'] = 'managed'
+            varMap[':pLabel2'] = 'test'
+            varMap[':timeLimit'] = timeLimit
+            # make sql
+            sql  = "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 "
+            sql += "WHERE jobStatus=:jobStatus AND (prodDBUpdateTime IS NULL OR prodDBUpdateTime<:timeLimit) "
+            sql += "AND prodSourceLabel IN (:pLabel1,:pLabel2) "
+            sql += "AND currentPriority>=:currentPriority AND rownum<=%s " % rownum
+            sql += "FOR UPDATE "
+            # sql for lock
+            sqlLock = 'UPDATE ATLAS_PANDA.jobsDefined4 SET prodDBUpdateTime=CURRENT_DATE WHERE PandaID=:PandaID'
+            # start transaction
+            self.conn.begin()
+            # select
+            self.cur.arraysize = 1000
+            self.cur.execute(sql+comment,varMap)
+            resList = self.cur.fetchall()
+            retList = []
+            # lock
+            for tmpID, in resList:
+                varLock = {':PandaID':tmpID}
+                self.cur.execute(sqlLock+comment,varLock)
+                retList.append(tmpID)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # sort
+            retList.sort()
+            tmpLog.debug("locked %s jobs" % (len(retList)))
+            return True,retList
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            # return empty
+            return False,[]
+
+
     # get the number of waiting jobs with a dataset
     def getNumWaitingJobsForPD2P(self,datasetName):
         comment = ' /* DBProxy.getNumWaitingJobsForPD2P */'                        

@@ -602,6 +602,30 @@ class RucioAPI:
 
 
 
+    # list file replicas
+    def listFileReplicas(self,scopes,lfns):
+        try:
+            client = RucioClient()
+            dids = []
+            iGUID = 0
+            nGUID = 1000
+            retVal = {}
+            for scope,lfn in zip(scopes,lfns):
+                iGUID += 1
+                dids.append({'scope':scope,'name':lfn})
+                if len(dids) % nGUID == 0 or iGUID == len(lfns):
+                    for tmpDict in client.list_replicas(dids,['srm']):
+                        rses = tmpDict['rses'].keys()
+                        if len(rses) > 0:
+                            retVal[lfn] = rses
+                    dids = []
+            return True,retVal
+        except:
+            errType,errVale = sys.exc_info()[:2]
+            return False,'%s %s' % (errType,errVale)
+
+
+
 # instantiate
 rucioAPI = RucioAPI()
 del RucioAPI
