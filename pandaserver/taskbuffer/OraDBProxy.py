@@ -16012,7 +16012,7 @@ class DBProxy:
         return True
 
 
-    def increaseCpuTimeTask(self, jobID, taskID, siteid, files):
+    def increaseCpuTimeTask(self, jobID, taskID, siteid, files, active):
         """
         Increases the CPU time of a task
         walltime = basewalltime + cpuefficiency*CPUTime*nEvents/Corepower/Corecount
@@ -16131,19 +16131,20 @@ class DBProxy:
                 tmpLog.debug("Skipping CPU time increase since old CPU time {0} > new CPU time {1}".format(cputime, new_cputime))
                 return None
 
-            sql_update_cputime = """
-            UPDATE ATLAS_PANDA.jedi_tasks SET cputime=:cputime
-            WHERE jeditaskid=:jeditaskid
-            """
-            varMap = {}
-            varMap[':cputime'] = new_cputime
-            varMap[':jeditaskid'] = taskID
-            self.conn.begin()
-            self.cur.execute(sql_update_cputime+comment, varMap)
-            if not self._commit():
-                raise RuntimeError, 'Commit error'
+            if active: # only run the update if active mode. Otherwise return what would have been done
+                sql_update_cputime = """
+                UPDATE ATLAS_PANDA.jedi_tasks SET cputime=:cputime
+                WHERE jeditaskid=:jeditaskid
+                """
+                varMap = {}
+                varMap[':cputime'] = new_cputime
+                varMap[':jeditaskid'] = taskID
+                self.conn.begin()
+                self.cur.execute(sql_update_cputime+comment, varMap)
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
 
-            tmpLog.debug("Successfully updated the task CPU time from {0} to {1}".format(cputime, new_cputime))
+                tmpLog.debug("Successfully updated the task CPU time from {0} to {1}".format(cputime, new_cputime))
             return new_cputime
 
         except (ZeroDivisionError, TypeError):
