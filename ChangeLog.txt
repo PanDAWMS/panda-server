@@ -1,6 +1,7 @@
 Release Notes
 
 * 2/9/2016
+  * added mode to reassignTaskTo*
   * added file check for assigned jobs
   * changed HC DN for glexec
 

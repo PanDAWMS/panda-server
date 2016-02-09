@@ -896,7 +896,7 @@ class UserIF:
 
     # reassign task
     def reassignTask(self,jediTaskID,user,prodRole,comComment):
-        # retry
+        # reassign
         ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'reassign',
                                                    comComment=comComment,properErrorCode=True)
         # return
@@ -1845,7 +1845,7 @@ def retryTask(req,jediTaskID,properErrorCode=None):
 
 
 # reassign task to site/cloud
-def reassignTask(req,jediTaskID,site=None,cloud=None,nucleus=None,soft=None):
+def reassignTask(req,jediTaskID,site=None,cloud=None,nucleus=None,soft=None,mode=None):
     # check security
     if not isSecure(req):
         return pickle.dumps((100,'secure connection is required'))
@@ -1868,7 +1868,9 @@ def reassignTask(req,jediTaskID,site=None,cloud=None,nucleus=None,soft=None):
         comComment = 'nucleus:{0}:n'.format(nucleus)
     else:
         comComment = 'cloud:{0}:n'.format(cloud)
-    if soft == 'True':
+    if mode == 'nokill':
+        comComment += ':nokill reassign'
+    elif mode == 'soft' or soft == 'True':
         comComment += ':soft reassign'
     ret = userIF.reassignTask(jediTaskID,user,prodRole,comComment)
     return pickle.dumps(ret)
