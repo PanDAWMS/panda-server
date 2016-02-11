@@ -10,6 +10,7 @@ _logger = PandaLogger().getLogger('RetrialModule')
 NO_RETRY = 'no_retry'
 INCREASE_MEM = 'increase_memory'
 LIMIT_RETRY = 'limit_retry'
+INCREASE_CPU = 'increase_cputime'
 
 
 def pandalog(message):
@@ -58,7 +59,8 @@ def safe_match(pattern, message):
         return matches
 
 
-def conditions_apply(errordiag_job, architecture_job, release_job, wqid_job, errordiag_rule, architecture_rule, release_rule, wqid_rule):
+def conditions_apply(errordiag_job, architecture_job, release_job, wqid_job,
+                     errordiag_rule, architecture_rule, release_rule, wqid_rule):
     """Checks that the error regexp, architecture, release and work queue of rule and job match, 
     only in case the attributes are defined for the rule
     """
@@ -115,7 +117,8 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
         #See if there is a  NO_RETRY rule. Effect of NO_RETRY rules is the same, so just take the first one that appears
         for rule in rules:
             if (rule['action']!= NO_RETRY or
-                not conditions_apply(error_diag_job, architecture_job, release_job, wqid_job, rule['error_diag'], rule['architecture'], rule['release'], rule['wqid'])):
+                not conditions_apply(error_diag_job, architecture_job, release_job, wqid_job, rule['error_diag'],
+                                     rule['architecture'], rule['release'], rule['wqid'])):
                 continue
             else:
                 filtered_rules.append(rule)
@@ -123,16 +126,29 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
         #See if there is a INCREASE_MEM rule. The effect of INCREASE_MEM rules is the same, so take the first one that appears
         for rule in rules:
             if (rule['action']!= INCREASE_MEM or
-                not conditions_apply(error_diag_job, architecture_job, release_job, wqid_job, rule['error_diag'], rule['architecture'], rule['release'], rule['wqid'])): 
+                not conditions_apply(error_diag_job, architecture_job, release_job, wqid_job, rule['error_diag'],
+                                     rule['architecture'], rule['release'], rule['wqid'])):
                 continue
             else:
                 filtered_rules.append(rule)
+                break
+
+        #See if there is a INCREASE_CPU rule. The effect of INCREASE_CPU rules is the same, so take the first one that appears
+        for rule in rules:
+            if (rule['action']!= INCREASE_CPU or
+                not conditions_apply(error_diag_job, architecture_job, release_job, wqid_job, rule['error_diag'],
+                                     rule['architecture'], rule['release'], rule['wqid'])):
+                continue
+            else:
+                filtered_rules.append(rule)
+                break
                 
         #See if there is a LIMIT_RETRY rule. Take the narrowest rule, in case of draw take the strictest conditions
         limit_retry_rule = {}
         for rule in rules:
-            if (not conditions_apply(error_diag_job, architecture_job, release_job, wqid_job, rule['error_diag'], rule['architecture'], rule['release'], rule['wqid']) or
-                rule['action']!= LIMIT_RETRY): 
+            if (rule['action']!= LIMIT_RETRY or
+                not conditions_apply(error_diag_job, architecture_job, release_job, wqid_job, rule['error_diag'],
+                                     rule['architecture'], rule['release'], rule['wqid'])):
                 continue
             elif not limit_retry_rule:
                 limit_retry_rule = rule
@@ -141,7 +157,8 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
                 if comparison == 1:
                     limit_retry_rule = rule
                 elif comparison == 0:
-                    limit_retry_rule['params']['maxAttempt'] = min(limit_retry_rule['params']['maxAttempt'], rule['params']['maxAttempt'])
+                    limit_retry_rule['params']['maxAttempt'] = min(limit_retry_rule['params']['maxAttempt'],
+                                                                   rule['params']['maxAttempt'])
                 elif comparison == -1:
                     pass
     except KeyError:
@@ -167,7 +184,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
     try:
         error_code = int(error_code)
     except ValueError:
-        _logger.error("Error code  (%s) can not be casted to int" %(error_code))
+        _logger.error("Error code ({0}) can not be casted to int".format(error_code))
         return
 
     retrial_rules = task_buffer.getRetrialRules()
@@ -177,7 +194,8 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
 
     try:
         job = task_buffer.peekJobs([jobID], fromDefined=False, fromArchived=True, fromWaiting=False)[0]
-        applicable_rules = preprocess_rules(retrial_rules[error_source][error_code], error_diag, job.AtlasRelease, job.cmtConfig, job.workQueue_ID)
+        applicable_rules = preprocess_rules(retrial_rules[error_source][error_code], error_diag, job.AtlasRelease,
+                                            job.cmtConfig, job.workQueue_ID)
         _logger.debug("Applicable rules for PandaID {0}: {1}".format(jobID, applicable_rules))
         for rule in applicable_rules:
             try:
@@ -190,18 +208,23 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
                 wqid = rule['wqid'] #work queue ID
                 active = rule['active'] #If False, don't apply rule, only log
                 
-                _logger.debug("error_diag_rule {0}, action {1}, parameters {2}, architecture {3}, release {4}, wqid {5}, active {6}".format(error_diag_rule, action, parameters, architecture, release, wqid, active))
+                _logger.debug("error_diag_rule {0}, action {1}, parameters {2}, architecture {3}, release {4}, wqid {5}, active {6}"
+                              .format(error_diag_rule, action, parameters, architecture, release, wqid, active))
                 
-                _logger.debug("Processing rule %s for jobID %s, error_source %s, error_code %s, attemptNr %s" %(rule, jobID, error_source, error_code, attemptNr))
-                if not conditions_apply(error_diag, job.cmtConfig, job.AtlasRelease, job.workQueue_ID, error_diag_rule, architecture, release, wqid):
-                    _logger.debug("Skipped rule %s. cmtConfig (%s : %s) or Release (%s : %s) did NOT match" %(rule, architecture, job.cmtConfig, release, job.AtlasRelease))
+                _logger.debug("Processing rule {0} for jobID {1}, error_source {2}, error_code {3}, attemptNr {4}".
+                              format(rule, jobID, error_source, error_code, attemptNr))
+                if not conditions_apply(error_diag, job.cmtConfig, job.AtlasRelease, job.workQueue_ID,
+                                        error_diag_rule, architecture, release, wqid):
+                    _logger.debug("Skipped rule {0}. cmtConfig ({1} : {2}) or Release ({3} : {4}) did NOT match"
+                                  .format(rule, architecture, job.cmtConfig, release, job.AtlasRelease))
                     continue
                 
                 if action == NO_RETRY:
                     if active:
                         task_buffer.setMaxAttempt(jobID, job.jediTaskID, job.Files, attemptNr)
                     #Log to pandamon and logfile
-                    message = "setMaxAttempt for PandaID: {0}, jediTaskID: {1}, maxAttempt: {2}. (ErrorSource: {3}. ErrorCode: {4}. ErrorDiag: {5}. Error/action active: {6})".format(jobID, job.jediTaskID, attemptNr, error_source, error_code, error_diag_rule, active)
+                    message = "setMaxAttempt for PandaID: {0}, jediTaskID: {1}, maxAttempt: {2}. (ErrorSource: {3}. ErrorCode: {4}. ErrorDiag: {5}. Error/action active: {6})"\
+                        .format(jobID, job.jediTaskID, attemptNr, error_source, error_code, error_diag_rule, active)
                     pandalog(message)
                     _logger.debug(message)
                 
@@ -210,7 +233,8 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
                         if active:
                             task_buffer.setMaxAttempt(jobID, job.jediTaskID, job.Files, int(parameters['maxAttempt']))
                         #Log to pandamon and logfile
-                        message = "setMaxAttempt for PandaID: {0}, jediTaskID: {1}, maxAttempt: {2}. (ErrorSource: {3}. ErrorCode: {4}. ErrorDiag: {5}. Error/action active: {6})".format(jobID, job.jediTaskID, int(parameters['maxAttempt']), error_source, error_code, error_diag_rule, active)
+                        message = "setMaxAttempt for PandaID: {0}, jediTaskID: {1}, maxAttempt: {2}. (ErrorSource: {3}. ErrorCode: {4}. ErrorDiag: {5}. Error/action active: {6})"\
+                            .format(jobID, job.jediTaskID, int(parameters['maxAttempt']), error_source, error_code, error_diag_rule, active)
                         pandalog(message)
                         _logger.debug(message)
                     except (KeyError, ValueError):
@@ -218,21 +242,38 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
                 
                 elif action == INCREASE_MEM:
                     try:
-                        #TODO 1: Complete as in AdderGen (232-240) and delete lines from AdderGen
                         if active:
                             task_buffer.increaseRamLimitJobJEDI(job, job.minRamCount, job.jediTaskID)
                         #Log to pandamon and logfile
-                        message = "increaseRAMLimit for PandaID: {0}, jediTaskID: {1}. (ErrorSource: {2}. ErrorCode: {3}. ErrorDiag: {4}. Error/action active: {5})".format(jobID, job.jediTaskID,  error_source, error_code, error_diag_rule, active)
+                        message = "increaseRAMLimit for PandaID: {0}, jediTaskID: {1}. (ErrorSource: {2}. ErrorCode: {3}. ErrorDiag: {4}. Error/action active: {5})"\
+                            .format(jobID, job.jediTaskID,  error_source, error_code, error_diag_rule, active)
                         pandalog(message)
                         _logger.debug(message)
                     except:
                         errtype,errvalue = sys.exc_info()[:2]
                         _logger.debug("Failed to increase RAM limit : %s %s" % (errtype,errvalue))
 
-                _logger.debug("Finished rule %s for jobID %s, error_source %s, error_code %s, attemptNr %s" %(rule, jobID, error_source, error_code, attemptNr))
+                elif action == INCREASE_CPU:
+                    try:
+                        # for the CPU time rule the active/passive mode will be applied by the DBProxy function
+                        # because we want to monitor the new CPU time in passive mode
+                        new_cputime = task_buffer.increaseCpuTimeTask(jobID, job.jediTaskID, job.computingSite, job.Files, active)
+                        #Log to pandamon and logfile
+                        message = "increaseCpuTime for PandaID: {0}, jediTaskID: {1} to {2} (active: {3}) . (ErrorSource: {4}. ErrorCode: {5}. ErrorDiag: {6}. Error/action active: {7})"\
+                            .format(jobID, job.jediTaskID, new_cputime, active, error_source, error_code, error_diag_rule, active)
+                        pandalog(message)
+                        _logger.debug(message)
+                    except:
+                        errtype,errvalue = sys.exc_info()[:2]
+                        _logger.debug("Failed to increase CPU-Time : %s %s" % (errtype,errvalue))
+
+                _logger.debug("Finished rule {0} for jobID {1}, error_source {2}, error_code {3}, attemptNr {4}"
+                              .format(rule, jobID, error_source, error_code, attemptNr))
             
             except KeyError:
                 _logger.debug("Rule was missing some field(s). Rule: %s" %rule)
+
     except KeyError as e:
-        _logger.debug("No retrial rules to apply for jobID %s, attemptNr %s, failed with %s=%s. (Exception %s)" %(jobID, attemptNr, error_source, error_code, e))
+        _logger.debug("No retrial rules to apply for jobID {0}, attemptNr {1}, failed with {2}={3}. (Exception {4})"
+                      .format(jobID, attemptNr, error_source, error_code, e))
 

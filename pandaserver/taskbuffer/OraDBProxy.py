@@ -16091,7 +16091,7 @@ class DBProxy:
 
             #Get the minimum maxAttempt value of the files
             sql_select = """
-            select min(maxattempt) from ATLAS_PANDA.JEDI_Dataset_Contents 
+            select min(maxattempt) from ATLAS_PANDA.JEDI_Dataset_Contents
             WHERE JEDITaskID = :taskID
             AND datasetID IN ({0})
             AND fileID IN ({1})
@@ -16102,29 +16102,169 @@ class DBProxy:
                 maxAttempt_select = self.cur.fetchone()[0]
             except TypeError, IndexError:
                 maxAttempt_select = None
-            
+
             #Don't update the maxAttempt if the value in the retrial table is lower
-            #than the value defined in the task 
+            #than the value defined in the task
             if maxAttempt_select and maxAttempt_select > maxAttempt:
                 varMap[':maxAttempt'] = min(maxAttempt, maxAttempt_select)
-    
+
                 sql_update  = """
-                UPDATE ATLAS_PANDA.JEDI_Dataset_Contents 
+                UPDATE ATLAS_PANDA.JEDI_Dataset_Contents
                 SET maxAttempt=:maxAttempt
                 WHERE JEDITaskID = :taskID
                 AND datasetID IN ({0})
                 AND fileID IN ({1})
                 AND pandaID = :pandaID
                 """.format(dataset_bindings, file_bindings)
-    
+
                 self.cur.execute(sql_update+comment, varMap)
-        
+
             #Commit updates
             if not self._commit():
                 raise RuntimeError, 'Commit error'
 
         tmpLog.debug("done")
         return True
+
+
+    def increaseCpuTimeTask(self, jobID, taskID, siteid, files, active):
+        """
+        Increases the CPU time of a task
+        walltime = basewalltime + cpuefficiency*CPUTime*nEvents/Corepower/Corecount
+        
+        CPU time: execution time per event
+        Walltime: time for a job
+        Corepower: HS06 score
+        Basewalltime: Setup time, time to download, etc. taken by the pilot
+        """
+        comment = ' /* DBProxy.increaseCpuTimeTask */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <PandaID={0}; TaskID={1}>".format(jobID, taskID)
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        
+        #1. Get the site information from schedconfig
+        sql  = """
+        SELECT sc.maxtime, sc.corepower, sc.corecount
+        FROM atlas_pandameta.schedconfig sc
+        WHERE siteid=:siteid
+        """
+        varMap={"siteid": siteid}
+        self.cur.execute(sql+comment, varMap)
+        siteParameters = self.cur.fetchone()   #example of output: [('pilotErrorCode', 1, None, None, None, None, 'no_retry', 'Y', 'Y'),...]
+
+        if not siteParameters:
+            tmpLog.debug("No site parameters retrieved for {0}".format(siteid))
+
+        (maxtime, corepower, corecount) = siteParameters
+        tmpLog.debug("siteid {0} has parameters: maxtime {1}, corepower {2}, corecount {3}".format(siteid, maxtime, corepower, corecount))
+        if (not maxtime) or (not corepower) or (not corecount):
+            tmpLog.debug("One or more site parameters are not defined for {0}... nothing to do".format(siteid))
+            return None
+
+        #2. Get the task information
+        sql = """
+        SELECT jt.cputime, jt.walltime, jt.basewalltime, jt.cpuefficiency, jt.cputimeunit
+        FROM ATLAS_PANDA.jedi_tasks jt
+        WHERE jt.jeditaskid=:jeditaskid
+        """
+        varMap={"jeditaskid": taskID}
+        self.cur.execute(sql+comment, varMap)
+        taskParameters = self.cur.fetchone()
+        
+        if not taskParameters:
+            tmpLog.debug("No task parameters retrieved for jeditaskid {0}... nothing to do".format(taskID))
+            return None
+        
+        (cputime, walltime, basewalltime, cpuefficiency, cputimeunit) = taskParameters
+        if not cpuefficiency or not basewalltime:
+            tmpLog.debug("CPU efficiency and/or basewalltime are not defined for task {0}... nothing to do".format(taskID))
+            return None
+
+        tmpLog.debug("task {0} has parameters: cputime {1}, walltime {2}, basewalltime {3}, cpuefficiency {4}, cputimeunit {5}".\
+                     format(taskID, cputime, walltime, basewalltime, cpuefficiency, cputimeunit))
+        
+        #2. Get the file information
+        input_types = ('input', 'pseudo_input', 'pp_input', 'trn_log','trn_output')
+        input_files = filter(lambda pandafile: pandafile.type in input_types
+                                               and re.search('DBRelease', pandafile.lfn) == None, files)
+        input_fileIDs = [input_file.fileID for input_file in input_files]
+        input_datasetIDs = [input_file.datasetID for input_file in input_files]
+                
+        if input_fileIDs:
+            varMap = {}
+            varMap[':taskID'] = taskID
+            varMap[':pandaID'] = jobID
+            
+            #Bind the files
+            f = 0
+            for fileID in input_fileIDs:
+                varMap[':file{0}'.format(f)] = fileID
+                f+=1
+            file_bindings = ','.join(':file{0}'.format(i) for i in xrange(len(input_fileIDs)))
+            
+            #Bind the datasets
+            d = 0
+            for datasetID in input_datasetIDs:
+                varMap[':dataset{0}'.format(d)] = datasetID
+                d+=1
+            dataset_bindings = ','.join(':dataset{0}'.format(i) for i in xrange(len(input_fileIDs)))
+
+            sql_select = """
+            SELECT jdc.fileid, jdc.nevents, jdc.startevent, jdc.endevent
+            FROM ATLAS_PANDA.JEDI_Dataset_Contents jdc, ATLAS_PANDA.JEDI_Datasets jd
+            WHERE jdc.JEDITaskID = :taskID
+            AND jdc.datasetID IN ({0})
+            AND jdc.fileID IN ({1})
+            AND jd.datasetID = jdc.datasetID
+            AND jd.masterID IS NULL
+            AND jdc.pandaID = :pandaID
+            """.format(dataset_bindings, file_bindings)
+            self.cur.execute(sql_select+comment, varMap)
+
+            resList = self.cur.fetchall()
+            nevents_total = 0
+            for fileid, nevents, startevent, endevent in resList:
+                tmpLog.debug("event information: fileid {0}, nevents {1}, startevent {2}, endevent {3}".format(fileid, nevents, startevent, endevent))
+
+                if endevent != None and startevent != None:
+                    nevents_total += endevent - startevent
+                elif nevents:
+                    nevents_total += nevents
+
+            if not nevents_total:
+                tmpLog.debug("nevents could not be calculated for job {0}... nothing to do".format(jobID))
+                return None
+        else:
+            tmpLog.debug("No input files for job {0}, so could not update CPU time for task {1}".format(jobID, taskID))
+            return None
+
+        try:
+            new_cputime = (maxtime - basewalltime) * corepower * corecount * 1.1 / (cpuefficiency/100.0) / nevents_total
+
+            if cputime > new_cputime:
+                tmpLog.debug("Skipping CPU time increase since old CPU time {0} > new CPU time {1}".format(cputime, new_cputime))
+                return None
+
+            if active: # only run the update if active mode. Otherwise return what would have been done
+                sql_update_cputime = """
+                UPDATE ATLAS_PANDA.jedi_tasks SET cputime=:cputime
+                WHERE jeditaskid=:jeditaskid
+                """
+                varMap = {}
+                varMap[':cputime'] = new_cputime
+                varMap[':jeditaskid'] = taskID
+                self.conn.begin()
+                self.cur.execute(sql_update_cputime+comment, varMap)
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+
+                tmpLog.debug("Successfully updated the task CPU time from {0} to {1}".format(cputime, new_cputime))
+            return new_cputime
+
+        except (ZeroDivisionError, TypeError):
+            return None
+
 
     # throttle jobs for resource shares
     def throttleJobsForResourceShare(self,site):
