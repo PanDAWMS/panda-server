@@ -2133,14 +2133,15 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                             self.logger.debug(out)
                         # register location
                         isOK = False
-                        self.logger.debug('ext registerDatasetLocation {ds} {dq2ID} {lifeTime}days'.format(ds=disDBlock,
-                                                                                                           dq2ID=tmpLocation,
-                                                                                                           lifeTime=7,
-                                                                                                           ))
+                        self.logger.debug('ext registerDatasetLocation {ds} {dq2ID} {lifeTime}days asynchronous=True'.format(ds=disDBlock,
+                                                                                                                             dq2ID=tmpLocation,
+                                                                                                                             lifeTime=7,
+                                                                                                                             ))
                         nDDMTry = 3
                         for iDDMTry in range(nDDMTry):
                             try:
-                                out = self.registerDispatchDatasetLocation(disDBlock,[tmpLocation],7)
+                                out = self.registerDispatchDatasetLocation(disDBlock,[tmpLocation],7,
+                                                                           asynchronous=True)
                                 self.logger.debug(out)
                                 isOK = True
                                 break
@@ -2493,7 +2494,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
 
 
     # register dispatch dataset
-    def registerDispatchDatasetLocation(self,dsn,rses,lifetime=None,scope='panda',activity=None):
+    def registerDispatchDatasetLocation(self,dsn,rses,lifetime=None,scope='panda',activity=None,
+                                        asynchronous=False):
         if lifetime != None:
             lifetime = lifetime*24*60*60
         dids = []
@@ -2514,7 +2516,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             client.add_replication_rule(dids=dids,copies=1,rse_expression=location,weight=None,
                                         lifetime=lifetime, grouping='NONE', account=client.account,
                                         locked=False, notify='N',ignore_availability=True,
-                                        activity=activity)
+                                        activity=activity,asynchronous=asynchronous)
         except Duplicate:
             pass
         return True

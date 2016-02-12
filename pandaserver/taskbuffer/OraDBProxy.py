@@ -1682,7 +1682,7 @@ class DBProxy:
     def updateJobStatus(self,pandaID,jobStatus,param,updateStateChange=False,attemptNr=None):
         comment = ' /* DBProxy.updateJobStatus */'        
         _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s status=%s" % (pandaID,attemptNr,jobStatus))
-        sql0  = "SELECT commandToPilot,endTime,specialHandling,jobStatus,computingSite,cloud,prodSourceLabel,lockedby,jediTaskID,jobsetID,jobDispatcherErrorDiag "
+        sql0  = "SELECT commandToPilot,endTime,specialHandling,jobStatus,computingSite,cloud,prodSourceLabel,lockedby,jediTaskID,jobsetID,jobDispatcherErrorDiag,supErrorCode "
         sql0 += "FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
         varMap0 = {}
         varMap0[':PandaID'] = pandaID
@@ -1726,7 +1726,8 @@ class DBProxy:
                 res = self.cur.fetchone()
                 if res != None:
                     ret = ''
-                    commandToPilot,endTime,specialHandling,oldJobStatus,computingSite,cloud,prodSourceLabel,lockedby,jediTaskID,jobsetID,jobDispatcherErrorDiag = res
+                    commandToPilot,endTime,specialHandling,oldJobStatus,computingSite,cloud,prodSourceLabel,\
+                        lockedby,jediTaskID,jobsetID,jobDispatcherErrorDiag,supErrorCode = res
                     # debug mode
                     if not specialHandling in [None,''] and 'debug' in specialHandling:
                         ret += 'debug,'
@@ -1735,6 +1736,10 @@ class DBProxy:
                     #    ret += 'debugoff,'
                     # kill command    
                     if not commandToPilot in [None,'']:
+                        # soft kill
+                        if supErrorCode in [ErrorCode.EC_EventServicePreemption]:
+                            #commandToPilot = 'softkill'
+                            pass
                         ret += '%s,' % commandToPilot
                     ret = ret[:-1]
                     # convert empty to NULL
@@ -9265,6 +9270,8 @@ class DBProxy:
         for tmpRes in resP:
             tmpMap = {}
             for columName,columVal in zip(columNames,tmpRes):
+                if columName.startswith('space_') and columVal == None:
+                    columVal = 0
                 tmpMap[columName] = columVal
             panda_site_name = tmpMap['panda_site_name']
             if not panda_site_name in pandaEndpointMap:
@@ -13780,7 +13787,7 @@ class DBProxy:
             sqlC += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND fileID=:fileID "
             sqlC += "AND job_processID=:job_processID "
             # sql to get nEvents
-            sqlE  = "SELECT jobStatus,nEvents,commandToPilot FROM ATLAS_PANDA.jobsActive4 "
+            sqlE  = "SELECT jobStatus,nEvents,commandToPilot,supErrorCode FROM ATLAS_PANDA.jobsActive4 "
             sqlE += "WHERE PandaID=:pandaID "
             # sql to set nEvents
             sqlS  = "UPDATE ATLAS_PANDA.jobsActive4 "
@@ -13862,7 +13869,7 @@ class DBProxy:
                     commandToPilot = 'tobekilled'
                 else:
                     # check job status
-                    jobStatus,nEventsOld,commandToPilot = resE
+                    jobStatus,nEventsOld,commandToPilot,supErrorCode = resE
                     if not jobStatus in ['sent','running','starting']:
                         tmpLog.error("<eventRangeID={0}> wrong jobStatus={1}".format(eventRangeID,jobStatus))
                         _logger.debug("{0} : wrong jobStatus={1}".format(methodName,jobStatus))
@@ -13908,6 +13915,9 @@ class DBProxy:
                             else:
                                 varMap[':actualCpuTime'] = long(coreCount) * long(cpuConsumptionTime)
                             self.cur.execute(sqlT+comment, varMap)
+                    # soft kill
+                    if not commandToPilot in [None,''] and supErrorCode in [ErrorCode.EC_EventServicePreemption]:
+                            commandToPilot = 'softkill'
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'

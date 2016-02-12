@@ -432,7 +432,7 @@ class JobDipatcher:
             response=Protocol.Response(Protocol.SC_Success)
             # make return
             response.appendNode('Returns',tmpWrapper.result[0])
-            response.appendNode('Commands',tmpWrapper.result[1])
+            response.appendNode('Command',tmpWrapper.result[1])
         _logger.debug("updateEventRanges : ret -> %s" % (response.encode()))
         return response.encode()
 
