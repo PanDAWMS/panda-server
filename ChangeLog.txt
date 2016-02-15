@@ -1,6 +1,7 @@
 Release Notes
 
 * 2/15/2016
+  * using 14days lifetime for panda rules
   * added altStgOut
 
 * 2/12/2016

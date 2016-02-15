@@ -608,7 +608,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                     # set replica lifetime to _sub
                                     repLifeTime = None
                                     if (name != originalName and re.search('_sub\d+$',name) != None) or \
-                                            (name == originalName and name.startswith('panda.um.')):
+                                            (name == originalName and name.startswith('panda.')):
                                         repLifeTime = "14 days"
                                     elif name.startswith('hc_test') or \
                                             name.startswith('panda.install.') or \
