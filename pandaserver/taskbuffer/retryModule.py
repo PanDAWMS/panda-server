@@ -27,7 +27,6 @@ def pandalog(message):
         #send the message and release the logger
         tmpLogger.debug(message)
         tmpPandaLogger.release()
-        _logger.debug("Uploaded message (%s) to pandamon logger."%(message))
     except Exception as e:
         _logger.warning("Could not upload message (%s) to pandamon logger. (Error: %s)"%(message, e))
 

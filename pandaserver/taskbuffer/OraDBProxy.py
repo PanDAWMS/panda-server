@@ -16155,7 +16155,11 @@ class DBProxy:
         
         #1. Get the site information from schedconfig
         sql  = """
-        SELECT sc.maxtime, sc.corepower, sc.corecount
+        SELECT sc.maxtime, sc.corepower,
+            CASE
+                WHEN sc.corecount IS NULL THEN 1
+                ELSE sc.corecount
+            END as corecount
         FROM atlas_pandameta.schedconfig sc
         WHERE siteid=:siteid
         """
