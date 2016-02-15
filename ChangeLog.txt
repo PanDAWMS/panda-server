@@ -1,5 +1,8 @@
 Release Notes
 
+* 2/15/2016
+  * added altStgOut
+
 * 2/12/2016
   * changed NucleusSpec to ignore SPECIAL
   * added protection against space_*=None

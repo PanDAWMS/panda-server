@@ -265,6 +265,9 @@ class Response:
         # no output
         if noOutput != []:
             self.data['allowNoOutput'] = ','.join(noOutput)
+        # alternative stage-out
+        if job.getAltStgOut() != None:
+            self.data['altStageOut'] = job.getAltStgOut()
 
 
     # set proxy key
