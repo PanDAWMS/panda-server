@@ -1,5 +1,8 @@
 Release Notes
 
+* 2/16/2016
+  * using datasets.currentfiles to store dis size
+
 * 2/15/2016
   * using 14days lifetime for panda rules
   * added altStgOut

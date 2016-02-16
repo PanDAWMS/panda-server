@@ -395,8 +395,11 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 ds.name = dispatchDBlock
                 ds.type = 'dispatch'
                 ds.status = 'defined'
-                ds.numberfiles  = len(fileList[dispatchDBlock])/2
-                ds.currentfiles = 0
+                ds.numberfiles  = len(fileList[dispatchDBlock]['lfns'])
+                try:
+                    ds.currentfiles = long(sum(filter(None,fileList[dispatchDBlock]['fsizes']))/1024/1024)
+                except:
+                    ds.currentfiles = 0
                 dispList.append(ds)
                 self.vuidMap[ds.name] = ds.vuid
             except:
