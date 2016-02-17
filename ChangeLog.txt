@@ -1,5 +1,8 @@
 Release Notes
 
+* 2/17/2016
+  * added getDispatchDatasetsPerUser
+
 * 2/16/2016
   * using datasets.currentfiles to store dis size
 

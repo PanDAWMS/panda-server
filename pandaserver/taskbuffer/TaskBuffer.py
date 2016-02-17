@@ -2918,6 +2918,21 @@ class TaskBuffer:
         # return
         return ret
 
+
+
+    # get dispatch datasets per user
+    def getDispatchDatasetsPerUser(self,vo,prodSourceLabel,onlyActive,withSize):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getDispatchDatasetsPerUser(vo,prodSourceLabel,onlyActive,withSize)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 
