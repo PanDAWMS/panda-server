@@ -9415,7 +9415,7 @@ class DBProxy:
             sqlSite += ") "
             if usingCloud != '':
                 varMapCloud = {}
-                sqlCloud = "WHERE computingSite=tabS.siteid AND tabJ.cloud=:cloud "
+                sqlCloud = "WHERE computingSite=tabS.siteid AND tabS.cloud=:cloud "
                 varMapCloud[':cloud'] = usingCloud
             sqlT = "AND prodSourceLabel=:prodSourceLabel) "
             sqlT += "GROUP BY jobStatus"
@@ -9547,11 +9547,10 @@ class DBProxy:
                             if '*' in tmpShareDef['policy']['group']:
                                 # using wild card
                                 tmpPattern = '^' + tmpShareDef['policy']['group'].replace('*','.*') + '$'
-                                if workingGroup == None or re.search(tmpPattern,workingGroup) == None:
-                                    continue
                             else:
-                                if tmpShareDef['policy']['group'] != workingGroup:
-                                    continue
+                                tmpPattern = '^' + tmpShareDef['policy']['group'] + '$'
+                            if workingGroup == None or re.search(tmpPattern,workingGroup) == None:
+                                continue
                             # collect real WGs per defined WG mainly for wildcard
                             if not workingGroupInQueueMap.has_key(tmpShareDef['policy']['group']):
                                 workingGroupInQueueMap[tmpShareDef['policy']['group']] = []
