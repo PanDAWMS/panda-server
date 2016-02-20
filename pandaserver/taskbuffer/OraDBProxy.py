@@ -13218,6 +13218,7 @@ class DBProxy:
             if umJob.jobStatus in ['failed'] or umJob.isCancelled():
                 umJob.taskBufferErrorCode = ErrorCode.EC_MergeFailed
                 umJob.taskBufferErrorDiag = "merge job {0}".format(umJob.jobStatus)
+                umJob.jobSubStatus = 'merge_{0}'.format(umJob.jobStatus)
             # read files
             self.cur.arraysize = 10000
             self.cur.execute(sqlJFF+comment, varMap)

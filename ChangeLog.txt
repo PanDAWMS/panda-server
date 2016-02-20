@@ -1,5 +1,8 @@
 Release Notes
 
+* 2/19/2016
+  * setting jobSubStatus to upstream jobs when merge is failed
+
 * 2/18/2016
   * fixed getCriteria for groups without wildcards
 
