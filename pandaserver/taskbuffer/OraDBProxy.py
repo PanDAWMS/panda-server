@@ -8965,7 +8965,7 @@ class DBProxy:
             sql+= "maxwdir,fairsharePolicy,minmemory,maxmemory,mintime,"
             sql+= "catchall,allowfax,wansourcelimit,wansinklimit,b.site_name,"
             sql+= "sitershare,cloudrshare,corepower,wnconnectivity,catchall,"
-            sql+= "c.role,maxrss,minrss "
+            sql+= "c.role,maxrss,minrss,direct_access_lan,direct_access_wan "
             sql+= "FROM (ATLAS_PANDAMETA.schedconfig a "
             sql+= "LEFT JOIN ATLAS_PANDA.panda_site b ON a.siteid=b.panda_site_name) "
             sql+= "LEFT JOIN ATLAS_PANDA.site c ON b.site_name=c.site_name "
@@ -8995,7 +8995,7 @@ class DBProxy:
                        maxwdir,fairsharePolicy,minmemory,maxmemory,mintime, \
                        catchall,allowfax,wansourcelimit,wansinklimit,pandasite, \
                        sitershare,cloudrshare,corepower,wnconnectivity,catchall, \
-                       role,maxrss,minrss \
+                       role,maxrss,minrss,direct_access_lan,direct_access_wan \
                        = resTmp
                     # skip invalid siteid
                     if siteid in [None,'']:
@@ -9035,6 +9035,8 @@ class DBProxy:
                         ret.wnconnectivity = None
                     ret.fairsharePolicy = fairsharePolicy
                     ret.pandasite_state = 'ACTIVE' #pandasite_state
+                    ret.direct_access_lan = (direct_access_lan == 'True')
+                    ret.direct_access_wan = (direct_access_wan == 'True')
                     # resource shares
                     ret.sitershare = None
                     """

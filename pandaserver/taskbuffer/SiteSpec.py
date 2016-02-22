@@ -16,7 +16,8 @@ class SiteSpec(object):
                    'iscvmfs','transferringlimit','maxwdir','fairsharePolicy','minmemory','maxmemory',
                    'mintime','allowfax','wansourcelimit','wansinklimit','pandasite',
                    'sitershare','cloudrshare','corepower','wnconnectivity','catchall',
-                   'role','pandasite_state','ddm_endpoints','maxrss','minrss')
+                   'role','pandasite_state','ddm_endpoints','maxrss','minrss',
+                   'direct_access_lan','direct_access_wan')
 
     # constructor
     def __init__(self):
@@ -110,3 +111,9 @@ class SiteSpec(object):
             if tmpMatch != None:
                 return True
         return False
+
+
+
+    # allow WAN input access
+    def allowWanInputAccess(self):
+        return self.direct_access_lan == True and self.direct_access_wan == True

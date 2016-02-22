@@ -1,5 +1,8 @@
 Release Notes
 
+* 2/22/2016
+  * added allowWanInputAccess
+
 * 2/19/2016
   * setting jobSubStatus to upstream jobs when merge is failed
 
