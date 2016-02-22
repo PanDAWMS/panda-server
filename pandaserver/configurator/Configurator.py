@@ -454,7 +454,6 @@ class NetworkConfigurator(threading.Thread):
         and prepares it for insertion into the PanDA DB
         """
         data = []
-        latest_validity = datetime.utcnow() - timedelta(minutes=30) # Ignore outdated values
 
         for entry in self.agis_cm_dump:
             _logger.debug('Processing AGIS CM entry {0}'.format(entry))
