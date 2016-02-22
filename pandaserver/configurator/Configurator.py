@@ -463,21 +463,22 @@ class NetworkConfigurator(threading.Thread):
 
             _logger.debug('Processing AGIS CM entry {0}'.format(entry))
 
-            # Skip broken entries (protection against errors in AGIS)
-            if not src or not dst:
-                continue
-
             try:
                 src = entry['src']
                 dst = entry['dst']
                 closeness = entry['closeness']
                 ts = datetime.now()
+
+                # Skip broken entries (protection against errors in AGIS)
+                if not src or not dst:
+                    continue
+
+                #Prepare data for bulk upserts
+                data.append((src, dst, 'AGIS_closeness', closeness, ts))
+
             except KeyError:
                 _logger.warning("AGIS CM entry {0} does not contain one or more of the keys src/dst/closeness".format(entry))
                 continue
-
-            #Prepare data for bulk upserts
-            data.append((src, dst, 'AGIS_closeness', closeness, ts))
 
         return data
 
