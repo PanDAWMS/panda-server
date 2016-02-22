@@ -395,8 +395,11 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 ds.name = dispatchDBlock
                 ds.type = 'dispatch'
                 ds.status = 'defined'
-                ds.numberfiles  = len(fileList[dispatchDBlock])/2
-                ds.currentfiles = 0
+                ds.numberfiles  = len(fileList[dispatchDBlock]['lfns'])
+                try:
+                    ds.currentfiles = long(sum(filter(None,fileList[dispatchDBlock]['fsizes']))/1024/1024)
+                except:
+                    ds.currentfiles = 0
                 dispList.append(ds)
                 self.vuidMap[ds.name] = ds.vuid
             except:
@@ -608,7 +611,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                     # set replica lifetime to _sub
                                     repLifeTime = None
                                     if (name != originalName and re.search('_sub\d+$',name) != None) or \
-                                            (name == originalName and name.startswith('panda.um.')):
+                                            (name == originalName and name.startswith('panda.')):
                                         repLifeTime = "14 days"
                                     elif name.startswith('hc_test') or \
                                             name.startswith('panda.install.') or \

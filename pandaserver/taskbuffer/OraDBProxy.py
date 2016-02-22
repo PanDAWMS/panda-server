@@ -9415,7 +9415,7 @@ class DBProxy:
             sqlSite += ") "
             if usingCloud != '':
                 varMapCloud = {}
-                sqlCloud = "WHERE computingSite=tabS.siteid AND tabJ.cloud=:cloud "
+                sqlCloud = "WHERE computingSite=tabS.siteid AND tabS.cloud=:cloud "
                 varMapCloud[':cloud'] = usingCloud
             sqlT = "AND prodSourceLabel=:prodSourceLabel) "
             sqlT += "GROUP BY jobStatus"
@@ -9547,11 +9547,10 @@ class DBProxy:
                             if '*' in tmpShareDef['policy']['group']:
                                 # using wild card
                                 tmpPattern = '^' + tmpShareDef['policy']['group'].replace('*','.*') + '$'
-                                if workingGroup == None or re.search(tmpPattern,workingGroup) == None:
-                                    continue
                             else:
-                                if tmpShareDef['policy']['group'] != workingGroup:
-                                    continue
+                                tmpPattern = '^' + tmpShareDef['policy']['group'] + '$'
+                            if workingGroup == None or re.search(tmpPattern,workingGroup) == None:
+                                continue
                             # collect real WGs per defined WG mainly for wildcard
                             if not workingGroupInQueueMap.has_key(tmpShareDef['policy']['group']):
                                 workingGroupInQueueMap[tmpShareDef['policy']['group']] = []
@@ -13219,6 +13218,7 @@ class DBProxy:
             if umJob.jobStatus in ['failed'] or umJob.isCancelled():
                 umJob.taskBufferErrorCode = ErrorCode.EC_MergeFailed
                 umJob.taskBufferErrorDiag = "merge job {0}".format(umJob.jobStatus)
+                umJob.jobSubStatus = 'merge_{0}'.format(umJob.jobStatus)
             # read files
             self.cur.arraysize = 10000
             self.cur.execute(sqlJFF+comment, varMap)
@@ -16694,5 +16694,82 @@ class DBProxy:
             self.dumpErrorMessage(_logger, methodName)
             return None,""
 
+
+
+    # get dispatch datasets per user
+    def getDispatchDatasetsPerUser(self,vo,prodSourceLabel,onlyActive,withSize):
+        comment = ' /* DBProxy.getDispatchDatasetsPerUser */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <vo={0} label={1}>".format(vo,prodSourceLabel)
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        # mapping for table and job status
+        tableStatMap = {'jobsDefined4':['defined','assigned']}
+        if onlyActive:
+            tableStatMap['jobsActive4'] = ['activated','running','starting']
+        else:
+            tableStatMap['jobsActive4'] = None
+            tableStatMap['jobsArchived4'] = None
+        try:
+            userDispMap = {}
+            for tableName,statusList in tableStatMap.iteritems():
+                # make sql to get dispatch datasets
+                varMap = {}
+                varMap[':vo'] = vo
+                varMap[':label'] = prodSourceLabel
+                sqlJ  = "SELECT distinct prodUserName,dispatchDBlock,jediTaskID "
+                sqlJ += "FROM {0}.{1} ".format(panda_config.schemaPANDA,tableName)
+                sqlJ += "WHERE vo=:vo AND prodSourceLabel=:label "
+                if statusList != None:
+                    sqlJ += "AND jobStatus IN ("
+                    for tmpStat in statusList:
+                        tmpKey = ':jobStat_{0}'.format(tmpStat)
+                        sqlJ += '{0},'.format(tmpKey)
+                        varMap[tmpKey] = tmpStat
+                    sqlJ = sqlJ[:-1]
+                    sqlJ += ") "
+                sqlJ += "AND dispatchDBlock IS NOT NULL "
+                # begin transaction
+                self.conn.begin()
+                # get dispatch datasets
+                self.cur.execute(sqlJ+comment,varMap)
+                resJ = self.cur.fetchall()
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                # make map
+                for prodUserName,dispatchDBlock,jediTaskID in resJ:
+                    if not prodUserName in userDispMap:
+                        userDispMap[prodUserName] = {'datasets':set(),
+                                                     'size':0,
+                                                     'tasks':set()}
+                    userDispMap[prodUserName]['datasets'].add(dispatchDBlock)
+                    userDispMap[prodUserName]['tasks'].add(jediTaskID)
+            # get size
+            if withSize:
+                # sql to get size
+                sqlDisSize  = 'SELECT currentFiles FROM {0}.Datasets '.format(panda_config.schemaPANDA)
+                sqlDisSize += 'WHERE name=:dsName AND type=:dsType '
+                for prodUserName,userDict in userDispMap.iteritems():
+                    # begin transaction
+                    self.conn.begin()
+                    # loop over all datasets
+                    for dispatchDB in userDispMap[prodUserName]['datasets']:
+                        varMap = {}
+                        varMap[':dsName'] = dispatchDB
+                        varMap[':dsType'] = 'dispatch'
+                        self.cur.execute(sqlDisSize+comment,varMap)
+                        resC = self.cur.fetchone()
+                        if resC != None:
+                            userDispMap[prodUserName]['size'] += resC[0]
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+            tmpLog.debug("done")
+            return userDispMap
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return {}
 
 

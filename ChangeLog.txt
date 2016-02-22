@@ -1,6 +1,19 @@
 Release Notes
 
+* 2/19/2016
+  * setting jobSubStatus to upstream jobs when merge is failed
+
+* 2/18/2016
+  * fixed getCriteria for groups without wildcards
+
+* 2/17/2016
+  * added getDispatchDatasetsPerUser
+
+* 2/16/2016
+  * using datasets.currentfiles to store dis size
+
 * 2/15/2016
+  * using 14days lifetime for panda rules
   * added altStgOut
 
 * 2/12/2016
