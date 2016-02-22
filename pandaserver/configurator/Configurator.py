@@ -418,6 +418,10 @@ class NetworkConfigurator(threading.Thread):
             src = entry['src']
             dst = entry['dst']
 
+            # Skip broken entries (protection against errors in NWS)
+            if not src or not dst:
+                continue
+
             values = {}
             for activity in [PROD_INPUT, PROD_OUTPUT, EXPRESS]: # PanDA is only interested in production input and output statistics
 
@@ -458,6 +462,10 @@ class NetworkConfigurator(threading.Thread):
         for entry in self.agis_cm_dump:
 
             _logger.debug('Processing AGIS CM entry {0}'.format(entry))
+
+            # Skip broken entries (protection against errors in AGIS)
+            if not src or not dst:
+                continue
 
             try:
                 src = entry['src']
@@ -517,7 +525,7 @@ if __name__ == "__main__":
         if not network_configurator.run():
             _logger.critical("Configurator loop FAILED")
         t2 = time.time()
-        _logger.debug("Network-Configurator run took {0}s".format(t2-t1))
+        _logger.debug(" run took {0}s".format(t2-t1))
 
     else:
         _logger.error("Configurator being called with wrong arguments. Use either no arguments or --network")
