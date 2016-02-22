@@ -456,6 +456,7 @@ class NetworkConfigurator(threading.Thread):
         data = []
 
         for entry in self.agis_cm_dump:
+
             _logger.debug('Processing AGIS CM entry {0}'.format(entry))
 
             try:
