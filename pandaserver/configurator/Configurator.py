@@ -596,12 +596,12 @@ class NetworkConfigurator(threading.Thread):
         """
 
         # Process and store the NWS information (NWS=Network Weather Service)
-        data_nws = self.process_nws_dump()
+        data_nws = self.process_nws_full_dump()
         if not data_nws:
             _logger.critical("Could not retrieve any data from the NWS!")
 
         # Process and store the AGIS connectivity information
-        data_agis_cm = self.process_nws_full_dump()
+        data_agis_cm = self.process_agis_cm_dump()
         if not data_agis_cm:
             _logger.critical("Could not retrieve any data from the AGIS Cost Matrix!")
 
