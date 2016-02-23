@@ -67,7 +67,7 @@ else:
     sqlHiJobs += "AND startTime<:timeLimit "
     # sql to kill job
     sqlKill  = "UPDATE {0}.jobsActive4 ".format(panda_config.schemaPANDA)
-    sqlKill += "SET commandToPilot=:com,taskBufferErrorCode=:code,taskBufferErrorDiag=:diag "
+    sqlKill += "SET commandToPilot=:com,supErrorCode=:code,supErrorDiag=:diag "
     sqlKill += "WHERE PandaID=:pandaID AND jobStatus=:jobStatus "
     # check all sites
     for siteName,jobsMap in siteJobsMap.iteritems():
@@ -100,7 +100,8 @@ else:
                     varMap[':pandaID'] = pandaID
                     varMap[':jobStatus'] = 'running'
                     varMap[':code'] = ErrorCode.EC_EventServicePreemption
-                    varMap[':diag'] = 'killed for preemption'
-                    #status,res = taskBuffer.querySQLS(sqlKill,varMap)
+                    varMap[':diag'] = 'preempted'
+                    varMap[':com'] = 'tobekilled'
+                    status,res = taskBuffer.querySQLS(sqlKill,varMap)
 
 tmpLog.debug("================= end ==================")

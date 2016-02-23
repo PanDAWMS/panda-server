@@ -41,7 +41,7 @@ if __name__ == '__main__' :
 		#my_proxy_interface_instance.checkProxy('/DC=ch/DC=cern/OU=Organic Units/OU=Users/CN=ddmadmin/CN=531497/CN=Robot: ATLAS Data Management', production=True)
 	#else:
 	    #	my_proxy_interface_instance.checkProxy(i)
-    userList = ['/DC=ch/DC=cern/OU=Organic Units/OU=Users/CN=gangarbt/CN=722147/CN=Robot: Ganga Robot']
+    userList = ['/DC=ch/DC=cern/OU=Organic Units/OU=Users/CN=gangarbt/CN=601592/CN=Robot: Ganga Robot']
 
     for i in userList:
 	notify = my_proxy_interface_instance.checkProxy(i)

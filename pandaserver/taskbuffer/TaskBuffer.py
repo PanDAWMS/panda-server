@@ -428,6 +428,18 @@ class TaskBuffer:
         return res
 
 
+    # lock jobs for activator
+    def lockJobsForActivator(self,timeLimit,rownum,prio):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.lockJobsForActivator(timeLimit,rownum,prio)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
     # get number of activated/defined jobs with output datasets
     def getNumWaitingJobsWithOutDS(self,outputDSs):
         # get DB proxy
@@ -2792,7 +2804,7 @@ class TaskBuffer:
         return ret
 
 
-    # get Error Definitions
+    # retry module: get the defined rules
     def getRetrialRules(self):
         # get proxy
         proxy = self.proxyPool.getProxy()
@@ -2804,7 +2816,7 @@ class TaskBuffer:
         return ret
 
 
-    # get Error Definitions
+    # retry module action: set max number of retries
     def setMaxAttempt(self, jobID, jediTaskID, files, attemptNr):
         # get proxy
         proxy = self.proxyPool.getProxy()
@@ -2814,6 +2826,20 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         # return
         return ret
+
+
+
+    # retry module action: increase CPU Time
+    def increaseCpuTimeTask(self, jobID, taskID, siteid, files, active):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.increaseCpuTimeTask(jobID, taskID, siteid, files, active)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
 
 
     # throttle jobs for resource shares
@@ -2891,6 +2917,21 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         # return
         return ret
+
+
+
+    # get dispatch datasets per user
+    def getDispatchDatasetsPerUser(self,vo,prodSourceLabel,onlyActive,withSize):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getDispatchDatasetsPerUser(vo,prodSourceLabel,onlyActive,withSize)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
 
 # Singleton
 taskBuffer = TaskBuffer()

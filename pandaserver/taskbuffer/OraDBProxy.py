@@ -1682,7 +1682,7 @@ class DBProxy:
     def updateJobStatus(self,pandaID,jobStatus,param,updateStateChange=False,attemptNr=None):
         comment = ' /* DBProxy.updateJobStatus */'        
         _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s status=%s" % (pandaID,attemptNr,jobStatus))
-        sql0  = "SELECT commandToPilot,endTime,specialHandling,jobStatus,computingSite,cloud,prodSourceLabel,lockedby,jediTaskID,jobsetID,jobDispatcherErrorDiag "
+        sql0  = "SELECT commandToPilot,endTime,specialHandling,jobStatus,computingSite,cloud,prodSourceLabel,lockedby,jediTaskID,jobsetID,jobDispatcherErrorDiag,supErrorCode "
         sql0 += "FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
         varMap0 = {}
         varMap0[':PandaID'] = pandaID
@@ -1726,7 +1726,8 @@ class DBProxy:
                 res = self.cur.fetchone()
                 if res != None:
                     ret = ''
-                    commandToPilot,endTime,specialHandling,oldJobStatus,computingSite,cloud,prodSourceLabel,lockedby,jediTaskID,jobsetID,jobDispatcherErrorDiag = res
+                    commandToPilot,endTime,specialHandling,oldJobStatus,computingSite,cloud,prodSourceLabel,\
+                        lockedby,jediTaskID,jobsetID,jobDispatcherErrorDiag,supErrorCode = res
                     # debug mode
                     if not specialHandling in [None,''] and 'debug' in specialHandling:
                         ret += 'debug,'
@@ -1735,6 +1736,10 @@ class DBProxy:
                     #    ret += 'debugoff,'
                     # kill command    
                     if not commandToPilot in [None,'']:
+                        # soft kill
+                        if supErrorCode in [ErrorCode.EC_EventServicePreemption]:
+                            #commandToPilot = 'softkill'
+                            pass
                         ret += '%s,' % commandToPilot
                     ret = ret[:-1]
                     # convert empty to NULL
@@ -4737,6 +4742,55 @@ class DBProxy:
             self._rollback()
             errType,errValue = sys.exc_info()[:2]
             _logger.error("lockJobsForFinisher : %s %s" % (errType,errValue))
+            # return empty
+            return False,[]
+
+
+    # lock jobs for activator
+    def lockJobsForActivator(self,timeLimit,rownum,prio):
+        comment = ' /* DBProxy.lockJobsForActivator */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        try:
+            varMap = {}
+            varMap[':jobStatus'] = 'assigned'
+            varMap[':currentPriority'] = prio
+            varMap[':pLabel1'] = 'managed'
+            varMap[':pLabel2'] = 'test'
+            varMap[':timeLimit'] = timeLimit
+            # make sql
+            sql  = "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 "
+            sql += "WHERE jobStatus=:jobStatus AND (prodDBUpdateTime IS NULL OR prodDBUpdateTime<:timeLimit) "
+            sql += "AND prodSourceLabel IN (:pLabel1,:pLabel2) "
+            sql += "AND currentPriority>=:currentPriority AND rownum<=%s " % rownum
+            sql += "FOR UPDATE "
+            # sql for lock
+            sqlLock = 'UPDATE ATLAS_PANDA.jobsDefined4 SET prodDBUpdateTime=CURRENT_DATE WHERE PandaID=:PandaID'
+            # start transaction
+            self.conn.begin()
+            # select
+            self.cur.arraysize = 1000
+            self.cur.execute(sql+comment,varMap)
+            resList = self.cur.fetchall()
+            retList = []
+            # lock
+            for tmpID, in resList:
+                varLock = {':PandaID':tmpID}
+                self.cur.execute(sqlLock+comment,varLock)
+                retList.append(tmpID)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # sort
+            retList.sort()
+            tmpLog.debug("locked %s jobs" % (len(retList)))
+            return True,retList
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
             # return empty
             return False,[]
 
@@ -9216,6 +9270,8 @@ class DBProxy:
         for tmpRes in resP:
             tmpMap = {}
             for columName,columVal in zip(columNames,tmpRes):
+                if columName.startswith('space_') and columVal == None:
+                    columVal = 0
                 tmpMap[columName] = columVal
             panda_site_name = tmpMap['panda_site_name']
             if not panda_site_name in pandaEndpointMap:
@@ -9359,7 +9415,7 @@ class DBProxy:
             sqlSite += ") "
             if usingCloud != '':
                 varMapCloud = {}
-                sqlCloud = "WHERE computingSite=tabS.siteid AND tabJ.cloud=:cloud "
+                sqlCloud = "WHERE computingSite=tabS.siteid AND tabS.cloud=:cloud "
                 varMapCloud[':cloud'] = usingCloud
             sqlT = "AND prodSourceLabel=:prodSourceLabel) "
             sqlT += "GROUP BY jobStatus"
@@ -9491,11 +9547,10 @@ class DBProxy:
                             if '*' in tmpShareDef['policy']['group']:
                                 # using wild card
                                 tmpPattern = '^' + tmpShareDef['policy']['group'].replace('*','.*') + '$'
-                                if workingGroup == None or re.search(tmpPattern,workingGroup) == None:
-                                    continue
                             else:
-                                if tmpShareDef['policy']['group'] != workingGroup:
-                                    continue
+                                tmpPattern = '^' + tmpShareDef['policy']['group'] + '$'
+                            if workingGroup == None or re.search(tmpPattern,workingGroup) == None:
+                                continue
                             # collect real WGs per defined WG mainly for wildcard
                             if not workingGroupInQueueMap.has_key(tmpShareDef['policy']['group']):
                                 workingGroupInQueueMap[tmpShareDef['policy']['group']] = []
@@ -13163,6 +13218,7 @@ class DBProxy:
             if umJob.jobStatus in ['failed'] or umJob.isCancelled():
                 umJob.taskBufferErrorCode = ErrorCode.EC_MergeFailed
                 umJob.taskBufferErrorDiag = "merge job {0}".format(umJob.jobStatus)
+                umJob.jobSubStatus = 'merge_{0}'.format(umJob.jobStatus)
             # read files
             self.cur.arraysize = 10000
             self.cur.execute(sqlJFF+comment, varMap)
@@ -13731,7 +13787,7 @@ class DBProxy:
             sqlC += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND fileID=:fileID "
             sqlC += "AND job_processID=:job_processID "
             # sql to get nEvents
-            sqlE  = "SELECT jobStatus,nEvents,commandToPilot FROM ATLAS_PANDA.jobsActive4 "
+            sqlE  = "SELECT jobStatus,nEvents,commandToPilot,supErrorCode FROM ATLAS_PANDA.jobsActive4 "
             sqlE += "WHERE PandaID=:pandaID "
             # sql to set nEvents
             sqlS  = "UPDATE ATLAS_PANDA.jobsActive4 "
@@ -13813,7 +13869,7 @@ class DBProxy:
                     commandToPilot = 'tobekilled'
                 else:
                     # check job status
-                    jobStatus,nEventsOld,commandToPilot = resE
+                    jobStatus,nEventsOld,commandToPilot,supErrorCode = resE
                     if not jobStatus in ['sent','running','starting']:
                         tmpLog.error("<eventRangeID={0}> wrong jobStatus={1}".format(eventRangeID,jobStatus))
                         _logger.debug("{0} : wrong jobStatus={1}".format(methodName,jobStatus))
@@ -13859,6 +13915,9 @@ class DBProxy:
                             else:
                                 varMap[':actualCpuTime'] = long(coreCount) * long(cpuConsumptionTime)
                             self.cur.execute(sqlT+comment, varMap)
+                    # soft kill
+                    if not commandToPilot in [None,''] and supErrorCode in [ErrorCode.EC_EventServicePreemption]:
+                            commandToPilot = 'softkill'
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
@@ -16042,7 +16101,7 @@ class DBProxy:
 
             #Get the minimum maxAttempt value of the files
             sql_select = """
-            select min(maxattempt) from ATLAS_PANDA.JEDI_Dataset_Contents 
+            select min(maxattempt) from ATLAS_PANDA.JEDI_Dataset_Contents
             WHERE JEDITaskID = :taskID
             AND datasetID IN ({0})
             AND fileID IN ({1})
@@ -16053,29 +16112,173 @@ class DBProxy:
                 maxAttempt_select = self.cur.fetchone()[0]
             except TypeError, IndexError:
                 maxAttempt_select = None
-            
+
             #Don't update the maxAttempt if the value in the retrial table is lower
-            #than the value defined in the task 
+            #than the value defined in the task
             if maxAttempt_select and maxAttempt_select > maxAttempt:
                 varMap[':maxAttempt'] = min(maxAttempt, maxAttempt_select)
-    
+
                 sql_update  = """
-                UPDATE ATLAS_PANDA.JEDI_Dataset_Contents 
+                UPDATE ATLAS_PANDA.JEDI_Dataset_Contents
                 SET maxAttempt=:maxAttempt
                 WHERE JEDITaskID = :taskID
                 AND datasetID IN ({0})
                 AND fileID IN ({1})
                 AND pandaID = :pandaID
                 """.format(dataset_bindings, file_bindings)
-    
+
                 self.cur.execute(sql_update+comment, varMap)
-        
+
             #Commit updates
             if not self._commit():
                 raise RuntimeError, 'Commit error'
 
         tmpLog.debug("done")
         return True
+
+
+    def increaseCpuTimeTask(self, jobID, taskID, siteid, files, active):
+        """
+        Increases the CPU time of a task
+        walltime = basewalltime + cpuefficiency*CPUTime*nEvents/Corepower/Corecount
+        
+        CPU time: execution time per event
+        Walltime: time for a job
+        Corepower: HS06 score
+        Basewalltime: Setup time, time to download, etc. taken by the pilot
+        """
+        comment = ' /* DBProxy.increaseCpuTimeTask */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <PandaID={0}; TaskID={1}>".format(jobID, taskID)
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        
+        #1. Get the site information from schedconfig
+        sql  = """
+        SELECT sc.maxtime, sc.corepower,
+            CASE
+                WHEN sc.corecount IS NULL THEN 1
+                ELSE sc.corecount
+            END as corecount
+        FROM atlas_pandameta.schedconfig sc
+        WHERE siteid=:siteid
+        """
+        varMap={"siteid": siteid}
+        self.cur.execute(sql+comment, varMap)
+        siteParameters = self.cur.fetchone()   #example of output: [('pilotErrorCode', 1, None, None, None, None, 'no_retry', 'Y', 'Y'),...]
+
+        if not siteParameters:
+            tmpLog.debug("No site parameters retrieved for {0}".format(siteid))
+
+        (maxtime, corepower, corecount) = siteParameters
+        tmpLog.debug("siteid {0} has parameters: maxtime {1}, corepower {2}, corecount {3}".format(siteid, maxtime, corepower, corecount))
+        if (not maxtime) or (not corepower) or (not corecount):
+            tmpLog.debug("One or more site parameters are not defined for {0}... nothing to do".format(siteid))
+            return None
+
+        #2. Get the task information
+        sql = """
+        SELECT jt.cputime, jt.walltime, jt.basewalltime, jt.cpuefficiency, jt.cputimeunit
+        FROM ATLAS_PANDA.jedi_tasks jt
+        WHERE jt.jeditaskid=:jeditaskid
+        """
+        varMap={"jeditaskid": taskID}
+        self.cur.execute(sql+comment, varMap)
+        taskParameters = self.cur.fetchone()
+        
+        if not taskParameters:
+            tmpLog.debug("No task parameters retrieved for jeditaskid {0}... nothing to do".format(taskID))
+            return None
+        
+        (cputime, walltime, basewalltime, cpuefficiency, cputimeunit) = taskParameters
+        if not cpuefficiency or not basewalltime:
+            tmpLog.debug("CPU efficiency and/or basewalltime are not defined for task {0}... nothing to do".format(taskID))
+            return None
+
+        tmpLog.debug("task {0} has parameters: cputime {1}, walltime {2}, basewalltime {3}, cpuefficiency {4}, cputimeunit {5}".\
+                     format(taskID, cputime, walltime, basewalltime, cpuefficiency, cputimeunit))
+        
+        #2. Get the file information
+        input_types = ('input', 'pseudo_input', 'pp_input', 'trn_log','trn_output')
+        input_files = filter(lambda pandafile: pandafile.type in input_types
+                                               and re.search('DBRelease', pandafile.lfn) == None, files)
+        input_fileIDs = [input_file.fileID for input_file in input_files]
+        input_datasetIDs = [input_file.datasetID for input_file in input_files]
+                
+        if input_fileIDs:
+            varMap = {}
+            varMap[':taskID'] = taskID
+            varMap[':pandaID'] = jobID
+            
+            #Bind the files
+            f = 0
+            for fileID in input_fileIDs:
+                varMap[':file{0}'.format(f)] = fileID
+                f+=1
+            file_bindings = ','.join(':file{0}'.format(i) for i in xrange(len(input_fileIDs)))
+            
+            #Bind the datasets
+            d = 0
+            for datasetID in input_datasetIDs:
+                varMap[':dataset{0}'.format(d)] = datasetID
+                d+=1
+            dataset_bindings = ','.join(':dataset{0}'.format(i) for i in xrange(len(input_fileIDs)))
+
+            sql_select = """
+            SELECT jdc.fileid, jdc.nevents, jdc.startevent, jdc.endevent
+            FROM ATLAS_PANDA.JEDI_Dataset_Contents jdc, ATLAS_PANDA.JEDI_Datasets jd
+            WHERE jdc.JEDITaskID = :taskID
+            AND jdc.datasetID IN ({0})
+            AND jdc.fileID IN ({1})
+            AND jd.datasetID = jdc.datasetID
+            AND jd.masterID IS NULL
+            AND jdc.pandaID = :pandaID
+            """.format(dataset_bindings, file_bindings)
+            self.cur.execute(sql_select+comment, varMap)
+
+            resList = self.cur.fetchall()
+            nevents_total = 0
+            for fileid, nevents, startevent, endevent in resList:
+                tmpLog.debug("event information: fileid {0}, nevents {1}, startevent {2}, endevent {3}".format(fileid, nevents, startevent, endevent))
+
+                if endevent != None and startevent != None:
+                    nevents_total += endevent - startevent
+                elif nevents:
+                    nevents_total += nevents
+
+            if not nevents_total:
+                tmpLog.debug("nevents could not be calculated for job {0}... nothing to do".format(jobID))
+                return None
+        else:
+            tmpLog.debug("No input files for job {0}, so could not update CPU time for task {1}".format(jobID, taskID))
+            return None
+
+        try:
+            new_cputime = (maxtime - basewalltime) * corepower * corecount * 1.1 / (cpuefficiency/100.0) / nevents_total
+
+            if cputime > new_cputime:
+                tmpLog.debug("Skipping CPU time increase since old CPU time {0} > new CPU time {1}".format(cputime, new_cputime))
+                return None
+
+            if active: # only run the update if active mode. Otherwise return what would have been done
+                sql_update_cputime = """
+                UPDATE ATLAS_PANDA.jedi_tasks SET cputime=:cputime
+                WHERE jeditaskid=:jeditaskid
+                """
+                varMap = {}
+                varMap[':cputime'] = new_cputime
+                varMap[':jeditaskid'] = taskID
+                self.conn.begin()
+                self.cur.execute(sql_update_cputime+comment, varMap)
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+
+                tmpLog.debug("Successfully updated the task CPU time from {0} to {1}".format(cputime, new_cputime))
+            return new_cputime
+
+        except (ZeroDivisionError, TypeError):
+            return None
+
 
     # throttle jobs for resource shares
     def throttleJobsForResourceShare(self,site):
@@ -16491,5 +16694,82 @@ class DBProxy:
             self.dumpErrorMessage(_logger, methodName)
             return None,""
 
+
+
+    # get dispatch datasets per user
+    def getDispatchDatasetsPerUser(self,vo,prodSourceLabel,onlyActive,withSize):
+        comment = ' /* DBProxy.getDispatchDatasetsPerUser */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <vo={0} label={1}>".format(vo,prodSourceLabel)
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        # mapping for table and job status
+        tableStatMap = {'jobsDefined4':['defined','assigned']}
+        if onlyActive:
+            tableStatMap['jobsActive4'] = ['activated','running','starting']
+        else:
+            tableStatMap['jobsActive4'] = None
+            tableStatMap['jobsArchived4'] = None
+        try:
+            userDispMap = {}
+            for tableName,statusList in tableStatMap.iteritems():
+                # make sql to get dispatch datasets
+                varMap = {}
+                varMap[':vo'] = vo
+                varMap[':label'] = prodSourceLabel
+                sqlJ  = "SELECT distinct prodUserName,dispatchDBlock,jediTaskID "
+                sqlJ += "FROM {0}.{1} ".format(panda_config.schemaPANDA,tableName)
+                sqlJ += "WHERE vo=:vo AND prodSourceLabel=:label "
+                if statusList != None:
+                    sqlJ += "AND jobStatus IN ("
+                    for tmpStat in statusList:
+                        tmpKey = ':jobStat_{0}'.format(tmpStat)
+                        sqlJ += '{0},'.format(tmpKey)
+                        varMap[tmpKey] = tmpStat
+                    sqlJ = sqlJ[:-1]
+                    sqlJ += ") "
+                sqlJ += "AND dispatchDBlock IS NOT NULL "
+                # begin transaction
+                self.conn.begin()
+                # get dispatch datasets
+                self.cur.execute(sqlJ+comment,varMap)
+                resJ = self.cur.fetchall()
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                # make map
+                for prodUserName,dispatchDBlock,jediTaskID in resJ:
+                    if not prodUserName in userDispMap:
+                        userDispMap[prodUserName] = {'datasets':set(),
+                                                     'size':0,
+                                                     'tasks':set()}
+                    userDispMap[prodUserName]['datasets'].add(dispatchDBlock)
+                    userDispMap[prodUserName]['tasks'].add(jediTaskID)
+            # get size
+            if withSize:
+                # sql to get size
+                sqlDisSize  = 'SELECT currentFiles FROM {0}.Datasets '.format(panda_config.schemaPANDA)
+                sqlDisSize += 'WHERE name=:dsName AND type=:dsType '
+                for prodUserName,userDict in userDispMap.iteritems():
+                    # begin transaction
+                    self.conn.begin()
+                    # loop over all datasets
+                    for dispatchDB in userDispMap[prodUserName]['datasets']:
+                        varMap = {}
+                        varMap[':dsName'] = dispatchDB
+                        varMap[':dsType'] = 'dispatch'
+                        self.cur.execute(sqlDisSize+comment,varMap)
+                        resC = self.cur.fetchone()
+                        if resC != None:
+                            userDispMap[prodUserName]['size'] += resC[0]
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+            tmpLog.debug("done")
+            return userDispMap
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return {}
 
 

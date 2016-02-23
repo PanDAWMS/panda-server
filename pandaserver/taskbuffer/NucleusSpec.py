@@ -54,8 +54,8 @@ class NucleusSpec(object):
         if patt in self.allDdmEndPoints:
             return self.allDdmEndPoints[patt]
         for endPointName in self.allDdmEndPoints.keys():
-            # ignore TEST
-            if self.allDdmEndPoints[endPointName]['type'] in ['TEST']:
+            # ignore TEST or SPECIAL
+            if self.allDdmEndPoints[endPointName]['type'] in ['TEST','SPECIAL']:
                 continue
             # check name
             if re.search(patt,endPointName) != None:

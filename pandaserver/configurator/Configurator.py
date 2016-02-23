@@ -433,6 +433,10 @@ class NetworkConfigurator(threading.Thread):
             src = entry['src']
             dst = entry['dst']
 
+            # Skip broken entries (protection against errors in NWS)
+            if not src or not dst:
+                continue
+
             values = {}
 
             # PanDA is only interested in production input and output statistics
@@ -562,9 +566,9 @@ class NetworkConfigurator(threading.Thread):
         and prepares it for insertion into the PanDA DB
         """
         data = []
-        latest_validity = datetime.utcnow() - timedelta(minutes=30) # Ignore outdated values
 
         for entry in self.agis_cm_dump:
+
             _logger.debug('Processing AGIS CM entry {0}'.format(entry))
 
             try:
@@ -572,12 +576,17 @@ class NetworkConfigurator(threading.Thread):
                 dst = entry['dst']
                 closeness = entry['closeness']
                 ts = datetime.now()
+
+                # Skip broken entries (protection against errors in AGIS)
+                if not src or not dst:
+                    continue
+
+                #Prepare data for bulk upserts
+                data.append((src, dst, 'AGIS_closeness', closeness, ts))
+
             except KeyError:
                 _logger.warning("AGIS CM entry {0} does not contain one or more of the keys src/dst/closeness".format(entry))
                 continue
-
-            #Prepare data for bulk upserts
-            data.append((src, dst, 'AGIS_closeness', closeness, ts))
 
         return data
 
@@ -624,7 +633,7 @@ if __name__ == "__main__":
         if not network_configurator.run():
             _logger.critical("Configurator loop FAILED")
         t2 = time.time()
-        _logger.debug("Network-Configurator run took {0}s".format(t2-t1))
+        _logger.debug(" run took {0}s".format(t2-t1))
 
     else:
         _logger.error("Configurator being called with wrong arguments. Use either no arguments or --network")

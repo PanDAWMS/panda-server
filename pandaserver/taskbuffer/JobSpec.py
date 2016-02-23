@@ -49,6 +49,10 @@ class JobSpec(object):
                     'exeErrorDiag'           : 500,
                     'jobSubStatus'           : 80,
                     }
+    # tag for special handling
+    _tagForSH = {'altStgOut': 'ao',
+                 }
+
 
 
     # constructor
@@ -375,3 +379,32 @@ class JobSpec(object):
         except:
             pass
         return []
+
+
+
+    # get mode for alternative stage-out
+    def getAltStgOut(self):
+        if self.specialHandling != None:
+            for tmpItem in self.specialHandling.split(','):
+                if tmpItem.startswith('{0}:'.format(self._tagForSH['altStgOut'])):
+                    return tmpItem.split(':')[-1]
+        return None
+
+
+
+    # set alternative stage-out
+    def setAltStgOut(self,mode):
+        if self.specialHandling != None:
+            items = self.specialHandling.split(',')
+        else:
+            items = []
+        # remove old value
+        newItems = []
+        for tmpItem in items:
+            if tmpItem.startswith('{0}:'.format(self._tagForSH['altStgOut'])):
+                continue
+            newItems.append(tmpItem)
+        newItems.append('{0}:{1}'.format(self._tagForSH['altStgOut'],mode))
+        self.specialHandling = ','.join(newItems)
+
+
