@@ -57,3 +57,23 @@ class DdmSpec(object):
     # check local
     def isLocal(self,endpointName):
         return endpointName in self.local
+
+
+
+    # get DDM endpoint associated with a pattern
+    def getAssoicatedEndpoint(self,patt):
+        patt = patt.split('/')[-1]
+        if patt in self.all:
+            return self.all[patt]
+        for endPointName in self.all.keys():
+            # ignore TEST or SPECIAL
+            if self.all[endPointName]['type'] in ['TEST','SPECIAL']:
+                continue
+            # check name
+            if re.search(patt,endPointName) != None:
+                return self.all[endPointName]
+            # check type
+            pattwoVO = re.sub('ATLAS','',patt)
+            if self.all[endPointName]['type'] == pattwoVO:
+                return self.all[endPointName]
+        return None

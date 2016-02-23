@@ -1,5 +1,8 @@
 Release Notes
 
+* 2/23/2016
+  * added getAssoicatedEndpoint to DdmSpec
+
 * 2/22/2016
   * added allowWanInputAccess
 
