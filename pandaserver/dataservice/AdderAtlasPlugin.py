@@ -7,6 +7,7 @@ import os
 import re
 import sys
 import time
+import copy
 import fcntl
 import datetime
 import commands
@@ -194,6 +195,7 @@ class AdderAtlasPlugin (AdderPluginBase):
         subMap = {}        
         dsDestMap = {}
         distDSs = set()
+        osDsFileMap = {}
         for file in self.job.Files:
             if file.type == 'output' or file.type == 'log':
                 # append to fileList
@@ -301,7 +303,29 @@ class AdderAtlasPlugin (AdderPluginBase):
                         #if not file.jediTaskID in [0,None,'NULL']:
                         #    fileAttrs['task_id'] = file.jediTaskID
                         #fileAttrs['panda_id'] = file.PandaID
-                    idMap[fileDestinationDBlock].append(fileAttrs)
+                    # extract OS files
+                    hasNormalURL = True
+                    if 'surl' in fileAttrs and ',' in fileAttrs['surl']:
+                        hasNormalURL = False
+                        tmpURLs = fileAttrs['surl'].split(',')
+                        for tmpURL in tmpURLs:
+                            if tmpURL.startswith('s3'):
+                                # get endpoint for the S3 URL
+                                osEndPoint = 'BNL-OSG2_OS' #xyz(tmpURL)
+                                if not osEndPoint in osDsFileMap:
+                                    osDsFileMap[osEndPoint] = {}
+                                osFileDestinationDBlock = re.sub('_sub\d+$','',fileDestinationDBlock)
+                                if not osFileDestinationDBlock in osDsFileMap[osEndPoint]:
+                                    osDsFileMap[osEndPoint][osFileDestinationDBlock] = []
+                                copiedFileAttrs = copy.copy(fileAttrs)
+                                copiedFileAttrs['surl'] = tmpURL
+                                osDsFileMap[osEndPoint][osFileDestinationDBlock].append(copiedFileAttrs)
+                            else:
+                                # use only normal URL for normal endpoints
+                                fileAttrs['surl'] = tmpURL
+                                hasNormalURL = True
+                    if hasNormalURL:
+                        idMap[fileDestinationDBlock].append(fileAttrs)
                     # for subscription
                     if self.job.prodSourceLabel in ['managed','test','software','rc_test','ptest','user','rucio_test'] and \
                            re.search('_sub\d+$',fileDestinationDBlock) != None and (not self.addToTopOnly) and \
@@ -457,7 +481,7 @@ class AdderAtlasPlugin (AdderPluginBase):
         if not self.useCentralLFC():
             destIdMap = {None:idMap}
         else:
-            destIdMap = self.decomposeIdMap(idMap,dsDestMap)          
+            destIdMap = self.decomposeIdMap(idMap,dsDestMap,osDsFileMap)
         # add files
         nTry = 3
         for iTry in range(nTry):
@@ -727,7 +751,7 @@ class AdderAtlasPlugin (AdderPluginBase):
 
 
     # decompose idMap
-    def decomposeIdMap(self,idMap,dsDestMap):
+    def decomposeIdMap(self,idMap,dsDestMap,osDsFileMap):
         # add item for top datasets
         for tmpDS in dsDestMap.keys():
             tmpTopDS = re.sub('_sub\d+$','',tmpDS)
@@ -736,6 +760,12 @@ class AdderAtlasPlugin (AdderPluginBase):
         destIdMap = {}
         for tmpDS,tmpFiles in idMap.iteritems():
             for tmpDest in dsDestMap[tmpDS]:
+                if not destIdMap.has_key(tmpDest):
+                    destIdMap[tmpDest] = {}
+                destIdMap[tmpDest][tmpDS] = tmpFiles
+        # add OS stuff
+        for tmpDest,tmpIdMap in osDsFileMap.iteritems():
+            for tmpDS,tmpFiles in tmpIdMap.iteritems():
                 if not destIdMap.has_key(tmpDest):
                     destIdMap[tmpDest] = {}
                 destIdMap[tmpDest][tmpDS] = tmpFiles

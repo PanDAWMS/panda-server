@@ -1,5 +1,8 @@
 Release Notes
 
+* 2/25/2016
+  * changed SiteSpec.isDirectIO to take direct_access_lan into account
+
 * 2/23/2016
   * added getAssoicatedEndpoint to DdmSpec
 

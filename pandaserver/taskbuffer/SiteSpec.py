@@ -48,6 +48,8 @@ class SiteSpec(object):
                 directIn = params[2]
                 if directIn == 'True':
                     return True
+            if self.direct_access_lan:
+                return True
         except:
             pass
         return False
