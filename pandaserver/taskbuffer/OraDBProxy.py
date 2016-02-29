@@ -15451,7 +15451,7 @@ class DBProxy:
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <PanDAID={0}>".format(job.PandaID)
         _logger.debug("{0} : start".format(methodName))
-        
+
         # RAM limit
         limitList = [1000,2000,3000,4000,6000,8000]
         # Files defined as input types
@@ -15465,11 +15465,19 @@ class DBProxy:
                 # get current task limit
                 varMap = {}
                 varMap[':jediTaskID'] = jediTaskID
-                sqlUE  = "SELECT ramCount FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+                sqlUE  = "SELECT ramCount, ramUnit, baseRamCount, coreCount FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
                 sqlUE += "WHERE jediTaskID=:jediTaskID "
                 self.cur.execute(sqlUE+comment,varMap)
-                taskRamCount, = self.cur.fetchone()
-                _logger.debug("{0} : RAM limit task={1}MB job={2}MB jobPSS={3}kB".format(methodName, taskRamCount, jobRamCount, job.maxPSS))
+                taskRamCount, taskRamUnit, taskBaseRamCount, taskCoreCount = self.cur.fetchone()
+
+                if taskBaseRamCount in [0, None, 'NULL']:
+                    taskBaseRamCount = 0
+                if taskCoreCount in [0, None, 'NULL']:
+                    taskCoreCount = 1
+
+                _logger.debug("{0} : RAM limit task={1}{2} cores={3} baseRamCount={4} job={5}{6} jobPSS={6}kB"
+                              .format(methodName, taskRamCount, taskRamUnit, taskCoreCount, taskBaseRamCount,
+                                      jobRamCount, job.minRamUnit, job.maxPSS))
                 
                 # If more than x% of the task's jobs needed a memory increase, increase the task's memory instead
                 varMap = {}
@@ -15487,7 +15495,7 @@ class DBProxy:
                          AND tabD.datasetID=tabC.datasetID 
                          AND tabD.jediTaskID=:jediTaskID 
                          AND tabD.type IN ({1}) 
-                         AND tabD.masterID IS NULL 
+                         AND tabD.masterID IS NULL
                          GROUP BY ramCount
                          """.format(panda_config.schemaJEDI, input_type_bindings)
 
@@ -15497,34 +15505,51 @@ class DBProxy:
                 above_task = sum(tuple[1] for tuple in filter(lambda entry: entry[0] > taskRamCount, memory_stats))
                 max_task = max([entry[0] for entry in memory_stats])
                 _logger.debug("{0} : #increased_files: {1}; #total_files: {2}".format(methodName, above_task, total))
-                
+
+                # normalize the job ramcounts by base ram count and number of cores
+                try:
+                    normalizedJobRamCount = (jobRamCount - taskBaseRamCount) * 1.0
+                    if taskRamUnit == 'MBPerCore' and job.minRamUnit in ('MB', None, 'NULL'):
+                        normalizedJobRamCount  = normalizedJobRamCount /taskCoreCount
+                except TypeError:
+                    normalizedJobRamCount = 0
+
+                try:
+                    normalizedMaxPSS = (job.maxPSS - taskBaseRamCount) * 1024.0
+                    if taskRamUnit == 'MBPerCore':
+                        normalizedMaxPSS  = normalizedMaxPSS / taskCoreCount
+                except TypeError:
+                    normalizedMaxPSS = 0
+
                 if (1.0*above_task)/total > 0.3:
-                    if job.maxPSS not in [None, 0, 'NULL']:
-                        minimumRam = (job.maxPSS*1.0)/1024
-                    if jobRamCount not in [0,None,'NULL'] and jobRamCount > minimumRam:
-                        minimumRam = jobRamCount
+                    if normalizedMaxPSS:
+                        minimumRam = normalizedMaxPSS
+                    if normalizedJobRamCount and normalizedJobRamCount > minimumRam:
+                        minimumRam = normalizedJobRamCount
                     if max_task > minimumRam:
                         minimumRam = max_task-1 #otherwise we go over the max_task step
                     if minimumRam:
                         _logger.debug("{0} : calling increaseRamLimitJEDI with minimumRam {1}".format(methodName, minimumRam)) 
                         return self.increaseRamLimitJEDI(jediTaskID, minimumRam)
 
+
                 #Ops could have increased task RamCount through direct DB access. In this case don't do anything
-                if (taskRamCount > jobRamCount) and (job.maxPSS not in [None, 0, 'NULL']) and (taskRamCount > job.maxPSS/1024):
+                if (taskRamCount > normalizedJobRamCount) and (normalizedMaxPSS not in [None, 0, 'NULL']) and (taskRamCount > normalizedMaxPSS):
                     _logger.debug("{0} : task ramcount has already been increased and is higher than maxPSS. Skipping")
                     return True
                 
                 # skip if already at largest limit
-                if jobRamCount >= limitList[-1]:
+                if normalizedJobRamCount >= limitList[-1]:
                     dbgStr  = "no change "
-                    dbgStr += "since job RAM limit ({0}) is larger than or equal to the highest limit ({1})".format(jobRamCount,                                                                                                                     limitList[-1])
+                    dbgStr += "since job RAM limit ({0}) is larger than or equal to the highest limit ({1})".\
+                        format(normalizedJobRamCount, limitList[-1])
                     _logger.debug("{0} : {1}".format(methodName,dbgStr))
                 else:
                     #If maxPSS is present, then jump all the levels until the one above
-                    if (job.maxPSS not in [None, 0, 'NULL']) and job.maxPSS/1024>jobRamCount:
-                        minimumRam = job.maxPSS/1024
+                    if normalizedMaxPSS>normalizedJobRamCount:
+                        minimumRam = normalizedMaxPSS
                     else:
-                        minimumRam = jobRamCount
+                        minimumRam = normalizedJobRamCount
 
                     for nextLimit in limitList:
                         if minimumRam < nextLimit:
