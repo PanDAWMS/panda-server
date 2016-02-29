@@ -1,5 +1,8 @@
 Release Notes
 
+* 2/29/2016
+  * fixed updateForPilotRetryJEDI to update outPandaID
+
 * 2/25/2016
   * changed SiteSpec.isDirectIO to take direct_access_lan into account
 

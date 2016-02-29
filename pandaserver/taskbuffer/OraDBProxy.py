@@ -12583,10 +12583,14 @@ class DBProxy:
     def updateForPilotRetryJEDI(self,job,cur,onlyHistory=False):
         comment = ' /* DBProxy.updateForPilotRetryJEDI */'
         # sql to update file
-        sqlFJ  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
-        sqlFJ += "SET attemptNr=attemptNr+1,failedAttempt=failedAttempt+1,PandaID=:PandaID "
-        sqlFJ += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-        sqlFJ += "AND attemptNr=:attemptNr AND keepTrack=:keepTrack "
+        sqlFJI  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
+        sqlFJI += "SET attemptNr=attemptNr+1,failedAttempt=failedAttempt+1,PandaID=:PandaID "
+        sqlFJI += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+        sqlFJI += "AND attemptNr=:attemptNr AND keepTrack=:keepTrack "
+        sqlFJO  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
+        sqlFJO += "SET attemptNr=attemptNr+1,failedAttempt=failedAttempt+1,PandaID=:PandaID,outPandaID=:PandaID "
+        sqlFJO += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+        sqlFJO += "AND attemptNr=:attemptNr AND keepTrack=:keepTrack "
         sqlFP  = "UPDATE ATLAS_PANDA.filesTable4 SET attemptNr=attemptNr+1 "
         sqlFP += "WHERE row_ID=:row_ID "
         if not onlyHistory:
@@ -12602,6 +12606,10 @@ class DBProxy:
                 varMap[':attemptNr']  = tmpFile.attemptNr
                 varMap[':PandaID']    = tmpFile.PandaID
                 varMap[':keepTrack']  = 1
+                if tmpFile.type in ['output','log']:
+                    sqlFJ = sqlFJO
+                else:
+                    sqlFJ = sqlFJI
                 _logger.debug(sqlFJ+comment+str(varMap))
                 cur.execute(sqlFJ+comment,varMap)
                 nRow = cur.rowcount
