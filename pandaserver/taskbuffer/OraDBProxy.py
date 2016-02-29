@@ -15475,7 +15475,7 @@ class DBProxy:
                 if taskCoreCount in [0, None, 'NULL']:
                     taskCoreCount = 1
 
-                _logger.debug("{0} : RAM limit task={1}{2} cores={3} baseRamCount={4} job={5}{6} jobPSS={6}kB"
+                _logger.debug("{0} : RAM limit task={1}{2} cores={3} baseRamCount={4} job={5}{6} jobPSS={7}kB"
                               .format(methodName, taskRamCount, taskRamUnit, taskCoreCount, taskBaseRamCount,
                                       jobRamCount, job.minRamUnit, job.maxPSS))
                 
@@ -15515,7 +15515,7 @@ class DBProxy:
                     normalizedJobRamCount = 0
 
                 try:
-                    normalizedMaxPSS = (job.maxPSS - taskBaseRamCount) * 1024.0
+                    normalizedMaxPSS = (job.maxPSS - taskBaseRamCount) / 1024.0
                     if taskRamUnit == 'MBPerCore':
                         normalizedMaxPSS  = normalizedMaxPSS / taskCoreCount
                 except TypeError:
@@ -15535,7 +15535,8 @@ class DBProxy:
 
                 #Ops could have increased task RamCount through direct DB access. In this case don't do anything
                 if (taskRamCount > normalizedJobRamCount) and (normalizedMaxPSS not in [None, 0, 'NULL']) and (taskRamCount > normalizedMaxPSS):
-                    _logger.debug("{0} : task ramcount has already been increased and is higher than maxPSS. Skipping")
+                    _logger.debug("{0} : task ramcount has already been increased and is higher than maxPSS. Skipping".
+                                  format(methodName))
                     return True
                 
                 # skip if already at largest limit
@@ -15575,7 +15576,7 @@ class DBProxy:
                         sqlRL += "AND pandaID=:pandaID AND fileID=:fileID AND attemptNr=:attemptNr"
 
                         self.cur.execute(sqlRL+comment,varMap)
-                        _logger.debug("{0} : increased RAM limit to {1} from {2} for PandaID {3} fileID {4}".format(methodName, nextLimit, jobRamCount, job.PandaID, fileId))
+                        _logger.debug("{0} : increased RAM limit to {1} from {2} for PandaID {3} fileID {4}".format(methodName, nextLimit, normalizedJobRamCount, job.PandaID, fileId))
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
