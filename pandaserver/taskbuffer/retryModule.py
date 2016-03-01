@@ -256,7 +256,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
                     try:
                         # for the CPU time rule the active/passive mode will be applied by the DBProxy function
                         # because we want to monitor the new CPU time in passive mode
-                        new_cputime = task_buffer.increaseCpuTimeTask(jobID, job.jediTaskID, job.computingSite, job.Files, active)
+                        new_cputime = task_buffer.increaseCpuTimeTask(jobID, job.jediTaskID, joSiteb.computing, job.Files, active)
                         #Log to pandamon and logfile
                         message = "increaseCpuTime for PandaID: {0}, jediTaskID: {1} to {2} (active: {3}) . (ErrorSource: {4}. ErrorCode: {5}. ErrorDiag: {6}. Error/action active: {7})"\
                             .format(jobID, job.jediTaskID, new_cputime, active, error_source, error_code, error_diag_rule, active)
