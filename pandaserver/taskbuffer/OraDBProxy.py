@@ -15462,21 +15462,32 @@ class DBProxy:
             if job.jediTaskID in [None, 0, 'NULL']:
                 _logger.debug("No task(%s) associated to job(%s). Skipping increase of RAM limit"%(job.jediTaskID, job.PandaID))
             else:
-                # get current task limit
+                # get current task Ram info
                 varMap = {}
                 varMap[':jediTaskID'] = jediTaskID
-                sqlUE  = "SELECT ramCount, ramUnit, baseRamCount, coreCount FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+                sqlUE  = "SELECT ramCount, ramUnit, baseRamCount FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
                 sqlUE += "WHERE jediTaskID=:jediTaskID "
                 self.cur.execute(sqlUE+comment,varMap)
                 taskRamCount, taskRamUnit, taskBaseRamCount, taskCoreCount = self.cur.fetchone()
 
                 if taskBaseRamCount in [0, None, 'NULL']:
                     taskBaseRamCount = 0
-                if taskCoreCount in [0, None, 'NULL']:
-                    taskCoreCount = 1
+
+                # get site core count
+                varMap = {}
+                varMap[':site'] = job.computingSite
+                sqlSCC  = """
+                          SELECT sc.corecount FROM ATLAS_PANDAMETA.Schedconfig sc
+                          WHERE siteId=:site
+                          """
+                self.cur.execute(sqlUE+comment,varMap)
+                siteCoreCount = self.cur.fetchone()
+
+                if siteCoreCount in [0, None, 'NULL']:
+                    siteCoreCount = 1
 
                 _logger.debug("{0} : RAM limit task={1}{2} cores={3} baseRamCount={4} job={5}{6} jobPSS={7}kB"
-                              .format(methodName, taskRamCount, taskRamUnit, taskCoreCount, taskBaseRamCount,
+                              .format(methodName, taskRamCount, taskRamUnit, siteCoreCount, taskBaseRamCount,
                                       jobRamCount, job.minRamUnit, job.maxPSS))
                 
                 # If more than x% of the task's jobs needed a memory increase, increase the task's memory instead
@@ -15510,14 +15521,14 @@ class DBProxy:
                 try:
                     normalizedJobRamCount = (jobRamCount - taskBaseRamCount) * 1.0
                     if taskRamUnit == 'MBPerCore' and job.minRamUnit in ('MB', None, 'NULL'):
-                        normalizedJobRamCount  = normalizedJobRamCount /taskCoreCount
+                        normalizedJobRamCount  = normalizedJobRamCount /siteCoreCount
                 except TypeError:
                     normalizedJobRamCount = 0
 
                 try:
                     normalizedMaxPSS = (job.maxPSS - taskBaseRamCount) / 1024.0
                     if taskRamUnit == 'MBPerCore':
-                        normalizedMaxPSS  = normalizedMaxPSS / taskCoreCount
+                        normalizedMaxPSS  = normalizedMaxPSS / siteCoreCount
                 except TypeError:
                     normalizedMaxPSS = 0
 
