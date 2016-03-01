@@ -15468,7 +15468,7 @@ class DBProxy:
                 sqlUE  = "SELECT ramCount, ramUnit, baseRamCount FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
                 sqlUE += "WHERE jediTaskID=:jediTaskID "
                 self.cur.execute(sqlUE+comment,varMap)
-                taskRamCount, taskRamUnit, taskBaseRamCount, taskCoreCount = self.cur.fetchone()
+                taskRamCount, taskRamUnit, taskBaseRamCount = self.cur.fetchone()
 
                 if taskBaseRamCount in [0, None, 'NULL']:
                     taskBaseRamCount = 0
@@ -15480,8 +15480,8 @@ class DBProxy:
                           SELECT sc.corecount FROM ATLAS_PANDAMETA.Schedconfig sc
                           WHERE siteId=:site
                           """
-                self.cur.execute(sqlUE+comment,varMap)
-                siteCoreCount = self.cur.fetchone()
+                self.cur.execute(sqlSCC+comment,varMap)
+                siteCoreCount, = self.cur.fetchone()
 
                 if siteCoreCount in [0, None, 'NULL']:
                     siteCoreCount = 1
