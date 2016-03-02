@@ -1,5 +1,8 @@
 Release Notes
 
+* 3/2/2016
+  * changed retryTask for running tasks to reactivate failed inputs
+
 * 2/29/2016
   * fixed updateForPilotRetryJEDI to update outPandaID
 
