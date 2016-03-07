@@ -20,8 +20,8 @@ class DdmSpec(object):
         name = endPoint['ddm_endpoint_name']
         # all endpoints
         self.all[name] = endpointDict[name]
-        # local endpoints # FIXME once is_local becomes reliable
-        if True: # endPoint['is_local'] == 'Y':
+        # local endpoints
+        if endPoint['is_local'] != 'N':
             self.local.add(name)
         # default
         if endPoint['is_default'] == 'Y':
