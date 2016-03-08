@@ -241,6 +241,12 @@ class TaskBuffer:
             workingGroup = None
             if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda']) \
                    and (not jobs[0].processingType in ['merge','unmerge']):
+                # extract user's working group from FQANs
+                userWorkingGroupList = []
+                for tmpFQAN in fqans:
+                    match = re.search('/([^/]+)/Role=production',tmpFQAN)
+                    if match != None:
+                        userWorkingGroupList.append(match.group(1))
                 # check workingGroup
                 if not jobs[0].workingGroup in ['',None,'NULL']:
                     userDefinedWG = True
@@ -248,6 +254,9 @@ class TaskBuffer:
                         if userSiteAccess['status'] == 'approved' and jobs[0].workingGroup in userSiteAccess['workingGroups']:
                             # valid workingGroup
                             validWorkingGroup = True
+                    # check with FQANs
+                    if jobs[0].workingGroup in userWorkingGroupList:
+                        validWorkingGroup = True
                 # using build for analysis
                 if jobs[0].prodSourceLabel == 'panda':
                     usingBuild = True

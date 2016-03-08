@@ -248,7 +248,12 @@ for prodUserName,wgValMap in usageBreakDownPerUser.iteritems():
 		varMap[':prodSourceLabel'] = 'user'
 		varMap[':prodUserName'] = prodUserName
 		varMap[':computingSite'] = computingSite
-		sql = "SELECT MAX(currentPriority) FROM ATLAS_PANDA.jobsActive4 WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName AND workingGroup IS NULL AND jobStatus=:jobStatus AND computingSite=:computingSite"
+		sql  = "SELECT MAX(currentPriority) FROM ATLAS_PANDA.jobsActive4 "
+		sql += "WHERE prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus AND computingSite=:computingSite "
+		if prodUserName in workingGroupList:
+			sql += "AND workingGroup=:prodUserName "
+		else:
+			sql += "AND prodUserName=:prodUserName AND workingGroup IS NULL "
 		status,res = taskBuffer.querySQLS(sql,varMap,arraySize=10)
 		maxPrio = None
 		if res != None:
