@@ -14275,8 +14275,39 @@ class DBProxy:
                     # run merge jobs at the same site
                     pass
                 else:
-                    # run merge jobs at destination 
-                    jobSpec.computingSite = jobSpec.destinationSE
+                    # run merge jobs at destination
+                    if not jobSpec.destinationSE.startswith('nucleus:'):
+                        jobSpec.computingSite = jobSpec.destinationSE
+                    else:
+                        # get site in a nucleus
+                        sqlSN  = "SELECT panda_site_name,default_ddm_endpoint FROM ATLAS_PANDA.panda_site ps,ATLAS_PANDAMETA.schedconfig sc "
+                        sqlSN += "WHERE site_name=:nucleus AND sc.siteid=ps.panda_site_name and sc.corecount=1 "
+                        varMap = {}
+                        varMap[':nucleus'] = jobSpec.destinationSE.split(':')[-1]
+                        self.cur.execute(sqlSN+comment,varMap)
+                        resSN = self.cur.fetchall()
+                        # compare number of pilot requests
+                        maxNumPilot = -1
+                        sqlUG  = "SELECT updateJob+getJob FROM ATLAS_PANDAMETA.sitedata "
+                        sqlUG += "WHERE site=:panda_site AND HOURS=:hours AND FLAG=:flag "
+                        for tmp_panda_site_name,tmp_ddm_endpoint in resSN:
+                            varMap = {}
+                            varMap[':panda_site'] = tmp_panda_site_name
+                            varMap[':hours'] = 3
+                            varMap[':flag'] = 'production'
+                            self.cur.execute(sqlUG+comment,varMap)
+                            resUG = self.cur.fetchone()
+                            if resUG == None:
+                                nPilots = 0
+                            else:
+                                nPilots, = resUG
+                            # use larger
+                            if maxNumPilot < nPilots:
+                                maxNumPilot = nPilots
+                                jobSpec.computingSite = tmp_panda_site_name
+                                for tmpFileSpec in jobSpec.Files:
+                                    if tmpFileSpec.destinationDBlockToken.startswith('ddd:'):
+                                        tmpFileSpec.destinationDBlockToken = 'ddd:{0}'.format(tmp_ddm_endpoint)
                 jobSpec.coreCount = None
             # insert job with new PandaID
             sql1  = "INSERT INTO ATLAS_PANDA.jobsActive4 ({0}) ".format(JobSpec.columnNames())
@@ -15076,6 +15107,64 @@ class DBProxy:
                 raise RuntimeError, 'Commit error'
             _logger.debug("{0} done with {1}".format(methodName,nRow))
             return nRow
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return None
+
+
+
+    # change split rule for task
+    def changeTaskSplitRulePanda(self,jediTaskID,attrName,attrValue):
+        comment = ' /* DBProxy.changeTaskSplitRulePanda */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <jediTaskID={0}>".format(jediTaskID)
+        _logger.debug("{0} name={1} value={2}".format(methodName,attrName,attrValue))
+        try:
+            # sql to get split rule
+            sqlS  = 'SELECT splitRule FROM {0}.JEDI_Tasks '.format(panda_config.schemaJEDI)
+            sqlS += 'WHERE jediTaskID=:jediTaskID '
+            # sql to update JEDI task table
+            sqlT  = 'UPDATE {0}.JEDI_Tasks SET '.format(panda_config.schemaJEDI)
+            sqlT += 'splitRule=:splitRule WHERE jediTaskID=:jediTaskID '
+            # start transaction
+            self.conn.begin()
+            # select
+            self.cur.arraysize = 10
+            varMap = {}
+            varMap[':jediTaskID']  = jediTaskID
+            # get split rule
+            self.cur.execute(sqlS+comment, varMap)
+            resS = self.cur.fetchone()
+            if resS == None:
+                retVal = 0
+            else:
+                splitRule = resS[0]
+                if splitRule == None:
+                    items = []
+                else:
+                    items = splitRule.split(',')
+                # remove old
+                newItems = []
+                for tmpItem in items:
+                    if tmpItem.startswith('{0}='.format(attrName)):
+                        continue
+                    newItems.append(tmpItem)
+                # add new
+                newItems.append('{0}={1}'.format(attrName,attrValue))
+                # update
+                varMap = {}
+                varMap[':jediTaskID']  = jediTaskID
+                varMap[':splitRule']   = ','.join(newItems)
+                self.cur.execute(sqlT+comment, varMap)
+                retVal = 1
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            _logger.debug("{0} done with {1}".format(methodName,nRow))
+            return retVal
         except:
             # roll back
             self._rollback()

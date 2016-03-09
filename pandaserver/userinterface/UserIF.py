@@ -957,6 +957,15 @@ class UserIF:
 
 
 
+    # change split rule for task
+    def changeTaskSplitRulePanda(self,jediTaskID,attrName,attrValue):
+        # exec
+        ret = self.taskBuffer.changeTaskSplitRulePanda(jediTaskID,attrName,attrValue)
+        # return
+        return ret
+
+
+
 # Singleton
 userIF = UserIF()
 del UserIF
@@ -2010,17 +2019,44 @@ def changeTaskAttributePanda(req,jediTaskID,attrName,attrValue):
     prodRole = _isProdRoleATLAS(req)
     # only prod managers can use this method
     if not prodRole:
-        return "Failed : production or pilot role required"
+        return pickle.dumps((False,"production or pilot role required"))
     # check jediTaskID
     try:
         jediTaskID = long(jediTaskID)
     except:
         return pickle.dumps((False,'jediTaskID must be an integer'))        
     # check attribute
-    if not attrName in ['ramCount','wallTime','cpuTime']:
-        return "Failed : disallowed to update {0}".format(attrName)
+    if not attrName in ['ramCount','wallTime','cpuTime','coreCount']:
+        return pickle.dumps((2,"disallowed to update {0}".format(attrName)))
     ret = userIF.changeTaskAttributePanda(jediTaskID,attrName,attrValue)
-    return pickle.dumps(ret)
+    return pickle.dumps((ret,None))
+
+
+
+# change split rule for task
+def changeTaskSplitRulePanda(req,jediTaskID,attrName,attrValue):
+    # check security
+    if not isSecure(req):
+        return pickle.dumps((False,'secure connection is required'))
+    # get DN
+    user = None
+    if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        user = _getDN(req)        
+    # check role
+    prodRole = _isProdRoleATLAS(req)
+    # only prod managers can use this method
+    if not prodRole:
+        return pickle.dumps((False,"production or pilot role required"))
+    # check jediTaskID
+    try:
+        jediTaskID = long(jediTaskID)
+    except:
+        return pickle.dumps((False,'jediTaskID must be an integer'))        
+    # check attribute
+    if not attrName in ['TW']:
+        return pickle.dumps((2,"disallowed to update {0}".format(attrName)))
+    ret = userIF.changeTaskSplitRulePanda(jediTaskID,attrName,attrValue)
+    return pickle.dumps((ret,None))
 
 
 

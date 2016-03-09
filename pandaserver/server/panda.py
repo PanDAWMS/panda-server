@@ -66,7 +66,7 @@ from userinterface.UserIF        import submitJobs,getJobStatus,queryPandaIDs,ki
      insertSandboxFileInfo,checkSandboxFile,changeJobPriorities,insertTaskParams,\
      killTask,finishTask,getCmtConfigList,getJediTasksInTimeRange,getJediTaskDetails,\
      retryTask,getRetryHistory,changeTaskPriority,reassignTask,changeTaskAttributePanda,\
-     pauseTask,resumeTask,increaseAttemptNrPanda,killUnfinishedJobs
+     pauseTask,resumeTask,increaseAttemptNrPanda,killUnfinishedJobs,changeTaskSplitRulePanda
 allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reassignJobs',
                    'getJobStatistics','getJobStatisticsPerSite','resubmitJobs','queryLastFilesInDataset','getPandaIDsSite',
                    'getJobsToBeUpdated','updateProdDBUpdateTimes','runTaskAssignment','getAssigningTask','getSiteSpecs',
@@ -82,7 +82,7 @@ allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reass
                    'insertSandboxFileInfo','checkSandboxFile','changeJobPriorities','insertTaskParams',
                    'killTask','finishTask','getCmtConfigList','getJediTasksInTimeRange','getJediTaskDetails',
                    'retryTask','getRetryHistory','changeTaskPriority','reassignTask','changeTaskAttributePanda',
-                   'pauseTask','resumeTask','increaseAttemptNrPanda','killUnfinishedJobs']
+                   'pauseTask','resumeTask','increaseAttemptNrPanda','killUnfinishedJobs','changeTaskSplitRulePanda']
 
 # import error
 import taskbuffer.ErrorCode

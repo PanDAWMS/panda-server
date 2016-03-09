@@ -2684,6 +2684,19 @@ class TaskBuffer:
 
 
 
+    # change split rule for task
+    def changeTaskSplitRulePanda(self,jediTaskID,attrName,attrValue):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.changeTaskSplitRulePanda(jediTaskID,attrName,attrValue)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
     # increase attempt number for unprocessed files
     def increaseAttemptNrPanda(self,jediTaskID,increasedNr):
         # get proxy

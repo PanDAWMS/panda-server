@@ -1,5 +1,9 @@
 Release Notes
 
+* 3/9/2016
+  * added changeTaskAttribute
+  * fixed ppEvt for nucleus without localEsMerge
+	
 * 3/8/2016
   * fixed to properly decrease priorities for group analysis
 
