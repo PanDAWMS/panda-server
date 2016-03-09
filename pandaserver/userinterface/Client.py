@@ -1700,7 +1700,7 @@ def changeTaskAttribute(jediTaskID,attrName,attrValue):
            return: a tupple of return code and message
                  0: unknown task
                  1: succeeded
-                 string: 
+                 2: disallowed to update the attribute
                  None: database error 
     """     
     # instantiate curl
@@ -1718,6 +1718,43 @@ def changeTaskAttribute(jediTaskID,attrName,attrValue):
     except:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR changeTaskAttributePanda : %s %s" % (errtype,errvalue)
+        return EC_Failed,output+'\n'+errStr
+
+
+
+# change split rule for task
+def changeTaskSplitRule(jediTaskID,ruleName,ruleValue):
+    """Change split rule fo task
+
+       args:
+           jediTaskID: jediTaskID of the task to change the rule
+           ruleName: rule name
+           ruleValue: new value for the rule
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           return: a tupple of return code and message
+                 0: unknown task
+                 1: succeeded
+                 2: disallowed to update the attribute
+                 None: database error 
+    """     
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+    # execute
+    url = baseURLSSL + '/changeTaskSplitRulePanda'
+    data = {'jediTaskID':jediTaskID,
+            'attrName':ruleName,
+            'attrValue':ruleValue}
+    status,output = curl.post(url,data)
+    try:
+        return status,pickle.loads(output)
+    except:
+        errtype,errvalue = sys.exc_info()[:2]
+        errStr = "ERROR changeTaskSplitRule : %s %s" % (errtype,errvalue)
         return EC_Failed,output+'\n'+errStr
 
 

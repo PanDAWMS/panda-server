@@ -15121,7 +15121,8 @@ class DBProxy:
         comment = ' /* DBProxy.changeTaskSplitRulePanda */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <jediTaskID={0}>".format(jediTaskID)
-        _logger.debug("{0} name={1} value={2}".format(methodName,attrName,attrValue))
+        tmpLog = LogWrapper(_logger,methodName,monToken="<jediTaskID={0}>".format(jediTaskID))
+        tmpLog.debug("changing {0}={1}".format(attrName,attrValue))
         try:
             # sql to get split rule
             sqlS  = 'SELECT splitRule FROM {0}.JEDI_Tasks '.format(panda_config.schemaJEDI)
@@ -15163,7 +15164,8 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
-            _logger.debug("{0} done with {1}".format(methodName,nRow))
+            tmpLog.debug("done with {0}".format(retVal))
+            tmpLog.sendMsg('set {0}={1} to splitRule'.format(attrName,attrValue),'jedi','pandasrv')
             return retVal
         except:
             # roll back

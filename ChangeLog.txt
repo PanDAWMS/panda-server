@@ -1,6 +1,7 @@
 Release Notes
 
 * 3/9/2016
+  * added changeTaskSplitRule
   * added changeTaskAttribute
   * fixed ppEvt for nucleus without localEsMerge
 	
