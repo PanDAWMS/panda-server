@@ -77,13 +77,6 @@ class TaskBuffer:
                     # reset
                     withProdRole,workingGroup = False,None
                     break
-        # set high prioryty for production role
-        """
-        if withProdRole and workingGroup in ['det-tile']:
-            serNum = 0
-            weight = 0.0
-            priorityOffset = 2000
-        """    
         # reset nJob/weight for HC
         if jobs != []:
             if jobs[0].processingType in ['hammercloud','gangarobot','hammercloud-fax'] \
@@ -101,7 +94,15 @@ class TaskBuffer:
             if jobs == []:
                 serNum = proxy.getNumberJobsUser(user,workingGroup=userDefinedWG)
             elif userDefinedWG and validWorkingGroup:
-                serNum = proxy.getNumberJobsUser(user,workingGroup=jobs[0].workingGroup)
+                # check if group privileged
+                isSU =  proxy.isSuperUser(jobs[0].workingGroup)
+                if not isSU:
+                    serNum = proxy.getNumberJobsUser(user,workingGroup=jobs[0].workingGroup)
+                else:
+                    # set high prioryty for production role
+                    serNum = 0
+                    weight = 0.0
+                    priorityOffset = 2000
             else:
                 serNum = proxy.getNumberJobsUser(user,workingGroup=None)
         # release proxy
@@ -263,6 +264,8 @@ class TaskBuffer:
                 # get priority parameters for user
                 withProdRole,workingGroup,priorityOffset,serNum,weight = self.getPrioParameters(jobs,user,fqans,userDefinedWG,
                                                                                                 validWorkingGroup)
+                _logger.debug("storeJobs : {0} workingGroup={1} serNum={2} weight={3} pOffset={4}".format(user,jobs[0].workingGroup,
+                                                                                                          serNum,weight,priorityOffset))
             # get DB proxy
             proxy = self.proxyPool.getProxy()
             # get group job serial number
