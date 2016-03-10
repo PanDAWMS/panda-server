@@ -1598,7 +1598,7 @@ CREATE TABLE `jobsarchived` (
   `AVGPSS` int(11) DEFAULT NULL,
   `MAXWALLTIME` int(11) DEFAULT NULL,
   `NUCLEUS` varchar(52) DEFAULT NULL,
-  `EVENTSERVICE` tinyint(1) DEFAULT NULL
+  `EVENTSERVICE` tinyint(1) DEFAULT NULL,
   KEY `JOBS_UPPER_PRODUSERNAME_IDX` (`PRODUSERNAME`),
   KEY `JOBSARCHIVED_REQID_IDX` (`REQID`),
   KEY `JOBS_JEDITASKID_PANDAID_IDX` (`JEDITASKID`,`PANDAID`),
@@ -5631,7 +5631,7 @@ UNLOCK TABLES;
 
 -- Dump completed on 2015-04-20 13:30:14
 
---------------------------------------------------------
+----------------------------- ---------------------------
 --  Stored procedure migrated to MySQL - 11.09.2015 by Ruslan Mashinistov
 --------------------------------------------------------
 
