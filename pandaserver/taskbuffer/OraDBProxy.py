@@ -10760,6 +10760,45 @@ class DBProxy:
             return 0.0
 
 
+
+    # check if super user
+    def isSuperUser(self,userName):
+        comment = ' /* DBProxy.isSuperUser */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger,methodName+" <{0}>".format(userName))
+        tmpLog.debug("start")
+        try:
+            retVal = False
+            # start transaction
+            self.conn.begin()
+            # check gridpref
+            name = self.cleanUserID(userName)
+            sql = "SELECT gridpref FROM ATLAS_PANDAMETA.users WHERE name=:name"
+            varMap = {}
+            varMap[':name'] = name
+            self.cur.arraysize = 10            
+            self.cur.execute(sql+comment,varMap)
+            res = self.cur.fetchone()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # check if s in gridpref
+            if res != None:
+                gridpref, = res
+                if gridpref != None:
+                    if 's' in gridpref:
+                        retVal = True
+            tmpLog.debug("done with {0}".format(retVal))
+            return retVal
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return False
+
+
+
     # get serialize JobID and status
     def getUserParameter(self,dn,jobID,jobsetID):
         comment = ' /* DBProxy.getUserParameter */'                            
