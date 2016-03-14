@@ -3460,6 +3460,7 @@ class DBProxy:
         # 50 : kill by JEDI
         # 51 : reassigned by JEDI
         # 52 : force kill by JEDI
+        # 60 : workload was terminated by the pilot without actual work
         # 91 : kill user jobs with prod role
         comment = ' /* DBProxy.killJob */'
         methodName = comment.split(' ')[-2].split('.')[-1]
@@ -3561,7 +3562,7 @@ class DBProxy:
                 varMap[':PandaID'] = pandaID
                 varMap[':commandToPilot'] = 'tobekilled'
                 varMap[':taskBufferErrorDiag'] = 'killed by %s' % user
-                if code in ['9','52','51','2']:
+                if code in ['2','9','52','51','60']:
                     # ignore commandToPilot for force kill
                     self.cur.execute((sql1F+comment) % table, varMap)
                 elif useEventService or jobStatusInDB in ['merging']:
@@ -3643,6 +3644,11 @@ class DBProxy:
                         job.jobSubStatus = 'toreassign'
                         job.taskBufferErrorCode = ErrorCode.EC_Kill
                         job.taskBufferErrorDiag = 'reassigned by JEDI'
+                    elif code=='60':
+                        # terminated by the pilot. keep jobSubStatus reported by the pilot
+                        job.jobStatus = 'closed'
+                        job.taskBufferErrorCode = ErrorCode.EC_Kill
+                        job.taskBufferErrorDiag = 'closed by the pilot'
                     else:
                         # killed
                         job.taskBufferErrorCode = ErrorCode.EC_Kill

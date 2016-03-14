@@ -105,6 +105,22 @@ class AdderGen:
                         self.job.ddmErrorCode = ErrorCode.EC_Adder
                         self.job.ddmErrorDiag = "wrong file status in source database"
                         self.logger.debug("set jobStatus={0} since input is inconsistent between Panda and JEDI".format(self.jobStatus))
+                    elif self.job.jobSubStatus in ['pilot_closed']:
+                        # terminated by the pilot
+                        self.logger.debug("going to closed since terminated by the pilot")
+                        retClosed = self.taskBuffer.killJobs([self.jobID],'pilot','60',True)
+                        if retClosed[0] == True:
+                            self.logger.debug("end")
+                            try:
+                                # remove Catalog
+                                os.remove(self.xmlFile)
+                            except:
+                                pass
+                            # unlock XML
+                            if self.lockXML != None:
+                                fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
+                                self.lockXML.close()
+                            return
                 # keep old status
                 oldJobStatus = self.job.jobStatus
                 # set job status

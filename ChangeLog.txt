@@ -1,5 +1,8 @@
 Release Notes
 
+* 3/14/2016
+  * introduced jobSubStatus=pilot_closed
+
 * 3/10/2016
   * added isSuperUser
 
