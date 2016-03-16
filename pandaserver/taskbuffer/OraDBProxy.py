@@ -13014,7 +13014,7 @@ class DBProxy:
                             if tmpKey.startswith('dsFor') \
                                     or tmpKey in ['site','cloud','includedSite','excludedSite'] \
                                     or tmpKey == 'cliParams' \
-                                    or tmpKey in ['nFilesPerJob','nFiles','nEvents'] \
+                                    or tmpKey in ['nFilesPerJob','nFiles','nEvents','nGBPerJob'] \
                                     or tmpKey == 'fixedSandbox':
                                 newTaskParams[tmpKey] = tmpVal
                                 if tmpKey == 'fixedSandbox' and 'sourceURL' in taskParamsJson:
@@ -16958,3 +16958,38 @@ class DBProxy:
             return {}
 
 
+
+    # get task parameters
+    def getTaskPramsPanda(self,jediTaskID):
+        comment = ' /* DBProxy.getTaskPramsPanda */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <jediTaskID={0}>".format(jediTaskID)
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        try:
+            # sql to get task parameters
+            sqlRR  = "SELECT jedi_task_parameters FROM {0}.T_TASK ".format(panda_config.schemaDEFT)
+            sqlRR += "WHERE taskid=:jediTaskID "
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            # start transaction
+            self.conn.begin()
+            self.cur.execute(sqlRR+comment,varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # read clob
+            taskParams = ''
+            for clobJobP, in self.cur:
+                if clobJobP != None:
+                    try:
+                        taskParams= clobJobP.read()
+                    except AttributeError:
+                        taskParams = str(clobJobP)
+                break
+            tmpLog.debug("done")
+            return taskParams
+        except:
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return ''

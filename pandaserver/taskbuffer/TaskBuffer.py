@@ -2958,6 +2958,19 @@ class TaskBuffer:
 
 
 
+    # get task parameters
+    def getTaskPramsPanda(self,jediTaskID):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getTaskPramsPanda(jediTaskID)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 

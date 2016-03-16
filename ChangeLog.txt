@@ -1,6 +1,7 @@
 Release Notes
 
 * 3/16/2016
+  * added newParams in retryTask
   * changed dispatcher to ignore fairshare for ES merge
 
 * 3/14/2016
