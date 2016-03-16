@@ -41,7 +41,7 @@ class AdderGen:
         self.attemptNr = None
         self.xmlFile = xmlFile
         self.datasetMap = {}
-        self.extraInfo = {'surl':{},'nevents':{},'lbnr':{}}
+        self.extraInfo = {'surl':{},'nevents':{},'lbnr':{},'endpoint':{}}
         # exstract attemptNr
         try:
             tmpAttemptNr = self.xmlFile.split('/')[-1].split('_')[-1]
@@ -416,6 +416,10 @@ class AdderGen:
                         surl = str(meta.getAttribute('att_value'))
                     elif name == 'full_lfn':
                         fullLFN = str(meta.getAttribute('att_value'))
+                # endpoints
+                self.extraInfo['endpoint'][lfn] = []
+                for epNode in file.getElementsByTagName('endpoint'):
+                    self.extraInfo['endpoint'][lfn].append(str(epNode.firstChild.data))
                 # error check
                 if (not lfn in inputLFNs) and (fsize == None or (md5sum == None and adler32 == None)):
                     if EventServiceUtils.isEventServiceMerge(self.job):

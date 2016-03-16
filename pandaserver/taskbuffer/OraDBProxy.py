@@ -9920,8 +9920,10 @@ class DBProxy:
                 retVarMap[':shareLabel4'] = 'install'
                 retVarMap[':shareLabel5'] = 'pmerge'
                 retVarMap[':shareLabel6'] = 'urgent'
+                retVarMap[':esMerge'] = 2
                 newRetStr  = 'AND (prodSourceLabel IN (:shareLabel2,:shareLabel3,:shareLabel4) '
                 newRetStr += 'OR (processingType IN (:shareLabel5,:shareLabel6)) '
+                newRetStr += 'OR eventService=:esMerge '
                 newRetStr += 'OR (prodSourceLabel=:shareLabel1 ' + retStr + '))'
                 retStr = newRetStr
             return retStr,retVarMap

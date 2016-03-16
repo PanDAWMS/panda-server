@@ -1,5 +1,8 @@
 Release Notes
 
+* 3/16/2016
+  * changed dispatcher to ignore fairshare for ES merge
+
 * 3/14/2016
   * introduced jobSubStatus=pilot_closed
 
