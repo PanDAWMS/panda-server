@@ -268,6 +268,9 @@ class Response:
         # alternative stage-out
         if job.getAltStgOut() != None:
             self.data['altStageOut'] = job.getAltStgOut()
+        # log to OS
+        if job.putLogToOS():
+            self.data['putLogToOS'] = 'True'
 
 
     # set proxy key
