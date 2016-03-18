@@ -14356,6 +14356,7 @@ class DBProxy:
                                     if tmpFileSpec.destinationDBlockToken.startswith('ddd:'):
                                         tmpFileSpec.destinationDBlockToken = 'ddd:{0}'.format(tmp_ddm_endpoint)
                 jobSpec.coreCount = None
+                jobSpec.minRamCount = 0
             # insert job with new PandaID
             sql1  = "INSERT INTO ATLAS_PANDA.jobsActive4 ({0}) ".format(JobSpec.columnNames())
             sql1 += JobSpec.bindValuesExpression(useSeq=True)
