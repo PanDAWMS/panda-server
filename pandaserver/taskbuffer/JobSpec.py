@@ -50,7 +50,8 @@ class JobSpec(object):
                     'jobSubStatus'           : 80,
                     }
     # tag for special handling
-    _tagForSH = {'altStgOut': 'ao',
+    _tagForSH = {'altStgOut'  : 'ao',
+                 'putLogToOS' : 'po',
                  }
 
 
@@ -408,3 +409,21 @@ class JobSpec(object):
         self.specialHandling = ','.join(newItems)
 
 
+
+    # put log files to OS
+    def putLogToOS(self):
+        if self.specialHandling != None:
+            return self._tagForSH['putLogToOS'] in self.specialHandling.split(',')
+        return False
+
+
+
+    # set to put log files to OS
+    def setToPutLogToOS(self):
+        if self.specialHandling != None:
+            items = self.specialHandling.split(',')
+        else:
+            items = []
+        if not self._tagForSH['putLogToOS'] in items:
+            items.append(self._tagForSH['putLogToOS'])
+        self.specialHandling = ','.join(items)

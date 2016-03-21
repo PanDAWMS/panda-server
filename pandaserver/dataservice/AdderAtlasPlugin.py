@@ -305,25 +305,22 @@ class AdderAtlasPlugin (AdderPluginBase):
                         #fileAttrs['panda_id'] = file.PandaID
                     # extract OS files
                     hasNormalURL = True
-                    if 'surl' in fileAttrs and ',' in fileAttrs['surl']:
+                    if file.lfn in self.extraInfo['endpoint'] and self.extraInfo['endpoint'][file.lfn] != []:
                         hasNormalURL = False
-                        tmpURLs = fileAttrs['surl'].split(',')
-                        for tmpURL in tmpURLs:
-                            if tmpURL.startswith('s3'):
-                                # get endpoint for the S3 URL
-                                osEndPoint = 'BNL-OSG2_OS' #xyz(tmpURL)
-                                if not osEndPoint in osDsFileMap:
-                                    osDsFileMap[osEndPoint] = {}
-                                osFileDestinationDBlock = re.sub('_sub\d+$','',fileDestinationDBlock)
-                                if not osFileDestinationDBlock in osDsFileMap[osEndPoint]:
-                                    osDsFileMap[osEndPoint][osFileDestinationDBlock] = []
-                                copiedFileAttrs = copy.copy(fileAttrs)
-                                copiedFileAttrs['surl'] = tmpURL
-                                osDsFileMap[osEndPoint][osFileDestinationDBlock].append(copiedFileAttrs)
-                            else:
-                                # use only normal URL for normal endpoints
-                                fileAttrs['surl'] = tmpURL
+                        for pilotEndPoint in self.extraInfo['endpoint'][file.lfn]:
+                            # pilot uploaded to endpoint consistently with original job definition
+                            if pilotEndPoint in dsDestMap[fileDestinationDBlock]:
                                 hasNormalURL = True
+                            else:
+                                # uploaded to S3
+                                if not pilotEndPoint in osDsFileMap:
+                                    osDsFileMap[pilotEndPoint] = {}
+                                osFileDestinationDBlock = re.sub('_sub\d+$','',fileDestinationDBlock)
+                                if not osFileDestinationDBlock in osDsFileMap[pilotEndPoint]:
+                                    osDsFileMap[pilotEndPoint][osFileDestinationDBlock] = []
+                                copiedFileAttrs = copy.copy(fileAttrs)
+                                del copiedFileAttrs['surl']
+                                osDsFileMap[pilotEndPoint][osFileDestinationDBlock].append(copiedFileAttrs)
                     if hasNormalURL:
                         idMap[fileDestinationDBlock].append(fileAttrs)
                     # for subscription

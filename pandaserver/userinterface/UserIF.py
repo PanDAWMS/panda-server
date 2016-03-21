@@ -878,19 +878,37 @@ class UserIF:
 
 
     # retry task
-    def retryTask(self,jediTaskID,user,prodRole,properErrorCode):
-        # retry
-        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'retry',properErrorCode=properErrorCode)
-        if properErrorCode == True and ret[0] == 5:
-            # retry failed analysis jobs
-            jobdefList = self.taskBuffer.getJobdefIDsForFailedJob(jediTaskID)
-            cUID = self.taskBuffer.cleanUserID(user)
-            for jobID in jobdefList:
-                self.taskBuffer.retryJobsInActive(cUID,jobID,True)
-            self.taskBuffer.increaseAttemptNrPanda(jediTaskID,5)
-            retStr  = 'retry has been triggered for failed jobs  '
-            retStr += 'while the task is still {0}'.format(ret[1])
-            ret = 0,retStr
+    def retryTask(self,jediTaskID,user,prodRole,properErrorCode,newParams):
+        # retry with new params
+        if newParams != None:
+            try:
+                # convert to dict
+                newParams = PrioUtil.decodeJSON(newParams)
+                # get original params
+                taskParams = self.taskBuffer.getTaskPramsPanda(jediTaskID)
+                taskParamsJson = PrioUtil.decodeJSON(taskParams)
+                # replace with new values
+                for newKey,newVal in newParams.iteritems():
+                    taskParamsJson[newKey] = newVal
+                taskParams = json.dumps(taskParamsJson)
+                # retry with new params
+                ret = self.taskBuffer.insertTaskParamsPanda(taskParams,user,prodRole,[],properErrorCode=properErrorCode)
+            except:
+                errType,errValue = sys.exc_info()[:2]
+                ret = 1,'server error with {0}:{1}'.format(errType,errValue)
+        else:
+            # normal retry
+            ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'retry',properErrorCode=properErrorCode)
+            if properErrorCode == True and ret[0] == 5:
+                # retry failed analysis jobs
+                jobdefList = self.taskBuffer.getJobdefIDsForFailedJob(jediTaskID)
+                cUID = self.taskBuffer.cleanUserID(user)
+                for jobID in jobdefList:
+                    self.taskBuffer.retryJobsInActive(cUID,jobID,True)
+                self.taskBuffer.increaseAttemptNrPanda(jediTaskID,5)
+                retStr  = 'retry has been triggered for failed jobs  '
+                retStr += 'while the task is still {0}'.format(ret[1])
+                ret = 0,retStr
         # return
         return ret
 
@@ -1824,7 +1842,7 @@ def killTask(req,jediTaskID=None,properErrorCode=None):
 
 
 # retry task
-def retryTask(req,jediTaskID,properErrorCode=None):
+def retryTask(req,jediTaskID,properErrorCode=None,newParams=None):
     if properErrorCode == 'True':
         properErrorCode = True
     else:
@@ -1849,7 +1867,7 @@ def retryTask(req,jediTaskID,properErrorCode=None):
             return pickle.dumps((101,'jediTaskID must be an integer'))        
         else:
             return pickle.dumps((False,'jediTaskID must be an integer'))
-    ret = userIF.retryTask(jediTaskID,user,prodRole,properErrorCode)
+    ret = userIF.retryTask(jediTaskID,user,prodRole,properErrorCode,newParams)
     return pickle.dumps(ret)
 
 

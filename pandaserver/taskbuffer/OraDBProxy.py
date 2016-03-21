@@ -495,16 +495,29 @@ class DBProxy:
                         # discard old successful event ranges
                         sqlJediOdEvt  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
                         sqlJediOdEvt += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
-                        sqlJediOdEvt += "SET status=:esDiscarded "
+                        sqlJediOdEvt += "SET status=:newStatus "
                         sqlJediOdEvt += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-                        sqlJediOdEvt += "AND status=:esDone "
+                        sqlJediOdEvt += "AND status IN (:esFinished,:esDone) "
                         varMap = {}
                         varMap[':jediTaskID']  = file.jediTaskID
                         varMap[':datasetID']   = file.datasetID
                         varMap[':fileID']      = file.fileID
+                        varMap[':newStatus']   = EventServiceUtils.ST_discarded
                         varMap[':esDone']      = EventServiceUtils.ST_done
-                        varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
+                        varMap[':esFinished']  = EventServiceUtils.ST_finished
                         self.cur.execute(sqlJediOdEvt+comment, varMap)
+                        # cancel old unprocessed event ranges
+                        sqlJediCEvt  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+                        sqlJediCEvt += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
+                        sqlJediCEvt += "SET status=:newStatus "
+                        sqlJediCEvt += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+                        sqlJediCEvt += "AND NOT status IN (:esFinished,:esDone,:esDiscarded,:esCancelled,:esFailed,:esFatal) "
+                        varMap[':newStatus']   = EventServiceUtils.ST_cancelled
+                        varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
+                        varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
+                        varMap[':esFatal']     = EventServiceUtils.ST_fatal
+                        varMap[':esFailed']    = EventServiceUtils.ST_failed
+                        self.cur.execute(sqlJediCEvt+comment, varMap)
                         # insert new ranges
                         sqlJediEvent  = "INSERT INTO {0}.JEDI_Events ".format(panda_config.schemaJEDI)
                         sqlJediEvent += "(jediTaskID,datasetID,PandaID,fileID,attemptNr,status,"
@@ -2195,7 +2208,7 @@ class DBProxy:
                    not job.processingType.startswith('hammercloud'):
                     usePilotRetry = True
                 # retry for ES merge
-                if recoverableEsMerge and EventServiceUtils.isEventServiceMerge(job):
+                if recoverableEsMerge and EventServiceUtils.isEventServiceMerge(job) and job.maxAttempt > job.attemptNr:
                     usePilotRetry = True
                 # check if it's analysis job # FIXME once pilot retry works correctly the conditions below will be cleaned up
                 if (((job.prodSourceLabel == 'user' or job.prodSourceLabel == 'panda') \
@@ -2397,13 +2410,6 @@ class DBProxy:
                                     varMap[':newRowID'] = self.cur.var(varNUMBER)
                                     self.cur.execute(sqlFile+comment, varMap)
                                     file.row_ID = long(self.cur.getvalue(varMap[':newRowID']))
-                                # metadata
-                                if job.VO != 'cms':
-                                    sqlMeta = "INSERT INTO ATLAS_PANDA.metaTable (PandaID,metaData) VALUES (:PandaID,:metaData)"
-                                    varMap = {}
-                                    varMap[':PandaID']  = job.PandaID
-                                    varMap[':metaData'] = job.metadata
-                                    self.cur.execute(sqlMeta+comment, varMap)
                                 # job parameters
                                 sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters) VALUES (:PandaID,:param)"
                                 varMap = {}
@@ -3460,6 +3466,7 @@ class DBProxy:
         # 50 : kill by JEDI
         # 51 : reassigned by JEDI
         # 52 : force kill by JEDI
+        # 60 : workload was terminated by the pilot without actual work
         # 91 : kill user jobs with prod role
         comment = ' /* DBProxy.killJob */'
         methodName = comment.split(' ')[-2].split('.')[-1]
@@ -3561,7 +3568,7 @@ class DBProxy:
                 varMap[':PandaID'] = pandaID
                 varMap[':commandToPilot'] = 'tobekilled'
                 varMap[':taskBufferErrorDiag'] = 'killed by %s' % user
-                if code in ['9','52','51','2']:
+                if code in ['2','9','52','51','60']:
                     # ignore commandToPilot for force kill
                     self.cur.execute((sql1F+comment) % table, varMap)
                 elif useEventService or jobStatusInDB in ['merging']:
@@ -3643,6 +3650,11 @@ class DBProxy:
                         job.jobSubStatus = 'toreassign'
                         job.taskBufferErrorCode = ErrorCode.EC_Kill
                         job.taskBufferErrorDiag = 'reassigned by JEDI'
+                    elif code=='60':
+                        # terminated by the pilot. keep jobSubStatus reported by the pilot
+                        job.jobStatus = 'closed'
+                        job.taskBufferErrorCode = ErrorCode.EC_Kill
+                        job.taskBufferErrorDiag = 'closed by the pilot'
                     else:
                         # killed
                         job.taskBufferErrorCode = ErrorCode.EC_Kill
@@ -9914,8 +9926,10 @@ class DBProxy:
                 retVarMap[':shareLabel4'] = 'install'
                 retVarMap[':shareLabel5'] = 'pmerge'
                 retVarMap[':shareLabel6'] = 'urgent'
+                retVarMap[':esMerge'] = 2
                 newRetStr  = 'AND (prodSourceLabel IN (:shareLabel2,:shareLabel3,:shareLabel4) '
                 newRetStr += 'OR (processingType IN (:shareLabel5,:shareLabel6)) '
+                newRetStr += 'OR eventService=:esMerge '
                 newRetStr += 'OR (prodSourceLabel=:shareLabel1 ' + retStr + '))'
                 retStr = newRetStr
             return retStr,retVarMap
@@ -12610,8 +12624,8 @@ class DBProxy:
             res = cur.fetchone()
             if res != None:
                 curStat = res[0]
-                if not curStat in ['done','finished','exhausted','failed',
-                                   'broken','aborted','prepared','passed']:
+                if not curStat in ['done','finished','failed',
+                                   'broken','aborted','prepared']:
                     retVal = True
         _logger.debug('checkTaskStatusJEDI jediTaskID=%s in %s with %s' % (jediTaskID,curStat,retVal))
         return retVal
@@ -13006,7 +13020,7 @@ class DBProxy:
                             if tmpKey.startswith('dsFor') \
                                     or tmpKey in ['site','cloud','includedSite','excludedSite'] \
                                     or tmpKey == 'cliParams' \
-                                    or tmpKey in ['nFilesPerJob','nFiles','nEvents'] \
+                                    or tmpKey in ['nFilesPerJob','nFiles','nEvents','nGBPerJob'] \
                                     or tmpKey == 'fixedSandbox':
                                 newTaskParams[tmpKey] = tmpVal
                                 if tmpKey == 'fixedSandbox' and 'sourceURL' in taskParamsJson:
@@ -14348,6 +14362,7 @@ class DBProxy:
                                     if tmpFileSpec.destinationDBlockToken.startswith('ddd:'):
                                         tmpFileSpec.destinationDBlockToken = 'ddd:{0}'.format(tmp_ddm_endpoint)
                 jobSpec.coreCount = None
+                jobSpec.minRamCount = 0
             # insert job with new PandaID
             sql1  = "INSERT INTO ATLAS_PANDA.jobsActive4 ({0}) ".format(JobSpec.columnNames())
             sql1 += JobSpec.bindValuesExpression(useSeq=True)
@@ -14774,7 +14789,8 @@ class DBProxy:
                 resPs = self.cur.fetchall()
                 for esPandaID, in resPs:
                     if not esPandaID in killPandaIDs:
-                        killPandaIDs[esPandaID] = (fileSpec.jediTaskID,fileSpec.datasetID,fileSpec.fileID)
+                        killPandaIDs[esPandaID] = set()
+                    killPandaIDs[esPandaID].add((fileSpec.jediTaskID,fileSpec.datasetID,fileSpec.fileID))
             # kill consumers
             sqlDJS = "SELECT %s " % JobSpec.columnNames()
             sqlDJS+= "FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
@@ -14847,22 +14863,26 @@ class DBProxy:
                 self.cur.execute(sqlPMod+comment,varMap)
                 nKilled += 1
             # discard event ranges
+            discardedSets = []
             for pandaID in killPandaIDsList:
-                jediTaskID,datasetID,fileID = killPandaIDs[pandaID]
-                varMap = {}
-                varMap[':jediTaskID'] = jediTaskID
-                varMap[':datasetID']  = datasetID
-                varMap[':fileID']     = fileID
-                varMap[':status']     = EventServiceUtils.ST_discarded
-                varMap[':esFinished'] = EventServiceUtils.ST_finished
-                varMap[':esDone']     = EventServiceUtils.ST_done
-                self.cur.execute(sqlDE+comment, varMap)
-                varMap[':status']      = EventServiceUtils.ST_cancelled
-                varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
-                varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
-                varMap[':esFatal']     = EventServiceUtils.ST_fatal
-                varMap[':esFailed']    = EventServiceUtils.ST_failed
-                self.cur.execute(sqlCE+comment, varMap)
+                for idSet in killPandaIDs[pandaID]:
+                    if idSet in discardedSets:
+                        continue
+                    jediTaskID,datasetID,fileID = idSet
+                    varMap = {}
+                    varMap[':jediTaskID'] = jediTaskID
+                    varMap[':datasetID']  = datasetID
+                    varMap[':fileID']     = fileID
+                    varMap[':status']     = EventServiceUtils.ST_discarded
+                    varMap[':esFinished'] = EventServiceUtils.ST_finished
+                    varMap[':esDone']     = EventServiceUtils.ST_done
+                    self.cur.execute(sqlDE+comment, varMap)
+                    varMap[':status']      = EventServiceUtils.ST_cancelled
+                    varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
+                    varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
+                    varMap[':esFatal']     = EventServiceUtils.ST_fatal
+                    varMap[':esFailed']    = EventServiceUtils.ST_failed
+                    self.cur.execute(sqlCE+comment, varMap)
             # commit
             if useCommit:
                 if not self._commit():
@@ -16950,3 +16970,38 @@ class DBProxy:
             return {}
 
 
+
+    # get task parameters
+    def getTaskPramsPanda(self,jediTaskID):
+        comment = ' /* DBProxy.getTaskPramsPanda */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <jediTaskID={0}>".format(jediTaskID)
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        try:
+            # sql to get task parameters
+            sqlRR  = "SELECT jedi_task_parameters FROM {0}.T_TASK ".format(panda_config.schemaDEFT)
+            sqlRR += "WHERE taskid=:jediTaskID "
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            # start transaction
+            self.conn.begin()
+            self.cur.execute(sqlRR+comment,varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # read clob
+            taskParams = ''
+            for clobJobP, in self.cur:
+                if clobJobP != None:
+                    try:
+                        taskParams= clobJobP.read()
+                    except AttributeError:
+                        taskParams = str(clobJobP)
+                break
+            tmpLog.debug("done")
+            return taskParams
+        except:
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return ''

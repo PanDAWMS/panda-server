@@ -1,5 +1,22 @@
 Release Notes
 
+* 3/21/2016
+  * changed checkTaskStatus to allow updates in exhausted
+  * fixed retryJob not to add metadata
+  * fixed ES merge retry to take attemptNr into account
+  * fixed killESC for multiple inputs
+  
+* 3/18/2016
+  * resetting ramCount to 0 for ES merge
+
+* 3/16/2016
+  * added putLogToOS
+  * added newParams in retryTask
+  * changed dispatcher to ignore fairshare for ES merge
+
+* 3/14/2016
+  * introduced jobSubStatus=pilot_closed
+
 * 3/10/2016
   * added isSuperUser
 
