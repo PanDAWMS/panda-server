@@ -12624,8 +12624,8 @@ class DBProxy:
             res = cur.fetchone()
             if res != None:
                 curStat = res[0]
-                if not curStat in ['done','finished','exhausted','failed',
-                                   'broken','aborted','prepared','passed']:
+                if not curStat in ['done','finished','failed',
+                                   'broken','aborted','prepared']:
                     retVal = True
         _logger.debug('checkTaskStatusJEDI jediTaskID=%s in %s with %s' % (jediTaskID,curStat,retVal))
         return retVal

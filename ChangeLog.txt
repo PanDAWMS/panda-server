@@ -1,6 +1,7 @@
 Release Notes
 
 * 3/21/2016
+  * changed checkTaskStatus to allow updates in exhausted
   * fixed retryJob not to add metadata
   * fixed ES merge retry to take attemptNr into account
   * fixed killESC for multiple inputs
