@@ -2410,13 +2410,6 @@ class DBProxy:
                                     varMap[':newRowID'] = self.cur.var(varNUMBER)
                                     self.cur.execute(sqlFile+comment, varMap)
                                     file.row_ID = long(self.cur.getvalue(varMap[':newRowID']))
-                                # metadata
-                                if job.VO != 'cms':
-                                    sqlMeta = "INSERT INTO ATLAS_PANDA.metaTable (PandaID,metaData) VALUES (:PandaID,:metaData)"
-                                    varMap = {}
-                                    varMap[':PandaID']  = job.PandaID
-                                    varMap[':metaData'] = job.metadata
-                                    self.cur.execute(sqlMeta+comment, varMap)
                                 # job parameters
                                 sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters) VALUES (:PandaID,:param)"
                                 varMap = {}
