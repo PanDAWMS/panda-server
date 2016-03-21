@@ -495,16 +495,29 @@ class DBProxy:
                         # discard old successful event ranges
                         sqlJediOdEvt  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
                         sqlJediOdEvt += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
-                        sqlJediOdEvt += "SET status=:esDiscarded "
+                        sqlJediOdEvt += "SET status=:newStatus "
                         sqlJediOdEvt += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-                        sqlJediOdEvt += "AND status=:esDone "
+                        sqlJediOdEvt += "AND status IN (:esFinished,:esDone) "
                         varMap = {}
                         varMap[':jediTaskID']  = file.jediTaskID
                         varMap[':datasetID']   = file.datasetID
                         varMap[':fileID']      = file.fileID
+                        varMap[':newStatus']   = EventServiceUtils.ST_discarded
                         varMap[':esDone']      = EventServiceUtils.ST_done
-                        varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
+                        varMap[':esFinished']  = EventServiceUtils.ST_finished
                         self.cur.execute(sqlJediOdEvt+comment, varMap)
+                        # cancel old unprocessed event ranges
+                        sqlJediCEvt  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+                        sqlJediCEvt += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
+                        sqlJediCEvt += "SET status=:newStatus "
+                        sqlJediCEvt += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+                        sqlJediCEvt += "AND NOT status IN (:esFinished,:esDone,:esDiscarded,:esCancelled,:esFailed,:esFatal) "
+                        varMap[':newStatus']   = EventServiceUtils.ST_cancelled
+                        varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
+                        varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
+                        varMap[':esFatal']     = EventServiceUtils.ST_fatal
+                        varMap[':esFailed']    = EventServiceUtils.ST_failed
+                        self.cur.execute(sqlJediCEvt+comment, varMap)
                         # insert new ranges
                         sqlJediEvent  = "INSERT INTO {0}.JEDI_Events ".format(panda_config.schemaJEDI)
                         sqlJediEvent += "(jediTaskID,datasetID,PandaID,fileID,attemptNr,status,"
@@ -2195,7 +2208,7 @@ class DBProxy:
                    not job.processingType.startswith('hammercloud'):
                     usePilotRetry = True
                 # retry for ES merge
-                if recoverableEsMerge and EventServiceUtils.isEventServiceMerge(job):
+                if recoverableEsMerge and EventServiceUtils.isEventServiceMerge(job) and job.maxAttempt > job.attemptNr:
                     usePilotRetry = True
                 # check if it's analysis job # FIXME once pilot retry works correctly the conditions below will be cleaned up
                 if (((job.prodSourceLabel == 'user' or job.prodSourceLabel == 'panda') \
@@ -14783,7 +14796,8 @@ class DBProxy:
                 resPs = self.cur.fetchall()
                 for esPandaID, in resPs:
                     if not esPandaID in killPandaIDs:
-                        killPandaIDs[esPandaID] = (fileSpec.jediTaskID,fileSpec.datasetID,fileSpec.fileID)
+                        killPandaIDs[esPandaID] = set()
+                    killPandaIDs[esPandaID].add((fileSpec.jediTaskID,fileSpec.datasetID,fileSpec.fileID))
             # kill consumers
             sqlDJS = "SELECT %s " % JobSpec.columnNames()
             sqlDJS+= "FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
@@ -14856,22 +14870,26 @@ class DBProxy:
                 self.cur.execute(sqlPMod+comment,varMap)
                 nKilled += 1
             # discard event ranges
+            discardedSets = []
             for pandaID in killPandaIDsList:
-                jediTaskID,datasetID,fileID = killPandaIDs[pandaID]
-                varMap = {}
-                varMap[':jediTaskID'] = jediTaskID
-                varMap[':datasetID']  = datasetID
-                varMap[':fileID']     = fileID
-                varMap[':status']     = EventServiceUtils.ST_discarded
-                varMap[':esFinished'] = EventServiceUtils.ST_finished
-                varMap[':esDone']     = EventServiceUtils.ST_done
-                self.cur.execute(sqlDE+comment, varMap)
-                varMap[':status']      = EventServiceUtils.ST_cancelled
-                varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
-                varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
-                varMap[':esFatal']     = EventServiceUtils.ST_fatal
-                varMap[':esFailed']    = EventServiceUtils.ST_failed
-                self.cur.execute(sqlCE+comment, varMap)
+                for idSet in killPandaIDs[pandaID]:
+                    if idSet in discardedSets:
+                        continue
+                    jediTaskID,datasetID,fileID = idSet
+                    varMap = {}
+                    varMap[':jediTaskID'] = jediTaskID
+                    varMap[':datasetID']  = datasetID
+                    varMap[':fileID']     = fileID
+                    varMap[':status']     = EventServiceUtils.ST_discarded
+                    varMap[':esFinished'] = EventServiceUtils.ST_finished
+                    varMap[':esDone']     = EventServiceUtils.ST_done
+                    self.cur.execute(sqlDE+comment, varMap)
+                    varMap[':status']      = EventServiceUtils.ST_cancelled
+                    varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
+                    varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
+                    varMap[':esFatal']     = EventServiceUtils.ST_fatal
+                    varMap[':esFailed']    = EventServiceUtils.ST_failed
+                    self.cur.execute(sqlCE+comment, varMap)
             # commit
             if useCommit:
                 if not self._commit():

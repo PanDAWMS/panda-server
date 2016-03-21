@@ -1,5 +1,9 @@
 Release Notes
 
+* 3/21/2016
+  * fixed ES merge retry to take attemptNr into account
+  * fixed killESC for multiple inputs
+  
 * 3/18/2016
   * resetting ramCount to 0 for ES merge
 
