@@ -1,5 +1,9 @@
 Release Notes
 
+* 3/23/2016
+  * added checkClonedJob
+  * changed localEsMerge to send merge jobs to score
+
 * 3/21/2016
   * changed checkTaskStatus to allow updates in exhausted
   * fixed retryJob not to add metadata

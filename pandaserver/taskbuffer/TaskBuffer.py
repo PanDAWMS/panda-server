@@ -2971,6 +2971,19 @@ class TaskBuffer:
 
 
 
+    # check for cloned jobs
+    def checkClonedJob(self,jobSpec):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.checkClonedJob(jobSpec)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 
