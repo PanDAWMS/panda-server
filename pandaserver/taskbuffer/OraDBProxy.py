@@ -14365,7 +14365,6 @@ class DBProxy:
                 # look for a site for merging
                 if lookForMergeSite:
                     # get sites
-                    print sqlSN+comment+str(varMap)
                     self.cur.execute(sqlSN+comment,varMap)
                     resSN = self.cur.fetchall()
                     # compare number of pilot requests
