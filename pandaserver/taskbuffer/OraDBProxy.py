@@ -12313,6 +12313,10 @@ class DBProxy:
                 tmpFileSpec.attemptNr = tmpAttemptNr-1
                 pseudoFiles.append(tmpFileSpec)
             _logger.debug(methodName+' {0} pseudo files'.format(len(pseudoFiles)))
+        # flag for job cloning
+        useJobCloning = False
+        if EventServiceUtils.isEventServiceJob(jobSpec) and EventServiceUtils.isJobCloningJob(jobSpec):
+            useJobCloning = True
         for fileSpec in jobSpec.Files+pseudoFiles:
             # skip if no JEDI
             if fileSpec.fileID == 'NULL':
@@ -12398,6 +12402,13 @@ class DBProxy:
             # failed attempts
             if updateFailedAttempt == True:
                 sqlFile += ",failedAttempt=failedAttempt+1"
+            # set correct PandaID for job cloning 
+            if useJobCloning:
+                varMap[':PandaID'] = jobSpec.PandaID
+                if fileSpec.type in ['log','output']:
+                    sqlFile += ",outPandaID=:PandaID,PandaID=:PandaID"
+                else:
+                    sqlFile += ",PandaID=:PandaID"
             # metadata
             if updateMetadata:
                 # set file metadata

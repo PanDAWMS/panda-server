@@ -1,6 +1,7 @@
 Release Notes
 
 * 3/23/2016
+  * fixed cloned jobs to set pandaIDs in Dataset_Contents
   * added changeTaskModTimePanda and triggerTaskBrokerage
   * fixed AdderAtlas for RSEProtocolNotSupported
   * added checkClonedJob
