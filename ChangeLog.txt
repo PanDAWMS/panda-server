@@ -1,6 +1,7 @@
 Release Notes
 
 * 3/23/2016
+  * added changeTaskModTimePanda and triggerTaskBrokerage
   * fixed AdderAtlas for RSEProtocolNotSupported
   * added checkClonedJob
   * changed localEsMerge to send merge jobs to score

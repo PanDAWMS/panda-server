@@ -8,6 +8,7 @@ import sys
 import time
 import json
 import types
+import datetime
 import cPickle as pickle
 import jobdispatcher.Protocol as Protocol
 import brokerage.broker
@@ -2166,3 +2167,32 @@ def killUnfinishedJobs(req,jediTaskID,code=None,useMailAsID=None):
     ids = userIF.getPandaIDsWithTaskID(jediTaskID)
     # kill
     return userIF.killJobs(ids,user,host,code,prodManager,useMailAsID,fqans)
+
+
+
+# change modificationTime for task
+def changeTaskModTimePanda(req,jediTaskID,diffValue):
+    # check security
+    if not isSecure(req):
+        return pickle.dumps((False,'secure connection is required'))
+    # get DN
+    user = None
+    if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        user = _getDN(req)        
+    # check role
+    prodRole = _isProdRoleATLAS(req)
+    # only prod managers can use this method
+    if not prodRole:
+        return pickle.dumps((False,"production or pilot role required"))
+    # check jediTaskID
+    try:
+        jediTaskID = long(jediTaskID)
+    except:
+        return pickle.dumps((False,'jediTaskID must be an integer'))
+    try:
+        diffValue = int(diffValue)
+        attrValue = datetime.datetime.now() + datetime.timedelta(hours=diffValue)
+    except:
+        return pickle.dumps((False,'failed to convert {0} to time diff'.format(diffValue)))
+    ret = userIF.changeTaskAttributePanda(jediTaskID,'modificationTime',attrValue)
+    return pickle.dumps((ret,None))
