@@ -1,5 +1,8 @@
 Release Notes
 
+* 3/24/2016
+  * fixed getEventRanges to kill unused consumers if no more events
+
 * 3/23/2016
   * fixed cloned jobs to set pandaIDs in Dataset_Contents
   * added changeTaskModTimePanda and triggerTaskBrokerage

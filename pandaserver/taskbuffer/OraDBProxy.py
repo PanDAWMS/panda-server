@@ -13732,6 +13732,11 @@ class DBProxy:
         tmpLog = LogWrapper(_logger,methodName)
         tmpLog.debug("start nRanges={0}".format(nRanges))
         try:
+            # convert nRanges to int
+            try:
+                nRanges = int(nRanges)
+            except:
+                nRanges = 8
             # sql to get job
             sqlJ  = "SELECT jobStatus,commandToPilot FROM {0}.jobsActive4 ".format(panda_config.schemaPANDA)
             sqlJ += "WHERE PandaID=:pandaID "
@@ -13741,14 +13746,14 @@ class DBProxy:
             sql += "FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sql += "WHERE PandaID=:jobsetID AND status=:eventStatus AND attemptNr>:minAttemptNr "
             sql += "ORDER BY def_min_eventID "
-            sql += ") WHERE rownum<={0} ".format(nRanges)
+            sql += ") WHERE rownum<={0} ".format(nRanges+1)
             # sql to get ranges with jediTaskID
             sqlW  = 'SELECT * FROM ('
             sqlW += 'SELECT jediTaskID,datasetID,fileID,attemptNr,job_processID,def_min_eventID,def_max_eventID '
             sqlW += "FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
             sqlW += "WHERE jediTaskID=:jediTaskID AND PandaID=:jobsetID AND status=:eventStatus AND attemptNr>:minAttemptNr "
             sqlW += "ORDER BY def_min_eventID "
-            sqlW += ") WHERE rownum<={0} ".format(nRanges)
+            sqlW += ") WHERE rownum<={0} ".format(nRanges+1)
             # sql to get file info
             sqlF  = "SELECT lfn,GUID,scope FROM {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
             sqlF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID " 
@@ -13768,6 +13773,7 @@ class DBProxy:
             resJ = self.cur.fetchone()
             toSkip = True
             retRanges = []
+            noMoreEvents = False
             if resJ == None:
                 # job not found
                 tmpLog.debug("skip job not found")
@@ -13791,6 +13797,10 @@ class DBProxy:
                 else:
                     self.cur.execute(sql+comment, varMap)
                 resList = self.cur.fetchall()
+                # check if more events are available
+                if len(resList) <= nRanges:
+                    noMoreEvents = True
+                resList = resList[:nRanges]
                 # make dict
                 fileInfo = {}
                 for jediTaskID,datasetID,fileID,attemptNr,job_processID,startEvent,lastEvent in resList:
@@ -13843,7 +13853,7 @@ class DBProxy:
             if not self._commit():
                 raise RuntimeError, 'Commit error'
             # kill unused consumers
-            if not toSkip and retRanges == [] and jediTaskID != None:
+            if not toSkip and (retRanges == [] or noMoreEvents) and jediTaskID != None:
                 tmpJobSpec = JobSpec()
                 tmpJobSpec.PandaID = pandaID
                 tmpJobSpec.jobsetID = jobsetID
