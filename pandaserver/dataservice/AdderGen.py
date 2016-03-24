@@ -131,7 +131,7 @@ class AdderGen:
                             self.jobStatus = 'failed'
                             self.job.ddmErrorCode = ErrorCode.EC_Adder
                             self.job.ddmErrorDiag = "failed to lock semaphore for job cloning"
-                            self.logger.debug("set jobStatus={0} since failed to lock semaphore for job cloning".format(self.jobStatus))
+                            self.logger.debug("set jobStatus={0} since did not get semaphore for job cloning".format(self.jobStatus))
                 # keep old status
                 oldJobStatus = self.job.jobStatus
                 # set job status
