@@ -16477,6 +16477,39 @@ class DBProxy:
             return None
 
 
+    def forceTaskParameterRecalculation(self, taskID):
+        """
+        Forces the recalculation of the CPU time of a task:
+         1. set the walltimeUnit to NULL and the modificationTime to Now
+         2. AtlasProdWatchDog > JediDBProxy.setScoutJobDataToTasks will pick up tasks with walltimeUnit == NULL
+            and modificationTime > Now - 24h. This will trigger a recalculation of the task parameters (outDiskCount,
+            outDiskUnit, outDiskCount, walltime, walltimeUnit, cpuTime, ioIntensity, ioIntensityUnit, ramCount, ramUnit,
+            workDiskCount, workDiskUnit, workDiskCount)
+        """
+        comment = ' /* DBProxy.forceTaskParameterRecalculation */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " TaskID={1}>".format(taskID)
+        tmpLog = LogWrapper(_logger, methodName)
+        tmpLog.debug("start")
+
+        timeNow = datetime.datetime.utcnow()
+
+        # update the task if it was not already updated in the last 30 minutes (avoid continuous recalculation)
+        sql  = """
+               UPDATE ATLAS_PANDA.jedi_tasks
+               SET walltimeUnit=NULL, modificationTime=:timeNow
+               WHERE jediTask=:taskID AND modificationTime < sysdate - INTERVAL '30' MINUTE
+               """
+        varMap={"taskID": taskID, "timeNow": timeNow}
+        self.conn.begin()
+        self.cur.execute(sql, varMap)
+        if not self._commit():
+            raise RuntimeError, 'Commit error'
+
+        tmpLog.debug("Forced recalculation of CPUTime")
+        return
+
+
     # throttle jobs for resource shares
     def throttleJobsForResourceShare(self,site):
         comment = ' /* DBProxy.throttleJobsForResourceShare */'
