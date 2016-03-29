@@ -16488,7 +16488,7 @@ class DBProxy:
         """
         comment = ' /* DBProxy.forceTaskParameterRecalculation */'
         methodName = comment.split(' ')[-2].split('.')[-1]
-        methodName += " TaskID={1}>".format(taskID)
+        methodName += " TaskID={0}>".format(taskID)
         tmpLog = LogWrapper(_logger, methodName)
         tmpLog.debug("start")
 
