@@ -16498,7 +16498,7 @@ class DBProxy:
         sql  = """
                UPDATE ATLAS_PANDA.jedi_tasks
                SET walltimeUnit=NULL, modificationTime=:timeNow
-               WHERE jediTask=:taskID AND modificationTime < sysdate - INTERVAL '30' MINUTE
+               WHERE jediTaskId=:taskID AND modificationTime < sysdate - INTERVAL '30' MINUTE
                """
         varMap={"taskID": taskID, "timeNow": timeNow}
         self.conn.begin()
