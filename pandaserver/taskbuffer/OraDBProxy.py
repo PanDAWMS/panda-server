@@ -518,6 +518,18 @@ class DBProxy:
                         varMap[':esFatal']     = EventServiceUtils.ST_fatal
                         varMap[':esFailed']    = EventServiceUtils.ST_failed
                         self.cur.execute(sqlJediCEvt+comment, varMap)
+                        # unset processed_upto for old failed events
+                        sqlJediFEvt  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+                        sqlJediFEvt += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
+                        sqlJediFEvt += "SET processed_upto_eventID=NULL "
+                        sqlJediFEvt += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+                        sqlJediFEvt += "AND status=:esFailed AND processed_upto_eventID IS NOT NULL "
+                        varMap = {}
+                        varMap[':jediTaskID']  = file.jediTaskID
+                        varMap[':datasetID']   = file.datasetID
+                        varMap[':fileID']      = file.fileID
+                        varMap[':esFailed']    = EventServiceUtils.ST_failed
+                        self.cur.execute(sqlJediFEvt+comment, varMap)
                         # insert new ranges
                         sqlJediEvent  = "INSERT INTO {0}.JEDI_Events ".format(panda_config.schemaJEDI)
                         sqlJediEvent += "(jediTaskID,datasetID,PandaID,fileID,attemptNr,status,"

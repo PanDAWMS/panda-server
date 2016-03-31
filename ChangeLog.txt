@@ -1,5 +1,8 @@
 Release Notes
 
+* 3/31/2016
+  * added Oracle EI stuff
+
 * 3/24/2016
   * fixed getEventRanges to kill unused consumers if no more events
 
