@@ -369,5 +369,8 @@ ei_dbuser = ATLAS_EI_PANDA_R
 # password
 ei_dbpasswd = FIXME
 
+# database
+ei_dbname = PandaDB
+
 # timout value
 ei_dbtimeout = 300

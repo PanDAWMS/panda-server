@@ -16835,7 +16835,7 @@ class DBProxy:
                     for tmpPandaID, in resRR:
                         esPandaIDs.add(tmpPandaID)
             # sql to update ES job
-            sqlUE  = "UPDATE {0} SET jobStatus=:newStatus,modificationTime=CURRENT_DATE "
+            sqlUE  = "UPDATE {0} SET jobStatus=:newStatus,stateChangeTime=CURRENT_DATE "
             sqlUE += "WHERE PandaID=:PandaID AND jobStatus=:oldStatus AND modificationTime>(CURRENT_DATE-30) "
             for tmpPandaID in esPandaIDs:
                 varMap = {}
