@@ -1,5 +1,8 @@
 Release Notes
 
+* 4/4/2016
+  * fixed nucleus.getAssoicatedEndpoint for dst:
+
 * 4/1/2016
   * changed updateRelatedEventServiceJobs to update stateChangeTime
 
