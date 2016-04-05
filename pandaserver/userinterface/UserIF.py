@@ -84,10 +84,10 @@ class UserIF:
                 userVO = job0.VO
         except (IndexError, AttributeError) as e:
             _logger.error("submitJobs : checking userVO. userVO not found, defaulting to %s. (Exception %s)" %(userVO, e))
-        # only prod can submit atlas jobs
-        if userVO == 'atlas' and not prodRole:
-            _logger.error("submitJobs : production role is missing for {0}".format(userVO))
-            #return "ERROR: production role is required to submit {0} jobs".format(userVO)
+        # atlas jobs require FQANs
+        if userVO == 'atlas' and userFQANs == []:
+            _logger.error("submitJobs : VOMS FQANs are missing in your proxy. They are required for {0}".format(userVO))
+            #return "ERROR: VOMS FQANs are missing. They are required for {0}".format(userVO)
         # get LSST pipeline username
         if userVO.lower() == 'lsst':
             try:

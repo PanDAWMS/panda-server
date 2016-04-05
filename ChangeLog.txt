@@ -1,6 +1,7 @@
 Release Notes
 
 * 4/5/2016
+  * changed submitJobs to require FQANs for atlas
   * fixed ppE to use sites with corecount=null when looking for score
   * fixed killUnusedESC to kill running consumers when killAll
   * added prod role check in submitJob
