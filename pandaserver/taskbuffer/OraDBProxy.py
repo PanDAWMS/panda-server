@@ -14389,14 +14389,19 @@ class DBProxy:
                 varMap[':siteid'] = jobSpec.computingSite
                 self.cur.execute(sqlWM+comment, varMap)
                 resWM = self.cur.fetchone()
+                resSN = []
                 if resWM != None and resWM[0] != None and 'localEsMerge' in resWM[0]:
                     # get sites in the nucleus associated to the site to run merge jobs in the same nucleus
                     sqlSN  = "SELECT ps2.panda_site_name,ps2.default_ddm_endpoint "
                     sqlSN += "FROM ATLAS_PANDA.panda_site ps1,ATLAS_PANDA.panda_site ps2,ATLAS_PANDAMETA.schedconfig sc "
-                    sqlSN += "WHERE ps1.panda_site_name=:site AND ps1.site_name=ps2.site_name AND sc.siteid=ps2.panda_site_name AND sc.corecount=1 "
+                    sqlSN += "WHERE ps1.panda_site_name=:site AND ps1.site_name=ps2.site_name AND sc.siteid=ps2.panda_site_name "
+                    sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1) "
                     varMap = {}
                     varMap[':site'] = jobSpec.computingSite
-                else:
+                    # get sites
+                    self.cur.execute(sqlSN+comment,varMap)
+                    resSN = self.cur.fetchall()
+                if len(resSN) == 0:
                     # run merge jobs at destination
                     if not jobSpec.destinationSE.startswith('nucleus:'):
                         jobSpec.computingSite = jobSpec.destinationSE
@@ -14404,16 +14409,17 @@ class DBProxy:
                     else:
                         # get sites in a nucleus
                         sqlSN  = "SELECT panda_site_name,default_ddm_endpoint FROM ATLAS_PANDA.panda_site ps,ATLAS_PANDAMETA.schedconfig sc "
-                        sqlSN += "WHERE site_name=:nucleus AND sc.siteid=ps.panda_site_name and sc.corecount=1 "
+                        sqlSN += "WHERE site_name=:nucleus AND sc.siteid=ps.panda_site_name "
+                        sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1) "
                         varMap = {}
                         varMap[':nucleus'] = jobSpec.destinationSE.split(':')[-1]
+                        # get sites
+                        self.cur.execute(sqlSN+comment,varMap)
+                        resSN = self.cur.fetchall()
                 # look for a site for merging
                 if lookForMergeSite:
-                    # get sites
-                    self.cur.execute(sqlSN+comment,varMap)
-                    resSN = self.cur.fetchall()
                     # compare number of pilot requests
-                    maxNumPilot = -1
+                    maxNumPilot = 0
                     sqlUG  = "SELECT updateJob+getJob FROM ATLAS_PANDAMETA.sitedata "
                     sqlUG += "WHERE site=:panda_site AND HOURS=:hours AND FLAG=:flag "
                     for tmp_panda_site_name,tmp_ddm_endpoint in resSN:
@@ -14448,7 +14454,8 @@ class DBProxy:
             retI = self.cur.execute(sql1+comment, varMap)
             # set PandaID
             jobSpec.PandaID = long(self.cur.getvalue(varMap[':newPandaID']))
-            msgStr = '{0} Generate new PandaID -> {1}#{2} '.format(methodName,jobSpec.PandaID,jobSpec.attemptNr)
+            msgStr = '{0} Generate new PandaID -> {1}#{2} at {3} '.format(methodName,jobSpec.PandaID,jobSpec.attemptNr,
+                                                                          jobSpec.computingSite)
             if doMerging:
                 msgStr += "for merge"
             else:
