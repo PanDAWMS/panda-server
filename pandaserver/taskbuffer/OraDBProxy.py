@@ -13879,7 +13879,7 @@ class DBProxy:
                     tmpJobSpec.PandaID = pandaID
                     tmpJobSpec.jobsetID = jobsetID
                     tmpJobSpec.jediTaskID = jediTaskID
-                    self.killUnusedEventServiceConsumers(tmpJobSpec,False,killAll=True)
+                    self.killUnusedEventServiceConsumers(tmpJobSpec,False)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -14987,23 +14987,17 @@ class DBProxy:
             # sql to get PandaIDs of consumers
             sqlCP  = "SELECT PandaID,specialHandling FROM ATLAS_PANDA.{0} "
             sqlCP += "WHERE jediTaskID=:jediTaskID AND jobsetID=:jobsetID "
-            if killAll:
-                sqlCP += "AND jobStatus IN (:st1,:st2,:st3,:st4,:st5,:st6,:st7,:st8) "
-            else:
+            if not killAll:
                 sqlCP += "AND jobStatus IN (:st1,:st2,:st3,:st4) "
             # get PandaIDs
             varMap = {}
             varMap[':jediTaskID'] = job.jediTaskID
             varMap[':jobsetID']   = job.jobsetID
-            varMap[':st1'] = 'activated'
-            varMap[':st2'] = 'assigned'
-            varMap[':st3'] = 'waiting'
-            varMap[':st4'] = 'throttled'
-            if killAll:
-                varMap[':st5'] = 'running'
-                varMap[':st6'] = 'holding'
-                varMap[':st7'] = 'sent'
-                varMap[':st8'] = 'starting'
+            if not killAll:
+                varMap[':st1'] = 'activated'
+                varMap[':st2'] = 'assigned'
+                varMap[':st3'] = 'waiting'
+                varMap[':st4'] = 'throttled'
             self.cur.arraysize = 100000
             killPandaIDsMap = {}
             for tableName in ['jobsActive4','jobsDefined4','jobsWaiting4']:

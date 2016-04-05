@@ -1,7 +1,7 @@
 Release Notes
 
 * 4/5/2016
-  * fixed killUnusedESC to kill running consumers
+  * fixed killUnusedESC to kill running consumers when killAll
   * added prod role check in submitJob
 
 * 4/4/2016
