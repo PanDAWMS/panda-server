@@ -16493,21 +16493,27 @@ class DBProxy:
         tmpLog.debug("start")
 
         timeNow = datetime.datetime.utcnow()
+        timeLimit = timeNow -  datetime.timedelta(minutes=30)
 
         # update the task if it was not already updated in the last 30 minutes (avoid continuous recalculation)
         sql  = """
                UPDATE ATLAS_PANDA.jedi_tasks
                SET walltimeUnit=NULL, modificationTime=:timeNow
-               WHERE jediTaskId=:taskID AND modificationTime < sysdate - INTERVAL '30' MINUTE
+               WHERE jediTaskId=:taskID AND modificationTime < :timeLimit
                """
-        varMap={"taskID": taskID, "timeNow": timeNow}
+        varMap={"taskID": taskID,
+                "timeNow": timeNow,
+                "timeLimit": timeLimit}
         self.conn.begin()
         self.cur.execute(sql, varMap)
+
+        rowcount = self.cur.rowcount
+
         if not self._commit():
             raise RuntimeError, 'Commit error'
 
         tmpLog.debug("Forced recalculation of CPUTime")
-        return
+        return rowcount
 
 
     # throttle jobs for resource shares
