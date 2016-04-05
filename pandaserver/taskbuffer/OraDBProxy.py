@@ -1405,7 +1405,7 @@ class DBProxy:
                     elif retJC['lock'] == True:
                         # kill other clones if the job done after locking semaphore
                         self.killEventServiceConsumers(job,False,False)
-                        self.killUnusedEventServiceConsumers(job,False)
+                        self.killUnusedEventServiceConsumers(job,False,killAll=True)
                     else:
                         # failed to lock semaphore
                         if retJC['last'] == False:
@@ -13744,11 +13744,23 @@ class DBProxy:
         tmpLog = LogWrapper(_logger,methodName)
         tmpLog.debug("start nRanges={0}".format(nRanges))
         try:
-            # convert nRanges to int
+            # convert to int
             try:
                 nRanges = int(nRanges)
             except:
                 nRanges = 8
+            try:
+                pandaID = long(pandaID)
+            except:
+                pass
+            try:
+                jobsetID = long(jobsetID)
+            except:
+                pass
+            try:
+                jediTaskID = long(jediTaskID)
+            except:
+                pass
             # sql to get job
             sqlJ  = "SELECT jobStatus,commandToPilot FROM {0}.jobsActive4 ".format(panda_config.schemaPANDA)
             sqlJ += "WHERE PandaID=:pandaID "
@@ -13861,16 +13873,16 @@ class DBProxy:
                     else:
                         # append
                         retRanges.append(tmpDict)
+                # kill unused consumers
+                if not toSkip and (retRanges == [] or noMoreEvents) and jediTaskID != None:
+                    tmpJobSpec = JobSpec()
+                    tmpJobSpec.PandaID = pandaID
+                    tmpJobSpec.jobsetID = jobsetID
+                    tmpJobSpec.jediTaskID = jediTaskID
+                    self.killUnusedEventServiceConsumers(tmpJobSpec,False,killAll=True)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
-            # kill unused consumers
-            if not toSkip and (retRanges == [] or noMoreEvents) and jediTaskID != None:
-                tmpJobSpec = JobSpec()
-                tmpJobSpec.PandaID = pandaID
-                tmpJobSpec.jobsetID = jobsetID
-                tmpJobSpec.jediTaskID = jediTaskID
-                self.killUnusedEventServiceConsumers(tmpJobSpec,True)
             tmpLog.debug("done {0}".format(str(retRanges)))
             return json.dumps(retRanges)
         except:

@@ -44,7 +44,7 @@ class UserIF:
         try:
             # deserialize jobspecs
             jobs = WrappedPickle.loads(jobsStr)
-            _logger.debug("submitJobs %s len:%s FQAN:%s" % (user,len(jobs),str(userFQANs)))
+            _logger.debug("submitJobs %s len:%s prodRole=%s FQAN:%s" % (user,len(jobs),prodRole,str(userFQANs)))
             maxJobs = 5000
             if len(jobs) > maxJobs:
                 _logger.error("too may jobs more than %s" % maxJobs)
@@ -75,18 +75,19 @@ class UserIF:
         # reject injection for bad prodSourceLabel
         if not goodProdSourceLabel:
             return "ERROR: production role is required for production jobs"
-        
         job0 = None
         # get user VO
         userVO = 'atlas'
-
         try:
             job0 = jobs[0]
-            if job0.VO:
+            if not job0.VO in [None,'','NULL']:
                 userVO = job0.VO
         except (IndexError, AttributeError) as e:
             _logger.error("submitJobs : checking userVO. userVO not found, defaulting to %s. (Exception %s)" %(userVO, e))
-                
+        # only prod can submit atlas jobs
+        if userVO == 'atlas' and not prodRole:
+            _logger.error("submitJobs : production role is missing for {0}".format(userVO))
+            #return "ERROR: production role is required to submit {0} jobs".format(userVO)
         # get LSST pipeline username
         if userVO.lower() == 'lsst':
             try:
