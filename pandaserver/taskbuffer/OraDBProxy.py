@@ -13383,8 +13383,8 @@ class DBProxy:
         umPandaIDs = []
         umCheckedIDs = []
         # sql to get file counts
-        sqlGFC  = "SELECT status,COUNT(*) FROM ATLAS_PANDA.JEDI_Dataset_Contents "
-        sqlGFC += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID GROUP BY status "
+        sqlGFC  = "SELECT status,PandaID,outPandaID FROM ATLAS_PANDA.JEDI_Dataset_Contents "
+        sqlGFC += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND PandaID IS NOT NULL "
         # sql to update nFiles in JEDI datasets
         sqlUNF  = "UPDATE ATLAS_PANDA.JEDI_Datasets "
         sqlUNF += "SET nFilesOnHold=0,nFiles=:nFiles,"
@@ -13432,19 +13432,24 @@ class DBProxy:
                         varMap = {}
                         varMap[':jediTaskID'] = tmpFile.jediTaskID
                         varMap[':datasetID']  = tmpFile.datasetID
-                        self.cur.arraysize = 100
+                        self.cur.arraysize = 100000
                         _logger.debug(sqlGFC+comment+str(varMap))
                         self.cur.execute(sqlGFC+comment, varMap)
                         resListGFC = self.cur.fetchall()
                         varMap = {}
                         tmpNumFiles = 0
                         tmpNumReady = 0
-                        for tmpFileStatus,tmpFileCount in resListGFC:
+                        for tmpFileStatus,tmpPandaID,tmpOutPandaID in resListGFC:
                             if tmpFileStatus in ['finished','failed','cancelled','notmerged',
                                                  'ready','lost','broken','picked','nooutput']:
-                                tmpNumFiles += tmpFileCount
-                                if tmpFileStatus in ['ready']:
-                                    tmpNumReady += tmpFileCount
+                                pass
+                            elif tmpFileStatus == 'running' and tmpPandaID != tmpOutPandaID:
+                                pass
+                            else:
+                                continue
+                            tmpNumFiles += 1
+                            if tmpFileStatus in ['ready']:
+                                tmpNumReady += 1
                         # update nFiles
                         varMap = {}
                         varMap[':jediTaskID'] = tmpFile.jediTaskID
