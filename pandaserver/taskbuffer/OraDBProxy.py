@@ -9460,8 +9460,11 @@ class DBProxy:
             sqlSite += ") "
             if usingCloud != '':
                 varMapCloud = {}
-                sqlCloud = "WHERE computingSite=tabS.siteid AND tabS.cloud=:cloud "
-                varMapCloud[':cloud'] = usingCloud
+                if usingCloud == 'WORLD':
+                    sqlCloud = "WHERE computingSite=tabS.siteid "
+                else:
+                    sqlCloud = "WHERE computingSite=tabS.siteid AND tabS.cloud=:cloud "
+                    varMapCloud[':cloud'] = usingCloud
             sqlT = "AND prodSourceLabel=:prodSourceLabel) "
             sqlT += "GROUP BY jobStatus"
             if usingGroup:
@@ -10075,6 +10078,8 @@ class DBProxy:
             faresharePolicy = {}
             for siteid,faresharePolicyStr,cloudName in res:
                 try:
+                    # consolidate to WORLD
+                    cloudName = 'WORLD'
                     # share is undefined
                     usingCloudShare = ''
                     if faresharePolicyStr in ['',None,' None']:

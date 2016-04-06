@@ -1,6 +1,7 @@
 Release Notes
 
 * 4/6/2016
+  * fixed fairshare for WORLD
   * introduced connection pool for EI lookup
 
 * 4/5/2016
