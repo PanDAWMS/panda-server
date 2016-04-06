@@ -17,7 +17,6 @@ from dataservice.DDM import dq2Common
 from dataservice.DDM import dq2Info
 from dataservice.DDM import rucioAPI
 from taskbuffer.JobSpec import JobSpec
-from taskbuffer.EiDBProxy import EiDBProxy
 import brokerage.broker
 
 from config import panda_config
@@ -1231,8 +1230,8 @@ class DynDataDistributer:
             from eventLookupClientEI import eventLookupClientEI
             elssiIF = eventLookupClientEI()
             # Oracle EI
-            eiProxy = EiDBProxy()
-            eiProxy.connect()
+            from taskbuffer.EiTaskBuffer import eiTaskBuffer
+            eiTaskBuffer.init()
             # loop over all events
             nEventsPerLoop = 500
             iEventsTotal = 0
@@ -1247,7 +1246,7 @@ class DynDataDistributer:
                                                                                    regTime.microseconds/1000,
                                                                                    len(tmpRunEvtList)))
                 regStart = datetime.datetime.utcnow()
-                statOra,guidListOraEI = eiProxy.getGUIDsFromEventIndex(tmpRunEvtList,streamName,amiTag,dsType)
+                statOra,guidListOraEI = eiTaskBuffer.getGUIDsFromEventIndex(tmpRunEvtList,streamName,amiTag,dsType)
                 regTime = datetime.datetime.utcnow()-regStart
                 self.putLog("Oracle EI took {0}.{1:3d} sec for {2} events" .format(regTime.seconds,
                                                                                    regTime.microseconds/1000,

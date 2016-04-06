@@ -19,7 +19,7 @@ _logger = PandaLogger().getLogger('DBProxyPool')
 
 class DBProxyPool:
     
-    def __init__(self,dbhost,dbpasswd,nConnection,useTimeout=False):
+    def __init__(self,dbhost,dbpasswd,nConnection,useTimeout=False,dbProxyClass=None):
         # crate lock for callers
         self.lock = Lock()
         self.callers = []
@@ -28,7 +28,9 @@ class DBProxyPool:
         self.proxyList = Queue.Queue(nConnection)
         for i in range(nConnection):
             _logger.debug("connect -> %s " % i)
-            if useTimeout and hasattr(panda_config,'usedbtimeout') and \
+            if dbProxyClass != None:
+                proxy = dbProxyClass()
+            elif useTimeout and hasattr(panda_config,'usedbtimeout') and \
                    panda_config.usedbtimeout == True:
                 proxy = ConBridge()
             else:

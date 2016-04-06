@@ -1,5 +1,8 @@
 Release Notes
 
+* 4/6/2016
+  * introduced connection pool for EI lookup
+
 * 4/5/2016
   * fixed updateUnmergeDS for running
   * changed submitJobs to require FQANs for atlas
