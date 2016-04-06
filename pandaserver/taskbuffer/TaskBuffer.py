@@ -2867,6 +2867,19 @@ class TaskBuffer:
 
 
 
+    # retry module action: recalculate the Task Parameters
+    def requestTaskParameterRecalculation(self, taskID):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.requestTaskParameterRecalculation(taskID)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
     # throttle jobs for resource shares
     def throttleJobsForResourceShare(self,site):
         # get proxy

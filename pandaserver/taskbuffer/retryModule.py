@@ -14,17 +14,18 @@ INCREASE_CPU = 'increase_cputime'
 
 
 def pandalog(message):
-    """Function to send message to panda logger.
+    """
+    Function to send message to panda logger.
     https://github.com/PanDAWMS/panda-jedi/blob/master/pandajedi/jediorder/JobGenerator.py#L405
     """
     try:
-        #get logger and lock it
+        # get logger and lock it
         tmpPandaLogger = PandaLogger()
         tmpPandaLogger.lock()
-        #set category (usually prod) and type
+        # set category (usually prod) and type
         tmpPandaLogger.setParams({'Type':'retryModule'})
         tmpLogger = tmpPandaLogger.getHttpLogger(panda_config.loggername)
-        #send the message and release the logger
+        # send the message and release the logger
         tmpLogger.debug(message)
         tmpPandaLogger.release()
     except Exception as e:
@@ -32,7 +33,8 @@ def pandalog(message):
 
 
 def timeit(method):
-    """Decorator function to time the execution time of any given method. Use as decorator.
+    """
+    Decorator function to time the execution time of any given method. Use as decorator.
     """
     def timed(*args, **kwargs):
         _logger.debug("Entered timed")
@@ -47,7 +49,8 @@ def timeit(method):
 
 
 def safe_match(pattern, message):
-    """Wrapper around re.search with simple exception handling
+    """
+    Wrapper around re.search with simple exception handling
     """
     matches = False
     try:
@@ -60,7 +63,8 @@ def safe_match(pattern, message):
 
 def conditions_apply(errordiag_job, architecture_job, release_job, wqid_job,
                      errordiag_rule, architecture_rule, release_rule, wqid_rule):
-    """Checks that the error regexp, architecture, release and work queue of rule and job match, 
+    """
+    Checks that the error regexp, architecture, release and work queue of rule and job match,
     only in case the attributes are defined for the rule
     """
     _logger.debug("Entered conditions_apply %s"%(locals()))
@@ -75,7 +79,8 @@ def conditions_apply(errordiag_job, architecture_job, release_job, wqid_job,
 
 
 def compare_strictness(rule1, rule2):
-    """Return 1 if rule1 is stricter, 0 if equal, -1 if rule2 is stricter
+    """
+    Return 1 if rule1 is stricter, 0 if equal, -1 if rule2 is stricter
     """
     _logger.debug("Entered compare_strictness")
     rule1_weight = 0
@@ -103,7 +108,8 @@ def compare_strictness(rule1, rule2):
 
 
 def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_job):
-    """Do some preliminary validation of the applicable rules.
+    """
+    Do some preliminary validation of the applicable rules.
     - Duplicate rules, (action=limit_retry, maxAttempt=5) vs (action=limit_retry, maxAttempt=7, release=X):
          resolve to the most specific rule, in our example (action=limit_retry, maxAttempt=7, release=X) 
     - Inconsistent rules, e.g. (action=limit_retry, maxAttempt=5) vs (action=limit_retry, maxAttempt=7):
@@ -113,7 +119,7 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
     _logger.debug("Entered preprocess_rules")
     filtered_rules = []
     try:
-        #See if there is a  NO_RETRY rule. Effect of NO_RETRY rules is the same, so just take the first one that appears
+        # See if there is a  NO_RETRY rule. Effect of NO_RETRY rules is the same, so just take the first one that appears
         for rule in rules:
             if (rule['action']!= NO_RETRY or
                 not conditions_apply(error_diag_job, architecture_job, release_job, wqid_job, rule['error_diag'],
@@ -122,7 +128,7 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
             else:
                 filtered_rules.append(rule)
         
-        #See if there is a INCREASE_MEM rule. The effect of INCREASE_MEM rules is the same, so take the first one that appears
+        # See if there is a INCREASE_MEM rule. The effect of INCREASE_MEM rules is the same, so take the first one that appears
         for rule in rules:
             if (rule['action']!= INCREASE_MEM or
                 not conditions_apply(error_diag_job, architecture_job, release_job, wqid_job, rule['error_diag'],
@@ -132,7 +138,7 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
                 filtered_rules.append(rule)
                 break
 
-        #See if there is a INCREASE_CPU rule. The effect of INCREASE_CPU rules is the same, so take the first one that appears
+        # See if there is a INCREASE_CPU rule. The effect of INCREASE_CPU rules is the same, so take the first one that appears
         for rule in rules:
             if (rule['action']!= INCREASE_CPU or
                 not conditions_apply(error_diag_job, architecture_job, release_job, wqid_job, rule['error_diag'],
@@ -142,7 +148,7 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
                 filtered_rules.append(rule)
                 break
                 
-        #See if there is a LIMIT_RETRY rule. Take the narrowest rule, in case of draw take the strictest conditions
+        # See if there is a LIMIT_RETRY rule. Take the narrowest rule, in case of draw take the strictest conditions
         limit_retry_rule = {}
         for rule in rules:
             if (rule['action']!= LIMIT_RETRY or
@@ -172,7 +178,8 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
 #TODO: Add a call to the retrial rules from the UserIF.killJob
 @timeit
 def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag, attemptNr):
-    """Get rules from DB and applies them to a failed job. Actions can be:
+    """
+    Get rules from DB and applies them to a failed job. Actions can be:
     - flag the job so it is not retried again (error code is a final state and retrying will not help)
     - limit the number of retries
     - increase the memory of a job if it failed because of insufficient memory
@@ -202,10 +209,10 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
                 error_diag_rule = rule['error_diag']
                 action = rule['action']
                 parameters = rule['params']
-                architecture = rule['architecture'] #cmtconfig
-                release = rule['release'] #transHome
-                wqid = rule['wqid'] #work queue ID
-                active = rule['active'] #If False, don't apply rule, only log
+                architecture = rule['architecture'] # cmtconfig
+                release = rule['release'] # transHome
+                wqid = rule['wqid'] # work queue ID
+                active = rule['active'] # If False, don't apply rule, only log
                 
                 _logger.debug("error_diag_rule {0}, action {1}, parameters {2}, architecture {3}, release {4}, wqid {5}, active {6}"
                               .format(error_diag_rule, action, parameters, architecture, release, wqid, active))
@@ -221,7 +228,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
                 if action == NO_RETRY:
                     if active:
                         task_buffer.setMaxAttempt(jobID, job.jediTaskID, job.Files, attemptNr)
-                    #Log to pandamon and logfile
+                    # Log to pandamon and logfile
                     message = "setMaxAttempt for PandaID: {0}, jediTaskID: {1}, maxAttempt: {2}. (ErrorSource: {3}. ErrorCode: {4}. ErrorDiag: {5}. Error/action active: {6})"\
                         .format(jobID, job.jediTaskID, attemptNr, error_source, error_code, error_diag_rule, active)
                     pandalog(message)
@@ -231,7 +238,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
                     try:
                         if active:
                             task_buffer.setMaxAttempt(jobID, job.jediTaskID, job.Files, int(parameters['maxAttempt']))
-                        #Log to pandamon and logfile
+                        # Log to pandamon and logfile
                         message = "setMaxAttempt for PandaID: {0}, jediTaskID: {1}, maxAttempt: {2}. (ErrorSource: {3}. ErrorCode: {4}. ErrorDiag: {5}. Error/action active: {6})"\
                             .format(jobID, job.jediTaskID, int(parameters['maxAttempt']), error_source, error_code, error_diag_rule, active)
                         pandalog(message)
@@ -243,7 +250,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
                     try:
                         if active:
                             task_buffer.increaseRamLimitJobJEDI(job, job.minRamCount, job.jediTaskID)
-                        #Log to pandamon and logfile
+                        # Log to pandamon and logfile
                         message = "increaseRAMLimit for PandaID: {0}, jediTaskID: {1}. (ErrorSource: {2}. ErrorCode: {3}. ErrorDiag: {4}. Error/action active: {5})"\
                             .format(jobID, job.jediTaskID,  error_source, error_code, error_diag_rule, active)
                         pandalog(message)
@@ -254,12 +261,21 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
 
                 elif action == INCREASE_CPU:
                     try:
-                        # for the CPU time rule the active/passive mode will be applied by the DBProxy function
-                        # because we want to monitor the new CPU time in passive mode
-                        new_cputime = task_buffer.increaseCpuTimeTask(jobID, job.jediTaskID, job.computingSite, job.Files, active)
-                        #Log to pandamon and logfile
-                        message = "increaseCpuTime for PandaID: {0}, jediTaskID: {1} to {2} (active: {3}) . (ErrorSource: {4}. ErrorCode: {5}. ErrorDiag: {6}. Error/action active: {7})"\
-                            .format(jobID, job.jediTaskID, new_cputime, active, error_source, error_code, error_diag_rule, active)
+
+                        # request recalculation of task parameters and see if it applied
+                        applied= False
+
+                        if active:
+                            rowcount = task_buffer.requestTaskParameterRecalculation(job.jediTaskID)
+                        else:
+                            rowcount = 0
+
+                        if rowcount:
+                            applied = True
+
+                        # Log to pandamon and logfile
+                        message = "increaseCpuTime requested recalculation of task parameters for PandaID: {0}, jediTaskID: {1} (active: {2}), applied: {3}. (ErrorSource: {4}. ErrorCode: {5}. ErrorDiag: {6}. Error/action active: {7})"\
+                            .format(jobID, job.jediTaskID, active, applied, error_source, error_code, error_diag_rule, active)
                         pandalog(message)
                         _logger.debug(message)
                     except:
