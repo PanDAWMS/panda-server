@@ -2868,11 +2868,11 @@ class TaskBuffer:
 
 
     # retry module action: recalculate the Task Parameters
-    def forceTaskParameterRecalculation(self, taskID):
+    def requestTaskParameterRecalculation(self, taskID):
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.forceTaskParameterRecalculation(taskID)
+        ret = proxy.requestTaskParameterRecalculation(taskID)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

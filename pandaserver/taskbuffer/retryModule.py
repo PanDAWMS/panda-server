@@ -261,17 +261,21 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
 
                 elif action == INCREASE_CPU:
                     try:
+
+                        # request recalculation of task parameters and see if it applied
+                        applied= False
+
                         if active:
-                            rowcount = task_buffer.forceTaskParameterRecalculation(job.jediTaskID)
+                            rowcount = task_buffer.requestTaskParameterRecalculation(job.jediTaskID)
                         else:
                             rowcount = 0
 
                         if rowcount:
-                            triggered = True
+                            applied = True
 
                         # Log to pandamon and logfile
-                        message = "increaseCpuTime requested recalculation of task parameters for PandaID: {0}, jediTaskID: {1} (active: {2}), triggered: {3}. (ErrorSource: {4}. ErrorCode: {5}. ErrorDiag: {6}. Error/action active: {7})"\
-                            .format(jobID, job.jediTaskID, active, triggered, error_source, error_code, error_diag_rule, active)
+                        message = "increaseCpuTime requested recalculation of task parameters for PandaID: {0}, jediTaskID: {1} (active: {2}), applied: {3}. (ErrorSource: {4}. ErrorCode: {5}. ErrorDiag: {6}. Error/action active: {7})"\
+                            .format(jobID, job.jediTaskID, active, applied, error_source, error_code, error_diag_rule, active)
                         pandalog(message)
                         _logger.debug(message)
                     except:

@@ -16477,16 +16477,16 @@ class DBProxy:
             return None
 
 
-    def forceTaskParameterRecalculation(self, taskID):
+    def requestTaskParameterRecalculation(self, taskID):
         """
-        Forces the recalculation of the CPU time of a task:
+        Requests the recalculation of the CPU time of a task:
          1. set the walltimeUnit to NULL and the modificationTime to Now
          2. AtlasProdWatchDog > JediDBProxy.setScoutJobDataToTasks will pick up tasks with walltimeUnit == NULL
             and modificationTime > Now - 24h. This will trigger a recalculation of the task parameters (outDiskCount,
             outDiskUnit, outDiskCount, walltime, walltimeUnit, cpuTime, ioIntensity, ioIntensityUnit, ramCount, ramUnit,
             workDiskCount, workDiskUnit, workDiskCount)
         """
-        comment = ' /* DBProxy.forceTaskParameterRecalculation */'
+        comment = ' /* DBProxy.requestTaskParameterRecalculation */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " TaskID={0}>".format(taskID)
         tmpLog = LogWrapper(_logger, methodName)
