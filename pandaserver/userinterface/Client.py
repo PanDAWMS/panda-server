@@ -1913,3 +1913,36 @@ def killUnfinishedJobs(jediTaskID,code=None,verbose=False,srvID=None,useMailAsID
         errStr = "ERROR killUnfinishedJobs : %s %s" % (type,value)
         print errStr
         return EC_Failed,output+'\n'+errStr
+
+
+
+# trigger task brokerage
+def triggerTaskBrokerage(jediTaskID):
+    """Trigger task brokerge
+
+       args:
+           jediTaskID: jediTaskID of the task to change the attribute
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           return: a tupple of return code and message
+                 0: unknown task
+                 1: succeeded
+                 None: database error 
+    """     
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+    # execute
+    url = baseURLSSL + '/changeTaskModTimePanda'
+    data = {'jediTaskID':jediTaskID,
+            'diffValue':-12}
+    status,output = curl.post(url,data)
+    try:
+        return status,pickle.loads(output)
+    except:
+        errtype,errvalue = sys.exc_info()[:2]
+        errStr = "ERROR triggerTaskBrokerage : %s %s" % (errtype,errvalue)
+        return EC_Failed,output+'\n'+errStr

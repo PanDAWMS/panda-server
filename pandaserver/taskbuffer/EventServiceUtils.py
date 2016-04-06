@@ -23,6 +23,9 @@ singleConsumerType = {'runonce':  '1',
                       'storeonce':'2'}
 dynamicNumEventsToken = 'dy'
 
+# values for job.eventService
+esJobFlagNumber = 1
+esMergeJobFlagNumber = 2
 
 # encode file info
 def encodeFileInfo(lfn,startEvent,endEvent,nEventsPerWorker,maxAttempt=None):
@@ -129,7 +132,7 @@ def isEventServiceMergeSH(specialHandling):
 def setEventServiceMerge(job):
     try:
         # set ES flag
-        job.eventService = 2
+        job.eventService = esMergeJobFlagNumber
         # set flag for merging
         if job.specialHandling == None:
             job.specialHandling = esMergeToken

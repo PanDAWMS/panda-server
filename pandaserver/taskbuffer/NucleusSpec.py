@@ -51,6 +51,8 @@ class NucleusSpec(object):
     # get associated DDM endpoint
     def getAssoicatedEndpoint(self,patt):
         patt = patt.split('/')[-1]
+        if patt.startswith('dst:'):
+            patt = patt.split(':')[-1]
         if patt in self.allDdmEndPoints:
             return self.allDdmEndPoints[patt]
         for endPointName in self.allDdmEndPoints.keys():

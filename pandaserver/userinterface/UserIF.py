@@ -8,6 +8,7 @@ import sys
 import time
 import json
 import types
+import datetime
 import cPickle as pickle
 import jobdispatcher.Protocol as Protocol
 import brokerage.broker
@@ -43,7 +44,7 @@ class UserIF:
         try:
             # deserialize jobspecs
             jobs = WrappedPickle.loads(jobsStr)
-            _logger.debug("submitJobs %s len:%s FQAN:%s" % (user,len(jobs),str(userFQANs)))
+            _logger.debug("submitJobs %s len:%s prodRole=%s FQAN:%s" % (user,len(jobs),prodRole,str(userFQANs)))
             maxJobs = 5000
             if len(jobs) > maxJobs:
                 _logger.error("too may jobs more than %s" % maxJobs)
@@ -74,18 +75,19 @@ class UserIF:
         # reject injection for bad prodSourceLabel
         if not goodProdSourceLabel:
             return "ERROR: production role is required for production jobs"
-        
         job0 = None
         # get user VO
         userVO = 'atlas'
-
         try:
             job0 = jobs[0]
-            if job0.VO:
+            if not job0.VO in [None,'','NULL']:
                 userVO = job0.VO
         except (IndexError, AttributeError) as e:
             _logger.error("submitJobs : checking userVO. userVO not found, defaulting to %s. (Exception %s)" %(userVO, e))
-                
+        # atlas jobs require FQANs
+        if userVO == 'atlas' and userFQANs == []:
+            _logger.error("submitJobs : VOMS FQANs are missing in your proxy. They are required for {0}".format(userVO))
+            #return "ERROR: VOMS FQANs are missing. They are required for {0}".format(userVO)
         # get LSST pipeline username
         if userVO.lower() == 'lsst':
             try:
@@ -2166,3 +2168,32 @@ def killUnfinishedJobs(req,jediTaskID,code=None,useMailAsID=None):
     ids = userIF.getPandaIDsWithTaskID(jediTaskID)
     # kill
     return userIF.killJobs(ids,user,host,code,prodManager,useMailAsID,fqans)
+
+
+
+# change modificationTime for task
+def changeTaskModTimePanda(req,jediTaskID,diffValue):
+    # check security
+    if not isSecure(req):
+        return pickle.dumps((False,'secure connection is required'))
+    # get DN
+    user = None
+    if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        user = _getDN(req)        
+    # check role
+    prodRole = _isProdRoleATLAS(req)
+    # only prod managers can use this method
+    if not prodRole:
+        return pickle.dumps((False,"production or pilot role required"))
+    # check jediTaskID
+    try:
+        jediTaskID = long(jediTaskID)
+    except:
+        return pickle.dumps((False,'jediTaskID must be an integer'))
+    try:
+        diffValue = int(diffValue)
+        attrValue = datetime.datetime.now() + datetime.timedelta(hours=diffValue)
+    except:
+        return pickle.dumps((False,'failed to convert {0} to time diff'.format(diffValue)))
+    ret = userIF.changeTaskAttributePanda(jediTaskID,'modificationTime',attrValue)
+    return pickle.dumps((ret,None))

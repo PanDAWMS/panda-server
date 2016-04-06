@@ -1,5 +1,31 @@
 Release Notes
 
+* 4/5/2016
+  * fixed updateUnmergeDS for running
+  * changed submitJobs to require FQANs for atlas
+  * fixed ppE to use sites with corecount=null when looking for score
+  * fixed killUnusedESC to kill running consumers when killAll
+  * added prod role check in submitJob
+
+* 4/4/2016
+  * fixed nucleus.getAssoicatedEndpoint for dst:
+
+* 4/1/2016
+  * changed updateRelatedEventServiceJobs to update stateChangeTime
+
+* 3/31/2016
+  * added Oracle EI stuff
+
+* 3/24/2016
+  * fixed getEventRanges to kill unused consumers if no more events
+
+* 3/23/2016
+  * fixed cloned jobs to set pandaIDs in Dataset_Contents
+  * added changeTaskModTimePanda and triggerTaskBrokerage
+  * fixed AdderAtlas for RSEProtocolNotSupported
+  * added checkClonedJob
+  * changed localEsMerge to send merge jobs to score
+
 * 3/21/2016
   * changed checkTaskStatus to allow updates in exhausted
   * fixed retryJob not to add metadata

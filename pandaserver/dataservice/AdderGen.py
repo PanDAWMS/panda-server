@@ -121,6 +121,17 @@ class AdderGen:
                                 fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
                                 self.lockXML.close()
                             return
+                    # check for cloned jobs
+                    if EventServiceUtils.isJobCloningJob(self.job):
+                        checkJC = self.taskBuffer.checkClonedJob(self.job)
+                        if checkJC == None:
+                            raise RuntimeError,'failed to check the cloned job'
+                        # failed to lock semaphore
+                        if checkJC['lock'] == False:
+                            self.jobStatus = 'failed'
+                            self.job.ddmErrorCode = ErrorCode.EC_Adder
+                            self.job.ddmErrorDiag = "failed to lock semaphore for job cloning"
+                            self.logger.debug("set jobStatus={0} since did not get semaphore for job cloning".format(self.jobStatus))
                 # keep old status
                 oldJobStatus = self.job.jobStatus
                 # set job status

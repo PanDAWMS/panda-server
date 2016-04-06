@@ -145,8 +145,9 @@ RewriteRule .* - [F]
 RewriteRule ^/cscache/(.*)$ /server/panda/getFile?fileName=$1 [PT,L]
 
 # CERN security recommendation to only allow the seven strongest ssl ciphers
-SSLProtocol  -all +TLSv1 +SSLv3
-SSLCipherSuite HIGH:MEDIUM:+SSLv3
+SSLProtocol  all -SSLv2 -SSLv3
+SSLCipherSuite HIGH:!CAMELLIA:!ADH:!aNULL:!eNULL:!EXPORT:!DES:!RC4:!MD5:!PSK:!3DES
+SSLHonorCipherOrder on
 
 SSLEngine               on
 SSLCertificateFile      /etc/grid-security/hostcert.pem

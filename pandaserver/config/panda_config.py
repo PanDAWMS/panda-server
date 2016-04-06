@@ -66,6 +66,8 @@ if not tmpSelf.__dict__.has_key('schemaDEFT'):
     tmpSelf.__dict__['schemaDEFT'] = 'ATLAS_DEFT'
 if not tmpSelf.__dict__.has_key('schemaGRISLI'):
     tmpSelf.__dict__['schemaGRISLI'] = 'ATLAS_GRISLI'
+if not tmpSelf.__dict__.has_key('schemaEI'):
+    tmpSelf.__dict__['schemaEI'] = 'ATLAS_EVENTINDEX'
     
 # default site
 if not tmpSelf.__dict__.has_key('def_sitename'):

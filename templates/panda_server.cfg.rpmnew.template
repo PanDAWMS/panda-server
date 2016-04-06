@@ -119,6 +119,7 @@ dbbridgeverbose = False
 dump_sql = False
 
 
+
 ##########################
 #
 # MySQL DB parameters: don't use for Oracle
@@ -353,3 +354,23 @@ pandaProxy_ca_certs = /etc/pki/tls/certs/CERN-bundle.pem
 
 #
 
+
+##########################
+#
+# Database parameters for EventIndex
+#
+
+# host
+ei_dbhost = ATLAS_EI
+
+# user
+ei_dbuser = ATLAS_EI_PANDA_R
+
+# password
+ei_dbpasswd = FIXME
+
+# database
+ei_dbname = PandaDB
+
+# timout value
+ei_dbtimeout = 300

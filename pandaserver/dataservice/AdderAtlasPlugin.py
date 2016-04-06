@@ -19,7 +19,7 @@ from dq2.clientapi import DQ2
 from dq2.filecatalog.FileCatalogUnknownFactory import FileCatalogUnknownFactory
 from dq2.filecatalog.FileCatalogException import FileCatalogException
 from rucio.common.exception import FileConsistencyMismatch,DataIdentifierNotFound,UnsupportedOperation,\
-    InvalidPath,RSENotFound,InsufficientAccountLimit
+    InvalidPath,RSENotFound,InsufficientAccountLimit,RSEProtocolNotSupported
 
 from DDM import rucioAPI,dq2Common,dq2Info
 
@@ -506,6 +506,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                     UnsupportedOperation,
                     InvalidPath,
                     RSENotFound,
+                    RSEProtocolNotSupported,
                     exceptions.KeyError):
                 # fatal errors
                 errType,errValue = sys.exc_info()[:2]

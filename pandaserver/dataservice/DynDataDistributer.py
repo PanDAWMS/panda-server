@@ -17,6 +17,7 @@ from dataservice.DDM import dq2Common
 from dataservice.DDM import dq2Info
 from dataservice.DDM import rucioAPI
 from taskbuffer.JobSpec import JobSpec
+from taskbuffer.EiDBProxy import EiDBProxy
 import brokerage.broker
 
 from config import panda_config
@@ -1226,16 +1227,31 @@ class DynDataDistributer:
             if len(runEvtList) == 0:
                 self.putLog("Empty list for run and events was provided",type='error')
                 return failedRet
+            # Hadoop EI
             from eventLookupClientEI import eventLookupClientEI
             elssiIF = eventLookupClientEI()
+            # Oracle EI
+            eiProxy = EiDBProxy()
+            eiProxy.connect()
             # loop over all events
             nEventsPerLoop = 500
             iEventsTotal = 0
             while iEventsTotal < len(runEvtList):
                 tmpRunEvtList = runEvtList[iEventsTotal:iEventsTotal+nEventsPerLoop]
                 iEventsTotal += nEventsPerLoop
+                regStart = datetime.datetime.utcnow()
                 guidListELSSI,tmpCom,tmpOut,tmpErr = elssiIF.doLookup(tmpRunEvtList,stream=streamName,tokens=streamRef,
                                                                       amitag=amiTag,user=user)
+                regTime = datetime.datetime.utcnow()-regStart
+                self.putLog("Hadoop EI took {0}.{1:3d} sec for {2} events" .format(regTime.seconds,
+                                                                                   regTime.microseconds/1000,
+                                                                                   len(tmpRunEvtList)))
+                regStart = datetime.datetime.utcnow()
+                statOra,guidListOraEI = eiProxy.getGUIDsFromEventIndex(tmpRunEvtList,streamName,amiTag,dsType)
+                regTime = datetime.datetime.utcnow()-regStart
+                self.putLog("Oracle EI took {0}.{1:3d} sec for {2} events" .format(regTime.seconds,
+                                                                                   regTime.microseconds/1000,
+                                                                                   len(tmpRunEvtList)))
                 # failed
                 if not tmpErr in [None,''] or len(guidListELSSI) == 0:
                     self.putLog(tmpCom)
@@ -1248,6 +1264,10 @@ class DynDataDistributer:
                     paramStr = 'Run:%s Evt:%s Stream:%s' % (runNr,evtNr,streamName)
                     self.putLog(paramStr)
                     tmpRunEvtKey = (long(runNr),long(evtNr))
+                    # check in Oracle EI
+                    if not tmpRunEvtKey in guidListOraEI:
+                        errStr = "no GUIDs were found in Oracle EI for %s" % paramStr
+                        self.putLog(errStr)
                     # not found
                     if not tmpRunEvtKey in guidListELSSI:
                         self.putLog(tmpCom)

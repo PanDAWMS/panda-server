@@ -63,6 +63,9 @@ EC_EventServiceKillNG = 121
 # killed for preemption
 EC_EventServicePreemption = 122
 
+# failed to lock semaphore for job cloning
+EC_JobCloningUnlock = 200
+
 
 
 # file not found
