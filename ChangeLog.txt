@@ -1,6 +1,7 @@
 Release Notes
 
 * 4/7/2016
+  * changed not to send ES merge to short queue
   * changed not to send log info to ES merge
   * using -details richtype for EI
   * recording jobsetIDs and their history for ES

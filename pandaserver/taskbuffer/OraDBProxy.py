@@ -14465,6 +14465,7 @@ class DBProxy:
                     sqlSN += "FROM ATLAS_PANDA.panda_site ps1,ATLAS_PANDA.panda_site ps2,ATLAS_PANDAMETA.schedconfig sc "
                     sqlSN += "WHERE ps1.panda_site_name=:site AND ps1.site_name=ps2.site_name AND sc.siteid=ps2.panda_site_name "
                     sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1) "
+                    sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
                     varMap = {}
                     varMap[':site'] = jobSpec.computingSite
                     # get sites
@@ -14480,6 +14481,7 @@ class DBProxy:
                         sqlSN  = "SELECT panda_site_name,default_ddm_endpoint FROM ATLAS_PANDA.panda_site ps,ATLAS_PANDAMETA.schedconfig sc "
                         sqlSN += "WHERE site_name=:nucleus AND sc.siteid=ps.panda_site_name "
                         sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1) "
+                        sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
                         varMap = {}
                         varMap[':nucleus'] = jobSpec.destinationSE.split(':')[-1]
                         # get sites
