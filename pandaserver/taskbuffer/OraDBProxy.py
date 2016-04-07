@@ -397,6 +397,13 @@ class DBProxy:
                 varMap[':pandaID'] = oldPandaIDs[0]
                 sqlOrigin  = "SELECT originPandaID FROM {0}.JEDI_Job_Retry_History ".format(panda_config.schemaJEDI)
                 sqlOrigin += "WHERE jediTaskID=:jediTaskID AND newPandaID=:pandaID "
+                sqlOrigin += "AND (relationType IS NULL OR NOT relationType IN ("
+                for tmpType in EventServiceUtils.relationTypesForJS:
+                    tmpKey = ':{0}'.format(tmpType)
+                    sqlOrigin += '{0},'.format(tmpKey)
+                    varMap[tmpKey] = tmpType
+                sqlOrigin = sqlOrigin[:-1]
+                sqlOrigin  += ')) '
                 self.cur.execute(sqlOrigin+comment,varMap)
                 resOrigin = self.cur.fetchone() 
                 if resOrigin != None:
@@ -623,6 +630,16 @@ class DBProxy:
                 _logger.debug("insertNewJob : %s recording history nOld=%s jediTaskID:%s" % (job.PandaID,len(oldPandaIDs),job.jediTaskID))
                 self.recordRetryHistoryJEDI(job.jediTaskID,job.PandaID,oldPandaIDs,relationType)
                 _logger.debug("insertNewJob : %s recorded history jediTaskID:%s" % (job.PandaID,job.jediTaskID))
+            # record jobset
+            if origEsJob:
+                self.recordRetryHistoryJEDI(job.jediTaskID,job.PandaID,[job.jobsetID],EventServiceUtils.relationTypeJS_ID)
+                # record jobset history
+                if oldPandaIDs != None and len(oldPandaIDs) > 0:
+                    # get old jobsetID
+                    for oldPandaID in oldPandaIDs:
+                        oldJobsetID = self.getJobsetIDforPandaID(oldPandaID,job.jediTaskID)
+                        if oldJobsetID != None:
+                            self.recordRetryHistoryJEDI(job.jediTaskID,job.jobsetID,[oldJobsetID],EventServiceUtils.relationTypeJS_Retry)            
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -3052,9 +3069,6 @@ class DBProxy:
                 sqlRR += "PandaID,job_processID,attemptNr,objStore_ID "
                 sqlRR += "FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
                 sqlRR += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND status=:eventStatus "
-                # read parent PandaID
-                sqlPP  = "SELECT DISTINCT oldPandaID FROM {0}.JEDI_Job_Retry_History ".format(panda_config.schemaJEDI)
-                sqlPP += "WHERE jediTaskID=:jediTaskID AND newPandaID=:pandaID " # FIXME 'to ignore normal retry chain by JEDI' AND type=:esRetry "
                 # sql to read log backet IDs
                 sqlLBK  = "SELECT jobMetrics FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID "
                 sqlLBK += "UNION "
@@ -12680,7 +12694,7 @@ class DBProxy:
 
 
     # update JEDI for pilot retry
-    def updateForPilotRetryJEDI(self,job,cur,onlyHistory=False):
+    def updateForPilotRetryJEDI(self,job,cur,onlyHistory=False,relationType=None):
         comment = ' /* DBProxy.updateForPilotRetryJEDI */'
         # sql to update file
         sqlFJI  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
@@ -12732,7 +12746,19 @@ class DBProxy:
             varMap[':oldPandaID'] = job.parentID
             varMap[':newPandaID'] = job.PandaID
             varMap[':originPandaID'] = originID
-            varMap[':relationType'] = 'retry'
+            if relationType == None:
+                varMap[':relationType'] = 'retry'
+            else:
+                varMap[':relationType'] = relationType
+            cur.execute(sqlRH+comment,varMap)
+        # record jobset
+        if EventServiceUtils.isEventServiceMerge(job) and relationType == None:
+            varMap = {}
+            varMap[':jediTaskID'] = job.jediTaskID
+            varMap[':oldPandaID'] = job.jobsetID
+            varMap[':newPandaID'] = job.PandaID
+            varMap[':originPandaID'] = job.jobsetID
+            varMap[':relationType'] = EventServiceUtils.relationTypeJS_ID
             cur.execute(sqlRH+comment,varMap)
         return
 
@@ -12741,12 +12767,19 @@ class DBProxy:
     # get origin PandaIDs
     def getOriginPandaIDsJEDI(self,pandaID,jediTaskID,cur):
         comment = ' /* DBProxy.getOriginPandaIDsJEDI */'
-        # sql to get parent IDs
-        sqlFJ  = "SELECT MIN(originPandaID) FROM {0}.JEDI_Job_Retry_History ".format(panda_config.schemaJEDI)
-        sqlFJ += "WHERE jediTaskID=:jediTaskID AND newPandaID=:newPandaID "
+        # get parent IDs
         varMap = {}
         varMap[':jediTaskID'] = jediTaskID
         varMap[':newPandaID'] = pandaID
+        sqlFJ  = "SELECT MIN(originPandaID) FROM {0}.JEDI_Job_Retry_History ".format(panda_config.schemaJEDI)
+        sqlFJ += "WHERE jediTaskID=:jediTaskID AND newPandaID=:newPandaID "
+        sqlFJ += "AND (relationType IS NULL OR NOT relationType IN ("
+        for tmpType in EventServiceUtils.relationTypesForJS:
+            tmpKey = ':{0}'.format(tmpType)
+            sqlFJ += '{0},'.format(tmpKey)
+            varMap[tmpKey] = tmpType
+        sqlFJ = sqlFJ[:-1]
+        sqlFJ  += ')) '
         cur.execute(sqlFJ+comment,varMap)
         resT = cur.fetchone()
         retList = []
@@ -12766,22 +12799,46 @@ class DBProxy:
 
 
 
+    # get jobsetID for PandaID
+    def getJobsetIDforPandaID(self,pandaID,jediTaskID):
+        comment = ' /* DBProxy. */'
+        # get parent IDs
+        varMap = {}
+        varMap[':jediTaskID']   = jediTaskID
+        varMap[':newPandaID']   = pandaID
+        varMap[':relationType'] = EventServiceUtils.relationTypeJS_ID
+        sqlFJ  = "SELECT oldPandaID FROM {0}.JEDI_Job_Retry_History ".format(panda_config.schemaJEDI)
+        sqlFJ += "WHERE jediTaskID=:jediTaskID AND newPandaID=:newPandaID "
+        sqlFJ += "AND relationType=:relationType "
+        self.cur.execute(sqlFJ+comment,varMap)
+        resT = self.cur.fetchone()
+        if resT != None:
+            return resT[0]
+        return None
+
+
+
     # get retry history
     def getRetryHistoryJEDI(self,jediTaskID):
         comment = ' /* DBProxy.getRetryHistoryJEDI */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <jediTaskID={0}>".format(jediTaskID)
         _logger.debug("{0} start".format(methodName))
-        # sql
-        sql  = "SELECT oldPandaID,newPandaID FROM {0}.JEDI_Job_Retry_History ".format(panda_config.schemaJEDI)
-        sql += "WHERE jediTaskID=:jediTaskID GROUP BY oldPandaID,newPandaID "
         try:
             # set autocommit on
             self.conn.begin()
             self.cur.arraysize = 1000000
-            # set
+            # get
             varMap = {}
             varMap[':jediTaskID'] = jediTaskID
+            sql  = "SELECT oldPandaID,newPandaID FROM {0}.JEDI_Job_Retry_History ".format(panda_config.schemaJEDI)
+            sql += "WHERE jediTaskID=:jediTaskID GROUP BY oldPandaID,newPandaID "
+            for tmpType in EventServiceUtils.relationTypesForJS:
+                tmpKey = ':{0}'.format(tmpType)
+                sql += '{0},'.format(tmpKey)
+                varMap[tmpKey] = tmpType
+            sql  = sql[:-1]
+            sql += ')) '
             self.cur.execute(sql+comment,varMap)
             resG = self.cur.fetchall()
             retMap = {}
@@ -14497,7 +14554,11 @@ class DBProxy:
             varMap[':param']   = jobSpec.jobParameters
             self.cur.execute(sqlJob+comment, varMap)
             # propagate change to JEDI
-            self.updateForPilotRetryJEDI(jobSpec,self.cur,onlyHistory=True)
+            if doMerging:
+                relationType = 'es_merge'
+            else:
+                relationType = None
+            self.updateForPilotRetryJEDI(jobSpec,self.cur,onlyHistory=True,relationType=relationType)
             # commit
             if useCommit:
                 if not self._commit():

@@ -1,5 +1,8 @@
 Release Notes
 
+* 4/7/2016
+  * recording jobsetIDs and their history for ES
+
 * 4/6/2016
   * fixed fairshare for WORLD
   * introduced connection pool for EI lookup

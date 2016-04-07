@@ -27,6 +27,13 @@ dynamicNumEventsToken = 'dy'
 esJobFlagNumber = 1
 esMergeJobFlagNumber = 2
 
+# relation type for jobsets
+relationTypeJS_ID = 'jobset_id'
+relationTypeJS_Retry = 'jobset_retry'
+relationTypesForJS = [relationTypeJS_ID,relationTypeJS_Retry]
+
+
+
 # encode file info
 def encodeFileInfo(lfn,startEvent,endEvent,nEventsPerWorker,maxAttempt=None):
     if maxAttempt == None:
