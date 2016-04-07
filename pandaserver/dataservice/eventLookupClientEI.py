@@ -25,7 +25,7 @@ class eventLookupClientEI:
             command += "-p {0} ".format(amitag)
         if user != None:
             command += '-info "{0}" '.format(user)
-        command += r"""-api rich """
+        command += r"""-details richtype """
         p = subprocess.Popen(command, stdout=subprocess.PIPE,shell=True)
         tmpOut,tmpErr = p.communicate()
         tempEvtFile.close()
