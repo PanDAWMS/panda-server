@@ -3157,6 +3157,7 @@ class DBProxy:
                 for tmpInputFileSpec in mergeInputFiles:
                     job.addFile(tmpInputFileSpec)
                 # make input for event service log merging
+                """
                 mergeLogFiles = []
                 for tmpFileSpec in job.Files:
                     if not tmpFileSpec.type in ['log']:
@@ -3178,6 +3179,7 @@ class DBProxy:
                         mergeFileObjStoreMap[tmpInputFileSpec.lfn] = esDoneObjStoreIDs[esPandaID]
                 for tmpInputFileSpec in mergeLogFiles:
                     job.addFile(tmpInputFileSpec)
+                """    
                 # job parameters
                 sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
                 varMap = {}
