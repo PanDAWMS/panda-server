@@ -14511,6 +14511,7 @@ class DBProxy:
                             for tmpFileSpec in jobSpec.Files:
                                 if tmpFileSpec.destinationDBlockToken.startswith('ddd:'):
                                     tmpFileSpec.destinationDBlockToken = 'ddd:{0}'.format(tmp_ddm_endpoint)
+                                    tmpFileSpec.destinationSE = jobSpec.computingSite
                 jobSpec.coreCount = None
                 jobSpec.minRamCount = 0
             # insert job with new PandaID

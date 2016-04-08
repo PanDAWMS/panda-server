@@ -1,5 +1,8 @@
 Release Notes
 
+* 4/8/2016
+  * setting destinationse for log of ES merge
+
 * 4/7/2016
   * changed not to send ES merge to short queue
   * changed not to send log info to ES merge
