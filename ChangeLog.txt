@@ -1,5 +1,8 @@
 Release Notes
 
+* 4/10/2016
+  * changed propageResult for cloned jobs to set jobset_id
+
 * 4/8/2016
   * setting destinationse for log of ES merge
 

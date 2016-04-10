@@ -12650,6 +12650,9 @@ class DBProxy:
                 if toUpdateFlag:
                     _logger.debug(methodName+' '+sqlJediDS+comment+str(varMap))                            
                     cur.execute(sqlJediDS+comment,varMap)
+        # add jobset info for job cloning
+        if useJobCloning:
+            self.recordRetryHistoryJEDI(jobSpec.jediTaskID,jobSpec.PandaID,[jobSpec.jobsetID],EventServiceUtils.relationTypeJS_ID)
         # update t_task
         if jobSpec.jobStatus == 'finished' and not jobSpec.prodSourceLabel in ['panda']:
             varMap = {}
