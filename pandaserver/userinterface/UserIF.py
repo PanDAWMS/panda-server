@@ -894,23 +894,27 @@ class UserIF:
                     taskParamsJson[newKey] = newVal
                 taskParams = json.dumps(taskParamsJson)
                 # retry with new params
-                ret = self.taskBuffer.insertTaskParamsPanda(taskParams,user,prodRole,[],properErrorCode=properErrorCode)
+                ret = self.taskBuffer.insertTaskParamsPanda(taskParams,user,prodRole,[],properErrorCode=properErrorCode,
+                                                            allowActiveTask=True)
             except:
                 errType,errValue = sys.exc_info()[:2]
                 ret = 1,'server error with {0}:{1}'.format(errType,errValue)
         else:
             # normal retry
             ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'retry',properErrorCode=properErrorCode)
-            if properErrorCode == True and ret[0] == 5:
-                # retry failed analysis jobs
-                jobdefList = self.taskBuffer.getJobdefIDsForFailedJob(jediTaskID)
-                cUID = self.taskBuffer.cleanUserID(user)
-                for jobID in jobdefList:
-                    self.taskBuffer.retryJobsInActive(cUID,jobID,True)
-                self.taskBuffer.increaseAttemptNrPanda(jediTaskID,5)
-                retStr  = 'retry has been triggered for failed jobs  '
-                retStr += 'while the task is still {0}'.format(ret[1])
+        if properErrorCode == True and ret[0] == 5:
+            # retry failed analysis jobs
+            jobdefList = self.taskBuffer.getJobdefIDsForFailedJob(jediTaskID)
+            cUID = self.taskBuffer.cleanUserID(user)
+            for jobID in jobdefList:
+                self.taskBuffer.retryJobsInActive(cUID,jobID,True)
+            self.taskBuffer.increaseAttemptNrPanda(jediTaskID,5)
+            retStr  = 'retry has been triggered for failed jobs '
+            retStr += 'while the task is still {0}'.format(ret[1])
+            if newParams == None:
                 ret = 0,retStr
+            else:
+                ret = 3,retStr
         # return
         return ret
 

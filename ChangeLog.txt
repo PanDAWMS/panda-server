@@ -1,5 +1,10 @@
 Release Notes
 
+* 4/11/2016
+  * changed to accept retry(newOpts) when analy tasks are running
+  * changed getJob for retried ES merge jobs
+  * fixed double counting in getCriteria 
+
 * 4/10/2016
   * changed propageResult for cloned jobs to set jobset_id
 

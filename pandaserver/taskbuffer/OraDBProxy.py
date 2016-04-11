@@ -2372,8 +2372,7 @@ class DBProxy:
                                 file.GUID = commands.getoutput('uuidgen')
                             # don't change input or lib.tgz, or ES merge output/log since it causes a problem with input name construction
                             if file.type in ['input','pseudo_input'] or (file.type == 'output' and job.prodSourceLabel == 'panda') or \
-                                   (file.type == 'output' and file.lfn.endswith('.lib.tgz') and job.prodSourceLabel in ['rc_test','ptest']) or \
-                                   recoverableEsMerge:
+                                   (file.type == 'output' and file.lfn.endswith('.lib.tgz') and job.prodSourceLabel in ['rc_test','ptest']):
                                 continue
                             # append attemptNr to LFN
                             oldName = file.lfn
@@ -3081,7 +3080,7 @@ class DBProxy:
                 resFs = self.cur.fetchall()
                 eventRangeIDs = {}
                 esDonePandaIDs = []
-                esDoneObjStoreIDs = {}
+                esOutputZipMap = {}
                 for resF in resFs:
                     file = FileSpec()
                     file.pack(resF)
@@ -3119,20 +3118,29 @@ class DBProxy:
                                                                                  'objStoreID':objStoreID}
                                     if not esPandaID in esDonePandaIDs:
                                         esDonePandaIDs.append(esPandaID)
-                                        esDoneObjStoreIDs[esPandaID] = None
                                         # get jobMetrics
                                         varMap = {}
                                         varMap[':PandaID'] = esPandaID
                                         self.cur.execute(sqlLBK+comment,varMap)
                                         resLBK = self.cur.fetchone()
                                         if resLBK != None and resLBK[0] != None:
-                                            tmpPatch = re.search('logBucketID=(\d+)',resLBK[0])
+                                            outputZipBucketID = None
+                                            tmpPatch = re.search('outputZipBucketID=(\d+)',resLBK[0])
                                             if tmpPatch != None:
-                                                esDoneObjStoreIDs[esPandaID] = tmpPatch.group(1)
+                                                outputZipBucketID = tmpPatch.group(1)
+                                            outputZipName = None
+                                            tmpPatch = re.search('outputZipName=([^ ]+)',resLBK[0])    
+                                            if tmpPatch != None:
+                                                outputZipName = tmpPatch.group(1)
+                                            if outputZipBucketID != None and outputZipName != None: 
+                                                esOutputZipMap[esPandaID] = {'name':outputZipName,
+                                                                             'osid':outputZipBucketID}
+
                 # make input for event service output merging
                 mergeInputOutputMap = {}
                 mergeInputFiles = []
                 mergeFileObjStoreMap = {}
+                mergeZipPandaIDs = []
                 for tmpFileID,tmpMapEventRangeID in eventRangeIDs.iteritems():
                     jobProcessIDs = tmpMapEventRangeID.keys()
                     jobProcessIDs.sort()
@@ -3143,43 +3151,30 @@ class DBProxy:
                                 continue
                             tmpInputFileSpec = copy.copy(tmpFileSpec)
                             tmpInputFileSpec.type = 'input'
+                            # change attemptNr back to the original, which could have been changed by ES merge retry
+                            origLFN = re.sub('\.\d+$','.1',tmpInputFileSpec.lfn)
                             # append eventRangeID as suffix
-                            tmpInputFileSpec.lfn  = tmpInputFileSpec.lfn + \
-                                '.' + tmpMapEventRangeID[jobProcessID]['eventRangeID']
-                            # add file
-                            mergeInputFiles.append(tmpInputFileSpec)
+                            tmpInputFileSpec.lfn = origLFN + '.' + tmpMapEventRangeID[jobProcessID]['eventRangeID']
+                            esPandaID = tmpMapEventRangeID[jobProcessID]['pandaID']
                             # make input/output map
-                            if not mergeInputOutputMap.has_key(tmpFileSpec.lfn):
-                                mergeInputOutputMap[tmpFileSpec.lfn] = []
-                            mergeInputOutputMap[tmpFileSpec.lfn].append(tmpInputFileSpec.lfn)
-                            # mapping for ObjStore
-                            mergeFileObjStoreMap[tmpInputFileSpec.lfn] = tmpMapEventRangeID[jobProcessID]['objStoreID']
+                            if not mergeInputOutputMap.has_key(origLFN):
+                                mergeInputOutputMap[origLFN] = []
+                            mergeInputOutputMap[origLFN].append(tmpInputFileSpec.lfn)
+                            # add file
+                            if not esPandaID in esOutputZipMap:
+                                # no zip
+                                mergeInputFiles.append(tmpInputFileSpec)
+                                # mapping for ObjStore
+                                mergeFileObjStoreMap[tmpInputFileSpec.lfn] = tmpMapEventRangeID[jobProcessID]['objStoreID']
+                            elif not esPandaID in mergeZipPandaIDs:
+                                # first zip
+                                mergeZipPandaIDs.append(esPandaID)
+                                tmpInputFileSpec.lfn = 'zip://'+esOutputZipMap[esPandaID]['name']
+                                mergeInputFiles.append(tmpInputFileSpec)
+                                # mapping for ObjStore
+                                mergeFileObjStoreMap[tmpInputFileSpec.lfn] = esOutputZipMap[esPandaID]['osid']
                 for tmpInputFileSpec in mergeInputFiles:
                     job.addFile(tmpInputFileSpec)
-                # make input for event service log merging
-                """
-                mergeLogFiles = []
-                for tmpFileSpec in job.Files:
-                    if not tmpFileSpec.type in ['log']:
-                        continue
-                    # make files
-                    for esPandaID in esDonePandaIDs:
-                        tmpInputFileSpec = copy.copy(tmpFileSpec)
-                        tmpInputFileSpec.type = 'input'
-                        tmpInputFileSpec.GUID = None
-                        # append PandaID as suffix
-                        tmpInputFileSpec.lfn  = tmpInputFileSpec.lfn + '.{0}'.format(esPandaID)
-                        # add file
-                        mergeLogFiles.append(tmpInputFileSpec)
-                        # make input/output map
-                        if not mergeInputOutputMap.has_key(tmpFileSpec.lfn):
-                            mergeInputOutputMap[tmpFileSpec.lfn] = []
-                        mergeInputOutputMap[tmpFileSpec.lfn].append(tmpInputFileSpec.lfn)
-                        # mapping for ObjStore
-                        mergeFileObjStoreMap[tmpInputFileSpec.lfn] = esDoneObjStoreIDs[esPandaID]
-                for tmpInputFileSpec in mergeLogFiles:
-                    job.addFile(tmpInputFileSpec)
-                """    
                 # job parameters
                 sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
                 varMap = {}
@@ -9600,10 +9595,12 @@ class DBProxy:
                             for tmpPattern in groupInDefList:
                                 if '*' in tmpPattern:
                                     tmpPattern = '^' + tmpPattern.replace('*','.*') + '$'
-                                    # don't use WG if it is included in other policies
-                                    if workingGroup != None and re.search(tmpPattern,workingGroup) != None:
-                                        toBeSkippedFlag = True
-                                        break
+                                else:
+                                    tmpPattern = '^' + tmpPattern + '$'
+                                # don't use WG if it is included in other policies
+                                if workingGroup != None and re.search(tmpPattern,workingGroup) != None:
+                                    toBeSkippedFlag = True
+                                    break
                             if toBeSkippedFlag:
                                 continue
                         else:
@@ -12992,7 +12989,8 @@ class DBProxy:
 
 
     # insert TaskParams
-    def insertTaskParamsPanda(self,taskParams,dn,prodRole,fqans,parent_tid,properErrorCode=False):
+    def insertTaskParamsPanda(self,taskParams,dn,prodRole,fqans,parent_tid,properErrorCode=False,
+                              allowActiveTask=False):
         comment = ' /* JediDBProxy.insertTaskParamsPanda */'
         try:
             methodName = "insertTaskParamsPanda"
@@ -13108,13 +13106,18 @@ class DBProxy:
                     _logger.debug('{0} old jediTaskID={1} with taskName={2} in status={3}'.format(methodName,jediTaskID,
                                                                                                   varMap[':taskName'],taskStatus))
                     # check task status
-                    if not taskStatus in ['finished','failed','aborted','done']:
+                    if not taskStatus in ['finished','failed','aborted','done'] and \
+                            not (allowActiveTask and taskStatus in ['running','scouting','pending'] and taskParamsJson['prodSourceLabel'] in ['user']):
                         # still active
                         goForward = False
                         retVal  = 'jediTaskID={0} is in the {1} state for outDS={2}. '.format(jediTaskID,
                                                                                               taskStatus,
                                                                                               taskParamsJson['taskName'])
-                        retVal += 'You can re-execute the task with the same or another input once it goes into finished/failed/done'
+                        retVal += 'You can re-submit the task with new parameters for the same or another input '
+                        retVal += 'once it goes into finished/failed/done. '
+                        retVal += 'Or you can retry the task once it goes into running/finished/failed/done. '
+                        retVal += 'Note that retry != resubmission accoring to '
+                        retVal += 'https://twiki.cern.ch/twiki/bin/view/PanDA/PandaJEDI#Task_retry_and_resubmission '
                         _logger.debug('{0} skip since old task is not yet finalized'.format(methodName))
                         errorCode = 2
                     else:
@@ -13135,25 +13138,33 @@ class DBProxy:
                                 if tmpKey == 'fixedSandbox' and 'sourceURL' in taskParamsJson:
                                     newTaskParams['sourceURL'] = taskParamsJson['sourceURL']
                                 continue
-                        # delete command just in case
-                        varMap = {}
-                        varMap[':jediTaskID'] = jediTaskID
-                        self.cur.execute(sqlDC+comment,varMap)
-                        # insert command
-                        varMap = {}
-                        varMap[':jediTaskID'] = jediTaskID
-                        varMap[':comm_cmd']  = 'incexec'
-                        varMap[':comm_owner']  = 'DEFT'
-                        varMap[':comm_parameters'] = json.dumps(newTaskParams)
-                        self.cur.execute(sqlIC+comment,varMap)
-                        _logger.debug('{0} {1} jediTaskID={2} with {3}'.format(methodName,varMap[':comm_cmd'],
-                                                                                   jediTaskID,str(newTaskParams)))
-                        retVal  = 'reactivation accepted. '
-                        retVal += 'jediTaskID={0} (currently in {1} state) will be re-executed with old and/or new input'.format(jediTaskID,
-                                                                                                                                taskStatus) 
+                        # send command to reactivate the task
+                        if not allowActiveTask or taskStatus in ['finished','failed','aborted','done']:
+                            # delete command just in case
+                            varMap = {}
+                            varMap[':jediTaskID'] = jediTaskID
+                            self.cur.execute(sqlDC+comment,varMap)
+                            # insert command
+                            varMap = {}
+                            varMap[':jediTaskID'] = jediTaskID
+                            varMap[':comm_cmd']  = 'incexec'
+                            varMap[':comm_owner']  = 'DEFT'
+                            varMap[':comm_parameters'] = json.dumps(newTaskParams)
+                            self.cur.execute(sqlIC+comment,varMap)
+                            _logger.debug('{0} {1} jediTaskID={2} with {3}'.format(methodName,varMap[':comm_cmd'],
+                                                                                       jediTaskID,str(newTaskParams)))
+                            retVal  = 'reactivation accepted. '
+                            retVal += 'jediTaskID={0} (currently in {1} state) will be re-executed with old and/or new input'.format(jediTaskID,
+                                                                                                                                    taskStatus) 
+                            errorCode = 3
+                        else:
+                            # just change some params for active task
+                            _logger.debug('{0} add new params for jediTaskID={1} with {2}'.format(methodName,
+                                                                                                  jediTaskID,str(newTaskParams)))
+                            retVal  = '{0}. new tasks params have been set to jediTaskID={1}. '.format(taskStatus,jediTaskID)
+                            errorCode = 5
                         goForward = False
                         retFlag = True
-                        errorCode = 3
             if goForward:
                 # insert task parameters
                 taskParams = json.dumps(taskParamsJson)    
