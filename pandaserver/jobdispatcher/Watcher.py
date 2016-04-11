@@ -14,6 +14,7 @@ import ErrorCode
 import taskbuffer.ErrorCode
 
 from taskbuffer import EventServiceUtils
+from taskbuffer import retryModule
 
 from brokerage.PandaSiteIDs import PandaSiteIDs
 
@@ -171,6 +172,18 @@ class Watcher (threading.Thread):
                     self.taskBuffer.updateJobs([job],False)
                     # start closer
                     if job.jobStatus == 'failed':
+
+                        source = 'jobDispatcherErrorCode'
+                        error_code = job.jobDispatcherErrorCode
+                        error_diag = job.jobDispatcherErrorDiag
+
+                        try:
+                            _logger.debug("Watcher will call apply_retrial_rules")
+                            retryModule.apply_retrial_rules(self.taskBuffer, job.PandaID, source, error_code, error_diag, job.attemptNr)
+                            _logger.debug("apply_retrial_rules is back")
+                        except Exception as e:
+                            _logger.debug("apply_retrial_rules excepted and needs to be investigated (%s)"%(e))
+
                         cThr = Closer(self.taskBuffer,destDBList,job)
                         cThr.start()
                         cThr.join()
