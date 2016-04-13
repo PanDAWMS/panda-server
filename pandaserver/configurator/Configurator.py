@@ -2,6 +2,7 @@ import time
 import threading
 import sys
 import aux
+from aux import *
 from datetime import datetime, timedelta
 
 from sqlalchemy import exc
@@ -15,10 +16,6 @@ from taskbuffer.TaskBuffer import taskBuffer
 _logger = PandaLogger().getLogger('configurator')
 _session = dbif.get_session()
 
-GB = 1024**3
-PROD_INPUT = 'Production Input'
-PROD_OUTPUT = 'Production Output'
-EXPRESS = 'Express'
 
 class Configurator(threading.Thread):
 
@@ -79,13 +76,12 @@ class Configurator(threading.Thread):
         state = site['state']
         tier_level = site['tier_level']
         
-        if 'Nucleus' in site['datapolicies']: # or site['tier_level'] <= 1:
+        if 'Nucleus' in site['datapolicies']:  # or site['tier_level'] <= 1:
             role = 'nucleus'
         else:
             role = 'satellite'
         
         return (name, role, state, tier_level)
-
 
     def parse_endpoints(self):
         """
@@ -104,21 +100,20 @@ class Configurator(threading.Thread):
                 else:
                     endpoint_token_dict[endpoint['name']]['is_tape'] = 'N'
             else:
-                _logger.debug('parse_endpoints: skipped endpoint {0} (type: {1}, state: {2})'.format(endpoint['name'], endpoint['type'], endpoint['state']))
+                _logger.debug('parse_endpoints: skipped endpoint {0} (type: {1}, state: {2})'
+                              .format(endpoint['name'], endpoint['type'], endpoint['state']))
 
         return endpoint_token_dict
-    
-    
+
     def get_site_endpoint_dictionary(self):
         """
-        Converts the AGIS site dump into a site dictionary containint the list of DDM endpoints for each site 
+        Converts the AGIS site dump into a site dictionary containing the list of DDM endpoints for each site
         """
         site_to_endpoints_dict = {} 
         for site in self.site_dump:
             site_to_endpoints_dict[site['name']] = site['ddmendpoints'].keys()
         
         return site_to_endpoints_dict
-
 
     def process_site_dumps(self):
         """
@@ -137,7 +132,10 @@ class Configurator(threading.Thread):
             # Add the site info to a list
             (site_name, site_role, site_state, tier_level) = self.get_site_info(site)
             if site_state == 'ACTIVE' and site_name not in included_sites:
-                sites_list.append({'site_name': site_name, 'role': site_role, 'state': site_state, 'tier_level': tier_level})
+                sites_list.append({'site_name': site_name,
+                                   'role': site_role,
+                                   'state': site_state,
+                                   'tier_level': tier_level})
                 included_sites.append(site_name)
             else:
                 _logger.debug('process_site_dumps: skipped site {0} (state: {1})'.format(site_name, site_state))
@@ -163,7 +161,8 @@ class Configurator(threading.Thread):
                     space_used = self.rse_usage[ddm_endpoint_name]['srm']['used']/GB
                     space_free = self.rse_usage[ddm_endpoint_name]['srm']['free']/GB
                     space_total = space_used + space_free
-                    space_timestamp = datetime.strptime(self.rse_usage[ddm_endpoint_name]['srm']['updated_at'], '%Y-%m-%d %H:%M:%S')
+                    space_timestamp = datetime.strptime(self.rse_usage[ddm_endpoint_name]['srm']['updated_at'],
+                                                        '%Y-%m-%d %H:%M:%S')
                 except KeyError:
                     space_used, space_free, space_total, space_timestamp = None, None, None, None
                     _logger.error('process_site_dumps: no rse SRM usage information for {0}'.format(ddm_endpoint_name))
@@ -172,7 +171,8 @@ class Configurator(threading.Thread):
                 try:
                     space_expired = self.rse_usage[ddm_endpoint_name]['expired']['used']/GB
                 except KeyError:
-                    _logger.error('process_site_dumps: no rse EXPIRED usage information for {0}'.format(ddm_endpoint_name))
+                    _logger.error('process_site_dumps: no rse EXPIRED usage information for {0}'
+                                  .format(ddm_endpoint_name))
 
                 ddm_spacetoken_state = site['ddmendpoints'][ddm_endpoint_name]['state']
                 if ddm_spacetoken_state == 'ACTIVE':
@@ -191,14 +191,16 @@ class Configurator(threading.Thread):
                                                })
                     _logger.debug('process_site_dumps: added DDM endpoint {0}'.format(ddm_endpoint_name))
                 else:
-                    _logger.debug('process_site_dumps: skipped DDM endpoint {0} because of state {1}'.format(ddm_endpoint_name, ddm_spacetoken_state))
+                    _logger.debug('process_site_dumps: skipped DDM endpoint {0} because of state {1}'
+                                  .format(ddm_endpoint_name, ddm_spacetoken_state))
 
             # Get the PanDA resources
             for panda_resource in site['presources']:
                 for panda_site in site['presources'][panda_resource]:
                     panda_site_state = site['presources'][panda_resource][panda_site]['state']
                     if panda_site_state != 'ACTIVE':
-                        _logger.debug('process_site_dumps: skipped PanDA site {0} (state: {1})'.format(panda_site, panda_site_state))
+                        _logger.debug('process_site_dumps: skipped PanDA site {0} (state: {1})'
+                                      .format(panda_site, panda_site_state))
                         continue
                     panda_site_name = panda_site
                     panda_queue_name = None
@@ -212,7 +214,8 @@ class Configurator(threading.Thread):
                         storage_site_name = relationship_info['storage_site_name']
                         is_local = relationship_info['is_local']
                     except KeyError:
-                        _logger.error('process_site_dumps: Investigate why panda_site_name {0} not in relationship_info dictionary'.format(panda_site_name))
+                        _logger.error('process_site_dumps: Investigate why panda_site_name {0} not in relationship_info dictionary'
+                                      .format(panda_site_name))
                         default_ddm_endpoint = None
                         storage_site_name = None
                         is_local = None
@@ -226,7 +229,6 @@ class Configurator(threading.Thread):
                                              'is_local': is_local})
         
         return sites_list, panda_sites_list, ddm_endpoints_list
-
 
     def process_schedconfig_dump(self):
         """
@@ -245,21 +247,25 @@ class Configurator(threading.Thread):
             try:
                 storage_site_name = self.endpoint_token_dict[default_ddm_endpoint]['site_name']
             except KeyError:
-                _logger.warning("Skipped {0}, because primary associated DDM endpoint {1} not found (e.g. in TEST mode or DISABLED)".format(long_panda_site_name, default_ddm_endpoint))
+                _logger.warning("Skipped {0}, because primary associated DDM endpoint {1} not found (e.g. in TEST mode or DISABLED)"
+                                .format(long_panda_site_name, default_ddm_endpoint))
                 continue
 
             # Check if the ddm_endpoint and the panda_site belong to the same site
             cpu_site = self.schedconfig_dump[long_panda_site_name]['atlas_site']
-            if storage_site_name == cpu_site and not self.schedconfig_dump[long_panda_site_name]['resource_type'] in ['cloud', 'hpc']:
+            if storage_site_name == cpu_site \
+                    and not self.schedconfig_dump[long_panda_site_name]['resource_type'] in ['cloud', 'hpc']:
                 is_local = 'Y'
             else:
                 is_local = 'N'
             
-            _logger.debug("process_schedconfig_dump: long_panda_site_name {0}, panda_site_name {1}, default_ddm_endpoint {2}, storage_site_name {3}, is_local {4}".format(long_panda_site_name, panda_site_name, default_ddm_endpoint, storage_site_name, is_local))
-            relationships_dict[panda_site_name] = {'default_ddm_endpoint': default_ddm_endpoint, 'storage_site_name': storage_site_name, 'is_local': is_local}
+            _logger.debug("process_schedconfig_dump: long_panda_site_name {0}, panda_site_name {1}, default_ddm_endpoint {2}, storage_site_name {3}, is_local {4}"
+                          .format(long_panda_site_name, panda_site_name, default_ddm_endpoint, storage_site_name, is_local))
+            relationships_dict[panda_site_name] = {'default_ddm_endpoint': default_ddm_endpoint,
+                                                   'storage_site_name': storage_site_name,
+                                                   'is_local': is_local}
 
         return relationships_dict
-
 
     def consistency_check(self):
         """
@@ -288,7 +294,8 @@ class Configurator(threading.Thread):
                 _logger.error("SITE inconsistency: {0} was not found in {1}".format(site, missing))
 
         # Check for panda-site inconsistencies
-        agis_panda_sites = set([self.schedconfig_dump[long_panda_site_name]['panda_resource'] for long_panda_site_name in self.schedconfig_dump])
+        agis_panda_sites = set([self.schedconfig_dump[long_panda_site_name]['panda_resource']
+                                for long_panda_site_name in self.schedconfig_dump])
         _logger.debug("PanDA sites in AGIS {0}".format(agis_panda_sites))
         configurator_panda_sites = dbif.read_configurator_panda_sites(_session)
         _logger.debug("PanDA sites in Configurator {0}".format(configurator_panda_sites))
@@ -327,10 +334,11 @@ class Configurator(threading.Thread):
             if missing:
                 _logger.error("DDM ENDPOINT inconsistency: {0} was not found in {1}".format(site, missing))
 
-        self.cleanup_configurator(agis_sites, agis_panda_sites, agis_ddm_endpoints, configurator_sites, configurator_panda_sites, configurator_ddm_endpoints)
+        self.cleanup_configurator(agis_sites, agis_panda_sites, agis_ddm_endpoints, configurator_sites,
+                                  configurator_panda_sites, configurator_ddm_endpoints)
 
-
-    def cleanup_configurator(self, agis_sites, agis_panda_sites, agis_ddm_endpoints, configurator_sites, configurator_panda_sites, configurator_ddm_endpoints):
+    def cleanup_configurator(self, agis_sites, agis_panda_sites, agis_ddm_endpoints, configurator_sites,
+                             configurator_panda_sites, configurator_ddm_endpoints):
         """
         Cleans up information from configurator that is not in AGIS
         """
@@ -387,12 +395,12 @@ class NetworkConfigurator(threading.Thread):
         if hasattr(panda_config,'NWS_URL'):
             self.NWS_URL = panda_config.NWS_URL
         else:
-            self.NWS_URL = 'http://rucio-nagios-prod/ett/latest.json'
+            self.NWS_URL = 'http://atlas-adc-netmetrics-lb.cern.ch/metrics/latest.json'
         _logger.debug('Getting NWS dump...')
         self.nws_dump = aux.get_dump(self.NWS_URL)
         _logger.debug('Done')
 
-        if hasattr(panda_config,'AGIS_URL_CM'):
+        if hasattr(panda_config, 'AGIS_URL_CM'):
             self.AGIS_URL_CM = panda_config.AGIS_URL_CM
         else:
             self.AGIS_URL_CM = 'http://atlas-agis-api.cern.ch/request/site/query/list_links/?json'
@@ -400,55 +408,108 @@ class NetworkConfigurator(threading.Thread):
         self.agis_cm_dump = aux.get_dump(self.AGIS_URL_CM)
         _logger.debug('Done')
 
-
     def process_nws_dump(self):
         """
-        Gets the NWS information dump, filters out irrelevant information
+        Gets the second generation NWS information dump, filters out irrelevant information
         and prepares it for insertion into the PanDA DB
         """
 
         data = []
+        sites_list = dbif.read_configurator_sites(_session)
 
         # Ignore outdated values
         latest_validity = datetime.utcnow() - timedelta(minutes=30)
 
-        for entry in self.nws_dump:
-            _logger.debug('Processing NWS entry {0}'.format(entry))
+        for src_dst in self.nws_dump:
+            try:
+                source, destination = src_dst.split(':')
+                skip_sites = []
 
-            src = entry['src']
-            dst = entry['dst']
+                # Skip entries with sites not recognized by configurator
+                if source not in sites_list:
+                    skip_sites.append(source)
+                if destination not in sites_list:
+                    skip_sites.append(destination)
+                if skip_sites:
+                    _logger.warning("Could not find site(s) {0} in configurator sites".format(skip_sites))
+                    continue
 
-            # Skip broken entries (protection against errors in NWS)
-            if not src or not dst:
+            except ValueError:
+                _logger.error("Json wrongly formatted. Expected key with format src:dst, but found key {0}"
+                               .format(src_dst))
                 continue
 
-            values = {}
-            for activity in [PROD_INPUT, PROD_OUTPUT, EXPRESS]: # PanDA is only interested in production input and output statistics
+            # Transferred files
+            try:
+                done = self.nws_dump[src_dst][FILES][DONE]
+                for activity in [PROD_INPUT, PROD_OUTPUT, EXPRESS]:
+                    if not done.has_key(activity):
+                        continue
+                    try:
+                        updated_at = datetime.strptime(done[activity][TIMESTAMP], '%Y-%m-%dT%H:%M:%S')
+                        if updated_at > latest_validity:
+                            done_1h = done[activity][H1]
+                            done_6h = done[activity][H6]
+                            data.append((source, destination, activity+'_done_1h', done_1h, updated_at))
+                            data.append((source, destination, activity+'_done_6h', done_6h, updated_at))
+                    except KeyError:
+                        _logger.debug("Entry {0} ({1}->{2}) key {3} does not follow standards"
+                                      .format(done, source, destination, activity))
+                        continue
+            except KeyError:
+                pass
 
-                if not entry.has_key(activity):
+            # Queued files - take TOTAL (ignore FTS and Rucio breakdowns)
+            try:
+                queued = self.nws_dump[src_dst][FILES][QUEUED][TOTAL]
+                for activity in [PROD_INPUT, PROD_OUTPUT, EXPRESS]:
+                    if not queued.has_key(activity):
+                        continue
+                    try:
+                        updated_at = datetime.strptime(queued[activity][TIMESTAMP], '%Y-%m-%dT%H:%M:%S')
+                        if updated_at > latest_validity:
+                            total = queued[activity][TOTAL]
+                            data.append((source, destination, activity+'_queued', total, updated_at))
+                    except KeyError:
+                        _logger.error("Entry {0} ({1}->{2}) key {3} does not follow standards"
+                                      .format(queued, source, destination, activity))
+                        continue
+            except KeyError:
+                pass
+
+            # MBps for Rucio, FAX, PerfSonar
+            try:
+                mbps = self.nws_dump[src_dst][MBPS]
+                for system in mbps:
+                    updated_at = datetime.strptime(mbps[system][TIMESTAMP], '%Y-%m-%dT%H:%M:%S')
+                    if updated_at > latest_validity:
+                        for duration in [H1, D1, W1]:
+                            try:
+                                mbps_entry = mbps[system][duration]
+                                data.append((source, destination, '{0}_mbps_{1}'.format(system, duration), mbps_entry, updated_at))
+                            except KeyError:
+                                _logger.debug("Entry {0} ({1}->{2}) system {3} duration {4} not available or wrongly formatted"
+                                              .format(mbps, source, destination, system, duration))
+                                _logger.debug(sys.exc_info())
                     continue
+            except KeyError:
+                pass
 
+            # PerfSonar latency and packetloss
+            for metric in [LATENCY, PACKETLOSS]:
                 try:
-                    done_1h = entry[activity]['done_1h']
-                    done_6h = entry[activity]['done_6h']
-                    queued_for_dst = entry[activity]['queued_for_dst']
-                    updated_at = datetime.strptime(entry[activity]['updated_at'], '%Y-%m-%dT%H:%M:%S.%f')
+                    struc = self.nws_dump[src_dst][metric]
+                    try:
+                        updated_at = datetime.strptime(struc[TIMESTAMP], '%Y-%m-%dT%H:%M:%S')
+                        if updated_at > latest_validity:
+                            value = struc[LATEST]
+                            data.append((source, destination, metric, value, updated_at))
+                    except KeyError:
+                        _logger.debug("Entry {0} ({1}->{2}) does not follow {3} standards"
+                                      .format(struc, source, destination, metric))
+                        pass
                 except KeyError:
-                    _logger.error("Entry {0} key {1} does not follow standards".format(entry, activity))
                     continue
-                except ValueError:
-                    _logger.error("Something wrong with {0}".format(entry[activity]))
-                    continue
-
-                # Do not consider expired data
-                if updated_at < latest_validity:
-                    _logger.warning('Skipped activity {0} because it is expired (ts={1}))'.format(activity, updated_at))
-                    continue
-
-                #Prepare data for bulk upserts
-                data.append((src, dst, activity+'_done_1h', done_1h, updated_at))
-                data.append((src, dst, activity+'_done_6h', done_6h, updated_at))
-                data.append((src, dst, activity+'_queued', queued_for_dst, updated_at))
 
         return data
 
@@ -506,7 +567,6 @@ class NetworkConfigurator(threading.Thread):
             return True
         else:
             return False
-
 
 if __name__ == "__main__":
 
