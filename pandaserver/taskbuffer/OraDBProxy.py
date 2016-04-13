@@ -13158,7 +13158,30 @@ class DBProxy:
                                                                                                                                     taskStatus) 
                             errorCode = 3
                         else:
+                            # sql to read task params
+                            sqlTP = "SELECT taskParams FROM {0}.JEDI_TaskParams WHERE jediTaskID=:jediTaskID ".format(panda_config.schemaJEDI)
+                            varMap = {}
+                            varMap[':jediTaskID'] = jediTaskID
+                            self.cur.execute(sqlTP+comment,varMap)
+                            tmpStr = ''
+                            for tmpItem, in self.cur:
+                                try:
+                                    tmpStr = tmpItem.read()
+                                except AttributeError:
+                                    tmpStr = str(tmpItem)
+                                break
+                            # decode json
+                            taskParamsJson = json.loads(tmpStr)
                             # just change some params for active task
+                            for tmpKey,tmpVal in newTaskParams.iteritems():
+                                taskParamsJson[tmpKey] = tmpVal
+                            # update params
+                            sqlTU  = "UPDATE {0}.JEDI_TaskParams SET taskParams=:taskParams ".format(panda_config.schemaJEDI)
+                            sqlTU += "WHERE jediTaskID=:jediTaskID "
+                            varMap = {}
+                            varMap[':jediTaskID'] = jediTaskID
+                            varMap[':taskParams'] = json.dumps(taskParamsJson)
+                            self.cur.execute(sqlTU+comment,varMap)
                             _logger.debug('{0} add new params for jediTaskID={1} with {2}'.format(methodName,
                                                                                                   jediTaskID,str(newTaskParams)))
                             retVal  = '{0}. new tasks params have been set to jediTaskID={1}. '.format(taskStatus,jediTaskID)
