@@ -1155,6 +1155,8 @@ class DynDataDistributer:
         if status != 0 or out.startswith('Error'):
             self.putLog(out,'error')
             self.putLog('bad DQ2 response to list datasets by GUIDs','error')
+            if 'DQUnknownDatasetException' in out:
+                return resForFatal
             return resForFailure
         self.putLog(out)
         # get map
@@ -1242,15 +1244,15 @@ class DynDataDistributer:
                 guidListELSSI,tmpCom,tmpOut,tmpErr = elssiIF.doLookup(tmpRunEvtList,stream=streamName,tokens=streamRef,
                                                                       amitag=amiTag,user=user)
                 regTime = datetime.datetime.utcnow()-regStart
-                self.putLog("Hadoop EI took {0}.{1:3d} sec for {2} events" .format(regTime.seconds,
-                                                                                   regTime.microseconds/1000,
-                                                                                   len(tmpRunEvtList)))
+                self.putLog("Hadoop EI took {0}.{1:03d} sec for {2} events" .format(regTime.seconds,
+                                                                                    regTime.microseconds/1000,
+                                                                                    len(tmpRunEvtList)))
                 regStart = datetime.datetime.utcnow()
                 statOra,guidListOraEI = eiTaskBuffer.getGUIDsFromEventIndex(tmpRunEvtList,streamName,amiTag,dsType)
                 regTime = datetime.datetime.utcnow()-regStart
-                self.putLog("Oracle EI took {0}.{1:3d} sec for {2} events" .format(regTime.seconds,
-                                                                                   regTime.microseconds/1000,
-                                                                                   len(tmpRunEvtList)))
+                self.putLog("Oracle EI took {0}.{1:03d} sec for {2} events" .format(regTime.seconds,
+                                                                                    regTime.microseconds/1000,
+                                                                                    len(tmpRunEvtList)))
                 # failed
                 if not tmpErr in [None,''] or len(guidListELSSI) == 0:
                     self.putLog(tmpCom)

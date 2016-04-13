@@ -2,6 +2,7 @@ Release Notes
 
 * 4/13/2016
   * fixed insertTaskParam to update JEDI taskparam table when task is running
+  * fixed listDatasetByGUIDs to regard UnknownDatasetException as fatal
 
 * 4/11/2016
   * changed to accept retry(newOpts) when analy tasks are running
