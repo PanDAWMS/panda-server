@@ -15,6 +15,8 @@ TOTAL = 'total'
 LATEST = 'latest'
 H1 = '1h'
 H6 = '6h'
+D1 = '1d'
+W1 = '1w'
 TIMESTAMP = 'timestamp'
 
 def get_dump(url):

@@ -395,17 +395,9 @@ class NetworkConfigurator(threading.Thread):
         if hasattr(panda_config,'NWS_URL'):
             self.NWS_URL = panda_config.NWS_URL
         else:
-            self.NWS_URL = 'http://rucio-nagios-prod/ett/latest.json'
+            self.NWS_URL = 'http://atlas-adc-netmetrics-lb.cern.ch/metrics/latest.json'
         _logger.debug('Getting NWS dump...')
         self.nws_dump = aux.get_dump(self.NWS_URL)
-        _logger.debug('Done')
-
-        if hasattr(panda_config,'NWS_FULL_URL'):
-            self.NWS_FULL_URL = panda_config.NWS_URL
-        else:
-            self.NWS_FULL_URL = 'http://aianalytics13.cern.ch/metrics/latest.json'
-        _logger.debug('Getting NWS FULL dump...')
-        self.nws_full_dump = aux.get_dump(self.NWS_FULL_URL)
         _logger.debug('Done')
 
         if hasattr(panda_config, 'AGIS_URL_CM'):
@@ -418,71 +410,30 @@ class NetworkConfigurator(threading.Thread):
 
     def process_nws_dump(self):
         """
-        Gets the NWS information dump, filters out irrelevant information
-        and prepares it for insertion into the PanDA DB
-        """
-
-        data = []
-
-        # Ignore outdated values
-        latest_validity = datetime.utcnow() - timedelta(minutes=30)
-
-        for entry in self.nws_dump:
-            _logger.debug('Processing NWS entry {0}'.format(entry))
-
-            src = entry['src']
-            dst = entry['dst']
-
-            # Skip broken entries (protection against errors in NWS)
-            if not src or not dst:
-                continue
-
-            values = {}
-
-            # PanDA is only interested in production input and output statistics
-            for activity in [PROD_INPUT, PROD_OUTPUT, EXPRESS]:
-                if not entry.has_key(activity):
-                    continue
-
-                try:
-                    done_1h = entry[activity]['done_1h']
-                    done_6h = entry[activity]['done_6h']
-                    queued_for_dst = entry[activity]['queued_for_dst']
-                    updated_at = datetime.strptime(entry[activity]['updated_at'], '%Y-%m-%dT%H:%M:%S.%f')
-                except KeyError:
-                    _logger.error("Entry {0} key {1} does not follow standards".format(entry, activity))
-                    continue
-                except ValueError:
-                    _logger.error("Something wrong with {0}".format(entry[activity]))
-                    continue
-
-                # Do not consider expired data
-                if updated_at < latest_validity:
-                    _logger.warning('Skipped activity {0} because it is expired (ts={1}))'
-                                    .format(activity, updated_at))
-                    continue
-
-                #Prepare data for bulk upserts
-                data.append((src, dst, activity+'_done_1h', done_1h, updated_at))
-                data.append((src, dst, activity+'_done_6h', done_6h, updated_at))
-                data.append((src, dst, activity+'_queued', queued_for_dst, updated_at))
-
-        return data
-
-    def process_nws_full_dump(self):
-        """
         Gets the second generation NWS information dump, filters out irrelevant information
         and prepares it for insertion into the PanDA DB
         """
 
         data = []
+        sites_list = dbif.read_configurator_sites(_session)
 
         # Ignore outdated values
         latest_validity = datetime.utcnow() - timedelta(minutes=30)
 
-        for src_dst in self.nws_full_dump:
+        for src_dst in self.nws_dump:
             try:
                 source, destination = src_dst.split(':')
+                skip_sites = []
+
+                # Skip entries with sites not recognized by configurator
+                if source not in sites_list:
+                    skip_sites.append(source)
+                if destination not in sites_list:
+                    skip_sites.append(destination)
+                if skip_sites:
+                    _logger.warning("Could not find site(s) {0} in configurator sites".format(skip_sites))
+                    continue
+
             except ValueError:
                 _logger.error("Json wrongly formatted. Expected key with format src:dst, but found key {0}"
                                .format(src_dst))
@@ -490,7 +441,7 @@ class NetworkConfigurator(threading.Thread):
 
             # Transferred files
             try:
-                done = self.nws_full_dump[src_dst][FILES][DONE]
+                done = self.nws_dump[src_dst][FILES][DONE]
                 for activity in [PROD_INPUT, PROD_OUTPUT, EXPRESS]:
                     if not done.has_key(activity):
                         continue
@@ -510,7 +461,7 @@ class NetworkConfigurator(threading.Thread):
 
             # Queued files - take TOTAL (ignore FTS and Rucio breakdowns)
             try:
-                queued = self.nws_full_dump[src_dst][FILES][QUEUED][TOTAL]
+                queued = self.nws_dump[src_dst][FILES][QUEUED][TOTAL]
                 for activity in [PROD_INPUT, PROD_OUTPUT, EXPRESS]:
                     if not queued.has_key(activity):
                         continue
@@ -528,24 +479,26 @@ class NetworkConfigurator(threading.Thread):
 
             # MBps for Rucio, FAX, PerfSonar
             try:
-                mbps = self.nws_full_dump[src_dst][MBPS]
+                mbps = self.nws_dump[src_dst][MBPS]
                 for system in mbps:
-                    try:
-                        updated_at = datetime.strptime(mbps[system][TIMESTAMP], '%Y-%m-%dT%H:%M:%S')
-                        if updated_at > latest_validity:
-                            mbps_entry = mbps[system][LATEST]
-                            data.append((source, destination, system+'_mbps', mbps_entry, updated_at))
-                    except KeyError:
-                        _logger.debug("Entry {0} ({1}->{2}) key {3} does not follow MBPS standards"
-                                      .format(mbps, source, destination, system))
-                        continue
+                    updated_at = datetime.strptime(mbps[system][TIMESTAMP], '%Y-%m-%dT%H:%M:%S')
+                    if updated_at > latest_validity:
+                        for duration in [H1, D1, W1]:
+                            try:
+                                mbps_entry = mbps[system][duration]
+                                data.append((source, destination, '{0}_mbps_{1}'.format(system, duration), mbps_entry, updated_at))
+                            except KeyError:
+                                _logger.debug("Entry {0} ({1}->{2}) system {3} duration {4} not available or wrongly formatted"
+                                              .format(mbps, source, destination, system, duration))
+                                _logger.debug(sys.exc_info())
+                    continue
             except KeyError:
                 pass
 
             # PerfSonar latency and packetloss
             for metric in [LATENCY, PACKETLOSS]:
                 try:
-                    struc = self.nws_full_dump[src_dst][metric]
+                    struc = self.nws_dump[src_dst][metric]
                     try:
                         updated_at = datetime.strptime(struc[TIMESTAMP], '%Y-%m-%dT%H:%M:%S')
                         if updated_at > latest_validity:
@@ -596,7 +549,7 @@ class NetworkConfigurator(threading.Thread):
         """
 
         # Process and store the NWS information (NWS=Network Weather Service)
-        data_nws = self.process_nws_full_dump()
+        data_nws = self.process_nws_dump()
         if not data_nws:
             _logger.critical("Could not retrieve any data from the NWS!")
 
