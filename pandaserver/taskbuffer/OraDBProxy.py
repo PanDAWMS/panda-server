@@ -3748,6 +3748,8 @@ class DBProxy:
                     if useEventService:
                         self.killEventServiceConsumers(job,True,False)
                         self.killUnusedEventServiceConsumers(job,False)
+                        self.killUsedEventRanges(job.jediTaskID,job.PandaID)
+                        self.killUnusedEventRanges(job.jediTaskID,job.jobsetID)
                     # disable reattempt
                     if job.processingType == 'pmerge':
                         self.disableFurtherReattempt(job)
@@ -14958,12 +14960,12 @@ class DBProxy:
             sqlDE  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
             sqlDE += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
             sqlDE += "SET status=:status "
-            sqlDE += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+            sqlDE += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND PandaID=:PandaID "
             sqlDE += "AND status IN (:esFinished,:esDone) "
             sqlCE  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
             sqlCE += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
             sqlCE += "SET status=:status "
-            sqlCE += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+            sqlCE += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND PandaID=:PandaID "
             sqlCE += "AND NOT status IN (:esFinished,:esDone,:esDiscarded,:esCancelled,:esFailed,:esFatal) "
             # look for consumers for each input
             killPandaIDs = {}
@@ -15014,10 +15016,14 @@ class DBProxy:
                 resJob = self.cur.fetchall()
                 if len(resJob) == 0:
                     continue
-                _logger.debug("{0} : kill associated consumer {1}".format(methodName,pandaID))
                 # instantiate JobSpec
                 dJob = JobSpec()
                 dJob.pack(resJob[0])
+                # skip if jobset different
+                if dJob.jobsetID != job.jobsetID:
+                    _logger.debug("{0} : skip consumer {1} since jobsetID is different".format(methodName,pandaID))
+                    continue
+                _logger.debug("{0} : kill associated consumer {1}".format(methodName,pandaID))
                 # delete
                 varMap = {}
                 varMap[':PandaID'] = pandaID
@@ -15055,27 +15061,29 @@ class DBProxy:
                 self.cur.execute(sqlMMod+comment,varMap)
                 self.cur.execute(sqlPMod+comment,varMap)
                 nKilled += 1
-            # discard event ranges
-            discardedSets = []
-            for pandaID in killPandaIDsList:
-                for idSet in killPandaIDs[pandaID]:
-                    if idSet in discardedSets:
-                        continue
-                    jediTaskID,datasetID,fileID = idSet
+                # discard event ranges
+                nRowsDis = 0
+                nRowsCan = 0
+                for jediTaskID,datasetID,fileID in killPandaIDs[pandaID]:
                     varMap = {}
                     varMap[':jediTaskID'] = jediTaskID
                     varMap[':datasetID']  = datasetID
                     varMap[':fileID']     = fileID
+                    varMap[':PandaID']    = pandaID
                     varMap[':status']     = EventServiceUtils.ST_discarded
                     varMap[':esFinished'] = EventServiceUtils.ST_finished
                     varMap[':esDone']     = EventServiceUtils.ST_done
                     self.cur.execute(sqlDE+comment, varMap)
+                    nRowsDis += self.cur.rowcount
                     varMap[':status']      = EventServiceUtils.ST_cancelled
                     varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
                     varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
                     varMap[':esFatal']     = EventServiceUtils.ST_fatal
                     varMap[':esFailed']    = EventServiceUtils.ST_failed
                     self.cur.execute(sqlCE+comment, varMap)
+                    nRowsCan += self.cur.rowcount
+                _logger.debug("{0} : {1} discarded {2} events".format(methodName,pandaID,nRowsDis))
+                _logger.debug("{0} : {1} cancelled {2} events".format(methodName,pandaID,nRowsCan))
             # commit
             if useCommit:
                 if not self._commit():
@@ -15222,6 +15230,7 @@ class DBProxy:
         comment = ' /* DBProxy.killUnusedEventRanges */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <jediTaskID={0} jobsetID={1}>".format(jediTaskID,jobsetID)
+        tmpLog = LogWrapper(_logger,methodName)
         # sql to kill event ranges
         varMap = {}
         varMap[':jediTaskID']  = jediTaskID
@@ -15232,8 +15241,46 @@ class DBProxy:
         sqlCE += "SET status=:esCancelled "
         sqlCE += "WHERE jediTaskID=:jediTaskID AND pandaID=:jobsetID "
         sqlCE += "AND status=:esReady "
-        _logger.debug(sqlCE+comment+str(varMap))
         self.cur.execute(sqlCE, varMap)
+        nRowsCan = self.cur.rowcount
+        tmpLog.debug("cancelled {0} events".format(nRowsCan))
+
+
+
+    # kill used event ranges
+    def killUsedEventRanges(self,jediTaskID,pandaID):
+        comment = ' /* DBProxy.killUsedEventRanges */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <jediTaskID={0} pandaID={1}>".format(jediTaskID,pandaID)
+        tmpLog = LogWrapper(_logger,methodName)
+        # sql to discard or cancel event ranges
+        sqlDE  = "UPDATE "
+        sqlDE += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
+        sqlDE += "SET status=:status "
+        sqlDE += "WHERE jediTaskID=:jediTaskID AND PandaID=:PandaID "
+        sqlDE += "AND status IN (:esFinished,:esDone) "
+        sqlCE  = "UPDATE "
+        sqlCE += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
+        sqlCE += "SET status=:status "
+        sqlCE += "WHERE jediTaskID=:jediTaskID AND PandaID=:PandaID "
+        sqlCE += "AND NOT status IN (:esFinished,:esDone,:esDiscarded,:esCancelled,:esFailed,:esFatal) "
+        varMap = {}
+        varMap[':jediTaskID'] = jediTaskID
+        varMap[':PandaID']    = pandaID
+        varMap[':status']     = EventServiceUtils.ST_discarded
+        varMap[':esFinished'] = EventServiceUtils.ST_finished
+        varMap[':esDone']     = EventServiceUtils.ST_done
+        self.cur.execute(sqlDE+comment, varMap)
+        nRowsDis = self.cur.rowcount
+        varMap[':status']      = EventServiceUtils.ST_cancelled
+        varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
+        varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
+        varMap[':esFatal']     = EventServiceUtils.ST_fatal
+        varMap[':esFailed']    = EventServiceUtils.ST_failed
+        self.cur.execute(sqlCE+comment, varMap)
+        nRowsCan = self.cur.rowcount
+        tmpLog.debug("discarded {0} events".format(nRowsDis))
+        tmpLog.debug("cancelled {0} events".format(nRowsCan))
 
 
 

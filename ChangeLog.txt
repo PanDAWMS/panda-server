@@ -1,5 +1,9 @@
 Release Notes
 
+* 4/17/2016
+  * fixed killUnusedEvent* to check jobsetID
+
+
 * 4/13/2016
   * fixed insertTaskParam to update JEDI taskparam table when task is running
   * fixed listDatasetByGUIDs to regard UnknownDatasetException as fatal
