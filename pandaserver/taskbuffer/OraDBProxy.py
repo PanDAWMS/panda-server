@@ -15916,6 +15916,7 @@ class DBProxy:
                 except TypeError:
                     normalizedMaxPSS = 0
 
+                # increase task limit in case >30% of the jobs were increased and the task is not fixed
                 if taskRamUnit != 'MBPerCoreFixed' and (1.0 * above_task) / total > 0.3:
                     if normalizedMaxPSS:
                         minimumRam = normalizedMaxPSS
