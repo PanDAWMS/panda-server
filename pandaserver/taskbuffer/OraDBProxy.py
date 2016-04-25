@@ -15904,14 +15904,14 @@ class DBProxy:
                 # normalize the job ramcounts by base ram count and number of cores
                 try:
                     normalizedJobRamCount = (jobRamCount - taskBaseRamCount) * 1.0
-                    if taskRamUnit == 'MBPerCore' and job.minRamUnit in ('MB', None, 'NULL'):
+                    if taskRamUnit in ['MBPerCore','MBPerCoreFixed'] and job.minRamUnit in ('MB', None, 'NULL'):
                         normalizedJobRamCount  = normalizedJobRamCount /siteCoreCount
                 except TypeError:
                     normalizedJobRamCount = 0
 
                 try:
                     normalizedMaxPSS = (job.maxPSS - taskBaseRamCount) / 1024.0
-                    if taskRamUnit == 'MBPerCore':
+                    if taskRamUnit in ['MBPerCore','MBPerCoreFixed']:
                         normalizedMaxPSS  = normalizedMaxPSS / siteCoreCount
                 except TypeError:
                     normalizedMaxPSS = 0
