@@ -15923,7 +15923,7 @@ class DBProxy:
                     if normalizedJobRamCount and normalizedJobRamCount > minimumRam:
                         minimumRam = normalizedJobRamCount
                     if max_task > minimumRam:
-                        minimumRam = max_task-1 # otherwise we go over the max_task step
+                        minimumRam = max_task - 1 # otherwise we go over the max_task step
                     if minimumRam:
                         _logger.debug("{0} : calling increaseRamLimitJEDI with minimumRam {1}".format(methodName, minimumRam)) 
                         return self.increaseRamLimitJEDI(jediTaskID, minimumRam)
