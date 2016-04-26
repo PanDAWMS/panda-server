@@ -459,17 +459,17 @@ class NetworkConfigurator(threading.Thread):
             except KeyError:
                 pass
 
-            # Queued files - take TOTAL (ignore FTS and Rucio breakdowns)
+            # Queued files
             try:
-                queued = self.nws_dump[src_dst][FILES][QUEUED][TOTAL]
+                queued = self.nws_dump[src_dst][FILES][QUEUED]
                 for activity in [PROD_INPUT, PROD_OUTPUT, EXPRESS]:
                     if not queued.has_key(activity):
                         continue
                     try:
                         updated_at = datetime.strptime(queued[activity][TIMESTAMP], '%Y-%m-%dT%H:%M:%S')
                         if updated_at > latest_validity:
-                            total = queued[activity][TOTAL]
-                            data.append((source, destination, activity+'_queued', total, updated_at))
+                            nqueued = queued[activity][LATEST]
+                            data.append((source, destination, activity+'_queued', nqueued, updated_at))
                     except KeyError:
                         _logger.error("Entry {0} ({1}->{2}) key {3} does not follow standards"
                                       .format(queued, source, destination, activity))
