@@ -151,7 +151,7 @@ class JobDipatcher:
     # get job
     def getJob(self,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
                atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry,
-               realDN,taskID,nJobs):
+               realDN,taskID,nJobs,acceptJson):
         jobs = []
         useGLEXEC = False
         useProxyCache = False
@@ -251,7 +251,10 @@ class JobDipatcher:
             # make response for bulk
             if nJobs != None:
                 response = Protocol.Response(Protocol.SC_Success)
-                response.appendNode('jobs',json.dumps(responseList))
+                if not acceptJson:
+                    response.appendNode('jobs',json.dumps(responseList))
+                else:
+                    response.appendNode('jobs',responseList)
         else:
             if tmpWrapper.result == Protocol.TimeOutToken:
                 # timeout
@@ -260,8 +263,8 @@ class JobDipatcher:
                 # no available jobs
                 response=Protocol.Response(Protocol.SC_NoJobs)
         # return
-        _logger.debug("getJob : %s %s useGLEXEC=%s ret -> %s" % (siteName,node,useGLEXEC,response.encode()))
-        return response.encode()
+        _logger.debug("getJob : %s %s useGLEXEC=%s ret -> %s" % (siteName,node,useGLEXEC,response.encode(acceptJson)))
+        return response.encode(acceptJson)
 
 
     # update job status
@@ -693,15 +696,15 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
     # invalid role
     if (not prodManager) and (not prodSourceLabel in ['user']):
         _logger.warning("getJob(%s) : invalid role" % siteName)
-        return Protocol.Response(Protocol.SC_Role).encode()        
+        return Protocol.Response(Protocol.SC_Role).encode(req.acceptJson())
     # invalid token
     if not validToken:
         _logger.warning("getJob(%s) : invalid token" % siteName)    
-        return Protocol.Response(Protocol.SC_Invalid).encode()        
+        return Protocol.Response(Protocol.SC_Invalid).encode(req.acceptJson())
     # invoke JD
     return jobDispatcher.getJob(siteName,prodSourceLabel,cpu,mem,diskSpace,node,int(timeout),
                                 computingElement,AtlasRelease,prodUserID,getProxyKey,countryGroup,
-                                workingGroup,allowOtherCountry,realDN,taskID,nJobs)
+                                workingGroup,allowOtherCountry,realDN,taskID,nJobs,req.acceptJson())
     
 
 # update job status

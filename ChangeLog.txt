@@ -1,8 +1,10 @@
 Release Notes
 
+* 4/28/2016
+  * changed getJob to send json if clients accept it
+
 * 4/17/2016
   * fixed killUnusedEvent* to check jobsetID
-
 
 * 4/13/2016
   * fixed insertTaskParam to update JEDI taskparam table when task is running
