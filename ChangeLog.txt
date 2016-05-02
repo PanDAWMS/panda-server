@@ -1,6 +1,7 @@
 Release Notes
 
 * 5/2/2016
+  * changed AdderAtlas to work without srm endpoints with OS endpoint
   * added localEsMergeNC
 
 * 4/28/2016
