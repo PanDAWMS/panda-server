@@ -14498,7 +14498,11 @@ class DBProxy:
                 self.cur.execute(sqlWM+comment, varMap)
                 resWM = self.cur.fetchone()
                 resSN = []
-                if resWM != None and resWM[0] != None and 'localEsMerge' in resWM[0]:
+                if resWM != None and resWM[0] != None:
+                    catchAll = resWM[0]
+                else:
+                    catchAll = ''
+                if 'localEsMerge' in catchAll:
                     # get sites in the nucleus associated to the site to run merge jobs in the same nucleus
                     sqlSN  = "SELECT ps2.panda_site_name,ps2.default_ddm_endpoint "
                     sqlSN += "FROM ATLAS_PANDA.panda_site ps1,ATLAS_PANDA.panda_site ps2,ATLAS_PANDAMETA.schedconfig sc "
@@ -14510,7 +14514,10 @@ class DBProxy:
                     # get sites
                     self.cur.execute(sqlSN+comment,varMap)
                     resSN = self.cur.fetchall()
-                if len(resSN) == 0:
+                elif 'localEsMergeNC' in catchAll:
+                    # no site change
+                    lookForMergeSite = False
+                if len(resSN) == 0 and lookForMergeSite:
                     # run merge jobs at destination
                     if not jobSpec.destinationSE.startswith('nucleus:'):
                         jobSpec.computingSite = jobSpec.destinationSE
