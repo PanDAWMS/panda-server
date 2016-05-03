@@ -1,5 +1,8 @@
 Release Notes
 
+* 5/3/2016
+  * using merging for ES jobs while ES merge is running
+
 * 5/2/2016
   * changed AdderAtlas to work without srm endpoints with OS endpoint
   * added localEsMergeNC

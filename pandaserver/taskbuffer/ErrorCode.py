@@ -63,8 +63,12 @@ EC_EventServiceKillNG = 121
 # killed for preemption
 EC_EventServicePreemption = 122
 
+# retred but didn't process any events on WN
+EC_EventServiceNoEvent = 123
+
 # failed to lock semaphore for job cloning
 EC_JobCloningUnlock = 200
+
 
 
 

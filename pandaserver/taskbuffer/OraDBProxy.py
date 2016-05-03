@@ -1365,13 +1365,13 @@ class DBProxy:
                         raise RuntimeError, 'Faied to retry for Event Service'
                     elif retEvS == 0:
                         # retry event ranges
-                        job.jobStatus = 'closed'
+                        job.jobStatus = 'merging'
                         job.jobSubStatus = 'es_retry'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceRetried
                         job.taskBufferErrorDiag = 'closed to retry unprocessed even ranges in PandaID={0}'.format(retNewPandaID)
                     elif retEvS == 2:
                         # goes to merging
-                        job.jobStatus = 'closed'
+                        job.jobStatus = 'merging'
                         job.jobSubStatus = 'es_merge'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceMerge
                         job.taskBufferErrorDiag = 'closed to merge pre-merged files in PandaID={0}'.format(retNewPandaID)
@@ -1387,7 +1387,7 @@ class DBProxy:
                         self.killUnusedEventServiceConsumers(job,False)
                     elif retEvS == 4:
                         # other consumers are running
-                        job.jobStatus = 'closed'
+                        job.jobStatus = 'merging'
                         job.jobSubStatus = 'es_wait'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceWaitOthers
                         job.taskBufferErrorDiag = 'no further action since other Event ServiceEvent Service consumers were still running'
@@ -1409,6 +1409,12 @@ class DBProxy:
                         job.jobStatus = 'failed'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceAllFailed
                         job.taskBufferErrorDiag = "all event ranges failed"
+                    elif retEvS == 8:
+                        # retry event ranges but no events were processed
+                        job.jobStatus = 'closed'
+                        job.jobSubStatus = 'es_noevent'
+                        job.taskBufferErrorCode = ErrorCode.EC_EventServiceNoEvent
+                        job.taskBufferErrorDiag = 'closed to retry unprocessed even ranges in PandaID={0}'.format(retNewPandaID)
                     # kill unused event ranges
                     if job.jobStatus == 'failed':
                         self.killUnusedEventRanges(job.jediTaskID,job.jobsetID)
@@ -1500,7 +1506,7 @@ class DBProxy:
                     # collect to record state change
                     updatedJobList.append(job)
                     # update JEDI tables unless it is an ES consumer job which was successful but waits for merging or other running consumers
-                    if useJEDI and not (EventServiceUtils.isEventServiceJob(job) and job.isCancelled()):
+                    if useJEDI and not (EventServiceUtils.isEventServiceJob(job) and (job.isCancelled() or job.jobStatus == 'merging')):
                         self.propagateResultToJEDI(job,self.cur,extraInfo=extraInfo)
                     # update related ES jobs when ES-merge job is done
                     if useJEDI and EventServiceUtils.isEventServiceMerge(job) and not job.taskBufferErrorCode in [ErrorCode.EC_PilotRetried] \
@@ -3605,6 +3611,7 @@ class DBProxy:
                         break
                 # event service
                 useEventService =  EventServiceUtils.isEventServiceSH(specialHandling)
+                useEventServiceMerge = EventServiceUtils.isEventServiceMergeSH(specialHandling)
                 # update
                 varMap = {}
                 varMap[':PandaID'] = pandaID
@@ -3748,8 +3755,10 @@ class DBProxy:
                     if useEventService:
                         self.killEventServiceConsumers(job,True,False)
                         self.killUnusedEventServiceConsumers(job,False)
-                        self.killUsedEventRanges(job.jediTaskID,job.PandaID)
+                        self.updateRelatedEventServiceJobs(job,True)
                         self.killUnusedEventRanges(job.jediTaskID,job.jobsetID)
+                    elif useEventServiceMerge:
+                        self.updateRelatedEventServiceJobs(job,True)
                     # disable reattempt
                     if job.processingType == 'pmerge':
                         self.disableFurtherReattempt(job)
@@ -14190,6 +14199,7 @@ class DBProxy:
             # 5 : didn't process any events on WN
             # 6 : didn't process any events on WN and fail since the last one
             # 7 : all event ranges failed
+            # 8 : generated a retry job but no events were processed
             # None : fatal error
             retValue = 1,None
             # begin transaction
@@ -14379,7 +14389,12 @@ class DBProxy:
                 if useCommit:
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
-                retValue = 4,None
+                if nRowDone == 0:
+                    # didn't process any events
+                    retValue = 5,None
+                else:
+                    # processed some events
+                    retValue = 4,None
                 return retValue
             # all failed
             if doMerging and not hasDoneRange:
@@ -14616,7 +14631,12 @@ class DBProxy:
                     raise RuntimeError, 'Commit error'
             # set return
             if not doMerging:
-                retValue = 0,jobSpec.PandaID
+                if nRowDone == 0:
+                    # didn't process any events
+                    retValue = 8,jobSpec.PandaID
+                else:
+                    # processed some events
+                    retValue = 0,jobSpec.PandaID
             else:
                 retValue = 2,jobSpec.PandaID
             # record status change
@@ -17027,12 +17047,12 @@ class DBProxy:
 
 
     # update related ES jobs when ES-merge job is done
-    def updateRelatedEventServiceJobs(self,job):
+    def updateRelatedEventServiceJobs(self,job,killEvents=False):
         comment = ' /* DBProxy.updateRelatedEventServiceJobs */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <Panda={0}>".format(job.PandaID)
         tmpLog = LogWrapper(_logger,methodName)
-        tmpLog.debug("start")
+        tmpLog.debug("start killEvents={0}".format(killEvents))
         try:
             # sql to read range
             sqlRR  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
@@ -17056,17 +17076,24 @@ class DBProxy:
                         esPandaIDs.add(tmpPandaID)
             # sql to update ES job
             sqlUE  = "UPDATE {0} SET jobStatus=:newStatus,stateChangeTime=CURRENT_DATE "
-            sqlUE += "WHERE PandaID=:PandaID AND jobStatus=:oldStatus AND modificationTime>(CURRENT_DATE-30) "
+            sqlUE += "WHERE PandaID=:PandaID AND jobsetID=:jobsetID AND jobStatus in (:oldStatus1,:oldStatus2) AND modificationTime>(CURRENT_DATE-90) "
             for tmpPandaID in esPandaIDs:
                 varMap = {}
                 varMap[':PandaID']   = tmpPandaID
+                varMap[':jobsetID']  = job.jobsetID
                 varMap[':newStatus'] = job.jobStatus
-                varMap[':oldStatus'] = 'closed'
+                varMap[':oldStatus1'] = 'closed'
+                varMap[':oldStatus2'] = 'merging'
+                isUpdated = False
                 for tableName in ['ATLAS_PANDA.jobsArchived4','ATLAS_PANDAARCH.jobsArchived']:
                     self.cur.execute(sqlUE.format(tableName)+comment,varMap)
                     nRow = self.cur.rowcount
                     if nRow > 0:
                         tmpLog.debug('change PandaID={0} to {1}'.format(tmpPandaID,job.jobStatus))
+                        isUpdated = True
+                # kill processed events if necessary
+                if killEvents and isUpdated:
+                    self.killUsedEventRanges(job.jediTaskID,tmpPandaID)
             tmpLog.debug("done")
             return True
         except:
