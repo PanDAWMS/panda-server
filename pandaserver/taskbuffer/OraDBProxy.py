@@ -1418,6 +1418,7 @@ class DBProxy:
                     # kill unused event ranges
                     if job.jobStatus == 'failed':
                         self.killUnusedEventRanges(job.jediTaskID,job.jobsetID)
+                        self.updateRelatedEventServiceJobs(job)
                 elif useJEDI and EventServiceUtils.isEventServiceJob(job) \
                         and EventServiceUtils.isJobCloningJob(job):
                     # check for cloned jobs

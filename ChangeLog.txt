@@ -2,6 +2,7 @@ Release Notes
 
 * 5/4/2016
   * changed to copy ES merge trf to job.transformation
+  * changed ES jobs to go from merging to failed when associated ES jobs go to failed
 
 * 5/3/2016
   * using merging for ES jobs while ES merge is running
