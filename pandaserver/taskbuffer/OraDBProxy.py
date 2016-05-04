@@ -14503,6 +14503,11 @@ class DBProxy:
                     jobSpec.jobParameters = tmpMatch.group(1)
                 except:
                     pass
+                try:
+                    tmpMatch = re.search('<PANDA_ESMERGE_TRF>(.*)</PANDA_ESMERGE_TRF>',jobSpec.jobParameters)
+                    jobSpec.transformation = tmpMatch.group(1)
+                except:
+                    pass
                 # change special handling
                 EventServiceUtils.setEventServiceMerge(jobSpec)
                 # check where merge is done
