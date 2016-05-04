@@ -1418,7 +1418,7 @@ class DBProxy:
                     # kill unused event ranges
                     if job.jobStatus == 'failed':
                         self.killUnusedEventRanges(job.jediTaskID,job.jobsetID)
-                        self.updateRelatedEventServiceJobs(job)
+                        self.updateRelatedEventServiceJobs(job,True)
                 elif useJEDI and EventServiceUtils.isEventServiceJob(job) \
                         and EventServiceUtils.isJobCloningJob(job):
                     # check for cloned jobs
@@ -17081,7 +17081,7 @@ class DBProxy:
                     for tmpPandaID, in resRR:
                         esPandaIDs.add(tmpPandaID)
             # sql to update ES job
-            sqlUE  = "UPDATE {0} SET jobStatus=:newStatus,stateChangeTime=CURRENT_DATE "
+            sqlUE  = "UPDATE {0} SET jobStatus=:newStatus,stateChangeTime=CURRENT_DATE,taskBufferErrorDiag=:errDiag "
             sqlUE += "WHERE PandaID=:PandaID AND jobsetID=:jobsetID AND jobStatus in (:oldStatus1,:oldStatus2) AND modificationTime>(CURRENT_DATE-90) "
             for tmpPandaID in esPandaIDs:
                 varMap = {}
@@ -17090,6 +17090,7 @@ class DBProxy:
                 varMap[':newStatus'] = job.jobStatus
                 varMap[':oldStatus1'] = 'closed'
                 varMap[':oldStatus2'] = 'merging'
+                varMap[':errDiag'] = '{0} since an associated ES or merge job PandaID={1} {2}'.format(job.jobStatus,tmpPandaID,job.jobStatus)
                 isUpdated = False
                 for tableName in ['ATLAS_PANDA.jobsArchived4','ATLAS_PANDAARCH.jobsArchived']:
                     self.cur.execute(sqlUE.format(tableName)+comment,varMap)
