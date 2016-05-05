@@ -163,7 +163,7 @@ class Configurator(threading.Thread):
                     space_total = space_used + space_free
                     space_timestamp = datetime.strptime(self.rse_usage[ddm_endpoint_name]['srm']['updated_at'],
                                                         '%Y-%m-%d %H:%M:%S')
-                except KeyError:
+                except (KeyError, ValueError):
                     space_used, space_free, space_total, space_timestamp = None, None, None, None
                     _logger.error('process_site_dumps: no rse SRM usage information for {0}'.format(ddm_endpoint_name))
 
@@ -452,7 +452,7 @@ class NetworkConfigurator(threading.Thread):
                             done_6h = done[activity][H6]
                             data.append((source, destination, activity+'_done_1h', done_1h, updated_at))
                             data.append((source, destination, activity+'_done_6h', done_6h, updated_at))
-                    except KeyError:
+                    except (KeyError, ValueError):
                         _logger.debug("Entry {0} ({1}->{2}) key {3} does not follow standards"
                                       .format(done, source, destination, activity))
                         continue
@@ -470,7 +470,7 @@ class NetworkConfigurator(threading.Thread):
                         if updated_at > latest_validity:
                             nqueued = queued[activity][LATEST]
                             data.append((source, destination, activity+'_queued', nqueued, updated_at))
-                    except KeyError:
+                    except (KeyError, ValueError):
                         _logger.error("Entry {0} ({1}->{2}) key {3} does not follow standards"
                                       .format(queued, source, destination, activity))
                         continue
@@ -481,7 +481,10 @@ class NetworkConfigurator(threading.Thread):
             try:
                 mbps = self.nws_dump[src_dst][MBPS]
                 for system in mbps:
-                    updated_at = datetime.strptime(mbps[system][TIMESTAMP], '%Y-%m-%dT%H:%M:%S')
+                    try:
+                        updated_at = datetime.strptime(mbps[system][TIMESTAMP], '%Y-%m-%dT%H:%M:%S')
+                    except ValueError:
+                        _logger.debug("Entry {0} has wrong timestamp for system {1}".format(mbps, system))
                     if updated_at > latest_validity:
                         for duration in [H1, D1, W1]:
                             try:
@@ -491,7 +494,6 @@ class NetworkConfigurator(threading.Thread):
                                 _logger.debug("Entry {0} ({1}->{2}) system {3} duration {4} not available or wrongly formatted"
                                               .format(mbps, source, destination, system, duration))
                                 _logger.debug(sys.exc_info())
-                    continue
             except KeyError:
                 pass
 
