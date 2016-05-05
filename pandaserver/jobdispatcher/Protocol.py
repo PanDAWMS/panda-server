@@ -1,5 +1,6 @@
 import re
 import sys
+import json
 import urllib
 from proxycache import panda_proxy_cache
 from taskbuffer import EventServiceUtils
@@ -41,8 +42,11 @@ class Response:
 
 
     # URL encode
-    def encode(self):
-        return urllib.urlencode(self.data)
+    def encode(self,acceptJson=False):
+        if not acceptJson:
+            return urllib.urlencode(self.data)
+        else:
+            return {'type':'json','content':json.dumps(self.data)}
 
 
     # append Node

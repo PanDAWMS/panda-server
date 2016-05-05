@@ -306,7 +306,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                     # extract OS files
                     hasNormalURL = True
                     if file.lfn in self.extraInfo['endpoint'] and self.extraInfo['endpoint'][file.lfn] != []:
-                        hasNormalURL = False
+                        # hasNormalURL = False # FIXME once the pilot chanages to send srm endpoints in addition to OS
                         for pilotEndPoint in self.extraInfo['endpoint'][file.lfn]:
                             # pilot uploaded to endpoint consistently with original job definition
                             if pilotEndPoint in dsDestMap[fileDestinationDBlock]:

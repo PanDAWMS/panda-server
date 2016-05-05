@@ -6,6 +6,7 @@ entry point
 """
 
 import datetime
+import types
 
 # config file
 from config import panda_config
@@ -117,6 +118,15 @@ if panda_config.useFastCGI or panda_config.useWSGI:
             if self.subprocess_env.has_key('REMOTE_HOST'):
                 return self.subprocess_env['REMOTE_HOST']
             return ""
+
+        # accept json
+        def acceptJson(self):
+            try:
+                if self.subprocess_env.has_key('HTTP_ACCEPT'):
+                    return 'application/json' in self.subprocess_env['HTTP_ACCEPT']
+            except:
+                pass
+            return False
         
 
     # application
@@ -127,6 +137,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
             methodName = environ['SCRIPT_NAME'].split('/')[-1]
         _logger.debug("PID=%s %s start" % (os.getpid(),methodName))
         regStart = datetime.datetime.utcnow()
+        retType = None
         # check method name    
         if not methodName in allowedMethods:
             _logger.error("PID=%s %s is forbidden" % (os.getpid(),methodName))
@@ -162,6 +173,10 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                     dummyReq = DummyReq(environ)
                     # exec
                     exeRes = apply(tmpMethod,[dummyReq],params)
+                    # extract return type
+                    if type(exeRes) == types.DictType:
+                        retType = exeRes['type']
+                        exeRes  = exeRes['content']
                     # convert bool to string
                     if exeRes in [True,False]:
                         exeRes = str(exeRes)
@@ -190,7 +205,10 @@ if panda_config.useFastCGI or panda_config.useWSGI:
             start_response('302 Redirect', [('Location', exeRes.url)])
             return ['redirect']
         else:                
-            start_response('200 OK', [('Content-Type', 'text/plain')])
+            if retType == 'json':
+                start_response('200 OK', [('Content-Type', 'application/json')])
+            else:
+                start_response('200 OK', [('Content-Type', 'text/plain')])
             return [exeRes]
 
     # start server
