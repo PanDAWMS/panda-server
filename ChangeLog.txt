@@ -1,5 +1,8 @@
 Release Notes
 
+* 5/9/2016
+  * reduced memory consumtion and removed redundant file lookups in SetupperAtlas
+
 * 5/4/2016
   * changed to copy ES merge trf to job.transformation
   * changed ES jobs to go from merging to failed when associated ES jobs go to failed

@@ -29,7 +29,8 @@ import brokerage.broker
 import brokerage.broker_util
 import DataServiceUtils
 from rucio.client import Client as RucioClient
-from rucio.common.exception import FileAlreadyExists,DataIdentifierAlreadyExists,Duplicate
+from rucio.common.exception import FileAlreadyExists,DataIdentifierAlreadyExists,Duplicate,\
+    DataIdentifierNotFound
 
 from SetupperPluginBase import SetupperPluginBase
 
@@ -74,6 +75,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
     def run(self):
         try:
             self.logger.debug('start run()')
+            self._memoryCheck()
             bunchTag = ''
             timeStart = datetime.datetime.utcnow()
             if self.jobs != None and len(self.jobs) > 0:
@@ -93,6 +95,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             if not self.onlyTA:
                 # invoke brokerage
                 self.logger.debug('brokerSchedule')
+                self._memoryCheck()
                 brokerage.broker.schedule(self.jobs,self.taskBuffer,self.siteMapper,
                                           replicaMap=self.replicaMapForBroker,
                                           t2FilesMap=self.availableLFNsInT2)
@@ -100,7 +103,9 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 self.removeWaitingJobs()
                 # setup dispatch dataset
                 self.logger.debug('setupSource')
+                self._memoryCheck()
                 self._setupSource()
+                self._memoryCheck()
                 # sort by site so that larger subs are created in the next step 
                 if self.jobs != [] and self.jobs[0].prodSourceLabel in ['managed','test']:
                     tmpJobMap = {}
@@ -153,7 +158,9 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     # at a burst
                     self._setupDestination()
                 # make dis datasets for existing files
+                self._memoryCheck()
                 self._makeDisDatasetsForExistingfiles()
+                self._memoryCheck()
             regTime = datetime.datetime.utcnow() - timeStart
             self.logger.debug('{0} took {1}sec'.format(bunchTag,regTime.seconds))
             self.logger.debug('end run()')
@@ -171,15 +178,20 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         try:
             if not self.onlyTA:
                 self.logger.debug('start postRun()')
+                self._memoryCheck()
                 # subscribe sites distpatchDBlocks. this must be the last method
                 self.logger.debug('subscribeDistpatchDB')
                 self._subscribeDistpatchDB()
                 # dynamic data placement for analysis jobs
+                self._memoryCheck()
                 self._dynamicDataPlacement()
                 # pin input datasets
+                self._memoryCheck()
                 self._pinInputDatasets()
                 # make subscription for missing
+                self._memoryCheck()
                 self._makeSubscriptionForMissing()
+                self._memoryCheck()
                 self.logger.debug('end postRun()')
         except:
             errtype,errvalue = sys.exc_info()[:2]
@@ -1102,6 +1114,23 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         lfnDsMap  = {}
         replicaMap = {}
         self.logger.debug('go into LFN correction')
+        # collect input LFNs
+        inputLFNs = set()
+        for tmpJob in self.jobs:
+            for tmpFile in tmpJob.Files:
+                if tmpFile.type == 'input':
+                    inputLFNs.add(tmpFile.lfn)
+                    genLFN = re.sub('\.\d+$','',tmpFile.lfn)
+                    inputLFNs.add(genLFN)
+                    if not tmpFile.GUID in ['NULL','',None]:
+                        if not tmpFile.dataset in self.lfnDatasetMap:
+                            self.lfnDatasetMap[tmpFile.dataset] = {}
+                        self.lfnDatasetMap[tmpFile.dataset][tmpFile.lfn] = {'guid':tmpFile.GUID,
+                                                                            'chksum':tmpFile.checksum,
+                                                                            'md5sum':tmpFile.md5sum,
+                                                                            'fsize':tmpFile.fsize,
+                                                                            'scope':tmpFile.scope}
+        # loop over all jobs
         for job in self.jobs:
             if self.onlyTA:            
                 self.logger.debug("start TA session %s" % (job.taskID))
@@ -1182,48 +1211,28 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     prodError[dataset] = ''
                     lfnMap[dataset] = {}
                     # get LFNs
-                    for iDDMTry in range(3):
-                        self.logger.debug('listFilesInDataset '+dataset)
-                        status,out = ddm.DQ2.main('listFilesInDataset',dataset)
-                        if out.find("DQUnknownDatasetException") != -1:
-                            break
-                        elif status == -1:
-                            break
-                        elif status != 0 or out.find("DQ2 internal server exception") != -1 \
-                                 or out.find("An error occurred on the central catalogs") != -1 \
-                                 or out.find("MySQL server has gone away") != -1:
-                            time.sleep(10)
-                        else:
-                            break
-                    if status != 0 or out.startswith('Error'):
-                        self.logger.error(out)                                                                    
+                    status,out = self.getListFilesInDataset(dataset,inputLFNs)
+                    if status != 0:
+                        self.logger.error(out)
                         prodError[dataset] = 'could not get file list of prodDBlock %s' % dataset
                         self.logger.error(prodError[dataset])
                         # doesn't exist in DQ2
-                        if out.find('DQUnknownDatasetException') != -1:
-                            missingDS[dataset] = "DS:%s not found in DQ2" % dataset
-                        elif status == -1:
+                        if status == -1:
+                            missingDS[dataset] = "DS:%s not found in DDM" % dataset
+                        else:
                             missingDS[dataset] = out
                     else:
                         # make map (key: LFN w/o attemptNr, value: LFN with attemptNr)
-                        items = {}
+                        items = out
                         try:
-                            # protection for empty dataset
-                            if out != '()':
-                                exec "items = %s[0]" % out
-                            # keep values to avoid redundant lookup
-                            self.lfnDatasetMap[dataset] = items
                             # loop over all files    
-                            for guid,vals in items.iteritems():
-                                valMap[vals['lfn']] = {'guid' : guid, 'fsize' : vals['filesize'],
-                                                       'md5sum' : vals['checksum'],
-                                                       'chksum' : vals['checksum'],
-                                                       'scope'  : vals['scope']}
-                                genLFN = re.sub('\.\d+$','',vals['lfn'])
+                            for tmpLFN,vals in items.iteritems():
+                                valMap[tmpLFN] = vals
+                                genLFN = re.sub('\.\d+$','',tmpLFN)
                                 if lfnMap[dataset].has_key(genLFN):
                                     # get attemptNr
                                     newAttNr = 0
-                                    newMat = re.search('\.(\d+)$',vals['lfn'])
+                                    newMat = re.search('\.(\d+)$',tmpLFN)
                                     if newMat != None:
                                         newAttNr = int(newMat.group(1))
                                     oldAttNr = 0
@@ -1232,9 +1241,9 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                         oldAttNr = int(oldMat.group(1))
                                     # compare
                                     if newAttNr > oldAttNr:
-                                        lfnMap[dataset][genLFN] = vals['lfn']
+                                        lfnMap[dataset][genLFN] = tmpLFN
                                 else:
-                                    lfnMap[dataset][genLFN] = vals['lfn']
+                                    lfnMap[dataset][genLFN] = tmpLFN
                                 # mapping from LFN to DS
                                 lfnDsMap[lfnMap[dataset][genLFN]] = dataset
                         except:
@@ -1625,9 +1634,9 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                             if not self.missingDatasetList.has_key(job.getCloud()):
                                 self.missingDatasetList[job.getCloud()] = {}
                             if not self.missingDatasetList[job.getCloud()].has_key(tmpFile.dataset):
-                                self.missingDatasetList[job.getCloud()][tmpFile.dataset] = []
-                            if not tmpFile.GUID in self.missingDatasetList[job.getCloud()][tmpFile.dataset]:
-                                self.missingDatasetList[job.getCloud()][tmpFile.dataset].append(tmpFile.GUID)
+                                self.missingDatasetList[job.getCloud()][tmpFile.dataset] = set()
+                            if not tmpFile.lfn in self.missingDatasetList[job.getCloud()][tmpFile.dataset]:
+                                self.missingDatasetList[job.getCloud()][tmpFile.dataset].add(tmpFile.lfn)
         # set data summary fields
         for tmpJob in self.jobs:
             try:
@@ -1748,31 +1757,33 @@ class SetupperAtlasPlugin (SetupperPluginBase):
 
 
     # get list of files in dataset
-    def getListFilesInDataset(self,dataset):
+    def getListFilesInDataset(self,dataset,fileList=None):
         # use cache data
         if self.lfnDatasetMap.has_key(dataset):
-            return True,self.lfnDatasetMap[dataset]
+            return 0,self.lfnDatasetMap[dataset]
         for iDDMTry in range(3):
-            self.logger.debug('listFilesInDataset '+dataset)
+            try:
+                self.logger.debug('listFilesInDataset '+dataset)
+                items,tmpDummy = rucioAPI.listFilesInDataset(dataset,fileList=fileList)
+                status = 0
+                break
+            except DataIdentifierNotFound:
+                status = -1
+                break
+            except:
+                status = -2
             status,out = ddm.DQ2.main('listFilesInDataset',dataset)
             if out.find("DQUnknownDatasetException") != -1:
                 break
             elif status == -1:
                 break
-            elif status != 0 or (not self.isDQ2ok(out)):
-                time.sleep(10)
-            else:
-                break
-        if status != 0 or out.startswith('Error'):
-            self.logger.error(out)
-            return False,{}
-        # convert
-        items = {}
-        try:
-            exec "items = %s[0]" % out
-        except:
-            return False,{}
-        return True,items
+        if status != 0:
+            errType,errValue = sys.exc_info()[:2]
+            out = '{0} {1}'.format(errType,errValue)
+            return status,out
+        # keep to avoid redundant lookup
+        self.lfnDatasetMap[dataset] = items
+        return status,items
 
         
     # get list of datasets in container
@@ -2299,9 +2310,9 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                             self.logger.error('failed to get files in dataset:%s' % tmpConstDsName)
                             continue
                         # loop over all files to check the dataset is used
-                        for tmpGUID in tmpMissFiles:
+                        for tmpLFN in tmpMissFiles:
                             # append if used
-                            if tmpFilesInDs.has_key(tmpGUID):
+                            if tmpLFN in tmpFilesInDs:
                                 missingList[tmpCloud].append(tmpConstDsName)
                                 break
                 else:

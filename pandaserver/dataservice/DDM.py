@@ -3,6 +3,7 @@ provide primitive methods for DDM
 
 """
 
+import re
 import sys
 import types
 import commands
@@ -624,6 +625,32 @@ class RucioAPI:
             errType,errVale = sys.exc_info()[:2]
             return False,'%s %s' % (errType,errVale)
 
+
+    
+    # list files in dataset
+    def listFilesInDataset(self,datasetName,long=False,fileList=None):
+        # extract scope from dataset
+        scope,dsn = self.extract_scope(datasetName)
+        client = RucioClient()
+        return_dict = {}
+        for x in client.list_files(scope, dsn, long=long):
+            tmpLFN = str(x['name'])
+            if fileList != None:
+                genLFN = re.sub('\.\d+$','',tmpLFN)
+                if not tmpLFN in fileList and not genLFN in fileList:
+                    continue
+            dq2attrs = {}
+            dq2attrs['chksum'] = "ad:" + str(x['adler32'])
+            dq2attrs['md5sum'] = dq2attrs['chksum']
+            dq2attrs['fsize'] = x['bytes']
+            dq2attrs['scope'] = str(x['scope'])
+            dq2attrs['events'] = str(x['events'])
+            if long:
+                dq2attrs['lumiblocknr'] = str(x['lumiblocknr'])
+            guid = str('%s-%s-%s-%s-%s' % (x['guid'][0:8], x['guid'][8:12], x['guid'][12:16], x['guid'][16:20], x['guid'][20:32]))
+            dq2attrs['guid'] = guid
+            return_dict[tmpLFN] = dq2attrs
+        return (return_dict, None)
 
 
 # instantiate
