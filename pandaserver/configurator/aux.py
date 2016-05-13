@@ -1,5 +1,7 @@
 import urllib2
 import json
+import sys
+import time
 
 GB = 1024**3
 PROD_INPUT = 'Production Input'
@@ -19,11 +21,22 @@ D1 = '1d'
 W1 = '1w'
 TIMESTAMP = 'timestamp'
 
+
 def get_dump(url):
     """
     Retrieves a json file from the given URL and loads it into memory
     """
-    response = urllib2.urlopen(url)
-    json_str = response.read()
-    dump = json.loads(json_str)
-    return dump
+    for i in xrange(1, 4): # 3 retries
+        try:
+            response = urllib2.urlopen(url)
+            json_str = response.read()
+            dump = json.loads(json_str)
+            return dump
+        except ValueError:
+            time.sleep(1)
+
+    return {}
+
+
+
+
