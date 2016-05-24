@@ -2739,7 +2739,7 @@ class DBProxy:
             sql1+= "AND prodUserName=:prodUserName " 
             getValMap[':prodUserName'] = compactDN
         # taskID
-        if taskID != None:
+        if not taskID in [None,'NULL']:
             sql1+= "AND jediTaskID=:taskID "
             getValMap[':taskID'] = taskID
         # country group
