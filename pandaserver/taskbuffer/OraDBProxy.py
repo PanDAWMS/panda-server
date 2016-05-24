@@ -24,6 +24,7 @@ import SiteSpec
 import CloudSpec
 import PrioUtil
 import ProcessGroups
+import JobUtils
 import EventServiceUtils
 from DdmSpec  import DdmSpec
 from JobSpec  import JobSpec
@@ -9223,14 +9224,16 @@ class DBProxy:
                     for idxToken,tmpddmID in enumerate(ddm.split(',')):
                         if idxToken < len(tmpTokens):
                             tmpTokenNameBase = tmpTokens[idxToken]
-                            if not ret.setokens.has_key(tmpTokenNameBase):
-                                tmpTokenName = tmpTokenNameBase
-                            else:
-                                for tmpTokenNameIndex in range(10000):
-                                    tmpTokenName = '%s%s' % (tmpTokenNameBase,tmpTokenNameIndex)
-                                    if not ret.setokens.has_key(tmpTokenName):
-                                        break
-                            ret.setokens[tmpTokenName] = tmpddmID
+                        else:
+                            tmpTokenNameBase = 'DUMMY'
+                        if not ret.setokens.has_key(tmpTokenNameBase):
+                            tmpTokenName = tmpTokenNameBase
+                        else:
+                            for tmpTokenNameIndex in range(10000):
+                                tmpTokenName = '%s%s' % (tmpTokenNameBase,tmpTokenNameIndex)
+                                if not ret.setokens.has_key(tmpTokenName):
+                                    break
+                        ret.setokens[tmpTokenName] = tmpddmID
                     # expand [] in se path
                     match = re.search('([^\[]*)\[([^\]]+)\](.*)',seprodpath)
                     if match != None and len(match.groups()) == 3:
@@ -12681,6 +12684,8 @@ class DBProxy:
         # propagate failed result to unmerge job
         if len(finishUnmerge) > 0:
             self.updateUnmergedJobs(jobSpec,finishUnmerge)
+        # update some job attributes
+        self.setHS06sec(jobSpec.PandaID,False)
         # return
         return True
 
@@ -17383,3 +17388,90 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return None
+
+
+
+    # set HS06sec
+    def setHS06sec(self,pandaID,useCommit=True):
+        comment = ' /* DBProxy.setHS06sec */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger,methodName+" <PandaID={0}>".format(pandaID))
+        tmpLog.debug("start")
+        try:
+            # sql to get job attributes
+            sqlJ  = "SELECT jediTaskID,startTime,endTime,actualCoreCount,coreCount,jobMetrics,computingSite "
+            sqlJ += "FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID "
+            # sql to get task attributes
+            sqlT  = "SELECT baseWalltime,cpuEfficiency FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+            sqlT += "WHERE jediTaskID=:jediTaskID "
+            # sql to get site attributes
+            sqlS  = "SELECT corePower FROM ATLAS_PANDAMETA.schedconfig "
+            sqlS += "WHERE siteid=:siteid "
+            # sql to update HS06sec
+            sqlU  = "UPDATE ATLAS_PANDA.jobsArchived4 SET hs06sec=:hs06sec WHERE PandaID=:PandaID "
+            # begin transaction
+            if useCommit:
+                self.conn.begin()
+            varMap = {}
+            varMap[':PandaID'] = pandaID
+            self.cur.execute(sqlJ+comment,varMap)
+            resJ = self.cur.fetchone()
+            if resJ == None:
+                tmpLog.debug('skip since job not found')
+            else:
+                jediTaskID,startTime,endTime,actualCoreCount,defCoreCount,jobMetrics,computingSite = resJ
+                if jediTaskID == None:
+                    # ignore non JEDI jobs
+                    tmpLog.debug('skip since no JEDI job')
+                else:
+                    # get task attributes
+                    varMap = {}
+                    varMap[':jediTaskID'] = jediTaskID
+                    self.cur.execute(sqlT+comment,varMap)
+                    resT = self.cur.fetchone()
+                    if resT == None:
+                        tmpLog.debug('skip since jediTaskID={0} not found'.format(jediTaskID))
+                    else:
+                        baseWalltime,cpuEfficiency = resT
+                        # get site attributes
+                        varMap = {}
+                        varMap[':siteid'] = computingSite
+                        self.cur.execute(sqlS+comment,varMap)
+                        resS = self.cur.fetchone()
+                        if resS == None:
+                            tmpLog.debug('skip since site={0} not found'.format(computingSite))
+                        else:
+                            corePower, = resS
+                            # get core count
+                            coreCount = JobUtils.getCoreCount(actualCoreCount,defCoreCount,jobMetrics)
+                            # enable scaling
+                            if cpuEfficiency == 0:
+                                cpuEfficiency = 100
+                            # get HS06sec
+                            hs06sec = JobUtils.getHS06sec(startTime,endTime,baseWalltime,cpuEfficiency,corePower,coreCount)
+                            if hs06sec == None:
+                                tmpLog.debug('skip since HS06sec is None')
+                            else:
+                                # cap
+                                hs06sec = long(hs06sec)
+                                maxHS06sec = 999999999
+                                if hs06sec > maxHS06sec:
+                                    hs06sec = maxHS06sec
+                                # update HS06sec
+                                varMap = {}
+                                varMap[':PandaID'] = pandaID
+                                varMap[':hs06sec'] = hs06sec
+                                self.cur.execute(sqlU+comment,varMap)
+                                tmpLog.debug('set HS06sec={0}'.format(hs06sec))
+            # commit
+            if useCommit:
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+            return True
+        except:
+            # roll back
+            if useCommit:
+                self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return False
