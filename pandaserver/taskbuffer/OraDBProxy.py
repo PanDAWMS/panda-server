@@ -251,7 +251,7 @@ class DBProxy:
         self.cur.execute(sql+comment, varMap)
 
         try:
-            (value_str, type), = self.cur.fetchone()
+            value_str, type = self.cur.fetchone()
         except TypeError:
             error_message = 'Specified key not found '
             _logger.error(error_message)
