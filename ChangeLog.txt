@@ -1,6 +1,7 @@
 Release Notes
 
 * 5/25/2016
+  * imporved getJediTaskDetails
   * added writeInputToFile
   * fixed Watcher for time-outed ES merge not to update ES jobs
 

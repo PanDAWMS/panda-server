@@ -13672,8 +13672,8 @@ class DBProxy:
         methodName = comment.split(' ')[-2].split('.')[-1]
         _logger.debug("{0} : jediTaskID={1} full={2}".format(methodName,jediTaskID,fullFlag))
         try:
-            retDict = {'inDS':'','outDS':'','statistics':'','PandaID':[],
-                       'mergeStatus':None,'mergePandaID':[]}
+            retDict = {'inDS':'','outDS':'','statistics':'','PandaID':set(),
+                       'mergeStatus':None,'mergePandaID':set()}
             # sql to get task status
             sqlT  = 'SELECT status FROM {0}.JEDI_Tasks WHERE jediTaskID=:jediTaskID '.format(panda_config.schemaJEDI)
             # sql to get datasets
@@ -13766,11 +13766,9 @@ class DBProxy:
                         raise RuntimeError, 'Commit error'
                     for tmpPandaID,tmpNumFiles in resP:
                         if not unmergeFlag:
-                            if not tmpPandaID in retDict['PandaID']:
-                                retDict['PandaID'].append(tmpPandaID)
+                            retDict['PandaID'].add(tmpPandaID)
                         else:
-                            if not tmpPandaID in retDict['mergePandaID']:
-                                retDict['mergePandaID'].append(tmpPandaID)
+                            retDict['mergePandaID'].add(tmpPandaID)
                         # map to job status
                         if datasetType in ['input','pseudo_input']:
                             if tmpPandaID in jobStatPandaIDs:
@@ -13839,7 +13837,8 @@ class DBProxy:
                     retDict['cliParams'] = taskParamsJson['cliParams']
                 else:
                     retDict['cliParams'] = ''
-            retDict['PandaID'].sort()
+            retDict['PandaID'] = list(retDict['PandaID'])
+            retDict['mergePandaID'] = list(retDict['mergePandaID'])
             _logger.debug("{0} : {1}".format(methodName,str(retDict)))
             return retDict
         except:
