@@ -230,7 +230,6 @@ class DBProxy:
             return -1,None
 
 
-
     # get configuration value
     def getConfigValue(self, component, key, app='pandaserver', vo=None):
         comment = ' /* DBProxy.getConfigValue */'
@@ -252,11 +251,20 @@ class DBProxy:
 
         try:
             (value_str, type), = self.cur.fetchone()
-            if type in ('str', 'string'):
+        except TypeError:
+            error_message = 'Specified key not found '
+            _logger.error(error_message)
+            raise Exception(error_message)
+
+        try:
+
+            if type.lower() in ('str', 'string'):
                 return value_str
-            elif type in ('int', 'integer'):
+            elif type.lower() in ('int', 'integer'):
                 return int(value_str)
-            elif type in ('bool', 'boolean'):
+            elif type.lower() == 'float':
+                return float(value_str)
+            elif type.lower() in ('bool', 'boolean'):
                 if value_str.lower() == 'true':
                     return True
                 else:
@@ -267,10 +275,8 @@ class DBProxy:
             error_message = 'Wrong value/type pair. Value: {0}, Type: {1}'.format(value, type)
             _logger.error(error_message)
             raise Exception(error_message)
-        except TypeError:
-            error_message = 'Specified key not found '
-            _logger.error(error_message)
-            raise Exception(error_message)
+
+
 
     # insert job to jobsDefined
     def insertNewJob(self,job,user,serNum,weight=0.0,priorityOffset=0,userVO=None,groupJobSN=0,toPending=False,
