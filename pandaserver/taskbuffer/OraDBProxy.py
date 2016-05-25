@@ -249,9 +249,9 @@ class DBProxy:
             sql += "AND (vo=:vo or vo IS NULL)"
 
         self.cur.execute(sql+comment, varMap)
-        (value_str, type), = self.cur.fetchone()
 
         try:
+            (value_str, type), = self.cur.fetchone()
             if type in ('str', 'string'):
                 return value_str
             elif type in ('int', 'integer'):
@@ -264,9 +264,13 @@ class DBProxy:
             else:
                 raise ValueError
         except ValueError:
-            _logger.error('Wrong value/type pair. Value: {0}, Type: {1}'.format(value, type))
-            raise ValueError
-
+            error_message = 'Wrong value/type pair. Value: {0}, Type: {1}'.format(value, type)
+            _logger.error(error_message)
+            raise Exception(error_message)
+        except TypeError:
+            error_message = 'Specified key not found '
+            _logger.error(error_message)
+            raise Exception(error_message)
 
     # insert job to jobsDefined
     def insertNewJob(self,job,user,serNum,weight=0.0,priorityOffset=0,userVO=None,groupJobSN=0,toPending=False,
