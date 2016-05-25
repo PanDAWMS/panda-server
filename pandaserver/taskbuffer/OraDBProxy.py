@@ -230,7 +230,8 @@ class DBProxy:
             return -1,None
 
 
-    # get configuration value
+    # get configuration value. cached for an hour
+    @memoize
     def getConfigValue(self, component, key, app='pandaserver', vo=None):
         comment = ' /* DBProxy.getConfigValue */'
         methodName = comment.split(' ')[-2].split('.')[-1]
@@ -272,7 +273,7 @@ class DBProxy:
             else:
                 raise ValueError
         except ValueError:
-            error_message = 'Wrong value/type pair. Value: {0}, Type: {1}'.format(value, type)
+            error_message = 'Wrong value/type pair. Value: {0}, Type: {1}'.format(value_str, type)
             _logger.error(error_message)
             raise Exception(error_message)
 
