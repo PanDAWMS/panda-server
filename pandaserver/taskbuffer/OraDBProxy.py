@@ -32,7 +32,7 @@ from FileSpec import FileSpec
 from DatasetSpec import DatasetSpec
 from CloudTaskSpec import CloudTaskSpec
 from WrappedCursor import WrappedCursor
-from Utils import create_shards
+from Utils import create_shards, UnknownKeyError, WrongConfigurationError
 from pandalogger.PandaLogger import PandaLogger
 from pandalogger.LogWrapper import LogWrapper
 from config import panda_config
@@ -55,7 +55,6 @@ _logger = PandaLogger().getLogger('DBProxy')
 _lockGetSN   = open(panda_config.lockfile_getSN, 'w')
 _lockSetDS   = open(panda_config.lockfile_setDS, 'w')
 _lockGetCT   = open(panda_config.lockfile_getCT, 'w')
-
 
 # proxy
 class DBProxy:
@@ -255,7 +254,7 @@ class DBProxy:
         except TypeError:
             error_message = 'Specified key not found '
             _logger.error(error_message)
-            raise Exception(error_message)
+            raise UnknownKeyError(error_message)
 
         try:
 
@@ -275,7 +274,7 @@ class DBProxy:
         except ValueError:
             error_message = 'Wrong value/type pair. Value: {0}, Type: {1}'.format(value_str, type)
             _logger.error(error_message)
-            raise Exception(error_message)
+            raise WrongConfigurationError(error_message)
 
 
 

@@ -18,7 +18,6 @@ from dataservice.ProcessLimiter import ProcessLimiter
 from pandalogger.PandaLogger import PandaLogger
 _logger = PandaLogger().getLogger('TaskBuffer')
 
-
 class TaskBuffer:
     """
     task queue
