@@ -60,6 +60,14 @@ class Watcher (threading.Thread):
                     _logger.debug('%s %s lastmod:%s endtime:%s' % (job.PandaID,job.jobStatus,
                                                                    str(job.modificationTime),
                                                                    str(job.endTime)))
+                    # retry ES merge jobs
+                    if EventServiceUtils.isEventServiceMerge(job):
+                        self.taskBuffer.retryJob(job.PandaID,{},getNewPandaID=True,
+                                                 attemptNr=job.attemptNr,
+                                                 recoverableEsMerge=True)
+                        # read back
+                        job = self.taskBuffer.peekJobs([self.pandaID],fromDefined=False,
+                                                       fromArchived=False,fromWaiting=False)[0]
                     destDBList = []
                     # retry analysis jobs 
                     if (job.prodSourceLabel in ['user','panda']) and (job.attemptNr<2 or job.jobStatus == 'sent') \
@@ -163,11 +171,6 @@ class Watcher (threading.Thread):
                                 file.status = 'failed'
                                 if not file.destinationDBlock in destDBList:
                                     destDBList.append(file.destinationDBlock)
-                    # retry ES merge jobs
-                    if EventServiceUtils.isEventServiceMerge(job):
-                        self.taskBuffer.retryJob(job.PandaID,{},getNewPandaID=True,
-                                                 attemptNr=job.attemptNr,
-                                                 recoverableEsMerge=True)
                     # update job
                     self.taskBuffer.updateJobs([job],False)
                     # start closer

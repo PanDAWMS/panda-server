@@ -103,6 +103,7 @@ class Response:
         ddmEndPointOut = []
         noOutput = []
         siteSpec = None
+        inDsLfnMap = {}
         if siteMapperCache != None:
             siteMapper = siteMapperCache.getObj()
             siteSpec = siteMapper.getSite(job.computingSite)
@@ -141,6 +142,9 @@ class Response:
                     strCheckSum += '%s,' % file.md5sum
                 strScopeIn += '%s,' % file.scope
                 ddmEndPointIn.append(self.getDdmEndpoint(siteSpec,file.dispatchDBlockToken))
+                if not file.dataset in inDsLfnMap:
+                    inDsLfnMap[file.dataset] = []
+                inDsLfnMap[file.dataset].append(file.lfn)
             if file.type == 'output' or file.type == 'log':
                 if strOFiles != '':
                     strOFiles += ','
@@ -253,7 +257,7 @@ class Response:
         # event service merge
         if isEventServiceMerge:
             self.data['eventServiceMerge'] = 'True'
-            # write to file
+            # write to file for ES merge
             writeToFileStr = ''
             try:
                 for outputName,inputList in job.metadata[0].iteritems():
@@ -266,6 +270,19 @@ class Response:
             except:
                 pass
             self.data['writeToFile'] = writeToFileStr
+        elif job.writeInputToFile():
+            try:
+                # write input to file
+                writeToFileStr = ''
+                for inDS,inputList in inDsLfnMap.iteritems():
+                    inDS = re.sub('/$','',inDS)
+                    writeToFileStr += 'tmpin_{0}:'.format(inDS)
+                    writeToFileStr += ','.join(inputList)
+                    writeToFileStr += '^'
+                writeToFileStr = writeToFileStr[:-1]
+                self.data['writeToFile'] = writeToFileStr
+            except:
+                pass
         # no output
         if noOutput != []:
             self.data['allowNoOutput'] = ','.join(noOutput)

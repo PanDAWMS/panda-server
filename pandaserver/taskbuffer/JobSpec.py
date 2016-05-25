@@ -51,8 +51,9 @@ class JobSpec(object):
                     'jobSubStatus'           : 80,
                     }
     # tag for special handling
-    _tagForSH = {'altStgOut'  : 'ao',
-                 'putLogToOS' : 'po',
+    _tagForSH = {'altStgOut'        : 'ao',
+                 'putLogToOS'       : 'po',
+                 'writeInputToFile' : 'wf',
                  }
 
 
@@ -427,4 +428,24 @@ class JobSpec(object):
             items = []
         if not self._tagForSH['putLogToOS'] in items:
             items.append(self._tagForSH['putLogToOS'])
+        self.specialHandling = ','.join(items)
+
+
+
+    # write input to file
+    def writeInputToFile(self):
+        if self.specialHandling != None:
+            return self._tagForSH['writeInputToFile'] in self.specialHandling.split(',')
+        return False
+
+
+
+    # set to write input to file
+    def setToWriteInputToFile(self):
+        if self.specialHandling != None:
+            items = self.specialHandling.split(',')
+        else:
+            items = []
+        if not self._tagForSH['writeInputToFile'] in items:
+            items.append(self._tagForSH['writeInputToFile'])
         self.specialHandling = ','.join(items)

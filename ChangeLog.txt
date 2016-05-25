@@ -1,5 +1,9 @@
 Release Notes
 
+* 5/25/2016
+  * added writeInputToFile
+  * fixed Watcher for time-outed ES merge not to update ES jobs
+
 * 5/9/2016
   * reduced memory consumtion and removed redundant file lookups in SetupperAtlas
 
