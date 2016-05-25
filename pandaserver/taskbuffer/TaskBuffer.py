@@ -428,6 +428,18 @@ class TaskBuffer:
         return res
 
 
+    # get a DB configuration value
+    def getConfigValue(self, component, key, app='pandaserver', vo=None):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.getConfigValue(component, key, app, vo)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
     # lock jobs for finisher
     def lockJobsForFinisher(self,timeNow,rownum,highPrio):
         # get DB proxy

@@ -230,6 +230,44 @@ class DBProxy:
             return -1,None
 
 
+
+    # get configuration value
+    def getConfigValue(self, component, key, app='pandaserver', vo=None):
+        comment = ' /* DBProxy.getConfigValue */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        varMap = {':component': component, ':key': key, ':app': app}
+        sql = """
+        SELECT value, type FROM ATLAS_PANDA.CONFIG
+        WHERE component=:component
+        AND key=:key
+        AND app=:app
+        """
+
+        # If VO is specified, select only the config values for this VO or VO independent values
+        if vo:
+            varMap[':vo'] = vo
+            sql += "AND (vo=:vo or vo IS NULL)"
+
+        self.cur.execute(sql+comment, varMap)
+        (value_str, type), = self.cur.fetchone()
+
+        try:
+            if type in ('str', 'string'):
+                return value_str
+            elif type in ('int', 'integer'):
+                return int(value_str)
+            elif type in ('bool', 'boolean'):
+                if value_str.lower() == 'true':
+                    return True
+                else:
+                    return False
+            else:
+                raise ValueError
+        except ValueError:
+            _logger.error('Wrong value/type pair. Value: {0}, Type: {1}'.format(value, type))
+            raise ValueError
+
+
     # insert job to jobsDefined
     def insertNewJob(self,job,user,serNum,weight=0.0,priorityOffset=0,userVO=None,groupJobSN=0,toPending=False,
                      origEsJob=False,eventServiceInfo=None,oldPandaIDs=None,relationType=None):
