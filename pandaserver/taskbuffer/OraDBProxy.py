@@ -32,7 +32,7 @@ from FileSpec import FileSpec
 from DatasetSpec import DatasetSpec
 from CloudTaskSpec import CloudTaskSpec
 from WrappedCursor import WrappedCursor
-from Utils import create_shards
+from Utils import create_shards, UnknownKeyError, WrongConfigurationError
 from pandalogger.PandaLogger import PandaLogger
 from pandalogger.LogWrapper import LogWrapper
 from config import panda_config
@@ -55,7 +55,6 @@ _logger = PandaLogger().getLogger('DBProxy')
 _lockGetSN   = open(panda_config.lockfile_getSN, 'w')
 _lockSetDS   = open(panda_config.lockfile_setDS, 'w')
 _lockGetCT   = open(panda_config.lockfile_getCT, 'w')
-
 
 # proxy
 class DBProxy:
@@ -228,6 +227,55 @@ class DBProxy:
             _logger.error("getClobObj : %s %s" % (sql,str(varMap)))
             _logger.error("getClobObj : %s %s" % (type,value))
             return -1,None
+
+
+    # get configuration value. cached for an hour
+    @memoize
+    def getConfigValue(self, component, key, app='pandaserver', vo=None):
+        comment = ' /* DBProxy.getConfigValue */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        varMap = {':component': component, ':key': key, ':app': app}
+        sql = """
+        SELECT value, type FROM ATLAS_PANDA.CONFIG
+        WHERE component=:component
+        AND key=:key
+        AND app=:app
+        """
+
+        # If VO is specified, select only the config values for this VO or VO independent values
+        if vo:
+            varMap[':vo'] = vo
+            sql += "AND (vo=:vo or vo IS NULL)"
+
+        self.cur.execute(sql+comment, varMap)
+
+        try:
+            value_str, type = self.cur.fetchone()
+        except TypeError:
+            error_message = 'Specified key not found '
+            _logger.error(error_message)
+            raise UnknownKeyError(error_message)
+
+        try:
+
+            if type.lower() in ('str', 'string'):
+                return value_str
+            elif type.lower() in ('int', 'integer'):
+                return int(value_str)
+            elif type.lower() == 'float':
+                return float(value_str)
+            elif type.lower() in ('bool', 'boolean'):
+                if value_str.lower() == 'true':
+                    return True
+                else:
+                    return False
+            else:
+                raise ValueError
+        except ValueError:
+            error_message = 'Wrong value/type pair. Value: {0}, Type: {1}'.format(value_str, type)
+            _logger.error(error_message)
+            raise WrongConfigurationError(error_message)
+
 
 
     # insert job to jobsDefined

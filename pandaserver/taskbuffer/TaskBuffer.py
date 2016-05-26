@@ -18,7 +18,6 @@ from dataservice.ProcessLimiter import ProcessLimiter
 from pandalogger.PandaLogger import PandaLogger
 _logger = PandaLogger().getLogger('TaskBuffer')
 
-
 class TaskBuffer:
     """
     task queue
@@ -422,6 +421,18 @@ class TaskBuffer:
         # exec
         res = proxy.lockJobsForReassign(tableName,timeLimit,statList,labels,processTypes,sites,clouds,
                                         useJEDI,onlyReassignable,useStateChangeTime)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
+    # get a DB configuration value
+    def getConfigValue(self, component, key, app='pandaserver', vo=None):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.getConfigValue(component, key, app, vo)
         # release DB proxy
         self.proxyPool.putProxy(proxy)
         # return
