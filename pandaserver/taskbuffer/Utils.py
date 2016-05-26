@@ -22,14 +22,6 @@ from pandalogger.LogWrapper import LogWrapper
 # logger
 _logger = PandaLogger().getLogger('Utils')
 
-
-class UnknownKeyError(Exception):
-    pass
-
-class WrongConfigurationError(Exception):
-    pass
-
-
 # check if server is alive
 def isAlive(req):
     return "alive=yes"
