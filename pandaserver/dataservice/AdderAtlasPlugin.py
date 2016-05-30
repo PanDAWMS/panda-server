@@ -189,6 +189,12 @@ class AdderAtlasPlugin (AdderPluginBase):
         # return if non-DQ2
         if self.pandaDDM or self.job.destinationSE == 'local':
             return 0
+        # get campaign
+        campaign = None
+        if not self.job.jediTaskID in [0,None,'NULL']:
+            tmpRet = self.taskBuffer.getTaskAttributesPanda(self.job.jediTaskID,['campaign'])
+            if 'campaign' in tmpRet:
+                campaign = tmpRet['campaign']
         # check files
         idMap = {}
         fileList = []
@@ -302,7 +308,9 @@ class AdderAtlasPlugin (AdderPluginBase):
                             fileAttrs['events'] = None
                         #if not file.jediTaskID in [0,None,'NULL']:
                         #    fileAttrs['task_id'] = file.jediTaskID
-                        #fileAttrs['panda_id'] = file.PandaID
+                        fileAttrs['panda_id'] = file.PandaID
+                        if not campaign in ['',None]:
+                            fileAttrs['campaign'] = campaign
                     # extract OS files
                     hasNormalURL = True
                     if file.lfn in self.extraInfo['endpoint'] and self.extraInfo['endpoint'][file.lfn] != []:

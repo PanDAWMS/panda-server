@@ -17375,6 +17375,43 @@ class DBProxy:
 
 
 
+    # get task attributes
+    def getTaskAttributesPanda(self,jediTaskID,attrs):
+        comment = ' /* DBProxy.getTaskAttributesPanda */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <jediTaskID={0}>".format(jediTaskID)
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        try:
+            # sql to get task attributes
+            sqlRR  = "SELECT "
+            for attr in attrs:
+                sqlRR += '{0},'.format(attr)
+            sqlRR = sqlRR[:-1]
+            sqlRR += ' FROM {0}.JEDI_Tasks '.format(panda_config.schemaJEDI)
+            sqlRR += "WHERE jediTaskID=:jediTaskID "
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            # start transaction
+            self.conn.begin()
+            self.cur.execute(sqlRR+comment,varMap)
+            resRR = self.cur.fetchone()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            retVal = {}
+            if resRR != None:
+                for idx,attr in enumerate(attrs):
+                    retVal[attr] = resRR[idx]
+            tmpLog.debug("done {0}".format(str(retVal)))
+            return retVal
+        except:
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return {}
+
+
+
     # check for cloned jobs
     def checkClonedJob(self,jobSpec,useCommit=True):
         comment = ' /* DBProxy.checkClonedJob */'

@@ -2997,6 +2997,19 @@ class TaskBuffer:
 
 
 
+    # get task attributes
+    def getTaskAttributesPanda(self,jediTaskID,attrs):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getTaskAttributesPanda(jediTaskID,attrs)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
     # check for cloned jobs
     def checkClonedJob(self,jobSpec):
         # get proxy

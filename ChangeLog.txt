@@ -1,5 +1,8 @@
 Release Notes
 
+* 5/20/2016
+  * setting panda_id and campaign to file metadata
+
 * 5/25/2016
   * imporved getJediTaskDetails
   * added writeInputToFile

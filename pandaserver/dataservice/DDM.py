@@ -482,6 +482,10 @@ class RucioAPI:
                         meta['events'] = tmpFile['events']
                     if 'lumiblocknr' in tmpFile:
                         meta['lumiblocknr'] = tmpFile['lumiblocknr']
+                    if 'panda_id' in tmpFile:
+                        meta['panda_id'] = tmpFile['panda_id']
+                    if 'campaign' in tmpFile:
+                        meta['campaign'] = tmpFile['campaign']
                     # set mandatory fields
                     file = {'scope': s,
                             'name' : lfn,
