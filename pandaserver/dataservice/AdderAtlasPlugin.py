@@ -525,7 +525,10 @@ class AdderAtlasPlugin (AdderPluginBase):
                 # unknown errors
                 errType,errValue = sys.exc_info()[:2]
                 out = '%s : %s' % (errType,errValue)
-                isFatal = False
+                if 'value too large for column' in out:
+                    isFatal = True
+                else:
+                    isFatal = False
                 isFailed = True                
             regTime = datetime.datetime.utcnow() - regStart
             self.logger.debug(regMsgStr + \

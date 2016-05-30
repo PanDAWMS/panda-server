@@ -1,6 +1,7 @@
 Release Notes
 
 * 5/20/2016
+  * added a protection agains too long scope
   * setting panda_id and campaign to file metadata
 
 * 5/25/2016
