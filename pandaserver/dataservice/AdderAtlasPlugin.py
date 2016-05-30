@@ -525,7 +525,8 @@ class AdderAtlasPlugin (AdderPluginBase):
                 # unknown errors
                 errType,errValue = sys.exc_info()[:2]
                 out = '%s : %s' % (errType,errValue)
-                if 'value too large for column' in out:
+                if 'value too large for column' in out or \
+                        'unique constraint (ATLAS_RUCIO.DIDS_GUID_IDX) violate' in out:
                     isFatal = True
                 else:
                     isFatal = False

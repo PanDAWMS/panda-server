@@ -1,7 +1,8 @@
 Release Notes
 
 * 5/20/2016
-  * added a protection agains too long scope
+  * added a protection against unique constraint ATLAS_RUCIO.DIDS_GUID_IDX violation
+  * added a protection against too long scope
   * setting panda_id and campaign to file metadata
 
 * 5/25/2016
