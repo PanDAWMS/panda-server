@@ -17369,6 +17369,8 @@ class DBProxy:
             tmpLog.debug("done")
             return taskParams
         except:
+            # roll back
+            self._rollback()
             # error
             self.dumpErrorMessage(_logger,methodName)
             return ''
@@ -17406,6 +17408,8 @@ class DBProxy:
             tmpLog.debug("done {0}".format(str(retVal)))
             return retVal
         except:
+            # roll back
+            self._rollback()
             # error
             self.dumpErrorMessage(_logger,methodName)
             return {}
