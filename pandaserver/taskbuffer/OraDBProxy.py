@@ -486,6 +486,7 @@ class DBProxy:
             dynNumEvents = EventServiceUtils.isDynNumEventsSH(job.specialHandling)
             dynFileMap = {}
             dynLfnIdMap = {}
+            totalInputEvents = 0
             for file in job.Files:
                 file.row_ID = None
                 if not file.status in ['ready','cached']:
@@ -609,10 +610,14 @@ class DBProxy:
                                 iEvent = eventServiceInfo[file.lfn]['nEvents'] + 1
                             lastEvent = eventServiceInfo[file.lfn]['startEvent'] + iEvent -1
                             varMap[':lastEvent'] = lastEvent
+                            # offset for positional event numbers
+                            varMap[':startEvent'] += totalInputEvents
+                            varMap[':lastEvent'] += totalInputEvents
                             varMaps.append(varMap)
                         self.cur.executemany(sqlJediEvent+comment, varMaps)
                         _logger.debug("insertNewJob : %s inserted %s event ranges jediTaskID:%s" % (job.PandaID,len(varMaps),
                                                                                                     job.jediTaskID))
+                        totalInputEvents += eventServiceInfo[file.lfn]['nEvents']
             # insert events for dynamic number of events
             if dynFileMap != {}:
                 # insert new ranges

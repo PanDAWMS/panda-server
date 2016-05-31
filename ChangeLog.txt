@@ -1,5 +1,8 @@
 Release Notes
 
+* 5/31/2016
+  * fixed event range generation with multiple inputs
+
 * 5/20/2016
   * added a protection against unique constraint ATLAS_RUCIO.DIDS_GUID_IDX violation
   * added a protection against too long scope
