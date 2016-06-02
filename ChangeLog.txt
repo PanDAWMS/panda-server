@@ -1,5 +1,8 @@
 Release Notes
 
+* 6/2/2016
+  * removed scope from tmpin
+
 * 5/31/2016
   * fixed event range generation with multiple inputs
 

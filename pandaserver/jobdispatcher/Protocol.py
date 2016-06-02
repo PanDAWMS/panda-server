@@ -276,6 +276,7 @@ class Response:
                 writeToFileStr = ''
                 for inDS,inputList in inDsLfnMap.iteritems():
                     inDS = re.sub('/$','',inDS)
+                    inDS = inDS.split(':')[-1]
                     writeToFileStr += 'tmpin_{0}:'.format(inDS)
                     writeToFileStr += ','.join(inputList)
                     writeToFileStr += '^'
