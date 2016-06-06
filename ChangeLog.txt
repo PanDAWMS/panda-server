@@ -1,5 +1,8 @@
 Release Notes
 
+* 6/6/2016
+  * resetting batchID for retry
+
 * 6/2/2016
   * removed scope from tmpin
 

@@ -2356,6 +2356,7 @@ class DBProxy:
                             job.currentPriority -= 10
                         job.endTime             = None
                         job.transExitCode       = None
+                        job.batchID             = None
                         for attr in job._attributes:
                             if attr.endswith('ErrorCode') or attr.endswith('ErrorDiag'):
                                 setattr(job,attr,None)
@@ -14511,6 +14512,7 @@ class DBProxy:
             jobSpec.creationTime     = datetime.datetime.utcnow()
             jobSpec.modificationTime = jobSpec.creationTime
             jobSpec.attemptNr       += 1
+            jobSpec.batchID          = None
             if doMerging:
                 jobSpec.maxAttempt = jobSpec.attemptNr+3
                 jobSpec.currentPriority = 5000
