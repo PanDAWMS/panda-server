@@ -1,5 +1,8 @@
 Release Notes
 
+* 6/7/2016
+  * changed to sort files for ES since file order is important for positional event number
+
 * 6/6/2016
   * resetting batchID for retry
 

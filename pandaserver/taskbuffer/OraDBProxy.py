@@ -3254,6 +3254,8 @@ class DBProxy:
                         job.jobParameters = re.sub('<PANDA_ESMERGE_.+>.*</PANDA_ESMERGE_.+>','',job.jobParameters)
                     except:
                         pass
+                    # sort files since file order is important for positional event number
+                    job.sortFiles()
                 elif EventServiceUtils.isEventServiceMerge(job):
                     try:
                         origJobParameters = job.jobParameters

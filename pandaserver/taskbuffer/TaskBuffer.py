@@ -351,7 +351,7 @@ class TaskBuffer:
                 # set hostname
                 if hostname != '':
                     job.creationHost = hostname
-                # extract file info, chnage specialHandling for event service
+                # extract file info, change specialHandling for event service
                 eventServiceInfo,job.specialHandling,esIndex = EventServiceUtils.decodeFileInfo(job.specialHandling)
                 origEsJob = False
                 if eventServiceInfo != {}:
@@ -360,6 +360,8 @@ class TaskBuffer:
                         job.jobsetID = esJobsetMap[esIndex]
                     else:
                         origEsJob = True
+                    # sort files since file order is important for positional event number
+                    job.sortFiles()
                 if oldPandaIDs != None and len(oldPandaIDs) > idxJob:
                     jobOldPandaIDs = oldPandaIDs[idxJob]
                 else:

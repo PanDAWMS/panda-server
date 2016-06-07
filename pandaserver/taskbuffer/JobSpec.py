@@ -449,3 +449,19 @@ class JobSpec(object):
         if not self._tagForSH['writeInputToFile'] in items:
             items.append(self._tagForSH['writeInputToFile'])
         self.specialHandling = ','.join(items)
+
+
+
+    # sort files
+    def sortFiles(self):
+        lfnMap = {}
+        for tmpFile in self.Files:
+            if not tmpFile.lfn in lfnMap:
+                lfnMap[tmpFile.lfn] = []
+            lfnMap[tmpFile.lfn].append(tmpFile)
+        lfns = lfnMap.keys()
+        lfns.sort()
+        self.Files = []
+        for tmpLFN in lfns:
+            for tmpFile in lfnMap[tmpLFN]:
+                self.Files.append(tmpFile)
