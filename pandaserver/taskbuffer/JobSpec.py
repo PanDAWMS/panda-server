@@ -454,14 +454,18 @@ class JobSpec(object):
 
     # sort files
     def sortFiles(self):
-        lfnMap = {}
-        for tmpFile in self.Files:
-            if not tmpFile.lfn in lfnMap:
-                lfnMap[tmpFile.lfn] = []
-            lfnMap[tmpFile.lfn].append(tmpFile)
-        lfns = lfnMap.keys()
-        lfns.sort()
-        self.Files = []
-        for tmpLFN in lfns:
-            for tmpFile in lfnMap[tmpLFN]:
-                self.Files.append(tmpFile)
+        try:
+            lfnMap = {}
+            for tmpFile in self.Files:
+                if not tmpFile.lfn in lfnMap:
+                    lfnMap[tmpFile.lfn] = []
+                lfnMap[tmpFile.lfn].append(tmpFile)
+            lfns = lfnMap.keys()
+            lfns.sort()
+            newFiles = []
+            for tmpLFN in lfns:
+                for tmpFile in lfnMap[tmpLFN]:
+                    newFiles.append(tmpFile)
+            self.Files = newFiles
+        except:
+            pass
