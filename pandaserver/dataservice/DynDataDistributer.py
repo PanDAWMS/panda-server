@@ -1215,14 +1215,7 @@ class DynDataDistributer:
         failedRet = False,{},[]
         fatalRet  = False,{'isFatal':True},[]
         if dsType == 'AOD':
-            streamRef = 'StreamAOD'
-        elif dsType == 'ESD':
-            streamRef = 'StreamESD'
-        elif dsType == 'RAW':
-            streamRef = 'StreamRAW'
-        else:
-            self.putLog("invalid data type %s for EventRun conversion" % dsType,type='error')
-            return failedRet
+            streamRef = 'Stream' + dsType
         # import event lookup client
         if runEvtGuidMap == {}:
             if len(runEvtList) == 0:
