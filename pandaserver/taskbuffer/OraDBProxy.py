@@ -3561,7 +3561,7 @@ class DBProxy:
 
 
     # kill job
-    def killJob(self,pandaID,user,code,prodManager,getUserInfo=False,wgProdRole=[]):
+    def killJob(self,pandaID,user,code,prodManager,getUserInfo=False,wgProdRole=[],killOpts=[]):
         # code
         # 2  : expire
         # 3  : aborted
@@ -3576,14 +3576,14 @@ class DBProxy:
         # 91 : kill user jobs with prod role
         comment = ' /* DBProxy.killJob */'
         methodName = comment.split(' ')[-2].split('.')[-1]
-        methodName += ' <PandaID={0}>'.format(pandaID)
-        _logger.debug("%s : code=%s role=%s user=%s wg=%s" % (methodName,code,prodManager,user,wgProdRole))
+        tmpLog = LogWrapper(_logger,methodName+' <PandaID={0}>'.format(pandaID))
+        tmpLog.debug("code=%s role=%s user=%s wg=%s opts=%s" % (code,prodManager,user,wgProdRole,killOpts))
         timeStart = datetime.datetime.utcnow()
         # check PandaID
         try:
             long(pandaID)
         except:
-            _logger.error("not an integer : %s" % pandaID)
+            tmpLog.error("not an integer : %s" % pandaID)
             if getUserInfo:
                 return False,{}                
             return False
@@ -3653,19 +3653,19 @@ class DBProxy:
                             break
                 if prodManager:
                     if res[1] in ['user','panda'] and (not code in ['2','4','7','8','9','50','51','52','91']):
-                        _logger.debug("%s ignored -> prod proxy tried to kill analysis job type=%s" % (methodName,res[1]))
+                        tmpLog.debug("ignored -> prod proxy tried to kill analysis job type=%s" % res[1])
                         break
-                    _logger.debug("%s using prod role" % methodName)
+                    tmpLog.debug("using prod role")
                 elif validGroupProdRole:
                     # WGs with prod role
-                    _logger.debug("%s using group prod role for workingGroup=%s" % (methodName,workingGroup))
+                    tmpLog.debug("using group prod role for workingGroup=%s" % workingGroup)
                     pass
                 else:   
                     cn1 = getCN(res[0])
                     cn2 = getCN(user)
-                    _logger.debug("%s Owner:%s  - Requester:%s " % (methodName,cn1,cn2))
+                    tmpLog.debug("Owner:%s  - Requester:%s " % (cn1,cn2))
                     if cn1 != cn2:
-                        _logger.debug("%s ignored  -> Owner != Requester" % methodName)
+                        tmpLog.debug("ignored  -> Owner != Requester")
                         break
                 # event service
                 useEventService =  EventServiceUtils.isEventServiceSH(specialHandling)
@@ -3818,7 +3818,7 @@ class DBProxy:
                     elif useEventServiceMerge:
                         self.updateRelatedEventServiceJobs(job,True)
                     # disable reattempt
-                    if job.processingType == 'pmerge':
+                    if job.processingType == 'pmerge' and not 'keepUnmerged' in killOpts:
                         self.disableFurtherReattempt(job)
                     # update JEDI
                     self.propagateResultToJEDI(job,self.cur,oldJobStatus)
@@ -3827,13 +3827,13 @@ class DBProxy:
             if not self._commit():
                 raise RuntimeError, 'Commit error'
             timeDelta = datetime.datetime.utcnow()-timeStart
-            _logger.debug("%s com=%s kill=%s time=%s" % (methodName,flagCommand,flagKilled,timeDelta.seconds))
+            tmpLog.debug("com=%s kill=%s time=%s" % (flagCommand,flagKilled,timeDelta.seconds))
             # record status change
             try:
                 if updatedFlag:
                     self.recordStatusChange(job.PandaID,job.jobStatus,jobInfo=job)
             except:
-                _logger.error('recordStatusChange in killJob')
+                tmpLog.error('recordStatusChange in killJob')
             if getUserInfo:
                 return (flagCommand or flagKilled),{'prodUserID':userProdUserID,
                                                     'prodSourceLabel':userProdSourceLabel,
@@ -3845,7 +3845,7 @@ class DBProxy:
             # roll back
             self._rollback()
             timeDelta = datetime.datetime.utcnow()-timeStart
-            _logger.debug("%s time=%s" % (methodName,timeDelta.seconds))
+            tmpLog.debug("time=%s" % timeDelta.seconds)
             if getUserInfo:
                 return False,{}                
             return False

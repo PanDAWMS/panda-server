@@ -1171,14 +1171,14 @@ class TaskBuffer:
                                 
             
     # kill jobs
-    def killJobs(self,ids,user,code,prodManager,wgProdRole=[]):
+    def killJobs(self,ids,user,code,prodManager,wgProdRole=[],killOptions=[]):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         rets = []
         # kill jobs
         pandaIDforCloserMap = {}
         for id in ids:
-            ret,userInfo = proxy.killJob(id,user,code,prodManager,True,wgProdRole)
+            ret,userInfo = proxy.killJob(id,user,code,prodManager,True,wgProdRole,killOptions)
             rets.append(ret)
             if ret and userInfo['prodSourceLabel'] in ['user','managed','test']:
                 jobIDKey = (userInfo['prodUserID'],userInfo['jobDefinitionID'],userInfo['jobsetID'])

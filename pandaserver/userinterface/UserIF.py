@@ -520,7 +520,7 @@ class UserIF:
 
 
     # kill jobs
-    def killJobs(self,idsStr,user,host,code,prodManager,useMailAsID,fqans):
+    def killJobs(self,idsStr,user,host,code,prodManager,useMailAsID,fqans,killOpts):
         # deserialize IDs
         ids = WrappedPickle.loads(idsStr)
         if not isinstance(ids,types.ListType):
@@ -555,7 +555,7 @@ class UserIF:
                     # group production
                     wgProdRole.append('gr_%s' % tmpWG)
         # kill jobs
-        ret = self.taskBuffer.killJobs(ids,user,code,prodManager,wgProdRole)
+        ret = self.taskBuffer.killJobs(ids,user,code,prodManager,wgProdRole,killOpts)
         # serialize 
         return pickle.dumps(ret)
 
@@ -1350,7 +1350,7 @@ def getLFNsInUseForAnal(req,inputDisList):
 
 
 # kill jobs
-def killJobs(req,ids,code=None,useMailAsID=None):
+def killJobs(req,ids,code=None,useMailAsID=None,killOpts=None):
     # check security
     if not isSecure(req):
         return False
@@ -1379,7 +1379,12 @@ def killJobs(req,ids,code=None,useMailAsID=None):
         useMailAsID = False
     # hostname
     host = req.get_remote_host()
-    return userIF.killJobs(ids,user,host,code,prodManager,useMailAsID,fqans)
+    # options
+    if killOpts == None:
+        killOpts = []
+    else:
+        killOpts = killOpts.split(',')
+    return userIF.killJobs(ids,user,host,code,prodManager,useMailAsID,fqans,killOpts)
 
 
 # reassign jobs

@@ -9,6 +9,8 @@ optP.add_option('--killOwnProdJobs',action='store_const',const=True,dest='killOw
                 default=False,help='kill own production jobs without a production role')
 optP.add_option('--killUserJobs',action='store_const',const=True,dest='killUserJobs',
                 default=False,help='kill user jobs using a production role')
+optP.add_option('--keepUnmerged',action='store_const',const=True,dest='keepUnmerged',
+                default=False,help='kill user jobs using a production role')
 options,args = optP.parse_args()
 
 
@@ -25,12 +27,12 @@ if options.killOwnProdJobs:
     useMailAsIDV = True
 
 if len(args) == 1:
-    Client.killJobs([args[0]],code=codeV,useMailAsID=useMailAsIDV)
+    Client.killJobs([args[0]],code=codeV,useMailAsID=useMailAsIDV,keepUnmerged=options.keepUnmerged)
 else:
     startID = int(args[0])
     endID   = int(args[1])
     if startID > endID:
         print '%d is less than %d' % (endID,startID)
         sys.exit(1)
-    Client.killJobs(range(startID,endID+1),code=codeV,useMailAsID=useMailAsIDV)
+    Client.killJobs(range(startID,endID+1),code=codeV,useMailAsID=useMailAsIDV,keepUnmerged=options.keepUnmerged)
 

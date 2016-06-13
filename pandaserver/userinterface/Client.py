@@ -463,11 +463,11 @@ def seeCloudTask(ids):
 
 
 # kill jobs
-def killJobs(ids,code=None,verbose=False,srvID=None,useMailAsID=False):
+def killJobs(ids,code=None,verbose=False,srvID=None,useMailAsID=False,keepUnmerged=False):
     """Kill jobs. Normal users can kill only their own jobs.
     People with production VOMS role can kill any jobs.
     Running jobs are killed when next heartbeat comes from the pilot.
-    Set code=9 if running jobs need to be killed immediately. 
+    Set code=9 if running jobs need to be killed immediately.
 
        args:
            ids: the list of PandaIDs
@@ -483,6 +483,7 @@ def killJobs(ids,code=None,verbose=False,srvID=None,useMailAsID=False):
            verbose: set True to see what's going on
            srvID: obsolete
            useMailAsID: obsolete
+           keepUnmerged: set True not to cancel unmerged jobs when pmerge is killed.
        returns:
            status code
                  0: communication succeeded to the panda server 
@@ -499,6 +500,10 @@ def killJobs(ids,code=None,verbose=False,srvID=None,useMailAsID=False):
     # execute
     url = _getURL('URLSSL',srvID) + '/killJobs'
     data = {'ids':strIDs,'code':code,'useMailAsID':useMailAsID}
+    killOpts = ''
+    if keepUnmerged:
+        killOpts += 'keepUnmerged,'
+    data['killOpts'] = killOpts[:-1]
     status,output = curl.post(url,data)
     try:
         return status,pickle.loads(output)
