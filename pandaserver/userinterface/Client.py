@@ -1357,7 +1357,10 @@ def reassignTaskToSite(jediTaskID,site,mode=None):
                  4: irrelevant task status
                100: non SSL connection
                101: irrelevant taskID 
-    """     
+    """
+    maxSite = 60
+    if site != None and len(site) > maxSite:
+        return EC_Failed,'site parameter is too long > {0}chars'.format(maxSite)
     # instantiate curl
     curl = _Curl()
     curl.sslCert = _x509()
