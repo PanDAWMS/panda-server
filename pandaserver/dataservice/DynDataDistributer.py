@@ -1214,8 +1214,7 @@ class DynDataDistributer:
         # check data type
         failedRet = False,{},[]
         fatalRet  = False,{'isFatal':True},[]
-        if dsType == 'AOD':
-            streamRef = 'Stream' + dsType
+        streamRef = 'Stream' + dsType
         # import event lookup client
         if runEvtGuidMap == {}:
             if len(runEvtList) == 0:
