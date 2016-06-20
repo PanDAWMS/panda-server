@@ -252,7 +252,7 @@ class DBProxy:
         try:
             value_str, type = self.cur.fetchone()
         except TypeError:
-            error_message = 'Specified key not found '
+            error_message = 'Specified key={0} not found for component={1} app={2}'.format(key,component,app)
             _logger.error(error_message)
             return None
 
