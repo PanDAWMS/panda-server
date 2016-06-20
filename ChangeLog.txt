@@ -1,5 +1,8 @@
 Release Notes
 
+* 6/20/2016
+  * more informative message for closed clones
+
 * 6/13/2016
   * added keepUnmerged to killJob
   * removed datatype check from EP

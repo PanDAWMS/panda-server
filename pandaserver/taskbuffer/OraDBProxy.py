@@ -1491,7 +1491,10 @@ class DBProxy:
                             job.jobStatus = 'closed'
                             job.jobSubStatus = 'jc_unlock'
                             job.taskBufferErrorCode = ErrorCode.EC_JobCloningUnlock
-                            job.taskBufferErrorDiag = 'closed since failed to lock semaphore'
+                            if retJC['win'] != None:
+                                job.taskBufferErrorDiag = 'closed since another clone PandaID={0} got semaphore'.format(retJC['win'])
+                            else:
+                                job.taskBufferErrorDiag = 'closed since failed to lock semaphore'
                 # delete from jobsDefined/Active
                 varMap = {}
                 varMap[':PandaID'] = job.PandaID
@@ -15128,7 +15131,11 @@ class DBProxy:
                 # set error code
                 dJob.jobStatus = 'closed'
                 dJob.endTime   = datetime.datetime.utcnow()
-                if killedFlag:
+                if EventServiceUtils.isJobCloningJob(dJob):
+                    dJob.jobSubStatus = 'jc_unlock'
+                    dJob.taskBufferErrorCode = ErrorCode.EC_JobCloningUnlock
+                    dJob.taskBufferErrorDiag = 'closed since another clone PandaID={0} got semaphore'.format(job.PandaID)
+                elif killedFlag:
                     dJob.jobSubStatus = 'es_killed'
                     dJob.taskBufferErrorCode = ErrorCode.EC_EventServiceKillOK
                     dJob.taskBufferErrorDiag = 'killed since an associated consumer PandaID={0} was killed'.format(job.PandaID)
@@ -15278,10 +15285,15 @@ class DBProxy:
                         continue
                     # set error code
                     dJob.jobStatus = 'closed'
-                    dJob.jobSubStatus = 'es_unused'
                     dJob.endTime   = datetime.datetime.utcnow()
-                    dJob.taskBufferErrorCode = ErrorCode.EC_EventServiceUnused
-                    dJob.taskBufferErrorDiag = 'killed since all event ranges were processed by other consumers while waiting in the queue'
+                    if EventServiceUtils.isJobCloningJob(dJob):
+                        dJob.jobSubStatus = 'jc_unlock'
+                        dJob.taskBufferErrorCode = ErrorCode.EC_JobCloningUnlock
+                        dJob.taskBufferErrorDiag = 'closed since another clone PandaID={0} got semaphore while waiting in the queue'.format(job.PandaID)
+                    else:
+                        dJob.jobSubStatus = 'es_unused'
+                        dJob.taskBufferErrorCode = ErrorCode.EC_EventServiceUnused
+                        dJob.taskBufferErrorDiag = 'killed since all event ranges were processed by other consumers while waiting in the queue'
                     dJob.modificationTime = dJob.endTime
                     dJob.stateChangeTime  = dJob.endTime
                     # insert
@@ -17434,9 +17446,11 @@ class DBProxy:
         try:
             # return value {'lock': True if the job locked the semaphore,
             #               'last': True if the job is the last clone
+            #               'win': PandaID of winner
             # None : fatal error
             retValue = {'lock':False,
-                        'last':False}
+                        'last':False,
+                        'win':None}
             # begin transaction
             if useCommit:
                 self.conn.begin()
@@ -17452,6 +17466,23 @@ class DBProxy:
             nRowEU, = resEU
             if nRowEU > 0:
                 retValue['lock'] = True
+            else:
+                # get PandaID of the winner
+                sqlWP  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+                sqlWP += "distinct PandaID "
+                sqlWP += "FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
+                sqlWP += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+                for tmpFileSpec in jobSpec.Files:
+                    if tmpFileSpec.type == 'input':
+                        varMap = {}
+                        varMap[':jediTaskID'] = tmpFileSpec.jediTaskID
+                        varMap[':datasetID']  = tmpFileSpec.datasetID
+                        varMap[':fileID']     = tmpFileSpec.fileID
+                        self.cur.execute(sqlWP+comment, varMap)
+                        resWP = self.cur.fetchone()
+                        if resWP != None:
+                            retValue['win'] = resWP[0]
+                            break
             # get PandaIDs of clones
             sqlCP  = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
             sqlCP += "WHERE jediTaskID=:jediTaskID AND jobsetID=:jobsetID "
