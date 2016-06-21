@@ -186,6 +186,9 @@ def setTobeDeletedToDis(subDsName):
             if not deletedDisList.append(tmpDisName):
                 # another thread already took care of the _dis
                 continue
+            # skip non _dis
+            if re.search('_dis\d+$',tmpDisName) == None:
+                continue
             # get dataset
             _logger.debug("setTobeDeletedToDis : try to get %s in DB" % tmpDisName)            
             tmpDS = taskBuffer.queryDatasetWithMap({'name':tmpDisName})
@@ -283,10 +286,11 @@ class CloserThr (threading.Thread):
                     taskBuffer.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status=:newstatus,modificationdate=CURRENT_DATE WHERE vuid=:vuid AND status=:oldstatus",
                                      varMap)
                     self.proxyLock.release()                    
-                    if not dsExists:
-                        continue
                     # set tobedeleted to dis
                     setTobeDeletedToDis(name)
+                    # skip if dataset is not real
+                    if not dsExists:
+                        continue
                     # count # of files
                     status,out = ddm.DQ2.main('getNumberOfFiles',name)
                     if status != 0:

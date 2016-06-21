@@ -1,5 +1,8 @@
 Release Notes
 
+* 6/21/2016
+  * fixed datasetMgr to delete dis for panda.um
+
 * 6/20/2016
   * more informative message for closed clones
 
