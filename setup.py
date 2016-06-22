@@ -193,7 +193,7 @@ setup(
                                'templates/panda_server-grid-env.template',
                                'templates/pandasrv.cron.template',
                                'templates/logrotate.d/panda_server.logrotate.template',
-                               'templates/sysconfig/panda_server.logrotate.template'
+                               'templates/sysconfig/panda_server.sysconfig.template'
                                ]
                  ),
 
