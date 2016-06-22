@@ -192,16 +192,11 @@ setup(
                                'templates/panda_server.cfg.rpmnew.template',
                                'templates/panda_server-grid-env.template',
                                'templates/pandasrv.cron.template',
+                               'templates/logrotate.d/panda_server.logrotate.template',
+                               'templates/sysconfig/panda_server.logrotate.template'
                                ]
                  ),
-                # sysconfig
-                ('/etc/sysconfig', ['templates/sysconfig/panda_server.template',
-                                   ]
-                 ),
-                # logrotate
-                ('/etc/logrotate.d', ['templates/logrotate.d/panda_server.template',
-                                     ]
-                 ),
+
                 # init script
                 ('/etc/rc.d/init.d', ['templates/init.d/panda_server.exe.template',
                                    ]

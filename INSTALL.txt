@@ -64,14 +64,8 @@ SSLCertificateKeyFile   InstallDir/etc/panda/server.key
 SSLCertificateFile      /etc/httpd/conf/ssl.crt/server.crt
 SSLCertificateKeyFile   /etc/httpd/conf/ssl.key/server.key
 
-$ cd INSTALLDIR/etc/sysconfig
-$ mv panda_server-sysconfig.rpmnew panda_server-sysconfig
-$ emacs -nw panda_server-sysconfig
-
-add
-
-export X509_USER_PROXY=/data/atlpan/x509up_u25606
-
+$ cp INSTALLDIR/etc/panda/panda_server.sysconfig /etc/sysconfig/panda_server
+$ emacs -nw /etc/sysconfig/panda_server # Edit and correct the URLs to your needs and check the correct values
 
 3. Add .gacl
 
@@ -112,6 +106,8 @@ mkdir -p /var/cache/pandaserver
 chown atlpan:zp /var/log/panda
 chown atlpan:zp /var/log/panda/wsgisocks
 chown atlpan:zp /var/cache/pandaserver
+# If log rotation is needed
+cp /etc/panda/panda_server.logrotate /etc/logrotate.d/panda_server
 
 6. For voatlas
 
