@@ -14178,7 +14178,7 @@ class DBProxy:
                 else:
                     # check job status
                     jobStatus,nEventsOld,commandToPilot,supErrorCode = resE
-                    if not jobStatus in ['sent','running','starting']:
+                    if not jobStatus in ['sent','running','starting','transferring']:
                         tmpLog.error("<eventRangeID={0}> wrong jobStatus={1}".format(eventRangeID,jobStatus))
                         _logger.debug("{0} : wrong jobStatus={1}".format(methodName,jobStatus))
                         retList.append(False)
