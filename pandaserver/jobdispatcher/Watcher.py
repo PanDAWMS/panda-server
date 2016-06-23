@@ -132,7 +132,7 @@ class Watcher (threading.Thread):
                                 file.lfn = "%s.%d" % (file.lfn,job.attemptNr)
                                 newName  = file.lfn
                                 # modify jobParameters
-                                sepPatt = "(\'|\"|%20)" + oldName + "(\'|\"|%20)"
+                                sepPatt = "(\'|\"|%20|:)" + oldName + "(\'|\"|%20| )"
                                 matches = re.findall(sepPatt,job.jobParameters)
                                 for match in matches:
                                     oldPatt = match[0]+oldName+match[-1]
