@@ -116,3 +116,16 @@ class GlobalShares:
             node.children.append(self.load_branch(child))
 
         return node
+
+
+if __name__ == "__main__":
+    """
+    Functional testing of the shares tree
+    """
+
+    from taskbuffer.TaskBuffer import taskBuffer
+    from config import panda_config
+
+    taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
+    global_shares = GlobalShares(taskBuffer)
+    print global_shares
