@@ -13380,6 +13380,9 @@ class DBProxy:
                 if comStr == 'resume':
                     if not taskStatus in ['paused','throttled']:
                         goForward = False
+                if comStr == 'avalanche':
+                    if not taskStatus in ['scouting']:
+                        goForward = False
                 if not goForward:
                     retStr = 'Command rejected: the {0} command is not accepted if the task is in {1} status'.format(comStr,taskStatus)
                     _logger.debug("{0} : {1}".format(methodName,retStr))

@@ -1,7 +1,7 @@
 Release Notes
 
-
 * 6/23/2016
+  * added avalancheTask
   * fixed Watcher to correctly change jobParams for pmerge
 
 * 6/21/2016

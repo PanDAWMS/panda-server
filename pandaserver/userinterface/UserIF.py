@@ -944,6 +944,14 @@ class UserIF:
         return ret
 
 
+    # force avalanche for task
+    def avalancheTask(self,jediTaskID,user,prodRole):
+        # exec
+        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'avalanche',properErrorCode=True)
+        # return
+        return ret
+
+
     # get retry history
     def getRetryHistory(self,jediTaskID,user):
         # get
@@ -2139,6 +2147,33 @@ def resumeTask(req,jediTaskID):
         else:
             return pickle.dumps((False,'jediTaskID must be an integer'))
     ret = userIF.resumeTask(jediTaskID,user,prodRole)
+    return pickle.dumps(ret)
+
+
+
+# force avalanche for task
+def avalancheTask(req,jediTaskID):
+    # check security
+    if not isSecure(req):
+        if properErrorCode:
+            return pickle.dumps((100,'secure connection is required'))
+        else:
+            return pickle.dumps((False,'secure connection is required'))
+    # get DN
+    user = None
+    if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        user = _getDN(req)        
+    # check role
+    prodRole = _isProdRoleATLAS(req)
+    # check jediTaskID
+    try:
+        jediTaskID = long(jediTaskID)
+    except:
+        if properErrorCode:
+            return pickle.dumps((101,'jediTaskID must be an integer'))        
+        else:
+            return pickle.dumps((False,'jediTaskID must be an integer'))
+    ret = userIF.avalancheTask(jediTaskID,user,prodRole)
     return pickle.dumps(ret)
 
 
