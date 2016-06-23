@@ -3024,6 +3024,17 @@ class TaskBuffer:
         return ret
 
 
+    # get shares
+    def getShares(self, parents=''):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        retVal = proxy.getShares(parents)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return retVal
+
 
 # Singleton
 taskBuffer = TaskBuffer()

@@ -17590,3 +17590,48 @@ class DBProxy:
                             tmpLog.debug('set HS06sec={0}'.format(hs06sec))
         # return
         return
+
+    # retrieve global shares
+    def getShares(self, parents=''):
+        comment = ' /* DBProxy.getShares */'
+        methodName = self.getMethodName(comment)
+        tmpLog = MsgWrapper(logger, methodName)
+        tmpLog.debug('start')
+
+
+        sql  = """
+               SELECT NAME, VALUE, PARENT, PRODSOURCELABEL, WORKINGGROUP, CAMPAIGN
+               FROM ATLAS_PANDA.GLOBAL_SHARES
+               """
+
+        if parents == '':
+            # Get all shares
+            self.cur.execute(sql+comment)
+
+        elif parents is None:
+            # Get top level shares
+            sql += "WHERE parent IS NULL"
+            self.cur.execute(sql+comment)
+
+        elif type(parents) == str:
+            # Get the children of a specific share
+            varMap = {':parent': parents}
+            sql += "WHERE parent = :parent"
+            self.cur.execute(sql+comment, varMap)
+
+        elif type(parents) in (list, tuple):
+            # Get the children of a list of shares
+            i = 0
+            varMap = {}
+            for parent in parents:
+                key = ':parent{0}'.format(i)
+                varMap[key] = parent
+                i += 1
+
+            parentBindings = ','.join(':parent{0}'.format(i) for i in xrange(len(parents)))
+            sql += "WHERE parent IN ({0})".format(parentBindings)
+            self.cur.execute(sql+comment, varMap)
+
+        resList = self.cur.fetchall()
+        tmpLog.debug('done')
+        return resList
