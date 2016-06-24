@@ -25,7 +25,10 @@ class Share(Node):
     Implement the share node
     """
     def __str__(self, level=0):
-        ret = '\t' * level + repr(self.value) + '\n'
+        """
+        Print the tree structure
+        """
+        ret = "{0} name: {1} value: {2}\n".format('\t' * level, self.name, self.value)
         for child in self.children:
             ret += child.__str__(level + 1)
         return ret
@@ -90,41 +93,25 @@ class GlobalShares:
         shares_top_level = self.task_buffer.getShares(parents=None)
 
         # Load branches
-        for share in shares_top_level:
+        for (name, value, parent, prodsourcelabel, workinggroup, campaign) in shares_top_level:
+            share = Share(name, value, parent, prodsourcelabel, workinggroup, campaign)
             self.tree.children.append(self.load_branch(share))
 
         # Normalize the values in the database
         self.tree.normalize()
 
-    def __str__(self, share):
-        """
-        Print the tree structure
-        """
-        node = Share(share.name, share.value, share.parent, share.criteria, share.variables)
-
-        children = self.task_buffer.getShares(parents=share.name)
-        if not children:
-            return node
-
-        for child in children:
-            node.children.append(self.load_branch(child))
-
-        return node
-
-    def __repr__(self):
-        return self.__str__()
-
     def load_branch(self, share):
         """
         Recursively load a branch
         """
-        node = Share(share.name, share.value, share.parent, share.criteria, share.variables)
+        node = Share(share.name, share.value, share.parent, share.prodsourcelabel, share.workinggroup, share.campaign)
 
         children = self.task_buffer.getShares(parents=share.name)
         if not children:
             return node
 
-        for child in children:
+        for (name, value, parent, prodsourcelabel, workinggroup, campaign) in children:
+            child = Share(name, value, parent, prodsourcelabel, workinggroup, campaign)
             node.children.append(self.load_branch(child))
 
         return node
