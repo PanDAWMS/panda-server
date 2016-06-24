@@ -140,4 +140,4 @@ if __name__ == "__main__":
 
     taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
     global_shares = GlobalShares(taskBuffer)
-    print global_shares
+    print global_shares.tree
