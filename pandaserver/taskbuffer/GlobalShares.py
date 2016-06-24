@@ -1,17 +1,3 @@
-from
-
-class SelfRepresented(object):
-
-    def __str__(self):
-        sb = []
-        for key in self.__dict__:
-            sb.append("{key}='{value}'".format(key=key, value=self.__dict__[key]))
-        return ', '.join(sb)
-
-    def __repr__(self):
-        return self.__str__()
-
-
 class Node(object):
 
     def __init__(self):
@@ -34,10 +20,18 @@ class Node(object):
         return leaves
 
 
-class Share(Node, SelfRepresented):
+class Share(Node):
     """
     Implement the share node
     """
+    def __str__(self, level=0):
+        ret = '\t' * level + repr(self.value) + '\n'
+        for child in self.children:
+            ret += child.__str__(level + 1)
+        return ret
+
+    def __repr__(self):
+        return self.__str__()
 
     def __mul__(self, other):
         """
@@ -88,11 +82,12 @@ class GlobalShares:
 
     def __init__(self, task_buffer):
 
+        self.task_buffer = task_buffer
         # Root dummy node
-        self.tree = Share(0, 'root', 100, None, '', '', '', '')
+        self.tree = Share('root', 100, None, None, None, None)
 
         # Get top level shares from DB
-        shares_top_level = self.task_buffer.getShares(parent=None)
+        shares_top_level = self.task_buffer.getShares(parents=None)
 
         # Load branches
         for share in shares_top_level:
@@ -100,7 +95,24 @@ class GlobalShares:
 
         # Normalize the values in the database
         self.tree.normalize()
-        return self.tree
+
+    def __str__(self, share):
+        """
+        Print the tree structure
+        """
+        node = Share(share.name, share.value, share.parent, share.criteria, share.variables)
+
+        children = self.task_buffer.getShares(parents=share.name)
+        if not children:
+            return node
+
+        for child in children:
+            node.children.append(self.load_branch(child))
+
+        return node
+
+    def __repr__(self):
+        return self.__str__()
 
     def load_branch(self, share):
         """
@@ -108,7 +120,7 @@ class GlobalShares:
         """
         node = Share(share.name, share.value, share.parent, share.criteria, share.variables)
 
-        children = self.task_buffer.getShares(parent=share.name)
+        children = self.task_buffer.getShares(parents=share.name)
         if not children:
             return node
 

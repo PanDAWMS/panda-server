@@ -17594,8 +17594,8 @@ class DBProxy:
     # retrieve global shares
     def getShares(self, parents=''):
         comment = ' /* DBProxy.getShares */'
-        methodName = self.getMethodName(comment)
-        tmpLog = MsgWrapper(logger, methodName)
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, methodName)
         tmpLog.debug('start')
 
 
