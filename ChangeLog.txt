@@ -1,5 +1,8 @@
 Release Notes
 
+* 6/28/2016
+  * added a protection to DyPD2P for large user datasets
+
 * 6/23/2016
   * added avalancheTask
   * fixed Watcher to correctly change jobParams for pmerge
