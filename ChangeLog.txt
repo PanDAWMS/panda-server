@@ -1,5 +1,8 @@
 Release Notes
 
+* 7/1/2016
+  * fixed killUnfinishedJobs
+
 * 6/28/2016
   * added a protection to DyPD2P for large user datasets
 

@@ -520,7 +520,7 @@ class UserIF:
 
 
     # kill jobs
-    def killJobs(self,idsStr,user,host,code,prodManager,useMailAsID,fqans,killOpts):
+    def killJobs(self,idsStr,user,host,code,prodManager,useMailAsID,fqans,killOpts=[]):
         # deserialize IDs
         ids = WrappedPickle.loads(idsStr)
         if not isinstance(ids,types.ListType):
