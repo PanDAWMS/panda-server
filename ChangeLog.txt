@@ -1,6 +1,7 @@
 Release Notes
 
 * 7/1/2016
+  * changed Savanna to JIRA in notifications
   * fixed killUnfinishedJobs
 
 * 6/28/2016
