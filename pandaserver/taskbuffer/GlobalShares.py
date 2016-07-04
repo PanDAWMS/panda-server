@@ -109,7 +109,7 @@ class GlobalShares:
         self.tree.normalize()
 
         # get the leave shares (the ones not having more children)
-        self.__leave_shares = self.tree.get_leaves()
+        self.leave_shares = self.tree.get_leaves()
 
 
     def __load_branch(self, share):
@@ -151,7 +151,7 @@ class GlobalShares:
 
         selected_share_name = None
 
-        for share in self.__leave_shares:
+        for share in self.leave_shares:
             if self.compare_share_task(share, task):
                 selected_share_name = share.name
                 break
@@ -166,7 +166,7 @@ class GlobalShares:
         """
         Checks whether the share is a valid leave share
         """
-        for share in self.__leave_shares:
+        for share in self.leave_shares:
             if share_name == share.name:
                 # Share found... tutto bene
                 return True
@@ -187,7 +187,7 @@ if __name__ == "__main__":
     print(global_shares.tree)
 
     # print the normalized leaves, which will be the actual applied shares
-    print(global_shares.tree.get_leaves())
+    print(global_shares.leave_shares)
 
     # check a couple of shares for validity
     share_name = 'wrong_share'
