@@ -158,7 +158,7 @@ class GlobalShares:
 
         if selected_share_name is None:
             _logger.warning("No share matching jediTaskId={0} (prodSourceLabel={1} workingGroup={2} campaign={3}".
-                                  format(task.prodSourceLabel, task.workingGroup, task.campaign))
+                                  format(task.jediTaskID, task.prodSourceLabel, task.workingGroup, task.campaign))
 
         return selected_share_name
 
@@ -168,7 +168,7 @@ class GlobalShares:
         """
         for share in self.leave_shares:
             if share_name == share.name:
-                # Share found... tutto bene
+                # Share found
                 return True
 
         # Share not found
@@ -189,8 +189,26 @@ if __name__ == "__main__":
     # print the normalized leaves, which will be the actual applied shares
     print(global_shares.leave_shares)
 
-    # check a couple of shares for validity
+    # check a couple of shares if they are valid leave names
     share_name = 'wrong_share'
     print ("Share {0} is valid: {1}".format(share_name, global_shares.is_valid_share(share_name)))
     share_name = 'MC16Pile'
     print ("Share {0} is valid: {1}".format(share_name, global_shares.is_valid_share(share_name)))
+
+    # create a fake task with relevant fields and retrieve its share
+    from pandajedi.jedicore.JediTaskSpec import JediTaskSpec
+    task_spec = JediTaskSpec()
+    task_spec.prodSourceLabel = 'user'
+    task_spec.campaign = 'dummy_campaign'
+    task_spec.workingGroup = 'dummy_wg'
+    print("Share for task is {0}".format(global_shares.get_share_for_task(task_spec)))
+
+    task_spec.prodSourceLabel = 'managed'
+    task_spec.campaign = 'dummy_campaign'
+    task_spec.workingGroup = 'dummy_wg'
+    print("Share for task is {0}".format(global_shares.get_share_for_task(task_spec)))
+
+
+
+
+
