@@ -1,3 +1,5 @@
+from taskbuffer.TaskBuffer import taskBuffer
+from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
 _logger = PandaLogger().getLogger('TaskBuffer')
 
@@ -86,9 +88,12 @@ class GlobalShares:
     Class to manage the tree of shares
     """
 
-    def __init__(self, task_buffer):
+    def __init__(self):
 
-        self.__task_buffer = task_buffer
+        # Initialize DB connection
+        taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
+        self.__task_buffer = taskBuffer
+
         # Root dummy node
         self.tree = Share('root', 100, None, None, None, None)
 
@@ -156,16 +161,15 @@ class GlobalShares:
 
         return selected_share_name
 
+# Singleton
+GlobalShares = GlobalShares()
+del GlobalShares
+
 if __name__ == "__main__":
     """
     Functional testing of the shares tree
     """
-
-    from taskbuffer.TaskBuffer import taskBuffer
-    from config import panda_config
-
-    taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
-    global_shares = GlobalShares(taskBuffer)
+    global_shares = GlobalShares()
 
     # print the global share structure
     print(global_shares.tree)
