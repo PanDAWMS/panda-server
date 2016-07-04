@@ -151,8 +151,8 @@ class GlobalShares:
                 break
 
         if selected_share_name is None:
-            self.__logger.warning("No share matching jediTaskId={0} (prodSourceLabel={1} workingGroup={2} campaign={3}".
-                    format(task.prodSourceLabel, task.workingGroup, task.campaign))
+            _logger.warning("No share matching jediTaskId={0} (prodSourceLabel={1} workingGroup={2} campaign={3}".
+                                  format(task.prodSourceLabel, task.workingGroup, task.campaign))
 
         return selected_share_name
 
