@@ -108,6 +108,10 @@ class GlobalShares:
         # Normalize the values in the database
         self.tree.normalize()
 
+        # get the leave shares (the ones not having more children)
+        self.__leave_shares = self.tree.get_leaves()
+
+
     def __load_branch(self, share):
         """
         Recursively load a branch
@@ -147,10 +151,7 @@ class GlobalShares:
 
         selected_share_name = None
 
-        # get the leave shares (the ones not having more children)
-        leave_shares = self.tree.get_leaves()
-
-        for share in leave_shares:
+        for share in self.__leave_shares:
             if self.compare_share_task(share, task):
                 selected_share_name = share.name
                 break
@@ -160,6 +161,18 @@ class GlobalShares:
                                   format(task.prodSourceLabel, task.workingGroup, task.campaign))
 
         return selected_share_name
+
+    def is_valid_share(self, share_name):
+        """
+        Checks whether the share is a valid leave share
+        """
+        for share in self.__leave_shares:
+            if share_name == share.name:
+                # Share found... tutto bene
+                return True
+
+        # Share not found
+        return False
 
 # Singleton
 GlobalShares = GlobalShares()
@@ -175,3 +188,9 @@ if __name__ == "__main__":
 
     # print the normalized leaves, which will be the actual applied shares
     print(global_shares.tree.get_leaves())
+
+    # check a couple of shares for validity
+    share_name = 'wrong_share'
+    print ("Share {0} is valid: {1}".format(share_name, global_shares.is_valid_share(share_name)))
+    share_name = 'MC16Pile'
+    print ("Share {0} is valid: {1}".format(share_name, global_shares.is_valid_share(share_name)))
