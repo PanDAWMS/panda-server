@@ -163,13 +163,12 @@ class GlobalShares:
 
 # Singleton
 GlobalShares = GlobalShares()
-del GlobalShares
 
 if __name__ == "__main__":
     """
     Functional testing of the shares tree
     """
-    global_shares = GlobalShares()
+    global_shares = GlobalShares
 
     # print the global share structure
     print(global_shares.tree)
