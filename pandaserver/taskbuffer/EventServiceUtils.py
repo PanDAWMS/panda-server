@@ -26,6 +26,7 @@ dynamicNumEventsToken = 'dy'
 # values for job.eventService
 esJobFlagNumber = 1
 esMergeJobFlagNumber = 2
+jobCloningFlagNumber = 3
 
 # relation type for jobsets
 relationTypeJS_ID = 'jobset_id'
