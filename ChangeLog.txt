@@ -1,5 +1,8 @@
 Release Notes
 
+* 7/8/2016
+  * added jumbo job stuff
+
 * 7/1/2016
   * changed Savanna to JIRA in notifications
   * fixed killUnfinishedJobs

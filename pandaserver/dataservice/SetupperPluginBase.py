@@ -1,6 +1,16 @@
+from taskbuffer import EventServiceUtils
+
+
 class SetupperPluginBase(object):
     def __init__(self,taskBuffer,jobs,logger,params,defaultMap):
-        self.jobs = jobs
+        self.jobs = []
+        self.jumboJobs = []
+        # separate normal and jumbo jobs
+        for tmpJob in jobs:
+            if EventServiceUtils.isJumboJob(tmpJob):
+                self.jumboJobs.append(tmpJob)
+            else:
+                self.jobs.append(tmpJob)
         self.taskBuffer = taskBuffer
         self.logger = logger
         # set named parameters

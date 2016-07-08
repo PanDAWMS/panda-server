@@ -512,6 +512,20 @@ class TaskBuffer:
                 oldJobStatus = oldJobStatusList[idxJob]
             else:
                 oldJobStatus = None
+            # check for co-jumbo or jumbo jobs
+            if EventServiceUtils.isCoJumboJob(job):
+                # check if all events assiciated to the co-jumbo are done
+                allDone = proxy.checkAllEventsDone(job,None,True)
+                # keep until all events are done
+                if not allDone:
+                    job.jobStatus = 'holding'
+            elif EventServiceUtils.isJumboJob(job):
+                # check if there are done events
+                hasDone = proxy.hasDoneEvents(job.jediTaskID,job.PandaID)
+                if hasDone:
+                    job.jobStatus = 'finished'
+                else:
+                    job.jobStatus = 'failed'
             if job.jobStatus == 'failed' and job.prodSourceLabel == 'user' and not inJobsDefined:
                 # keep failed analy jobs in Active4
                 ret = proxy.updateJob(job,inJobsDefined,oldJobStatus=oldJobStatus)
@@ -606,6 +620,21 @@ class TaskBuffer:
             # update DB
             ret = proxy.keepJob(job)
             returns.append(ret) 
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        return returns
+
+
+    # archive jobs
+    def archiveJobs(self,jobs,inJobsDefined):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()        
+        # loop over all jobs
+        returns = []
+        for job in jobs:
+            # update DB
+            ret = proxy.archiveJob(job,inJobsDefined)
+            returns.append(ret[0]) 
         # release proxy
         self.proxyPool.putProxy(proxy)
         return returns
@@ -3018,6 +3047,45 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # exec
         ret = proxy.checkClonedJob(jobSpec)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
+    # get co-jumbo jobs to be finished
+    def getCoJumboJobsToBeFinished(self,timeLimit,minPriority):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getCoJumboJobsToBeFinished(timeLimit,minPriority)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
+    # check if task is applicable for jumbo jobs
+    def isApplicableTaskForJumbo(self,jediTaskID):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.isApplicableTaskForJumbo(jediTaskID)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
+    # cleanup jumbo jobs
+    def cleanupJumboJobs(self,jediTaskID=None):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.cleanupJumboJobs(jediTaskID)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

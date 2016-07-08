@@ -386,7 +386,7 @@ class RucioAPI:
 
 
     # register dataset with existing files
-    def registerDatasetWithOldFiles(self,dsn,lfns=[],guids=[],sizes=[],checksums=[],lifetime=None):
+    def registerDatasetWithOldFiles(self,dsn,lfns=[],guids=[],sizes=[],checksums=[],lifetime=None,scope=None):
         files = []
         for lfn, guid, size, checksum in zip(lfns, guids, sizes, checksums):
             if lfn.find(':') > -1:

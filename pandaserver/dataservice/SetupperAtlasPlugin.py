@@ -161,6 +161,9 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 self._memoryCheck()
                 self._makeDisDatasetsForExistingfiles()
                 self._memoryCheck()
+                # setup jumbo jobs
+                self._setupJumbojobs()
+                self._memoryCheck()
             regTime = datetime.datetime.utcnow() - timeStart
             self.logger.debug('{0} took {1}sec'.format(bunchTag,regTime.seconds))
             self.logger.debug('end run()')
@@ -1402,7 +1405,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         if file.GUID == 'NULL' or job.prodSourceLabel in ['managed','test']:
                             if not file.lfn in valMap:
                                 # append job to waiting list
-                                errMsg = "GUID for %s not found in DQ2" % file.lfn
+                                errMsg = "GUID for %s not found in rucio" % file.lfn
                                 self.logger.error(errMsg)
                                 file.status = 'missing'
                                 if not job in jobsFailed:
@@ -1757,9 +1760,9 @@ class SetupperAtlasPlugin (SetupperPluginBase):
 
 
     # get list of files in dataset
-    def getListFilesInDataset(self,dataset,fileList=None):
+    def getListFilesInDataset(self,dataset,fileList=None,useCache=True):
         # use cache data
-        if self.lfnDatasetMap.has_key(dataset):
+        if useCache and self.lfnDatasetMap.has_key(dataset):
             return 0,self.lfnDatasetMap[dataset]
         for iDDMTry in range(3):
             try:
@@ -2536,3 +2539,129 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         return True
 
 
+
+    # setup jumbo jobs
+    def _setupJumbojobs(self):
+        if len(self.jumboJobs) == 0:
+            return
+        self.logger.debug('setup jumbo jobs')
+        # get files in datasets
+        dsLFNsMap = {}
+        failedDS  = set()
+        for jumboJobSpec in self.jumboJobs:
+            for tmpFileSpec in jumboJobSpec.Files:
+                # only input
+                if not tmpFileSpec.type in ['input']:
+                    continue
+                # get files
+                if not tmpFileSpec.dataset in dsLFNsMap:
+                    if not tmpFileSpec.dataset in failedDS:
+                        tmpStat,tmpMap = self.getListFilesInDataset(tmpFileSpec.dataset,
+                                                                    useCache=False)
+                        # failed
+                        if tmpStat != 0:
+                            failedDS.add(tmpFileSpec.dataset)
+                            self.logger.debug('failed to get files in {0} with {1}'.format(tmpFileSpec.dataset,
+                                                                                           tmpMap))
+                        else:
+                            # append
+                            dsLFNsMap[tmpFileSpec.dataset] = tmpMap
+                # set failed if file lookup failed
+                if tmpFileSpec.dataset in failedDS:
+                    jumboJobSpec.jobStatus    = 'failed'
+                    jumboJobSpec.ddmErrorCode = ErrorCode.EC_GUID
+                    jumboJobSpec.ddmErrorDiag = 'failed to get files in {0}'.format(tmpFileSpec.dataset)
+                    break
+        # make dis datasets
+        okJobs = []
+        ngJobs = []
+        for jumboJobSpec in self.jumboJobs:
+            # skip failed
+            if jumboJobSpec.jobStatus == 'failed':
+                ngJobs.append(jumboJobSpec)
+                continue
+            # get datatype
+            try:
+                tmpDataType = jumboJobSpec.prodDBlock.split('.')[-2]
+                if len(tmpDataType) > 20:
+                    raise RuntimeError,''
+            except:
+                # default
+                tmpDataType = 'GEN'
+            # make dis dataset name 
+            dispatchDBlock = "panda.%s.%s.%s.%s_dis%s" % (jumboJobSpec.taskID,time.strftime('%m.%d'),tmpDataType,
+                                                          'jumbo',jumboJobSpec.PandaID)
+            # collect file attributes
+            lfns = []
+            guids = []
+            sizes = []
+            checksums = []
+            for tmpFileSpec in jumboJobSpec.Files:
+                # only input
+                if not tmpFileSpec.type in ['input']:
+                    continue
+                for tmpLFN,tmpVar in dsLFNsMap[tmpFileSpec.dataset].iteritems():
+                    tmpLFN = '{0}:{1}'.format(tmpVar['scope'],tmpLFN)
+                    lfns.append(tmpLFN)
+                    guids.append(tmpVar['guid'])
+                    sizes.append(tmpVar['fsize'])
+                    checksums.append(tmpVar['chksum'])
+                # set dis dataset
+                tmpFileSpec.dispatchDBlock = dispatchDBlock
+            # register and subscribe dis dataset
+            if len(lfns) != 0:
+                # set dis dataset
+                jumboJobSpec.dispatchDBlock = dispatchDBlock
+                # register dis dataset
+                try:
+                    self.logger.debug('registering jumbo dis dataset {0} with {1} files'.format(dispatchDBlock,
+                                                                                                len(lfns)))
+                    out = rucioAPI.registerDatasetWithOldFiles(dispatchDBlock,lfns,guids,sizes,
+                                                               checksums,lifetime=14)
+                    vuid = out['vuid']
+                except:
+                    errType,errValue = sys.exc_info()[:2]
+                    self.logger.debug('failed to register jumbo dis dataset {0} with {1}:{2}'.format(dispatchDBlock,
+                                                                                                     errType,errValue))
+                    jumboJobSpec.jobStatus    = 'failed'
+                    jumboJobSpec.ddmErrorCode = ErrorCode.EC_Setupper
+                    jumboJobSpec.ddmErrorDiag = 'failed to register jumbo dispatch dataset {0}'.format(dispatchDBlock)
+                    ngJobs.append(jumboJobSpec)
+                    continue
+                # subscribe dis dataset
+                try:
+                    endPoint = self.siteMapper.getSite(jumboJobSpec.computingSite).ddm
+                    self.logger.debug('subscribing jumbo dis dataset {0} to {1}'.format(dispatchDBlock,endPoint))
+                    rucioAPI.registerDatasetLocation(dispatchDBlock,[endPoint],lifetime=14,activity='Production Input')
+                except:
+                    errType,errValue = sys.exc_info()[:2]
+                    self.logger.debug('failed to subscribe jumbo dis dataset {0} to {1} with {2}:{3}'.format(dispatchDBlock,
+                                                                                                             endPoint,
+                                                                                                             errType,errValue))
+                    jumboJobSpec.jobStatus    = 'failed'
+                    jumboJobSpec.ddmErrorCode = ErrorCode.EC_Setupper
+                    jumboJobSpec.ddmErrorDiag = 'failed to subscribe jumbo dispatch dataset {0} to {1}'.format(dispatchDBlock,
+                                                                                                               endPoint)
+                    ngJobs.append(jumboJobSpec)
+                    continue
+                # add dataset in DB
+                ds = DatasetSpec()
+                ds.vuid = vuid
+                ds.name = dispatchDBlock
+                ds.type = 'dispatch'
+                ds.status = 'defined'
+                ds.numberfiles  = len(lfns)
+                ds.currentfiles = 0
+                self.taskBuffer.insertDatasets([ds])
+            # set destination
+            jumboJobSpec.destinationSE = jumboJobSpec.computingSite
+            for tmpFileSpec in jumboJobSpec.Files:
+                if tmpFileSpec.type in ['output','log'] and \
+                        DataServiceUtils.getDistributedDestination(tmpFileSpec.destinationDBlockToken) == None:
+                    tmpFileSpec.destinationSE = jumboJobSpec.computingSite
+            okJobs.append(jumboJobSpec)
+        # update failed jobs
+        self.updateFailedJobs(ngJobs)
+        self.jumboJobs = okJobs
+        self.logger.debug('done for jumbo jobs')
+        return

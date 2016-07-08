@@ -250,7 +250,7 @@ class Response:
         # event service or job cloning
         if EventServiceUtils.isJobCloningJob(job):
             self.data['cloneJob'] = EventServiceUtils.getJobCloningType(job)
-        elif EventServiceUtils.isEventServiceJob(job):
+        elif EventServiceUtils.isEventServiceJob(job) or EventServiceUtils.isJumboJob(job):
             self.data['eventService'] = 'True'
             # prod DBlock space token for pre-merging output
             self.data['prodDBlockTokenForOutput'] = strProdTokenForOutput[:-1]
