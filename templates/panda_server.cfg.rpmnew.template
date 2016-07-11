@@ -229,24 +229,6 @@ useWSGI = True
 entryVerbose = False
 
 
-
-##########################
-#
-# parameters for memcached
-#
-
-# use memcached
-memcached_enable = True
-
-# memcached servers
-memcached_srvs = voatlas248.cern.ch:11211,voatlas249.cern.ch:11211,voatlas250.cern.ch:11211,voatlas251.cern.ch:11211,voatlas252.cern.ch:11211,voatlas253.cern.ch:11211
-
-# expiration time in memcached
-memcached_exptime = 86400
-
-# memcached enabled sites
-memcached_sites = MWT2_UC,ANALY_MWT2,BNL_ATLAS_test,ANALY_BNL_test,ANALY_GLASGOW
-
 ##########################
 #
 # nRunning parameters

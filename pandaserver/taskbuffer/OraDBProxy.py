@@ -72,8 +72,6 @@ class DBProxy:
         self.nTry = 5
         # use special error codes for reconnection in querySQL
         self.useOtherError = useOtherError
-        # memcached client
-        self.memcache = None
         # pledge resource ratio
         self.beyondPledgeRatio = {}
         # update time for pledge resource ratio
@@ -2715,19 +2713,7 @@ class DBProxy:
     def getJobs(self,nJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
                 atlasRelease,prodUserID,countryGroup,workingGroup,allowOtherCountry,taskID):
         comment = ' /* DBProxy.getJobs */'
-        # use memcache
-        useMemcache = False
-        try:
-            if panda_config.memcached_enable and siteName in panda_config.memcached_sites: # FIXME
-                # initialize memcache
-                if self.memcache == None:
-                    from MemProxy import MemProxy
-                    self.memcache = MemProxy()
-                if not self.memcache in [None,False]:
-                    useMemcache = True
-        except:
-            errType,errValue = sys.exc_info()[:2]
-            _logger.error("failed to initialize memcached with %s %s" % (errType,errValue))
+
         # aggregated sites which use different appdirs
         aggSiteMap = {'CERN-PROD':{'CERN-RELEASE':'release',
                                    'CERN-UNVALID':'unvalid',
@@ -2990,46 +2976,6 @@ class DBProxy:
                             _logger.debug("getJobs : %s -> no PandaIDs" % strName)
                             retU = 0
                         else:
-                            # check the number of available files
-                            if useMemcache:
-                                _logger.debug("getJobs : %s -> memcache check start" % strName)                                
-                                # truncate
-                                pandaIDs = pandaIDs[:maxAttemptIDx]
-                                # get input files
-                                availableFileMap = {}
-                                self.cur.arraysize = 100000
-                                sqlMemFile = "SELECT lfn FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type=:type"
-                                for tmpPandaID in pandaIDs:
-                                    varMap = {}
-                                    varMap[':type'] = 'input'
-                                    varMap[':PandaID'] = tmpPandaID
-                                    # start transaction
-                                    self.conn.begin()
-                                    # select
-                                    self.cur.execute(sqlMemFile+comment,varMap)
-                                    resFiles = self.cur.fetchall()
-                                    # commit
-                                    if not self._commit():
-                                        raise RuntimeError, 'Commit error'
-                                    # get list
-                                    fileMapForMem[tmpPandaID] = []
-                                    for tmpItem, in resFiles:
-                                        fileMapForMem[tmpPandaID].append(tmpItem)
-                                    # get number of available files
-                                    nAvailable = self.memcache.checkFiles(tmpPandaID,fileMapForMem[tmpPandaID],
-                                                                          siteName,node)
-                                    # append
-                                    if not nAvailable in availableFileMap:
-                                        availableFileMap[nAvailable] = []
-                                    availableFileMap[nAvailable].append(tmpPandaID)
-                                # sort by the number of available files
-                                tmpAvaKeys = availableFileMap.keys()
-                                tmpAvaKeys.sort()
-                                tmpAvaKeys.reverse()
-                                pandaIDs = []
-                                for tmpAvaKey in tmpAvaKeys:
-                                    pandaIDs += availableFileMap[tmpAvaKey]
-                                _logger.debug("getJobs : %s -> memcache check done" % strName)
                             # update
                             for indexID,tmpPandaID in enumerate(pandaIDs):
                                 # max attempts
@@ -11222,147 +11168,6 @@ class DBProxy:
             type, value, traceBack = sys.exc_info()
             _logger.error("getPandaClientVer : %s %s" % (type,value))
             return ""
-
-        
-    # add files to memcached
-    def addFilesToMemcached(self,site,node,files):
-        _logger.debug("addFilesToMemcached start %s %s" % (site,node)) 
-        # memcached is unused
-        if not panda_config.memcached_enable:
-            _logger.debug("addFilesToMemcached skip %s %s" % (site,node))
-            return True
-        try:
-            # initialize memcache if needed
-            if self.memcache == None:
-                from MemProxy import MemProxy
-                self.memcache = MemProxy()
-            # convert string to list    
-            fileList = files.split(',')
-            # remove ''
-            try:
-                fileList.remove('')
-            except:
-                pass
-            # empty list
-            if len(fileList) == 0:
-                _logger.debug("addFilesToMemcached skipped for empty list")
-                return True
-            # list of siteIDs
-            siteIDs = site.split(',')
-            # loop over all siteIDs
-            for tmpSite in siteIDs:
-                # add
-                iFiles = 0
-                nFiles = 100
-                retS = True
-                while iFiles < len(fileList):            
-                    tmpRetS = self.memcache.setFiles(None,tmpSite,node,fileList[iFiles:iFiles+nFiles])
-                    if not tmpRetS:
-                        retS = False
-                    iFiles += nFiles                    
-            _logger.debug("addFilesToMemcached done %s %s with %s" % (site,node,retS))
-            return retS
-        except:
-            errType,errValue = sys.exc_info()[:2]
-            _logger.error("addFilesToMemcached : %s %s" % (errType,errValue))
-            return False
-
-
-    # delete files from memcached
-    def deleteFilesFromMemcached(self,site,node,files):
-        _logger.debug("deleteFilesFromMemcached start %s %s" % (site,node)) 
-        # memcached is unused
-        if not panda_config.memcached_enable:
-            _logger.debug("deleteFilesFromMemcached skip %s %s" % (site,node))             
-            return True
-        try:
-            # initialize memcache if needed
-            if self.memcache == None:
-                from MemProxy import MemProxy
-                self.memcache = MemProxy()
-            # list of siteIDs
-            siteIDs = site.split(',')
-            # loop over all siteIDs
-            for tmpSite in siteIDs:
-                # delete    
-                self.memcache.deleteFiles(tmpSite,node,files)
-            _logger.debug("deleteFilesFromMemcached done %s %s" % (site,node))             
-            return True
-        except:
-            errType,errValue = sys.exc_info()[:2]
-            _logger.error("deleteFilesFromMemcached : %s %s" % (errType,errValue))
-            return False
-
-
-    # flush memcached
-    def flushMemcached(self,site,node):
-        _logger.debug("flushMemcached start %s %s" % (site,node)) 
-        # memcached is unused
-        if not panda_config.memcached_enable:
-            _logger.debug("flushMemcached skip %s %s" % (site,node))             
-            return True
-        try:
-            # initialize memcache if needed
-            if self.memcache == None:
-                from MemProxy import MemProxy
-                self.memcache = MemProxy()
-            # list of siteIDs
-            siteIDs = site.split(',')
-            # loop over all siteIDs
-            for tmpSite in siteIDs:
-                # flush    
-                self.memcache.flushFiles(tmpSite,node)
-            _logger.debug("flushMemcached done %s %s" % (site,node))             
-            return True
-        except:
-            errType,errValue = sys.exc_info()[:2]
-            _logger.error("flushMemcached : %s %s" % (errType,errValue))
-            return False
-
-
-    # check files with memcached
-    def checkFilesWithMemcached(self,site,node,files):
-        _logger.debug("checkFilesWithMemcached start %s %s" % (site,node))
-        # convert string to list    
-        fileList = files.split(',')
-        # remove ''
-        try:
-            fileList.remove('')
-        except:
-            pass
-        # memcached is unused
-        if not panda_config.memcached_enable:
-            _logger.debug("checkFilesWithMemcached skip %s %s" % (site,node))
-            # return 0
-            retStr = ''
-            for tmpF in fileList:
-                retStr += '0,'
-            retStr = retStr[:-1]    
-            return retStr
-        try:
-            # initialize memcache if needed
-            if self.memcache == None:
-                from MemProxy import MemProxy
-                self.memcache = MemProxy()
-            # empty list
-            if len(fileList) == 0:
-                _logger.debug("checkFilesWithMemcached skipped for empty list")
-                return ''
-            # check
-            iFiles = 0
-            nFiles = 100
-            retS = ''
-            while iFiles < len(fileList):
-                retS += self.memcache.checkFiles(None,fileList[iFiles:iFiles+nFiles],site,node,getDetail=True)
-                retS += ','
-                iFiles += nFiles
-            retS = retS[:-1]    
-            _logger.debug("checkFilesWithMemcached done %s %s with %s" % (site,node,retS))
-            return retS
-        except:
-            errType,errValue = sys.exc_info()[:2]
-            _logger.error("checkFilesWithMemcached : %s %s" % (errType,errValue))
-            return False
 
         
     # register proxy key
