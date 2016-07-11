@@ -53,6 +53,7 @@ class JobSpec(object):
     # tag for special handling
     _tagForSH = {'altStgOut'        : 'ao',
                  'putLogToOS'       : 'po',
+                 'requestType'      : 'rt',
                  'writeInputToFile' : 'wf',
                  }
 
@@ -449,6 +450,22 @@ class JobSpec(object):
         if not self._tagForSH['writeInputToFile'] in items:
             items.append(self._tagForSH['writeInputToFile'])
         self.specialHandling = ','.join(items)
+
+
+
+    # set request type
+    def setRequestType(self,reqType):
+        if self.specialHandling != None:
+            items = self.specialHandling.split(',')
+        else:
+            items = []
+        newItems = []
+        setFlag = False
+        for item in items:
+            if not item.startswith(self._tagForSH['requestType']):
+                newItems.append(item)
+        newItems.append('{0}={1}'.format(self._tagForSH['requestType'],reqType))
+        self.specialHandling = ','.join(newItems)
 
 
 
