@@ -471,13 +471,18 @@ class RucioAPI:
                 files = []
                 for tmpFile in fileList:
                     # extract scope from LFN if available
-                    lfn = tmpFile['lfn']
+                    if 'name' in tmpFile:
+                        lfn = tmpFile['name']
+                    else:
+                        lfn = tmpFile['lfn']
                     if ':' in lfn:
                         s, lfn = lfn.split(':')
                     else:
                         s = scope
                     # set metadata
-                    meta = {'guid': tmpFile['guid']}
+                    meta = {}
+                    if 'guid' in tmpFile:
+                        meta['guid'] = tmpFile['guid']
                     if 'events' in tmpFile:
                         meta['events'] = tmpFile['events']
                     if 'lumiblocknr' in tmpFile:
@@ -486,16 +491,21 @@ class RucioAPI:
                         meta['panda_id'] = tmpFile['panda_id']
                     if 'campaign' in tmpFile:
                         meta['campaign'] = tmpFile['campaign']
+                    if 'bytes' in tmpFile:
+                        fsize = tmpFile['bytes']
+                    else:
+                        fsize = tmpFile['size']
                     # set mandatory fields
                     file = {'scope': s,
                             'name' : lfn,
-                            'bytes': tmpFile['size'],
+                            'bytes': fsize,
                             'meta' : meta}
-                    checksum = tmpFile['checksum']
-                    if checksum.startswith('md5:'):
-                        file['md5'] = checksum[4:]
-                    elif checksum.startswith('ad:'):
-                        file['adler32'] = checksum[3:]
+                    if 'checksum' in tmpFile:
+                        checksum = tmpFile['checksum']
+                        if checksum.startswith('md5:'):
+                            file['md5'] = checksum[4:]
+                        elif checksum.startswith('ad:'):
+                            file['adler32'] = checksum[3:]
                     if 'surl' in tmpFile:
                         file['pfn'] = tmpFile['surl']
                     # append files
@@ -594,6 +604,18 @@ class RucioAPI:
 
 
 
+    # check if dataset exists
+    def checkDatasetExist(self,dsn):
+        # register dataset
+        client = RucioClient()
+        try:
+            scope,dsn = self.extract_scope(dsn)
+            return True
+        except DataIdentifierNotFound:
+            return False
+
+
+
     # close dataset
     def closeDataset(self,dsn):
         # register dataset
@@ -655,6 +677,36 @@ class RucioAPI:
             dq2attrs['guid'] = guid
             return_dict[tmpLFN] = dq2attrs
         return (return_dict, None)
+
+
+
+    # register files
+    def registerFiles(self,files,rse):
+        client = RucioClient()
+        try:
+            # add replicas
+            client.add_replicas(files=files,rse=rse)
+        except FileAlreadyExists:
+            pass
+        try:
+            # add rule
+            client.add_replication_rule(files,copies=1,rse_expression=rse)
+        except DuplicateRule:
+            pass
+
+
+
+    # delete files from dataset
+    def deleteFilesFromDataset(self,datasetName,files):
+        # extract scope from dataset
+        scope,dsn = self.extract_scope(datasetName)
+        client = RucioClient()
+        try:
+            # delete files
+            client.detach_dids(scope=scope,name=dsn,dids=files)
+        except DataIdentifierNotFound:
+            pass
+
 
 
 # instantiate

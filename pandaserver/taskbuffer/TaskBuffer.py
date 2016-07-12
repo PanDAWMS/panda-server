@@ -3093,6 +3093,32 @@ class TaskBuffer:
 
 
 
+    # convert ObjID to endpoint
+    def convertObjIDtoEndPoint(self,srcFileName,ObjID):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.convertObjIDtoEndPoint(srcFileName,ObjID)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
+
+    # get OS IDs
+    def getObjIDs(self,jediTaskID,pandaID):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.getObjIDs(jediTaskID,pandaID)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 

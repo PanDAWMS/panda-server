@@ -41,6 +41,9 @@ relationTypeJS_Retry = 'jobset_retry'
 relationTypesForJS = [relationTypeJS_ID,relationTypeJS_Retry]
 
 
+# suffix for ES dataset and files to register to DDM
+esSuffixDDM = '.events'
+
 
 # encode file info
 def encodeFileInfo(lfn,startEvent,endEvent,nEventsPerWorker,

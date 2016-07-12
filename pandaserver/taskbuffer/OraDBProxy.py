@@ -14627,6 +14627,8 @@ class DBProxy:
             jobSpec.transExitCode    = None
             jobSpec.jobMetrics       = None
             jobSpec.jobSubStatus     = None
+            jobSpec.actualCoreCount  = None
+            jobSpec.hs06sec          = None
             if hasFatalRange:
                 jobSpec.jobSubStatus = 'partial'
             for attr in jobSpec._attributes:
@@ -18013,3 +18015,62 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return False
+
+
+
+    # convert ObjID to endpoint
+    @memoize
+    def convertObjIDtoEndPoint(self,srcFileName,objID):
+        comment = ' /* DBProxy.convertObjIDtoEndPoint */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger,methodName+" <ID={0}>".format(objID))
+        tmpLog.debug("start")
+        try:
+            f = open(srcFileName)
+            data = json.load(f)
+            for rseName,rseData in data.iteritems():
+                if rseData['resource']['bucket_id'] == objID:
+                    path = rseData['arprotocols']['d'][0]['endpoint']+rseData['arprotocols']['d'][0]['path']
+                    retMap = {'name':rseName,
+                              'path':path}
+                    tmpLog.debug("got {0}".format(str(retMap)))
+                    return retMap
+        except:
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return None
+
+
+
+    # get OS IDs
+    def getObjIDs(self,jediTaskID,pandaID):
+        comment = ' /* DBProxy.getObjIDs */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger,methodName+" <jediTaskID={0} PandaID={1}>".format(jediTaskID,pandaID))
+        tmpLog.debug("start")
+        try:
+            # sql to get obj IDs
+            sql  = "SELECT distinct objstore_ID FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sql += "WHERE jediTaskID=:jediTaskID AND PandaID=:PandaID AND objstore_ID IS NOT NULL "
+            # begin transaction
+            self.conn.begin()
+            # get
+            varMap = {}
+            varMap[':PandaID'] = pandaID
+            varMap[':jediTaskID'] = jediTaskID
+            self.cur.execute(sql+comment, varMap)
+            resF = self.cur.fetchall()
+            resList = []
+            for objstoreID, in resF:
+                resList.append(objstoreID)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug("got {0} OS IDs".format(len(resList)))
+            return resList
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return []
