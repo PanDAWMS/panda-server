@@ -1,5 +1,8 @@
 Release Notes
 
+* 7/14/2016
+  * using bulk fetch for files in storeJobs
+
 * 7/12/2016
   * registering and deleting ES files in rucio
 

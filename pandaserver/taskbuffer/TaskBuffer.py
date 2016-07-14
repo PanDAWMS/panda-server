@@ -277,6 +277,15 @@ class TaskBuffer:
                         if tmpSnRet['status']: 
                             groupJobSerialNum = tmpSnRet['sn']
                         break
+            # get total number of files
+            totalNumFiles = 0
+            for job in jobs:
+                totalNumFiles += len(job.Files)
+            # bulk fetch fileIDs
+            fileIDPool = []
+            if totalNumFiles > 0:
+                fileIDPool = proxy.bulkFetchFileIDsPanda(totalNumFiles)
+                fileIDPool.sort()
             # loop over all jobs
             ret =[]
             newJobs=[]
@@ -369,7 +378,7 @@ class TaskBuffer:
                 # insert job to DB
                 if not proxy.insertNewJob(job,user,serNum,weight,priorityOffset,userVO,groupJobSerialNum,
                                           toPending,origEsJob,eventServiceInfo,oldPandaIDs=jobOldPandaIDs,
-                                          relationType=relationType):
+                                          relationType=relationType,fileIDPool=fileIDPool):
                     # reset if failed
                     job.PandaID = None
                 else:
@@ -395,6 +404,10 @@ class TaskBuffer:
                 else:
                     ret.append((job.PandaID,job.jobDefinitionID,job.jobName))                
                 serNum += 1
+                try:
+                    fileIDPool = fileIDPool[len(job.Files):]
+                except:
+                    fileIDPool = []
             # release DB proxy
             self.proxyPool.putProxy(proxy)
             # set up dataset

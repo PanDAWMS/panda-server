@@ -280,14 +280,14 @@ class DBProxy:
 
     # insert job to jobsDefined
     def insertNewJob(self,job,user,serNum,weight=0.0,priorityOffset=0,userVO=None,groupJobSN=0,toPending=False,
-                     origEsJob=False,eventServiceInfo=None,oldPandaIDs=None,relationType=None):
+                     origEsJob=False,eventServiceInfo=None,oldPandaIDs=None,relationType=None,fileIDPool=[]):
         comment = ' /* DBProxy.insertNewJob */'
         methodName = comment.split(' ')[-2].split('.')[-1]
-        methodName += ' <JediTaskID={0}>'.format(job.jediTaskID)
+        methodName += ' <JediTaskID={0} idPool={1}>'.format(job.jediTaskID,len(fileIDPool))
         if not toPending:
             sql1 = "INSERT INTO ATLAS_PANDA.jobsDefined4 (%s) " % JobSpec.columnNames()
         else:
-            sql1 = "INSERT INTO ATLAS_PANDA.jobsWaiting4 (%s) " % JobSpec.columnNames()            
+            sql1 = "INSERT INTO ATLAS_PANDA.jobsWaiting4 (%s) " % JobSpec.columnNames()
         sql1+= JobSpec.bindValuesExpression(useSeq=True)
         sql1+= " RETURNING PandaID INTO :newPandaID"
         # make sure PandaID is NULL
@@ -480,13 +480,19 @@ class DBProxy:
             _logger.debug("insertNewJob : inserted %s label:%s prio:%s jediTaskID:%s" % (job.PandaID,job.prodSourceLabel,
                                                                                          job.currentPriority,
                                                                                          job.jediTaskID))
+            # sql with SEQ
             sqlFile = "INSERT INTO ATLAS_PANDA.filesTable4 (%s) " % FileSpec.columnNames()
             sqlFile+= FileSpec.bindValuesExpression(useSeq=True)
             sqlFile+= " RETURNING row_ID INTO :newRowID"
+            # sql without SEQ
+            sqlFileW  = "INSERT INTO ATLAS_PANDA.filesTable4 (%s) " % FileSpec.columnNames()
+            sqlFileW += FileSpec.bindValuesExpression(useSeq=False)
             dynNumEvents = EventServiceUtils.isDynNumEventsSH(job.specialHandling)
             dynFileMap = {}
             dynLfnIdMap = {}
             totalInputEvents = 0
+            indexFileID = 0
+            varMapsForFile = []
             for file in job.Files:
                 file.row_ID = None
                 if not file.status in ['ready','cached']:
@@ -514,11 +520,17 @@ class DBProxy:
                     file.scope = self.extractScope(file.dataset)
                 # insert
                 if not toSkipInsert:
-                    varMap = file.valuesMap(useSeq=True)
-                    varMap[':newRowID'] = self.cur.var(varNUMBER)
-                    self.cur.execute(sqlFile+comment, varMap)
-                    # get rowID
-                    file.row_ID = long(self.cur.getvalue(varMap[':newRowID']))
+                    if indexFileID < len(fileIDPool):
+                        file.row_ID = fileIDPool[indexFileID]
+                        varMap = file.valuesMap(useSeq=False)
+                        varMapsForFile.append(varMap)
+                        indexFileID += 1
+                    else:
+                        varMap = file.valuesMap(useSeq=True)
+                        varMap[':newRowID'] = self.cur.var(varNUMBER)
+                        self.cur.execute(sqlFile+comment, varMap)
+                        # get rowID
+                        file.row_ID = long(self.cur.getvalue(varMap[':newRowID']))
                     dynLfnIdMap[file.lfn] = file.row_ID
                     # reset changed attribute list
                     file.resetChangedList()
@@ -628,6 +640,11 @@ class DBProxy:
                         _logger.debug("insertNewJob : %s inserted %s event ranges jediTaskID:%s" % (job.PandaID,len(varMaps),
                                                                                                     job.jediTaskID))
                         totalInputEvents += eventServiceInfo[file.lfn]['nEvents']
+            # bulk insert files
+            if len(varMapsForFile) > 0:
+                _logger.debug("insertNewJob : {0} bulk insert {1} files for jediTaskID:{2}".format(job.PandaID,len(varMapsForFile),
+                                                                                                   job.jediTaskID))
+                self.cur.executemany(sqlFileW+comment,varMapsForFile)
             # insert events for dynamic number of events
             if dynFileMap != {}:
                 # insert new ranges
@@ -18073,4 +18090,38 @@ class DBProxy:
             self._rollback()
             # error
             self.dumpErrorMessage(_logger,methodName)
+            return []
+
+
+
+    # bulk fetch fileIDs
+    def bulkFetchFileIDsPanda(self,nIDs):
+        comment = ' /* JediDBProxy.bulkFetchFileIDsPanda */'
+        methodName = self.getMethodName(comment)
+        tmpLog = LogWrapper(_logger,methodName+' <nIDs={0}>'.format(nIDs))
+        tmpLog.debug('start')
+        try:
+            newFileIDs = []
+            varMap = {}
+            varMap[':nIDs'] = nIDs
+            # sql to get fileID
+            sqlFID  = "SELECT ATLAS_PANDA.FILESTABLE4_ROW_ID_SEQ.nextval FROM "
+            sqlFID += "(SELECT level FROM dual CONNECT BY level<=:nIDs) " 
+            # start transaction
+            self.conn.begin()
+            self.cur.arraysize = 10000
+            self.cur.execute(sqlFID+comment,varMap)
+            resFID = self.cur.fetchall()
+            for fileID, in resFID:
+                newFileIDs.append(fileID)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug('got {0} IDs'.format(len(newFileIDs)))
+            return newFileIDs
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(tmpLog)
             return []
