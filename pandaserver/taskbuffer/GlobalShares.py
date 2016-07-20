@@ -1,3 +1,5 @@
+import re
+
 from taskbuffer.TaskBuffer import taskBuffer
 from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
@@ -54,7 +56,7 @@ class Share(Node):
     def __imul__(self, other):
         return self.__mul__
 
-    def __init__(self, name, value, parent, prodsourcelabel, workinggroup, campaign):
+    def __init__(self, name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype):
         Node.__init__(self)
         self.name = name
         self.value = value
@@ -62,6 +64,7 @@ class Share(Node):
         self.prodsourcelabel = prodsourcelabel
         self.workinggroup = workinggroup
         self.campaign = campaign
+        self.processingtype = processingtype
 
     def normalize(self, multiplier=100, divider=100):
         """
@@ -101,8 +104,8 @@ class GlobalShares:
         shares_top_level = self.__task_buffer.getShares(parents=None)
 
         # Load branches
-        for (name, value, parent, prodsourcelabel, workinggroup, campaign) in shares_top_level:
-            share = Share(name, value, parent, prodsourcelabel, workinggroup, campaign)
+        for (name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype) in shares_top_level:
+            share = Share(name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype)
             self.tree.children.append(self.__load_branch(share))
 
         # Normalize the values in the database
@@ -133,13 +136,16 @@ class GlobalShares:
         Logic to compare the relevant fields of share and task
         """
 
-        if share.prodsourcelabel is not None and share.prodsourcelabel != task.prodSourceLabel:
+        if share.prodsourcelabel is not None and re.match(share.prodsourcelabel, task.prodSourceLabel) is not None:
             return False
 
-        if share.workinggroup is not None and share.workinggroup != task.workingGroup:
+        if share.workinggroup is not None and re.match(share.workinggroup, task.workingGroup) is not None:
             return False
 
-        if share.campaign is not None and share.campaign != task.campaign:
+        if share.campaign is not None and re.match(share.campaign, task.campaign) is not None:
+            return False
+
+        if share.processingtype is not None and re.match(share.processingtype, task.processingtype) is not None:
             return False
 
         return True

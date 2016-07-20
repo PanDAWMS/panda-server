@@ -162,7 +162,10 @@ class JobDipatcher:
         if tmpNumJobs == None:
             tmpNumJobs = 1
         # wrapper function for timeout
-        tmpWrapper = _TimedMethod(self.taskBuffer.getJobs,timeout)
+        if hasattr(panda_config,'global_shares') and panda_config.global_shares == True:
+            tmpWrapper = _TimedMethod(self.taskBuffer.getJobsGShare,timeout)
+        else:
+            tmpWrapper = _TimedMethod(self.taskBuffer.getJobs,timeout)
         tmpWrapper.run(tmpNumJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
                        atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry,
                        taskID)

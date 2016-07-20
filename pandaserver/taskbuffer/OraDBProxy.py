@@ -2734,7 +2734,7 @@ class DBProxy:
                                    'CERN-BUILDS' :'builds',
                                    },
                       }
-        # construct where clause   
+        # construct where clause
         dynamicBrokering = False
         getValMap = {}
         getValMap[':oldJobStatus'] = 'activated'
@@ -17600,7 +17600,7 @@ class DBProxy:
 
 
         sql  = """
-               SELECT NAME, VALUE, PARENT, PRODSOURCELABEL, WORKINGGROUP, CAMPAIGN
+               SELECT NAME, VALUE, PARENT, PRODSOURCELABEL, WORKINGGROUP, CAMPAIGN, PROCESSINGTYPE
                FROM ATLAS_PANDA.GLOBAL_SHARES
                """
 
