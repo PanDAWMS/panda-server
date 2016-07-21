@@ -98,7 +98,7 @@ class GlobalShares:
         self.__task_buffer = taskBuffer
 
         # Root dummy node
-        self.tree = Share('root', 100, None, None, None, None)
+        self.tree = Share('root', 100, None, None, None, None, )
 
         # Get top level shares from DB
         shares_top_level = self.__task_buffer.getShares(parents=None)
@@ -119,14 +119,15 @@ class GlobalShares:
         """
         Recursively load a branch
         """
-        node = Share(share.name, share.value, share.parent, share.prodsourcelabel, share.workinggroup, share.campaign)
+        node = Share(share.name, share.value, share.parent, share.prodsourcelabel,
+                     share.workinggroup, share.campaign, share.processingtype)
 
         children = self.__task_buffer.getShares(parents=share.name)
         if not children:
             return node
 
-        for (name, value, parent, prodsourcelabel, workinggroup, campaign) in children:
-            child = Share(name, value, parent, prodsourcelabel, workinggroup, campaign)
+        for (name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype) in children:
+            child = Share(name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype)
             node.children.append(self.__load_branch(child))
 
         return node
@@ -136,16 +137,16 @@ class GlobalShares:
         Logic to compare the relevant fields of share and task
         """
 
-        if share.prodsourcelabel is not None and re.match(share.prodsourcelabel, task.prodSourceLabel) is not None:
+        if share.prodsourcelabel is not None and re.match(share.prodsourcelabel, task.prodSourceLabel) is None:
             return False
 
-        if share.workinggroup is not None and re.match(share.workinggroup, task.workingGroup) is not None:
+        if share.workinggroup is not None and re.match(share.workinggroup, task.workingGroup) is None:
             return False
 
-        if share.campaign is not None and re.match(share.campaign, task.campaign) is not None:
+        if share.campaign is not None and re.match(share.campaign, task.campaign) is None:
             return False
 
-        if share.processingtype is not None and re.match(share.processingtype, task.processingtype) is not None:
+        if share.processingtype is not None and re.match(share.processingtype, task.processingtype) is None:
             return False
 
         return True
