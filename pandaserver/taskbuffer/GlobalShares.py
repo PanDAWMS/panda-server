@@ -155,15 +155,15 @@ class GlobalShares:
         Return the share based on a task specification
         """
 
-        selected_share_name = None
+        selected_share_name = 'Undefined'
 
         for share in self.leave_shares:
             if self.compare_share_task(share, task):
                 selected_share_name = share.name
                 break
 
-        if selected_share_name is None:
-            _logger.warning("No share matching jediTaskId={0} (prodSourceLabel={1} workingGroup={2} campaign={3}".
+        if selected_share_name=='Undefined':
+            _logger.warning("No share matching jediTaskId={0} (prodSourceLabel={1} workingGroup={2} campaign={3} )".
                                   format(task.jediTaskID, task.prodSourceLabel, task.workingGroup, task.campaign))
 
         return selected_share_name
@@ -201,20 +201,90 @@ if __name__ == "__main__":
     share_name = 'MC16Pile'
     print ("Share {0} is valid: {1}".format(share_name, global_shares.is_valid_share(share_name)))
 
-    # create a fake task with relevant fields and retrieve its share
+    # create a fake tasks with relevant fields and retrieve its share
     from pandajedi.jedicore.JediTaskSpec import JediTaskSpec
     task_spec = JediTaskSpec()
+
+    # Analysis task
     task_spec.prodSourceLabel = 'user'
     task_spec.campaign = 'dummy_campaign'
     task_spec.workingGroup = 'dummy_wg'
-    print("Share for task is {0}".format(global_shares.get_share_for_task(task_spec)))
+    task_spec.processingType = 'dummy_type'
+    print("Share for task is {0}(should be 'Analysis')".format(global_shares.get_share_for_task(task_spec)))
 
+    # Production task without any matching leave
     task_spec.prodSourceLabel = 'managed'
     task_spec.campaign = 'dummy_campaign'
     task_spec.workingGroup = 'dummy_wg'
-    print("Share for task is {0}".format(global_shares.get_share_for_task(task_spec)))
+    task_spec.processingType = 'dummy_type'
+    print("Share for task is {0}(should be 'Undefined')".format(global_shares.get_share_for_task(task_spec)))
 
+    # Test task
+    task_spec.prodSourceLabel = 'test123'
+    task_spec.campaign = 'dummy_campaign'
+    task_spec.workingGroup = 'dummy_wg'
+    task_spec.processingType = 'dummy_type'
+    print("Share for task is {0}(should be 'Test')".format(global_shares.get_share_for_task(task_spec)))
 
+    # Derivations task without any matching leave
+    task_spec.prodSourceLabel = 'managed'
+    task_spec.campaign = 'dummy_campaign'
+    task_spec.workingGroup = 'GP_PHYS'
+    task_spec.processingType = 'dummy_type'
+    print("Share for task is {0}(should be 'Undefined')".format(global_shares.get_share_for_task(task_spec)))
 
+    # Reprocessing task without any matching leave
+    task_spec.prodSourceLabel = 'managed'
+    task_spec.campaign = 'dummy_campaign'
+    task_spec.workingGroup = 'AP_REPR'
+    task_spec.processingType = 'dummy_type'
+    print("Share for task is {0}(should be 'Undefined')".format(global_shares.get_share_for_task(task_spec)))
 
+    # Group production task
+    task_spec.prodSourceLabel = 'managed'
+    task_spec.campaign = 'dummy_campaign'
+    task_spec.workingGroup = 'GP_LOL'
+    task_spec.processingType = 'dummy_type'
+    print("Share for task is {0}(should be 'Group production')".format(global_shares.get_share_for_task(task_spec)))
 
+    # Upgrade task
+    task_spec.prodSourceLabel = 'managed'
+    task_spec.campaign = 'dummy_campaign'
+    task_spec.workingGroup = 'AP_UPG'
+    task_spec.processingType = 'dummy_type'
+    print("Share for task is {0}(should be 'Upgrade')".format(global_shares.get_share_for_task(task_spec)))
+
+    # HLT Reprocessing
+    task_spec.prodSourceLabel = 'managed'
+    task_spec.campaign = 'dummy_campaign'
+    task_spec.workingGroup = 'AP_THLT'
+    task_spec.processingType = 'dummy_type'
+    print("Share for task is {0}(should be 'HLT Reprocessing')".format(global_shares.get_share_for_task(task_spec)))
+
+    # Validation
+    task_spec.prodSourceLabel = 'managed'
+    task_spec.campaign = 'dummy_campaign'
+    task_spec.workingGroup = 'AP_VALI'
+    task_spec.processingType = 'dummy_type'
+    print("Share for task is {0}(should be 'Validation')".format(global_shares.get_share_for_task(task_spec)))
+
+    # Event Index
+    task_spec.prodSourceLabel = 'managed'
+    task_spec.campaign = 'dummy_campaign'
+    task_spec.workingGroup = 'proj-evind'
+    task_spec.processingType = 'dummy_type'
+    print("Share for task is {0}(should be 'Event Index')".format(global_shares.get_share_for_task(task_spec)))
+
+    # MC Derivations
+    task_spec.prodSourceLabel = 'managed'
+    task_spec.campaign = 'mc.*'
+    task_spec.workingGroup = 'GP_PHYS'
+    task_spec.processingType = 'dummy_type'
+    print("Share for task is {0}(should be 'MC Derivations')".format(global_shares.get_share_for_task(task_spec)))
+
+    # Data Derivations
+    task_spec.prodSourceLabel = 'managed'
+    task_spec.campaign = 'data.*'
+    task_spec.workingGroup = 'GP_PHYS'
+    task_spec.processingType = 'dummy_type'
+    print("Share for task is {0}(should be 'Data Derivations')".format(global_shares.get_share_for_task(task_spec)))
