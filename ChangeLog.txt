@@ -1,7 +1,23 @@
 Release Notes
 
+* 7/14/2016
+  * using bulk fetch for files in storeJobs
+
+* 7/12/2016
+  * registering and deleting ES files in rucio
+
+* 7/8/2016
+  * added jumbo job stuff
+
+* 7/1/2016
+  * changed Savanna to JIRA in notifications
+  * fixed killUnfinishedJobs
+
+* 6/28/2016
+  * added a protection to DyPD2P for large user datasets
 
 * 6/23/2016
+  * added avalancheTask
   * fixed Watcher to correctly change jobParams for pmerge
 
 * 6/21/2016

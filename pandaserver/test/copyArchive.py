@@ -1082,6 +1082,11 @@ for pandaID,jediTaskID in res:
 _logger.debug('killed invalid pmerge {0}/{1}'.format(badPmerge,nPmerge))
 
 
+# cleanup of jumbo jobs
+_logger.debug('jumbo job cleanup')
+res = taskBuffer.cleanupJumboJobs()
+_logger.debug(res)
+
 _memoryCheck("closing")
 
 # thread pool

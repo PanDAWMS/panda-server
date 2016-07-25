@@ -26,6 +26,14 @@ dynamicNumEventsToken = 'dy'
 # values for job.eventService
 esJobFlagNumber = 1
 esMergeJobFlagNumber = 2
+jobCloningFlagNumber = 3
+jumboJobFlagNumber = 4
+coJumboJobFlagNumber = 5
+
+
+# values for event.is_jumbo
+eventTableIsJumbo = 1
+
 
 # relation type for jobsets
 relationTypeJS_ID = 'jobset_id'
@@ -33,13 +41,24 @@ relationTypeJS_Retry = 'jobset_retry'
 relationTypesForJS = [relationTypeJS_ID,relationTypeJS_Retry]
 
 
+# suffix for ES dataset and files to register to DDM
+esSuffixDDM = '.events'
+
 
 # encode file info
-def encodeFileInfo(lfn,startEvent,endEvent,nEventsPerWorker,maxAttempt=None):
+def encodeFileInfo(lfn,startEvent,endEvent,nEventsPerWorker,
+                   maxAttempt=None,firstOffset=None,firstEvent=None):
     if maxAttempt == None:
-        return '{0}/{1}/{2}/{3}^'.format(lfn,startEvent,endEvent,nEventsPerWorker)
-    else:
+        maxAttempt = 10
+    if firstOffset == None:
         return '{0}/{1}/{2}/{3}/{4}^'.format(lfn,startEvent,endEvent,nEventsPerWorker,maxAttempt)
+    else:
+        try:
+            totalOffset = firstEvent - firstOffset
+        except:
+            totalOffset = 0
+        return '{0}/{1}/{2}/{3}/{4}/{5}^'.format(lfn,startEvent,endEvent,nEventsPerWorker,
+                                                 maxAttempt,totalOffset)
 
 
 
@@ -68,11 +87,16 @@ def decodeFileInfo(specialHandling):
                         continue
                     esItems = esItem.split('/')
                     maxAttempt = 10
+                    esOffset = 0
                     if len(esItems) == 3:
                         esLFN,esEvents,esRange = esItems
                         esStartEvent = 0
                     elif len(esItems) == 5:
                         esLFN,esStartEvent,esEndEvent,esRange,maxAttempt = esItems
+                        esEvents = long(esEndEvent) - long(esStartEvent) + 1
+                    elif len(esItems) == 6:
+                        esLFN,esStartEvent,esEndEvent,esRange,maxAttempt,esOffset \
+                            = esItems
                         esEvents = long(esEndEvent) - long(esStartEvent) + 1
                     else:
                         esLFN,esStartEvent,esEndEvent,esRange = esItems
@@ -80,7 +104,8 @@ def decodeFileInfo(specialHandling):
                     eventServiceInfo[esLFN] = {'nEvents':long(esEvents),
                                                'startEvent':long(esStartEvent),
                                                'nEventsPerRange':long(esRange),
-                                               'maxAttempt':long(maxAttempt)}
+                                               'maxAttempt':long(maxAttempt),
+                                               'offset':long(esOffset)}
                 newSpecialHandling += '{0},'.format(esToken)
             else:
                 newSpecialHandling += '{0},'.format(tmpItem)
@@ -237,3 +262,27 @@ def isDynNumEventsSH(specialHandling):
     except:
         pass
     return False
+
+
+
+# remove event service header
+def removeHeaderForES(job):
+    if job.specialHandling != None:
+        items = job.specialHandling.split(',')
+        newItems = []
+        for item in items:
+            if re.search('^'+esHeader+'.+',item) == None:
+                newItems.append(item)
+    job.specialHandling = ','.join(newItems)
+
+
+
+# check if jumbo job
+def isJumboJob(job):
+    return job.eventService == jumboJobFlagNumber
+
+
+
+# check if cooperative with jumbo job
+def isCoJumboJob(job):
+    return job.eventService == coJumboJobFlagNumber

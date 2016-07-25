@@ -93,7 +93,7 @@ class Setupper (threading.Thread):
                         if not self.onlyTA:
                             # update jobs
                             tmpLog.debug('update jobs')
-                            self.updateJobs(setupperPlugin.jobs,tmpLog)
+                            self.updateJobs(setupperPlugin.jobs+setupperPlugin.jumboJobs,tmpLog)
                             # execute post process
                             tmpLog.debug('post execute plugin')
                             setupperPlugin.postRun()

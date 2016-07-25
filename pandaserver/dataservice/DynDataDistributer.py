@@ -1022,6 +1022,9 @@ class DynDataDistributer:
         nFilesPerDataset,tmpR = divmod(len(files),nSites)
         if nFilesPerDataset == 0:
             nFilesPerDataset = 1
+        maxFilesPerDataset = 1000
+        if nFilesPerDataset >= maxFilesPerDataset:
+            nFilesPerDataset = maxFilesPerDataset
         # register new datasets
         datasetNames = []
         tmpIndex = 1
@@ -1086,7 +1089,8 @@ class DynDataDistributer:
         nTry = 3
         for iDDMTry in range(nTry):
             try:
-                self.putLog('%s/%s registerNewDataset %s' % (iDDMTry,nTry,datasetName))
+                self.putLog('%s/%s registerNewDataset %s len=%s' % (iDDMTry,nTry,datasetName,
+                                                                    len(files)))
                 out = rucioAPI.registerDatasetWithOldFiles(datasetName,lfns,guids,fsizes,chksums,
                                                            lifetime=14)
                 self.putLog(out)

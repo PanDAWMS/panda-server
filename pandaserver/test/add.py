@@ -14,6 +14,7 @@ import pandalogger.PandaLogger
 from pandalogger.PandaLogger import PandaLogger
 from brokerage.SiteMapper import SiteMapper
 from pandautils import PandaUtils
+from pandalogger.LogWrapper import LogWrapper
 
 # password
 from config import panda_config
@@ -22,7 +23,9 @@ passwd = panda_config.dbpasswd
 # logger
 _logger = PandaLogger().getLogger('add')
 
-_logger.debug("===================== start =====================")
+tmpLog = LogWrapper(_logger,None)
+
+tmpLog.debug("===================== start =====================")
 
 # overall timeout value
 overallTimeout = 20
@@ -58,12 +61,12 @@ try:
         startTime = datetime.datetime(*time.strptime(timeM.group(1),'%b %d %H:%M:%S %Y')[:6])
         # kill old process
         if startTime < timeLimit:
-            _logger.debug("old process : %s %s" % (pid,startTime))
-            _logger.debug(line)            
+            tmpLog.debug("old process : %s %s" % (pid,startTime))
+            tmpLog.debug(line)            
             commands.getoutput('kill -9 %s' % pid)
 except:
     type, value, traceBack = sys.exc_info()
-    _logger.error("kill process : %s %s" % (type,value))
+    tmpLog.error("kill process : %s %s" % (type,value))
 
     
 # instantiate TB
@@ -73,12 +76,12 @@ taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
 aSiteMapper = SiteMapper(taskBuffer)
 
 # delete
-_logger.debug("Del session")
+tmpLog.debug("Del session")
 status,retSel = taskBuffer.querySQLS("SELECT MAX(PandaID) FROM ATLAS_PANDA.jobsDefined4",{})
 if retSel != None:
     try:
         maxID = retSel[0][0]
-        _logger.debug("maxID : %s" % maxID)
+        tmpLog.debug("maxID : %s" % maxID)
         if maxID != None:
             varMap = {}
             varMap[':maxID'] = maxID
@@ -97,7 +100,7 @@ try:
     logRotateTime = timeNow.replace(hour=3,minute=2,second=0,microsecond=0)
     if (timeNow > logRotateTime and (timeNow-logRotateTime) < datetime.timedelta(minutes=5)) or \
            (logRotateTime > timeNow and (logRotateTime-timeNow) < datetime.timedelta(minutes=5)):
-        _logger.debug("skip pilotCounts session for logrotate")
+        tmpLog.debug("skip pilotCounts session for logrotate")
     else:
         # log filename
         dispLogName = '%s/panda-PilotRequests.log' % panda_config.logdir
@@ -119,15 +122,15 @@ try:
         if useLogTgz:
             dispLogNameList.append('%s.1.gz' % dispLogName)
         # tmp name
-        tmpLogName = '%s.tmp' % dispLogName
+        tmpLogName = '%s.tmp-%s' % (dispLogName,datetime.datetime.utcnow().strftime('%Y-%m-%d-%H-%M-%S'))
         # loop over all files
         pilotCounts = {}
         for tmpDispLogName in dispLogNameList:
             # expand or copy
             if tmpDispLogName.endswith('.gz'):
-                com = 'gunzip -c %s | tac > %s' % (tmpDispLogName,tmpLogName)
+                com = 'gunzip -c %s > %s' % (tmpDispLogName,tmpLogName)
             else:
-                com = 'tac %s > %s' % (tmpDispLogName,tmpLogName)            
+                com = 'cp %s %s' % (tmpDispLogName,tmpLogName)            
             lostat,loout = commands.getstatusoutput(com)
             if lostat != 0:
                 errMsg = 'failed to expand/copy %s with : %s' % (tmpDispLogName,loout)
@@ -143,8 +146,8 @@ try:
                 if match != None: 
                     # check timerange
                     timeStamp = datetime.datetime(*time.strptime(match.group(1),'%Y-%m-%d %H:%M:%S')[:6])
-                    if timeStamp<timeLimit:
-                        break
+                    if timeStamp < timeLimit:
+                        continue
                     tmpMethod = match.group(2)
                     tmpSite   = match.group(3)
                     tmpNode   = match.group(4)
@@ -163,24 +166,24 @@ try:
         commands.getoutput('rm %s' % tmpLogName)
         # update
         hostID = panda_config.pserverhost.split('.')[0]
-        _logger.debug("pilotCounts session")    
-        _logger.debug(pilotCounts)
+        tmpLog.debug("pilotCounts session")    
+        #tmpLog.debug(pilotCounts)
         retPC = taskBuffer.updateSiteData(hostID,pilotCounts)
-        _logger.debug(retPC)
+        tmpLog.debug(retPC)
 except:
     errType,errValue = sys.exc_info()[:2]
-    _logger.error("updateJob/getJob : %s %s" % (errType,errValue))
+    tmpLog.error("updateJob/getJob : %s %s" % (errType,errValue))
 
 
 # nRunning
 try:
-    _logger.debug("nRunning session")
+    tmpLog.debug("nRunning session")
     if (currentMinute / panda_config.nrun_interval) % panda_config.nrun_hosts == panda_config.nrun_snum:
         retNR = taskBuffer.insertnRunningInSiteData()
-        _logger.debug(retNR)
+        tmpLog.debug(retNR)
 except:
     errType,errValue = sys.exc_info()[:2]
-    _logger.error("nRunning : %s %s" % (errType,errValue))
+    tmpLog.error("nRunning : %s %s" % (errType,errValue))
 
 
 # mail sender
@@ -189,7 +192,7 @@ class MailSender (threading.Thread):
         threading.Thread.__init__(self)
 
     def run(self):
-        _logger.debug("mail : start")
+        tmpLog.debug("mail : start")
         tmpFileList = glob.glob('%s/mail_*' % panda_config.logdir)
         for tmpFile in tmpFileList:
             # check timestamp to avoid too new files
@@ -201,7 +204,7 @@ class MailSender (threading.Thread):
             try:
                 fcntl.flock(mailFile.fileno(), fcntl.LOCK_EX|fcntl.LOCK_NB)
             except:
-                _logger.debug("mail : failed to lock %s" % tmpFile.split('/')[-1])
+                tmpLog.debug("mail : failed to lock %s" % tmpFile.split('/')[-1])
                 mailFile.close()
                 continue
             # start notifier
@@ -225,7 +228,20 @@ mailSender =  MailSender()
 mailSender.start()
 
 
-_logger.debug("Fork session")
+# session for co-jumbo jobs
+tmpLog.debug("co-jumbo session")
+ret = taskBuffer.getCoJumboJobsToBeFinished(10,0)
+if ret == None:
+    tmpLog.debug("failed to get co-jumbo jobs to finish")
+else:
+    coJumboA,coJumboD = ret
+    tmpLog.debug("finish {0} co-jumbo jobs in Active".format(len(coJumboA)))
+    taskBuffer.archiveJobs(coJumboA,False)
+    tmpLog.debug("finish {0} co-jumbo jobs in Defined".format(len(coJumboD)))
+    taskBuffer.archiveJobs(coJumboD,True)
+
+
+tmpLog.debug("Fork session")
 # thread for fork
 class ForkThr (threading.Thread):
     def __init__(self,fileName):
@@ -241,7 +257,7 @@ class ForkThr (threading.Thread):
         if self.fileName.split('/')[-1].startswith('set.NULL.'):
             runStr += ' -t'
         comStr = setupStr + runStr    
-        _logger.debug(comStr)    
+        tmpLog.debug(comStr)    
         commands.getstatusoutput(comStr)
 
 # get set.* files
@@ -274,7 +290,7 @@ for tmpName in fileList:
                     break
     except:
         errType,errValue = sys.exc_info()[:2]
-        _logger.error("%s %s" % (errType,errValue))
+        tmpLog.error("%s %s" % (errType,errValue))
             
     
 # thread pool
@@ -345,7 +361,7 @@ class AdderProcess:
         while len(fileList) != 0:
             # time limit to aviod too many copyArchve running at the sametime
             if (datetime.datetime.utcnow() - timeNow) > datetime.timedelta(minutes=overallTimeout):
-                _logger.debug("time over in Adder session")
+                tmpLog.debug("time over in Adder session")
                 break
             # get fileList
             if (datetime.datetime.utcnow() - timeInt) > datetime.timedelta(minutes=15):
@@ -376,7 +392,7 @@ class AdderProcess:
                 fileList = tmpList
             # check if 
             if PandaUtils.isLogRotating(5,5):    
-                _logger.debug("terminate since close to log-rotate time")
+                tmpLog.debug("terminate since close to log-rotate time")
                 break
             # choose a file
             file = fileList.pop(0)
@@ -391,19 +407,19 @@ class AdderProcess:
                     thr = None
                     if (timeNow - modTime) > datetime.timedelta(hours=24):
                         # last chance
-                        _logger.debug("Last Add File {0} : {1}".format(os.getpid(),fileName))
+                        tmpLog.debug("Last Add File {0} : {1}".format(os.getpid(),fileName))
                         thr = AdderGen(taskBuffer,match.group(1),match.group(2),fileName,
                                        ignoreTmpError=False,siteMapper=aSiteMapper)
                     elif (timeInt - modTime) > datetime.timedelta(minutes=gracePeriod):
                         # add
-                        _logger.debug("Add File {0} : {1}".format(os.getpid(),fileName))
+                        tmpLog.debug("Add File {0} : {1}".format(os.getpid(),fileName))
                         thr = AdderGen(taskBuffer,match.group(1),match.group(2),fileName,
                                        ignoreTmpError=True,siteMapper=aSiteMapper)
                     if thr != None:
                         thr.run()
                 except:
                     type, value, traceBack = sys.exc_info()
-                    _logger.error("%s %s" % (type,value))
+                    tmpLog.error("%s %s" % (type,value))
 
 
     # launcher
@@ -429,10 +445,10 @@ status,res = taskBuffer.querySQLS("SELECT PandaID from ATLAS_PANDA.jobsActive4 W
 if res != None:
     for id, in res:
         holdingAna.append(id)
-_logger.debug("holding Ana %s " % holdingAna)
+tmpLog.debug("holding Ana %s " % holdingAna)
     
 # add files
-_logger.debug("Adder session")
+tmpLog.debug("Adder session")
 
 # make TaskBuffer IF
 from taskbuffer.TaskBufferInterface import TaskBufferInterface
@@ -459,4 +475,4 @@ for thr in forkThrList:
 # terminate TaskBuffer IF
 taskBufferIF.terminate()
 
-_logger.debug("===================== end =====================")
+tmpLog.debug("===================== end =====================")

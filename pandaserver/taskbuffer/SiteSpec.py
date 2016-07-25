@@ -119,3 +119,9 @@ class SiteSpec(object):
     # allow WAN input access
     def allowWanInputAccess(self):
         return self.direct_access_lan == True and self.direct_access_wan == True
+
+
+
+    # use jumbo jobs
+    def useJumboJobs(self):
+        return self.hasValueInCatchall('useJumboJobs')
