@@ -58,7 +58,8 @@ from userinterface.UserIF        import submitJobs,getJobStatus,queryPandaIDs,ki
      getCloudSpecs,runBrokerage,seeCloudTask,queryJobInfoPerCloud,registerProxyKey,getProxyKey,\
      getJobIDsInTimeRange,getPandIDsWithJobID,getFullJobStatus,getJobStatisticsForBamboo,\
      getNUserJobs,addSiteAccess,listSiteAccess,getFilesInUseForAnal,updateSiteAccess,\
-     getPandaClientVer,getSlimmedFileInfoPandaIDs,runReBrokerage,getQueuedAnalJobs,getHighestPrioJobStat,\
+     getPandaClientVer,getSlimmedFileInfoPandaIDs,runReBrokerage,deleteFilesFromCacheDB,\
+     addFilesToCacheDB,flushCacheDB,checkFilesWithCacheDB,getQueuedAnalJobs,getHighestPrioJobStat,\
      getActiveDatasets,setCloudTaskByUser,getSerialNumberForGroupJob,getCachePrefixes,\
      checkMergeGenerationStatus,sendLogInfo,getNumPilots,retryFailedJobsInActive,\
      getJobStatisticsWithLabel,getPandaIDwithJobExeID,getJobStatisticsPerUserSite,\
@@ -74,7 +75,8 @@ allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reass
                    'getCloudSpecs','runBrokerage','seeCloudTask','queryJobInfoPerCloud','registerProxyKey','getProxyKey',
                    'getJobIDsInTimeRange','getPandIDsWithJobID','getFullJobStatus','getJobStatisticsForBamboo',
                    'getNUserJobs','addSiteAccess','listSiteAccess','getFilesInUseForAnal','updateSiteAccess',
-                   'getPandaClientVer','getSlimmedFileInfoPandaIDs','runReBrokerage','getQueuedAnalJobs','getHighestPrioJobStat',
+                   'getPandaClientVer','getSlimmedFileInfoPandaIDs','runReBrokerage','deleteFilesFromCacheDB',
+                   'addFilesToCacheDB','flushCacheDB','checkFilesWithCacheDB','getQueuedAnalJobs','getHighestPrioJobStat',
                    'getActiveDatasets','setCloudTaskByUser','getSerialNumberForGroupJob','getCachePrefixes',
                    'checkMergeGenerationStatus','sendLogInfo','getNumPilots','retryFailedJobsInActive',
                    'getJobStatisticsWithLabel','getPandaIDwithJobExeID','getJobStatisticsPerUserSite',
