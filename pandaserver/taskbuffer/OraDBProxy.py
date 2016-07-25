@@ -18097,7 +18097,7 @@ class DBProxy:
     # bulk fetch fileIDs
     def bulkFetchFileIDsPanda(self,nIDs):
         comment = ' /* JediDBProxy.bulkFetchFileIDsPanda */'
-        methodName = self.getMethodName(comment)
+        methodName = comment.split(' ')[-2].split('.')[-1]
         tmpLog = LogWrapper(_logger,methodName+' <nIDs={0}>'.format(nIDs))
         tmpLog.debug('start')
         try:
