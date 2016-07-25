@@ -296,8 +296,8 @@ Report Panda problems of any sort to
   the eGroup for help request
     hn-atlas-dist-analysis-help@cern.ch
 
-  the Savannah for software bug
-    https://savannah.cern.ch/projects/panda/
+  the Panda JIRA for software bug
+    https://its.cern.ch/jira/browse/ATLASPANDA
 """
 
                     # send mail

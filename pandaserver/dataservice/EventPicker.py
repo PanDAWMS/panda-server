@@ -11,6 +11,7 @@ import copy
 import fcntl
 import datetime
 import commands
+import traceback
 import brokerage.broker
 from dataservice import DynDataDistributer
 from dataservice.MailUtils import MailUtils
@@ -282,7 +283,10 @@ class EventPicker:
                         self.putLog('OK')
                     except:
                         errType,errValue = sys.exc_info()[:2]
-                        self.endWithError('Failed to send transfer request : %s %s' % (errType,errValue))
+                        tmpStr = 'Failed to send transfer request : %s %s' % (errType,errValue)
+                        tmpStr.strip()
+                        tmpStr += traceback.format_exc()
+                        self.endWithError(tmpStr)
                         return False
                     # list of sites already used
                     sitesUsed.append(tmpJob.computingSite)

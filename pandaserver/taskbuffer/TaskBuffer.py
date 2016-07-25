@@ -277,6 +277,15 @@ class TaskBuffer:
                         if tmpSnRet['status']: 
                             groupJobSerialNum = tmpSnRet['sn']
                         break
+            # get total number of files
+            totalNumFiles = 0
+            for job in jobs:
+                totalNumFiles += len(job.Files)
+            # bulk fetch fileIDs
+            fileIDPool = []
+            if totalNumFiles > 0:
+                fileIDPool = proxy.bulkFetchFileIDsPanda(totalNumFiles)
+                fileIDPool.sort()
             # loop over all jobs
             ret =[]
             newJobs=[]
@@ -369,7 +378,7 @@ class TaskBuffer:
                 # insert job to DB
                 if not proxy.insertNewJob(job,user,serNum,weight,priorityOffset,userVO,groupJobSerialNum,
                                           toPending,origEsJob,eventServiceInfo,oldPandaIDs=jobOldPandaIDs,
-                                          relationType=relationType):
+                                          relationType=relationType,fileIDPool=fileIDPool):
                     # reset if failed
                     job.PandaID = None
                 else:
@@ -395,6 +404,10 @@ class TaskBuffer:
                 else:
                     ret.append((job.PandaID,job.jobDefinitionID,job.jobName))                
                 serNum += 1
+                try:
+                    fileIDPool = fileIDPool[len(job.Files):]
+                except:
+                    fileIDPool = []
             # release DB proxy
             self.proxyPool.putProxy(proxy)
             # set up dataset
@@ -512,6 +525,20 @@ class TaskBuffer:
                 oldJobStatus = oldJobStatusList[idxJob]
             else:
                 oldJobStatus = None
+            # check for co-jumbo or jumbo jobs
+            if EventServiceUtils.isCoJumboJob(job):
+                # check if all events assiciated to the co-jumbo are done
+                allDone = proxy.checkAllEventsDone(job,None,True)
+                # keep until all events are done
+                if not allDone:
+                    job.jobStatus = 'holding'
+            elif EventServiceUtils.isJumboJob(job):
+                # check if there are done events
+                hasDone = proxy.hasDoneEvents(job.jediTaskID,job.PandaID)
+                if hasDone:
+                    job.jobStatus = 'finished'
+                else:
+                    job.jobStatus = 'failed'
             if job.jobStatus == 'failed' and job.prodSourceLabel == 'user' and not inJobsDefined:
                 # keep failed analy jobs in Active4
                 ret = proxy.updateJob(job,inJobsDefined,oldJobStatus=oldJobStatus)
@@ -606,6 +633,21 @@ class TaskBuffer:
             # update DB
             ret = proxy.keepJob(job)
             returns.append(ret) 
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        return returns
+
+
+    # archive jobs
+    def archiveJobs(self,jobs,inJobsDefined):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()        
+        # loop over all jobs
+        returns = []
+        for job in jobs:
+            # update DB
+            ret = proxy.archiveJob(job,inJobsDefined)
+            returns.append(ret[0]) 
         # release proxy
         self.proxyPool.putProxy(proxy)
         return returns
@@ -2975,6 +3017,71 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         # return
         return ret
+
+
+
+    # get co-jumbo jobs to be finished
+    def getCoJumboJobsToBeFinished(self,timeLimit,minPriority):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getCoJumboJobsToBeFinished(timeLimit,minPriority)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
+    # check if task is applicable for jumbo jobs
+    def isApplicableTaskForJumbo(self,jediTaskID):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.isApplicableTaskForJumbo(jediTaskID)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
+    # cleanup jumbo jobs
+    def cleanupJumboJobs(self,jediTaskID=None):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.cleanupJumboJobs(jediTaskID)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
+    # convert ObjID to endpoint
+    def convertObjIDtoEndPoint(self,srcFileName,ObjID):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.convertObjIDtoEndPoint(srcFileName,ObjID)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
+
+    # get OS IDs
+    def getObjIDs(self,jediTaskID,pandaID):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.getObjIDs(jediTaskID,pandaID)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
 
 
 
