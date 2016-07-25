@@ -340,38 +340,6 @@ class UserIF:
         ret = self.taskBuffer.setCloudTaskByUser(user,tid,cloud,status)
         return ret
 
-
-    # add files to memcached
-    def addFilesToMemcached(self,site,node,files):
-        # add
-        ret = self.taskBuffer.addFilesToMemcached(site,node,files)
-        # return
-        return ret
-
-
-    # delete files from memcached
-    def deleteFilesFromMemcached(self,site,node,files):
-        # delete
-        ret = self.taskBuffer.deleteFilesFromMemcached(site,node,files)
-        # return
-        return ret
-
-
-    # flush memcached
-    def flushMemcached(self,site,node):
-        # flush
-        ret = self.taskBuffer.flushMemcached(site,node)
-        # return
-        return ret
-
-        
-    # check files with memcached
-    def checkFilesWithMemcached(self,site,node,files):
-        # check
-        ret = self.taskBuffer.checkFilesWithMemcached(site,node,files)
-        # return
-        return ret
-
     
     # get job statistics
     def getJobStatistics(self,sourcetype=None):
@@ -1208,30 +1176,6 @@ def checkSandboxFile(req,fileSize,checkSum):
     user = _getDN(req)
     # exec    
     return userIF.checkSandboxFile(user,fileSize,checkSum)
-
-
-# add files to memcached
-def addFilesToCacheDB(req,site,node,guids='',lfns=''):
-    # exec
-    return userIF.addFilesToMemcached(site,node,lfns)
-
-
-# delete files from memcached
-def deleteFilesFromCacheDB(req,site,node,guids='',lfns=''):
-    # exec
-    return userIF.deleteFilesFromMemcached(site,node,lfns)
-
-
-# flush memcached
-def flushCacheDB(req,site,node):
-    # exec
-    return userIF.flushMemcached(site,node)
-
-
-# check files with memcached
-def checkFilesWithCacheDB(req,site,node,guids='',lfns=''):
-    # exec
-    return userIF.checkFilesWithMemcached(site,node,lfns)
 
 
 # query PandaIDs
