@@ -86,6 +86,13 @@ if not tmpSelf.__dict__.has_key('def_gatekeeper'):
     tmpSelf.__dict__['def_gatekeeper'] = 'gridgk01.racf.bnl.gov'
 if not tmpSelf.__dict__.has_key('def_status'):
     tmpSelf.__dict__['def_status'] = 'online'
+    
+if not tmpSelf.__dict__.has_key('memcached_sites'):
+    tmpSelf.__dict__['memcached_sites'] = ['MWT2_UC',
+                                      'ANALY_MWT2',
+                                      'BNL_ATLAS_test',
+                                      'ANALY_BNL_test',
+                                      'ANALY_GLASGOW']
 
 # dict for plugins
 g_pluginMap = {}    
