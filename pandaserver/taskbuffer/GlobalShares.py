@@ -98,7 +98,7 @@ class GlobalShares:
         self.__task_buffer = taskBuffer
 
         # Root dummy node
-        self.tree = Share('root', 100, None, None, None, None, )
+        self.tree = Share('root', 100, None, None, None, None, None)
 
         # Get top level shares from DB
         shares_top_level = self.__task_buffer.getShares(parents=None)
