@@ -17090,7 +17090,7 @@ class DBProxy:
                 varMap[':newStatus'] = job.jobStatus
                 varMap[':oldStatus1'] = 'closed'
                 varMap[':oldStatus2'] = 'merging'
-                varMap[':errDiag'] = '{0} since an associated ES or merge job PandaID={1} {2}'.format(job.jobStatus,tmpPandaID,job.jobStatus)
+                varMap[':errDiag'] = '{0} since an associated ES or merge job PandaID={1} {2}'.format(job.jobStatus,job.PandaID,job.jobStatus)
                 isUpdated = False
                 for tableName in ['ATLAS_PANDA.jobsArchived4','ATLAS_PANDAARCH.jobsArchived']:
                     self.cur.execute(sqlUE.format(tableName)+comment,varMap)
@@ -17896,7 +17896,7 @@ class DBProxy:
             data = json.load(f)
             for rseName,rseData in data.iteritems():
                 if rseData['resource']['bucket_id'] == objID:
-                    path = rseData['arprotocols']['d'][0]['endpoint']+rseData['arprotocols']['d'][0]['path']
+                    path = rseData['arprotocols']['w'][0]['endpoint']+rseData['arprotocols']['w'][0]['path']
                     retMap = {'name':rseName,
                               'path':path}
                     tmpLog.debug("got {0}".format(str(retMap)))

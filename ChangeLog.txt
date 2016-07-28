@@ -1,5 +1,8 @@
 Release Notes
 
+* 7/28/2016
+  * using w instead of d to get OS info
+
 * 7/25/2016
   * tagging of shares
   * removed obsoleted memcached code
