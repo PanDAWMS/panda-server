@@ -271,9 +271,7 @@ class JobDipatcher:
 
 
     # update job status
-    def updateJob(self, jobID, jobStatus, timeout, xml, siteName, param, metadata, attemptNr=None, stdout=''):
-
-        #_logger.debug("entered updateJob with params %s" % ([jobID,jobStatus,timeout,xml,siteName,param,metadata,attemptNr]))
+    def updateJob(self,jobID,jobStatus,timeout,xml,siteName,param,metadata,attemptNr=None,stdout='',acceptJson=False):
         # recoverable error for ES merge
         recoverableEsMerge = False
         if 'pilotErrorCode' in param and param['pilotErrorCode'] in ['1099','1137','1151','1152','1221','1224','1225']:
@@ -296,7 +294,7 @@ class JobDipatcher:
             if ret:
                 # return succeed
                 response=Protocol.Response(Protocol.SC_Success)
-                return response.encode()
+                return response.encode(acceptJson)
         # add metadata
         if metadata != '':
             ret = self.taskBuffer.addMetadata([jobID],[metadata],[jobStatus])
@@ -304,7 +302,7 @@ class JobDipatcher:
                 _logger.debug("updateJob : %s failed to add metadata" % jobID)
                 # return succeed
                 response=Protocol.Response(Protocol.SC_Success)
-                return response.encode()
+                return response.encode(acceptJson)
         # add stdout
         if stdout != '':
             self.taskBuffer.addStdOut(jobID,stdout)
@@ -342,8 +340,8 @@ class JobDipatcher:
             else:
                 # failed
                 response=Protocol.Response(Protocol.SC_Failed)
-        _logger.debug("updateJob : %s ret -> %s" % (jobID,response.encode()))                
-        return response.encode()
+        _logger.debug("updateJob : %s ret -> %s" % (jobID,response.encode(acceptJson)))                
+        return response.encode(acceptJson)
 
 
     # get job status
@@ -381,7 +379,7 @@ class JobDipatcher:
 
 
     # get a list of even ranges for a PandaID
-    def getEventRanges(self,pandaID,jobsetID,jediTaskID,nRanges,timeout):
+    def getEventRanges(self,pandaID,jobsetID,jediTaskID,nRanges,timeout,acceptJson):
         # peek jobs
         tmpWrapper = _TimedMethod(self.taskBuffer.getEventRanges,timeout)
         tmpWrapper.run(pandaID,jobsetID,jediTaskID,nRanges)
@@ -398,8 +396,8 @@ class JobDipatcher:
             else:
                 # failed
                 response=Protocol.Response(Protocol.SC_Failed)
-        _logger.debug("getEventRanges : %s ret -> %s" % (pandaID,response.encode()))
-        return response.encode()
+        _logger.debug("getEventRanges : %s ret -> %s" % (pandaID,response.encode(acceptJson)))
+        return response.encode(acceptJson)
 
 
     # update an event range
@@ -728,6 +726,8 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
     prodManager = _checkRole(fqans,realDN,jobDispatcher,site=siteName,hostname=req.get_remote_host())
     # check token
     validToken = _checkToken(token,jobDispatcher)
+    # accept json
+    acceptJson = req.acceptJson()
     _logger.debug("updateJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,attemptNr:%s,jobSubStatus:%s,core:%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s,maxRSS=%s,maxVMEM=%s,maxSWAP=%s,maxPSS=%s,avgRSS=%s,avgVMEM=%s,avgSWAP=%s,avgPSS=%s\n==XML==\n%s\n==LOG==\n%s\n==Meta==\n%s\n==Metrics==\n%s\n==stdout==\n%s)" %
                   (jobId,state,transExitCode,pilotErrorCode,pilotErrorDiag,node,workdir,cpuConsumptionTime,
                    cpuConsumptionUnit,remainingSpace,schedulerID,pilotID,siteName,messageLevel,nEvents,nInputFiles,
@@ -739,18 +739,18 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
     # invalid role
     if not prodManager:
         _logger.warning("updateJob(%s) : invalid role" % jobId)
-        return Protocol.Response(Protocol.SC_Role).encode()        
+        return Protocol.Response(Protocol.SC_Role).encode(acceptJson)        
     # invalid token
     if not validToken:
         _logger.warning("updateJob(%s) : invalid token" % jobId)
-        return Protocol.Response(Protocol.SC_Invalid).encode()        
+        return Protocol.Response(Protocol.SC_Invalid).encode(acceptJson)        
     # aborting message
     if jobId=='NULL':
-        return Protocol.Response(Protocol.SC_Success).encode()
+        return Protocol.Response(Protocol.SC_Success).encode(acceptJson)
     # check status
     if not state in ['running','failed','finished','holding','starting','transferring']:
         _logger.warning("invalid state=%s for updateJob" % state)
-        return Protocol.Response(Protocol.SC_Success).encode()        
+        return Protocol.Response(Protocol.SC_Success).encode(acceptJson)        
     # pilot log
     tmpLog.debug('sending log')
     if pilotLog != '':
@@ -795,7 +795,7 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
     if pilotID != None:
         param['pilotID']=pilotID[:200]
     if batchID != None:
-        param['batchID']=batchID
+        param['batchID']=batchID[:80]
     if exeErrorCode != None:
         param['exeErrorCode']=exeErrorCode
     if exeErrorDiag != None:
@@ -850,7 +850,7 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
     # invoke JD
     tmpLog.debug('executing')
     return jobDispatcher.updateJob(int(jobId),state,int(timeout),xml,siteName,
-                                   param,metaData,attemptNr,stdout)
+                                   param,metaData,attemptNr,stdout,acceptJson)
 
 
 # get job status
@@ -868,7 +868,7 @@ def getEventRanges(req,pandaID,jobsetID,taskID=None,nRanges=10,timeout=60):
     if not tmpStat:
         _logger.error(tmpStr+'failed with '+tmpOut)
         #return tmpOut
-    return jobDispatcher.getEventRanges(pandaID,jobsetID,taskID,nRanges,int(timeout))
+    return jobDispatcher.getEventRanges(pandaID,jobsetID,taskID,nRanges,int(timeout),req.acceptJson())
 
 
 
