@@ -6,5 +6,4 @@ voms-proxy-init -voms lsst:/lsst
 
 
 2. Submit a job
-cd bigpanda-client-mysql-0.0.1/test
 python lsstSubmit.py
