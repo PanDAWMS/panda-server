@@ -134,7 +134,7 @@ class GlobalShares:
 
     def compare_share_task(self, share, task):
         """
-        Logic to compare the relevant fields of share and task
+        Logic to compare the relevant fields of share and task.
         """
 
         if share.prodsourcelabel is not None and re.match(share.prodsourcelabel, task.prodSourceLabel) is None:
