@@ -2739,6 +2739,12 @@ class DBProxy:
     # get jobs
     def getJobs(self,nJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
                 atlasRelease,prodUserID,countryGroup,workingGroup,allowOtherCountry,taskID):
+        """
+        1. Construct where clause (sql1) based on applicable filters for request
+        2. Select n jobs with the highest priorities and the lowest pandaids
+        3. Update the jobs to status SENT
+        4. Pack the files and if jobs are AES also the event ranges
+        """
         comment = ' /* DBProxy.getJobs */'
 
         # aggregated sites which use different appdirs
@@ -2752,6 +2758,8 @@ class DBProxy:
         getValMap = {}
         getValMap[':oldJobStatus'] = 'activated'
         getValMap[':computingSite'] = siteName
+
+        # sql1 is the WHERE clause with all the applicable filters for the request
         if not aggSiteMap.has_key(siteName):
             sql1 = "WHERE jobStatus=:oldJobStatus AND computingSite=:computingSite AND commandToPilot IS NULL "
         else:
@@ -2856,7 +2864,9 @@ class DBProxy:
             if shareVarMap != {}:
                 sql1 += shareSQL
                 for tmpShareKey in shareVarMap.keys():
-                    getValMap[tmpShareKey] = shareVarMap[tmpShareKey] 
+                    getValMap[tmpShareKey] = shareVarMap[tmpShareKey]
+
+        # sql2 is query to get the DB entry for a specific PanDA ID
         sql2 = "SELECT %s FROM ATLAS_PANDA.jobsActive4 " % JobSpec.columnNames()
         sql2+= "WHERE PandaID=:PandaID"
         retJobs = []
@@ -3001,7 +3011,7 @@ class DBProxy:
                             pandaIDs.sort()
                         if pandaIDs == []:
                             _logger.debug("getJobs : %s -> no PandaIDs" % strName)
-                            retU = 0
+                            retU = 0 # retU: return from update
                         else:
                             # update
                             for indexID,tmpPandaID in enumerate(pandaIDs):
