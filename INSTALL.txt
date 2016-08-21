@@ -1,4 +1,4 @@
-IInstallation
+Installation
 --------------------
 
 1. install panda-common and panda-server.
@@ -126,7 +126,7 @@ Start the server
 
 Install service
 
-$ sudo ln -fs INSTALLDIR/etc/init.d/panda_server-ctl /etc/rc.d/init.d/httpd-pandasrv
+$ sudo ln -fs INSTALLDIR/etc/init.d/panda_server /etc/rc.d/init.d/httpd-pandasrv
 $ sudo /sbin/chkconfig --add httpd-pandasrv
 $ sudo /sbin/chkconfig httpd-pandasrv on
 
