@@ -382,13 +382,13 @@ class JobDipatcher:
     def getEventRanges(self,pandaID,jobsetID,jediTaskID,nRanges,timeout,acceptJson):
         # peek jobs
         tmpWrapper = _TimedMethod(self.taskBuffer.getEventRanges,timeout)
-        tmpWrapper.run(pandaID,jobsetID,jediTaskID,nRanges)
+        tmpWrapper.run(pandaID,jobsetID,jediTaskID,nRanges,acceptJson)
         # make response
         if tmpWrapper.result == Protocol.TimeOutToken:
             # timeout
             response=Protocol.Response(Protocol.SC_TimeOut)
         else:
-            if isinstance(tmpWrapper.result,types.StringType):
+            if tmpWrapper.result != None:
                 # succeed
                 response=Protocol.Response(Protocol.SC_Success)
                 # make return
@@ -418,12 +418,12 @@ class JobDipatcher:
             else:
                 # failed
                 response=Protocol.Response(Protocol.SC_Failed)
-        _logger.debug("updateEventRange : %s ret -> %s" % (eventRangeID,response.encode()))
+        _logger.debug("updateEventRange : %s ret -> %s" % (eventRangeID,response.encode(acceptJson)))
         return response.encode()
 
 
     # update event ranges
-    def updateEventRanges(self,eventRanges,timeout):
+    def updateEventRanges(self,eventRanges,timeout,acceptJson):
         # peek jobs
         tmpWrapper = _TimedMethod(self.taskBuffer.updateEventRanges,timeout)
         tmpWrapper.run(eventRanges)
@@ -437,8 +437,8 @@ class JobDipatcher:
             # make return
             response.appendNode('Returns',tmpWrapper.result[0])
             response.appendNode('Command',tmpWrapper.result[1])
-        _logger.debug("updateEventRanges : ret -> %s" % (response.encode()))
-        return response.encode()
+        _logger.debug("updateEventRanges : ret -> %s" % (response.encode(acceptJson)))
+        return response.encode(acceptJson)
 
 
     # get DN/token map
@@ -895,7 +895,7 @@ def updateEventRanges(req,eventRanges,timeout=120):
     if not tmpStat:
         _logger.error(tmpStr+'failed with '+tmpOut)
         #return tmpOut
-    return jobDispatcher.updateEventRanges(eventRanges,int(timeout))
+    return jobDispatcher.updateEventRanges(eventRanges,int(timeout),req.acceptJson())
 
 
 

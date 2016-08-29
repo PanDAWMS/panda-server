@@ -1,5 +1,8 @@
 Release Notes
 
+* 8/29/2016
+  * added accesptJson to get/update event ranges
+
 * 7/28/2016
   * using w instead of d to get OS info
 

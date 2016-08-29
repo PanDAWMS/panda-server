@@ -13793,7 +13793,7 @@ class DBProxy:
                          
 
     # get a list of even ranges for a PandaID
-    def getEventRanges(self,pandaID,jobsetID,jediTaskID,nRanges):
+    def getEventRanges(self,pandaID,jobsetID,jediTaskID,nRanges,acceptJson):
         comment = ' /* DBProxy.getEventRanges */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <PandaID={0} jobsetID={1} jediTaskID={2}>".format(pandaID,jobsetID,jediTaskID)
@@ -13959,7 +13959,9 @@ class DBProxy:
             if not self._commit():
                 raise RuntimeError, 'Commit error'
             tmpLog.debug("done {0}".format(str(retRanges)))
-            return json.dumps(retRanges)
+            if not acceptJson:
+                return json.dumps(retRanges)
+            return retRanges
         except:
             # roll back
             self._rollback()
