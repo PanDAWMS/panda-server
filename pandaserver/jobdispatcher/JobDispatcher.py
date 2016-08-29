@@ -418,7 +418,7 @@ class JobDipatcher:
             else:
                 # failed
                 response=Protocol.Response(Protocol.SC_Failed)
-        _logger.debug("updateEventRange : %s ret -> %s" % (eventRangeID,response.encode(acceptJson)))
+        _logger.debug("updateEventRange : %s ret -> %s" % (eventRangeID,response.encode()))
         return response.encode()
 
 
