@@ -163,9 +163,9 @@ class SiteMapper:
                         if not siteSpec.sitename in self.defCloudSites:
                             # append
                             self.defCloudSites.append(siteSpec.sitename)
-                        if tmpCloud == worldCloudName:
-                            # add to WORLD cloud
-                            self.worldCloudSpec['sites'].append(siteSpec.sitename)
+                # add to WORLD cloud
+                if not siteSpec.sitename in self.worldCloudSpec['sites']:
+                    self.worldCloudSpec['sites'].append(siteSpec.sitename)
             # set defCloudSites for backward compatibility
             if self.cloudSpec.has_key('US'):
                 # use US sites

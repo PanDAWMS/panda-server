@@ -1,5 +1,8 @@
 Release Notes
 
+* 9/7/2016
+  * adding all production sites to WORLD by default
+
 * 8/29/2016
   * added accesptJson to get/update event ranges
 
