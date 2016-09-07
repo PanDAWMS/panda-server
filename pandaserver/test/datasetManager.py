@@ -8,6 +8,7 @@ import shelve
 import random
 import datetime
 import commands
+import traceback
 import threading
 import userinterface.Client as Client
 from dataservice.DDM import ddm
@@ -851,7 +852,7 @@ class FinisherThr (threading.Thread):
                 if job.prodSourceLabel == 'user' and not siteMapper.siteSpecList.has_key(job.destinationSE):
                     # using --destSE for analysis job to transfer output
                     try:
-                        dq2URL = dataservice.DDM.toa.getLocalCatalog(job.destinationSE)[-1]
+                        dq2URL = 'rucio://atlas-rucio.cern.ch:/grid/atlas'
                         match = re.search('.+://([^:/]+):*\d*/*',dataservice.DDM.toa.getSiteProperty(job.destinationSE,'srm')[-1])
                         if match != None:
                             dq2SE.append(match.group(1))
@@ -867,7 +868,7 @@ class FinisherThr (threading.Thread):
                         tmpDstID = job.destinationSE
                     tmpDstSite = siteMapper.getSite(tmpDstID)
                     # get catalog URL
-                    tmpStat,dq2URL = dataservice.DDM.toa.getLocalCatalog(tmpDstSite.ddm)
+                    dq2URL = 'rucio://atlas-rucio.cern.ch:/grid/atlas'
                     if tmpDstSite.se != None:
                         for tmpDstSiteSE in tmpDstSite.se.split(','):
                             match = re.search('.+://([^:/]+):*\d*/*',tmpDstSiteSE)
@@ -969,7 +970,9 @@ class FinisherThr (threading.Thread):
             time.sleep(1)
         except:
             errtype,errvalue = sys.exc_info()[:2]
-            _logger.error("FinisherThr failed with %s %s" % (errtype,errvalue))
+            errStr  = "FinisherThr failed with %s %s" % (errtype,errvalue)
+            errStr += traceback.format_exc()
+            _logger.error(errStr)
         self.pool.remove(self)
         self.lock.release()
 
