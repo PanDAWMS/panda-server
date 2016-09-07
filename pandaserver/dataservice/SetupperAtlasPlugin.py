@@ -614,6 +614,13 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                 else:
                                     self.logger.debug(out)
                                     vuidStr = "vuid = %s['vuid']" % out
+                                # set metadata
+                                if (name != originalName and re.search('_sub\d+$',name) != None):
+                                    subMetadata = {'hidden':True,
+                                                   'purge_replicas': 0}
+                                    self.logger.debug('set metadata {0} to {1}'.format(str(subMetadata),name)) 
+                                    tmpStat,tmpErrStr = rucioAPI.setMetaData(name,subMetadata)
+                                    self.logger.debug('{0} {1}'.format(tmpStat,tmpErrStr))
                                 # register dataset locations
                                 if (job.lockedby == 'jedi' and job.getDdmBackEnd() == 'rucio' and job.prodSourceLabel in ['panda','user']) or \
                                         DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) != None:
@@ -2487,7 +2494,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 file['adler32'] = checksum[3:]
             files.append(file)
         # metadata
-        metadata = {'hidden':True}
+        metadata = {'hidden':True,
+                    'purge_replicas': 0}
         # register dataset
         client = RucioClient()
         try:

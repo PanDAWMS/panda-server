@@ -1,6 +1,7 @@
 Release Notes
 
 * 9/7/2016
+  * using soft erase for dis and sub
   * adding all production sites to WORLD by default
 
 * 8/29/2016

@@ -584,8 +584,9 @@ class RucioAPI:
             for tmpKey,tmpValue in metadata.iteritems():
                 client.set_metadata(scope,dsn,key=tmpKey,value=tmpValue)
         except:
-            pass
-        return True
+            errType,errVale = sys.exc_info()[:2]
+            return False,'%s %s' % (errType,errVale)
+        return True,''
 
 
 
