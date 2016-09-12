@@ -423,10 +423,10 @@ class JobDipatcher:
 
 
     # update event ranges
-    def updateEventRanges(self,eventRanges,timeout,acceptJson):
+    def updateEventRanges(self,eventRanges,timeout,acceptJson,version):
         # peek jobs
         tmpWrapper = _TimedMethod(self.taskBuffer.updateEventRanges,timeout)
-        tmpWrapper.run(eventRanges)
+        tmpWrapper.run(eventRanges,version)
         # make response
         if tmpWrapper.result == Protocol.TimeOutToken:
             # timeout
@@ -888,14 +888,18 @@ def updateEventRange(req,eventRangeID,eventStatus,coreCount=None,cpuConsumptionT
 
 
 # update an event ranges
-def updateEventRanges(req,eventRanges,timeout=120):
+def updateEventRanges(req,eventRanges,timeout=120,version=0):
     tmpStr = "updateEventRanges(%s)" % eventRanges
     _logger.debug(tmpStr+' start')
     tmpStat,tmpOut = checkPilotPermission(req)
     if not tmpStat:
         _logger.error(tmpStr+'failed with '+tmpOut)
         #return tmpOut
-    return jobDispatcher.updateEventRanges(eventRanges,int(timeout),req.acceptJson())
+    try:
+        version = int(version)
+    except:
+        version = 0
+    return jobDispatcher.updateEventRanges(eventRanges,int(timeout),req.acceptJson(),version)
 
 
 

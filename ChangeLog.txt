@@ -1,5 +1,8 @@
 Release Notes
 
+* 9/12/2016
+  * added multi zip support for ES
+
 * 9/7/2016
   * using soft erase for dis and sub
   * adding all production sites to WORLD by default

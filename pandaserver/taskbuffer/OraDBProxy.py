@@ -3113,7 +3113,7 @@ class DBProxy:
                 job.pack(res)
                 # sql to read range
                 sqlRR  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
-                sqlRR += "PandaID,job_processID,attemptNr,objStore_ID "
+                sqlRR += "PandaID,job_processID,attemptNr,objStore_ID,zipRow_ID "
                 sqlRR += "FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
                 sqlRR += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND status=:eventStatus "
                 # sql to read log backet IDs
@@ -3128,12 +3128,16 @@ class DBProxy:
                 sqlFileJEDI += "FROM {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
                 sqlFileJEDI += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
                 sqlFileJEDI += "ORDER BY lfn "
+                # read zip file
+                sqlZipFile  = "SELECT lfn,destinationSE FROM ATLAS_PANDA.filesTable4 "
+                sqlZipFile += "WHERE row_ID=:row_ID "
                 self.cur.arraysize = 10000
                 self.cur.execute(sqlFile+comment, varMap)
                 resFs = self.cur.fetchall()
                 eventRangeIDs = {}
                 esDonePandaIDs = []
                 esOutputZipMap = {}
+                esZipRow_IDs = set()
                 for resF in resFs:
                     file = FileSpec()
                     file.pack(resF)
@@ -3171,7 +3175,7 @@ class DBProxy:
                             varMap[':eventStatus'] = EventServiceUtils.ST_done
                             self.cur.execute(sqlRR+comment, varMap)
                             resRR = self.cur.fetchall()
-                            for esPandaID,job_processID,attemptNr,objStoreID in resRR:
+                            for esPandaID,job_processID,attemptNr,objStoreID,zipRow_ID in resRR:
                                 tmpEventRangeID = self.makeEventRangeID(file.jediTaskID,esPandaID,file.fileID,job_processID,attemptNr)
                                 if not eventRangeIDs.has_key(file.fileID):
                                     eventRangeIDs[file.fileID] = {}
@@ -3188,6 +3192,7 @@ class DBProxy:
                                     eventRangeIDs[file.fileID][job_processID] = {'pandaID':esPandaID,
                                                                                  'eventRangeID':tmpEventRangeID,
                                                                                  'objStoreID':objStoreID}
+                                    # zip file in jobMetrics
                                     if not esPandaID in esDonePandaIDs:
                                         esDonePandaIDs.append(esPandaID)
                                         # get jobMetrics
@@ -3205,14 +3210,29 @@ class DBProxy:
                                             if tmpPatch != None:
                                                 outputZipName = tmpPatch.group(1)
                                             if outputZipBucketID != None and outputZipName != None: 
-                                                esOutputZipMap[esPandaID] = {'name':outputZipName,
-                                                                             'osid':outputZipBucketID}
-
+                                                if not esPandaID in esOutputZipMap:
+                                                    esOutputZipMap[esPandaID] = []
+                                                esOutputZipMap[esPandaID].append({'name':outputZipName,
+                                                                                  'osid':outputZipBucketID})
+                                    # zip file in fileTable
+                                    if zipRow_ID != None and not zipRow_ID in esZipRow_IDs:
+                                        esZipRow_IDs.add(zipRow_ID)
+                                        varMap = {}
+                                        varMap[':row_ID'] = zipRow_ID
+                                        self.cur.execute(sqlZipFile+comment,varMap)
+                                        resZip = self.cur.fetchone()
+                                        if resZip != None:
+                                            outputZipName,outputZipBucketID = resZip
+                                            if not esPandaID in esOutputZipMap:
+                                                esOutputZipMap[esPandaID] = []
+                                            esOutputZipMap[esPandaID].append({'name':outputZipName,
+                                                                              'osid':outputZipBucketID})
                 # make input for event service output merging
                 mergeInputOutputMap = {}
                 mergeInputFiles = []
                 mergeFileObjStoreMap = {}
                 mergeZipPandaIDs = []
+                mergeZipLFNs = set()
                 for tmpFileID,tmpMapEventRangeID in eventRangeIDs.iteritems():
                     jobProcessIDs = tmpMapEventRangeID.keys()
                     jobProcessIDs.sort()
@@ -3239,12 +3259,14 @@ class DBProxy:
                                 # mapping for ObjStore
                                 mergeFileObjStoreMap[tmpInputFileSpec.lfn] = tmpMapEventRangeID[jobProcessID]['objStoreID']
                             elif not esPandaID in mergeZipPandaIDs:
-                                # first zip
+                                # zip
                                 mergeZipPandaIDs.append(esPandaID)
-                                tmpInputFileSpec.lfn = 'zip://'+esOutputZipMap[esPandaID]['name']
-                                mergeInputFiles.append(tmpInputFileSpec)
-                                # mapping for ObjStore
-                                mergeFileObjStoreMap[tmpInputFileSpec.lfn] = esOutputZipMap[esPandaID]['osid']
+                                for tmpEsOutZipFile in esOutputZipMap[esPandaID]:
+                                    # add prefix
+                                    tmpInputFileSpec.lfn = 'zip://'+tmpEsOutZipFile['name']
+                                    mergeInputFiles.append(tmpInputFileSpec)
+                                    # mapping for ObjStore
+                                    mergeFileObjStoreMap[tmpInputFileSpec.lfn] = tmpEsOutZipFile['osid']
                 for tmpInputFileSpec in mergeInputFiles:
                     job.addFile(tmpInputFileSpec)
                 # job parameters
@@ -13972,7 +13994,7 @@ class DBProxy:
 
 
     # get a list of even ranges for a PandaID
-    def updateEventRanges(self,eventDictList):
+    def updateEventRanges(self,eventDictParam,version=0):
         comment = ' /* DBProxy.updateEventRanges */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         tmpLog = LogWrapper(_logger,methodName)
@@ -13982,8 +14004,9 @@ class DBProxy:
             commandMap = {}
             # sql to update status
             sqlU  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
-            sqlU += "SET status=:eventStatus"
-            sqlU += ",objstore_ID=:objstoreID"
+            sqlU += "SET status=:eventStatus,objstore_ID=:objstoreID"
+            if version != 0:
+                sqlU += ",zipRow_ID=:zipRow_ID"
             sqlU += " WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND fileID=:fileID "
             sqlU += "AND job_processID=:job_processID AND attemptNr=:attemptNr "
             # sql to get event range
@@ -14001,6 +14024,29 @@ class DBProxy:
             sqlT  = "UPDATE ATLAS_PANDA.jobsActive4 "
             sqlT += "SET cpuConsumptionTime=cpuConsumptionTime+:actualCpuTime "
             sqlT += "WHERE PandaID=:PandaID "
+            # sql to insert zip file
+            sqlF  = "INSERT INTO ATLAS_PANDA.filesTable4 (%s) " % FileSpec.columnNames()
+            sqlF += FileSpec.bindValuesExpression(useSeq=True)
+            sqlF += " RETURNING row_ID INTO :newRowID"
+            # params formatting with version
+            if version == 0:
+                # format without zip
+                eventDictList = eventDictParam
+            else:
+                # format with zip
+                eventDictList = []
+                for eventDictChunk in eventDictParam:
+                    # get zip file if any
+                    if 'zipFile' in eventDictChunk:
+                        zipFile = eventDictChunk['zipFile']
+                    else:
+                        zipFile = None
+                    # collect all dicts
+                    for eventDict in eventDictChunk['eventRanges']:
+                        # add zip file
+                        eventDict['zipFile'] = zipFile
+                        # append
+                        eventDictList.append(eventDict)
             # loop over all events
             for eventDict in eventDictList:
                 # get event range ID
@@ -14092,11 +14138,28 @@ class DBProxy:
                             oldStatus = resC[-1]
                             if not oldStatus in [EventServiceUtils.ST_sent,
                                                  EventServiceUtils.ST_running]:
-                                tmpLog.error("<eventRangeID={0}> cannot update eventStatus={1}".format(eventRangeID,
-                                                                                                       oldStatus))
+                                tmpLog.error("<eventRangeID={0}> cannot update old eventStatus={1}".format(eventRangeID,
+                                                                                                           oldStatus))
                                 retList.append(False)
                                 isOK = False
                         if isOK:
+                            # insert zip
+                            zipRow_ID = None
+                            if 'zipFile' in eventDict and eventDict['zipFile'] != None:
+                                zipJobSpec = JobSpec()
+                                zipJobSpec.PandaID = pandaID
+                                zipFileSpec = FileSpec()
+                                zipFileSpec.jediTaskID = jediTaskID
+                                zipFileSpec.lfn = eventDict['zipFile']['lfn']
+                                zipFileSpec.fsize = 0
+                                zipFileSpec.type = 'zipoutput'
+                                zipFileSpec.status = 'ready'
+                                zipFileSpec.destinationSE = eventDict['zipFile']['objstoreID']
+                                zipJobSpec.addFile(zipFileSpec)
+                                varMap = zipFileSpec.valuesMap(useSeq=True)
+                                varMap[':newRowID'] = self.cur.var(varNUMBER)
+                                self.cur.execute(sqlF+comment, varMap)
+                                zipRow_ID = long(self.cur.getvalue(varMap[':newRowID']))
                             # update event
                             varMap = {}
                             varMap[':jediTaskID'] = jediTaskID
@@ -14106,6 +14169,8 @@ class DBProxy:
                             varMap[':attemptNr'] = attemptNr
                             varMap[':eventStatus'] = intEventStatus
                             varMap[':objstoreID'] = objstoreID
+                            if zipRow_ID != None:
+                                varMap[':zipRow_ID'] = zipRow_ID
                             self.cur.execute(sqlU+comment, varMap)
                             nRow = self.cur.rowcount
                             if nRow == 1 and eventStatus in ['finished']:
@@ -14605,6 +14670,9 @@ class DBProxy:
             sqlFile+= FileSpec.bindValuesExpression(useSeq=True)
             sqlFile+= " RETURNING row_ID INTO :newRowID"
             for fileSpec in jobSpec.Files:
+                # skip zip
+                if fileSpec.type.startswith('zip'):
+                    continue
                 # reset rowID
                 fileSpec.row_ID = None
                 # change GUID and LFN for log

@@ -2550,7 +2550,7 @@ class TaskBuffer:
 
 
     # update even ranges
-    def updateEventRanges(self,eventRanges):
+    def updateEventRanges(self,eventRanges,version=0):
         # decode json
         try:
             eventRanges = json.loads(eventRanges)
@@ -2559,7 +2559,7 @@ class TaskBuffer:
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.updateEventRanges(eventRanges)
+        ret = proxy.updateEventRanges(eventRanges,version)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
