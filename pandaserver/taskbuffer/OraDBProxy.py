@@ -8471,10 +8471,15 @@ class DBProxy:
         timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
         _logger.debug("getJobStatisticsPerProcessingType()")
         if useMorePG == False:
-            sqlN  = "SELECT jobStatus,COUNT(*),cloud,processingType FROM %s "
-            sqlN += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) GROUP BY jobStatus,cloud,processingType"
-            sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*),cloud,processingType FROM %s tab "
-            sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND modificationTime>:modificationTime GROUP BY jobStatus,cloud,processingType"
+            sqlN  = "SELECT jobStatus,COUNT(*),tabS.cloud,processingType "
+            sqlN += "FROM %s tab, ATLAS_PANDAMETA.schedconfig tabS "
+            sqlN += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND computingSite=tabS.siteid "
+            sqlN += "GROUP BY jobStatus,tabS.cloud,processingType "
+            sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*),tabS.cloud,processingType "
+            sqlA += "FROM %s tab,ATLAS_PANDAMETA.schedconfig tabS "
+            sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND modificationTime>:modificationTime "
+            sqlA += "AND computingSite=tabS.siteid "
+            sqlA += "GROUP BY jobStatus,tabS.cloud,processingType"
         else:
             sqlN  = "SELECT jobStatus,COUNT(*),cloud,processingType,coreCount,workingGroup FROM %s "
             sqlN += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
