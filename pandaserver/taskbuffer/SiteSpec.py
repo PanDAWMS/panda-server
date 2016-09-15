@@ -17,7 +17,7 @@ class SiteSpec(object):
                    'mintime','allowfax','wansourcelimit','wansinklimit','pandasite',
                    'sitershare','cloudrshare','corepower','wnconnectivity','catchall',
                    'role','pandasite_state','ddm_endpoints','maxrss','minrss',
-                   'direct_access_lan','direct_access_wan')
+                   'direct_access_lan','direct_access_wan','tier')
 
     # constructor
     def __init__(self):

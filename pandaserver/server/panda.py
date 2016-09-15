@@ -6,6 +6,7 @@ entry point
 """
 
 import datetime
+import traceback
 import types
 
 # config file
@@ -180,7 +181,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                         exeRes = str(exeRes)
                 except:
                     errType,errValue = sys.exc_info()[:2]
-                    _logger.error("execution failure : %s %s" % (errType,errValue))
+                    _logger.error("execution failure : %s %s %s" % (errType,errValue,traceback.format_exc()))
                     errStr = ""
                     for tmpKey,tmpVal in environ.iteritems():
                         errStr += "%s : %s\n" % (tmpKey,str(tmpVal))

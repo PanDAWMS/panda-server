@@ -2563,6 +2563,8 @@ class TaskBuffer:
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
+        if version != 0:
+            return ret
         return json.dumps(ret[0]),json.dumps(ret[1])
 
 
