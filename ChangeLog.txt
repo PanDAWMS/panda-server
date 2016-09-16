@@ -1,5 +1,8 @@
 Release Notes
 
+* 9/16/2016
+  * setting DEL flag to event ranges
+
 * 9/15/2016
   * added tier to SiteSpec
 

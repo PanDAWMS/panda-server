@@ -12290,11 +12290,12 @@ class DBProxy:
         comment = ' /* DBProxy.propagateResultToJEDI */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <PandaID={0}>".format(jobSpec.PandaID)
+        tmpLog = LogWrapper(_logger,methodName)
         datasetContentsStat = {}
         # loop over all files
         finishUnmerge = set()
         hasInput = False
-        _logger.debug(methodName+' waitLock={0}'.format(waitLock))
+        tmpLog.debug('waitLock={0}'.format(waitLock))
         # make pseudo files for dynamic number of events
         pseudoFiles = []
         if EventServiceUtils.isDynNumEventsSH(jobSpec.specialHandling):
@@ -12317,7 +12318,7 @@ class DBProxy:
                 tmpFileSpec.fileID = tmpFileID
                 tmpFileSpec.attemptNr = tmpAttemptNr-1
                 pseudoFiles.append(tmpFileSpec)
-            _logger.debug(methodName+' {0} pseudo files'.format(len(pseudoFiles)))
+            tmpLog.debug('{0} pseudo files'.format(len(pseudoFiles)))
         # flag for job cloning
         useJobCloning = False
         if EventServiceUtils.isEventServiceJob(jobSpec) and EventServiceUtils.isJobCloningJob(jobSpec):
@@ -12345,7 +12346,7 @@ class DBProxy:
             sqlFileStat += "FOR UPDATE "
             if not waitLock:
                 sqlFileStat += "NOWAIT "
-            _logger.debug(methodName+' '+sqlFileStat+comment+str(varMap))
+            tmpLog.debug(sqlFileStat+comment+str(varMap))
             cur.execute(sqlFileStat+comment,varMap)
             resFileStat = self.cur.fetchone()
             if resFileStat != None:
@@ -12454,7 +12455,7 @@ class DBProxy:
             sqlFile += "AND keepTrack=:keepTrack "
             if not (jobSpec.isCancelled() and fileSpec.isUnMergedOutput()):
                 sqlFile += "AND attemptNr=:attemptNr "    
-            _logger.debug(methodName+' '+sqlFile+comment+str(varMap))
+            tmpLog.debug(sqlFile+comment+str(varMap))
             cur.execute(sqlFile+comment,varMap)
             nRow = cur.rowcount
             if nRow == 1 and not fileSpec.status in ['nooutput']:
@@ -12475,7 +12476,7 @@ class DBProxy:
                     varMap[':fileID']     = fileSpec.fileID
                     varMap[':datasetID']  = fileSpec.datasetID
                     varMap[':jediTaskID'] = jobSpec.jediTaskID
-                    _logger.debug(methodName+' '+sqlEVT+comment+str(varMap))
+                    tmpLog.debug(sqlEVT+comment+str(varMap))
                     cur.execute(sqlEVT+comment,varMap)
                     resEVT = self.cur.fetchone()
                     if resEVT != None:
@@ -12507,7 +12508,7 @@ class DBProxy:
                     varMap[':fileID']     = fileSpec.fileID
                     varMap[':datasetID']  = fileSpec.datasetID
                     varMap[':jediTaskID'] = jobSpec.jediTaskID
-                    _logger.debug(methodName+' '+sqlAttNr+comment+str(varMap))
+                    tmpLog.debug(sqlAttNr+comment+str(varMap))
                     cur.execute(sqlAttNr+comment,varMap)
                     resAttNr = self.cur.fetchone()
                     if resAttNr != None:
@@ -12533,7 +12534,7 @@ class DBProxy:
                                     varMap[':datasetID']  = fileSpec.datasetID
                                     varMap[':jediTaskID'] = jobSpec.jediTaskID
                                     varMap[':status']     = 'notmerged'
-                                    _logger.debug(methodName+' '+sqlUmFile+comment+str(varMap))
+                                    tmpLog.debug(sqlUmFile+comment+str(varMap))
                                     cur.execute(sqlUmFile+comment,varMap)
                                     # set flag to update unmerged jobs
                                     finishUnmerge.add(fileSpec.fileID)
@@ -12557,7 +12558,7 @@ class DBProxy:
                     varMap[':jediTaskID'] = jobSpec.jediTaskID
                     sqlGetDest  = "SELECT destinationDBlock FROM ATLAS_PANDA.filesTable4 "
                     sqlGetDest += "WHERE pandaID=:pandaID AND jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-                    _logger.debug(methodName+' '+sqlGetDest+comment+str(varMap))
+                    tmpLog.debug(sqlGetDest+comment+str(varMap))
                     cur.execute(sqlGetDest+comment,varMap)
                     preMergedDest, = self.cur.fetchone()
                     # check if corresponding sub is closed
@@ -12566,20 +12567,19 @@ class DBProxy:
                     varMap[':subtype'] = 'sub'
                     sqlCheckDest  = "SELECT status FROM ATLAS_PANDA.Datasets "
                     sqlCheckDest += "WHERE name=:name AND subtype=:subtype "
-                    _logger.debug(methodName+' '+sqlCheckDest+comment+str(varMap))
+                    tmpLog.debug(sqlCheckDest+comment+str(varMap))
                     cur.execute(sqlCheckDest+comment,varMap)
                     tmpResDestStat = self.cur.fetchone()
                     if tmpResDestStat != None:
                         preMergedDestStat, = tmpResDestStat
                     else:
                         preMergedDestStat = 'notfound'
-                        _logger.debug(methodName+' {0} not found for datasetID={1}'.format(preMergedDest,datasetID))
+                        tmpLog.debug('{0} not found for datasetID={1}'.format(preMergedDest,datasetID))
                     if not preMergedDestStat in ['tobeclosed','completed']:
                         datasetContentsStat[datasetID]['nFilesOnHold'] -= 1
                     else:
-                        _logger.debug(methodName+' '+\
-                                          'not change nFilesOnHold for datasetID={0} since sub is in {1}'.format(datasetID,
-                                                                                                                 preMergedDestStat))
+                        tmpLog.debug('not change nFilesOnHold for datasetID={0} since sub is in {1}'.format(datasetID,
+                                                                                                            preMergedDestStat))
                         # increment nUsed when mergeing is killed before merge job is generated
                         if oldFileStatus == 'ready':
                             datasetContentsStat[datasetID]['nFilesUsed'] += 1
@@ -12597,7 +12597,7 @@ class DBProxy:
                 varMap = {}
                 varMap[':jediTaskID'] = jobSpec.jediTaskID
                 varMap[':datasetID']  = tmpDatasetID
-                _logger.debug(methodName+' '+sqlJediDL+comment+str(varMap))
+                tmpLog.debug(sqlJediDL+comment+str(varMap))
                 cur.execute(sqlJediDL+comment,varMap)
                 # sql to update nFiles info
                 toUpdateFlag = False
@@ -12620,11 +12620,32 @@ class DBProxy:
                 varMap[':datasetID']  = tmpDatasetID
                 # update
                 if toUpdateFlag:
-                    _logger.debug(methodName+' '+sqlJediDS+comment+str(varMap))                            
+                    tmpLog.debug(sqlJediDS+comment+str(varMap))                            
                     cur.execute(sqlJediDS+comment,varMap)
         # add jobset info for job cloning
         if useJobCloning:
             self.recordRetryHistoryJEDI(jobSpec.jediTaskID,jobSpec.PandaID,[jobSpec.jobsetID],EventServiceUtils.relationTypeJS_ID)
+        # set delete flag to events
+        if (EventServiceUtils.isEventServiceJob(jobSpec) or EventServiceUtils.isEventServiceMerge(jobSpec)) and \
+                jobSpec.jobStatus in ['finished','failed','cancelled']:
+            # sql to set delete flag
+            sqlDelE  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+            sqlDelE += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
+            sqlDelE += "SET file_not_deleted=:delFlag "
+            sqlDelE += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND objStore_ID IS NOT NULL "
+            for fileSpec in jobSpec.Files:
+                if not fileSpec.type in ['input','pseudo_input']:
+                    continue
+                # set del flag
+                varMap = {}
+                varMap[':jediTaskID'] = fileSpec.jediTaskID
+                varMap[':datasetID']  = fileSpec.datasetID
+                varMap[':fileID']     = fileSpec.fileID
+                varMap[':delFlag']    = 'Y'
+                tmpLog.debug(sqlDelE+comment+str(varMap))
+                self.cur.execute(sqlDelE+comment,varMap)
+                retDelE = self.cur.rowcount
+                tmpLog.debug('set Y to {0} event ranges'.format(retDelE))
         # update t_task
         if jobSpec.jobStatus == 'finished' and not jobSpec.prodSourceLabel in ['panda']:
             varMap = {}
@@ -12639,7 +12660,7 @@ class DBProxy:
             else:
                 sqlTtask += "SET timestamp=CURRENT_DATE,total_events=total_events+:noutevents "
             sqlTtask += "WHERE taskid=:jediTaskID AND status IN (:status1,:status2) "
-            _logger.debug(methodName+' '+sqlTtask+comment+str(varMap))
+            tmpLog.debug(sqlTtask+comment+str(varMap))
             cur.execute(sqlTtask+comment,varMap)
         # propagate failed result to unmerge job
         if len(finishUnmerge) > 0:
@@ -14175,7 +14196,7 @@ class DBProxy:
                             varMap[':attemptNr'] = attemptNr
                             varMap[':eventStatus'] = intEventStatus
                             varMap[':objstoreID'] = objstoreID
-                            if zipRow_ID != None:
+                            if version != 0:
                                 varMap[':zipRow_ID'] = zipRow_ID
                             self.cur.execute(sqlU+comment, varMap)
                             nRow = self.cur.rowcount
