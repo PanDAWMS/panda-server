@@ -18144,7 +18144,7 @@ class DBProxy:
             else:
                 taskStatus,oldStatus = resT
             # check task status
-            if not taskStatus in ['done']:
+            if not taskStatus in ['done','failed']:
                 tmpMsg = "command rejected since status={0}".format(taskStatus)
                 tmpLog.debug(tmpMsg)
                 retVal = 2,tmpMsg
@@ -18162,7 +18162,10 @@ class DBProxy:
                 sqlAB += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
                 # sql to update datasets
                 sqlD  = "UPDATE {0}.JEDI_Datasets ".format(panda_config.schemaJEDI)
-                sqlD += "SET nFilesUsed=nFilesUsed-:nFiles,nFilesFinished=nFilesFinished-:nFiles "
+                if taskStatus=='done':
+                    sqlD += "SET nFilesUsed=nFilesUsed-:nFiles,nFilesFinished=nFilesFinished-:nFiles "
+                else:
+                    sqlD += "SET nFilesUsed=nFilesUsed-:nFiles,nFilesFailed=nFilesFailed-:nFiles "
                 sqlD += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
                 #update task status
                 varMap = {}
