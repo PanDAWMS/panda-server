@@ -18144,7 +18144,7 @@ class DBProxy:
             else:
                 taskStatus,oldStatus = resT
             # check task status
-            if not taskStatus in ['finished']:
+            if not taskStatus in ['done']:
                 tmpMsg = "command rejected since status={0}".format(taskStatus)
                 tmpLog.debug(tmpMsg)
                 retVal = 2,tmpMsg
