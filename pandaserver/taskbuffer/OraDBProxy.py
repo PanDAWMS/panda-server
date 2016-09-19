@@ -18119,7 +18119,7 @@ class DBProxy:
 
     #reactivate task
     def reactivateTask(self,jediTaskID):
-        comment = ' /* DBProxy.updateInputDatasets */'
+        comment = ' /* DBProxy.reactivateTask */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <jediTaskID={0}>".format(jediTaskID)
         tmpLog = LogWrapper(_logger,methodName,monToken="<jediTaskID={0}>".format(jediTaskID))
@@ -18144,7 +18144,7 @@ class DBProxy:
             else:
                 taskStatus,oldStatus = resT
             # check task status
-            if not taskStatus in ['done','failed']:
+            if not taskStatus in ['done','failed','finished','aborted']:
                 tmpMsg = "command rejected since status={0}".format(taskStatus)
                 tmpLog.debug(tmpMsg)
                 retVal = 2,tmpMsg
@@ -18162,10 +18162,7 @@ class DBProxy:
                 sqlAB += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
                 # sql to update datasets
                 sqlD  = "UPDATE {0}.JEDI_Datasets ".format(panda_config.schemaJEDI)
-                if taskStatus=='done':
-                    sqlD += "SET nFilesUsed=nFilesUsed-:nFiles,nFilesFinished=nFilesFinished-:nFiles "
-                else:
-                    sqlD += "SET nFilesUsed=nFilesUsed-:nFiles,nFilesFailed=nFilesFailed-:nFiles "
+                sqlD += "SET nFilesUsed=0,nFilesFinished=0,nFilesFailed=0 "
                 sqlD += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
                 #update task status
                 varMap = {}
@@ -18199,11 +18196,10 @@ class DBProxy:
                         varMap = {}
                         varMap[':jediTaskID'] = jediTaskID
                         varMap[':datasetID'] = datasetID
-                        varMap[':nFiles'] = nFiles
                         tmpLog.debug(sqlD+comment+str(varMap))
                         self.cur.execute(sqlD+comment, varMap)
 
-                tmpMsg = "increased attemptNr for {0} inputs and {1} task reactivated ".format(nFiles,res)
+                tmpMsg = "increased attemptNr for {0} inputs and task {1} was reactivated ".format(nFiles,jediTaskID)
                 tmpLog.debug(tmpMsg)
                 tmpLog.sendMsg(tmpMsg,'jedi','pandasrv')
                 retVal = 0,tmpMsg
