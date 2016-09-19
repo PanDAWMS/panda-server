@@ -120,7 +120,8 @@ try:
         # log files
         dispLogNameList = [dispLogName]
         if useLogTgz:
-            dispLogNameList.append('%s.1.gz' % dispLogName)
+            today = datetime.date.today()
+            dispLogNameList.append('{0}-{1}.gz'.format(dispLogName, today.strftime('%Y%m%d')))
         # tmp name
         tmpLogName = '%s.tmp-%s' % (dispLogName,datetime.datetime.utcnow().strftime('%Y-%m-%d-%H-%M-%S'))
         # loop over all files
@@ -167,7 +168,7 @@ try:
         # update
         hostID = panda_config.pserverhost.split('.')[0]
         tmpLog.debug("pilotCounts session")    
-        #tmpLog.debug(pilotCounts)
+        tmpLog.debug(pilotCounts)
         retPC = taskBuffer.updateSiteData(hostID,pilotCounts)
         tmpLog.debug(retPC)
 except:
