@@ -18162,7 +18162,7 @@ class DBProxy:
                 sqlAB += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
                 # sql to update datasets
                 sqlD  = "UPDATE {0}.JEDI_Datasets ".format(panda_config.schemaJEDI)
-                sqlD += "SET nFilesUsed=0,nFilesFinished=0,nFilesFailed=0 "
+                sqlD += "SET status=:status,nFilesUsed=0,nFilesFinished=0,nFilesFailed=0 "
                 sqlD += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
                 #update task status
                 varMap = {}
@@ -18196,6 +18196,7 @@ class DBProxy:
                         varMap = {}
                         varMap[':jediTaskID'] = jediTaskID
                         varMap[':datasetID'] = datasetID
+                        varMap[':status'] = 'ready'
                         tmpLog.debug(sqlD+comment+str(varMap))
                         self.cur.execute(sqlD+comment, varMap)
 
