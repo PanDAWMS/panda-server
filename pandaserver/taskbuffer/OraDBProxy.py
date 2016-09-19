@@ -84,7 +84,6 @@ class DBProxy:
         self.myHostName = socket.getfqdn()
         self.backend = panda_config.backend
 
-        
     # connect to DB
     def connect(self,dbhost=panda_config.dbhost,dbpasswd=panda_config.dbpasswd,
                 dbuser=panda_config.dbuser,dbname=panda_config.dbname,
@@ -8745,25 +8744,35 @@ class DBProxy:
     # LogDBProxy stuff   
 
     # update site data
-    def updateSiteData(self,hostID,pilotRequests):
+    def updateSiteData(self, hostID, pilotRequests):
         comment = ' /* DBProxy.updateSiteData */'                            
         _logger.debug("updateSiteData start")
-        sqlDel =  "DELETE FROM ATLAS_PANDAMETA.SiteData WHERE HOURS=:HOURS AND LASTMOD<:LASTMOD"
-        sqlRst =  "UPDATE ATLAS_PANDAMETA.SiteData SET GETJOB=:GETJOB,UPDATEJOB=:UPDATEJOB,NOJOB=:NOJOB WHERE HOURS=:HOURS AND LASTMOD<:LASTMOD"
+
+        sqlDel =  "DELETE FROM ATLAS_PANDAMETA.SiteData WHERE LASTMOD<:LASTMOD"
+
+        sqlRst =  "UPDATE ATLAS_PANDAMETA.SiteData "
+        sqlRst += "SET GETJOB=:GETJOB,UPDATEJOB=:UPDATEJOB,NOJOB=:NOJOB,GETJOBABS=:GETJOBABS,UPDATEJOBABS=:UPDATEJOBABS,NOJOBABS=:NOJOBABS "
+        sqlRst += "WHERE HOURS=:HOURS AND LASTMOD<:LASTMOD"
+
         sqlCh  =  "SELECT count(*) FROM ATLAS_PANDAMETA.SiteData WHERE FLAG=:FLAG AND HOURS=:HOURS AND SITE=:SITE"
-        sqlIn  =  "INSERT INTO ATLAS_PANDAMETA.SiteData (SITE,FLAG,HOURS,GETJOB,UPDATEJOB,NOJOB,LASTMOD,"
-        sqlIn  += "NSTART,FINISHED,FAILED,DEFINED,ASSIGNED,WAITING,ACTIVATED,HOLDING,RUNNING,TRANSFERRING) "
-        sqlIn  += "VALUES (:SITE,:FLAG,:HOURS,:GETJOB,:UPDATEJOB,NOJOB=:NOJOB,CURRENT_DATE,"
+
+        sqlIn  =  "INSERT INTO ATLAS_PANDAMETA.SiteData (SITE,FLAG,HOURS,GETJOB,UPDATEJOB,NOJOB,GETJOBABS,UPDATEJOBABS,NOJOBABS,"
+        sqlIn  += "LASTMOD,NSTART,FINISHED,FAILED,DEFINED,ASSIGNED,WAITING,ACTIVATED,HOLDING,RUNNING,TRANSFERRING) "
+        sqlIn  += "VALUES (:SITE,:FLAG,:HOURS,:GETJOB,:UPDATEJOB,:NOJOB,:GETJOBABS,:UPDATEJOBABS,:NOJOBABS,CURRENT_DATE,"
         sqlIn  += "0,0,0,0,0,0,0,0,0,0)"
-        sqlUp  =  "UPDATE ATLAS_PANDAMETA.SiteData SET GETJOB=:GETJOB,UPDATEJOB=:UPDATEJOB,NOJOB=:NOJOB,LASTMOD=CURRENT_DATE "
+
+        sqlUp  =  "UPDATE ATLAS_PANDAMETA.SiteData SET GETJOB=:GETJOB,UPDATEJOB=:UPDATEJOB,NOJOB=:NOJOB,"
+        sqlUp  += "GETJOBABS=:GETJOBABS,UPDATEJOBABS=:UPDATEJOBABS,NOJOBABS=:NOJOBABS,LASTMOD=CURRENT_DATE "
         sqlUp  += "WHERE FLAG=:FLAG AND HOURS=:HOURS AND SITE=:SITE"
-        sqlAll  = "SELECT getJob,updateJob,noJob,FLAG FROM ATLAS_PANDAMETA.SiteData WHERE HOURS=:HOURS AND SITE=:SITE"
+
+        sqlAll  = "SELECT getJob,updateJob,noJob,getJobAbs,updateJobAbs,noJobAbs,FLAG "
+        sqlAll +=  "FROM ATLAS_PANDAMETA.SiteData WHERE HOURS=:HOURS AND SITE=:SITE"
+
         try:
             self.conn.begin()
             # delete old records
             varMap = {}
-            varMap[':HOURS'] = 48
-            varMap[':LASTMOD'] = datetime.datetime.utcnow()-datetime.timedelta(hours=varMap[':HOURS'])
+            varMap[':LASTMOD'] = datetime.datetime.utcnow()-datetime.timedelta(hours=48)
             self.cur.execute(sqlDel+comment,varMap)
             # set 0 to old records
             varMap = {}
@@ -8771,6 +8780,9 @@ class DBProxy:
             varMap[':GETJOB'] = 0
             varMap[':UPDATEJOB'] = 0
             varMap[':NOJOB'] = 0
+            varMap[':GETJOBABS'] = 0
+            varMap[':UPDATEJOBABS'] = 0
+            varMap[':NOJOBABS'] = 0
             varMap[':LASTMOD'] = datetime.datetime.utcnow()-datetime.timedelta(hours=varMap[':HOURS'])
             self.cur.execute(sqlRst+comment,varMap)
             # commit
@@ -8797,18 +8809,39 @@ class DBProxy:
                     sql = sqlIn
                 else:
                     sql = sqlUp
+
+                # getJob, updateJob and noJob entries contain the number of slots/nodes that submitted the request
+                # getJobAbs, updateJobAbs and noJobAbs entries contain the absolute number of requests
                 if tmpVal.has_key('getJob'):    
                     varMap[':GETJOB'] = len(tmpVal['getJob'])
+                    getJobAbs = 0
+                    for node in tmpVal['getJob']:
+                        getJobAbs += tmpVal['getJob'][node]
+                    varMap[':GETJOBABS'] = getJobAbs
                 else:
                     varMap[':GETJOB'] = 0
-                if tmpVal.has_key('updateJob'):    
+                    varMap[':GETJOBABS'] = 0
+
+                if tmpVal.has_key('updateJob'):
                     varMap[':UPDATEJOB'] = len(tmpVal['updateJob'])
+                    updateJobAbs = 0
+                    for node in tmpVal['updateJob']:
+                        updateJobAbs += tmpVal['updateJob'][node]
+                    varMap[':UPDATEJOBABS'] = updateJobAbs
                 else:
                     varMap[':UPDATEJOB'] = 0
+                    varMap[':UPDATEJOBABS'] = 0
+
                 if tmpVal.has_key('noJob'):
                     varMap[':NOJOB'] = len(tmpVal['noJob'])
+                    noJobAbs = 0
+                    for node in tmpVal['noJob']:
+                        noJobAbs += tmpVal['noJob'][node]
+                    varMap[':NOJOBABS'] = noJobAbs
                 else:
                     varMap[':NOJOB'] = 0
+                    varMap[':NOJOBABS'] = 0
+
                 # update    
                 self.cur.execute(sql+comment,varMap)
                 # get all info
@@ -8823,8 +8856,11 @@ class DBProxy:
                 varMap[':GETJOB'] = 0
                 varMap[':UPDATEJOB'] = 0
                 varMap[':NOJOB'] = 0
+                varMap[':GETJOBABS'] = 0
+                varMap[':UPDATEJOBABS'] = 0
+                varMap[':NOJOBABS'] = 0
                 nCol = 0
-                for tmpGetJob,tmpUpdateJob,tmpNoJob,tmpFlag in res:
+                for tmpGetJob, tmpUpdateJob, tmpNoJob, tmpGetJobAbs, tmpUpdateJobAbs, tmpNoJobAbs, tmpFlag in res:
                     # don't use summed info 
                     if tmpFlag == 'production':
                         sumExist = True
@@ -8835,10 +8871,27 @@ class DBProxy:
                         continue
                     if tmpFlag in ['test']:
                         continue
+
+                    if tmpGetJob is None:
+                        tmpGetJob = 0
+                    if tmpUpdateJob is None:
+                        tmpUpdateJob = 0
+                    if tmpNoJob is None:
+                        tmpNoJob = 0
+                    if tmpGetJobAbs is None:
+                        tmpGetJobAbs = 0
+                    if tmpUpdateJobAbs is None:
+                        tmpUpdateJobAbs = 0
+                    if tmpNoJobAbs is None:
+                        tmpNoJobAbs = 0
+
                     # sum
                     varMap[':GETJOB'] += tmpGetJob
                     varMap[':UPDATEJOB'] += tmpUpdateJob
-                    varMap[':NOJOB'] += tmpUpdateJob
+                    varMap[':NOJOB'] += tmpNoJob
+                    varMap[':GETJOBABS'] += tmpGetJobAbs
+                    varMap[':UPDATEJOBABS'] += tmpUpdateJobAbs
+                    varMap[':NOJOBABS'] += tmpNoJobAbs
                     nCol += 1
                 # get average
                 if nCol != 0:
@@ -8848,6 +8901,13 @@ class DBProxy:
                         varMap[':UPDATEJOB'] /= nCol
                     if varMap[':NOJOB'] >= nCol:
                         varMap[':NOJOB'] /= nCol
+                    if varMap[':GETJOBABS'] >= nCol:
+                        varMap[':GETJOBABS'] /= nCol
+                    if varMap[':UPDATEJOBABS'] >= nCol:
+                        varMap[':UPDATEJOBABS'] /= nCol
+                    if varMap[':NOJOBABS'] >= nCol:
+                        varMap[':NOJOBABS'] /= nCol
+
                 if tmpSite.startswith('ANALY_'):    
                     varMap[':FLAG']  = 'analysis'
                 else:
@@ -8859,8 +8919,9 @@ class DBProxy:
                     sql = sqlIn
                 # update
                 self.cur.execute(sql+comment,varMap)
-                _logger.debug('updateSiteData : %s getJob=%s updateJob=%s, noJob=%s' %
-                              (tmpSite,varMap[':GETJOB'],varMap[':UPDATEJOB'],varMap[':NOJOB']))
+                _logger.debug('updateSiteData : %s getJob=%s updateJob=%s, noJob=%s, getJobAbs=%s updateJobAbs=%s, noJobAbs=%s' %
+                              (tmpSite,varMap[':GETJOB'],varMap[':UPDATEJOB'],varMap[':NOJOB'],
+                               varMap[':GETJOBABS'], varMap[':UPDATEJOBABS'], varMap[':NOJOBABS']))
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'

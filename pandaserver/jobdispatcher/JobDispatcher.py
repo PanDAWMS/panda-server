@@ -265,7 +265,7 @@ class JobDipatcher:
             else:
                 # no available jobs
                 response=Protocol.Response(Protocol.SC_NoJobs)
-                _pilotReqLogger.info('method=noJob,site=%s,node=%s,type=%s,' % (siteName, node, prodSourceLabel))
+                _pilotReqLogger.info('method=noJob,site=%s,node=%s,type=%s' % (siteName, node, prodSourceLabel))
         # return
         _logger.debug("getJob : %s %s useGLEXEC=%s ret -> %s" % (siteName,node,useGLEXEC,response.encode(acceptJson)))
         return response.encode(acceptJson)
