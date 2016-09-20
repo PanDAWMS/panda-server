@@ -13546,7 +13546,7 @@ class DBProxy:
 
 
     # update unmerged datasets to trigger merging
-    def updateUnmergedDatasets(self,job,finalStatusDS):
+    def updateUnmergedDatasets(self,job,finalStatusDS,updateCompleted=False):
         comment = ' /* JediDBProxy.updateUnmergedDatasets */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <PandaID={0}>".format(job.PandaID)
@@ -13583,7 +13583,10 @@ class DBProxy:
                 varMap[':vuid'] = datasetSpec.vuid 
                 varMap[':status'] = 'tobeclosed'
                 varMap[':statusR'] = 'tobeclosed'
-                varMap[':statusD'] = 'completed'
+                if not updateCompleted:
+                    varMap[':statusD'] = 'completed'
+                else:
+                    varMap[':statusD'] = 'dummy'
                 _logger.debug(methodName+' '+sqlUDP+comment+str(varMap))
                 self.cur.execute(sqlUDP+comment, varMap)
                 nRow = self.cur.rowcount

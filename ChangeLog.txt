@@ -1,5 +1,8 @@
 Release Notes
 
+* 9/20/2016
+  * checking sutck merging jobs
+
 * 9/16/2016
   * setting DEL flag to event ranges
 

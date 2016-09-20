@@ -287,19 +287,78 @@ try:
                     _logger.debug("finalized with %s" % finalizedFlag)
                     if finalizedFlag and jobSpec.produceUnMerge():
                         # collect sub datasets
-                        finalStatusDS = []
+                        subDsNames = set()
+                        subDsList = []
                         for tmpFileSpec in jobSpec.Files:
                             if tmpFileSpec.type in ['log','output'] and \
                                     re.search('_sub\d+$',tmpFileSpec.destinationDBlock) != None:
-                                if not tmpFileSpec.destinationDBlock in finalStatusDS:
-                                    finalStatusDS.append(tmpFileSpec.destinationDBlock)
+                                if tmpFileSpec.destinationDBlock in subDsNames:
+                                    continue
+                                subDsNames.add(tmpFileSpec.destinationDBlock)
+                                datasetSpec = taskBuffer.queryDatasetWithMap({'name':tmpFileSpec.destinationDBlock})
+                                subDsList.append(datasetSpec)
                         _logger.debug("update unmerged datasets")
-                        taskBuffer.updateUnmergedDatasets(jobSpec,finalStatusDS)
+                    taskBuffer.updateUnmergedDatasets(jobSpec,subDsList)
             else:
                 _logger.debug("n of non-failed jobs : None")
 except:
     errType,errValue = sys.exc_info()[:2]
     _logger.error("AnalFinalizer failed with %s %s" % (errType,errValue))
+
+# finalize failed jobs
+_logger.debug("check stuck mergeing jobs")
+try:
+    # get PandaIDs
+    varMap = {}
+    varMap[':prodSourceLabel'] = 'managed'
+    varMap[':jobStatus'] = 'merging'
+    varMap[':timeLimit'] = timeLimit
+    sql  = "SELECT distinct jediTaskID FROM ATLAS_PANDA.jobsActive4 "
+    sql += "WHERE prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus and modificationTime<:timeLimit "
+    tmp,res = taskBuffer.querySQLS(sql,varMap)
+    checkedDS = set()
+    for jediTaskID, in res:
+        varMap = {}
+        varMap[':jediTaskID'] = jediTaskID
+        varMap[':dsType'] = 'trn_log'
+        sql = "SELECT datasetID FROM ATLAS_PANDA.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND type=:dsType AND nFilesUsed=nFilesTobeUsed "
+        tmpP,resD = taskBuffer.querySQLS(sql,varMap)
+        for datasetID, in resD:
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            varMap[':fileStatus'] = 'ready'
+            varMap[':datasetID'] = datasetID
+            sql  = "SELECT PandaID FROM ATLAS_PANDA.JEDI_Dataset_Contents "
+            sql += "WHERE jediTaskID=:jediTaskID AND datasetid=:datasetID AND status=:fileStatus AND PandaID=OutPandaID AND rownum<=1 "
+            tmpP,resP = taskBuffer.querySQLS(sql,varMap)
+            if resP == []:
+                continue
+            PandaID = resP[0][0]
+            varMap = {}
+            varMap[':PandaID'] = PandaID
+            varMap[':fileType'] = 'log'
+            sql = "SELECT d.status FROM ATLAS_PANDA.filesTable4 f,ATLAS_PANDA.datasets d WHERE PandaID=:PandaID AND f.type=:fileType AND d.name=f.destinationDBlock "
+            tmpS,resS = taskBuffer.querySQLS(sql,varMap)
+            if resS != None:
+                subStatus, = resS[0]
+                if subStatus in ['completed']:
+                    jobSpecs = taskBuffer.peekJobs([PandaID],fromDefined=False,fromArchived=False,fromWaiting=False)
+                    jobSpec = jobSpecs[0]
+                    subDsNames = set()
+                    subDsList = []
+                    for tmpFileSpec in jobSpec.Files:
+                        if tmpFileSpec.type in ['log','output'] and \
+                                re.search('_sub\d+$',tmpFileSpec.destinationDBlock) != None:
+                            if tmpFileSpec.destinationDBlock in subDsNames:
+                                continue
+                            subDsNames.add(tmpFileSpec.destinationDBlock)
+                            datasetSpec = taskBuffer.queryDatasetWithMap({'name':tmpFileSpec.destinationDBlock})
+                            subDsList.append(datasetSpec)
+                    _logger.debug("update unmerged datasets for jediTaskID={0} PandaID={1}".format(jediTaskID,PandaID))
+                    taskBuffer.updateUnmergedDatasets(jobSpec,subDsList,updateCompleted=True)
+except:
+    errType,errValue = sys.exc_info()[:2]
+    _logger.error("check for stuck merging jobs failed with %s %s" % (errType,errValue))
 
             
 _memoryCheck("watcher")

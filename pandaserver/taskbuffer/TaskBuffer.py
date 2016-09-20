@@ -2457,11 +2457,11 @@ class TaskBuffer:
 
 
     # update unmerged datasets to trigger merging
-    def updateUnmergedDatasets(self,job,finalStatusDS):
+    def updateUnmergedDatasets(self,job,finalStatusDS,updateCompleted=False):
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.updateUnmergedDatasets(job,finalStatusDS)
+        ret = proxy.updateUnmergedDatasets(job,finalStatusDS,updateCompleted)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
