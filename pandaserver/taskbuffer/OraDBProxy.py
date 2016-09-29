@@ -18158,7 +18158,7 @@ class DBProxy:
                 sqlM += 'WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) '
                 # sql to increase attempt numbers and update status
                 sqlAB  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
-                sqlAB += "SET status=:status,attemptNr=attemptNr+1 "
+                sqlAB += "SET status=:status,attemptNr=attemptNr+1,maxAttempt=attemptNr+2 "
                 sqlAB += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
                 # sql to update datasets
                 sqlD  = "UPDATE {0}.JEDI_Datasets ".format(panda_config.schemaJEDI)
