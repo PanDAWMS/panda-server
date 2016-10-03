@@ -8398,12 +8398,14 @@ class DBProxy:
         _logger.debug("getJobStatisticsForExtIF()")
         timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
         if sourcetype == 'analysis':
-            sql0 = "SELECT jobStatus,COUNT(*),cloud FROM %s WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) GROUP BY jobStatus,cloud"
+            sql0 = "SELECT jobStatus,COUNT(*),cloud FROM %s, WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) GROUP BY jobStatus,cloud"
             sqlA = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*),cloud FROM %s tab WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
         else:
-            sql0 = "SELECT jobStatus,COUNT(*),cloud FROM %s WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) GROUP BY jobStatus,cloud"
-            sqlA = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*),cloud FROM %s tab WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
-        sqlA+= "AND modificationTime>:modificationTime GROUP BY jobStatus,cloud"
+            sql0  = "SELECT tab.jobStatus,COUNT(*),tabS.cloud FROM %s tab,ATLAS_PANDAMETA.schedconfig tabS "
+            sql0 += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND tab.cloud=tabS.cloud GROUP BY tab.jobStatus,tabS.cloud"
+            sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*),tabS.cloud FROM %s tab,ATLAS_PANDAMETA.schedconfig tabS "
+            sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND tab.cloud=tabS.cloud "
+        sqlA+= "AND modificationTime>:modificationTime GROUP BY tab.jobStatus,tabS.cloud"
         # sql for materialized view
         sqlMV = re.sub('COUNT\(\*\)','SUM(num_of_jobs)',sql0)
         sqlMV = re.sub('SELECT ','SELECT /*+ RESULT_CACHE */ ',sqlMV)
