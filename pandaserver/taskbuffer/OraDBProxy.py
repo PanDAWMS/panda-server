@@ -8402,9 +8402,9 @@ class DBProxy:
             sqlA = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*),cloud FROM %s tab WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
         else:
             sql0  = "SELECT tab.jobStatus,COUNT(*),tabS.cloud FROM %s tab,ATLAS_PANDAMETA.schedconfig tabS "
-            sql0 += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND tab.cloud=tabS.cloud GROUP BY tab.jobStatus,tabS.cloud"
+            sql0 += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND tab.computingSite=tabS.siteid GROUP BY tab.jobStatus,tabS.cloud"
             sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*),tabS.cloud FROM %s tab,ATLAS_PANDAMETA.schedconfig tabS "
-            sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND tab.cloud=tabS.cloud "
+            sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND tab.computingSite=tabS.siteid "
         sqlA+= "AND modificationTime>:modificationTime GROUP BY tab.jobStatus,tabS.cloud"
         # sql for materialized view
         sqlMV = re.sub('COUNT\(\*\)','SUM(num_of_jobs)',sql0)
