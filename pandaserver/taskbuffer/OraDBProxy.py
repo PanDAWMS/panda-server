@@ -571,6 +571,7 @@ class DBProxy:
                         varMap[':newStatus']   = EventServiceUtils.ST_discarded
                         varMap[':esDone']      = EventServiceUtils.ST_done
                         varMap[':esFinished']  = EventServiceUtils.ST_finished
+                        _logger.debug(sqlJediOdEvt+comment+str(varMap))
                         self.cur.execute(sqlJediOdEvt+comment, varMap)
                         # cancel old unprocessed event ranges
                         sqlJediCEvt  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
@@ -583,6 +584,7 @@ class DBProxy:
                         varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
                         varMap[':esFatal']     = EventServiceUtils.ST_fatal
                         varMap[':esFailed']    = EventServiceUtils.ST_failed
+                        _logger.debug(sqlJediCEvt+comment+str(varMap))
                         self.cur.execute(sqlJediCEvt+comment, varMap)
                         # unset processed_upto for old failed events
                         sqlJediFEvt  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
@@ -595,6 +597,7 @@ class DBProxy:
                         varMap[':datasetID']   = file.datasetID
                         varMap[':fileID']      = file.fileID
                         varMap[':esFailed']    = EventServiceUtils.ST_failed
+                        _logger.debug(sqlJediFEvt+comment+str(varMap))
                         self.cur.execute(sqlJediFEvt+comment, varMap)
                         # event range with offset
                         withOffset = False
@@ -633,6 +636,8 @@ class DBProxy:
                             # total offset
                             varMap[':eventOffset'] = eventServiceInfo[file.lfn]['nEvents']
                             varMaps.append(varMap)
+                        _logger.debug("insertNewJob : %s insert %s event ranges jediTaskID:%s" % (job.PandaID,len(varMaps),
+                                                                                                  job.jediTaskID))
                         self.cur.executemany(sqlJediEvent+comment, varMaps)
                         _logger.debug("insertNewJob : %s inserted %s event ranges jediTaskID:%s" % (job.PandaID,len(varMaps),
                                                                                                     job.jediTaskID))
@@ -14628,6 +14633,7 @@ class DBProxy:
             jobSpec.jobSubStatus     = None
             jobSpec.actualCoreCount  = None
             jobSpec.hs06sec          = None
+            jobSpec.nEvents          = None
             if hasFatalRange:
                 jobSpec.jobSubStatus = 'partial'
             for attr in jobSpec._attributes:
