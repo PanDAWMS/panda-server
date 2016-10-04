@@ -3098,6 +3098,32 @@ class TaskBuffer:
 
 
 
+    # get task status
+    def getTaskStatus(self,jediTaskID):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.getTaskStatus(jediTaskID)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
+
+    # reactivate task
+    def reactivateTask(self,jediTaskID):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.reactivateTask(jediTaskID)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 

@@ -966,6 +966,22 @@ class UserIF:
 
 
 
+    # reactivate task
+    def reactivateTask(self,jediTaskID):
+        # update datasets and task status
+        ret = self.taskBuffer.reactivateTask(jediTaskID)
+        return ret
+
+
+
+    # get task status
+    def getTaskStatus(self,jediTaskID):
+        # update task status
+        ret = self.taskBuffer.getTaskStatus(jediTaskID)
+        return ret[0]
+
+
+
 # Singleton
 userIF = UserIF()
 del UserIF
@@ -2185,3 +2201,44 @@ def changeTaskModTimePanda(req,jediTaskID,diffValue):
         return pickle.dumps((False,'failed to convert {0} to time diff'.format(diffValue)))
     ret = userIF.changeTaskAttributePanda(jediTaskID,'modificationTime',attrValue)
     return pickle.dumps((ret,None))
+
+
+
+# get PandaIDs with TaskID
+def getPandaIDsWithTaskID(req,jediTaskID):
+    try:
+        jediTaskID = long(jediTaskID)
+    except:
+        return pickle.dumps((False,'jediTaskID must be an integer'))
+    idsStr = userIF.getPandaIDsWithTaskID(jediTaskID)
+    # deserialize
+    ids = WrappedPickle.loads(idsStr)
+
+    return pickle.dumps(ids)
+
+
+
+# reactivate Task
+def reactivateTask(req,jediTaskID):
+    # check security
+    if not isSecure(req):
+        return pickle.dumps((False,'secure connection is required'))
+
+    try:
+        jediTaskID = long(jediTaskID)
+    except:
+        return pickle.dumps((False,'jediTaskID must be an integer'))
+    ret = userIF.reactivateTask(jediTaskID)
+
+    return pickle.dumps(ret)
+
+
+
+# get task status
+def getTaskStatus(req,jediTaskID):
+    try:
+        jediTaskID = long(jediTaskID)
+    except:
+        return pickle.dumps((False,'jediTaskID must be an integer'))
+    ret = userIF.getTaskStatus(jediTaskID)
+    return pickle.dumps(ret)
