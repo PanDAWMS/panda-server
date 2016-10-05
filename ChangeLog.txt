@@ -1,5 +1,8 @@
 Release Notes
 
+* 10/15/2016
+  * eventStatus=fatal
+
 * 9/20/2016
   * checking sutck merging jobs
 

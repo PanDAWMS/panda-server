@@ -298,7 +298,7 @@ try:
                                 datasetSpec = taskBuffer.queryDatasetWithMap({'name':tmpFileSpec.destinationDBlock})
                                 subDsList.append(datasetSpec)
                         _logger.debug("update unmerged datasets")
-                    taskBuffer.updateUnmergedDatasets(jobSpec,subDsList)
+                        taskBuffer.updateUnmergedDatasets(jobSpec,subDsList)
             else:
                 _logger.debug("n of non-failed jobs : None")
 except:

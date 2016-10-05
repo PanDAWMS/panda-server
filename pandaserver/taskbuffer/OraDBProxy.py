@@ -14136,6 +14136,11 @@ class DBProxy:
             sqlF  = "INSERT INTO ATLAS_PANDA.filesTable4 (%s) " % FileSpec.columnNames()
             sqlF += FileSpec.bindValuesExpression(useSeq=True)
             sqlF += " RETURNING row_ID INTO :newRowID"
+            # sql for fatal events
+            sqlFA  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlFA += "SET attemptNr=:newAttemptNr "
+            sqlFA += " WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND fileID=:fileID "
+            sqlFA += "AND job_processID=:job_processID AND attemptNr=:oldAttemptNr "
             # params formatting with version
             if version == 0:
                 # format without zip
@@ -14183,12 +14188,16 @@ class DBProxy:
                     continue
                 eventStatus = eventDict['eventStatus']
                 # map string status to int
+                isFatal = False
                 if eventStatus == 'running':
                     intEventStatus = EventServiceUtils.ST_running
                 elif eventStatus == 'finished':
                     intEventStatus = EventServiceUtils.ST_finished
                 elif eventStatus == 'failed':
                     intEventStatus = EventServiceUtils.ST_failed
+                elif eventStatus == 'fatal':
+                    intEventStatus = EventServiceUtils.ST_failed
+                    isFatal = True
                 else:
                     tmpLog.error("<eventRangeID={0}> unknown status {1}".format(eventRangeID,eventStatus))
                     retList.append(False)
@@ -14281,6 +14290,17 @@ class DBProxy:
                                 varMap[':zipRow_ID'] = zipRow_ID
                             self.cur.execute(sqlU+comment, varMap)
                             nRow = self.cur.rowcount
+                            # fatal event
+                            if isFatal:
+                                varMap = {}
+                                varMap[':jediTaskID'] = jediTaskID
+                                varMap[':pandaID'] = pandaID
+                                varMap[':fileID'] = fileID
+                                varMap[':job_processID'] = job_processID
+                                varMap[':oldAttemptNr'] = attemptNr
+                                varMap[':newAttemptNr'] = 1
+                                self.cur.execute(sqlFA+comment, varMap)
+                            # finished event
                             if nRow == 1 and eventStatus in ['finished']:
                                 # get event range
                                 varMap = {}
