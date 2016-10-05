@@ -1991,3 +1991,91 @@ def triggerTaskBrokerage(jediTaskID):
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR triggerTaskBrokerage : %s %s" % (errtype,errvalue)
         return EC_Failed,output+'\n'+errStr
+
+
+
+# get PanDA IDs with TaskID
+def getPandaIDsWithTaskID(jediTaskID):
+    """Get PanDA IDs with TaskID
+
+       args:
+           jediTaskID: jediTaskID of the task to get lit of PanDA IDs
+       returns:
+           status code
+                 0: communication succeeded to the panda server
+                 255: communication failure
+           the list of PanDA IDs
+    """
+    # instantiate curl
+    curl = _Curl()
+    # execute
+    url = baseURL + '/getPandaIDsWithTaskID'
+    data = {'jediTaskID':jediTaskID}
+    status,output = curl.post(url,data)
+    try:
+        return status,pickle.loads(output)
+    except:
+        type, value, traceBack = sys.exc_info()
+        errStr = "ERROR getPandaIDsWithTaskID : %s %s" % (type,value)
+        print errStr
+        return EC_Failed,output+'\n'+errStr
+
+
+
+# reactivate task
+def reactivateTask(jediTaskID):
+    """Reactivate task
+
+       args:
+           jediTaskID: jediTaskID of the task to be reactivated
+       returns:
+           status code
+                 0: communication succeeded to the panda server
+                 255: communication failure
+           return: a tupple of return code and message
+                 0: unknown task
+                 1: succeeded
+                 None: database error
+    """
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+    # execute
+    url = baseURLSSL + '/reactivateTask'
+    data = {'jediTaskID':jediTaskID}
+    status,output = curl.post(url,data)
+    try:
+        return status,pickle.loads(output)
+    except:
+        errtype,errvalue = sys.exc_info()[:2]
+        errStr = "ERROR reactivateTask : %s %s" % (errtype,errvalue)
+        return EC_Failed,output+'\n'+errStr
+
+
+
+# get task status TaskID
+def getTaskStatus(jediTaskID):
+    """Get task status
+
+       args:
+           jediTaskID: jediTaskID of the task to get lit of PanDA IDs
+       returns:
+           status code
+                 0: communication succeeded to the panda server
+                 255: communication failure
+           the status string
+    """
+    # instantiate curl
+    curl = _Curl()
+    # execute
+    url = baseURL + '/getTaskStatus'
+    data = {'jediTaskID':jediTaskID}
+    status,output = curl.post(url,data)
+    try:
+        return status,pickle.loads(output)
+    except:
+        type, value, traceBack = sys.exc_info()
+        errStr = "ERROR getTaskStatus : %s %s" % (type,value)
+        print errStr
+        return EC_Failed,output+'\n'+errStr

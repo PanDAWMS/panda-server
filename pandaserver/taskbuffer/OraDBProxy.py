@@ -84,7 +84,6 @@ class DBProxy:
         self.myHostName = socket.getfqdn()
         self.backend = panda_config.backend
 
-        
     # connect to DB
     def connect(self,dbhost=panda_config.dbhost,dbpasswd=panda_config.dbpasswd,
                 dbuser=panda_config.dbuser,dbname=panda_config.dbname,
@@ -572,6 +571,7 @@ class DBProxy:
                         varMap[':newStatus']   = EventServiceUtils.ST_discarded
                         varMap[':esDone']      = EventServiceUtils.ST_done
                         varMap[':esFinished']  = EventServiceUtils.ST_finished
+                        _logger.debug(sqlJediOdEvt+comment+str(varMap))
                         self.cur.execute(sqlJediOdEvt+comment, varMap)
                         # cancel old unprocessed event ranges
                         sqlJediCEvt  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
@@ -584,6 +584,7 @@ class DBProxy:
                         varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
                         varMap[':esFatal']     = EventServiceUtils.ST_fatal
                         varMap[':esFailed']    = EventServiceUtils.ST_failed
+                        _logger.debug(sqlJediCEvt+comment+str(varMap))
                         self.cur.execute(sqlJediCEvt+comment, varMap)
                         # unset processed_upto for old failed events
                         sqlJediFEvt  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
@@ -596,6 +597,7 @@ class DBProxy:
                         varMap[':datasetID']   = file.datasetID
                         varMap[':fileID']      = file.fileID
                         varMap[':esFailed']    = EventServiceUtils.ST_failed
+                        _logger.debug(sqlJediFEvt+comment+str(varMap))
                         self.cur.execute(sqlJediFEvt+comment, varMap)
                         # event range with offset
                         withOffset = False
@@ -634,6 +636,8 @@ class DBProxy:
                             # total offset
                             varMap[':eventOffset'] = eventServiceInfo[file.lfn]['nEvents']
                             varMaps.append(varMap)
+                        _logger.debug("insertNewJob : %s insert %s event ranges jediTaskID:%s" % (job.PandaID,len(varMaps),
+                                                                                                  job.jediTaskID))
                         self.cur.executemany(sqlJediEvent+comment, varMaps)
                         _logger.debug("insertNewJob : %s inserted %s event ranges jediTaskID:%s" % (job.PandaID,len(varMaps),
                                                                                                     job.jediTaskID))
@@ -8395,11 +8399,14 @@ class DBProxy:
         timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
         if sourcetype == 'analysis':
             sql0 = "SELECT jobStatus,COUNT(*),cloud FROM %s WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) GROUP BY jobStatus,cloud"
-            sqlA = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*),cloud FROM %s tab WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
+            sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*),tabS.cloud FROM %s tab,ATLAS_PANDAMETA.schedconfig tabS "
+            sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND tab.computingSite=tabS.siteid "
         else:
-            sql0 = "SELECT jobStatus,COUNT(*),cloud FROM %s WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) GROUP BY jobStatus,cloud"
-            sqlA = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*),cloud FROM %s tab WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
-        sqlA+= "AND modificationTime>:modificationTime GROUP BY jobStatus,cloud"
+            sql0  = "SELECT tab.jobStatus,COUNT(*),tabS.cloud FROM %s tab,ATLAS_PANDAMETA.schedconfig tabS "
+            sql0 += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND tab.computingSite=tabS.siteid GROUP BY tab.jobStatus,tabS.cloud"
+            sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*),tabS.cloud FROM %s tab,ATLAS_PANDAMETA.schedconfig tabS "
+            sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND tab.computingSite=tabS.siteid "
+        sqlA+= "AND modificationTime>:modificationTime GROUP BY tab.jobStatus,tabS.cloud"
         # sql for materialized view
         sqlMV = re.sub('COUNT\(\*\)','SUM(num_of_jobs)',sql0)
         sqlMV = re.sub('SELECT ','SELECT /*+ RESULT_CACHE */ ',sqlMV)
@@ -8745,31 +8752,45 @@ class DBProxy:
     # LogDBProxy stuff   
 
     # update site data
-    def updateSiteData(self,hostID,pilotRequests):
+    def updateSiteData(self, hostID, pilotRequests):
         comment = ' /* DBProxy.updateSiteData */'                            
         _logger.debug("updateSiteData start")
-        sqlDel =  "DELETE FROM ATLAS_PANDAMETA.SiteData WHERE HOURS=:HOURS AND LASTMOD<:LASTMOD"
-        sqlRst =  "UPDATE ATLAS_PANDAMETA.SiteData SET GETJOB=:GETJOB,UPDATEJOB=:UPDATEJOB WHERE HOURS=:HOURS AND LASTMOD<:LASTMOD"
+
+        sqlDel =  "DELETE FROM ATLAS_PANDAMETA.SiteData WHERE LASTMOD<:LASTMOD"
+
+        sqlRst =  "UPDATE ATLAS_PANDAMETA.SiteData "
+        sqlRst += "SET GETJOB=:GETJOB,UPDATEJOB=:UPDATEJOB,NOJOB=:NOJOB,GETJOBABS=:GETJOBABS,UPDATEJOBABS=:UPDATEJOBABS,NOJOBABS=:NOJOBABS "
+        sqlRst += "WHERE HOURS=:HOURS AND LASTMOD<:LASTMOD"
+
         sqlCh  =  "SELECT count(*) FROM ATLAS_PANDAMETA.SiteData WHERE FLAG=:FLAG AND HOURS=:HOURS AND SITE=:SITE"
-        sqlIn  =  "INSERT INTO ATLAS_PANDAMETA.SiteData (SITE,FLAG,HOURS,GETJOB,UPDATEJOB,LASTMOD,"
-        sqlIn  += "NSTART,FINISHED,FAILED,DEFINED,ASSIGNED,WAITING,ACTIVATED,HOLDING,RUNNING,TRANSFERRING) "
-        sqlIn  += "VALUES (:SITE,:FLAG,:HOURS,:GETJOB,:UPDATEJOB,CURRENT_DATE,"
+
+        sqlIn  =  "INSERT INTO ATLAS_PANDAMETA.SiteData (SITE,FLAG,HOURS,GETJOB,UPDATEJOB,NOJOB,GETJOBABS,UPDATEJOBABS,NOJOBABS,"
+        sqlIn  += "LASTMOD,NSTART,FINISHED,FAILED,DEFINED,ASSIGNED,WAITING,ACTIVATED,HOLDING,RUNNING,TRANSFERRING) "
+        sqlIn  += "VALUES (:SITE,:FLAG,:HOURS,:GETJOB,:UPDATEJOB,:NOJOB,:GETJOBABS,:UPDATEJOBABS,:NOJOBABS,CURRENT_DATE,"
         sqlIn  += "0,0,0,0,0,0,0,0,0,0)"
-        sqlUp  =  "UPDATE ATLAS_PANDAMETA.SiteData SET GETJOB=:GETJOB,UPDATEJOB=:UPDATEJOB,LASTMOD=CURRENT_DATE "
+
+        sqlUp  =  "UPDATE ATLAS_PANDAMETA.SiteData SET GETJOB=:GETJOB,UPDATEJOB=:UPDATEJOB,NOJOB=:NOJOB,"
+        sqlUp  += "GETJOBABS=:GETJOBABS,UPDATEJOBABS=:UPDATEJOBABS,NOJOBABS=:NOJOBABS,LASTMOD=CURRENT_DATE "
         sqlUp  += "WHERE FLAG=:FLAG AND HOURS=:HOURS AND SITE=:SITE"
-        sqlAll  = "SELECT getJob,updateJob,FLAG FROM ATLAS_PANDAMETA.SiteData WHERE HOURS=:HOURS AND SITE=:SITE"
+
+        sqlAll  = "SELECT getJob,updateJob,noJob,getJobAbs,updateJobAbs,noJobAbs,FLAG "
+        sqlAll +=  "FROM ATLAS_PANDAMETA.SiteData WHERE HOURS=:HOURS AND SITE=:SITE"
+
         try:
             self.conn.begin()
             # delete old records
             varMap = {}
-            varMap[':HOURS'] = 48
-            varMap[':LASTMOD'] = datetime.datetime.utcnow()-datetime.timedelta(hours=varMap[':HOURS'])
+            varMap[':LASTMOD'] = datetime.datetime.utcnow()-datetime.timedelta(hours=48)
             self.cur.execute(sqlDel+comment,varMap)
             # set 0 to old records
             varMap = {}
             varMap[':HOURS'] = 3
             varMap[':GETJOB'] = 0
             varMap[':UPDATEJOB'] = 0
+            varMap[':NOJOB'] = 0
+            varMap[':GETJOBABS'] = 0
+            varMap[':UPDATEJOBABS'] = 0
+            varMap[':NOJOBABS'] = 0
             varMap[':LASTMOD'] = datetime.datetime.utcnow()-datetime.timedelta(hours=varMap[':HOURS'])
             self.cur.execute(sqlRst+comment,varMap)
             # commit
@@ -8796,14 +8817,39 @@ class DBProxy:
                     sql = sqlIn
                 else:
                     sql = sqlUp
+
+                # getJob, updateJob and noJob entries contain the number of slots/nodes that submitted the request
+                # getJobAbs, updateJobAbs and noJobAbs entries contain the absolute number of requests
                 if tmpVal.has_key('getJob'):    
                     varMap[':GETJOB'] = len(tmpVal['getJob'])
+                    getJobAbs = 0
+                    for node in tmpVal['getJob']:
+                        getJobAbs += tmpVal['getJob'][node]
+                    varMap[':GETJOBABS'] = getJobAbs
                 else:
                     varMap[':GETJOB'] = 0
-                if tmpVal.has_key('updateJob'):    
+                    varMap[':GETJOBABS'] = 0
+
+                if tmpVal.has_key('updateJob'):
                     varMap[':UPDATEJOB'] = len(tmpVal['updateJob'])
+                    updateJobAbs = 0
+                    for node in tmpVal['updateJob']:
+                        updateJobAbs += tmpVal['updateJob'][node]
+                    varMap[':UPDATEJOBABS'] = updateJobAbs
                 else:
                     varMap[':UPDATEJOB'] = 0
+                    varMap[':UPDATEJOBABS'] = 0
+
+                if tmpVal.has_key('noJob'):
+                    varMap[':NOJOB'] = len(tmpVal['noJob'])
+                    noJobAbs = 0
+                    for node in tmpVal['noJob']:
+                        noJobAbs += tmpVal['noJob'][node]
+                    varMap[':NOJOBABS'] = noJobAbs
+                else:
+                    varMap[':NOJOB'] = 0
+                    varMap[':NOJOBABS'] = 0
+
                 # update    
                 self.cur.execute(sql+comment,varMap)
                 # get all info
@@ -8817,8 +8863,12 @@ class DBProxy:
                 # get total getJob/updateJob
                 varMap[':GETJOB'] = 0
                 varMap[':UPDATEJOB'] = 0
+                varMap[':NOJOB'] = 0
+                varMap[':GETJOBABS'] = 0
+                varMap[':UPDATEJOBABS'] = 0
+                varMap[':NOJOBABS'] = 0
                 nCol = 0
-                for tmpGetJob,tmpUpdateJob,tmpFlag in res:
+                for tmpGetJob, tmpUpdateJob, tmpNoJob, tmpGetJobAbs, tmpUpdateJobAbs, tmpNoJobAbs, tmpFlag in res:
                     # don't use summed info 
                     if tmpFlag == 'production':
                         sumExist = True
@@ -8829,9 +8879,27 @@ class DBProxy:
                         continue
                     if tmpFlag in ['test']:
                         continue
+
+                    if tmpGetJob is None:
+                        tmpGetJob = 0
+                    if tmpUpdateJob is None:
+                        tmpUpdateJob = 0
+                    if tmpNoJob is None:
+                        tmpNoJob = 0
+                    if tmpGetJobAbs is None:
+                        tmpGetJobAbs = 0
+                    if tmpUpdateJobAbs is None:
+                        tmpUpdateJobAbs = 0
+                    if tmpNoJobAbs is None:
+                        tmpNoJobAbs = 0
+
                     # sum
                     varMap[':GETJOB'] += tmpGetJob
                     varMap[':UPDATEJOB'] += tmpUpdateJob
+                    varMap[':NOJOB'] += tmpNoJob
+                    varMap[':GETJOBABS'] += tmpGetJobAbs
+                    varMap[':UPDATEJOBABS'] += tmpUpdateJobAbs
+                    varMap[':NOJOBABS'] += tmpNoJobAbs
                     nCol += 1
                 # get average
                 if nCol != 0:
@@ -8839,6 +8907,15 @@ class DBProxy:
                         varMap[':GETJOB'] /= nCol
                     if varMap[':UPDATEJOB'] >= nCol:    
                         varMap[':UPDATEJOB'] /= nCol
+                    if varMap[':NOJOB'] >= nCol:
+                        varMap[':NOJOB'] /= nCol
+                    if varMap[':GETJOBABS'] >= nCol:
+                        varMap[':GETJOBABS'] /= nCol
+                    if varMap[':UPDATEJOBABS'] >= nCol:
+                        varMap[':UPDATEJOBABS'] /= nCol
+                    if varMap[':NOJOBABS'] >= nCol:
+                        varMap[':NOJOBABS'] /= nCol
+
                 if tmpSite.startswith('ANALY_'):    
                     varMap[':FLAG']  = 'analysis'
                 else:
@@ -8850,8 +8927,9 @@ class DBProxy:
                     sql = sqlIn
                 # update
                 self.cur.execute(sql+comment,varMap)
-                _logger.debug('updateSiteData : %s getJob=%s updateJob=%s' % \
-                              (tmpSite,varMap[':GETJOB'],varMap[':UPDATEJOB']))
+                _logger.debug('updateSiteData : %s getJob=%s updateJob=%s, noJob=%s, getJobAbs=%s updateJobAbs=%s, noJobAbs=%s' %
+                              (tmpSite,varMap[':GETJOB'],varMap[':UPDATEJOB'],varMap[':NOJOB'],
+                               varMap[':GETJOBABS'], varMap[':UPDATEJOBABS'], varMap[':NOJOBABS']))
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
@@ -12290,11 +12368,12 @@ class DBProxy:
         comment = ' /* DBProxy.propagateResultToJEDI */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <PandaID={0}>".format(jobSpec.PandaID)
+        tmpLog = LogWrapper(_logger,methodName)
         datasetContentsStat = {}
         # loop over all files
         finishUnmerge = set()
         hasInput = False
-        _logger.debug(methodName+' waitLock={0}'.format(waitLock))
+        tmpLog.debug('waitLock={0}'.format(waitLock))
         # make pseudo files for dynamic number of events
         pseudoFiles = []
         if EventServiceUtils.isDynNumEventsSH(jobSpec.specialHandling):
@@ -12317,7 +12396,7 @@ class DBProxy:
                 tmpFileSpec.fileID = tmpFileID
                 tmpFileSpec.attemptNr = tmpAttemptNr-1
                 pseudoFiles.append(tmpFileSpec)
-            _logger.debug(methodName+' {0} pseudo files'.format(len(pseudoFiles)))
+            tmpLog.debug('{0} pseudo files'.format(len(pseudoFiles)))
         # flag for job cloning
         useJobCloning = False
         if EventServiceUtils.isEventServiceJob(jobSpec) and EventServiceUtils.isJobCloningJob(jobSpec):
@@ -12345,7 +12424,7 @@ class DBProxy:
             sqlFileStat += "FOR UPDATE "
             if not waitLock:
                 sqlFileStat += "NOWAIT "
-            _logger.debug(methodName+' '+sqlFileStat+comment+str(varMap))
+            tmpLog.debug(sqlFileStat+comment+str(varMap))
             cur.execute(sqlFileStat+comment,varMap)
             resFileStat = self.cur.fetchone()
             if resFileStat != None:
@@ -12454,7 +12533,7 @@ class DBProxy:
             sqlFile += "AND keepTrack=:keepTrack "
             if not (jobSpec.isCancelled() and fileSpec.isUnMergedOutput()):
                 sqlFile += "AND attemptNr=:attemptNr "    
-            _logger.debug(methodName+' '+sqlFile+comment+str(varMap))
+            tmpLog.debug(sqlFile+comment+str(varMap))
             cur.execute(sqlFile+comment,varMap)
             nRow = cur.rowcount
             if nRow == 1 and not fileSpec.status in ['nooutput']:
@@ -12475,7 +12554,7 @@ class DBProxy:
                     varMap[':fileID']     = fileSpec.fileID
                     varMap[':datasetID']  = fileSpec.datasetID
                     varMap[':jediTaskID'] = jobSpec.jediTaskID
-                    _logger.debug(methodName+' '+sqlEVT+comment+str(varMap))
+                    tmpLog.debug(sqlEVT+comment+str(varMap))
                     cur.execute(sqlEVT+comment,varMap)
                     resEVT = self.cur.fetchone()
                     if resEVT != None:
@@ -12507,7 +12586,7 @@ class DBProxy:
                     varMap[':fileID']     = fileSpec.fileID
                     varMap[':datasetID']  = fileSpec.datasetID
                     varMap[':jediTaskID'] = jobSpec.jediTaskID
-                    _logger.debug(methodName+' '+sqlAttNr+comment+str(varMap))
+                    tmpLog.debug(sqlAttNr+comment+str(varMap))
                     cur.execute(sqlAttNr+comment,varMap)
                     resAttNr = self.cur.fetchone()
                     if resAttNr != None:
@@ -12533,7 +12612,7 @@ class DBProxy:
                                     varMap[':datasetID']  = fileSpec.datasetID
                                     varMap[':jediTaskID'] = jobSpec.jediTaskID
                                     varMap[':status']     = 'notmerged'
-                                    _logger.debug(methodName+' '+sqlUmFile+comment+str(varMap))
+                                    tmpLog.debug(sqlUmFile+comment+str(varMap))
                                     cur.execute(sqlUmFile+comment,varMap)
                                     # set flag to update unmerged jobs
                                     finishUnmerge.add(fileSpec.fileID)
@@ -12557,7 +12636,7 @@ class DBProxy:
                     varMap[':jediTaskID'] = jobSpec.jediTaskID
                     sqlGetDest  = "SELECT destinationDBlock FROM ATLAS_PANDA.filesTable4 "
                     sqlGetDest += "WHERE pandaID=:pandaID AND jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-                    _logger.debug(methodName+' '+sqlGetDest+comment+str(varMap))
+                    tmpLog.debug(sqlGetDest+comment+str(varMap))
                     cur.execute(sqlGetDest+comment,varMap)
                     preMergedDest, = self.cur.fetchone()
                     # check if corresponding sub is closed
@@ -12566,20 +12645,19 @@ class DBProxy:
                     varMap[':subtype'] = 'sub'
                     sqlCheckDest  = "SELECT status FROM ATLAS_PANDA.Datasets "
                     sqlCheckDest += "WHERE name=:name AND subtype=:subtype "
-                    _logger.debug(methodName+' '+sqlCheckDest+comment+str(varMap))
+                    tmpLog.debug(sqlCheckDest+comment+str(varMap))
                     cur.execute(sqlCheckDest+comment,varMap)
                     tmpResDestStat = self.cur.fetchone()
                     if tmpResDestStat != None:
                         preMergedDestStat, = tmpResDestStat
                     else:
                         preMergedDestStat = 'notfound'
-                        _logger.debug(methodName+' {0} not found for datasetID={1}'.format(preMergedDest,datasetID))
+                        tmpLog.debug('{0} not found for datasetID={1}'.format(preMergedDest,datasetID))
                     if not preMergedDestStat in ['tobeclosed','completed']:
                         datasetContentsStat[datasetID]['nFilesOnHold'] -= 1
                     else:
-                        _logger.debug(methodName+' '+\
-                                          'not change nFilesOnHold for datasetID={0} since sub is in {1}'.format(datasetID,
-                                                                                                                 preMergedDestStat))
+                        tmpLog.debug('not change nFilesOnHold for datasetID={0} since sub is in {1}'.format(datasetID,
+                                                                                                            preMergedDestStat))
                         # increment nUsed when mergeing is killed before merge job is generated
                         if oldFileStatus == 'ready':
                             datasetContentsStat[datasetID]['nFilesUsed'] += 1
@@ -12597,7 +12675,7 @@ class DBProxy:
                 varMap = {}
                 varMap[':jediTaskID'] = jobSpec.jediTaskID
                 varMap[':datasetID']  = tmpDatasetID
-                _logger.debug(methodName+' '+sqlJediDL+comment+str(varMap))
+                tmpLog.debug(sqlJediDL+comment+str(varMap))
                 cur.execute(sqlJediDL+comment,varMap)
                 # sql to update nFiles info
                 toUpdateFlag = False
@@ -12620,11 +12698,32 @@ class DBProxy:
                 varMap[':datasetID']  = tmpDatasetID
                 # update
                 if toUpdateFlag:
-                    _logger.debug(methodName+' '+sqlJediDS+comment+str(varMap))                            
+                    tmpLog.debug(sqlJediDS+comment+str(varMap))                            
                     cur.execute(sqlJediDS+comment,varMap)
         # add jobset info for job cloning
         if useJobCloning:
             self.recordRetryHistoryJEDI(jobSpec.jediTaskID,jobSpec.PandaID,[jobSpec.jobsetID],EventServiceUtils.relationTypeJS_ID)
+        # set delete flag to events
+        if (EventServiceUtils.isEventServiceJob(jobSpec) or EventServiceUtils.isEventServiceMerge(jobSpec)) and \
+                jobSpec.jobStatus in ['finished','failed','cancelled']:
+            # sql to set delete flag
+            sqlDelE  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+            sqlDelE += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
+            sqlDelE += "SET file_not_deleted=:delFlag "
+            sqlDelE += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND objStore_ID IS NOT NULL "
+            for fileSpec in jobSpec.Files:
+                if not fileSpec.type in ['input','pseudo_input']:
+                    continue
+                # set del flag
+                varMap = {}
+                varMap[':jediTaskID'] = fileSpec.jediTaskID
+                varMap[':datasetID']  = fileSpec.datasetID
+                varMap[':fileID']     = fileSpec.fileID
+                varMap[':delFlag']    = 'Y'
+                tmpLog.debug(sqlDelE+comment+str(varMap))
+                self.cur.execute(sqlDelE+comment,varMap)
+                retDelE = self.cur.rowcount
+                tmpLog.debug('set Y to {0} event ranges'.format(retDelE))
         # update t_task
         if jobSpec.jobStatus == 'finished' and not jobSpec.prodSourceLabel in ['panda']:
             varMap = {}
@@ -12639,7 +12738,7 @@ class DBProxy:
             else:
                 sqlTtask += "SET timestamp=CURRENT_DATE,total_events=total_events+:noutevents "
             sqlTtask += "WHERE taskid=:jediTaskID AND status IN (:status1,:status2) "
-            _logger.debug(methodName+' '+sqlTtask+comment+str(varMap))
+            tmpLog.debug(sqlTtask+comment+str(varMap))
             cur.execute(sqlTtask+comment,varMap)
         # propagate failed result to unmerge job
         if len(finishUnmerge) > 0:
@@ -13455,7 +13554,7 @@ class DBProxy:
 
 
     # update unmerged datasets to trigger merging
-    def updateUnmergedDatasets(self,job,finalStatusDS):
+    def updateUnmergedDatasets(self,job,finalStatusDS,updateCompleted=False):
         comment = ' /* JediDBProxy.updateUnmergedDatasets */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <PandaID={0}>".format(job.PandaID)
@@ -13492,7 +13591,10 @@ class DBProxy:
                 varMap[':vuid'] = datasetSpec.vuid 
                 varMap[':status'] = 'tobeclosed'
                 varMap[':statusR'] = 'tobeclosed'
-                varMap[':statusD'] = 'completed'
+                if not updateCompleted:
+                    varMap[':statusD'] = 'completed'
+                else:
+                    varMap[':statusD'] = 'dummy'
                 _logger.debug(methodName+' '+sqlUDP+comment+str(varMap))
                 self.cur.execute(sqlUDP+comment, varMap)
                 nRow = self.cur.rowcount
@@ -14175,7 +14277,7 @@ class DBProxy:
                             varMap[':attemptNr'] = attemptNr
                             varMap[':eventStatus'] = intEventStatus
                             varMap[':objstoreID'] = objstoreID
-                            if zipRow_ID != None:
+                            if version != 0:
                                 varMap[':zipRow_ID'] = zipRow_ID
                             self.cur.execute(sqlU+comment, varMap)
                             nRow = self.cur.rowcount
@@ -14534,6 +14636,7 @@ class DBProxy:
             jobSpec.jobSubStatus     = None
             jobSpec.actualCoreCount  = None
             jobSpec.hs06sec          = None
+            jobSpec.nEvents          = None
             if hasFatalRange:
                 jobSpec.jobSubStatus = 'partial'
             for attr in jobSpec._attributes:
@@ -18060,3 +18163,137 @@ class DBProxy:
             # error
             self.dumpErrorMessage(tmpLog)
             return []
+
+
+
+    # get task status
+    def getTaskStatus(self,jediTaskID):
+        comment = ' /* DBProxy.getTaskStatus */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger,methodName+' <jediTaskID={0} >'.format(jediTaskID))
+        tmpLog.debug('start')
+        try:
+            # sql to update input file status
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            sql  = 'SELECT status FROM {0}.JEDI_Tasks '.format(panda_config.schemaJEDI)
+            sql += 'WHERE jediTaskID=:jediTaskID '
+
+            # start transaction
+            self.conn.begin()
+            self.cur.arraysize = 1000
+            self.cur.execute(sql+comment,varMap)
+            res = self.cur.fetchone()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug('task {0} has status: {1} '.format(jediTaskID, res[0]))
+            return res
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(tmpLog)
+            return []
+
+
+
+
+    #reactivate task
+    def reactivateTask(self,jediTaskID):
+        comment = ' /* DBProxy.reactivateTask */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <jediTaskID={0}>".format(jediTaskID)
+        tmpLog = LogWrapper(_logger,methodName,monToken="<jediTaskID={0}>".format(jediTaskID))
+        tmpLog.debug('start')
+        try:
+            # sql to check task status
+            sqlT  = 'SELECT status,oldStatus FROM {0}.JEDI_Tasks '.format(panda_config.schemaJEDI)
+            sqlT += 'WHERE jediTaskID=:jediTaskID FOR UPDATE '
+            # start transaction
+            self.conn.begin()
+            # select
+            self.cur.arraysize = 10
+            varMap = {}
+            varMap[':jediTaskID']  = jediTaskID
+            # get task status
+            self.cur.execute(sqlT+comment, varMap)
+            resT = self.cur.fetchone()
+            if resT == None:
+                tmpMsg = "jediTaskID={0} not found".format(jediTaskID)
+                tmpLog.debug(tmpMsg)
+                retVal = 1,tmpMsg
+            else:
+                taskStatus,oldStatus = resT
+            # check task status
+            if not taskStatus in ['done','failed','finished','aborted']:
+                tmpMsg = "command rejected since status={0}".format(taskStatus)
+                tmpLog.debug(tmpMsg)
+                retVal = 2,tmpMsg
+            else:
+                # sql to update task status
+                sql = 'UPDATE {0}.JEDI_Tasks '.format(panda_config.schemaJEDI)
+                sql += 'SET status=:status '
+                sql += 'WHERE jediTaskID=:jediTaskID '
+                # sql to get datasetIDs for master
+                sqlM  = 'SELECT datasetID FROM {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
+                sqlM += 'WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) '
+                # sql to increase attempt numbers and update status
+                sqlAB  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
+                sqlAB += "SET status=:status,attemptNr=attemptNr+1,maxAttempt=attemptNr+2 "
+                sqlAB += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+                # sql to update datasets
+                sqlD  = "UPDATE {0}.JEDI_Datasets ".format(panda_config.schemaJEDI)
+                sqlD += "SET status=:status,nFilesUsed=0,nFilesTobeUsed=nFiles,nFilesFinished=0,nFilesFailed=0 "
+                sqlD += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+                #update task status
+                varMap = {}
+                varMap[':jediTaskID'] = jediTaskID
+                varMap[':status'] = 'ready'
+                self.cur.execute(sql + comment, varMap)
+                res = self.cur.rowcount
+                # get datasetIDs for master
+                varMap = {}
+                varMap[':jediTaskID'] = jediTaskID
+                varMap[':type1'] = 'input'
+                varMap[':type2'] = 'pseudo_input'
+                self.cur.execute(sqlM+comment, varMap)
+                resM = self.cur.fetchall()
+                total_nFiles = 0
+
+                for datasetID, in resM:
+                    # increase attempt numbers
+                    varMap = {}
+                    varMap[':jediTaskID'] = jediTaskID
+                    varMap[':datasetID'] = datasetID
+                    varMap[':status'] = 'ready'
+                    nFiles = 0
+
+                    #update status and attempt number for datasets
+                    self.cur.execute(sqlAB+comment, varMap)
+                    nFiles = self.cur.rowcount
+
+                    # update dataset
+                    if nFiles > 0:
+                        varMap = {}
+                        varMap[':jediTaskID'] = jediTaskID
+                        varMap[':datasetID'] = datasetID
+                        varMap[':status'] = 'ready'
+                        tmpLog.debug(sqlD+comment+str(varMap))
+                        self.cur.execute(sqlD+comment, varMap)
+
+                tmpMsg = "increased attemptNr for {0} inputs and task {1} was reactivated ".format(nFiles,jediTaskID)
+                tmpLog.debug(tmpMsg)
+                tmpLog.sendMsg(tmpMsg,'jedi','pandasrv')
+                retVal = 0,tmpMsg
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug("done")
+            return retVal
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(tmpLog,methodName)
+            return None,"DB error"

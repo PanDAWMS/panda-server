@@ -2457,11 +2457,11 @@ class TaskBuffer:
 
 
     # update unmerged datasets to trigger merging
-    def updateUnmergedDatasets(self,job,finalStatusDS):
+    def updateUnmergedDatasets(self,job,finalStatusDS,updateCompleted=False):
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.updateUnmergedDatasets(job,finalStatusDS)
+        ret = proxy.updateUnmergedDatasets(job,finalStatusDS,updateCompleted)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -3091,6 +3091,32 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # exec
         res = proxy.getObjIDs(jediTaskID,pandaID)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
+
+    # get task status
+    def getTaskStatus(self,jediTaskID):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.getTaskStatus(jediTaskID)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
+
+    # reactivate task
+    def reactivateTask(self,jediTaskID):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.reactivateTask(jediTaskID)
         # release DB proxy
         self.proxyPool.putProxy(proxy)
         # return
