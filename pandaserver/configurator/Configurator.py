@@ -171,6 +171,7 @@ class Configurator(threading.Thread):
                 try:
                     space_expired = self.rse_usage[ddm_endpoint_name]['expired']['used']/GB
                 except KeyError:
+                    space_expired = 0
                     _logger.error('process_site_dumps: no rse EXPIRED usage information for {0}'
                                   .format(ddm_endpoint_name))
 
@@ -592,3 +593,4 @@ if __name__ == "__main__":
 
     else:
         _logger.error("Configurator being called with wrong arguments. Use either no arguments or --network")
+
