@@ -4064,6 +4064,9 @@ class DBProxy:
         sql += "UNION "
         sql += "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
         sql += "WHERE jediTaskID=:jediTaskID "
+        sql += "UNION "
+        sql += "SELECT PandaID FROM ATLAS_PANDA.jobsArchived4 "
+        sql += "WHERE jediTaskID=:jediTaskID "
         varMap = {}
         varMap[':jediTaskID'] = jediTaskID
         try:
