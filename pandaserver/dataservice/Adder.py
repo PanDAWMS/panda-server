@@ -74,12 +74,11 @@ class Adder (threading.Thread):
                     return
             # query job
             self.job = self.taskBuffer.peekJobs([self.jobID],fromDefined=False,
-                                                fromArchived=False,
                                                 fromWaiting=False)[0]
             # check if job has finished
             if self.job == None:
                 _logger.debug('%s : not found' % self.jobID)                
-            elif self.job.jobStatus in ['finished','failed','unknown','cancelled'] or self.job.isCancelled():
+            elif self.job.jobStatus in ['finished','failed','unknown']:
                 _logger.error('%s : invalid state -> %s' % (self.jobID,self.job.jobStatus))
             else:
                 # add files only to top-level datasets for transferring jobs

@@ -5837,7 +5837,9 @@ class DBProxy:
         methodName = comment.split(' ')[-2].split('.')[-1]
         tmpLog = LogWrapper(_logger,methodName+" <PandaID={0}>".format(pandaID))
         tmpLog.debug("start")
-        sqlJ = "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
+        sqlJ  = "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
+        sqlJ += "UNION "
+        sqlJ += "SELECT jobStatus FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID "
         sql0 = "SELECT PandaID FROM ATLAS_PANDA.metaTable WHERE PandaID=:PandaID"        
         sql1 = "INSERT INTO ATLAS_PANDA.metaTable (PandaID,metaData) VALUES (:PandaID,:metaData)"
         nTry=3
@@ -5861,6 +5863,13 @@ class DBProxy:
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
                     return False
+                # skip cancelled
+                if jobStatus in ['cancelled','closed']:
+                    tmpLog.debug("skip jobStatus={0}".format(jobStatus))
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+                    # return True so that subsequent procedure can keep going
+                    return True
                 # select
                 varMap = {}
                 varMap[':PandaID'] = pandaID

@@ -82,19 +82,18 @@ class AdderGen:
                 return
             # query job
             self.job = self.taskBuffer.peekJobs([self.jobID],fromDefined=False,
-                                                fromArchived=False,
                                                 fromWaiting=False,
                                                 forAnal=True)[0]
             # check if job has finished
             if self.job == None:
                 self.logger.debug(': job not found in DB')
-            elif self.job.jobStatus in ['finished','failed','unknown','cancelled','merging'] or self.job.isCancelled():
+            elif self.job.jobStatus in ['finished','failed','unknown','merging']:
                 self.logger.error(': invalid state -> %s' % self.job.jobStatus)
             elif self.attemptNr != None and self.job.attemptNr != self.attemptNr:
                 self.logger.error('wrong attemptNr -> job=%s <> %s' % (self.job.attemptNr,self.attemptNr))
             else:
                 # check file status in JEDI
-                if not self.job.taskBufferErrorCode in [taskbuffer.ErrorCode.EC_PilotRetried]:
+                if not self.job.isCancelled() and not self.job.taskBufferErrorCode in [taskbuffer.ErrorCode.EC_PilotRetried]:
                     fileCheckInJEDI = self.taskBuffer.checkInputFileStatusInJEDI(self.job)
                     self.logger.debug("check file status in JEDI : {0}".format(fileCheckInJEDI))                
                     if fileCheckInJEDI == None:
@@ -132,6 +131,13 @@ class AdderGen:
                             self.job.ddmErrorCode = ErrorCode.EC_Adder
                             self.job.ddmErrorDiag = "failed to lock semaphore for job cloning"
                             self.logger.debug("set jobStatus={0} since did not get semaphore for job cloning".format(self.jobStatus))
+                # use failed for cancelled/closed jobs
+                if self.job.isCancelled():
+                    self.jobStatus = 'failed'
+                    # reset error codes to skip retrial module
+                    self.job.pilotErrorCode = 0
+                    self.job.exeErrorCode = 0
+                    self.job.ddmErrorCode = 0
                 # keep old status
                 oldJobStatus = self.job.jobStatus
                 # set job status
@@ -269,83 +275,77 @@ class AdderGen:
                 if self.job.commandToPilot == 'tobekilled' and self.job.jobStatus == 'failed':
                     self.job.jobStatus = 'cancelled'
                 # update job
-                self.logger.debug("updating DB")
-                retU = self.taskBuffer.updateJobs([self.job],False,oldJobStatusList=[oldJobStatus],
-                                                  extraInfo=self.extraInfo)
-                self.logger.debug("retU: %s" % retU)
-                # failed
-                if not retU[0]:
-                    self.logger.error('failed to update DB')
-                    # unlock XML
-                    try:
-                        fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
-                        self.lockXML.close()                            
-                    except:
-                        type, value, traceBack = sys.exc_info()
-                        self.logger.debug(": %s %s" % (type,value))
-                        self.logger.debug("cannot unlock XML")
-                    return
-                # increase RAM limit for the whole task. Should be removed at some point when the job level one works
-                #try:
-                #    if self.job.lockedby == 'jedi' and self.job.pilotErrorCode in [1223,1212] \
-                #            and not self.job.minRamCount in [0,None,'NULL']:
-                #        self.logger.debug("increase RAM limit") 
-                #        self.taskBuffer.increaseRamLimitJEDI(self.job.jediTaskID,self.job.minRamCount)
-                #except:
-                #    errtype,errvalue = sys.exc_info()[:2]
-                #    self.logger.debug("failed to increase RAM limit : %s %s" % (errtype,errvalue))
-                # setup for closer
-                if not (EventServiceUtils.isEventServiceJob(self.job) and self.job.isCancelled()):
-                    destDBList = []
-                    guidList = []
-                    for file in self.job.Files:
-                        # ignore inputs
-                        if file.type == 'input':
-                            continue
-                        # skip pseudo datasets
-                        if file.destinationDBlock in ['',None,'NULL']:
-                            continue
-                        # start closer for output/log datasets
-                        if not file.destinationDBlock in destDBList:
-                            destDBList.append(file.destinationDBlock)
-                        # collect GUIDs
-                        if (self.job.prodSourceLabel=='panda' or (self.job.prodSourceLabel in ['ptest','rc_test','rucio_test'] and \
-                                                                  self.job.processingType in ['pathena','prun','gangarobot-rctest','hammercloud'])) \
-                                                                  and file.type == 'output':
-                            # extract base LFN since LFN was changed to full LFN for CMS
-                            baseLFN = file.lfn.split('/')[-1]
-                            guidList.append({'lfn':baseLFN,'guid':file.GUID,'type':file.type,
-                                             'checksum':file.checksum,'md5sum':file.md5sum,
-                                             'fsize':file.fsize,'scope':file.scope})
-                    if guidList != []:
-                        retG = self.taskBuffer.setGUIDs(guidList)
-                    if destDBList != []:
-                        # start Closer
-                        if adderPlugin != None and hasattr(adderPlugin,'datasetMap') and adderPlugin.datasetMap != {}:
-                            cThr = Closer.Closer(self.taskBuffer,destDBList,self.job,datasetMap=adderPlugin.datasetMap)
-                        else:
-                            cThr = Closer.Closer(self.taskBuffer,destDBList,self.job)
-                        self.logger.debug("start Closer")
-                        cThr.start()
-                        cThr.join()
-                        self.logger.debug("end Closer")
-                    # run closer for assocaiate parallel jobs
-                    if EventServiceUtils.isJobCloningJob(self.job):
-                        assDBlockMap = self.taskBuffer.getDestDBlocksWithSingleConsumer(self.job.jediTaskID,self.job.PandaID,
-                                                                                        destDBList)
-                        for assJobID,assDBlocks in assDBlockMap.iteritems():
-                            assJob = self.taskBuffer.peekJobs([assJobID],fromDefined=False,
-                                                              fromArchived=False,
-                                                              fromWaiting=False,
-                                                              forAnal=True)[0]
-                            if self.job == None:
-                                self.logger.debug(': associated job PandaID={0} not found in DB'.format(assJobID))
+                if oldJobStatus in ['cancelled','closed']:
+                    pass
+                else:
+                    self.logger.debug("updating DB")
+                    retU = self.taskBuffer.updateJobs([self.job],False,oldJobStatusList=[oldJobStatus],
+                                                      extraInfo=self.extraInfo)
+                    self.logger.debug("retU: %s" % retU)
+                    # failed
+                    if not retU[0]:
+                        self.logger.error('failed to update DB')
+                        # unlock XML
+                        try:
+                            fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
+                            self.lockXML.close()                            
+                        except:
+                            type, value, traceBack = sys.exc_info()
+                            self.logger.debug(": %s %s" % (type,value))
+                            self.logger.debug("cannot unlock XML")
+                        return
+                    # setup for closer
+                    if not (EventServiceUtils.isEventServiceJob(self.job) and self.job.isCancelled()):
+                        destDBList = []
+                        guidList = []
+                        for file in self.job.Files:
+                            # ignore inputs
+                            if file.type == 'input':
+                                continue
+                            # skip pseudo datasets
+                            if file.destinationDBlock in ['',None,'NULL']:
+                                continue
+                            # start closer for output/log datasets
+                            if not file.destinationDBlock in destDBList:
+                                destDBList.append(file.destinationDBlock)
+                            # collect GUIDs
+                            if (self.job.prodSourceLabel=='panda' or (self.job.prodSourceLabel in ['ptest','rc_test','rucio_test'] and \
+                                                                      self.job.processingType in ['pathena','prun','gangarobot-rctest','hammercloud'])) \
+                                                                      and file.type == 'output':
+                                # extract base LFN since LFN was changed to full LFN for CMS
+                                baseLFN = file.lfn.split('/')[-1]
+                                guidList.append({'lfn':baseLFN,'guid':file.GUID,'type':file.type,
+                                                 'checksum':file.checksum,'md5sum':file.md5sum,
+                                                 'fsize':file.fsize,'scope':file.scope})
+                        if guidList != []:
+                            retG = self.taskBuffer.setGUIDs(guidList)
+                        if destDBList != []:
+                            # start Closer
+                            if adderPlugin != None and hasattr(adderPlugin,'datasetMap') and adderPlugin.datasetMap != {}:
+                                cThr = Closer.Closer(self.taskBuffer,destDBList,self.job,datasetMap=adderPlugin.datasetMap)
                             else:
-                                cThr = Closer.Closer(self.taskBuffer,assDBlocks,assJob)
-                                self.logger.debug("start Closer for PandaID={0}".format(assJobID))
-                                cThr.start()
-                                cThr.join()
-                                self.logger.debug("end Closer for PandaID={0}".format(assJobID))
+                                cThr = Closer.Closer(self.taskBuffer,destDBList,self.job)
+                            self.logger.debug("start Closer")
+                            cThr.start()
+                            cThr.join()
+                            self.logger.debug("end Closer")
+                        # run closer for assocaiate parallel jobs
+                        if EventServiceUtils.isJobCloningJob(self.job):
+                            assDBlockMap = self.taskBuffer.getDestDBlocksWithSingleConsumer(self.job.jediTaskID,self.job.PandaID,
+                                                                                            destDBList)
+                            for assJobID,assDBlocks in assDBlockMap.iteritems():
+                                assJob = self.taskBuffer.peekJobs([assJobID],fromDefined=False,
+                                                                  fromArchived=False,
+                                                                  fromWaiting=False,
+                                                                  forAnal=True)[0]
+                                if self.job == None:
+                                    self.logger.debug(': associated job PandaID={0} not found in DB'.format(assJobID))
+                                else:
+                                    cThr = Closer.Closer(self.taskBuffer,assDBlocks,assJob)
+                                    self.logger.debug("start Closer for PandaID={0}".format(assJobID))
+                                    cThr.start()
+                                    cThr.join()
+                                    self.logger.debug("end Closer for PandaID={0}".format(assJobID))
             self.logger.debug("end")
             try:
                 # remove Catalog
@@ -620,7 +620,6 @@ class AdderGen:
         # refresh job info
         if addedNewFiles:
             self.job = self.taskBuffer.peekJobs([self.jobID],fromDefined=False,
-                                                fromArchived=False,
                                                 fromWaiting=False,
                                                 forAnal=True)[0]
         # return
