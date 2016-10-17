@@ -6273,6 +6273,9 @@ class DBProxy:
     def getSerialNumber(self,datasetname,definedFreshFlag=None):
         comment = ' /* DBProxy.getSerialNumber */'        
         try:
+            if isinstance(datasetname,unicode):
+                datasetname = datasetname.encode('ascii','ignore')
+                _logger.debug("convert unicode for %s" % datasetname)
             _logger.debug("getSerialNumber(%s,%s)" % (datasetname,definedFreshFlag))
             # start transaction
             self.conn.begin()
