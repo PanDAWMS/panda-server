@@ -1439,9 +1439,11 @@ class DBProxy:
                 # main job
                 if useCommit:
                     self.conn.begin()
+                oldJobSubStatus = None
                 # actions for successful normal ES jobs
                 if useJEDI and EventServiceUtils.isEventServiceJob(job) \
                         and not EventServiceUtils.isJobCloningJob(job):
+                    oldJobSubStatus = job.jobSubStatus
                     retEvS,retNewPandaID = self.ppEventServiceJob(job,False)
                     # DB error
                     if retEvS == None:
@@ -1602,6 +1604,13 @@ class DBProxy:
                 # propagate successful result to unmerge job
                 if useJEDI and job.processingType == 'pmerge' and job.jobStatus == 'finished':
                     self.updateUnmergedJobs(job)
+                # overwrite job status
+                sqlOJS = "UPDATE ATLAS_PANDA.jobsArchived4 SET jobStatus=:jobStatus WHERE PandaID=:PandaID "
+                if oldJobSubStatus in ['pilot_failed']:
+                    varMap = {}
+                    varMap[':PandaID'] = job.PandaID
+                    varMap[':jobStatus'] = 'failed'
+                    self.cur.execute(sqlOJS+comment,varMap)
                 # commit
                 if useCommit:
                     if not self._commit():
@@ -14116,7 +14125,7 @@ class DBProxy:
 
 
 
-    # get a list of even ranges for a PandaID
+    # update even ranges
     def updateEventRanges(self,eventDictParam,version=0):
         comment = ' /* DBProxy.updateEventRanges */'
         methodName = comment.split(' ')[-2].split('.')[-1]
@@ -14127,7 +14136,7 @@ class DBProxy:
             commandMap = {}
             # sql to update status
             sqlU  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
-            sqlU += "SET status=:eventStatus,objstore_ID=:objstoreID"
+            sqlU += "SET status=:eventStatus,objstore_ID=:objstoreID,error_code=:errorCode"
             if version != 0:
                 sqlU += ",zipRow_ID=:zipRow_ID"
             sqlU += " WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND fileID=:fileID "
@@ -14232,6 +14241,11 @@ class DBProxy:
                     objstoreID = eventDict['objstoreID']
                 else:
                     objstoreID = None
+                # error code
+                if 'errorCode' in eventDict:
+                    errorCode = eventDict['errorCode']
+                else:
+                    errorCode = None
                 # start transaction
                 self.conn.begin()
                 nRow = 0
@@ -14301,6 +14315,7 @@ class DBProxy:
                             varMap[':attemptNr'] = attemptNr
                             varMap[':eventStatus'] = intEventStatus
                             varMap[':objstoreID'] = objstoreID
+                            varMap[':errorCode'] = errorCode
                             if version != 0:
                                 varMap[':zipRow_ID'] = zipRow_ID
                             self.cur.execute(sqlU+comment, varMap)

@@ -1,5 +1,9 @@
 Release Notes
 
+* 10/18/2016
+  * jedi_events.error_code
+  * jobsubstatus=pilot_finished
+
 * 10/17/2016
   * allowing cancelled jobs to register log files
 
