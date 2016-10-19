@@ -244,6 +244,8 @@ class Response:
         self.data['coreCount'] = job.coreCount
         # jobsetID
         self.data['jobsetID'] = job.jobsetID
+        # nucleus
+        self.data['nucleus'] = job.nucleus
         # debug mode
         if job.specialHandling != None and 'debug' in job.specialHandling:
             self.data['debug'] = 'True'
