@@ -110,7 +110,7 @@ _memoryCheck("rebroker")
 # rebrokerage
 _logger.debug("Rebrokerage start")
 try:
-    normalTimeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+    normalTimeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
     sortTimeLimit   = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
     sql  = "SELECT jobDefinitionID,prodUserName,prodUserID,computingSite,MAX(modificationTime),jediTaskID,processingType "
     sql += "FROM ATLAS_PANDA.jobsActive4 "
