@@ -1,5 +1,8 @@
 Release Notes
 
+* 10/20/2016
+  * reduced timeout for activated user jobs to 6h from 24h
+
 * 10/18/2016
   * jedi_events.error_code
   * jobsubstatus=pilot_finished
