@@ -11,6 +11,7 @@ ST_discarded = 5
 ST_done      = 6
 ST_failed    = 7
 ST_fatal     = 8
+ST_merged    = 9
 
 
 
