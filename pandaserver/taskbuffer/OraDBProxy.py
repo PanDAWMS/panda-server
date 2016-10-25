@@ -14726,13 +14726,13 @@ class DBProxy:
             if doMerging:
                 # extract parameters for merge
                 try:
-                    tmpMatch = re.search('<PANDA_EVSMERGE>(.*)</PANDA_EVSMERGE>',jobSpec.jobParameters)
-                    jobSpec.jobParameters = tmpMatch.group(1)
+                    tmpMatch = re.search('<PANDA_ESMERGE_TRF>(.*)</PANDA_ESMERGE_TRF>',jobSpec.jobParameters)
+                    jobSpec.transformation = tmpMatch.group(1)
                 except:
                     pass
                 try:
-                    tmpMatch = re.search('<PANDA_ESMERGE_TRF>(.*)</PANDA_ESMERGE_TRF>',jobSpec.jobParameters)
-                    jobSpec.transformation = tmpMatch.group(1)
+                    tmpMatch = re.search('<PANDA_EVSMERGE>(.*)</PANDA_EVSMERGE>',jobSpec.jobParameters)
+                    jobSpec.jobParameters = tmpMatch.group(1)
                 except:
                     pass
                 # change special handling
