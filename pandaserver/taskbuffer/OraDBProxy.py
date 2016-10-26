@@ -17297,7 +17297,7 @@ class DBProxy:
     def updateRelatedEventServiceJobs(self,job,killEvents=False):
         comment = ' /* DBProxy.updateRelatedEventServiceJobs */'
         methodName = comment.split(' ')[-2].split('.')[-1]
-        methodName += " <Panda={0}>".format(job.PandaID)
+        methodName += " <PandaID={0}>".format(job.PandaID)
         tmpLog = LogWrapper(_logger,methodName)
         tmpLog.debug("start killEvents={0}".format(killEvents))
         try:
@@ -17305,7 +17305,7 @@ class DBProxy:
             sqlRR  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
             sqlRR += "distinct PandaID "
             sqlRR += "FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
-            sqlRR += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND status=:eventStatus "
+            sqlRR += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND status IN (:es_done,:es_merged) "
             # loop over all files
             esPandaIDs = set()
             for tmpFile in job.Files:
@@ -17316,7 +17316,8 @@ class DBProxy:
                     varMap[':jediTaskID']  = tmpFile.jediTaskID
                     varMap[':datasetID']   = tmpFile.datasetID
                     varMap[':fileID']      = tmpFile.fileID
-                    varMap[':eventStatus'] = EventServiceUtils.ST_done
+                    varMap[':es_done']   = EventServiceUtils.ST_done
+                    varMap[':es_merged'] = EventServiceUtils.ST_merged
                     self.cur.execute(sqlRR+comment,varMap)
                     resRR = self.cur.fetchall()
                     for tmpPandaID, in resRR:
