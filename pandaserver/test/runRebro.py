@@ -114,7 +114,8 @@ try:
     sortTimeLimit   = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
     sql  = "SELECT jobDefinitionID,prodUserName,prodUserID,computingSite,MAX(modificationTime),jediTaskID,processingType "
     sql += "FROM ATLAS_PANDA.jobsActive4 "
-    sql += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND jobStatus IN (:jobStatus1,:jobStatus2) "
+    sql += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
+    sql += "AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3) "
     sql += "AND modificationTime<:modificationTime "
     sql += "AND jobsetID IS NOT NULL "    
     sql += "AND lockedBy=:lockedBy "
@@ -126,6 +127,7 @@ try:
     varMap[':lockedBy']         = 'jedi'
     varMap[':jobStatus1']       = 'activated'
     varMap[':jobStatus2']       = 'throttled'
+    varMap[':jobStatus3']       = 'starting'
     # get jobs older than threshold
     ret,res = taskBuffer.querySQLS(sql, varMap)
     resList = []
@@ -164,7 +166,7 @@ try:
     sql += "AND modificationTime>:modificationTime AND rownum <= 1"
     # sql to get associated jobs with jediTaskID
     sqlJJ  = "SELECT PandaID FROM %s "
-    sqlJJ += "WHERE jediTaskID=:jediTaskID AND jobStatus IN (:jobS1,:jobS2,:jobS3,:jobS4) "
+    sqlJJ += "WHERE jediTaskID=:jediTaskID AND jobStatus IN (:jobS1,:jobS2,:jobS3,:jobS4,:jobS5) "
     sqlJJ += "AND jobDefinitionID=:jobDefID AND computingSite=:computingSite "
     if resList != []:
         from userinterface.ReBroker import ReBroker
@@ -245,6 +247,7 @@ try:
                     varMap[':jobS2'] = 'assigned'
                     varMap[':jobS3'] = 'activated'
                     varMap[':jobS4'] = 'throttled'
+                    varMap[':jobS5'] = 'starting'
                     for tableName in ['ATLAS_PANDA.jobsDefined4','ATLAS_PANDA.jobsActive4']:
                         retJJ,resJJ = taskBuffer.querySQLS(sqlJJ % tableName, varMap)
                         for tmpPandaID, in resJJ:

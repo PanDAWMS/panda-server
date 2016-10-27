@@ -1,5 +1,9 @@
 Release Notes
 
+* 10/27/2016
+  * changed rebro to kill starting jobs
+  * changed starting jobs not to update modification time
+
 * 10/20/2016
   * reduced timeout for activated user jobs to 6h from 24h
 
