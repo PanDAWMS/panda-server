@@ -1,5 +1,8 @@
 Release Notes
 
+* 10/28/2016
+  * fixed localEsMergeNC
+
 * 10/27/2016
   * changed rebro to kill starting jobs
   * changed starting jobs not to update modification time
