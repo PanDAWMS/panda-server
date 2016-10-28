@@ -115,8 +115,8 @@ try:
     sql  = "SELECT jobDefinitionID,prodUserName,prodUserID,computingSite,MAX(modificationTime),jediTaskID,processingType "
     sql += "FROM ATLAS_PANDA.jobsActive4 "
     sql += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
-    sql += "AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3) "
-    sql += "AND modificationTime<:modificationTime "
+    sql += "AND ((jobStatus IN (:jobStatus1,:jobStatus2) AND modificationTime<:modificationTime) "
+    sql += "OR (jobStatus IN (:jobStatus3) AND stateChangeTime<:modificationTime)) "
     sql += "AND jobsetID IS NOT NULL "    
     sql += "AND lockedBy=:lockedBy "
     sql += "GROUP BY jobDefinitionID,prodUserName,prodUserID,computingSite,jediTaskID,processingType " 
@@ -163,7 +163,8 @@ try:
     sql  = "SELECT PandaID,modificationTime FROM %s "
     sql += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
     sql += "AND computingSite=:computingSite AND jediTaskID=:jediTaskID "
-    sql += "AND modificationTime>:modificationTime AND rownum <= 1"
+    sql += "AND modificationTime>:modificationTime AND NOT jobStatus IN (:jobStatus1) "
+    sql += "AND rownum <= 1"
     # sql to get associated jobs with jediTaskID
     sqlJJ  = "SELECT PandaID FROM %s "
     sqlJJ += "WHERE jediTaskID=:jediTaskID AND jobStatus IN (:jobS1,:jobS2,:jobS3,:jobS4,:jobS5) "
@@ -190,6 +191,7 @@ try:
             varMap[':prodUserName']     = prodUserName
             varMap[':jobDefinitionID']  = jobDefinitionID
             varMap[':modificationTime'] = recentRuntimeLimit
+            varMap[':jobStatus1']       = 'starting'
             _logger.debug(" rebro:%s/%s:ID=%s:%s jediTaskID=%s site=%s" % (iComb,nComb,jobDefinitionID,
                                                                            prodUserName,jediTaskID,
                                                                            computingSite))

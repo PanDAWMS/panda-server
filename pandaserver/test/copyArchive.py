@@ -375,7 +375,7 @@ varMap[':jobStatus2'] = 'starting'
 varMap[':jobStatus3'] = 'stagein'
 varMap[':jobStatus4'] = 'stageout'
 sql  = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE (prodSourceLabel=:prodSourceLabel1 OR prodSourceLabel=:prodSourceLabel2) "
-sql += "AND (jobStatus=:jobStatus1 OR jobStatus=:jobStatus2 OR jobStatus=:jobStatus3 OR jobStatus=:jobStatus4) AND modificationTime<:modificationTime"
+sql += "AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3,:jobStatus4) AND modificationTime<:modificationTime"
 status,res = taskBuffer.querySQLS(sql,varMap)
 if res == None:
     _logger.debug("# of Anal Watcher : %s" % res)
@@ -534,7 +534,7 @@ varMap[':jobStatus1'] = 'running'
 varMap[':jobStatus2'] = 'starting'
 varMap[':jobStatus3'] = 'stagein'
 varMap[':jobStatus4'] = 'stageout'
-status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE (jobStatus=:jobStatus1 OR jobStatus=:jobStatus2 OR jobStatus=:jobStatus3 OR jobStatus=:jobStatus4) AND modificationTime<:modificationTime",
+status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3,:jobStatus4) AND modificationTime<:modificationTime",
                               varMap)
 if res == None:
     _logger.debug("# of General Watcher : %s" % res)

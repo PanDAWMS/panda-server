@@ -1936,9 +1936,8 @@ class DBProxy:
                         # set endTime if undefined for holding
                         if jobStatus == 'holding' and endTime==None and not presetEndTime:
                             sql1 += ',endTime=CURRENT_DATE '
-                        # don't change modification time for starting->starting
-                        if jobStatus != 'starting' or oldJobStatus != 'starting':
-                            sql1 += ",modificationTime=CURRENT_DATE"
+                        # update modification time
+                        sql1 += ",modificationTime=CURRENT_DATE"
                         # update
                         self.cur.execute (sql1+sql1W+comment,varMap)
                         nUp = self.cur.rowcount
