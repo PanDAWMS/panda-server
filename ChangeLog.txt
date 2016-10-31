@@ -2,6 +2,7 @@ Release Notes
 
 * 10/31/2016
   * disabled ES file registration
+  * fixed del flag for failed ES merge jobs
 
 * 10/28/2016
   * fixed localEsMergeNC

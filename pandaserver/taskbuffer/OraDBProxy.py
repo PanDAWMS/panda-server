@@ -12427,6 +12427,43 @@ class DBProxy:
         useJobCloning = False
         if EventServiceUtils.isEventServiceJob(jobSpec) and EventServiceUtils.isJobCloningJob(jobSpec):
             useJobCloning = True
+        # set delete flag to events
+        if (EventServiceUtils.isEventServiceJob(jobSpec) or EventServiceUtils.isEventServiceMerge(jobSpec)) and \
+                jobSpec.jobStatus in ['finished','failed','cancelled']:
+            # sql to check attemptNr
+            sqlDelC  = "SELECT attemptNr FROM {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
+            sqlDelC += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+            # sql to set delete flag
+            sqlDelE  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+            sqlDelE += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
+            sqlDelE += "SET file_not_deleted=:delFlag,status=CASE WHEN status=:st_done THEN :st_merged ELSE status END "
+            sqlDelE += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND objStore_ID IS NOT NULL "
+            for fileSpec in jobSpec.Files:
+                if not fileSpec.type in ['input','pseudo_input']:
+                    continue
+                # check attemptNr
+                varMap = {}
+                varMap[':jediTaskID'] = fileSpec.jediTaskID
+                varMap[':datasetID']  = fileSpec.datasetID
+                varMap[':fileID']     = fileSpec.fileID
+                self.cur.execute(sqlDelC+comment,varMap)
+                tmpAttemptNr, = self.cur.fetchone()
+                if fileSpec.attemptNr != tmpAttemptNr:
+                    tmpLog.debug('skip to set Y for datasetID={0} fileID={1} due to attemprNr mismatch'.format(fileSpec.datasetID,fileSpec.fileID))
+                    continue
+                # set del flag
+                varMap = {}
+                varMap[':jediTaskID'] = fileSpec.jediTaskID
+                varMap[':datasetID']  = fileSpec.datasetID
+                varMap[':fileID']     = fileSpec.fileID
+                varMap[':delFlag']    = 'Y'
+                varMap[':st_done']    = EventServiceUtils.ST_done
+                varMap[':st_merged']  = EventServiceUtils.ST_merged
+                tmpLog.debug(sqlDelE+comment+str(varMap))
+                self.cur.execute(sqlDelE+comment,varMap)
+                retDelE = self.cur.rowcount
+                tmpLog.debug('set Y to {0} event ranges'.format(retDelE))
+        # loop over all files to update file or dataset attributes
         for fileSpec in jobSpec.Files+pseudoFiles:
             # skip if no JEDI
             if fileSpec.fileID == 'NULL':
@@ -12729,29 +12766,6 @@ class DBProxy:
         # add jobset info for job cloning
         if useJobCloning:
             self.recordRetryHistoryJEDI(jobSpec.jediTaskID,jobSpec.PandaID,[jobSpec.jobsetID],EventServiceUtils.relationTypeJS_ID)
-        # set delete flag to events
-        if (EventServiceUtils.isEventServiceJob(jobSpec) or EventServiceUtils.isEventServiceMerge(jobSpec)) and \
-                jobSpec.jobStatus in ['finished','failed','cancelled']:
-            # sql to set delete flag
-            sqlDelE  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
-            sqlDelE += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
-            sqlDelE += "SET file_not_deleted=:delFlag,status=CASE WHEN status=:st_done THEN :st_merged ELSE status END "
-            sqlDelE += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND objStore_ID IS NOT NULL "
-            for fileSpec in jobSpec.Files:
-                if not fileSpec.type in ['input','pseudo_input']:
-                    continue
-                # set del flag
-                varMap = {}
-                varMap[':jediTaskID'] = fileSpec.jediTaskID
-                varMap[':datasetID']  = fileSpec.datasetID
-                varMap[':fileID']     = fileSpec.fileID
-                varMap[':delFlag']    = 'Y'
-                varMap[':st_done']    = EventServiceUtils.ST_done
-                varMap[':st_merged']  = EventServiceUtils.ST_merged
-                tmpLog.debug(sqlDelE+comment+str(varMap))
-                self.cur.execute(sqlDelE+comment,varMap)
-                retDelE = self.cur.rowcount
-                tmpLog.debug('set Y to {0} event ranges'.format(retDelE))
         # update t_task
         if jobSpec.jobStatus == 'finished' and not jobSpec.prodSourceLabel in ['panda']:
             varMap = {}
