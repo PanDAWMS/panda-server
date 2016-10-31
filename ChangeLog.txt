@@ -1,5 +1,8 @@
 Release Notes
 
+* 10/31/2016
+  * disabled ES file registration
+
 * 10/28/2016
   * fixed localEsMergeNC
 

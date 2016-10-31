@@ -751,7 +751,8 @@ class AdderAtlasPlugin (AdderPluginBase):
         if EventServiceUtils.isEventServiceJob(self.job) \
                 and not EventServiceUtils.isJobCloningJob(self.job):
             try:
-                self.registerEventServiceFiles()
+                pass
+                #self.registerEventServiceFiles()
             except:
                 errType,errValue = sys.exc_info()[:2]
                 self.logger.error('failed to register ES files with {0}:{1}'.format(errType,errValue))
