@@ -1600,7 +1600,10 @@ class DBProxy:
                     # update related ES jobs when ES-merge job is done
                     if useJEDI and EventServiceUtils.isEventServiceMerge(job) and not job.taskBufferErrorCode in [ErrorCode.EC_PilotRetried] \
                             and not job.isCancelled():
-                        self.updateRelatedEventServiceJobs(job)
+                        if job.jobStatus == 'failed':
+                            self.updateRelatedEventServiceJobs(job,True)
+                        else:
+                            self.updateRelatedEventServiceJobs(job)
                 # propagate successful result to unmerge job
                 if useJEDI and job.processingType == 'pmerge' and job.jobStatus == 'finished':
                     self.updateUnmergedJobs(job)
@@ -12436,7 +12439,9 @@ class DBProxy:
             # sql to set delete flag
             sqlDelE  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
             sqlDelE += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
-            sqlDelE += "SET file_not_deleted=:delFlag,status=CASE WHEN status=:st_done THEN :st_merged ELSE status END "
+            sqlDelE += "SET file_not_deleted=:delFlag "
+            if jobSpec.jobStatus == 'finished':
+                sqlDelE += ",status=CASE WHEN status=:st_done THEN :st_merged ELSE status END "
             sqlDelE += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND objStore_ID IS NOT NULL "
             for fileSpec in jobSpec.Files:
                 if not fileSpec.type in ['input','pseudo_input']:
@@ -12457,8 +12462,9 @@ class DBProxy:
                 varMap[':datasetID']  = fileSpec.datasetID
                 varMap[':fileID']     = fileSpec.fileID
                 varMap[':delFlag']    = 'Y'
-                varMap[':st_done']    = EventServiceUtils.ST_done
-                varMap[':st_merged']  = EventServiceUtils.ST_merged
+                if jobSpec.jobStatus == 'finished':
+                    varMap[':st_done']    = EventServiceUtils.ST_done
+                    varMap[':st_merged']  = EventServiceUtils.ST_merged
                 tmpLog.debug(sqlDelE+comment+str(varMap))
                 self.cur.execute(sqlDelE+comment,varMap)
                 retDelE = self.cur.rowcount
