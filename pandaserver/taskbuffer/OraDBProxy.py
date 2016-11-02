@@ -1608,12 +1608,15 @@ class DBProxy:
                 if useJEDI and job.processingType == 'pmerge' and job.jobStatus == 'finished':
                     self.updateUnmergedJobs(job)
                 # overwrite job status
-                sqlOJS = "UPDATE ATLAS_PANDA.jobsArchived4 SET jobStatus=:jobStatus WHERE PandaID=:PandaID "
-                if oldJobSubStatus in ['pilot_failed']:
+                tmpJobStatus = job.jobStatus
+                sqlOJS = "UPDATE ATLAS_PANDA.jobsArchived4 SET jobStatus=:jobStatus,jobSubStatus=:jobSubStatus WHERE PandaID=:PandaID "
+                if oldJobSubStatus in ['pilot_failed','es_heartbeat']:
                     varMap = {}
                     varMap[':PandaID'] = job.PandaID
                     varMap[':jobStatus'] = 'failed'
+                    varMap[':jobSubStatus'] = oldJobSubStatus
                     self.cur.execute(sqlOJS+comment,varMap)
+                    tmpJobStatus = varMap[':jobStatus']
                 # commit
                 if useCommit:
                     if not self._commit():
@@ -1621,7 +1624,7 @@ class DBProxy:
                 # record status change
                 try:
                     for tmpJob in updatedJobList:
-                        self.recordStatusChange(tmpJob.PandaID,tmpJob.jobStatus,jobInfo=tmpJob,useCommit=useCommit)
+                        self.recordStatusChange(tmpJob.PandaID,tmpJobStatus,jobInfo=tmpJob,useCommit=useCommit)
                 except:
                     _logger.error('recordStatusChange in archiveJob')
                 _logger.debug("archiveJob : %s done" % job.PandaID)                
@@ -17346,6 +17349,11 @@ class DBProxy:
                         esPandaIDs.add(tmpPandaID)
             # sql to update ES job
             sqlUE  = "UPDATE {0} SET jobStatus=:newStatus,stateChangeTime=CURRENT_DATE,taskBufferErrorDiag=:errDiag "
+            if job.jobStatus in ['failed']:
+                updateSubStatus = True
+                sqlUE += ',jobSubStatus=:jobSubStatus '
+            else:
+                updateSubStatus = False
             sqlUE += "WHERE PandaID=:PandaID AND jobsetID=:jobsetID AND jobStatus in (:oldStatus1,:oldStatus2) AND modificationTime>(CURRENT_DATE-90) "
             for tmpPandaID in esPandaIDs:
                 varMap = {}
@@ -17354,6 +17362,11 @@ class DBProxy:
                 varMap[':newStatus'] = job.jobStatus
                 varMap[':oldStatus1'] = 'closed'
                 varMap[':oldStatus2'] = 'merging'
+                if updateSubStatus is True:
+                    if EventServiceUtils.isEventServiceMerge(job):
+                        varMap[':jobSubStatus'] = 'es_merge_{0}'.format(job.jobStatus)
+                    else:
+                        varMap[':jobSubStatus'] = 'es_ass_{0}'.format(job.jobStatus)
                 varMap[':errDiag'] = '{0} since an associated ES or merge job PandaID={1} {2}'.format(job.jobStatus,job.PandaID,job.jobStatus)
                 isUpdated = False
                 for tableName in ['ATLAS_PANDA.jobsArchived4','ATLAS_PANDAARCH.jobsArchived']:
@@ -18348,3 +18361,40 @@ class DBProxy:
             # error
             self.dumpErrorMessage(tmpLog,methodName)
             return None,"DB error"
+
+
+    # get event statistics
+    def getEventStat(self, jediTaskID, PandaID):
+        comment = ' /* DBProxy.getEventStat */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <jediTaskID={0} PandaID={1}>".format(jediTaskID, PandaID)
+        tmpLog = LogWrapper(_logger, methodName)
+        tmpLog.debug('start')
+        try:
+            # sql to get event stats
+            sql = 'SELECT status,COUNT(*) FROM {0}.JEDI_Events '.format(panda_config.schemaJEDI)
+            sql += 'WHERE jediTaskID=:jediTaskID AND PandaID=:PandaID '
+            sql += 'GROUP BY status '
+            # start transaction
+            self.conn.begin()
+            self.cur.arraysize = 10000
+            # get stats
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            varMap[':PandaID'] = PandaID
+            self.cur.execute(sql + comment, varMap)
+            resM = self.cur.fetchall()
+            retMap = {}
+            for eventStatus,cnt in resM:
+                retMap[eventStatus] = cnt
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug("done with {0}".format(str(retMap)))
+            return retMap
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(tmpLog,methodName)
+            return {}

@@ -1,5 +1,8 @@
 Release Notes
 
+* 11/2/2016
+  * added es_heartbeat and es_merge_failed
+
 * 10/31/2016
   * disabled ES file registration
   * fixed del flag for failed ES merge jobs

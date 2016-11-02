@@ -171,6 +171,12 @@ class Watcher (threading.Thread):
                                 file.status = 'failed'
                                 if not file.destinationDBlock in destDBList:
                                     destDBList.append(file.destinationDBlock)
+                        # event service
+                        if EventServiceUtils.isEventServiceJob(job) and not EventServiceUtils.isJobCloningJob(job):
+                            eventStat = self.taskBuffer.getEventStat(job.jediTaskID, job.PandaID)
+                            # set sub status when no sucessful events
+                            if EventServiceUtils.ST_finished not in eventStat:
+                                job.jobSubStatus = 'es_heartbeat'
                     # update job
                     self.taskBuffer.updateJobs([job],False)
                     # start closer

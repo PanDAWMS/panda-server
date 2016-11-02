@@ -3123,6 +3123,18 @@ class TaskBuffer:
         return res
 
 
+    # get event statistics
+    def getEventStat(self, jediTaskID, PandaID):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.getEventStat(jediTaskID, PandaID)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
 
 # Singleton
 taskBuffer = TaskBuffer()
