@@ -68,7 +68,8 @@ from userinterface.UserIF        import submitJobs,getJobStatus,queryPandaIDs,ki
      killTask,finishTask,getCmtConfigList,getJediTasksInTimeRange,getJediTaskDetails,\
      retryTask,getRetryHistory,changeTaskPriority,reassignTask,changeTaskAttributePanda,\
      pauseTask,resumeTask,increaseAttemptNrPanda,killUnfinishedJobs,changeTaskSplitRulePanda,\
-     changeTaskModTimePanda,avalancheTask,getPandaIDsWithTaskID,reactivateTask,getTaskStatus
+     changeTaskModTimePanda,avalancheTask,getPandaIDsWithTaskID,reactivateTask,getTaskStatus, \
+     reassignShare, listTasksInShare
 allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reassignJobs',
                    'getJobStatistics','getJobStatisticsPerSite','resubmitJobs','queryLastFilesInDataset','getPandaIDsSite',
                    'getJobsToBeUpdated','updateProdDBUpdateTimes','runTaskAssignment','getAssigningTask','getSiteSpecs',
@@ -84,7 +85,8 @@ allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reass
                    'killTask','finishTask','getCmtConfigList','getJediTasksInTimeRange','getJediTaskDetails',
                    'retryTask','getRetryHistory','changeTaskPriority','reassignTask','changeTaskAttributePanda',
                    'pauseTask','resumeTask','increaseAttemptNrPanda','killUnfinishedJobs','changeTaskSplitRulePanda',
-                   'changeTaskModTimePanda','avalancheTask','getPandaIDsWithTaskID', 'reactivateTask', 'getTaskStatus']
+                   'changeTaskModTimePanda','avalancheTask','getPandaIDsWithTaskID', 'reactivateTask', 'getTaskStatus',
+                   'reassignShare', 'listTasksInShare']
 
 # import error
 import taskbuffer.ErrorCode
@@ -192,7 +194,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
         if panda_config.entryVerbose:
             _logger.debug("PID=%s %s out" % (os.getpid(),methodName))
         regTime = datetime.datetime.utcnow() - regStart
-        _logger.debug("PID=%s %s exec time: %s.%03d sec, return len: %s B" % (os.getpid(),
+        _logger.debug("PID=%s %s exec_time=%s.%03d sec, return len=%s B" % (os.getpid(),
                                                                               methodName,regTime.seconds,
                                                                               regTime.microseconds/1000,
                                                                               len(str(exeRes))))

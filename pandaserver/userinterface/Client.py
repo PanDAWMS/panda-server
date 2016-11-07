@@ -2079,3 +2079,73 @@ def getTaskStatus(jediTaskID):
         errStr = "ERROR getTaskStatus : %s %s" % (type,value)
         print errStr
         return EC_Failed,output+'\n'+errStr
+
+
+
+# reassign specified tasks (and their jobs) to a new share
+def reassignShare(jedi_task_ids, share):
+    """
+       args:
+           jedi_task_ids: task ids to act on
+           share: share to be applied to jeditaskids
+       returns:
+           status code
+                 0: communication succeeded to the panda server
+                 255: communication failure
+           return: a tuple of return code and message
+                 1: logical error
+                 0: success
+                 None: database error
+    """
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+
+    jedi_task_ids_pickle = pickle.dumps(jedi_task_ids)
+    # execute
+    url = baseURLSSL + '/reassignShare'
+    data = {'jedi_task_ids_pickle': jedi_task_ids_pickle,
+            'share': share}
+    status, output = curl.post(url, data)
+
+    try:
+        return status, pickle.loads(output)
+    except:
+        err_type, err_value = sys.exc_info()[:2]
+        err_str = "ERROR reassignShare : {0} {1}".format(err_type, err_value)
+        return EC_Failed, '{0}\n{1}'.format(output, err_str)
+
+
+# list tasks in a particular share and optionally status
+def listTasksInShare(gshare, status='running'):
+    """
+       args:
+           gshare: global share
+           status: task status, running by default
+       returns:
+           status code
+                 0: communication succeeded to the panda server
+                 255: communication failure
+           return: a tuple of return code and jedi_task_ids
+                 1: logical error
+                 0: success
+                 None: database error
+    """
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+
+    # execute
+    url = baseURLSSL + '/listTasksInShare'
+    data = {'gshare': gshare,
+            'status': status}
+    status, output = curl.post(url, data)
+
+    try:
+        return status, pickle.loads(output)
+    except:
+        err_type, err_value = sys.exc_info()[:2]
+        err_str = "ERROR listTasksInShare : {0} {1}".format(err_type, err_value)
+        return EC_Failed, '{0}\n{1}'.format(output, err_str)

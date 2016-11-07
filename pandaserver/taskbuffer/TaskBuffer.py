@@ -3,6 +3,7 @@ import sys
 import json
 import types
 import shlex
+import time
 import datetime
 import ProcessGroups
 import EventServiceUtils
@@ -696,8 +697,8 @@ class TaskBuffer:
         # release proxy
         self.proxyPool.putProxy(proxy)
         return retStr
-        
-    
+
+
     # get jobs
     def getJobs(self,nJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
                 atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry,
@@ -705,9 +706,14 @@ class TaskBuffer:
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get waiting jobs
+        t_before = time.time()
         jobs,nSent = proxy.getJobs(nJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
                                    atlasRelease,prodUserID,countryGroup,workingGroup,allowOtherCountry,
                                    taskID)
+        t_after = time.time()
+        t_total = t_after - t_before
+        _logger.debug("getJobs : took {0}s for {1} nJobs={2} prodSourceLabel={3}"
+                               .format(t_total, siteName, nJobs, prodSourceLabel))
         # release proxy
         self.proxyPool.putProxy(proxy)
         # get Proxy Key
@@ -721,7 +727,7 @@ class TaskBuffer:
             self.proxyPool.putProxy(proxy)
         # return
         return jobs+[nSent,proxyKey]
-        
+
 
     # run task assignment
     def runTaskAssignment(self,jobs):
@@ -3021,17 +3027,6 @@ class TaskBuffer:
         return ret
 
 
-    # get shares
-    def getShares(self, parents=''):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # exec
-        retVal = proxy.getShares(parents)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return retVal
-
 
     # get co-jumbo jobs to be finished
     def getCoJumboJobsToBeFinished(self,timeLimit,minPriority):
@@ -3129,6 +3124,70 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # exec
         res = proxy.getEventStat(jediTaskID, PandaID)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
+    # get the HS06 distribution for global shares
+    def get_hs_distribution(self):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.get_hs_distribution()
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
+    # reassign share
+    def reassignShare(self, jedi_task_ids, share_dest):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.reassignShare(jedi_task_ids, share_dest)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
+    # list tasks in share
+    def listTasksInShare(self, gshare, status):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.listTasksInShare(gshare, status)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
+    def is_valid_share(self, share_name):
+        """
+        Checks whether the share is a valid leave share
+        """
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.is_valid_share(share_name)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
+    def get_share_for_task(self, task):
+        """
+        Return the share based on a task specification
+        """
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.get_share_for_task(task)
         # release DB proxy
         self.proxyPool.putProxy(proxy)
         # return

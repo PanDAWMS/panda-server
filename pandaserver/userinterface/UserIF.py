@@ -68,6 +68,10 @@ class UserIF:
                         _logger.error("submitJobs %s missing prod-role for prodSourceLabel=%s" % (user,tmpJob.prodSourceLabel))
                         goodProdSourceLabel = False
                         break
+
+                # obtain the share
+                gshare = self.taskBuffer.get_share_for_job(tmpJob)
+                tmpJob.gshare = gshare
         except:
             errType,errValue = sys.exc_info()[:2]
             _logger.error("submitJobs : checking goodProdSourceLabel %s %s" % (errType,errValue))
@@ -980,7 +984,13 @@ class UserIF:
         ret = self.taskBuffer.getTaskStatus(jediTaskID)
         return ret[0]
 
+    # reassign share
+    def reassignShare(self, jedi_task_ids, share_dest):
+        return self.taskBuffer.reassignShare(jedi_task_ids, share_dest)
 
+    # list tasks in share
+    def listTasksInShare(self, gshare, status):
+        return self.taskBuffer.listTasksInShare(gshare, status)
 
 # Singleton
 userIF = UserIF()
@@ -2061,10 +2071,7 @@ def changeTaskSplitRulePanda(req,jediTaskID,attrName,attrValue):
 def pauseTask(req,jediTaskID):
     # check security
     if not isSecure(req):
-        if properErrorCode:
-            return pickle.dumps((100,'secure connection is required'))
-        else:
-            return pickle.dumps((False,'secure connection is required'))
+        return pickle.dumps((False, 'secure connection is required'))
     # get DN
     user = None
     if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
@@ -2075,10 +2082,7 @@ def pauseTask(req,jediTaskID):
     try:
         jediTaskID = long(jediTaskID)
     except:
-        if properErrorCode:
-            return pickle.dumps((101,'jediTaskID must be an integer'))        
-        else:
-            return pickle.dumps((False,'jediTaskID must be an integer'))
+        return pickle.dumps((False, 'jediTaskID must be an integer'))
     ret = userIF.pauseTask(jediTaskID,user,prodRole)
     return pickle.dumps(ret)
 
@@ -2088,10 +2092,7 @@ def pauseTask(req,jediTaskID):
 def resumeTask(req,jediTaskID):
     # check security
     if not isSecure(req):
-        if properErrorCode:
-            return pickle.dumps((100,'secure connection is required'))
-        else:
-            return pickle.dumps((False,'secure connection is required'))
+        return pickle.dumps((False, 'secure connection is required'))
     # get DN
     user = None
     if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
@@ -2102,10 +2103,7 @@ def resumeTask(req,jediTaskID):
     try:
         jediTaskID = long(jediTaskID)
     except:
-        if properErrorCode:
-            return pickle.dumps((101,'jediTaskID must be an integer'))        
-        else:
-            return pickle.dumps((False,'jediTaskID must be an integer'))
+        return pickle.dumps((False, 'jediTaskID must be an integer'))
     ret = userIF.resumeTask(jediTaskID,user,prodRole)
     return pickle.dumps(ret)
 
@@ -2115,10 +2113,7 @@ def resumeTask(req,jediTaskID):
 def avalancheTask(req,jediTaskID):
     # check security
     if not isSecure(req):
-        if properErrorCode:
-            return pickle.dumps((100,'secure connection is required'))
-        else:
-            return pickle.dumps((False,'secure connection is required'))
+        return pickle.dumps((False, 'secure connection is required'))
     # get DN
     user = None
     if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
@@ -2129,10 +2124,7 @@ def avalancheTask(req,jediTaskID):
     try:
         jediTaskID = long(jediTaskID)
     except:
-        if properErrorCode:
-            return pickle.dumps((101,'jediTaskID must be an integer'))        
-        else:
-            return pickle.dumps((False,'jediTaskID must be an integer'))
+        return pickle.dumps((False, 'jediTaskID must be an integer'))
     ret = userIF.avalancheTask(jediTaskID,user,prodRole)
     return pickle.dumps(ret)
 
@@ -2242,3 +2234,72 @@ def getTaskStatus(req,jediTaskID):
         return pickle.dumps((False,'jediTaskID must be an integer'))
     ret = userIF.getTaskStatus(jediTaskID)
     return pickle.dumps(ret)
+
+
+
+# reassign specified tasks (and their jobs) to a new share
+def reassignShare(jedi_task_ids, share):
+    """
+       args:
+           jedi_task_ids: task ids to act on
+           share: share to be applied to jeditaskids
+       returns:
+           status code
+                 0: communication succeeded to the panda server
+                 255: communication failure
+           return: a tuple of return code and message
+                 1: logical error
+                 0: success
+                 None: database error
+    """
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+
+    jedi_task_ids_pickle = pickle.dumps(jedi_task_ids)
+    # execute
+    url = baseURLSSL + '/reassignShare'
+    data = {'jedi_task_ids_pickle': jedi_task_ids_pickle,
+            'share': share}
+    status, output = curl.post(url, data)
+
+    try:
+        return status, pickle.loads(output)
+    except:
+        err_type, err_value = sys.exc_info()[:2]
+        err_str = "ERROR reassignShare : {0} {1}".format(err_type, err_value)
+        return EC_Failed, '{0}\n{1}'.format(output, err_str)
+
+# list tasks in a particular share and optionally status
+def listTasksInShare(gshare, status='running'):
+    """
+       args:
+           gshare: global share
+           status: task status, running by default
+       returns:
+           status code
+                 0: communication succeeded to the panda server
+                 255: communication failure
+           return: a tuple of return code and jedi_task_ids
+                 1: logical error
+                 0: success
+                 None: database error
+    """
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+
+    # execute
+    url = baseURLSSL + '/listTasksInShare'
+    data = {'gshare': gshare,
+            'status': status}
+    status, output = curl.post(url, data)
+
+    try:
+        return status, pickle.loads(output)
+    except:
+        err_type, err_value = sys.exc_info()[:2]
+        err_str = "ERROR listTasksInShare : {0} {1}".format(err_type, err_value)
+        return EC_Failed, '{0}\n{1}'.format(output, err_str)
