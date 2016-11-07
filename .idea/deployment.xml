@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="PublishConfigData" serverName="aipanda081.cern.ch">
+    <serverData>
+      <paths name="aipanda081.cern.ch">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/usr/lib/python2.6/site-packages/" local="$PROJECT_DIR$/../panda-common" web="/" />
+            <mapping deploy="/usr/lib/python2.6/site-packages/" local="$PROJECT_DIR$" web="/" />
+            <mapping deploy="/data/atlpan/srv/lib/python2.6/site-packages/" local="$PROJECT_DIR$/../panda-jedi" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+    </serverData>
+  </component>
+</project>

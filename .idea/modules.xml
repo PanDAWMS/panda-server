@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/../distributor_agent/.idea/distributor_agent.iml" filepath="$PROJECT_DIR$/../distributor_agent/.idea/distributor_agent.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../distributor_web/.idea/distributor_web.iml" filepath="$PROJECT_DIR$/../distributor_web/.idea/distributor_web.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../monitor/.idea/monitor.iml" filepath="$PROJECT_DIR$/../monitor/.idea/monitor.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../panda-cacheschedconfig/.idea/panda-cacheschedconfig.iml" filepath="$PROJECT_DIR$/../panda-cacheschedconfig/.idea/panda-cacheschedconfig.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../panda-client/.idea/panda-client.iml" filepath="$PROJECT_DIR$/../panda-client/.idea/panda-client.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../panda-common/.idea/panda-common.iml" filepath="$PROJECT_DIR$/../panda-common/.idea/panda-common.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../panda-harvester/.idea/panda-harvester.iml" filepath="$PROJECT_DIR$/../panda-harvester/.idea/panda-harvester.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../panda-jedi/.idea/panda-jedi.iml" filepath="$PROJECT_DIR$/../panda-jedi/.idea/panda-jedi.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/panda-server.iml" filepath="$PROJECT_DIR$/.idea/panda-server.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../panda_logstash_config/.idea/panda_logstash_config.iml" filepath="$PROJECT_DIR$/../panda_logstash_config/.idea/panda_logstash_config.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../scribbles/.idea/scribbles.iml" filepath="$PROJECT_DIR$/../scribbles/.idea/scribbles.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../service-monitoring/.idea/service-monitoring.iml" filepath="$PROJECT_DIR$/../service-monitoring/.idea/service-monitoring.iml" />
+    </modules>
+  </component>
+</project>

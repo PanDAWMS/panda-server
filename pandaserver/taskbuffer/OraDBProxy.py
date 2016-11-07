@@ -26,6 +26,7 @@ import PrioUtil
 import ProcessGroups
 import JobUtils
 import EventServiceUtils
+import GlobalShares
 from DdmSpec  import DdmSpec
 from JobSpec  import JobSpec
 from FileSpec import FileSpec
