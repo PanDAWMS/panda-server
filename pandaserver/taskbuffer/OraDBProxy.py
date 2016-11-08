@@ -354,7 +354,12 @@ class DBProxy:
             else:
                 # set maxAttempt to have server/pilot retries for retried jobs
                 if job.maxAttempt <= job.attemptNr:    
-                    job.maxAttempt = job.attemptNr + 2    
+                    job.maxAttempt = job.attemptNr + 2
+
+        # obtain the share
+        if job.gshare is None:
+            job.gshare = self.taskBuffer.get_share_for_job(job)
+
         try:
             # use JEDI
             if hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and \

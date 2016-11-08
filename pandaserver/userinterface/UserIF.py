@@ -68,10 +68,6 @@ class UserIF:
                         _logger.error("submitJobs %s missing prod-role for prodSourceLabel=%s" % (user,tmpJob.prodSourceLabel))
                         goodProdSourceLabel = False
                         break
-
-                # obtain the share
-                gshare = self.taskBuffer.get_share_for_job(tmpJob)
-                tmpJob.gshare = gshare
         except:
             errType,errValue = sys.exc_info()[:2]
             _logger.error("submitJobs : checking goodProdSourceLabel %s %s" % (errType,errValue))
