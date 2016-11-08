@@ -3194,6 +3194,19 @@ class TaskBuffer:
         return res
 
 
+    def get_share_for_job(self, job):
+        """
+        Return the share based on a task specification
+        """
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.get_share_for_job(job)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
 
 # Singleton
 taskBuffer = TaskBuffer()
