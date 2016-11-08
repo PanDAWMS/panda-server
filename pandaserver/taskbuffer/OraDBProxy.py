@@ -9719,14 +9719,6 @@ class DBProxy:
 
         try:
             # Get the share leaves sorted by order of under-pledging
-            t_before = time.time()
-            _logger.debug('getCrit1')
-            print 'getCrit2'
-            _logger.debug('getCrit2')
-            t_after = time.time()
-            total = t_after - t_before
-            _logger.debug('Starting global shares took {0}s'.format(total))
-
             _logger.debug('Going to call get sorted leaves')
             t_before = time.time()
             sorted_leaves = self.get_sorted_leaves()
