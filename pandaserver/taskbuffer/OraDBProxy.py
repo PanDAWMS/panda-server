@@ -357,8 +357,8 @@ class DBProxy:
                     job.maxAttempt = job.attemptNr + 2
 
         # obtain the share
-        if job.gshare is None:
-            job.gshare = self.taskBuffer.get_share_for_job(job)
+        if job.gshare in ('NULL', None, ''):
+            job.gshare = self.get_share_for_job(job)
 
         try:
             # use JEDI
