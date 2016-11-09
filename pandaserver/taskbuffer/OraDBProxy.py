@@ -18667,9 +18667,7 @@ class DBProxy:
         Re-loads the shares, then returns the leaves sorted by under usage
         """
         self.__reload_shares()
-        _logger.debug('going to call reload dist')
         self.__reload_hs_distribution()
-        _logger.debug('back from call')
         return self.tree.sort_branch_by_current_hs_distribution(self.__hs_distribution)
 
 

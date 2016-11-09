@@ -2232,70 +2232,48 @@ def getTaskStatus(req,jediTaskID):
     return pickle.dumps(ret)
 
 
+# reassign share
+def reassignShare(req, jedi_task_ids_pickle, share):
+    # check security
+    if not isSecure(req):
+        return pickle.dumps((False,'secure connection is required'))
+    # get DN
+    user = None
+    if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        user = _getDN(req)
+    # check role
+    prod_role = _isProdRoleATLAS(req)
+    if not prod_role:
+        return pickle.dumps((False,"production or pilot role required"))
 
-# reassign specified tasks (and their jobs) to a new share
-def reassignShare(jedi_task_ids, share):
-    """
-       args:
-           jedi_task_ids: task ids to act on
-           share: share to be applied to jeditaskids
-       returns:
-           status code
-                 0: communication succeeded to the panda server
-                 255: communication failure
-           return: a tuple of return code and message
-                 1: logical error
-                 0: success
-                 None: database error
-    """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey  = _x509()
+    jedi_task_ids = WrappedPickle.loads(jedi_task_ids_pickle)
+    _logger.debug('reassignShare: jedi_task_ids: {0}, share: {1}'.format(jedi_task_ids, share))
 
-    jedi_task_ids_pickle = pickle.dumps(jedi_task_ids)
-    # execute
-    url = baseURLSSL + '/reassignShare'
-    data = {'jedi_task_ids_pickle': jedi_task_ids_pickle,
-            'share': share}
-    status, output = curl.post(url, data)
+    if not ((isinstance(jedi_task_ids, list) or (isinstance(jedi_task_ids, tuple)) and isinstance(share, str))):
+        return pickle.dumps((False, 'jedi_task_ids must be tuple/list and share must be string'))
 
-    try:
-        return status, pickle.loads(output)
-    except:
-        err_type, err_value = sys.exc_info()[:2]
-        err_str = "ERROR reassignShare : {0} {1}".format(err_type, err_value)
-        return EC_Failed, '{0}\n{1}'.format(output, err_str)
+    ret = userIF.reassignShare(jedi_task_ids, share)
+    return pickle.dumps(ret)
 
-# list tasks in a particular share and optionally status
-def listTasksInShare(gshare, status='running'):
-    """
-       args:
-           gshare: global share
-           status: task status, running by default
-       returns:
-           status code
-                 0: communication succeeded to the panda server
-                 255: communication failure
-           return: a tuple of return code and jedi_task_ids
-                 1: logical error
-                 0: success
-                 None: database error
-    """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey  = _x509()
 
-    # execute
-    url = baseURLSSL + '/listTasksInShare'
-    data = {'gshare': gshare,
-            'status': status}
-    status, output = curl.post(url, data)
+# list tasks in share
+def listTasksInShare(req, gshare, status):
+    # check security
+    if not isSecure(req):
+        return pickle.dumps((False,'secure connection is required'))
+    # get DN
+    user = None
+    if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        user = _getDN(req)
+    # check role
+    prod_role = _isProdRoleATLAS(req)
+    if not prod_role:
+        return pickle.dumps((False,"production or pilot role required"))
 
-    try:
-        return status, pickle.loads(output)
-    except:
-        err_type, err_value = sys.exc_info()[:2]
-        err_str = "ERROR listTasksInShare : {0} {1}".format(err_type, err_value)
-        return EC_Failed, '{0}\n{1}'.format(output, err_str)
+    _logger.debug('listTasksInShare: gshare: {0}, status: {1}'.format(gshare, status))
+
+    if not ((isinstance(gshare, str) and isinstance(status, str))):
+        return pickle.dumps((False, 'gshare and status must be of type string'))
+
+    ret = userIF.listTasksInShare(gshare, status)
+    return pickle.dumps(ret)
