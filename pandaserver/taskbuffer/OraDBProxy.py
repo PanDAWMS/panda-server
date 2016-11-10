@@ -18637,7 +18637,7 @@ class DBProxy:
         if share.campaign is not None and re.match(share.campaign, task.campaign) is None:
             return False
 
-        if share.processingtype is not None and re.match(share.processingtype, task.processingtype) is None:
+        if share.processingtype is not None and re.match(share.processingtype, task.processingType) is None:
             return False
 
         return True
@@ -18655,7 +18655,7 @@ class DBProxy:
         if share.workinggroup is not None and re.match(share.workinggroup, job.workingGroup) is None:
             return False
 
-        if share.processingtype is not None and re.match(share.processingtype, job.processingtype) is None:
+        if share.processingtype is not None and re.match(share.processingtype, job.processingType) is None:
             return False
 
         return True
