@@ -16498,7 +16498,7 @@ class DBProxy:
                 tmpLog.debug(sqlUDO+comment+str(varMap))
                 self.cur.execute(sqlUDO+comment,varMap)
                 # get input datasets
-                sqlID  = 'SELECT datasetID,datasetName,masterID FROM {0}.JEDI_Datasets '.format(jedi_config.db.schemaJEDI)
+                sqlID  = 'SELECT datasetID,datasetName,masterID FROM {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
                 sqlID += 'WHERE jediTaskID=:jediTaskID AND type=:type '
                 varMap = {}
                 varMap[':jediTaskID'] = jediTaskID
@@ -16512,8 +16512,8 @@ class DBProxy:
                     if tmpMasterID == None:
                         masterID = tmpDatasetID
                 # sql to get affected inputs
-                sqlAI  = 'SELECT fileID,datasetID,lfn,outPandaID FROM {0}.JEDI_Dataset_Contents '.format(jedi_config.db.schemaJEDI)
-                sqlAI += 'WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) AND PandaID=:PandaID '
+                sqlAI  = 'SELECT fileID,datasetID,lfn,outPandaID FROM {0}.JEDI_Dataset_Contents '.format(panda_config.schemaJEDI)
+                sqlAI += 'WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2,:type3) AND PandaID=:PandaID '
                 # sql to update input file status
                 sqlUFI  = 'UPDATE {0}.JEDI_Dataset_Contents '.format(panda_config.schemaJEDI)
                 sqlUFI += 'SET status=:newStatus,attemptNr=attemptNr+1 '
@@ -16526,11 +16526,15 @@ class DBProxy:
                     varMap[':PandaID'] = lostPandaID
                     varMap[':type1'] = 'input'
                     varMap[':type2'] = 'pseudo_input'
+                    varMap[':type3'] = 'output'
                     self.cur.execute(sqlAI+comment,varMap)
                     resAI = self.cur.fetchall()
                     newResAI = []
                     for tmpItem in resAI:
                         tmpFileID,tmpDatasetID,tmpLFN,tmpOutPandaID = tmpItem
+                        # skip output file
+                        if lostPandaID == tmpOutPandaID:
+                            continue
                         # input for merged files
                         if tmpOutPandaID != None:
                             varMap = {}
@@ -16538,13 +16542,14 @@ class DBProxy:
                             varMap[':PandaID'] = tmpOutPandaID
                             varMap[':type1'] = 'input'
                             varMap[':type2'] = 'pseudo_input'
+                            varMap[':type3'] = 'dummy'
                             self.cur.execute(sqlAI+comment,varMap)
                             resAI2 = self.cur.fetchall()
                             for tmpItem in resAI2:
                                 newResAI.append(tmpItem)
                         else:
                             newResAI.append(tmpItem)
-                    for tmpFileID,tmpDatasetID,tmpLFN,tmpOutPandaI in newResAI:
+                    for tmpFileID,tmpDatasetID,tmpLFN,tmpOutPandaID in newResAI:
                         # skip if dataset was already deleted
                         if tmpDatasetID in lostInputDatasets:
                             if tmpDatasetID == masterID:
@@ -16581,82 +16586,11 @@ class DBProxy:
                     varMap[':jediTaskID'] = jediTaskID
                     varMap[':newStatus'] = 'finished'
                     self.cur.execute(sqlUT+comment,varMap)
-                # some input datasets are lost
-                if len(lostInputDatasets) != 0:
-                    # rename input datasets since deleted names cannot be reused
-                    sqlUN  = 'UPDATE {0}.JEDI_Datasets SET datasetName=:datasetName '.format(panda_config.schemaJEDI)
-                    sqlUN += 'WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID '
-                    for tmpDatasetID,tmpDatasetName in lostInputDatasets.iteritems():
-                        # look for rev number
-                        tmpMatch = re.search('\.rcov(\d+)$',tmpDatasetName)
-                        if tmpMatch == None:
-                            revNum = 0
-                        else:
-                            revNum = int(tmpMatch.group(1))
-                        newDatasetName = re.sub('\.rcov(\d+)$','',tmpDatasetName)
-                        newDatasetName += '.rcov{0}'.format(revNum+1)
-                        varMap = {}
-                        varMap[':jediTaskID'] = jediTaskID
-                        varMap[':datasetID'] = tmpDatasetID
-                        varMap[':datasetName'] = newDatasetName
-                        self.cur.execute(sqlUN+comment,varMap)
-                    # get child task
-                    sqlGC  = 'SELECT jediTaskID FROM {0}.JEDI_Tasks WHERE parent_tid=:jediTaskID '.format(panda_config.schemaJEDI)
-                    varMap = {}
-                    varMap[':jediTaskID'] = jediTaskID
-                    self.cur.execute(sqlGC+comment,varMap)
-                    resGC = self.cur.fetchone()
-                    if resGC != None:
-                        childTaskID, = resGC
-                        if not childTaskID in [None,jediTaskID]:
-                            # get output datasets
-                            varMap = {}
-                            varMap[':jediTaskID'] = jediTaskID
-                            varMap[':type1'] = 'output'
-                            varMap[':type2'] = 'log'
-                            sqlOD  = 'SELECT datasetID,datasetName FROM {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
-                            sqlOD += 'WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) '
-                            self.cur.execute(sqlOD+comment,varMap)
-                            resOD = self.cur.fetchall()
-                            outputDatasets = {}
-                            for tmpDatasetID,tmpDatasetName in resOD:
-                                # remove scope and extension
-                                bareName = tmpDatasetName.split(':')[-1]
-                                bareName = re.sub('\.rcov(\d+)$','',bareName)
-                                outputDatasets[bareName] = {'datasetID':tmpDatasetID,
-                                                            'datasetName':tmpDatasetName}
-                            # get input datasets for child
-                            varMap = {}
-                            varMap[':jediTaskID'] = childTaskID
-                            varMap[':type'] = 'input'
-                            sqlGI  = 'SELECT datasetName FROM {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
-                            sqlGI += 'WHERE jediTaskID=:jediTaskID AND type=:type '
-                            self.cur.execute(sqlGI+comment,varMap)
-                            resGI = self.cur.fetchall()
-                            for tmpDatasetName, in resGI:
-                                # remove scope and extension
-                                bareName = tmpDatasetName.split(':')[-1]
-                                bareName = re.sub('\.rcov(\d+)$','',bareName)
-                                # check if child renamed them
-                                if bareName in outputDatasets and \
-                                        tmpDatasetName.split(':')[-1] != outputDatasets[bareName]['datasetName'].split(':')[-1]:
-                                    newDatasetName = tmpDatasetName
-                                    # remove scope
-                                    if not ':' in outputDatasets[bareName]['datasetName']:
-                                        newDatasetName = newDatasetName.split(':')[-1]
-                                    # rename output datasets if child renamed them
-                                    varMap = {}
-                                    varMap[':jediTaskID'] = jediTaskID
-                                    varMap[':datasetID'] = outputDatasets[bareName]['datasetID']
-                                    varMap[':datasetName'] = newDatasetName
-                                    self.cur.execute(sqlUN+comment,varMap)
-                                    tmpLog.debug("renamed datasetID={0} to {1}".format(varMap[':datasetID'],
-                                                                                       varMap[':datasetName']))
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
             tmpLog.debug("done")
-            return True,lostInputFiles
+            return True,jediTaskID
         except:
             # roll back
             self._rollback()

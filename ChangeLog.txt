@@ -1,5 +1,8 @@
 Release Notes
 
+* 11/10/2016
+  * added recoverLostFiles
+
 * 11/2/2016
   * added es_heartbeat and es_merge_failed
 
