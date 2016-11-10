@@ -7,17 +7,17 @@ taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
 
 # parse option
 parser = argparse.ArgumentParser()
-parser.add_argument('--ds',action='store',dest='ds',default=None,
+parser.add_argument('--ds',action='store',dest='ds',default=None,required=True,
                     help='dataset name')
-parser.add_argument('--files',action='store',dest='ds',default=None,
+parser.add_argument('--files',action='store',dest='files',default=None,required=True,
                     help='comma-separated list of lost file names')
 options = parser.parse_args()
 
 files = options.files.split(',')
 
-s,jediTaskID = taskBuffer.resetFileStatusInJEDI(options.ds,files)
+s,jediTaskID = taskBuffer.resetFileStatusInJEDI('',True,options.ds,files,[])
 if s:
-    print Client.retryTask(jediTaskID)[-1]
+    print Client.retryTask(jediTaskID)[-1][-1]
     print 'done for jediTaskID={0}'.format(jediTaskID)
 else:
     print 'failed'
