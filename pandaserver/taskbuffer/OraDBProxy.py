@@ -26,6 +26,7 @@ import PrioUtil
 import ProcessGroups
 import JobUtils
 import EventServiceUtils
+import GlobalShares
 from DdmSpec  import DdmSpec
 from JobSpec  import JobSpec
 from FileSpec import FileSpec
@@ -84,6 +85,16 @@ class DBProxy:
         self.myHostName = socket.getfqdn()
         self.backend = panda_config.backend
 
+        # global share variables
+        self.tree = None  # Pointer to the root of the global shares tree
+        self.leave_shares = None  # Pointer to the list with leave shares
+        self.__t_update_shares = None  # Timestamp when the shares were last updated
+        self.__hs_distribution = None  # HS06s distribution of sites
+        self.__t_update_distribution = None  # Timestamp when the HS06s distribution was last updated
+
+        # self.__reload_shares()
+        # self.__reload_hs_distribution()
+
     # connect to DB
     def connect(self,dbhost=panda_config.dbhost,dbpasswd=panda_config.dbpasswd,
                 dbuser=panda_config.dbuser,dbname=panda_config.dbname,
@@ -128,9 +139,8 @@ class DBProxy:
             type, value, traceBack = sys.exc_info()
             _logger.error("connect : %s %s" % (type,value))
             return False
-    
-    #Internal caching of a result. Use only for information 
-    #with low update frequency and low memory footprint
+
+    # Internal caching of a result. Use only for information with low update frequency and low memory footprint
     def memoize(f):
         memo = {}
         kwd_mark = object()
@@ -344,7 +354,12 @@ class DBProxy:
             else:
                 # set maxAttempt to have server/pilot retries for retried jobs
                 if job.maxAttempt <= job.attemptNr:    
-                    job.maxAttempt = job.attemptNr + 2    
+                    job.maxAttempt = job.attemptNr + 2
+
+        # obtain the share
+        if job.gshare in ('NULL', None, ''):
+            job.gshare = self.get_share_for_job(job)
+
         try:
             # use JEDI
             if hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and \
@@ -2774,6 +2789,14 @@ class DBProxy:
                                    'CERN-BUILDS' :'builds',
                                    },
                       }
+
+        # Flag to indicate that global share clauses are being used
+        global_share_used = False
+        # Global share clauses and varmap
+        global_share_sql, global_share_varmap = None, {}
+        # Number of PanDAIDs that will be tried
+        maxAttemptIDx = 10
+
         # construct where clause
         dynamicBrokering = False
         getValMap = {}
@@ -2877,15 +2900,39 @@ class DBProxy:
                 sql1 = sql1[:-1]
                 sql1+= ") "
         # production share
-        if prodSourceLabel in ['managed',None,'sharetest']:
+        if prodSourceLabel in ['managed', None, 'sharetest']:
             aggSitesForFairshare = []
             if aggSiteMap.has_key(siteName):
                 aggSitesForFairshare = aggSiteMap[siteName].keys()
-            shareSQL,shareVarMap = self.getCriteriaForProdShare(siteName,aggSitesForFairshare)
-            if shareVarMap != {}:
-                sql1 += shareSQL
-                for tmpShareKey in shareVarMap.keys():
-                    getValMap[tmpShareKey] = shareVarMap[tmpShareKey]
+
+            # update fareshare policy
+            self.getFaresharePolicy()
+
+            # there is a site capability defined - use the old fairshare mechanisms
+            using_site_capability = False
+
+            if self.faresharePolicy.has_key(siteName) and self.faresharePolicy[siteName]['usingCloud'] == '':
+                using_site_capability = True
+
+            # if global shares are active and there is no site capability defined
+            if hasattr(panda_config, 'global_shares') and panda_config.global_shares == True:
+                global_share_used = True
+
+            if global_share_used:
+                # and not using_site_capability:
+                global_share_sql, global_share_varmap = self.getCriteriaForGlobalShares(siteName, maxAttemptIDx)
+
+                if global_share_varmap:  # copy the var map, but not the sql, since it has to be at the very end
+                    for tmpShareKey in global_share_varmap.keys():
+                        getValMap[tmpShareKey] = global_share_varmap[tmpShareKey]
+            else:
+                shareSQL, shareVarMap = self.getCriteriaForProdShare(siteName, aggSitesForFairshare)
+
+                if shareVarMap != {}:
+                    sql1 += shareSQL
+                    for tmpShareKey in shareVarMap.keys():
+                        getValMap[tmpShareKey] = shareVarMap[tmpShareKey]
+
 
         # sql2 is query to get the DB entry for a specific PanDA ID
         sql2 = "SELECT %s FROM ATLAS_PANDA.jobsActive4 " % JobSpec.columnNames()
@@ -2916,7 +2963,7 @@ class DBProxy:
                     # start transaction
                     self.conn.begin()
                     # select
-                    self.cur.arraysize = 100                    
+                    self.cur.arraysize = 100
                     self.cur.execute(sqlDDM+comment, ddmValMap)
                     resDDM = self.cur.fetchall()
                     # commit
@@ -2969,7 +3016,7 @@ class DBProxy:
                 if prodSourceLabel in ['ddm']:
                     # to add some delay for attempts
                     sql1 += attSQL
-                    getValMap[':creationTime'] = attLimit                    
+                    getValMap[':creationTime'] = attLimit
                 nTry=1
                 for iTry in range(nTry):
                     # set siteID
@@ -2985,8 +3032,11 @@ class DBProxy:
                         # get max priority for analysis jobs
                         if prodSourceLabel in ['panda','user']:
                             sqlMX = "SELECT /*+ INDEX_RS_ASC(tab (PRODSOURCELABEL COMPUTINGSITE JOBSTATUS) ) */ MAX(currentPriority) FROM ATLAS_PANDA.jobsActive4 tab "
-                            sqlMX+= sql1
+                            sqlMX += sql1
+                            if global_share_sql:
+                                sqlMX += global_share_sql
                             _logger.debug(sqlMX+comment+str(getValMap))
+
                             # start transaction
                             self.conn.begin()
                             # select
@@ -3002,13 +3052,17 @@ class DBProxy:
                             else:
                                 # set priority
                                 getValMap[':currentPriority'] = tmpPriority
-                        maxAttemptIDx = 10
+
                         if toGetPandaIDs:
                             # get PandaIDs
                             sqlP = "SELECT /*+ INDEX_RS_ASC(tab (PRODSOURCELABEL COMPUTINGSITE JOBSTATUS) ) */ PandaID,currentPriority,specialHandling FROM ATLAS_PANDA.jobsActive4 tab "
-                            sqlP+= sql1
+                            sqlP += sql1
                             if ':currentPriority' in getValMap:
                                 sqlP += "AND currentPriority=:currentPriority "
+
+                            if global_share_sql:
+                                sqlP += global_share_sql
+
                             _logger.debug(sqlP+comment+str(getValMap))
                             # start transaction
                             self.conn.begin()
@@ -3020,16 +3074,23 @@ class DBProxy:
                             if not self._commit():
                                 raise RuntimeError, 'Commit error'
                             maxCurrentPriority = None
-                            # get max priority and min PandaID
-                            for tmpPandaID,tmpCurrentPriority,tmpSpecialHandling in resIDs:
-                                if maxCurrentPriority==None or maxCurrentPriority < tmpCurrentPriority:
-                                    maxCurrentPriority = tmpCurrentPriority
-                                    pandaIDs = [tmpPandaID]
-                                elif maxCurrentPriority == tmpCurrentPriority:
+
+                            # If global share was used, the result is coming pre-sorted
+                            if global_share_used:
+                                for tmpPandaID, tmpCurrentPriority, tmpSpecialHandling in resIDs:
                                     pandaIDs.append(tmpPandaID)
-                                specialHandlingMap[tmpPandaID] = tmpSpecialHandling    
-                            # sort
-                            pandaIDs.sort()
+                                    specialHandlingMap[tmpPandaID] = tmpSpecialHandling
+                            else:  # If global share was not used, get max priority and min PandaID
+                                for tmpPandaID, tmpCurrentPriority, tmpSpecialHandling in resIDs:
+                                    if maxCurrentPriority == None or maxCurrentPriority < tmpCurrentPriority:
+                                        maxCurrentPriority = tmpCurrentPriority
+                                        pandaIDs = [tmpPandaID]
+                                    elif maxCurrentPriority == tmpCurrentPriority:
+                                        pandaIDs.append(tmpPandaID)
+                                    specialHandlingMap[tmpPandaID] = tmpSpecialHandling
+                                # sort
+                                pandaIDs.sort()
+
                         if pandaIDs == []:
                             _logger.debug("getJobs : %s -> no PandaIDs" % strName)
                             retU = 0 # retU: return from update
@@ -3335,10 +3396,10 @@ class DBProxy:
                     self.recordStatusChange(job.PandaID,job.jobStatus,jobInfo=job)
                 except:
                     _logger.error('recordStatusChange in getJobs')
-            return retJobs,nSent
+            return retJobs, nSent
         except:
-            errtype,errvalue = sys.exc_info()[:2]
-            errStr = "getJobs : %s %s" % (errtype,errvalue)
+            errtype, errvalue = sys.exc_info()[:2]
+            errStr = "getJobs : %s %s" % (errtype, errvalue)
             errStr.strip()
             errStr += traceback.format_exc()
             _logger.error(errStr)
@@ -4061,8 +4122,8 @@ class DBProxy:
         except:
             # roll back
             self._rollback()
-            errtype,errvalue = sys.exc_info()[:2]
-            _logger.error("getPandaIDwithJobExeID : %s %s %s" % (jobexeID,errtype,errvalue))
+            errtype, errvalue = sys.exc_info()[:2]
+            _logger.error("getPandaIDwithJobExeID : %s %s %s" % (jobexeID,errtype, errvalue))
             return failedRetVal
 
 
@@ -9649,12 +9710,68 @@ class DBProxy:
 
 
     # get selection criteria for share of production activities
+    def getCriteriaForGlobalShares(self, site_name, max_jobs):
+        comment = ' /* DBProxy.getCriteriaForGlobalShare */'
+        # return for no criteria
+        ret_sql = ''
+        var_map = {}
+        ret_empty = '', {}
+
+        try:
+            # Get the share leaves sorted by order of under-pledging
+            _logger.debug('Going to call get sorted leaves')
+            t_before = time.time()
+            sorted_leaves = self.get_sorted_leaves()
+            t_after = time.time()
+            total = t_after - t_before
+            _logger.debug('Sorting leaves took {0}s'.format(total))
+
+            i = 0
+            tmp_list = []
+            for leave in sorted_leaves:
+                var_map[':leave{0}'.format(i)] = leave.name
+                if leave.name == 'Test':
+                    # Test share will bypass others for the moment
+                    tmp_list.append(':leave{0}, 0'.format(i))
+                else:
+                    tmp_list.append(':leave{0}, {0}'.format(i))
+                i += 1
+
+            # Only get max_jobs, to avoid getting all activated jobs from the
+            var_map[':njobs'] = max_jobs
+
+            # We want to sort by global share, highest priority and lowest pandaid
+            leave_bindings = ','.join(tmp_list)
+            ret_sql = """
+                      AND ROWNUM <= {0}
+                      ORDER BY DECODE (gshare, {1}, {2}), currentpriority desc, pandaid asc
+                      """.format(':njobs', leave_bindings, len(sorted_leaves))
+
+            # TODO: a job might be stuck on a site because its share is completely filled by sites with
+            # TODO: specific site-capability that won't run anything else. Job brokerage should be global share aware
+
+            _logger.debug('ret_sql: {0}'.format(ret_sql))
+            _logger.debug('var_map: {0}'.format(var_map))
+            return ret_sql, var_map
+
+        except:
+            err_type, err_value = sys.exc_info()[:2]
+            err_str = "getCriteriaForGlobalShare {0} : {1} {2}".format(site_name, err_type, err_value)
+            err_str.strip()
+            err_str += traceback.format_exc()
+            _logger.error(err_str)
+            # roll back
+            self._rollback()
+            return ret_empty
+
+
+    # get selection criteria for share of production activities
     def getCriteriaForProdShare(self,siteName,aggSites=[]):
         comment = ' /* DBProxy.getCriteriaForProdShare */'        
         # return for no criteria
         retForNone = '',{}
-        # update fareshare policy
-        self.getFaresharePolicy()
+        # don't update fareshare policy, it was just updated  within getJobs
+        # self.getFaresharePolicy()
         # not defined
         if not self.faresharePolicy.has_key(siteName):
             return retForNone
@@ -10444,7 +10561,7 @@ class DBProxy:
                                 faresharePolicy[siteid]['idListWithPrio'].append(tmpDefItem['id'])
                 except:
                     errtype,errvalue = sys.exc_info()[:2]                    
-                    _logger.warning("getFaresharePolicy : wrond definition '%s' for %s : %s %s" % (faresharePolicy,siteid,errtype,errvalue))                    
+                    _logger.warning("getFaresharePolicy : wrong definition '%s' for %s : %s %s" % (faresharePolicy, siteid, errtype, errvalue))
             _logger.debug("getFaresharePolicy -> %s" % str(faresharePolicy))
             if not getNewMap:
                 self.faresharePolicy = faresharePolicy
@@ -16761,11 +16878,10 @@ class DBProxy:
 
         _logger.debug("definitions %s"%(definitions))
          
-        retrial_rules = {} #TODO: Consider if we want a class RetrialRule
+        retrial_rules = {}
         for definition in definitions:
             error_source, error_code, error_diag, parameters, architecture, release, wqid, action, e_active, a_active = definition
                 
-            #TODO: Need to define a formatting and naming convention for setting the parameters
             #Convert the parameter string into a dictionary
             try:
                 #1. Convert a string like "key1=value1&key2=value2" into [[key1, value1],[key2,value2]]
@@ -17795,51 +17911,6 @@ class DBProxy:
         # return
         return
 
-    # retrieve global shares
-    def getShares(self, parents=''):
-        comment = ' /* DBProxy.getShares */'
-        methodName = comment.split(' ')[-2].split('.')[-1]
-        tmpLog = LogWrapper(_logger, methodName)
-        tmpLog.debug('start')
-
-
-        sql  = """
-               SELECT NAME, VALUE, PARENT, PRODSOURCELABEL, WORKINGGROUP, CAMPAIGN, PROCESSINGTYPE
-               FROM ATLAS_PANDA.GLOBAL_SHARES
-               """
-
-        if parents == '':
-            # Get all shares
-            self.cur.execute(sql+comment)
-
-        elif parents is None:
-            # Get top level shares
-            sql += "WHERE parent IS NULL"
-            self.cur.execute(sql+comment)
-
-        elif type(parents) == str:
-            # Get the children of a specific share
-            varMap = {':parent': parents}
-            sql += "WHERE parent = :parent"
-            self.cur.execute(sql+comment, varMap)
-
-        elif type(parents) in (list, tuple):
-            # Get the children of a list of shares
-            i = 0
-            varMap = {}
-            for parent in parents:
-                key = ':parent{0}'.format(i)
-                varMap[key] = parent
-                i += 1
-
-            parentBindings = ','.join(':parent{0}'.format(i) for i in xrange(len(parents)))
-            sql += "WHERE parent IN ({0})".format(parentBindings)
-            self.cur.execute(sql+comment, varMap)
-
-        resList = self.cur.fetchall()
-        tmpLog.debug('done')
-        return resList
-
 
     # check if all events are done
     def checkAllEventsDone(self,job,pandaID,useCommit=False):
@@ -18398,3 +18469,419 @@ class DBProxy:
             # error
             self.dumpErrorMessage(tmpLog,methodName)
             return {}
+
+
+    def __get_hs_leave_distribution(self, leave_shares):
+        """
+        Get the current HS06 distribution for running and queued jobs
+        """
+        comment = ' /* DBProxy.get_hs_leave_distribution */'
+
+        sql_hs_distribution = """
+            SELECT gshare, jobstatus_grouped, SUM(HS)
+            FROM
+                (SELECT gshare, HS,
+                     CASE
+                         WHEN jobstatus IN('activated') THEN 'queued'
+                         WHEN jobstatus IN('sent', 'starting', 'running', 'holding') THEN 'executing'
+                         ELSE 'ignore'
+                     END jobstatus_grouped
+                 FROM ATLAS_PANDA.JOBS_SHARE_STATS JSS)
+            GROUP BY gshare, jobstatus_grouped
+            """
+
+        self.cur.execute(sql_hs_distribution + comment)
+        hs_distribution_raw = self.cur.fetchall()
+
+        # get the hs distribution data into a dictionary structure
+        hs_distribution_dict = {}
+        hs_queued_total = 0
+        hs_executing_total = 0
+        hs_ignore_total = 0
+        for hs_entry in hs_distribution_raw:
+            gshare, status_group, hs = hs_entry
+            hs_distribution_dict.setdefault(gshare, {GlobalShares.PLEDGED: 0, GlobalShares.QUEUED: 0, GlobalShares.EXECUTING: 0})
+            hs_distribution_dict[gshare][status_group] = hs
+            # calculate totals
+            if status_group == GlobalShares.QUEUED:
+                hs_queued_total += hs
+            elif status_group == GlobalShares.EXECUTING:
+                hs_executing_total += hs
+            else:
+                hs_ignore_total += hs
+
+        # Calculate the ideal HS06 distribution based on shares.
+        for share_node in leave_shares:
+            share_name, share_value = share_node.name, share_node.value
+            hs_pledged_share = hs_executing_total * share_value / 100.0
+
+            hs_distribution_dict.setdefault(share_name, {GlobalShares.PLEDGED: 0, GlobalShares.QUEUED: 0, GlobalShares.EXECUTING: 0})
+            # Pledged HS according to global share definitions
+            hs_distribution_dict[share_name]['pledged'] = hs_pledged_share
+        return hs_distribution_dict
+
+
+    # retrieve global shares
+    def get_shares(self, parents=''):
+        comment = ' /* DBProxy.get_shares */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, methodName)
+        tmpLog.debug('start')
+
+        sql = """
+               SELECT NAME, VALUE, PARENT, PRODSOURCELABEL, WORKINGGROUP, CAMPAIGN, PROCESSINGTYPE
+               FROM ATLAS_PANDA.GLOBAL_SHARES
+               """
+        var_map = None
+
+        if parents == '':
+            # Get all shares
+            pass
+        elif parents is None:
+            # Get top level shares
+            sql += "WHERE parent IS NULL"
+
+        elif type(parents) == str:
+            # Get the children of a specific share
+            var_map = {':parent': parents}
+            sql += "WHERE parent = :parent"
+
+        elif type(parents) in (list, tuple):
+            # Get the children of a list of shares
+            i = 0
+            var_map = {}
+            for parent in parents:
+                key = ':parent{0}'.format(i)
+                var_map[key] = parent
+                i += 1
+
+            parentBindings = ','.join(':parent{0}'.format(i) for i in xrange(len(parents)))
+            sql += "WHERE parent IN ({0})".format(parentBindings)
+
+        self.cur.execute(sql + comment, var_map)
+        resList = self.cur.fetchall()
+
+        tmpLog.debug('done')
+        return resList
+
+
+    def __reload_shares(self, force=False):
+        """
+        Reloads the shares from the DB and recalculates distributions
+        """
+
+        # Don't reload shares every time
+        if (self.__t_update_shares is not None and self.__t_update_shares > datetime.datetime.now() - datetime.timedelta(hours=1))\
+                or force:
+            return
+
+        # Root dummy node
+        t_before = time.time()
+        tree = GlobalShares.Share('root', 100, None, None, None, None, None)
+        t_after = time.time()
+        total = t_after - t_before
+        _logger.debug('Root dummy tree took {0}s'.format(total))
+
+        # Get top level shares from DB
+        t_before = time.time()
+        shares_top_level = self.get_shares(parents=None)
+        t_after = time.time()
+        total = t_after - t_before
+        _logger.debug('Getting shares took {0}s'.format(total))
+
+        # Load branches
+        t_before = time.time()
+        for (name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype) in shares_top_level:
+            share = GlobalShares.Share(name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype)
+            tree.children.append(self.__load_branch(share))
+        t_after = time.time()
+        total = t_after - t_before
+        _logger.debug('Loading the branches took {0}s'.format(total))
+
+        # Normalize the values in the database
+        t_before = time.time()
+        tree.normalize()
+        t_after = time.time()
+        total = t_after - t_before
+        _logger.debug('Normalizing the values took {0}s'.format(total))
+
+        # get the leave shares (the ones not having more children)
+        t_before = time.time()
+        leave_shares = tree.get_leaves()
+        t_after = time.time()
+        total = t_after - t_before
+        _logger.debug('Getting the leaves took {0}s'.format(total))
+
+        self.leave_shares = leave_shares
+        self.__t_update_shares = datetime.datetime.now()
+
+        # get the distribution of shares
+        t_before = time.time()
+        # Retrieve the current HS06 distribution of jobs from the database and then aggregate recursively up to the root
+        hs_distribution = self.__get_hs_leave_distribution(leave_shares)
+        tree.aggregate_hs_distribution(hs_distribution)
+        t_after = time.time()
+        total = t_after - t_before
+        _logger.debug('Aggregating the hs distribution took {0}s'.format(total))
+
+        self.tree = tree
+        self.__hs_distribution = hs_distribution
+        self.__t_update_distribution = datetime.datetime.now()
+        return
+
+
+    def __reload_hs_distribution(self):
+        """
+        Reloads the HS distribution
+        """
+
+        _logger.debug(self.__t_update_distribution)
+        _logger.debug(self.__hs_distribution)
+        # Reload HS06s distribution every 10 seconds
+        if self.__t_update_distribution is not None \
+                and self.__t_update_distribution > datetime.datetime.now() - datetime.timedelta(seconds=10):
+            _logger.debug('release')
+            return
+
+        # Retrieve the current HS06 distribution of jobs from the database and then aggregate recursively up to the root
+        _logger.debug('get dist')
+        t_before = time.time()
+        hs_distribution = self.__get_hs_leave_distribution(self.leave_shares)
+        _logger.debug('aggr dist')
+        self.tree.aggregate_hs_distribution(hs_distribution)
+        t_after = time.time()
+        total = t_after - t_before
+        _logger.debug('Reloading the hs distribution took {0}s'.format(total))
+
+        self.__hs_distribution = hs_distribution
+        self.__t_update_distribution = datetime.datetime.now()
+
+        # log the distribution for debugging purposes
+        _logger.info('Current HS06 distribution is {0}'.format(hs_distribution))
+
+        return
+
+
+    def get_sorted_leaves(self):
+        """
+        Re-loads the shares, then returns the leaves sorted by under usage
+        """
+        self.__reload_shares()
+        self.__reload_hs_distribution()
+        return self.tree.sort_branch_by_current_hs_distribution(self.__hs_distribution)
+
+
+    def __load_branch(self, share):
+        """
+        Recursively load a branch
+        """
+        node = GlobalShares.Share(share.name, share.value, share.parent, share.prodsourcelabel,
+                                  share.workinggroup, share.campaign, share.processingtype)
+
+        children = self.get_shares(parents=share.name)
+        if not children:
+            return node
+
+        for (name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype) in children:
+            child = GlobalShares.Share(name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype)
+            node.children.append(self.__load_branch(child))
+
+        return node
+
+
+    def compare_share_task(self, share, task):
+        """
+        Logic to compare the relevant fields of share and task
+        """
+
+        if share.prodsourcelabel is not None and re.match(share.prodsourcelabel, task.prodSourceLabel) is None:
+            return False
+
+        if share.workinggroup is not None and re.match(share.workinggroup, task.workingGroup) is None:
+            return False
+
+        if share.campaign is not None and re.match(share.campaign, task.campaign) is None:
+            return False
+
+        if share.processingtype is not None and re.match(share.processingtype, task.processingtype) is None:
+            return False
+
+        return True
+
+
+    def compare_share_job(self, share, job):
+        """
+        Logic to compare the relevant fields of share and job. It's basically the same as compare_share_task, but
+        does not check for the campaign field, which is not part of the job
+        """
+
+        if share.prodsourcelabel is not None and re.match(share.prodsourcelabel, job.prodSourceLabel) is None:
+            return False
+
+        if share.workinggroup is not None and re.match(share.workinggroup, job.workingGroup) is None:
+            return False
+
+        if share.processingtype is not None and re.match(share.processingtype, job.processingtype) is None:
+            return False
+
+        return True
+
+
+    def get_share_for_task(self, task):
+        """
+        Return the share based on a task specification
+        """
+        self.__reload_shares()
+        selected_share_name = 'Undefined'
+
+        for share in self.leave_shares:
+            if self.compare_share_task(share, task):
+                selected_share_name = share.name
+                break
+
+        if selected_share_name == 'Undefined':
+            _logger.warning("No share matching jediTaskId={0} (prodSourceLabel={1} workingGroup={2} campaign={3} )".
+                            format(task.jediTaskID, task.prodSourceLabel, task.workingGroup, task.campaign))
+
+        return selected_share_name
+
+
+    def get_share_for_job(self, job):
+        """
+        Return the share based on a job specification
+        """
+        self.__reload_shares()
+        selected_share_name = 'Undefined'
+
+        for share in self.leave_shares:
+            if self.compare_share_job(share, job):
+                selected_share_name = share.name
+                break
+
+        if selected_share_name == 'Undefined':
+            _logger.warning("No share matching PandaID={0} (prodSourceLabel={1} workingGroup={2})".
+                            format(job.PandaID, job.prodSourceLabel, job.workingGroup))
+
+        return selected_share_name
+
+
+    def is_valid_share(self, share_name):
+        """
+        Checks whether the share is a valid leave share
+        """
+        self.__reload_shares()
+        for share in self.leave_shares:
+            if share_name == share.name:
+                # Share found
+                return True
+
+        # Share not found
+        return False
+
+
+    def reassignShare(self, jedi_task_ids, gshare):
+        """
+        Will reassign all tasks and their jobs that have not yet completed to specified share
+        @param jedi_task_ids: task ids
+        @param share_dest: dest share
+        """
+
+        comment = ' /* DBProxy.reassignShare */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+
+        try:
+            if not self.is_valid_share(gshare):
+                error_msg = "Share {0} is not a leave share ".format(gshare)
+                tmp_log.debug(error_msg)
+                ret_val = 1, error_msg
+                tmp_log.debug(error_msg)
+                return ret_val
+
+            # begin transaction
+            self.conn.begin()
+
+            # update in shards of 100 task ids
+            for shard in create_shards(jedi_task_ids, 100):
+
+                # Prepare the bindings and var map
+                var_map = {':gshare': gshare}
+                i = 0
+                for jedi_task_id in shard:
+                    var_map[':jtid{0}'.format(i)] = jedi_task_id
+                    i += 1
+                jtid_bindings = ','.join(':jtid{0}'.format(i) for i in xrange(len(shard)))
+
+                # update the task
+                sql_task = """
+                       UPDATE ATLAS_PANDA.jedi_tasks set gshare=:gshare
+                       WHERE jeditaskid IN ({0})
+                       """.format(jtid_bindings)
+
+                self.cur.execute(sql_task + comment, var_map)
+
+                # update the jobs
+                sql_jobs = """
+                       UPDATE ATLAS_PANDA.{0} set gshare=:gshare
+                       WHERE jeditaskid IN ({1})
+                       AND jobstatus IN (:pending, :defined, :assigned, :waiting, :activated)
+                       """
+                var_map[':pending'] = 'pending'
+                var_map[':defined'] = 'defined'
+                var_map[':assigned'] = 'assigned'
+                var_map[':waiting'] = 'waiting'
+                var_map[':activated'] = 'activated'
+
+                for table in ['jobsactive4', 'jobswaiting4', 'jobsdefined4']:
+                    self.cur.execute(sql_jobs.format(table, jtid_bindings) + comment, var_map)
+
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+
+            tmp_log.debug('done')
+            return 0, None
+
+        except:
+            # roll back
+            self._rollback()
+            type, value, traceBack = sys.exc_info()
+            _logger.error("reassignShare : %s %s" % (sql, str(varMap)))
+            _logger.error("reassignShare : %s %s" % (type, value))
+            return -1, None
+
+
+    def listTasksInShare(self, gshare, status):
+        """
+        Lists all task ids corresponding to share and in specified status
+        @param gshare: global share
+        @param status: status
+        """
+
+        comment = ' /* DBProxy.listTasksInShare */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+
+        try:
+            # Prepare the bindings and var map
+            var_map = {':gshare': gshare, 'status': status}
+
+            sql = """
+                  SELECT jeditaskid FROM jedi_tasks
+                  WHERE gshare=:gshare AND status=:status
+                  """
+
+            self.cur.execute(sql + comment, var_map)
+            jedi_task_ids = [entry[0] for entry in self.cur.fetchall()]
+
+            tmp_log.debug('done')
+            return 0, jedi_task_ids
+
+        except:
+            # roll back
+            type, value, traceBack = sys.exc_info()
+            _logger.error("{0}: {1} {2}".format(comment, sql, str(varMap)))
+            _logger.error("{0}: {1} {2}".format(comment, type, value))
+            return -1, None

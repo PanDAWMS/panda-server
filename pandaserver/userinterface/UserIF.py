@@ -980,7 +980,13 @@ class UserIF:
         ret = self.taskBuffer.getTaskStatus(jediTaskID)
         return ret[0]
 
+    # reassign share
+    def reassignShare(self, jedi_task_ids, share_dest):
+        return self.taskBuffer.reassignShare(jedi_task_ids, share_dest)
 
+    # list tasks in share
+    def listTasksInShare(self, gshare, status):
+        return self.taskBuffer.listTasksInShare(gshare, status)
 
 # Singleton
 userIF = UserIF()
@@ -2061,10 +2067,7 @@ def changeTaskSplitRulePanda(req,jediTaskID,attrName,attrValue):
 def pauseTask(req,jediTaskID):
     # check security
     if not isSecure(req):
-        if properErrorCode:
-            return pickle.dumps((100,'secure connection is required'))
-        else:
-            return pickle.dumps((False,'secure connection is required'))
+        return pickle.dumps((False, 'secure connection is required'))
     # get DN
     user = None
     if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
@@ -2075,10 +2078,7 @@ def pauseTask(req,jediTaskID):
     try:
         jediTaskID = long(jediTaskID)
     except:
-        if properErrorCode:
-            return pickle.dumps((101,'jediTaskID must be an integer'))        
-        else:
-            return pickle.dumps((False,'jediTaskID must be an integer'))
+        return pickle.dumps((False, 'jediTaskID must be an integer'))
     ret = userIF.pauseTask(jediTaskID,user,prodRole)
     return pickle.dumps(ret)
 
@@ -2088,10 +2088,7 @@ def pauseTask(req,jediTaskID):
 def resumeTask(req,jediTaskID):
     # check security
     if not isSecure(req):
-        if properErrorCode:
-            return pickle.dumps((100,'secure connection is required'))
-        else:
-            return pickle.dumps((False,'secure connection is required'))
+        return pickle.dumps((False, 'secure connection is required'))
     # get DN
     user = None
     if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
@@ -2102,10 +2099,7 @@ def resumeTask(req,jediTaskID):
     try:
         jediTaskID = long(jediTaskID)
     except:
-        if properErrorCode:
-            return pickle.dumps((101,'jediTaskID must be an integer'))        
-        else:
-            return pickle.dumps((False,'jediTaskID must be an integer'))
+        return pickle.dumps((False, 'jediTaskID must be an integer'))
     ret = userIF.resumeTask(jediTaskID,user,prodRole)
     return pickle.dumps(ret)
 
@@ -2115,10 +2109,7 @@ def resumeTask(req,jediTaskID):
 def avalancheTask(req,jediTaskID):
     # check security
     if not isSecure(req):
-        if properErrorCode:
-            return pickle.dumps((100,'secure connection is required'))
-        else:
-            return pickle.dumps((False,'secure connection is required'))
+        return pickle.dumps((False, 'secure connection is required'))
     # get DN
     user = None
     if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
@@ -2129,10 +2120,7 @@ def avalancheTask(req,jediTaskID):
     try:
         jediTaskID = long(jediTaskID)
     except:
-        if properErrorCode:
-            return pickle.dumps((101,'jediTaskID must be an integer'))        
-        else:
-            return pickle.dumps((False,'jediTaskID must be an integer'))
+        return pickle.dumps((False, 'jediTaskID must be an integer'))
     ret = userIF.avalancheTask(jediTaskID,user,prodRole)
     return pickle.dumps(ret)
 
@@ -2241,4 +2229,51 @@ def getTaskStatus(req,jediTaskID):
     except:
         return pickle.dumps((False,'jediTaskID must be an integer'))
     ret = userIF.getTaskStatus(jediTaskID)
+    return pickle.dumps(ret)
+
+
+# reassign share
+def reassignShare(req, jedi_task_ids_pickle, share):
+    # check security
+    if not isSecure(req):
+        return pickle.dumps((False,'secure connection is required'))
+    # get DN
+    user = None
+    if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        user = _getDN(req)
+    # check role
+    prod_role = _isProdRoleATLAS(req)
+    if not prod_role:
+        return pickle.dumps((False,"production or pilot role required"))
+
+    jedi_task_ids = WrappedPickle.loads(jedi_task_ids_pickle)
+    _logger.debug('reassignShare: jedi_task_ids: {0}, share: {1}'.format(jedi_task_ids, share))
+
+    if not ((isinstance(jedi_task_ids, list) or (isinstance(jedi_task_ids, tuple)) and isinstance(share, str))):
+        return pickle.dumps((False, 'jedi_task_ids must be tuple/list and share must be string'))
+
+    ret = userIF.reassignShare(jedi_task_ids, share)
+    return pickle.dumps(ret)
+
+
+# list tasks in share
+def listTasksInShare(req, gshare, status):
+    # check security
+    if not isSecure(req):
+        return pickle.dumps((False,'secure connection is required'))
+    # get DN
+    user = None
+    if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+        user = _getDN(req)
+    # check role
+    prod_role = _isProdRoleATLAS(req)
+    if not prod_role:
+        return pickle.dumps((False,"production or pilot role required"))
+
+    _logger.debug('listTasksInShare: gshare: {0}, status: {1}'.format(gshare, status))
+
+    if not ((isinstance(gshare, str) and isinstance(status, str))):
+        return pickle.dumps((False, 'gshare and status must be of type string'))
+
+    ret = userIF.listTasksInShare(gshare, status)
     return pickle.dumps(ret)
