@@ -9294,8 +9294,8 @@ class DBProxy:
             # get DDM endpoints
             pandaEndpointMap = self.getDdmEndpoints()
             # select
-            sql = "SELECT nickname,dq2url,cloud,ddm,lfchost,se,gatekeeper,releases,memory,"
-            sql+= "maxtime,status,space,retry,cmtconfig,setokens,seprodpath,glexec,"
+            sql = "SELECT nickname,dq2url,cloud,ddm,lfchost,gatekeeper,releases,memory,"
+            sql+= "maxtime,status,space,retry,cmtconfig,glexec,"
             sql+= "priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue,"
             sql+= "validatedreleases,accesscontrol,copysetup,maxinputsize,cachedse,"
             sql+= "allowdirectaccess,comment_,lastmod,multicloud,lfcregister,"
@@ -9324,8 +9324,8 @@ class DBProxy:
                         if tmpItem == None:
                             tmpItem = ''
                         resTmp.append(tmpItem)
-                    nickname,dq2url,cloud,ddm,lfchost,se,gatekeeper,releases,memory,\
-                       maxtime,status,space,retry,cmtconfig,setokens,seprodpath,glexec,\
+                    nickname,dq2url,cloud,ddm,lfchost,gatekeeper,releases,memory,\
+                       maxtime,status,space,retry,cmtconfig,glexec,\
                        priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue,\
                        validatedreleases,accesscontrol,copysetup,maxinputsize,cachedse,\
                        allowdirectaccess,comment,lastmod,multicloud,lfcregister, \
@@ -9346,7 +9346,6 @@ class DBProxy:
                     ret.cloud      = cloud.split(',')[0]
                     ret.ddm        = ddm.split(',')[0]
                     ret.lfchost    = lfchost
-                    ret.se         = se
                     ret.gatekeeper = gatekeeper
                     ret.memory     = memory
                     ret.maxrss     = maxrss
@@ -9490,43 +9489,6 @@ class DBProxy:
                         ret.cmtconfig = ['i686-slc3-gcc323-opt']
                     if cmtconfig != '':
                         ret.cmtconfig.append(cmtconfig)
-                    # map between token and DQ2 ID
-                    ret.setokens = {}
-                    tmpTokens = setokens.split(',')
-                    for idxToken,tmpddmID in enumerate(ddm.split(',')):
-                        if idxToken < len(tmpTokens):
-                            tmpTokenNameBase = tmpTokens[idxToken]
-                        else:
-                            tmpTokenNameBase = 'DUMMY'
-                        if not ret.setokens.has_key(tmpTokenNameBase):
-                            tmpTokenName = tmpTokenNameBase
-                        else:
-                            for tmpTokenNameIndex in range(10000):
-                                tmpTokenName = '%s%s' % (tmpTokenNameBase,tmpTokenNameIndex)
-                                if not ret.setokens.has_key(tmpTokenName):
-                                    break
-                        ret.setokens[tmpTokenName] = tmpddmID
-                    # expand [] in se path
-                    match = re.search('([^\[]*)\[([^\]]+)\](.*)',seprodpath)
-                    if match != None and len(match.groups()) == 3:
-                        seprodpath = ''
-                        for tmpBody in match.group(2).split(','):
-                            seprodpath += '%s%s%s,' % (match.group(1),tmpBody,match.group(3))
-                        seprodpath = seprodpath[:-1]
-                    # map between token and se path
-                    ret.seprodpath = {}
-                    tmpTokens = setokens.split(',')
-                    for idxToken,tmpSePath in enumerate(seprodpath.split(',')):
-                        if idxToken < len(tmpTokens):
-                            tmpTokenNameBase = tmpTokens[idxToken]
-                            if not ret.seprodpath.has_key(tmpTokenNameBase):
-                                tmpTokenName = tmpTokenNameBase
-                            else:
-                                for tmpTokenNameIndex in range(10000):
-                                    tmpTokenName = '%s%s' % (tmpTokenNameBase,tmpTokenNameIndex)
-                                    if not ret.seprodpath.has_key(tmpTokenName):
-                                        break
-                            ret.seprodpath[tmpTokenName] = tmpSePath
                     # VO related params
                     ret.priorityoffset = priorityoffset
                     ret.allowedgroups  = allowedgroups
@@ -9569,6 +9531,8 @@ class DBProxy:
                     else:
                         # empty
                         ret.ddm_endpoints = DdmSpec()
+                    # mapping between token and endpoints
+                    ret.setokens = ret.ddm_endpoints.getTokenMap()
                     # append
                     retList[ret.nickname] = ret
             _logger.debug("getSiteInfo done")
@@ -9602,7 +9566,7 @@ class DBProxy:
                 continue
             endpointDict[tmpEP['ddm_endpoint_name']] = tmpEP
         # get panda sites
-        sqlP  = "SELECT ps.panda_site_name,de.ddm_endpoint_name,ps.is_local,"
+        sqlP  = "SELECT ps.panda_site_name,de.ddm_endpoint_name,ps.is_local,de.ddm_spacetoken_name,de.is_tape,"
         sqlP += "CASE WHEN de.ddm_endpoint_name=ps.default_ddm_endpoint THEN 'Y' ELSE 'N' END is_default "
         sqlP += "FROM ATLAS_PANDA.panda_site ps,ATLAS_PANDA.ddm_endpoint de "
         sqlP += "WHERE ps.storage_site_name=de.site_name "

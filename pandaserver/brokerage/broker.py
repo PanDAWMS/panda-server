@@ -7,11 +7,11 @@ import random
 import datetime
 import commands
 import ErrorCode
-import broker_util
 import PandaSiteIDs
 from taskbuffer import ProcessGroups
 from dataservice import DataServiceUtils
 from dataservice.DDM import toa
+from dataservice.DDM import rucioAPI
 from config import panda_config
 
 from pandalogger.PandaLogger import PandaLogger
@@ -93,7 +93,7 @@ def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs,allOkFilesMap,tmpLog=None,
         dq2ID = dq2ID[:-1]    
     # set LFC and SE name 
     tmpStat,dq2URL = toa.getLocalCatalog(v_ce.ddm)
-    tmpSE = broker_util.getSEfromSched(v_ce.se)
+    tmpSE = v_ce.ddm_endpoints.getAllEndPoints()
     if tmpLog != None:
         tmpLog.debug('getOkFiles for %s with dq2ID:%s,LFC:%s,SE:%s' % (v_ce.sitename,dq2ID,dq2URL,str(tmpSE)))
     anyID = 'any'
@@ -102,28 +102,14 @@ def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs,allOkFilesMap,tmpLog=None,
         # get all replicas 
         if not dq2URL in allOkFilesMap:
             allOkFilesMap[dq2URL] = {}
-            allOkFilesMap[dq2URL][anyID] = broker_util.getFilesFromLRC(allLFNs,dq2URL,guids=allGUIDs,
-                                                                       storageName=[anyID],getPFN=True,
-                                                                       scopeList=allScopeList)
+            tmpStat,tmpAvaFiles = rucioAPI.listFileReplicas(allScopeList,allLFNs,tmpSE)
+            if not tmpStat and tmpLog is not None:
+                tmpLog.debug('getOkFile failed to get file replicas')
+                tmpAvaFiles = {}
+            allOkFilesMap[dq2URL][anyID] = tmpAvaFiles
         # get files for each dq2ID
         if not dq2ID in allOkFilesMap[dq2URL]:
-            allOkFilesMap[dq2URL][dq2ID] = {}
-            # loop over all GUIDs 
-            for tmpLFN,tmpSURLs in allOkFilesMap[dq2URL][anyID].iteritems():
-                okSURLs = []
-                # loop over all SURLs
-                for tmpSURL in tmpSURLs:
-                    # get host
-                    match = re.search('^[^:]+://([^:/]+):*\d*/',tmpSURL)
-                    if match == None:
-                        continue
-                    # check host
-                    host = match.group(1)
-                    if host in tmpSE:
-                        okSURLs.append(tmpSURL)
-                # append
-                if okSURLs != []:
-                    allOkFilesMap[dq2URL][dq2ID][tmpLFN] = okSURLs
+            allOkFilesMap[dq2URL][dq2ID] = allOkFilesMap[dq2URL][anyID]
         # make return map
         retMap = {}
         for tmpLFN in v_files:
@@ -135,9 +121,7 @@ def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs,allOkFilesMap,tmpLog=None,
     else:
         # old style
         tmpLog.debug('getOkFiles old')
-        return broker_util.getFilesFromLRC(v_files,dq2URL,guids=v_guids,
-                                           storageName=tmpSE,getPFN=True,
-                                           scopeList=scopeList)
+        return {}
 
 
 # check reprocessing or not
@@ -152,15 +136,15 @@ def _isReproJob(tmpJob):
     
 # set 'ready' if files are already there
 def _setReadyToFiles(tmpJob,okFiles,siteMapper,tmpLog):
+    tmpLog.debug(str(okFiles))
     allOK = True
     tmpSiteSpec = siteMapper.getSite(tmpJob.computingSite)
     tmpSrcSpec  = siteMapper.getSite(siteMapper.getCloud(tmpJob.getCloud())['source'])
+    tmpTapeEndPoints = tmpSiteSpec.ddm_endpoints.getTapeEndPoints()
     # direct usage of remote SE
     if tmpSiteSpec.ddm != tmpSrcSpec.ddm and tmpSrcSpec.ddm in tmpSiteSpec.setokens.values():
         tmpSiteSpec = tmpSrcSpec
         tmpLog.debug('%s uses remote SiteSpec of %s for %s' % (tmpJob.PandaID,tmpSrcSpec.sitename,tmpJob.computingSite))
-    tmpLog.debug('%s %s' % (tmpJob.PandaID,str(tmpSiteSpec.seprodpath)))
-    prestageSites = getPrestageSites(siteMapper)
     for tmpFile in tmpJob.Files:
         if tmpFile.type == 'input':
             if tmpFile.status == 'ready':
@@ -169,17 +153,14 @@ def _setReadyToFiles(tmpJob,okFiles,siteMapper,tmpLog):
                 # cached file
                 tmpFile.status = 'cached'
                 tmpFile.dispatchDBlock = 'NULL'
-            elif (tmpJob.computingSite.endswith('_REPRO') or tmpJob.computingSite == siteMapper.getCloud(tmpJob.getCloud())['source'] \
-                or tmpSiteSpec.ddm == tmpSrcSpec.ddm) \
-                   and (not tmpJob.computingSite in prestageSites):
-                # EGEE T1. use DQ2 prestage only for on-tape files
-                if tmpSiteSpec.seprodpath.has_key('ATLASDATATAPE') and tmpSiteSpec.seprodpath.has_key('ATLASMCTAPE') and \
-                       okFiles.has_key(tmpFile.lfn):
+            elif tmpJob.computingSite == siteMapper.getCloud(tmpJob.getCloud())['source'] or \
+                    tmpSiteSpec.ddm == tmpSrcSpec.ddm:
+                # use DDM prestage only for on-tape files
+                if len(tmpTapeEndPoints) > 0 and tmpFile.lfn in okFiles:
                     tapeOnly = True
                     tapeCopy = False
-                    for okPFN in okFiles[tmpFile.lfn]:
-                        if re.search(tmpSiteSpec.seprodpath['ATLASDATATAPE'],okPFN) == None and \
-                               re.search(tmpSiteSpec.seprodpath['ATLASMCTAPE'],okPFN) == None:
+                    for tmpSE in okFiles[tmpFile.lfn]:
+                        if tmpSE not in tmpTapeEndPoints:
                             tapeOnly = False
                         else:
                             # there is a tape copy
@@ -195,22 +176,10 @@ def _setReadyToFiles(tmpJob,okFiles,siteMapper,tmpLog):
                     # set ready anyway even if LFC is down. i.e. okFiles doesn't contain the file
                     tmpFile.status = 'ready'
                     tmpFile.dispatchDBlock = 'NULL'                                
-            elif (((tmpFile.lfn in okFiles) or (tmpJob.computingSite == tmpJob.destinationSE)) \
-                     and (not tmpJob.computingSite in prestageSites or \
-                          (tmpJob.computingSite in prestageSites and not tmpJob.getCloud() in ['US']))) \
-                  or tmpFile.status == 'missing':
-                # don't use TAPE replicas when T1 is used as T2
-                if okFiles.has_key(tmpFile.lfn) and \
-                       tmpSiteSpec.seprodpath.has_key('ATLASDATATAPE') and len(okFiles[tmpFile.lfn]) == 1 and \
-                       re.search(tmpSiteSpec.seprodpath['ATLASDATATAPE'],okFiles[tmpFile.lfn][0]) != None:
-                    allOK = False
-                else:
-                    # set ready if the file exists and the site doesn't use prestage
-                    tmpFile.status = 'ready'
-                    tmpFile.dispatchDBlock = 'NULL'
             else:
-                # prestage with PandaMover
-                allOK = False
+                # set ready if the file exists and the site doesn't use prestage
+                tmpFile.status = 'ready'
+                tmpFile.dispatchDBlock = 'NULL'
     # unset disp dataset
     if allOK:
         tmpJob.dispatchDBlock = 'NULL'
@@ -620,7 +589,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
         allGUIDs  = []
         allScopes = []
         for tmpJob in jobs:
-            if tmpJob.prodSourceLabel in ('test','managed'):
+            if tmpJob.prodSourceLabel in ('test','managed') or tmpJob.prodUserName in ['gangarbt']:
                 for tmpFile in tmpJob.Files:
                     if tmpFile.type == 'input' and not tmpFile.lfn in allLFNs:
                         allLFNs.append(tmpFile.lfn)

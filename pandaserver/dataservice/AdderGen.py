@@ -12,6 +12,7 @@ import datetime
 import commands
 import xml.dom.minidom
 import ErrorCode
+import uuid
 
 import Closer
 
@@ -50,8 +51,24 @@ class AdderGen:
         except:
             pass
         # logger
-        self.logger = LogWrapper(_logger,self.jobID)
-        
+        self.logger = LogWrapper(_logger,str(self.jobID))
+
+
+    # dump file report
+    def dumpFileReport(self,fileCatalog,attemptNr):
+        self.logger.debug("dump file report")
+        # dump Catalog into file
+        if attemptNr == None:
+            xmlFile = '%s/%s_%s_%s' % (panda_config.logdir,self.jobID,self.jobStatus,
+                                       str(uuid.uuid4()))
+        else:
+            xmlFile = '%s/%s_%s_%s_%s' % (panda_config.logdir,self.jobID,self.jobStatus,
+                                          str(uuid.uuid4()),attemptNr)
+        file = open(xmlFile,'w')
+        file.write(fileCatalog)
+        file.close()
+
+
     # main
     def run(self):
         try:

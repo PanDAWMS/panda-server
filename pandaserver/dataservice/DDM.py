@@ -631,7 +631,7 @@ class RucioAPI:
 
 
     # list file replicas
-    def listFileReplicas(self,scopes,lfns):
+    def listFileReplicas(self,scopes,lfns,rses=None):
         try:
             client = RucioClient()
             dids = []
@@ -643,9 +643,16 @@ class RucioAPI:
                 dids.append({'scope':scope,'name':lfn})
                 if len(dids) % nGUID == 0 or iGUID == len(lfns):
                     for tmpDict in client.list_replicas(dids,['srm']):
-                        rses = tmpDict['rses'].keys()
-                        if len(rses) > 0:
-                            retVal[lfn] = rses
+                        tmpRses = tmpDict['rses'].keys()
+                        # RSE selection
+                        if rses is not None:
+                            newRSEs = []
+                            for tmpRse in tmpRses:
+                                if tmpRse in rses:
+                                    newRSEs.append(tmpRse)
+                            tmpRses = newRSEs
+                        if len(tmpRses) > 0:
+                            retVal[lfn] = tmpRses
                     dids = []
             return True,retVal
         except:

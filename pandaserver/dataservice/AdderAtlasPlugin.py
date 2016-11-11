@@ -35,7 +35,6 @@ except:
         pass
 
 
-import brokerage.broker_util
 from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
 from AdderPluginBase import AdderPluginBase
@@ -85,8 +84,9 @@ class AdderAtlasPlugin (AdderPluginBase):
             if self.job.produceUnMerge():
                 self.goToMerging = True
             # check if the job should go to trasnferring
-            tmpSrcDDM = self.siteMapper.getSite(self.job.computingSite).ddm
-            tmpSrcSEs = brokerage.broker_util.getSEfromSched(self.siteMapper.getSite(self.job.computingSite).se)
+            srcSiteSpec = self.siteMapper.getSite(self.job.computingSite)
+            tmpSrcDDM = srcSiteSpec.ddm
+            tmpSrcSEs = srcSiteSpec.ddm_endpoints.getLocalEndPoints()
             destSEwasSet = False
             brokenSched = False
             if self.job.prodSourceLabel == 'user' and not self.siteMapper.siteSpecList.has_key(self.job.destinationSE):
@@ -95,8 +95,9 @@ class AdderAtlasPlugin (AdderPluginBase):
                 tmpDstDDM = self.job.destinationSE
                 tmpDstSEs = self.job.destinationSE
             else:
-                tmpDstDDM = self.siteMapper.getSite(self.job.destinationSE).ddm
-                tmpDstSEs = brokerage.broker_util.getSEfromSched(self.siteMapper.getSite(self.job.destinationSE).se)
+                dstSiteSpec = self.siteMapper.getSite(self.job.destinationSE)
+                tmpDstDDM = dstSiteSpec.ddm
+                tmpDstSEs = dstSiteSpec.ddm_endpoints.getLocalEndPoints()
                 # protection against disappearance of dest from schedconfig
                 if not self.siteMapper.checkSite(self.job.destinationSE) and self.job.destinationSE != 'local':
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
@@ -176,8 +177,10 @@ class AdderAtlasPlugin (AdderPluginBase):
             self.result.setSucceeded()    
             self.logger.debug("end plugin")
         except:
-            type, value, traceBack = sys.exc_info()
-            self.logger.debug(": %s %s" % (type,value))
+            errtype,errvalue = sys.exc_info()[:2]
+            errStr = "execute() : %s %s" % (errtype,errvalue)
+            errStr += traceback.format_exc()
+            self.logger.debug(errStr)
             # set fatal error code
             self.result.setFatal()
         # return
@@ -286,16 +289,6 @@ class AdderAtlasPlugin (AdderPluginBase):
                                         tmpDest = self.siteMapper.getSite(self.job.computingSite).ddm
                                     if not tmpDest in tmpDestList:
                                         tmpDestList.append(tmpDest)
-                            # temporay conversion from DATADISK to PRODDISK for PRODDISK retirement
-                            if toConvert:
-                                try:
-                                    convDestList = self.convertRSE(tmpDestList,fileAttrs['surl'])
-                                    self.logger.debug("RSEs %s->%s %s" % (str(tmpDestList),
-                                                                          str(convDestList),
-                                                                          tmpDestList == convDestList))
-                                    tmpDestList = convDestList
-                                except:
-                                    self.logger.error("%s : " % self.jobID + traceback.format_exc())
                             # add
                             dsDestMap[fileDestinationDBlock] = tmpDestList
                     # extra meta data
@@ -353,8 +346,9 @@ class AdderAtlasPlugin (AdderPluginBase):
                                                    fileDestinationDBlock))
                                 else:
                                     # get DQ2 IDs
-                                    tmpSrcDDM = self.siteMapper.getSite(self.job.computingSite).ddm
-                                    tmpSrcSEs = brokerage.broker_util.getSEfromSched(self.siteMapper.getSite(self.job.computingSite).se)
+                                    srcSiteSpec = self.siteMapper.getSite(self.job.computingSite)
+                                    tmpSrcDDM = srcSiteSpec.ddm
+                                    tmpSrcSEs = srcSiteSpec.ddm_endpoints.getLocalEndPoints()
                                     if self.job.prodSourceLabel == 'user' and not self.siteMapper.siteSpecList.has_key(file.destinationSE):
                                         # DQ2 ID was set by using --destSE for analysis job to transfer output
                                         tmpDstDDM = file.destinationSE
@@ -364,7 +358,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                                             tmpDstDDM = DataServiceUtils.getDestinationSE(file.destinationDBlockToken)
                                         else:
                                             tmpDstDDM = self.siteMapper.getSite(file.destinationSE).ddm
-                                        tmpDstSEs = brokerage.broker_util.getSEfromSched(self.siteMapper.getSite(file.destinationSE).se)
+                                        tmpDstSEs = self.siteMapper.getSite(file.destinationSE).ddm_endpoints.getLocalEndPoints()
                                     # if src != dest or multi-token
                                     if (tmpSrcDDM != tmpDstDDM and tmpSrcSEs != tmpDstSEs) or \
                                        (tmpSrcDDM == tmpDstDDM and file.destinationDBlockToken.count(',') != 0):
@@ -876,36 +870,6 @@ class AdderAtlasPlugin (AdderPluginBase):
         # succeeded    
         self.logger.debug("removeUnmerged end")
         return True
-
-
-    # conversion from DATADISK to PRODDISK for PRODDISK retirement
-    def convertRSE(self,tmpDestList,surl):
-        newDestList = []
-        siteSpec = self.siteMapper.getSite(self.job.computingSite)
-        # loop over all RSEs
-        for tmpDest in tmpDestList:
-            newDest = None
-            if tmpDest.endswith('DATADISK') or tmpDest.endswith('PRODDISK'):
-                for tmpSeToken,tmpSePath in siteSpec.seprodpath.iteritems():
-                    if re.search(tmpSePath,surl) != None:
-                        if tmpSeToken in siteSpec.setokens:
-                            newDest = siteSpec.setokens[tmpSeToken]
-                        break
-                # use counterpart
-                if newDest == None:
-                    if tmpDest.endswith('DATADISK'):
-                        newDest = tmpDest.replace('DATADISK','PRODDISK')
-                    else:
-                        newDest = tmpDest.replace('PRODDISK','DATADISK')
-            if newDest == 'MWT2_PRODDISK':
-                newDest = 'MWT2_UC_PRODDISK'
-            # use old one
-            if newDest == None:
-                newDest = tmpDest
-            newDestList.append(newDest)
-        # return
-        return newDestList
-
 
 
     # send email notification

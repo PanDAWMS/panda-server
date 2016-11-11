@@ -17,7 +17,7 @@ import commands
 import traceback
 from threading import Lock
 from config import panda_config
-from dataservice.Adder import Adder
+from dataservice.AdderGen import AdderGen
 from pandalogger.PandaLogger import PandaLogger
 from pandalogger.LogWrapper import LogWrapper
 import DispatcherUtils
@@ -341,7 +341,8 @@ class JobDipatcher:
                     response.appendNode('command','NULL')
                 # add output to dataset
                 if not tmpWrapper.result in ["badattemptnr","alreadydone"] and (jobStatus == 'failed' or jobStatus == 'finished'):
-                    Adder(self.taskBuffer,jobID,xml,jobStatus,attemptNr=attemptNr).start()
+                    adder = AdderGen(self.taskBuffer,jobID,jobStatus,'')
+                    adder.dumpFileReport(xml,attemptNr)
             else:
                 # failed
                 response=Protocol.Response(Protocol.SC_Failed)

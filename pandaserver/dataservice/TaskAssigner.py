@@ -10,7 +10,6 @@ import types
 import random
 import commands
 import datetime
-import brokerage.broker_util
 from DDM import ddm
 from DDM import dq2Common
 from DDM import toa
