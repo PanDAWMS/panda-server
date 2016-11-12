@@ -643,6 +643,7 @@ class RucioAPI:
                 dids.append({'scope':scope,'name':lfn})
                 if len(dids) % nGUID == 0 or iGUID == len(lfns):
                     for tmpDict in client.list_replicas(dids,['srm']):
+                        tmpLFN = str(tmpDict['name'])
                         tmpRses = tmpDict['rses'].keys()
                         # RSE selection
                         if rses is not None:
@@ -652,7 +653,7 @@ class RucioAPI:
                                     newRSEs.append(tmpRse)
                             tmpRses = newRSEs
                         if len(tmpRses) > 0:
-                            retVal[lfn] = tmpRses
+                            retVal[tmpLFN] = tmpRses
                     dids = []
             return True,retVal
         except:

@@ -842,6 +842,7 @@ class FinisherThr (threading.Thread):
             for job in jobs:
                 if job == None or job.jobStatus == 'unknown':
                     continue
+                seList = ['dummy']
                 # get SEs
                 if job.prodSourceLabel == 'user' and not siteMapper.siteSpecList.has_key(job.destinationSE):
                     # using --destSE for analysis job to transfer output
@@ -872,14 +873,14 @@ class FinisherThr (threading.Thread):
                         nTokens += len(file.destinationDBlockToken.split(','))
                 # get files in LRC
                 _logger.debug("%s Cloud:%s" % (job.PandaID,job.cloud))
-                tmpStat,okFiles = rucioAPI.listFileReplicas(scopes,lfns,dq2SE)
+                tmpStat,okFiles = rucioAPI.listFileReplicas(scopes,lfns,seList)
                 if not tmpStat:
                     _logger.errpr("%s failed to get file replicas" % job.PandaID)
                     okFiles = {}
                 # count files
                 nOkTokens = 0
                 for okLFN,okSEs in okFiles.iteritems():
-                    nOkTokens += len(okPFNs)
+                    nOkTokens += len(okSEs)
                 # check all files are ready    
                 _logger.debug("%s nToken:%s nOkToken:%s" % (job.PandaID,nTokens,nOkTokens))
                 if nTokens <= nOkTokens:
