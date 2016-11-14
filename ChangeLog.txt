@@ -1,5 +1,9 @@
 Release Notes
 
+* 11/14/2016
+  * made timeout value for analysis rebrokerage configurable
+  * added maxWalltime to getJob response
+
 * 11/11/2016
   * removed dependencies on se, seprodpath, setokens in schedconfig
 

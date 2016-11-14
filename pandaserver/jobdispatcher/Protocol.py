@@ -246,6 +246,8 @@ class Response:
         self.data['jobsetID'] = job.jobsetID
         # nucleus
         self.data['nucleus'] = job.nucleus
+        # walltime
+        self.data['maxWalltime'] = job.maxWalltime
         # debug mode
         if job.specialHandling != None and 'debug' in job.specialHandling:
             self.data['debug'] = 'True'
