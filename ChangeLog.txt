@@ -1,5 +1,8 @@
 Release Notes
 
+* 11/18/2016
+  * added task_id and account to prestaging rules
+
 * 11/14/2016
   * made timeout value for analysis rebrokerage configurable
   * added maxWalltime to getJob response

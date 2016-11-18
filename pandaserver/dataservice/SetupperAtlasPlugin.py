@@ -209,6 +209,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         dispSiteMap = {}
         dispError   = {}
         backEndMap  = {}
+        dsTaskMap = dict()
         # extract prodDBlock
         for job in self.jobs:
             # ignore failed jobs
@@ -275,6 +276,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 if not fileList.has_key(job.dispatchDBlock):
                     fileList[job.dispatchDBlock] = {'lfns':[],'guids':[],'fsizes':[],'md5sums':[],
                                                     'chksums':[]}
+                    dsTaskMap[job.dispatchDBlock] = job.jediTaskID
                 # DDM backend
                 if not job.dispatchDBlock in backEndMap:
                     # check if rucio dataset
@@ -356,10 +358,14 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                                 ))
                 nDDMTry = 3
                 isOK = False
+                tmpTaskID = None
+                if dispatchDBlock in dsTaskMap and dsTaskMap[dispatchDBlock] not in ['NULL',0]:
+                    tmpTaskID = dsTaskMap[dispatchDBlock]
                 for iDDMTry in range(nDDMTry):
                     try:
                         out = self.registerDispatchDataset(dispatchDBlock,disFiles['lfns'],disFiles['guids'],
-                                                           disFiles['fsizes'],disFiles['chksums'])
+                                                           disFiles['fsizes'],disFiles['chksums'],
+                                                           jediTaskID=tmpTaskID)
                         isOK = True
                         break
                     except:
@@ -944,8 +950,10 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         if job.prodSourceLabel in ['user','panda']:
                             optShare = "production"
                             optActivity = "Staging"
+                            optOwner = DataServiceUtils.cleanupDN(job.prodUserID)
                         else:
                             optShare = "production"
+                            optOwner = None
                             if job.processingType == 'urgent' or job.currentPriority > 1000:
                                 optActivity = 'Express'
                             else:
@@ -959,12 +967,13 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                                             {'version':0,'archived':0,'callbacks':optSub,'sources':optSource,'sources_policy':optSrcPolicy,
                                                              'wait_for_sources':0,'destination':None,'query_more_sources':0,'sshare':optShare,'group':None,
                                                              'activity':optActivity,'acl_alias':None,'replica_lifetime':"7 days",
-                                                             'force_backend':ddmBackEnd}))
+                                                             'force_backend':ddmBackEnd,'owner':optOwner}))
                             for iDDMTry in range(3):                                                                
                                 status,out = ddm.DQ2.main('registerDatasetSubscription',job.dispatchDBlock,dq2ID,version=0,archived=0,callbacks=optSub,
                                                           sources=optSource,sources_policy=optSrcPolicy,wait_for_sources=0,destination=None,
                                                           query_more_sources=0,sshare=optShare,group=None,activity=optActivity,
-                                                          acl_alias=None,replica_lifetime="7 days",force_backend=ddmBackEnd)
+                                                          acl_alias=None,replica_lifetime="7 days",force_backend=ddmBackEnd,
+                                                          owner=optOwner)
                                 if status != 0 or out.find("DQ2 internal server exception") != -1 \
                                        or out.find("An error occurred on the central catalogs") != -1 \
                                        or out.find("MySQL server has gone away") != -1:
@@ -2002,7 +2011,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         isOK = False
                         for iDDMTry in range(nDDMTry):
                             try:
-                                out = self.registerDispatchDataset(disDBlock,lfns,guids,fsizes,chksums)
+                                out = self.registerDispatchDataset(disDBlock,lfns,guids,fsizes,chksums,
+                                                                   jediTaskID=tmpVal['taskID'])
                                 self.logger.debug(out)
                                 isOK = True
                                 break
@@ -2372,7 +2382,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
 
 
     # register dispatch dataset
-    def registerDispatchDataset(self,dsn,lfns=[],guids=[],sizes=[],checksums=[],scope='panda'):
+    def registerDispatchDataset(self,dsn,lfns=[],guids=[],sizes=[],checksums=[],scope='panda',jediTaskID=None):
         files = []
         for lfn, guid, size, checksum in zip(lfns, guids, sizes, checksums):
             if lfn.find(':') > -1:
@@ -2388,6 +2398,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         # metadata
         metadata = {'hidden':True,
                     'purge_replicas': 0}
+        if jediTaskID is not None:
+            metadata['task_id'] = str(jediTaskID)
         # register dataset
         client = RucioClient()
         try:
