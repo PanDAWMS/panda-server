@@ -14795,6 +14795,7 @@ class DBProxy:
             jobSpec.actualCoreCount  = None
             jobSpec.hs06sec          = None
             jobSpec.nEvents          = None
+            jobSpec.cpuConsumptionTime = None
             if hasFatalRange:
                 jobSpec.jobSubStatus = 'partial'
             for attr in jobSpec._attributes:
