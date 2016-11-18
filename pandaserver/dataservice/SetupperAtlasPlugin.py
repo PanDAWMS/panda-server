@@ -958,29 +958,36 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                 optActivity = 'Express'
                             else:
                                 optActivity = "Production Input"
+                        # taskID
+                        if job.jediTaskID not in ['NULL',0]:
+                            optComment = 'task_id:{0}'.format(job.jediTaskID)
+                        else:
+                            optComment = None
                         if not isOK:
                             dispError[disp] = "Setupper._subscribeDistpatchDB() could not register location for prestage"
                         else:
                             # register subscription
                             self.logger.debug('%s %s %s' % ('registerDatasetSubscription',
                                                             (job.dispatchDBlock,dq2ID),
-                                                            {'version':0,'archived':0,'callbacks':optSub,'sources':optSource,'sources_policy':optSrcPolicy,
-                                                             'wait_for_sources':0,'destination':None,'query_more_sources':0,'sshare':optShare,'group':None,
-                                                             'activity':optActivity,'acl_alias':None,'replica_lifetime':"7 days",
-                                                             'force_backend':ddmBackEnd,'owner':optOwner}))
-                            for iDDMTry in range(3):                                                                
-                                status,out = ddm.DQ2.main('registerDatasetSubscription',job.dispatchDBlock,dq2ID,version=0,archived=0,callbacks=optSub,
-                                                          sources=optSource,sources_policy=optSrcPolicy,wait_for_sources=0,destination=None,
-                                                          query_more_sources=0,sshare=optShare,group=None,activity=optActivity,
-                                                          acl_alias=None,replica_lifetime="7 days",force_backend=ddmBackEnd,
-                                                          owner=optOwner)
-                                if status != 0 or out.find("DQ2 internal server exception") != -1 \
-                                       or out.find("An error occurred on the central catalogs") != -1 \
-                                       or out.find("MySQL server has gone away") != -1:
+                                                            {'activity':optActivity,'lifetime':7,'dn':optOwner,
+                                                             'comment':optComment}))
+                            for iDDMTry in range(3):
+                                try:
+                                    status = rucioAPI.registerDatasetSubscription(job.dispatchDBlock,[dq2ID],
+                                                                                  activity=optActivity,
+                                                                                  lifetime=7,
+                                                                                  dn=optOwner,
+                                                                                  comment=optComment)
+                                    out = 'OK'
+                                    break
+                                except:
+                                    status = False
+                                    errType,errValue = sys.exc_info()[:2]
+                                    out = "%s %s" % (errType,errValue)
                                     time.sleep(10)
                                 else:
                                     break
-                            if status != 0 or (out != 'None' and len(out) != 35):
+                            if status == False:
                                 self.logger.error(out)
                                 dispError[disp] = "Setupper._subscribeDistpatchDB() could not register subscription"
                             else:
