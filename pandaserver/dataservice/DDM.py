@@ -460,7 +460,7 @@ class RucioAPI:
 
 
     # get user
-    def getUser(self, cleint, dn):
+    def getUser(self, client, dn):
         l = [i for i in client.list_accounts('user', dn)]
         if l != []:
             owner = l[0]['account']
@@ -486,7 +486,7 @@ class RucioAPI:
         # owner
         if owner is None:
             if dn is not None:
-                owner = self.getUser(cleint, dn)
+                owner = self.getUser(client, dn)
             else:
                 owner = client.account
         for rule in client.list_did_rules(scope=scope, name=dsn):
