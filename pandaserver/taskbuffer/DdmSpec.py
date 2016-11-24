@@ -12,6 +12,7 @@ class DdmSpec(object):
         self.all = {}
         self.local = set()
         self.default = None
+        self.tape = set()
 
 
 
@@ -26,6 +27,14 @@ class DdmSpec(object):
         # default
         if endPoint['is_default'] == 'Y':
             self.default = name
+        # tape
+        if endPoint['is_tape'] == 'Y':
+            self.tape.add(name)
+
+
+    # get all endpoints
+    def getAllEndPoints(self):
+        return self.all.keys()
 
 
 
@@ -39,13 +48,20 @@ class DdmSpec(object):
 
     # get local endpoints
     def getLocalEndPoints(self):
-        return tuple(self.local)
+        tmpRet = list(self.local)
+        tmpRet.sort()
+        return tmpRet
 
 
 
     # get default endpoint
     def getDefault(self):
         return self.default
+
+
+    # get tape endpoints
+    def getTapeEndPoints(self):
+        return tuple(self.tape)
 
 
     # check association
@@ -77,3 +93,25 @@ class DdmSpec(object):
             if self.all[endPointName]['type'] == pattwoVO:
                 return self.all[endPointName]
         return None
+
+
+    # get mapping between tokens and endpoint names
+    def getTokenMap(self):
+        retMap = {}
+        for tmpName,tmpVal in self.all.iteritems():
+            token = tmpVal['ddm_spacetoken_name']
+            # already exists
+            if token in retMap:
+                # use default
+                if retMap[token] == self.default:
+                    continue
+                # use local
+                if retMap[token] in self.local:
+                    continue
+                # use first remote
+                if tmpName not in self.local:
+                    continue
+            # add
+            retMap[token] = tmpName
+        return retMap
+

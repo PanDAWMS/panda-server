@@ -26,7 +26,6 @@ from taskbuffer import retryModule
 from brokerage.SiteMapper import SiteMapper
 from brokerage.PandaSiteIDs import PandaMoverIDs
 import brokerage.broker
-import brokerage.broker_util
 import DataServiceUtils
 from rucio.client import Client as RucioClient
 from rucio.common.exception import FileAlreadyExists,DataIdentifierAlreadyExists,Duplicate,\
@@ -210,6 +209,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         dispSiteMap = {}
         dispError   = {}
         backEndMap  = {}
+        dsTaskMap = dict()
         # extract prodDBlock
         for job in self.jobs:
             # ignore failed jobs
@@ -265,18 +265,18 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     # use cloud's source
                     tmpSrcID = self.siteMapper.getCloud(job.getCloud())['source']
                 srcDQ2ID = self.siteMapper.getSite(tmpSrcID).ddm
-                # use srcDQ2ID as dstDQ2ID when dst SE is same as src SE
-                srcSEs = brokerage.broker_util.getSEfromSched(self.siteMapper.getSite(tmpSrcID).se)
-                dstSEs = brokerage.broker_util.getSEfromSched(self.siteMapper.getSite(job.computingSite).se)
-                if srcSEs == dstSEs:
+                # use srcDQ2ID as dstDQ2ID when it is associated to dest
+                dstSiteSpec = self.siteMapper.getSite(job.computingSite)
+                if dstSiteSpec.ddm_endpoints.isAssociated(srcDQ2ID):
                     dstDQ2ID = srcDQ2ID
                 else:
-                    dstDQ2ID = self.siteMapper.getSite(job.computingSite).ddm
+                    dstDQ2ID = dstSiteSpec.ddm
                 dispSiteMap[job.dispatchDBlock] = {'src':srcDQ2ID,'dst':dstDQ2ID,'site':job.computingSite}
                 # filelist
                 if not fileList.has_key(job.dispatchDBlock):
                     fileList[job.dispatchDBlock] = {'lfns':[],'guids':[],'fsizes':[],'md5sums':[],
                                                     'chksums':[]}
+                    dsTaskMap[job.dispatchDBlock] = job.jediTaskID
                 # DDM backend
                 if not job.dispatchDBlock in backEndMap:
                     # check if rucio dataset
@@ -358,10 +358,14 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                                 ))
                 nDDMTry = 3
                 isOK = False
+                tmpTaskID = None
+                if dispatchDBlock in dsTaskMap and dsTaskMap[dispatchDBlock] not in ['NULL',0]:
+                    tmpTaskID = dsTaskMap[dispatchDBlock]
                 for iDDMTry in range(nDDMTry):
                     try:
                         out = self.registerDispatchDataset(dispatchDBlock,disFiles['lfns'],disFiles['guids'],
-                                                           disFiles['fsizes'],disFiles['chksums'])
+                                                           disFiles['fsizes'],disFiles['chksums'],
+                                                           jediTaskID=tmpTaskID)
                         isOK = True
                         break
                     except:
@@ -778,13 +782,12 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     # direct usage of remote SE. Mainly for prestaging
                     tmpDstID = tmpSrcID
                     self.logger.debug('use remote SiteSpec of %s for %s' % (tmpDstID,job.computingSite))
-                # use srcDQ2ID as dstDQ2ID when dst SE is same as src SE
-                srcSEs = brokerage.broker_util.getSEfromSched(self.siteMapper.getSite(tmpSrcID).se)
-                dstSEs = brokerage.broker_util.getSEfromSched(self.siteMapper.getSite(tmpDstID).se)
-                if srcSEs == dstSEs or job.computingSite.endswith("_REPRO"):
+                # use srcDQ2ID as dstDQ2ID when it is associated to dest
+                dstSiteSpec = self.siteMapper.getSite(tmpDstID)
+                if dstSiteSpec.ddm_endpoints.isAssociated(srcDQ2ID):
                     dstDQ2ID = srcDQ2ID
                 else:
-                    dstDQ2ID = self.siteMapper.getSite(job.computingSite).ddm
+                    dstDQ2ID = dstSiteSpec.ddm
                 # check if missing at T1
                 missingAtT1 = False
                 if job.prodSourceLabel in ['managed','test']:
@@ -947,136 +950,48 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         if job.prodSourceLabel in ['user','panda']:
                             optShare = "production"
                             optActivity = "Staging"
+                            optOwner = DataServiceUtils.cleanupDN(job.prodUserID)
                         else:
                             optShare = "production"
+                            optOwner = None
                             if job.processingType == 'urgent' or job.currentPriority > 1000:
                                 optActivity = 'Express'
                             else:
                                 optActivity = "Production Input"
+                        # taskID
+                        if job.jediTaskID not in ['NULL',0]:
+                            optComment = 'task_id:{0}'.format(job.jediTaskID)
+                        else:
+                            optComment = None
                         if not isOK:
                             dispError[disp] = "Setupper._subscribeDistpatchDB() could not register location for prestage"
                         else:
                             # register subscription
                             self.logger.debug('%s %s %s' % ('registerDatasetSubscription',
                                                             (job.dispatchDBlock,dq2ID),
-                                                            {'version':0,'archived':0,'callbacks':optSub,'sources':optSource,'sources_policy':optSrcPolicy,
-                                                             'wait_for_sources':0,'destination':None,'query_more_sources':0,'sshare':optShare,'group':None,
-                                                             'activity':optActivity,'acl_alias':None,'replica_lifetime':"7 days",
-                                                             'force_backend':ddmBackEnd}))
-                            for iDDMTry in range(3):                                                                
-                                status,out = ddm.DQ2.main('registerDatasetSubscription',job.dispatchDBlock,dq2ID,version=0,archived=0,callbacks=optSub,
-                                                          sources=optSource,sources_policy=optSrcPolicy,wait_for_sources=0,destination=None,
-                                                          query_more_sources=0,sshare=optShare,group=None,activity=optActivity,
-                                                          acl_alias=None,replica_lifetime="7 days",force_backend=ddmBackEnd)
-                                if status != 0 or out.find("DQ2 internal server exception") != -1 \
-                                       or out.find("An error occurred on the central catalogs") != -1 \
-                                       or out.find("MySQL server has gone away") != -1:
+                                                            {'activity':optActivity,'lifetime':7,'dn':optOwner,
+                                                             'comment':optComment}))
+                            for iDDMTry in range(3):
+                                try:
+                                    status = rucioAPI.registerDatasetSubscription(job.dispatchDBlock,[dq2ID],
+                                                                                  activity=optActivity,
+                                                                                  lifetime=7,
+                                                                                  dn=optOwner,
+                                                                                  comment=optComment)
+                                    out = 'OK'
+                                    break
+                                except:
+                                    status = False
+                                    errType,errValue = sys.exc_info()[:2]
+                                    out = "%s %s" % (errType,errValue)
                                     time.sleep(10)
                                 else:
                                     break
-                            if status != 0 or (out != 'None' and len(out) != 35):
+                            if status == False:
                                 self.logger.error(out)
                                 dispError[disp] = "Setupper._subscribeDistpatchDB() could not register subscription"
                             else:
                                 self.logger.debug(out)
-                # use PandaDDM
-                else:
-                    # set DDM user DN
-                    if ddmUser == 'NULL':
-                        ddmUser = job.prodUserID
-                    # create a DDM job
-                    ddmjob = JobSpec()
-                    ddmjob.jobDefinitionID   = int(time.time()) % 10000
-                    ddmjob.jobName           = "%s" % commands.getoutput('uuidgen')
-                    ddmjob.transformation    = 'http://pandaserver.cern.ch:25080/trf/mover/run_dq2_cr'
-                    ddmjob.destinationDBlock = 'pandaddm_%s.%s' % (time.strftime('%y.%m.%d'),ddmjob.jobName)
-                    if job.getCloud() == 'NULL':
-                        ddmjob.cloud         = 'US'
-                    else:
-                        ddmjob.cloud         = job.getCloud() 
-                    if not PandaMoverIDs.has_key(job.getCloud()):
-                        ddmjob.computingSite = "BNL_ATLAS_DDM"
-                    else:
-                        ddmjob.computingSite = PandaMoverIDs[job.getCloud()]
-                    ddmjob.destinationSE     = ddmjob.computingSite
-                    ddmjob.assignedPriority  = 200000
-                    if job.prodSourceLabel in ['software']:
-                        # set higher priority for installation jobs
-                        ddmjob.assignedPriority += 1000
-                    else:
-                        ddmjob.assignedPriority += job.currentPriority
-                    ddmjob.currentPriority   = ddmjob.assignedPriority
-                    if self.ddmAttempt != 0:
-                        # keep count of attemptNr
-                        ddmjob.attemptNr = self.ddmAttempt + 1
-                    else:
-                        ddmjob.attemptNr = 1
-                    # check attemptNr to avoid endless loop
-                    if ddmjob.attemptNr > 10:
-                        err = "Too many attempts %s for %s" % (ddmjob.attemptNr,job.dispatchDBlock)
-                        self.logger.error(err)
-                        dispError[disp] = err
-                        continue
-                    ddmjob.prodSourceLabel   = 'ddm'
-                    ddmjob.transferType      = 'dis'
-                    ddmjob.processingType    = 'pandamover'
-                    # append log file
-                    fileOL = FileSpec()
-                    fileOL.lfn = "%s.job.log.tgz.%s" % (ddmjob.destinationDBlock,ddmjob.attemptNr)
-                    fileOL.destinationDBlock = ddmjob.destinationDBlock
-                    fileOL.destinationSE     = ddmjob.destinationSE
-                    fileOL.dataset           = ddmjob.destinationDBlock
-                    fileOL.type = 'log'
-                    ddmjob.addFile(fileOL)
-                    # make arguments
-                    callBackURL = 'https://%s:%s/server/panda/datasetCompleted?vuid=%s&site=%s' % \
-                                  (panda_config.pserverhost,panda_config.pserverport,
-                                   self.vuidMap[job.dispatchDBlock],dstDQ2ID)
-                    callBackURL = urllib.quote(callBackURL)
-                    lfnsStr = ''
-                    for tmpLFN in self.dispFileList[job.dispatchDBlock]['lfns']:
-                        lfnsStr += '%s,' % tmpLFN
-                    guidStr = ''
-                    for tmpGUID in self.dispFileList[job.dispatchDBlock]['guids']:
-                        guidStr += '%s,' % tmpGUID
-                    guidStr = guidStr[:-1]
-                    lfnsStr = lfnsStr[:-1]
-                    # check input token
-                    moverUseTape = False
-                    for tmpFile in job.Files:
-                        if tmpFile.type == 'input' and tmpFile.dispatchDBlockToken in ['ATLASDATATAPE']:
-                            moverUseTape = True
-                            break
-                    if srcDQ2ID != dstDQ2ID:
-                        # get destination dir
-                        tmpSpec = self.siteMapper.getSite(job.computingSite)
-                        destDir = brokerage.broker_util._getDefaultStorage(tmpSpec.dq2url,tmpSpec.se,tmpSpec.seprodpath)
-                        if destDir == '':
-                            err = "could not get default storage for %s" % job.computingSite
-                            self.logger.error(err)
-                            dispError[disp] = err
-                            continue
-                        # normal jobs
-                        argStr = ""
-                        if moverUseTape:
-                            argStr += "--useTape "
-                        argStr += "-t 7200 -n 3 -s %s -r %s --guids %s --lfns %s --tapePriority %s --callBack %s -d %spanda/dis/%s%s %s" % \
-                                  (srcDQ2ID,dstDQ2ID,guidStr,lfnsStr,job.currentPriority,callBackURL,destDir,
-                                   time.strftime('%y/%m/%d/'),job.dispatchDBlock,job.dispatchDBlock)
-                    else:
-                        # prestaging jobs
-                        argStr = ""
-                        if moverUseTape:
-                            argStr += "--useTape "
-                        argStr += "-t 540 -n 2 -s %s -r %s --guids %s --lfns %s --tapePriority %s --callBack %s --prestage --cloud %s %s" % \
-                                  (srcDQ2ID,dstDQ2ID,guidStr,lfnsStr,job.currentPriority,callBackURL,job.getCloud(),job.dispatchDBlock)
-                    # set job parameters
-                    ddmjob.jobParameters = argStr
-                    self.logger.debug('pdq2_cr %s' % (ddmjob.jobParameters))
-                    # set src/dest
-                    ddmjob.sourceSite      = srcDQ2ID
-                    ddmjob.destinationSite = dstDQ2ID
-                    ddmJobs.append(ddmjob)
             # failed jobs
             if dispError[disp] != '':
                 job.jobStatus = 'failed'
@@ -1447,29 +1362,29 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         # get missing LFNs from source LRC/LFC
         missLFNs = {}
         for cloudKey in allLFNs.keys():
-            # use BNL by default
-            dq2URL = self.siteMapper.getSite('BNL_ATLAS_1').dq2url
-            dq2SE  = []
-            tapeSePath = []
             # use cloud's source
-            if self.siteMapper.checkCloud(cloudKey):
-                tmpSrcID   = self.siteMapper.getCloud(cloudKey)['source']
-                tmpSrcSite = self.siteMapper.getSite(tmpSrcID)
-                # get catalog URL
-                tmpStat,dq2URL = toa.getLocalCatalog(tmpSrcSite.ddm)
-                if tmpSrcSite.se != None:
-                    for tmpSrcSiteSE in tmpSrcSite.se.split(','):
-                        match = re.search('.+://([^:/]+):*\d*/*',tmpSrcSiteSE)
-                        if match != None:
-                            dq2SE.append(match.group(1))
-                if 'ATLASDATATAPE' in tmpSrcSite.seprodpath:
-                    tapeSePath.append(tmpSrcSite.seprodpath['ATLASDATATAPE'])
-                if 'ATLASMCTAPE' in tmpSrcSite.seprodpath:
-                    tapeSePath.append(tmpSrcSite.seprodpath['ATLASMCTAPE'])
-            # get missing and tape files
-            tmpMissLFNs,tmpTapeLFNs = brokerage.broker_util.getMissAndTapeLFNs(allLFNs[cloudKey],dq2URL,allGUIDs[cloudKey],
-                                                                               dq2SE,scopeList=allScopes[cloudKey],
-                                                                               tapeSePath=tapeSePath)
+            tmpSrcID   = self.siteMapper.getCloud(cloudKey)['source']
+            srcSiteSpec = self.siteMapper.getSite(tmpSrcID)
+            allSEs = srcSiteSpec.ddm_endpoints.getAllEndPoints()
+            tapeSEs = srcSiteSpec.ddm_endpoints.getTapeEndPoints()
+            # get availabe files
+            tmpStat,tmpAvaFiles = rucioAPI.listFileReplicas(allScopes[cloudKey],
+                                                            allLFNs[cloudKey],
+                                                            allSEs)
+            if not tmpStat:
+                self.logger.error('failed to get file replicas')
+                tmpAvaFiles = {}
+            # look for missing or tape files
+            tmpMissLFNs = set()
+            tmpTapeLFNs = set()
+            for tmpLFN in allLFNs[cloudKey]:
+                if tmpLFN not in tmpAvaFiles:
+                    tmpMissLFNs.add(tmpLFN)
+                else:
+                    for tmpTapeSE in tapeSEs:
+                        if tmpTapeSE in tmpAvaFiles[tmpLFN]:
+                            tmpTapeLFNs.add(tmpLFN)
+                            break
             # append
             if not missLFNs.has_key(cloudKey):
                 missLFNs[cloudKey] = []
@@ -1527,11 +1442,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     if not checkLfcSeMap[catURL].has_key(tmpSiteName):
                         checkLfcSeMap[catURL][tmpSiteName] = []
                     # add SE        
-                    if tmpSiteSpec.se != None:
-                        for tmpSrcSiteSE in tmpSiteSpec.se.split(','):
-                            match = re.search('.+://([^:/]+):*\d*/*',tmpSrcSiteSE)
-                            if match != None:
-                                checkLfcSeMap[catURL][tmpSiteName].append(match.group(1))
+                        checkLfcSeMap[catURL][tmpSiteName] += tmpSiteSpec.ddm_endpoints.getTapeEndPoints()
                 # LFC lookup
                 for tmpCatURL in checkLfcSeMap.keys():  
                     # get SEs
@@ -1542,24 +1453,21 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         tmpSiteNameList.append(tmpSiteName)
                     # get available file list
                     self.logger.debug('checking T2 LFC=%s for %s %s' % (tmpCatURL,tmpSEList,','.join(tmpSiteNameList)))
-                    bulkAvFiles = brokerage.broker_util.getFilesFromLRC(self.availableLFNsInT2[cloudKey][tmpDsName]['allfiles'],
-                                                                        tmpCatURL,
-                                                                        self.availableLFNsInT2[cloudKey][tmpDsName]['allguids'],
-                                                                        storageName=tmpSEList,getPFN=True,
-                                                                        scopeList=self.availableLFNsInT2[cloudKey][tmpDsName]['allscopes'])
+                    tmpStat,bulkAvFiles = rucioAPI.listFileReplicas(self.availableLFNsInT2[cloudKey][tmpDsName]['allscopes'],
+                                                                    self.availableLFNsInT2[cloudKey][tmpDsName]['allfiles'],
+                                                                    tmpSEList)
+                    if not tmpStat:
+                        self.logger.error('failed to get file replicas')
+                        bulkAvFiles = {}
                     # check each site
-                    for tmpSiteName in checkLfcSeMap[tmpCatURL].keys():
+                    for tmpSiteName,tmpSiteSEs in checkLfcSeMap[tmpCatURL].iteritems():
+                        tmpSiteSEs = set(tmpSiteSEs)
                         self.availableLFNsInT2[cloudKey][tmpDsName]['sites'][tmpSiteName] = []                        
-                        for tmpLFNck,tmpPFNlistck in bulkAvFiles.iteritems():
+                        for tmpLFNck,tmpFileSEs in bulkAvFiles.iteritems():
                             siteHasFileFlag = False
-                            for tmpPFNck in tmpPFNlistck:
-                                # check se
-                                for tmpSE in checkLfcSeMap[tmpCatURL][tmpSiteName]:
-                                    if '://'+tmpSE in tmpPFNck:
-                                        siteHasFileFlag = True
-                                        break
-                                # escape
-                                if siteHasFileFlag:
+                            for tmpFileSE in tmpFileSEs:
+                                if tmpFileSE in tmpSiteSEs:
+                                    siteHasFileFlag = True
                                     break
                             # append
                             if siteHasFileFlag:
@@ -1998,9 +1906,9 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 continue
             # check SE to use T2 only
             tmpSrcID = self.siteMapper.getCloud(tmpJob.getCloud())['source']
-            srcSEs = brokerage.broker_util.getSEfromSched(self.siteMapper.getSite(tmpSrcID).se)
-            dstSEs = brokerage.broker_util.getSEfromSched(self.siteMapper.getSite(tmpJob.computingSite).se)
-            if srcSEs == dstSEs:
+            srcSiteSpec = self.siteMapper.getSite(tmpSrcID)
+            dstSiteSpec = self.siteMapper.getSite(tmpJob.computingSite)
+            if dstSiteSpec.ddm_endpoints.isAssociated(srcSiteSpec.ddm):
                 continue
             # look for log _sub dataset to be used as a key
             logSubDsName = ''
@@ -2110,7 +2018,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         isOK = False
                         for iDDMTry in range(nDDMTry):
                             try:
-                                out = self.registerDispatchDataset(disDBlock,lfns,guids,fsizes,chksums)
+                                out = self.registerDispatchDataset(disDBlock,lfns,guids,fsizes,chksums,
+                                                                   jediTaskID=tmpVal['taskID'])
                                 self.logger.debug(out)
                                 isOK = True
                                 break
@@ -2480,7 +2389,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
 
 
     # register dispatch dataset
-    def registerDispatchDataset(self,dsn,lfns=[],guids=[],sizes=[],checksums=[],scope='panda'):
+    def registerDispatchDataset(self,dsn,lfns=[],guids=[],sizes=[],checksums=[],scope='panda',jediTaskID=None):
         files = []
         for lfn, guid, size, checksum in zip(lfns, guids, sizes, checksums):
             if lfn.find(':') > -1:
@@ -2496,6 +2405,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         # metadata
         metadata = {'hidden':True,
                     'purge_replicas': 0}
+        if jediTaskID is not None:
+            metadata['task_id'] = str(jediTaskID)
         # register dataset
         client = RucioClient()
         try:

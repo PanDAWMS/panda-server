@@ -459,6 +459,50 @@ class RucioAPI:
 
 
 
+    # get user
+    def getUser(self, client, dn):
+        l = [i for i in client.list_accounts('user', dn)]
+        if l != []:
+            owner = l[0]['account']
+            return owner
+        return client.account
+
+
+
+    # register dataset subscription
+    def registerDatasetSubscription(self,dsn,rses,lifetime=None,owner=None,activity=None,dn=None,
+                                    comment=None):
+        if lifetime != None:
+            lifetime = lifetime*24*60*60
+        scope, dsn = self.extract_scope(dsn)
+        dids = []
+        did = {'scope': scope, 'name': dsn}
+        dids.append(did)
+        # make location
+        rses.sort()
+        location = '|'.join(rses)
+        # check if a replication rule already exists
+        client = RucioClient()
+        # owner
+        if owner is None:
+            if dn is not None:
+                owner = self.getUser(client, dn)
+            else:
+                owner = client.account
+        for rule in client.list_did_rules(scope=scope, name=dsn):
+            if (rule['rse_expression'] == location) and (rule['account'] == client.account):
+                return True
+        try:
+            client.add_replication_rule(dids=dids,copies=1,rse_expression=location,weight=None,
+                                        lifetime=lifetime, grouping='DATASET', account=owner,
+                                        locked=False,activity=activity,notify='C',
+                                        ignore_availability=True,comment=comment)
+        except (Duplicate,DuplicateRule):
+            pass
+        return True
+
+
+
     # register files in dataset
     def registerFilesInDataset(self,idMap):
         # loop over all rse
@@ -631,7 +675,7 @@ class RucioAPI:
 
 
     # list file replicas
-    def listFileReplicas(self,scopes,lfns):
+    def listFileReplicas(self,scopes,lfns,rses=None):
         try:
             client = RucioClient()
             dids = []
@@ -643,9 +687,17 @@ class RucioAPI:
                 dids.append({'scope':scope,'name':lfn})
                 if len(dids) % nGUID == 0 or iGUID == len(lfns):
                     for tmpDict in client.list_replicas(dids,['srm']):
-                        rses = tmpDict['rses'].keys()
-                        if len(rses) > 0:
-                            retVal[lfn] = rses
+                        tmpLFN = str(tmpDict['name'])
+                        tmpRses = tmpDict['rses'].keys()
+                        # RSE selection
+                        if rses is not None:
+                            newRSEs = []
+                            for tmpRse in tmpRses:
+                                if tmpRse in rses:
+                                    newRSEs.append(tmpRse)
+                            tmpRses = newRSEs
+                        if len(tmpRses) > 0:
+                            retVal[tmpLFN] = tmpRses
                     dids = []
             return True,retVal
         except:

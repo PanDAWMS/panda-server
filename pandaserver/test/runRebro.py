@@ -18,12 +18,9 @@ from taskbuffer.TaskBuffer import taskBuffer
 from pandalogger.PandaLogger import PandaLogger
 from jobdispatcher.Watcher import Watcher
 from brokerage.SiteMapper import SiteMapper
-from dataservice.Adder import Adder
 from dataservice.Finisher import Finisher
 from dataservice.MailUtils import MailUtils
 from taskbuffer import ProcessGroups
-import brokerage.broker_util
-import brokerage.broker
 import taskbuffer.ErrorCode
 import dataservice.DDM
 
@@ -109,8 +106,14 @@ _memoryCheck("rebroker")
 
 # rebrokerage
 _logger.debug("Rebrokerage start")
+
+# get timeout value
+timeoutVal = taskBuffer.getConfigValue('rebroker','ANALY_TIMEOUT')
+if timeoutVal is None:
+    timeoutVal = 12
+_logger.debug("timeout value : {0}h".format(timeoutVal))    
 try:
-    normalTimeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
+    normalTimeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=timeoutVal)
     sortTimeLimit   = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
     sql  = "SELECT jobDefinitionID,prodUserName,prodUserID,computingSite,MAX(modificationTime),jediTaskID,processingType "
     sql += "FROM ATLAS_PANDA.jobsActive4 "

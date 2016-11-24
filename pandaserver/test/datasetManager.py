@@ -20,14 +20,11 @@ from taskbuffer.TaskBuffer import taskBuffer
 from pandalogger.PandaLogger import PandaLogger
 from jobdispatcher.Watcher import Watcher
 from brokerage.SiteMapper import SiteMapper
-from dataservice.Adder import Adder
 from dataservice.Finisher import Finisher
 from dataservice.MailUtils import MailUtils
 from dataservice import DataServiceUtils
 from dataservice.Closer import Closer
 from taskbuffer import ProcessGroups
-import brokerage.broker_util
-import brokerage.broker
 import taskbuffer.ErrorCode
 import dataservice.DDM
 
@@ -845,21 +842,14 @@ class FinisherThr (threading.Thread):
             for job in jobs:
                 if job == None or job.jobStatus == 'unknown':
                     continue
-                # use BNL by default
-                dq2URL = siteMapper.getSite('BNL_ATLAS_1').dq2url
-                dq2SE  = []
-                # get LFC and SEs
+                seList = ['dummy']
+                tmpNucleus = siteMapper.getNucleus(job.nucleus)
+                # get SEs
                 if job.prodSourceLabel == 'user' and not siteMapper.siteSpecList.has_key(job.destinationSE):
                     # using --destSE for analysis job to transfer output
-                    try:
-                        dq2URL = 'rucio://atlas-rucio.cern.ch:/grid/atlas'
-                        match = re.search('.+://([^:/]+):*\d*/*',dataservice.DDM.toa.getSiteProperty(job.destinationSE,'srm')[-1])
-                        if match != None:
-                            dq2SE.append(match.group(1))
-                    except:
-                        type, value, traceBack = sys.exc_info()
-                        _logger.error("%s Failed to get DQ2/SE with %s %s" % (job.PandaID,type,value))
-                        continue
+                    seList = [job.destinationSE]
+                elif tmpNucleus != None:
+                    seList = tmpNucleus.allDdmEndPoints.keys()
                 elif siteMapper.checkCloud(job.cloud):
                     # normal production jobs
                     if DataServiceUtils.checkJobDestinationSE(job) == None:
@@ -867,13 +857,7 @@ class FinisherThr (threading.Thread):
                     else:
                         tmpDstID = job.destinationSE
                     tmpDstSite = siteMapper.getSite(tmpDstID)
-                    # get catalog URL
-                    dq2URL = 'rucio://atlas-rucio.cern.ch:/grid/atlas'
-                    if tmpDstSite.se != None:
-                        for tmpDstSiteSE in tmpDstSite.se.split(','):
-                            match = re.search('.+://([^:/]+):*\d*/*',tmpDstSiteSE)
-                            if match != None:
-                                dq2SE.append(match.group(1))
+                    seList = tmpDstSite.ddm_endpoints.getLocalEndPoints()
                 # get LFN list
                 lfns   = []
                 guids  = []
@@ -891,13 +875,15 @@ class FinisherThr (threading.Thread):
                         scopes.append(file.scope)
                         nTokens += len(file.destinationDBlockToken.split(','))
                 # get files in LRC
-                _logger.debug("%s Cloud:%s DQ2URL:%s" % (job.PandaID,job.cloud,dq2URL))
-                okFiles = brokerage.broker_util.getFilesFromLRC(lfns,dq2URL,guids,dq2SE,
-                                                                getPFN=True,scopeList=scopes)
+                _logger.debug("%s Cloud:%s" % (job.PandaID,job.cloud))
+                tmpStat,okFiles = rucioAPI.listFileReplicas(scopes,lfns,seList)
+                if not tmpStat:
+                    _logger.errpr("%s failed to get file replicas" % job.PandaID)
+                    okFiles = {}
                 # count files
                 nOkTokens = 0
-                for okLFN,okPFNs in okFiles.iteritems():
-                    nOkTokens += len(okPFNs)
+                for okLFN,okSEs in okFiles.iteritems():
+                    nOkTokens += len(okSEs)
                 # check all files are ready    
                 _logger.debug("%s nToken:%s nOkToken:%s" % (job.PandaID,nTokens,nOkTokens))
                 if nTokens <= nOkTokens:

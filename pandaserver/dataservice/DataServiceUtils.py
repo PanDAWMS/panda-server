@@ -437,3 +437,10 @@ def getActivityForOut(prodSourceLabel):
     else:
         activity = "Functional Test" 
     return activity
+
+
+# cleanup DN
+def cleanupDN(realDN):
+    tmpRealDN = re.sub('/CN=limited proxy','',realDN)
+    tmpRealDN = re.sub('/CN=proxy','',tmpRealDN)
+    return tmpRealDN

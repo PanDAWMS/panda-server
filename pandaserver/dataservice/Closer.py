@@ -18,7 +18,6 @@ from taskbuffer.FileSpec import FileSpec
 from taskbuffer.DatasetSpec import DatasetSpec
 from brokerage.SiteMapper import SiteMapper
 from config import panda_config
-import brokerage.broker_util
 
 # logger
 _logger = PandaLogger().getLogger('Closer')
