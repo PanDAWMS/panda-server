@@ -1,5 +1,8 @@
 Release Notes
 
+* 11/24/2016
+  * Updated MySQL DB schema
+
 * 11/18/2016
   * added task_id and account to prestaging rules
 
