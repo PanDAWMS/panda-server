@@ -1498,12 +1498,12 @@ class DBProxy:
                         job.jobStatus = 'closed'
                         job.jobSubStatus = 'es_inaction'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceUnprocessed
-                        job.taskBufferErrorDiag = "didn't process any events on WN for Event Service"
+                        job.taskBufferErrorDiag = "didn't process any events on WN and take no further action due to no remaining events"
                     elif retEvS == 6:
                         # didn't process any event ranges and last consumer
                         job.jobStatus = 'failed'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceLastUnprocessed
-                        job.taskBufferErrorDiag = "didn't process any events on WN for Event Service"
+                        job.taskBufferErrorDiag = "didn't process any events on WN and give up since this is the last consumer"
                     elif retEvS == 7:
                         # all event ranges failed
                         job.jobStatus = 'failed'
@@ -1514,7 +1514,7 @@ class DBProxy:
                         job.jobStatus = 'closed'
                         job.jobSubStatus = 'es_noevent'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceNoEvent
-                        job.taskBufferErrorDiag = 'closed to retry unprocessed even ranges in PandaID={0}'.format(retNewPandaID)
+                        job.taskBufferErrorDiag = "didn't process any events on WN and retry unprocessed even ranges in PandaID={0}".format(retNewPandaID)
                     # kill unused event ranges
                     if job.jobStatus == 'failed':
                         self.killUnusedEventRanges(job.jediTaskID,job.jobsetID)
@@ -1625,7 +1625,8 @@ class DBProxy:
                 # overwrite job status
                 tmpJobStatus = job.jobStatus
                 sqlOJS = "UPDATE ATLAS_PANDA.jobsArchived4 SET jobStatus=:jobStatus,jobSubStatus=:jobSubStatus WHERE PandaID=:PandaID "
-                if oldJobSubStatus in ['pilot_failed','es_heartbeat']:
+                if oldJobSubStatus in ['pilot_failed', 'es_heartbeat'] or \
+                        oldJobSubStatus == 'pilot_killed' and job.jobSubStatus in ['es_noevent', 'es_inaction']:
                     varMap = {}
                     varMap[':PandaID'] = job.PandaID
                     varMap[':jobStatus'] = 'failed'

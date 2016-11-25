@@ -1,5 +1,8 @@
 Release Notes
 
+* 11/25/2016
+  * added pilot_killed
+
 * 11/24/2016
   * Updated MySQL DB schema
 
