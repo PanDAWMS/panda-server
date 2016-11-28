@@ -18272,10 +18272,10 @@ class DBProxy:
             sql += 'WHERE jediTaskID=:jediTaskID '
             # sql to get datasetIDs for master
             sqlM  = 'SELECT datasetID FROM {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
-            sqlM += 'WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) '
+            sqlM += 'WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2,:type3) '
             # sql to increase attempt numbers and update status
             sqlAB  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
-            sqlAB += "SET status=:status,attemptNr=attemptNr+1,maxAttempt=attemptNr+2 "
+            sqlAB += "SET status=:status,attemptNr=0 "
             sqlAB += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
             # sql to update datasets
             sqlD  = "UPDATE {0}.JEDI_Datasets ".format(panda_config.schemaJEDI)
@@ -18292,6 +18292,7 @@ class DBProxy:
             varMap[':jediTaskID'] = jediTaskID
             varMap[':type1'] = 'input'
             varMap[':type2'] = 'pseudo_input'
+            varMap[':type3'] = 'random_seed'
             self.cur.execute(sqlM+comment, varMap)
             resM = self.cur.fetchall()
             total_nFiles = 0
