@@ -1,5 +1,3 @@
-from taskbuffer import GlobalShares
-from pandajedi.jedicore.JediTaskSpec import JediTaskSpec
 from pandajedi.jedicore.JediDBProxy import DBProxy
 from config import panda_config
 
@@ -27,6 +25,12 @@ if __name__ == "__main__":
     print ("Share {0} is valid: {1}".format(share_name, proxyS.is_valid_share(share_name)))
     share_name = 'MC16Pile'
     print ("Share {0} is valid: {1}".format(share_name, proxyS.is_valid_share(share_name)))
+
+    try:
+        from pandajedi.jedicore.JediTaskSpec import JediTaskSpec
+    except ImportError:
+        print ("Skipped task tests since JEDI module depency not satisfied")
+        return
 
     # create a fake tasks with relevant fields and retrieve its share
     task_spec = JediTaskSpec()
