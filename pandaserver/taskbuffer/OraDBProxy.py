@@ -18384,7 +18384,7 @@ class DBProxy:
                 (SELECT gshare, HS,
                      CASE
                          WHEN jobstatus IN('activated') THEN 'queued'
-                         WHEN jobstatus IN('sent', 'starting', 'running', 'holding') THEN 'executing'
+                         WHEN jobstatus IN('sent', 'running') THEN 'executing'
                          ELSE 'ignore'
                      END jobstatus_grouped
                  FROM ATLAS_PANDA.JOBS_SHARE_STATS JSS)
