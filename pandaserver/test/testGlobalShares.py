@@ -21,6 +21,11 @@ if __name__ == "__main__":
     print('--------------LEAVE SHARES---------------')
     print(proxyS.leave_shares)
 
+    # print the current grid status
+    print('--------------LEAVE SHARES---------------')
+    print(proxyS.tree.pretty_print_hs_distribution(proxyS._DBProxy__hs_distribution))
+
+
     # check a couple of shares if they are valid leave names
     share_name = 'wrong_share'
     print ("Share {0} is valid: {1}".format(share_name, proxyS.is_valid_share(share_name)))
