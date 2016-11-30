@@ -1,4 +1,4 @@
-from pandajedi.jedicore.JediDBProxy import DBProxy
+from pandaserver.taskbuffer.OraDBProxy import DBProxy
 from config import panda_config
 import sys
 
