@@ -1,5 +1,6 @@
 from pandajedi.jedicore.JediDBProxy import DBProxy
 from config import panda_config
+import sys
 
 if __name__ == "__main__":
     """
@@ -30,7 +31,7 @@ if __name__ == "__main__":
         from pandajedi.jedicore.JediTaskSpec import JediTaskSpec
     except ImportError:
         print ("Skipped task tests since JEDI module depency not satisfied")
-        return
+        sys.exit(0)
 
     # create a fake tasks with relevant fields and retrieve its share
     task_spec = JediTaskSpec()
