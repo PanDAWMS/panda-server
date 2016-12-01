@@ -22,7 +22,7 @@ if __name__ == "__main__":
     print(proxyS.leave_shares)
 
     # print the current grid status
-    print('--------------LEAVE SHARES---------------')
+    print('--------------CURRENT GRID STATUS---------------')
     print(proxyS.tree.pretty_print_hs_distribution(proxyS._DBProxy__hs_distribution))
 
 
