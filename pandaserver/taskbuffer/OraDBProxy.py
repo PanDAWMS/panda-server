@@ -9712,7 +9712,7 @@ class DBProxy:
             leave_bindings = ','.join(tmp_list)
             ret_sql = """
                       ORDER BY DECODE (gshare, {1}, {2}), currentpriority desc, pandaid asc)
-                      WHERE ROWNUM <= 10
+                      WHERE ROWNUM <= {0}
                       """.format(':njobs', leave_bindings, len(sorted_leaves))
 
             # TODO: a job might be stuck on a site because its share is completely filled by sites with
