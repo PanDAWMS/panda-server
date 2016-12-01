@@ -1,5 +1,8 @@
 Release Notes
 
+* 12/1/2016
+  * removed retry for analysis in Watcher
+
 * 11/25/2016
   * added pilot_killed
 
