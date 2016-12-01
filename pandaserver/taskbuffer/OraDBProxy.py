@@ -3035,7 +3035,9 @@ class DBProxy:
                             sqlMX = "SELECT /*+ INDEX_RS_ASC(tab (PRODSOURCELABEL COMPUTINGSITE JOBSTATUS) ) */ MAX(currentPriority) FROM ATLAS_PANDA.jobsActive4 tab "
                             sqlMX += sql1
                             if global_share_sql:
+                                sqlMX = 'SELECT * FROM (' + sqlMX
                                 sqlMX += global_share_sql
+
                             _logger.debug(sqlMX+comment+str(getValMap))
 
                             # start transaction
@@ -3062,6 +3064,7 @@ class DBProxy:
                                 sqlP += "AND currentPriority=:currentPriority "
 
                             if global_share_sql:
+                                sqlP = 'SELECT * FROM (' + sqlP
                                 sqlP += global_share_sql
 
                             _logger.debug(sqlP+comment+str(getValMap))
@@ -9708,8 +9711,8 @@ class DBProxy:
             # We want to sort by global share, highest priority and lowest pandaid
             leave_bindings = ','.join(tmp_list)
             ret_sql = """
-                      AND ROWNUM <= {0}
-                      ORDER BY DECODE (gshare, {1}, {2}), currentpriority desc, pandaid asc
+                      ORDER BY DECODE (gshare, {1}, {2}), currentpriority desc, pandaid asc)
+                      WHERE ROWNUM <= 10
                       """.format(':njobs', leave_bindings, len(sorted_leaves))
 
             # TODO: a job might be stuck on a site because its share is completely filled by sites with
