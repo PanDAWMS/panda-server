@@ -1953,7 +1953,7 @@ class DBProxy:
                         _logger.debug("updateJobStatus : PandaID=%s skip to change from merging" % pandaID)
                     else:
                         # update stateChangeTime
-                        if updateStateChange or (jobStatus=='starting' and oldJobStatus != 'starting'):
+                        if updateStateChange or (jobStatus != oldJobStatus):
                             sql1 += ",stateChangeTime=CURRENT_DATE"
                         # set endTime if undefined for holding
                         if jobStatus == 'holding' and endTime==None and not presetEndTime:
