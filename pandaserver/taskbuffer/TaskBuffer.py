@@ -3215,7 +3215,7 @@ class TaskBuffer:
         # get DB proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        res = proxy.getTaskParamsMap(jediTaskID)
+        res = proxy.getTaskPramsPanda(jediTaskID)
         # release DB proxy
         self.proxyPool.putProxy(proxy)
         # return
