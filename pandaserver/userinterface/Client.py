@@ -2149,3 +2149,30 @@ def listTasksInShare(gshare, status='running'):
         err_type, err_value = sys.exc_info()[:2]
         err_str = "ERROR listTasksInShare : {0} {1}".format(err_type, err_value)
         return EC_Failed, '{0}\n{1}'.format(output, err_str)
+
+
+# get taskParamsMap with TaskID
+def getTaskParamsMap(jediTaskID):
+    """Get task status
+
+       args:
+           jediTaskID: jediTaskID of the task to get taskParamsMap
+       returns:
+           status code
+                 0: communication succeeded to the panda server
+                 255: communication failure
+           taskParamsMap
+    """
+    # instantiate curl
+    curl = _Curl()
+    # execute
+    url = baseURL + '/getTaskParamsMap'
+    data = {'jediTaskID':jediTaskID}
+    status,output = curl.post(url,data)
+    try:
+        return status,pickle.loads(output)
+    except:
+        type, value, traceBack = sys.exc_info()
+        errStr = "ERROR getTaskParamsMap : %s %s" % (type,value)
+        print errStr
+        return EC_Failed,output+'\n'+errStr

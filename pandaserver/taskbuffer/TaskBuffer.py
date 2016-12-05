@@ -3208,6 +3208,20 @@ class TaskBuffer:
         return res
 
 
+    def getTaskParamsMap(self,jediTaskID):
+        """
+        Return the taskParamsMap
+        """
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.getTaskParamsMap(jediTaskID)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 

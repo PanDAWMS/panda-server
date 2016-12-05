@@ -69,7 +69,7 @@ from userinterface.UserIF        import submitJobs,getJobStatus,queryPandaIDs,ki
      retryTask,getRetryHistory,changeTaskPriority,reassignTask,changeTaskAttributePanda,\
      pauseTask,resumeTask,increaseAttemptNrPanda,killUnfinishedJobs,changeTaskSplitRulePanda,\
      changeTaskModTimePanda,avalancheTask,getPandaIDsWithTaskID,reactivateTask,getTaskStatus, \
-     reassignShare, listTasksInShare
+     reassignShare, listTasksInShare, getTaskParamsMap
 allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reassignJobs',
                    'getJobStatistics','getJobStatisticsPerSite','resubmitJobs','queryLastFilesInDataset','getPandaIDsSite',
                    'getJobsToBeUpdated','updateProdDBUpdateTimes','runTaskAssignment','getAssigningTask','getSiteSpecs',
@@ -86,7 +86,7 @@ allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reass
                    'retryTask','getRetryHistory','changeTaskPriority','reassignTask','changeTaskAttributePanda',
                    'pauseTask','resumeTask','increaseAttemptNrPanda','killUnfinishedJobs','changeTaskSplitRulePanda',
                    'changeTaskModTimePanda','avalancheTask','getPandaIDsWithTaskID', 'reactivateTask', 'getTaskStatus',
-                   'reassignShare', 'listTasksInShare']
+                   'reassignShare', 'listTasksInShare', 'getTaskParamsMap']
 
 # import error
 import taskbuffer.ErrorCode
