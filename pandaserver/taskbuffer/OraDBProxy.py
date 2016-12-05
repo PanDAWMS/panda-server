@@ -18819,7 +18819,7 @@ class DBProxy:
                 raise RuntimeError, 'Commit error'
 
             tmp_log.debug('done')
-            return res[0]
+            return 0, res[0]
 
         except:
             # roll back
@@ -18827,4 +18827,4 @@ class DBProxy:
             type, value, traceBack = sys.exc_info()
             _logger.error("getTaskParamsMap : %s %s" % (sql, str(varMap)))
             _logger.error("getTaskParamsMap : %s %s" % (type, value))
-            return None
+            return -1, None

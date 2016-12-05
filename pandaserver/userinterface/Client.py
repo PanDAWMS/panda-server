@@ -2161,7 +2161,10 @@ def getTaskParamsMap(jediTaskID):
            status code
                  0: communication succeeded to the panda server
                  255: communication failure
-           taskParamsMap
+           return: a tuple of return code and taskParamsMap
+                 1: logical error
+                 0: success
+                 None: database error
     """
     # instantiate curl
     curl = _Curl()
