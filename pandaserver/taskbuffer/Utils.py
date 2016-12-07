@@ -116,14 +116,13 @@ def putFile(req,file):
         return False
     _logger.debug("putFile : start %s %s" % (req.subprocess_env['SSL_CLIENT_S_DN'],file.filename))
     # size check
-    sizeLimit = 768*1024*1024
-    #fullSizeLimit = 768*1024*1024
-    #if not file.filename.startswith('sources.'):
-    #    noBuild = True
-    #    sizeLimit = 100*1024*1024
-    #else:
-    #    noBuild = False
-    #    sizeLimit = fullSizeLimit
+    fullSizeLimit = 768*1024*1024
+    if not os.path.basename(file.filename).startswith('sources.'):
+        noBuild = True
+        sizeLimit = 100*1024*1024
+    else:
+        noBuild = False
+        sizeLimit = fullSizeLimit
     # get file size
     contentLength = 0
     try:
@@ -136,18 +135,15 @@ def putFile(req,file):
     _logger.debug("size %s" % contentLength)
     if contentLength > sizeLimit:
         errStr = "ERROR : Upload failure. Exceeded size limit %s>%s." % (contentLength,sizeLimit)
-        #if noBuild:
-        #    errStr += " Please submit the job without --noBuild/--libDS since those options impose a tighter size limit"
-        #else:
-        #    errStr += " Please remove redundant files from your workarea"
+        if noBuild:
+            errStr += " Please submit the job without --noBuild/--libDS since those options impose a tighter size limit"
+        else:
+            errStr += " Please remove redundant files from your workarea"
         _logger.error(errStr)
         _logger.debug("putFile : end")            
         return errStr
     try:
-        fileFullPath = file.filename
-        if not fileFullPath.startswith('/'):
-            fileFullPath = '%s/%s' % (panda_config.cache_dir,file.filename.split('/')[-1])
-        #fileFullPath = '%s/%s' % (panda_config.cache_dir,file.filename.split('/')[-1])
+        fileFullPath = '%s/%s' % (panda_config.cache_dir,file.filename.split('/')[-1])
         # avoid overwriting
         if os.path.exists(fileFullPath):
             # touch
