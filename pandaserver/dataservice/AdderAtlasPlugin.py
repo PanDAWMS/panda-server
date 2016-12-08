@@ -244,7 +244,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                     if self.useCentralLFC():
                         fileAttrs['surl'] = self.extraInfo['surl'][file.lfn]
                         if fileAttrs['surl'] == None:
-                            raise TypeError,"{0} has SURL=None".format(file.lfn)
+                            del fileAttrs['surl']
                         # get destination
                         if not dsDestMap.has_key(fileDestinationDBlock):
                             toConvert = True
