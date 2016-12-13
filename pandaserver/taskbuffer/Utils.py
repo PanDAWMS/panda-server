@@ -117,7 +117,7 @@ def putFile(req,file):
     _logger.debug("putFile : start %s %s" % (req.subprocess_env['SSL_CLIENT_S_DN'],file.filename))
     # size check
     fullSizeLimit = 768*1024*1024
-    if not os.path.basename(file.filename).startswith('sources.'):
+    if not file.filename.startswith('sources.'):
         noBuild = True
         sizeLimit = 100*1024*1024
     else:
