@@ -23,6 +23,7 @@ singleToken = 'sc'
 singleConsumerType = {'runonce':  '1',
                       'storeonce':'2'}
 dynamicNumEventsToken = 'dy'
+mergeAtOsToken = 'mo'
 
 # values for job.eventService
 esJobFlagNumber = 1
@@ -287,3 +288,32 @@ def isJumboJob(job):
 # check if cooperative with jumbo job
 def isCoJumboJob(job):
     return job.eventService == coJumboJobFlagNumber
+
+
+
+# set header for merge at OS
+def setHeaderForMergeAtOS(specialHandling):
+    if specialHandling == None:
+        specialHandling = ''
+    tokens = specialHandling.split(',')
+    while True:
+        try:
+            tokens.remove('')
+        except:
+            break
+    if mergeAtOsToken not in tokens:
+        tokens.append(mergeAtOsToken)
+    return ','.join(tokens)
+
+
+
+# check if specialHandling for merge at OS
+def isMergeAtOS(specialHandling):
+    try:
+        if specialHandling != None:
+            if mergeAtOsToken in specialHandling.split(','):
+                return True
+    except:
+        pass
+    return False
+

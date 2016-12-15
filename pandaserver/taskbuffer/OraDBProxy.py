@@ -9307,7 +9307,8 @@ class DBProxy:
             sql+= "maxwdir,fairsharePolicy,minmemory,maxmemory,mintime,"
             sql+= "catchall,allowfax,wansourcelimit,wansinklimit,b.site_name,"
             sql+= "sitershare,cloudrshare,corepower,wnconnectivity,catchall,"
-            sql+= "c.role,maxrss,minrss,direct_access_lan,direct_access_wan,tier "
+            sql+= "c.role,maxrss,minrss,direct_access_lan,direct_access_wan,tier, "
+            sql+= "objectstores " 
             sql+= "FROM (ATLAS_PANDAMETA.schedconfig a "
             sql+= "LEFT JOIN ATLAS_PANDA.panda_site b ON a.siteid=b.panda_site_name) "
             sql+= "LEFT JOIN ATLAS_PANDA.site c ON b.site_name=c.site_name "
@@ -9337,7 +9338,8 @@ class DBProxy:
                        maxwdir,fairsharePolicy,minmemory,maxmemory,mintime, \
                        catchall,allowfax,wansourcelimit,wansinklimit,pandasite, \
                        sitershare,cloudrshare,corepower,wnconnectivity,catchall, \
-                       role,maxrss,minrss,direct_access_lan,direct_access_wan,tier \
+                       role,maxrss,minrss,direct_access_lan,direct_access_wan,tier, \
+                       objectstores \
                        = resTmp
                     # skip invalid siteid
                     if siteid in [None,'']:
@@ -9537,6 +9539,11 @@ class DBProxy:
                         ret.ddm_endpoints = DdmSpec()
                     # mapping between token and endpoints
                     ret.setokens = ret.ddm_endpoints.getTokenMap()
+                    # object stores
+                    try:
+                        ret.objectstores = json.loads(objectstores)
+                    except:
+                        ret.objectstores = []
                     # append
                     retList[ret.nickname] = ret
             _logger.debug("getSiteInfo done")
@@ -14846,20 +14853,27 @@ class DBProxy:
                     jobSpec.jobParameters = tmpMatch.group(1)
                 except:
                     pass
+                # merge on OS
+                isMergeAtOS = EventServiceUtils.isMergeAtOS(jobSpec.specialHandling)
                 # change special handling
                 EventServiceUtils.setEventServiceMerge(jobSpec)
                 # check where merge is done
                 lookForMergeSite = True
-                sqlWM  = "SELECT catchAll FROM ATLAS_PANDAMETA.schedconfig WHERE siteid=:siteid "
+                sqlWM  = "SELECT catchAll,objectstores FROM ATLAS_PANDAMETA.schedconfig WHERE siteid=:siteid "
                 varMap = {}
                 varMap[':siteid'] = jobSpec.computingSite
                 self.cur.execute(sqlWM+comment, varMap)
                 resWM = self.cur.fetchone()
                 resSN = []
-                if resWM != None and resWM[0] != None:
-                    catchAll = resWM[0]
-                else:
+                catchAll,objectstores = None,None
+                if resWM != None:
+                    catchAll,objectstores = resWM
+                if catchAll == None:
                     catchAll = ''
+                try:
+                    objectstores = json.loads(objectstores)
+                except:
+                    objectstores = []
                 if 'localEsMergeNC' in catchAll:
                     # no site change
                     lookForMergeSite = False
@@ -14881,13 +14895,28 @@ class DBProxy:
                         jobSpec.computingSite = jobSpec.destinationSE
                         lookForMergeSite = False
                     else:
+                        # use nucleus close to OS
+                        tmpNucleus = None
+                        if isMergeAtOS and len(objectstores) > 0:
+                            osEndpoint = objectstores[0]['ddmendpoint']
+                            sqlCO = "SELECT site_name FROM ATLAS_PANDA.ddm_endpoint WHERE ddm_endpoint_name=:osEndpoint "
+                            varMap = dict()
+                            varMap[':osEndpoint'] = osEndpoint
+                            self.cur.execute(sqlCO+comment,varMap)
+                            resCO = self.cur.fetchone()
+                            if resCO is not None:
+                                tmpNucleus, = resCO
+                        # use nucleus
+                        if tmpNucleus is None:
+                            tmpNucleus = jobSpec.destinationSE.split(':')[-1]
+                        _logger.debug('{0} look for merge sites in {1}'.format(methodName,tmpNucleus))
                         # get sites in a nucleus
                         sqlSN  = "SELECT panda_site_name,default_ddm_endpoint FROM ATLAS_PANDA.panda_site ps,ATLAS_PANDAMETA.schedconfig sc "
                         sqlSN += "WHERE site_name=:nucleus AND sc.siteid=ps.panda_site_name "
                         sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1) "
                         sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
                         varMap = {}
-                        varMap[':nucleus'] = jobSpec.destinationSE.split(':')[-1]
+                        varMap[':nucleus'] = tmpNucleus
                         # get sites
                         self.cur.execute(sqlSN+comment,varMap)
                         resSN = self.cur.fetchall()

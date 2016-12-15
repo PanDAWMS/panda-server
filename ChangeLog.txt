@@ -1,5 +1,8 @@
 Release Notes
 
+* 12/15/2016
+  * added mergeEsOnOS
+
 * 12/2/2016
   * changed to update stateChangeTime properly
 
