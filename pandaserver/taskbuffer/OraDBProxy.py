@@ -3224,6 +3224,15 @@ class DBProxy:
                 esDonePandaIDs = []
                 esOutputZipMap = {}
                 esZipRow_IDs = set()
+                # use new file format for ES
+                useNewFileFormatForES = False
+                if job.AtlasRelease is not None:
+                    try:
+                        tmpMajorVer = job.AtlasRelease.split('-')[-1].split('.')[0]
+                        if int(tmpMajorVer) >= 20:
+                            useNewFileFormatForES = True
+                    except:
+                        pass
                 for resF in resFs:
                     file = FileSpec()
                     file.pack(resF)
@@ -3330,7 +3339,10 @@ class DBProxy:
                             tmpInputFileSpec = copy.copy(tmpFileSpec)
                             tmpInputFileSpec.type = 'input'
                             # change attemptNr back to the original, which could have been changed by ES merge retry
-                            origLFN = re.sub('\.\d+$','.1',tmpInputFileSpec.lfn)
+                            if not useNewFileFormatForES:
+                                origLFN = re.sub('\.\d+$','.1',tmpInputFileSpec.lfn)
+                            else:
+                                origLFN = re.sub('\.\d+$','.1_000',tmpInputFileSpec.lfn)
                             # append eventRangeID as suffix
                             tmpInputFileSpec.lfn = origLFN + '.' + tmpMapEventRangeID[jobProcessID]['eventRangeID']
                             esPandaID = tmpMapEventRangeID[jobProcessID]['pandaID']
