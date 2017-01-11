@@ -1,5 +1,8 @@
 Release Notes
 
+* 1/11/2017
+  * fixed EventPicker for RFC proxy
+
 * 12/15/2016
   * added mergeEsOnOS
   * using new filename format for ES merge for rel20 or higher

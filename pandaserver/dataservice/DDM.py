@@ -761,6 +761,31 @@ class RucioAPI:
             pass
 
 
+    # finger
+    def finger(self, userName):
+        try:
+            # get rucio API
+            client = RucioClient()
+            userInfo = None
+            retVal = False
+            for i in client.list_accounts(account_type='USER',identity=userName):
+                userInfo = {'nickname':i['account'],
+                            'email':i['email']}
+                break
+            if userInfo == None:
+                # remove /CN=\d
+                userName = re.sub('/CN=\d+$','',userName)
+                for i in client.list_accounts(account_type='USER',identity=userName):
+                    userInfo = {'nickname':i['account'],
+                                'email':i['email']}
+                    break
+            if userInfo is not None:
+                retVal = True
+        except:
+            errMsg = '{0} {1}'.format(errtype.__name__,errvalue)
+            userInfo = errMsg
+        return retVal,userInfo
+        
 
 # instantiate
 rucioAPI = RucioAPI()
