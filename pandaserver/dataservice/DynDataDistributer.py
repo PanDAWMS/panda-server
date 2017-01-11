@@ -990,15 +990,11 @@ class DynDataDistributer:
             if status != 0:
                 self.putLog('failed to parse DN={0}'.format(owner))
             else:
-                status,out = dq2Info.finger(out)
-                if status != 0:
-                    self.putLog('failed to dq2.finger: {0}'.format(out))
+                status,userInfo = rucioAPI.finger(out)
+                if not status:
+                    self.putLog('failed to finger: {0}'.format(userInfo))
                 else:
-                    try:
-                        exec "userInfo=%s" % out
-                        owner = userInfo['nickname']
-                    except:
-                        self.putLog('wrong output from dq2.finger: {0}'.format(out))
+                    owner = userInfo['nickname']
             self.putLog('parsed DN={0}'.format(owner))
         # sort by locations
         filesMap = {}

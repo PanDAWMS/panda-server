@@ -696,10 +696,10 @@ class AdderAtlasPlugin (AdderPluginBase):
             if tmpTopDatasets != {} and self.jobStatus == 'finished':
                 try:
                     status,tmpDN = dq2Common.parse_dn(tmpDN)
-                    status,strUserInfo = dq2Info.finger(tmpDN)
-                    userInfo = None
+                    status,userInfo = rucioAPI.finger(tmpDN)
+                    if not status:
+                        raise RuntimeError,'user info not found for {0} with {1}'.format(tmpDN,userInfo)
                     userEPs = []
-                    exec "userInfo=%s" % strUserInfo
                     # loop over all output datasets
                     for tmpDsName,dq2IDlist in tmpTopDatasets.iteritems():
                         for tmpDQ2ID in dq2IDlist:
@@ -727,7 +727,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                     # set dataset status
                     for tmpName,tmpVal in subMap.iteritems():
                         self.datasetMap[tmpName].status = 'running'
-                    if userInfo != None:
+                    if userInfo != None and 'email' in userInfo:
                         self.sendEmail(userInfo['email'],tmpMsg,self.job.jediTaskID)
                 except:
                     errType,errValue = sys.exc_info()[:2]
