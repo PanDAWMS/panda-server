@@ -774,7 +774,7 @@ class RucioAPI:
                 break
             if userInfo == None:
                 # remove /CN=\d
-                userName = re.sub('/CN=\d+$','',userName)
+                userName = re.sub('(/CN=\d+)+$','',userName)
                 for i in client.list_accounts(account_type='USER',identity=userName):
                     userInfo = {'nickname':i['account'],
                                 'email':i['email']}
