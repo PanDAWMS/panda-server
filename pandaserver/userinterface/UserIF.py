@@ -937,14 +937,12 @@ class UserIF:
         return ret
 
 
-
     # increase attempt number for unprocessed files
     def increaseAttemptNrPanda(self,jediTaskID,increasedNr):
         # exec
         ret = self.taskBuffer.increaseAttemptNrPanda(jediTaskID,increasedNr)
         # return
         return ret
-
 
 
     # change task attribute
@@ -955,14 +953,12 @@ class UserIF:
         return ret
 
 
-
     # change split rule for task
     def changeTaskSplitRulePanda(self,jediTaskID,attrName,attrValue):
         # exec
         ret = self.taskBuffer.changeTaskSplitRulePanda(jediTaskID,attrName,attrValue)
         # return
         return ret
-
 
 
     # reactivate task
@@ -972,20 +968,29 @@ class UserIF:
         return ret
 
 
-
     # get task status
     def getTaskStatus(self,jediTaskID):
         # update task status
         ret = self.taskBuffer.getTaskStatus(jediTaskID)
         return ret[0]
 
+
     # reassign share
     def reassignShare(self, jedi_task_ids, share_dest):
         return self.taskBuffer.reassignShare(jedi_task_ids, share_dest)
 
+
     # list tasks in share
     def listTasksInShare(self, gshare, status):
         return self.taskBuffer.listTasksInShare(gshare, status)
+
+
+    # get taskParamsMap
+    def getTaskParamsMap(self, jediTaskID):
+        # get taskParamsMap
+        ret = self.taskBuffer.getTaskParamsMap(jediTaskID)
+        return ret
+
 
 # Singleton
 userIF = UserIF()
@@ -2275,4 +2280,13 @@ def listTasksInShare(req, gshare, status):
         return pickle.dumps((False, 'gshare and status must be of type string'))
 
     ret = userIF.listTasksInShare(gshare, status)
+    return pickle.dumps(ret)
+
+# get taskParamsMap with TaskID
+def getTaskParamsMap(req,jediTaskID):
+    try:
+        jediTaskID = long(jediTaskID)
+    except:
+        return pickle.dumps((False,'jediTaskID must be an integer'))
+    ret = userIF.getTaskParamsMap(jediTaskID)
     return pickle.dumps(ret)
