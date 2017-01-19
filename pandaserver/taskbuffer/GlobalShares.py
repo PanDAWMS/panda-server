@@ -66,6 +66,28 @@ class Share(Node):
         self.campaign = campaign
         self.processingtype = processingtype
 
+    def pretty_print_hs_distribution(self, hs_distribution, level=0):
+        try:
+            executing = hs_distribution[self.name][EXECUTING]/1000.0
+        except:
+            executing = 0
+
+        try:
+            target = hs_distribution[self.name][PLEDGED]/1000.0
+        except:
+            target = 0
+
+        try:
+            queued = hs_distribution[self.name][QUEUED]/1000.0
+        except:
+            queued = 0
+
+        ret = "{0} name: {1}, values: {2:.1f}k|{3:.1f}k|{4:.1f}k\n".format('\t' * level, self.name, executing, target, queued)
+        for child in self.children:
+            ret += child.pretty_print_hs_distribution(hs_distribution, level + 1)
+        return ret
+
+
     def normalize(self, multiplier=100, divider=100):
         """
         Will run down the branch and normalize values beneath

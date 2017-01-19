@@ -81,7 +81,12 @@ class CachedObject:
 
     # contains
     def __contains__(self,item):
-        return item in self.cachedObj
+        contains = False
+        try:
+            contains = item in self.cachedObj
+        except TypeError:
+            pass
+        return contains
 
     # get item
     def __getitem__(self,name):
@@ -579,12 +584,12 @@ def _checkRole(fqans,dn,jdCore,withVomsPatch=True,site='',hostname=''):
     try:
         # VOMS attributes of production and pilot roles
         prodAttrs = ['/atlas/usatlas/Role=production',
-                     '/atlas/usatlas/Role=pilot',                        
+                     '/atlas/usatlas/Role=pilot',
                      '/atlas/Role=production',
                      '/atlas/Role=pilot',
                      '/osg/Role=pilot',
                      '/cms/Role=pilot',
-                     '/ams/Role=pilot',                     
+                     '/ams/Role=pilot',
                      '/Engage/LBNE/Role=pilot',
                      ]
         if withVomsPatch:

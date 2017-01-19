@@ -302,3 +302,11 @@ class SiteMapper:
         if tmpName in self.satellites:
             return self.satellites[tmpName]
         return None
+
+
+    # get nucleus with ddm endpoint
+    def getNucleusWithDdmEndpoint(self, ddmEndpoint):
+        for nucleusName,nucleusSpec in self.nuclei.iteritems():
+            if nucleusSpec.isAssociatedEndpoint(ddmEndpoint):
+                return nucleusName
+        return None

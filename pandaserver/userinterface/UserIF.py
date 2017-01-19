@@ -21,7 +21,7 @@ from pandalogger.PandaLogger import PandaLogger
 from RbLauncher import RbLauncher
 from ReBroker import ReBroker
 from taskbuffer import PrioUtil
-from dataservice.DDM import dq2Info
+from dataservice.DDM import rucioAPI
 
 # logger
 _logger = PandaLogger().getLogger('UserIF')
@@ -501,9 +501,8 @@ class UserIF:
                 realDN = re.sub('(/CN=proxy)+','',realDN)
                 nTry = 3
                 for iDDMTry in range(nTry):
-                    status,out = dq2Info.finger(realDN)
-                    if status == 0:
-                        exec "userInfo=%s" % out
+                    status,userInfo = rucioAPI.finger(realDN)
+                    if status:
                         _logger.debug("killJob : %s is converted to %s" % (user,userInfo['email']))
                         user = userInfo['email']
                         break
@@ -2282,7 +2281,6 @@ def listTasksInShare(req, gshare, status):
 
     ret = userIF.listTasksInShare(gshare, status)
     return pickle.dumps(ret)
-
 
 # get taskParamsMap with TaskID
 def getTaskParamsMap(req,jediTaskID):

@@ -843,10 +843,13 @@ class FinisherThr (threading.Thread):
                 if job == None or job.jobStatus == 'unknown':
                     continue
                 seList = ['dummy']
+                tmpNucleus = siteMapper.getNucleus(job.nucleus)
                 # get SEs
                 if job.prodSourceLabel == 'user' and not siteMapper.siteSpecList.has_key(job.destinationSE):
                     # using --destSE for analysis job to transfer output
                     seList = [job.destinationSE]
+                elif tmpNucleus != None:
+                    seList = tmpNucleus.allDdmEndPoints.keys()
                 elif siteMapper.checkCloud(job.cloud):
                     # normal production jobs
                     if DataServiceUtils.checkJobDestinationSE(job) == None:

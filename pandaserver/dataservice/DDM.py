@@ -460,7 +460,7 @@ class RucioAPI:
 
 
     # get user
-    def getUser(self, cleint, dn):
+    def getUser(self, client, dn):
         l = [i for i in client.list_accounts('user', dn)]
         if l != []:
             owner = l[0]['account']
@@ -486,7 +486,7 @@ class RucioAPI:
         # owner
         if owner is None:
             if dn is not None:
-                owner = self.getUser(cleint, dn)
+                owner = self.getUser(client, dn)
             else:
                 owner = client.account
         for rule in client.list_did_rules(scope=scope, name=dsn):
@@ -761,6 +761,31 @@ class RucioAPI:
             pass
 
 
+    # finger
+    def finger(self, userName):
+        try:
+            # get rucio API
+            client = RucioClient()
+            userInfo = None
+            retVal = False
+            for i in client.list_accounts(account_type='USER',identity=userName):
+                userInfo = {'nickname':i['account'],
+                            'email':i['email']}
+                break
+            if userInfo == None:
+                # remove /CN=\d
+                userName = re.sub('/CN=\d+$','',userName)
+                for i in client.list_accounts(account_type='USER',identity=userName):
+                    userInfo = {'nickname':i['account'],
+                                'email':i['email']}
+                    break
+            if userInfo is not None:
+                retVal = True
+        except:
+            errMsg = '{0} {1}'.format(errtype.__name__,errvalue)
+            userInfo = errMsg
+        return retVal,userInfo
+        
 
 # instantiate
 rucioAPI = RucioAPI()

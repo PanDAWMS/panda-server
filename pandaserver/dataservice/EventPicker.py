@@ -269,8 +269,9 @@ class EventPicker:
                     # send transfer request
                     try:
                         tmpStatus,tmpDN = dq2Common.parse_dn(tmpDN)
-                        tmpStatus,strUserInfo = dq2Info.finger(tmpDN)
-                        exec "userInfo=%s" % strUserInfo
+                        tmpStatus,userInfo = rucioAPI.finger(tmpDN)
+                        if not tmpStatus:
+                            raise RuntimeError,'user info not found for {0} with {1}'.format(tmpDN,userInfo)
                         tmpDN = userInfo['nickname']
                         tmpDQ2ID = self.siteMapper.getSite(tmpJob.computingSite).ddm
                         tmpMsg = "%s ds=%s site=%s id=%s" % ('registerDatasetLocation for DaTRI ',

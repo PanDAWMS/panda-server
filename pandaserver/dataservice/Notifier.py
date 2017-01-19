@@ -16,7 +16,7 @@ import time
 from config import panda_config
 from taskbuffer.OraDBProxy import DBProxy
 from pandalogger.PandaLogger import PandaLogger
-from dataservice.DDM import dq2Info
+from dataservice.DDM import dq2Info,rucioAPI
 import taskbuffer.ErrorCode
 
 # logger
@@ -390,19 +390,9 @@ Report Panda problems of any sort to
         realDN = re.sub('/CN=limited proxy','',dn)
         realDN = re.sub('(/CN=proxy)+','',realDN)
         try:
-            _logger.debug("dq2Info.finger(%s)" % realDN)
-            for iDDMTry in range(3):
-                status,out = dq2Info.finger(realDN)
-                if status != 0 or out.find("DQ2 internal server exception") != -1 \
-                       or out.find("An error occurred on the central catalogs") != -1 \
-                       or out.find("MySQL server has gone away") != -1:
-                    time.sleep(10)
-                else:
-                    break
-            _logger.debug(out)
-            exec "userInfo=%s" % out
+            tmpStatus,userInfo = rucioAPI.finger(realDN)
             mailAddr = userInfo['email']
-            _logger.debug("email from DQ2 : '%s'" % mailAddr)
+            _logger.debug("email from DDM : '%s'" % mailAddr)
             if mailAddr == None:
                 mailAddr = ''
             # make email field to update DB

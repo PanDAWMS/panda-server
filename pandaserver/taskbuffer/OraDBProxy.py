@@ -1498,12 +1498,12 @@ class DBProxy:
                         job.jobStatus = 'closed'
                         job.jobSubStatus = 'es_inaction'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceUnprocessed
-                        job.taskBufferErrorDiag = "didn't process any events on WN for Event Service"
+                        job.taskBufferErrorDiag = "didn't process any events on WN and take no further action due to no remaining events"
                     elif retEvS == 6:
                         # didn't process any event ranges and last consumer
                         job.jobStatus = 'failed'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceLastUnprocessed
-                        job.taskBufferErrorDiag = "didn't process any events on WN for Event Service"
+                        job.taskBufferErrorDiag = "didn't process any events on WN and give up since this is the last consumer"
                     elif retEvS == 7:
                         # all event ranges failed
                         job.jobStatus = 'failed'
@@ -1514,7 +1514,7 @@ class DBProxy:
                         job.jobStatus = 'closed'
                         job.jobSubStatus = 'es_noevent'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceNoEvent
-                        job.taskBufferErrorDiag = 'closed to retry unprocessed even ranges in PandaID={0}'.format(retNewPandaID)
+                        job.taskBufferErrorDiag = "didn't process any events on WN and retry unprocessed even ranges in PandaID={0}".format(retNewPandaID)
                     # kill unused event ranges
                     if job.jobStatus == 'failed':
                         self.killUnusedEventRanges(job.jediTaskID,job.jobsetID)
@@ -1625,7 +1625,8 @@ class DBProxy:
                 # overwrite job status
                 tmpJobStatus = job.jobStatus
                 sqlOJS = "UPDATE ATLAS_PANDA.jobsArchived4 SET jobStatus=:jobStatus,jobSubStatus=:jobSubStatus WHERE PandaID=:PandaID "
-                if oldJobSubStatus in ['pilot_failed','es_heartbeat']:
+                if oldJobSubStatus in ['pilot_failed', 'es_heartbeat'] or \
+                        oldJobSubStatus == 'pilot_killed' and job.jobSubStatus in ['es_noevent', 'es_inaction']:
                     varMap = {}
                     varMap[':PandaID'] = job.PandaID
                     varMap[':jobStatus'] = 'failed'
@@ -1952,7 +1953,7 @@ class DBProxy:
                         _logger.debug("updateJobStatus : PandaID=%s skip to change from merging" % pandaID)
                     else:
                         # update stateChangeTime
-                        if updateStateChange or (jobStatus=='starting' and oldJobStatus != 'starting'):
+                        if updateStateChange or (jobStatus != oldJobStatus):
                             sql1 += ",stateChangeTime=CURRENT_DATE"
                         # set endTime if undefined for holding
                         if jobStatus == 'holding' and endTime==None and not presetEndTime:
@@ -3034,7 +3035,9 @@ class DBProxy:
                             sqlMX = "SELECT /*+ INDEX_RS_ASC(tab (PRODSOURCELABEL COMPUTINGSITE JOBSTATUS) ) */ MAX(currentPriority) FROM ATLAS_PANDA.jobsActive4 tab "
                             sqlMX += sql1
                             if global_share_sql:
+                                sqlMX = 'SELECT * FROM (' + sqlMX
                                 sqlMX += global_share_sql
+
                             _logger.debug(sqlMX+comment+str(getValMap))
 
                             # start transaction
@@ -3061,6 +3064,7 @@ class DBProxy:
                                 sqlP += "AND currentPriority=:currentPriority "
 
                             if global_share_sql:
+                                sqlP = 'SELECT * FROM (' + sqlP
                                 sqlP += global_share_sql
 
                             _logger.debug(sqlP+comment+str(getValMap))
@@ -3220,6 +3224,15 @@ class DBProxy:
                 esDonePandaIDs = []
                 esOutputZipMap = {}
                 esZipRow_IDs = set()
+                # use new file format for ES
+                useNewFileFormatForES = False
+                if job.AtlasRelease is not None:
+                    try:
+                        tmpMajorVer = job.AtlasRelease.split('-')[-1].split('.')[0]
+                        if int(tmpMajorVer) >= 20:
+                            useNewFileFormatForES = True
+                    except:
+                        pass
                 for resF in resFs:
                     file = FileSpec()
                     file.pack(resF)
@@ -3326,7 +3339,10 @@ class DBProxy:
                             tmpInputFileSpec = copy.copy(tmpFileSpec)
                             tmpInputFileSpec.type = 'input'
                             # change attemptNr back to the original, which could have been changed by ES merge retry
-                            origLFN = re.sub('\.\d+$','.1',tmpInputFileSpec.lfn)
+                            if not useNewFileFormatForES:
+                                origLFN = re.sub('\.\d+$','.1',tmpInputFileSpec.lfn)
+                            else:
+                                origLFN = re.sub('\.\d+$','.1_000',tmpInputFileSpec.lfn)
                             # append eventRangeID as suffix
                             tmpInputFileSpec.lfn = origLFN + '.' + tmpMapEventRangeID[jobProcessID]['eventRangeID']
                             esPandaID = tmpMapEventRangeID[jobProcessID]['pandaID']
@@ -9303,7 +9319,8 @@ class DBProxy:
             sql+= "maxwdir,fairsharePolicy,minmemory,maxmemory,mintime,"
             sql+= "catchall,allowfax,wansourcelimit,wansinklimit,b.site_name,"
             sql+= "sitershare,cloudrshare,corepower,wnconnectivity,catchall,"
-            sql+= "c.role,maxrss,minrss,direct_access_lan,direct_access_wan,tier "
+            sql+= "c.role,maxrss,minrss,direct_access_lan,direct_access_wan,tier, "
+            sql+= "objectstores " 
             sql+= "FROM (ATLAS_PANDAMETA.schedconfig a "
             sql+= "LEFT JOIN ATLAS_PANDA.panda_site b ON a.siteid=b.panda_site_name) "
             sql+= "LEFT JOIN ATLAS_PANDA.site c ON b.site_name=c.site_name "
@@ -9333,7 +9350,8 @@ class DBProxy:
                        maxwdir,fairsharePolicy,minmemory,maxmemory,mintime, \
                        catchall,allowfax,wansourcelimit,wansinklimit,pandasite, \
                        sitershare,cloudrshare,corepower,wnconnectivity,catchall, \
-                       role,maxrss,minrss,direct_access_lan,direct_access_wan,tier \
+                       role,maxrss,minrss,direct_access_lan,direct_access_wan,tier, \
+                       objectstores \
                        = resTmp
                     # skip invalid siteid
                     if siteid in [None,'']:
@@ -9533,6 +9551,11 @@ class DBProxy:
                         ret.ddm_endpoints = DdmSpec()
                     # mapping between token and endpoints
                     ret.setokens = ret.ddm_endpoints.getTokenMap()
+                    # object stores
+                    try:
+                        ret.objectstores = json.loads(objectstores)
+                    except:
+                        ret.objectstores = []
                     # append
                     retList[ret.nickname] = ret
             _logger.debug("getSiteInfo done")
@@ -9707,8 +9730,8 @@ class DBProxy:
             # We want to sort by global share, highest priority and lowest pandaid
             leave_bindings = ','.join(tmp_list)
             ret_sql = """
-                      AND ROWNUM <= {0}
-                      ORDER BY DECODE (gshare, {1}, {2}), currentpriority desc, pandaid asc
+                      ORDER BY DECODE (gshare, {1}, {2}), currentpriority desc, pandaid asc)
+                      WHERE ROWNUM <= {0}
                       """.format(':njobs', leave_bindings, len(sorted_leaves))
 
             # TODO: a job might be stuck on a site because its share is completely filled by sites with
@@ -14842,20 +14865,27 @@ class DBProxy:
                     jobSpec.jobParameters = tmpMatch.group(1)
                 except:
                     pass
+                # merge on OS
+                isMergeAtOS = EventServiceUtils.isMergeAtOS(jobSpec.specialHandling)
                 # change special handling
                 EventServiceUtils.setEventServiceMerge(jobSpec)
                 # check where merge is done
                 lookForMergeSite = True
-                sqlWM  = "SELECT catchAll FROM ATLAS_PANDAMETA.schedconfig WHERE siteid=:siteid "
+                sqlWM  = "SELECT catchAll,objectstores FROM ATLAS_PANDAMETA.schedconfig WHERE siteid=:siteid "
                 varMap = {}
                 varMap[':siteid'] = jobSpec.computingSite
                 self.cur.execute(sqlWM+comment, varMap)
                 resWM = self.cur.fetchone()
                 resSN = []
-                if resWM != None and resWM[0] != None:
-                    catchAll = resWM[0]
-                else:
+                catchAll,objectstores = None,None
+                if resWM != None:
+                    catchAll,objectstores = resWM
+                if catchAll == None:
                     catchAll = ''
+                try:
+                    objectstores = json.loads(objectstores)
+                except:
+                    objectstores = []
                 if 'localEsMergeNC' in catchAll:
                     # no site change
                     lookForMergeSite = False
@@ -14877,13 +14907,28 @@ class DBProxy:
                         jobSpec.computingSite = jobSpec.destinationSE
                         lookForMergeSite = False
                     else:
+                        # use nucleus close to OS
+                        tmpNucleus = None
+                        if isMergeAtOS and len(objectstores) > 0:
+                            osEndpoint = objectstores[0]['ddmendpoint']
+                            sqlCO = "SELECT site_name FROM ATLAS_PANDA.ddm_endpoint WHERE ddm_endpoint_name=:osEndpoint "
+                            varMap = dict()
+                            varMap[':osEndpoint'] = osEndpoint
+                            self.cur.execute(sqlCO+comment,varMap)
+                            resCO = self.cur.fetchone()
+                            if resCO is not None:
+                                tmpNucleus, = resCO
+                        # use nucleus
+                        if tmpNucleus is None:
+                            tmpNucleus = jobSpec.destinationSE.split(':')[-1]
+                        _logger.debug('{0} look for merge sites in {1}'.format(methodName,tmpNucleus))
                         # get sites in a nucleus
                         sqlSN  = "SELECT panda_site_name,default_ddm_endpoint FROM ATLAS_PANDA.panda_site ps,ATLAS_PANDAMETA.schedconfig sc "
                         sqlSN += "WHERE site_name=:nucleus AND sc.siteid=ps.panda_site_name "
                         sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1) "
                         sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
                         varMap = {}
-                        varMap[':nucleus'] = jobSpec.destinationSE.split(':')[-1]
+                        varMap[':nucleus'] = tmpNucleus
                         # get sites
                         self.cur.execute(sqlSN+comment,varMap)
                         resSN = self.cur.fetchall()
@@ -18383,7 +18428,7 @@ class DBProxy:
                 (SELECT gshare, HS,
                      CASE
                          WHEN jobstatus IN('activated') THEN 'queued'
-                         WHEN jobstatus IN('sent', 'starting', 'running', 'holding') THEN 'executing'
+                         WHEN jobstatus IN('sent', 'running') THEN 'executing'
                          ELSE 'ignore'
                      END jobstatus_grouped
                  FROM ATLAS_PANDA.JOBS_SHARE_STATS JSS)

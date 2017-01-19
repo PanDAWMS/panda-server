@@ -1,5 +1,24 @@
 Release Notes
 
+* 1/11/2017
+  * fixed fingers for RFC proxy
+
+* 12/15/2016
+  * added mergeEsOnOS
+  * using new filename format for ES merge for rel20 or higher
+
+* 12/2/2016
+  * changed to update stateChangeTime properly
+
+* 12/1/2016
+  * removed retry for analysis in Watcher
+
+* 11/25/2016
+  * added pilot_killed
+
+* 11/24/2016
+  * Updated MySQL DB schema
+
 * 11/18/2016
   * added task_id and account to prestaging rules
 
