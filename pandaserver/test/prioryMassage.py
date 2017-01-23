@@ -103,8 +103,10 @@ if totalUsers == 0:
 
 
 # cap num of running jobs
-try:
+maxNumRunPerUser = taskBuffer.getConfigValue('prio_mgr','CAP_RUNNING_USER_JOBS')
+if maxNumRunPerUser is None:
 	maxNumRunPerUser = 10000
+try:
 	tmpLog.debug("cap running jobs : max={0}".format(maxNumRunPerUser))
 	throttledUsers = taskBuffer.getThrottledUsers()
 	for prodUserName,tmpNumTotal in usersTotalJobs.iteritems():
