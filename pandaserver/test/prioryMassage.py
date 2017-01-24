@@ -91,9 +91,9 @@ for prodUserName,wgValMap in usageBreakDownPerUser.iteritems():
 		totalUsers += 1
 		for computingSite,statValMap in siteValMap.iteritems():
 			totalRunDone += statValMap['rundone']
-		if not prodUserName in usersTotalJobs:
-			usersTotalJobs[prodUserName] = 0 
-		usersTotalJobs[prodUserName] += statValMap['running']
+			if not prodUserName in usersTotalJobs:
+				usersTotalJobs[prodUserName] = 0 
+			usersTotalJobs[prodUserName] += statValMap['running']
 
 tmpLog.debug("total users    : %s" % totalUsers)
 tmpLog.debug("total RunDone  : %s" % totalRunDone)
