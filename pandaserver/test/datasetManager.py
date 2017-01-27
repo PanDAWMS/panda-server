@@ -11,9 +11,6 @@ import commands
 import traceback
 import threading
 import userinterface.Client as Client
-from dataservice.DDM import ddm
-from dataservice.DDM import toa
-from dataservice.DDM import dashBorad
 from dataservice.DDM import rucioAPI
 from taskbuffer.OraDBProxy import DBProxy
 from taskbuffer.TaskBuffer import taskBuffer
@@ -36,9 +33,6 @@ passwd = panda_config.dbpasswd
 _logger = PandaLogger().getLogger('datasetManager')
 
 _logger.debug("===================== start =====================")
-
-# use native DQ2
-ddm.useDirectDQ2()
 
 # memory checker
 def _memoryCheck(str):
@@ -264,16 +258,20 @@ class CloserThr (threading.Thread):
                     status,out = rucioAPI.getMetaData(name)
                     if status == True:
                         if out != None:
-                            status,out = ddm.DQ2.main('freezeDataset',name)
+                            try:
+                                rucioAPI.closeDataset(name)
+                                status = True
+                            except:
+                                errtype,errvalue = sys.exc_info()[:2]
+                                out = 'failed to freeze : {0} {1}'.format(errtype,errvalue)
+                                status = False
                         else:
                             # dataset not exist
-                            status,out = 0,''
+                            status,out = True,''
                             dsExists = False
                 else:
-                    status,out = 0,''
-                if status != 0 and out.find('DQFrozenDatasetException') == -1 and \
-                       out.find("DQUnknownDatasetException") == -1 and out.find("DQSecurityException") == -1 and \
-                       out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1:
+                    status,out = True,''
+                if not status:
                     _logger.error('{0} failed to close with {1}'.format(name,out))
                 else:
                     self.proxyLock.acquire()
@@ -290,19 +288,18 @@ class CloserThr (threading.Thread):
                     if not dsExists:
                         continue
                     # count # of files
-                    status,out = ddm.DQ2.main('getNumberOfFiles',name)
-                    if status != 0:
-                        if not "DQUnknownDatasetException" in out:
+                    status,out = rucioAPI.getNumberOfFiles(name)
+                    if status is not True:
+                        if status is False:
                             _logger.error(out)
                     else:
                         _logger.debug(out)                                            
                         try:
                             nFile = int(out)
-                            _logger.debug(nFile)
                             if nFile == 0:
                                 # erase dataset
                                 _logger.debug('erase %s' % name)
-                                status,out = ddm.DQ2.main('eraseDataset',name)
+                                status,out = rucioAPI.eraseDataset(name)
                                 _logger.debug('OK with %s' % name)
                         except:
                             pass
@@ -421,22 +418,26 @@ class Freezer (threading.Thread):
                                     _logger.debug("failed to get merging job for %s " % name)
                             else:
                                 _logger.debug("failed to get merging file for %s " % name)
-                            status,out = 0,''
+                            status,out = True,''
                         elif dsExists:
                             # check if dataset exists
                             status,out = rucioAPI.getMetaData(name)
                             if status == True:
                                 if out != None:
-                                    status,out = ddm.DQ2.main('freezeDataset',name)
+                                    try:
+                                        rucioAPI.closeDataset(name)
+                                        status = True
+                                    except:
+                                        errtype,errvalue = sys.exc_info()[:2]
+                                        out = 'failed to freeze : {0} {1}'.format(errtype,errvalue)
+                                        status = False
                                 else:
                                     # dataset not exist
-                                    status,out = 0,''
+                                    status,out = True,''
                                     dsExists = False
                         else:
-                            status,out = 0,''
-                        if status != 0 and out.find('DQFrozenDatasetException') == -1 and \
-                               out.find("DQUnknownDatasetException") == -1 and out.find("DQSecurityException") == -1 and \
-                               out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1:
+                            status,out = True,''
+                        if not status:
                             _logger.error('{0} failed to freeze with {1}'.format(name,out))
                         else:
                             self.proxyLock.acquire()
@@ -451,9 +452,9 @@ class Freezer (threading.Thread):
                             # set tobedeleted to dis
                             setTobeDeletedToDis(name)
                             # count # of files
-                            status,out = ddm.DQ2.main('getNumberOfFiles',name)
-                            if status != 0:
-                                if not 'DQUnknownDatasetException' in out:
+                            status,out = rucioAPI.getNumberOfFiles(name)
+                            if status is not True:
+                                if status is False:
                                     _logger.error(out)
                             else:
                                 _logger.debug(out)                                            
@@ -463,7 +464,7 @@ class Freezer (threading.Thread):
                                     if nFile == 0:
                                         # erase dataset
                                         _logger.debug('erase %s' % name)                                
-                                        status,out = ddm.DQ2.main('eraseDataset',name)
+                                        status,out = rucioAPI.eraseDataset(name)
                                         _logger.debug('OK with %s' % name)
                                 except:
                                     pass
@@ -577,13 +578,13 @@ class T2Cleaner (threading.Thread):
                         tmpRepSites = out
                         # check if there is active subscription
                         _logger.debug('listSubscriptions %s' % name)
-                        subStat,subOut = ddm.DQ2.main('listSubscriptions',name)
-                        if subStat != 0:
+                        subStat,subOut = rucioAPI.listSubscriptions(name)
+                        if not subStat:
                             _logger.error("cannot get subscriptions for %s" % name) 
                             _logger.error(subOut)
                         _logger.debug('subscriptions for %s = %s' % (name,subOut))
                         # active subscriotions
-                        if subOut != '[]':
+                        if len(subOut) > 0:
                             _logger.debug("wait %s due to active subscription" % name)
                             continue
                         # check cloud
@@ -620,27 +621,11 @@ class T2Cleaner (threading.Thread):
                             # delete replica for sub
                             if re.search('_sub\d+$',name) != None and t2DDMs != []:
                                 setMetaFlag = True
-                                for tmpT2DDM in t2DDMs:
-                                    _logger.debug('setReplicaMetaDataAttribute %s %s' % (name,tmpT2DDM))
-                                    status,out = ddm.DQ2.main('setReplicaMetaDataAttribute',name,tmpT2DDM,'pin_lifetime','')
-                                    if status != 0:
-                                        _logger.error(out)
-                                        if out.find('DQFrozenDatasetException')  == -1 and \
-                                               out.find("DQUnknownDatasetException") == -1 and out.find("DQSecurityException") == -1 and \
-                                               out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1 and \
-                                               out.find("No replica found") == -1:
-                                            setMetaFlag = False
-                                if not setMetaFlag:            
-                                    continue
                                 _logger.debug(('deleteDatasetReplicas',name,t2DDMs))
-                                status,out = ddm.DQ2.main('deleteDatasetReplicas',name,t2DDMs,0,False,False,False,False,False,'00:00:00')
-                                if status != 0:
+                                status,out = rucioAPI.deleteDatasetReplicas(name,t2DDMs)
+                                if not status:
                                     _logger.error(out)
-                                    if out.find('DQFrozenDatasetException')  == -1 and \
-                                           out.find("DQUnknownDatasetException") == -1 and out.find("DQSecurityException") == -1 and \
-                                           out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1 and \
-                                           out.find("No replica found") == -1:
-                                        continue
+                                    continue
                             else:
                                 _logger.debug('no delete for %s due to empty target in %s' % (name,listOut))
                     # update        
@@ -728,10 +713,8 @@ class EraserThr (threading.Thread):
                 if self.operationType == 'deleting':
                     # erase
                     endStatus = 'deleted'
-                    status,out = ddm.DQ2.main('eraseDataset',name)
-                    if status != 0 and out.find('DQFrozenDatasetException') == -1 and \
-                           out.find("DQUnknownDatasetException") == -1 and out.find("DQSecurityException") == -1 and \
-                           out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1:
+                    status,out = rucioAPI.eraseDataset(name)
+                    if not status:
                         _logger.error(out)
                         continue
                 else:
@@ -746,17 +729,10 @@ class EraserThr (threading.Thread):
                         tmpRepSites = out
                         # set replica lifetime
                         setMetaFlag = True
-                        for tmpDDM in tmpRepSites.keys():
-                            _logger.debug('setReplicaMetaDataAttribute %s %s' % (name,tmpDDM))
-                            status,out = ddm.DQ2.main('setReplicaMetaDataAttribute',name,tmpDDM,'lifetime','1 days')
-                            if status != 0:
-                                _logger.error(out)
-                                if out.find('DQFrozenDatasetException')  == -1 and \
-                                       out.find("DQUnknownDatasetException") == -1 and out.find("DQSecurityException") == -1 and \
-                                       out.find("DQDeletedDatasetException") == -1 and out.find("DQUnknownDatasetException") == -1 and \
-                                       out.find("No replica found") == -1:
-                                    setMetaFlag = False
-                        if not setMetaFlag:
+                        _logger.debug('deleteDatasetReplicas %s %s' % (name,str(tmpRepSites.keys())))
+                        status,out = rucioAPI.deleteDatasetReplicas(name,tmpRepSites.keys())
+                        if not status:
+                            _logger.error(out)
                             continue
                 _logger.debug('OK with %s' % name)
                 # update

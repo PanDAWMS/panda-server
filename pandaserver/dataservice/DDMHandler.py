@@ -6,7 +6,6 @@ master hander for DDM
 import re
 import threading
 
-from Waker     import Waker
 from Finisher  import Finisher
 from Activator import Activator
 

@@ -12,7 +12,6 @@ from DBProxyPool import DBProxyPool
 from brokerage.SiteMapper import SiteMapper
 from dataservice.Setupper import Setupper
 from dataservice.Closer import Closer
-from dataservice.TaLauncher import TaLauncher
 from dataservice.ProcessLimiter import ProcessLimiter
 
 # logger
@@ -751,7 +750,7 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         # run setupper
         if newJobs != []:
-            TaLauncher(self,newJobs).start()
+            pass
         # return clouds
         return retList
 

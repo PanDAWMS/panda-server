@@ -11,10 +11,6 @@ import types
 import random
 import datetime
 
-from dataservice.DDM import ddm
-from dataservice.DDM import toa
-from dataservice.DDM import dq2Common
-from dataservice.DDM import dq2Info
 from dataservice.DDM import rucioAPI
 from taskbuffer.JobSpec import JobSpec
 import brokerage.broker
@@ -133,7 +129,7 @@ class DynDataDistributer:
                 # get size of input container
                 totalInputSize = 0
                 if inputDS.endswith('/'):
-                    status,totalInputSize = self.getDatasetSize(inputDS)
+                    status,totalInputSize = rucioAPI.getDatasetSize(inputDS)
                     if not status:
                         self.putLog("failed to get size of %s" % inputDS)
                         continue
@@ -205,7 +201,7 @@ class DynDataDistributer:
                     self.putLog("PD2P T1 candidates : %s" % str(allT1Candidates))
                     self.putLog("PD2P nUsed : %s" % nUsed)
                     # get dataset size
-                    retDsSize,dsSize = self.getDatasetSize(tmpDS)
+                    retDsSize,dsSize = rucioAPI.getDatasetSize(tmpDS)
                     if not retDsSize:
                         self.putLog("failed to get dataset size of %s" % tmpDS,type='error',sendLog=True)
                         continue
@@ -368,17 +364,6 @@ class DynDataDistributer:
             return failedRet
         # get close sites
         closeSitesMap = {}
-        for tmpDS,tmpRepMap in tmpRepMaps.iteritems():
-            # loop over all DQ2 IDs
-            for tmpDQ2ID in tmpRepMap.keys():
-                if not closeSitesMap.has_key(tmpDQ2ID):
-                    status,tmpCloseSiteList = toa.getCloseSites(tmpDQ2ID)
-                    exec "tmpCloseSiteList = %s" % tmpCloseSiteList
-                    closeSitesMap[tmpDQ2ID] = []
-                    # select only DATADISK
-                    for tmpCloseSite in tmpCloseSiteList:
-                        if tmpCloseSite.endswith('_DATADISK'):
-                            closeSitesMap[tmpDQ2ID].append(tmpCloseSite)
         # get all sites
         allSiteMap = {}
         for tmpSiteName,tmpSiteSpec in self.siteMapper.siteSpecList.iteritems():
@@ -414,19 +399,6 @@ class DynDataDistributer:
                 candSites     = []
                 sitesComDS    = []
                 sitesCompPD2P = []
-                # check metadata
-                if not checkedMetaMap.has_key(tmpDS):
-                    checkedMetaMap[tmpDS] = self.getDatasetMetadata(tmpDS)
-                retMeta,tmpMetadata = checkedMetaMap[tmpDS]
-                if not retMeta:
-                    self.putLog("failed to get metadata for %s" % tmpDS,'error')
-                    return failedRet
-                if tmpMetadata['provenance'] in ngProvenance:
-                    self.putLog("provenance=%s of %s is excluded" % (tmpMetadata['provenance'],tmpDS))
-                    continue
-                if tmpMetadata['hidden'] in [True,'True'] and not useHidden:
-                    self.putLog("%s is hidden" % tmpDS)
-                    continue
                 # check T1 has a replica and get close sites
                 t1HasReplica = False
                 t1HasPrimary = False
@@ -447,27 +419,6 @@ class DynDataDistributer:
                         for tmpCloseSiteID in closeSitesMap[tmpDQ2ID]:
                             if not tmpCloseSiteID in closeSiteList:
                                 closeSiteList.append(tmpCloseSiteID)
-                    # checks for T1            
-                    if tmpDQ2ID.startswith(prefixDQ2T1):
-                        # check replica metadata to get archived info
-                        retRepMeta,tmpRepMetadata = self.getReplicaMetadata(tmpDS,tmpDQ2ID)
-                        if not retRepMeta:
-                            self.putLog("failed to get replica metadata for %s:%s" % \
-                                        (tmpDS,tmpDQ2ID),'warning')
-                            continue
-                        if tmpStatMap[0]['total'] == tmpStatMap[0]['found']:
-                            t1HasReplica = True
-                        # check archived field
-                        if isinstance(tmpRepMetadata,types.DictType) and tmpRepMetadata.has_key('archived') and \
-                            tmpRepMetadata['archived'] == 'primary':
-                            # primary
-                            t1HasPrimary = True
-                            break
-                        elif isinstance(tmpRepMetadata,types.DictType) and tmpRepMetadata.has_key('archived') and \
-                            tmpRepMetadata['archived'] == 'secondary':
-                            # secondary
-                            nSecReplicas += 1
-                            break
                 self.putLog("close sites : %s" % str(closeSiteList))
                 # get on-going subscriptions
                 timeRangeSub = 7
@@ -535,16 +486,6 @@ class DynDataDistributer:
         return True,returnMap
 
     
-    # check DDM response
-    def isDQ2ok(self,out):
-        if out.find("DQ2 internal server exception") != -1 \
-               or out.find("An error occurred on the central catalogs") != -1 \
-               or out.find("MySQL server has gone away") != -1 \
-               or out == '()':
-            return False
-        return True
-    
-
     # get map of DQ2 IDs
     def getDQ2ID(self,sitename,dataset):
         # get DQ2 ID
@@ -582,30 +523,24 @@ class DynDataDistributer:
         if dq2ID == '':
             self.putLog("cannot find DQ2 ID for %s:%s" % (sitename,dataset))
             return retFailed
-        # make subscription    
-        optSrcPolicy = 000001
+        # register subscription
+        self.putLog('registerDatasetSubscription %s %s' % (dataset,dq2ID))
         nTry = 3
         for iDDMTry in range(nTry):
-            # register subscription
-            self.putLog('%s/%s registerDatasetSubscription %s %s' % (iDDMTry,nTry,dataset,dq2ID))
-            status,out = ddm.DQ2.main('registerDatasetSubscription',dataset,dq2ID,version=0,archived=0,
-                                      callbacks={},sources={},sources_policy=optSrcPolicy,
-                                      wait_for_sources=0,destination=None,query_more_sources=0,
-                                      sshare=ddmShare,group=None,activity='Data Brokering',acl_alias='secondary')
-            if out.find('DQSubscriptionExistsException') != -1:
+            try:
+                status = rucioAPI.registerDatasetSubscription(dataset,[dq2ID],
+                                                              activity='Data Brokering')
+                out = 'OK'
                 break
-            elif out.find('DQLocationExistsException') != -1:
-                break
-            elif status != 0 or (not self.isDQ2ok(out)):
-                time.sleep(60)
-            else:
-                break
+            except:
+                status = False
+                errType,errValue = sys.exc_info()[:2]
+                out = "%s %s" % (errType,errValue)
+                time.sleep(30)
         # result
-        if out.find('DQSubscriptionExistsException') != -1:
-            pass
-        elif status != 0 or out.startswith('Error'):
+        if not status:
             self.putLog(out,'error')
-            self.putLog('bad DQ2 response for %s' % dataset,'error')
+            self.putLog('bad DDM response for %s' % dataset,'error')
             return retFailed
         # update 
         self.putLog('%s %s' % (status,out))
@@ -695,21 +630,14 @@ class DynDataDistributer:
         nTry = 3
         for iDDMTry in range(nTry):
             self.putLog('%s/%s listDatasetsInContainer %s' % (iDDMTry,nTry,container))
-            status,out = ddm.DQ2.main('listDatasetsInContainer',container)
-            if status != 0 or (not self.isDQ2ok(out)):
+            datasets,out = rucioAPI.listDatasetsInContainer(container)
+            if datasets is None:
                 time.sleep(60)
             else:
                 break
-        if status != 0 or out.startswith('Error'):
+        if datasets is None:
             self.putLog(out,'error')
-            self.putLog('bad DQ2 response for %s' % container, 'error')
-            return resForFailure
-        datasets = []
-        try:
-            # convert to list
-            exec "datasets = %s" % out
-        except:
-            self.putLog('could not convert HTTP-res to dataset list for %s' % container, 'error')
+            self.putLog('bad DDM response for %s' % container, 'error')
             return resForFailure
         # loop over all datasets
         allRepMap = {}
@@ -725,131 +653,6 @@ class DynDataDistributer:
         return True,allRepMap            
 
 
-    # get dataset metadata
-    def getDatasetMetadata(self,datasetName):
-        # response for failure
-        resForFailure = False,{}
-        metaDataAttrs = ['provenance','hidden']
-        # get datasets in container
-        nTry = 3
-        for iDDMTry in range(nTry):
-            self.putLog('%s/%s getMetaDataAttribute %s' % (iDDMTry,nTry,datasetName))
-            status,out = ddm.DQ2.main('getMetaDataAttribute',datasetName,metaDataAttrs)
-            if status != 0 or (not self.isDQ2ok(out)):
-                time.sleep(60)
-            else:
-                break
-        if status != 0 or out.startswith('Error'):
-            self.putLog(out,'error')
-            self.putLog('bad DQ2 response for %s' % datasetName, 'error')
-            return resForFailure
-        metadata = {}
-        try:
-            # convert to map
-            exec "metadata = %s" % out
-        except:
-            self.putLog('could not convert HTTP-res to metadata for %s' % datasetName, 'error')
-            return resForFailure
-        # check whether all attributes are available
-        for tmpAttr in metaDataAttrs:
-            if not metadata.has_key(tmpAttr):
-                self.putLog('%s is missing in %s' % (tmpAttr,str(metadata)), 'error')
-                return resForFailure
-        # return
-        self.putLog('getDatasetMetadata -> %s' % str(metadata))
-        return True,metadata
-
-
-    # get replica metadata
-    def getReplicaMetadata(self,datasetName,locationName):
-        # response for failure
-        resForFailure = False,{}
-        # get metadata
-        nTry = 3
-        for iDDMTry in range(nTry):
-            self.putLog('%s/%s listMetaDataReplica %s %s' % (iDDMTry,nTry,datasetName,locationName))
-            status,out = ddm.DQ2.main('listMetaDataReplica',locationName,datasetName)
-            if status != 0 or (not self.isDQ2ok(out)):
-                time.sleep(10)
-            else:
-                break
-        if status != 0 or out.startswith('Error'):
-            self.putLog(out,'error')
-            self.putLog('bad DQ2 response for %s' % datasetName, 'error')
-            return resForFailure
-        metadata = {}
-        try:
-            # convert to map
-            exec "metadata = %s" % out
-        except:
-            self.putLog('could not convert HTTP-res to replica metadata for %s:%s' % \
-                        (datasetName,locationName), 'error')
-            return resForFailure
-        # return
-        self.putLog('getReplicaMetadata -> %s' % str(metadata))
-        return True,metadata
-
-
-    # check subscription info
-    def checkSubscriptionInfo(self,destDQ2ID,datasetName):
-        resForFailure = (False,False)
-        # get datasets in container
-        nTry = 3
-        for iDDMTry in range(nTry):
-            self.putLog('%s/%s listSubscriptionInfo %s %s' % (iDDMTry,nTry,destDQ2ID,datasetName))
-            status,out = ddm.DQ2.main('listSubscriptionInfo',datasetName,destDQ2ID,0)
-            if status != 0:
-                time.sleep(60)
-            else:
-                break
-        if status != 0 or out.startswith('Error'):
-            self.putLog(out,'error')
-            self.putLog('bad DQ2 response for %s' % datasetName, 'error')
-            return resForFailure
-        self.putLog(out)
-        if out == '()':
-            # no subscription
-            retVal = False
-        else:
-            # already exists
-            retVal = True
-        self.putLog('checkSubscriptionInfo -> %s' % retVal)
-        return True,retVal
-
-
-    # get size of dataset
-    def getDatasetSize(self,datasetName):
-        self.putLog("get size of %s" % datasetName)
-        resForFailure = (False,0)
-        # get size of datasets
-        nTry = 3
-        for iDDMTry in range(nTry):
-            self.putLog('%s/%s listFilesInDataset %s' % (iDDMTry,nTry,datasetName))
-            status,out = ddm.DQ2.listFilesInDataset(datasetName)
-            if status != 0:
-                time.sleep(60)
-            else:
-                break
-        if status != 0 or out.startswith('Error'):
-            self.putLog(out,'error')
-            self.putLog('bad DQ2 response to get size of %s' % datasetName, 'error')
-            return resForFailure
-        self.putLog("OK")
-        # get total size
-        dsSize = 0
-        try:
-            exec "outList = %s" % out
-            for guid,vals in outList[0].iteritems():
-                dsSize += long(vals['filesize'])
-        except:
-            self.putLog('failed to get size from DQ2 response for %s' % datasetName, 'error')
-            return resForFailure
-        # GB
-        dsSize /= (1024*1024*1024)
-        self.putLog("dataset size = %s" % dsSize)
-        return True,dsSize
-
-
     # get datasets used by jobs
     def getUsedDatasets(self,datasetMap):
         resForFailure = (False,[])
@@ -859,30 +662,26 @@ class DynDataDistributer:
             # get file list
             nTry = 3
             for iDDMTry in range(nTry):
-                self.putLog('%s/%s listFilesInDataset %s' % (iDDMTry,nTry,datasetName))
-                status,out = ddm.DQ2.listFilesInDataset(datasetName)
-                if status != 0:
-                    time.sleep(60)
-                else:
+                try:
+                    self.putLog('%s/%s listFilesInDataset %s' % (iDDMTry,nTry,datasetName))
+                    fileItems,out = rucioAPI.listFilesInDataset(datasetName)
+                    status = True
                     break
-            if status != 0 or out.startswith('Error'):
+                except:
+                    status = False
+                    errType,errValue = sys.exc_info()[:2]
+                    out = '{0} {1}'.format(errType,errValue)
+                    time.sleep(60)
+            if not status:
                 self.putLog(out,'error')
-                self.putLog('bad DQ2 response to get size of %s' % datasetName, 'error')
+                self.putLog('bad DDM response to get size of %s' % datasetName, 'error')
                 return resForFailure
-            # convert to map
-            try:
-                tmpLfnList = []
-                exec "outList = %s" % out
-                for guid,vals in outList[0].iteritems():
-                    tmpLfnList.append(vals['lfn'])
-            except:
-                self.putLog('failed to get file list from DQ2 response for %s' % datasetName, 'error')
-                return resForFailure
+            # get 
             # check if jobs use the dataset
             usedFlag = False
             for tmpJob in self.jobs:
                 for tmpFile in tmpJob.Files:
-                    if tmpFile.type == 'input' and tmpFile.lfn in tmpLfnList:
+                    if tmpFile.type == 'input' and tmpFile.lfn in fileItems:
                         usedFlag = True
                         break
                 # escape    
@@ -904,24 +703,22 @@ class DynDataDistributer:
         if not g_filesInDsMap.has_key(datasetName):
             nTry = 3
             for iDDMTry in range(nTry):
-                self.putLog('%s/%s listFilesInDataset %s' % (iDDMTry,nTry,datasetName))
-                status,out = ddm.DQ2.listFilesInDataset(datasetName)
-                if status != 0:
-                    time.sleep(60)
-                else:
+                try:
+                    self.putLog('%s/%s listFilesInDataset %s' % (iDDMTry,nTry,datasetName))
+                    fileItems,out = rucioAPI.listFilesInDataset(datasetName)
+                    status = True
                     break
-            if status != 0 or out.startswith('Error'):
+                except:
+                    status = False
+                    errType,errValue = sys.exc_info()[:2]
+                    out = '{0} {1}'.format(errType,errValue)
+                    time.sleep(60)
+            if not status:
                 self.putLog(out,'error')
-                self.putLog('bad DQ2 response to get size of %s' % datasetName, 'error')
+                self.putLog('bad DDM response to get size of %s' % datasetName, 'error')
                 return resForFailure
-            # get file
-            try:
-                exec "outList = %s" % out
-                # append
-                g_filesInDsMap[datasetName] = outList[0]
-            except:
-                self.putLog('failed to get file list from DQ2 response for %s' % datasetName, 'error')
-                return resForFailure
+        # append
+        g_filesInDsMap[datasetName] = fileItems
         # random mode
         if randomMode:
             tmpList = g_filesInDsMap[datasetName].keys()
@@ -929,72 +726,32 @@ class DynDataDistributer:
             retList = []
             for iSamples in range(nSamples):
                 if iSamples < len(tmpList):
-                    guid = tmpList[iSamples]
-                    retMap = g_filesInDsMap[datasetName][guid]
-                    retMap['guid'] = guid
+                    tmpLFN = tmpList[iSamples]
+                    retMap = g_filesInDsMap[datasetName][tmpLFN]
+                    retMap['lfn'] = tmpLFN
                     retMap['dataset'] = datasetName
                     retList.append(retMap)
             return True,retList        
         # return
-        if g_filesInDsMap[datasetName].has_key(guid):
-            retMap = g_filesInDsMap[datasetName][guid]
-            retMap['guid'] = guid
-            retMap['dataset'] = datasetName            
-            return True,retMap
+        for tmpLFN,tmpVal in g_filesInDsMap[datasetName].iteritems():
+            if tmpVal['guid'] == guid:
+                retMap = tmpVal
+                retMap['lfn'] = tmpLFN
+                retMap['dataset'] = datasetName            
+                return True,retMap
         return resForFailure
         
         
-    # make subscriptions to EOS 
-    def makeSubscriptionToEOS(self,datasetName):
-        self.putLog("start making EOS subscription for %s" % datasetName)
-        destDQ2IDs = ['CERN-PROD_EOSDATADISK']
-        # get dataset replica locations
-        if datasetName.endswith('/'):
-            statRep,replicaMaps = self.getListDatasetReplicasInContainer(datasetName)
-        else:
-            statRep,replicaMap = self.getListDatasetReplicas(datasetName)
-            replicaMaps = {datasetName:replicaMap}
-        if not statRep:
-            self.putLog("failed to get replica map for EOS",type='error')
-            return False
-        # loop over all datasets
-        for tmpDsName,replicaMap in replicaMaps.iteritems():
-            # check if replica is already there
-            for destDQ2ID in destDQ2IDs:
-                if replicaMap.has_key(destDQ2ID):
-                    self.putLog("skip EOS sub for %s:%s since replica is already there" % (destDQ2ID,tmpDsName))
-                else:
-                    statSubEx,subExist = self.checkSubscriptionInfo(destDQ2ID,tmpDsName)
-                    if not statSubEx:
-                        self.putLog("failed to check subscription for %s:%s" % (destDQ2ID,tmpDsName),type='error')
-                        continue
-                    # make subscription
-                    if subExist:
-                        self.putLog("skip EOS sub for %s:%s since subscription is already there" % (destDQ2ID,tmpDsName))                    
-                    else:
-                        statMkSub,retMkSub = self.makeSubscription(tmpDsName,'',destDQ2ID)
-                        if statMkSub:
-                            self.putLog("made subscription to %s for %s" % (destDQ2ID,tmpDsName))
-                        else:
-                            self.putLog("failed to make subscription to %s for %s" % (destDQ2ID,tmpDsName),type='error')
-        # return
-        self.putLog("end making EOS subscription for %s" % datasetName)        
-        return True
-
-
     # register new dataset container with datasets
     def registerDatasetContainerWithDatasets(self,containerName,files,replicaMap,nSites=1,owner=None):
         # parse DN
         if owner != None:
-            status,out = dq2Common.parse_dn(owner)
-            if status != 0:
-                self.putLog('failed to parse DN={0}'.format(owner))
+            out = rucioAPI.parse_dn(owner)
+            status,userInfo = rucioAPI.finger(out)
+            if not status:
+                self.putLog('failed to finger: {0}'.format(userInfo))
             else:
-                status,userInfo = rucioAPI.finger(out)
-                if not status:
-                    self.putLog('failed to finger: {0}'.format(userInfo))
-                else:
-                    owner = userInfo['nickname']
+                owner = userInfo['nickname']
             self.putLog('parsed DN={0}'.format(owner))
         # sort by locations
         filesMap = {}
@@ -1042,28 +799,22 @@ class DynDataDistributer:
         # register container
         nTry = 3
         for iDDMTry in range(nTry):
-            self.putLog('%s/%s registerContainer %s' % (iDDMTry,nTry,containerName))
-            status,out = ddm.DQ2.main('registerContainer',containerName,datasetNames)
-            self.putLog(out)
-            if status != 0 and out.find('DQDatasetExistsException') == -1:
-                if "DQContainerExistsException" in out:
-                    self.putLog('%s/%s registerDatasetsInContainer %s %s' % (iDDMTry,nTry,containerName,str(datasetNames)))
-                    status,out = ddm.DQ2.main('registerDatasetsInContainer',containerName,datasetNames)
-                    self.putLog(out)
-                    if status == 0 or 'DQContainerAlreadyHasDataset' in out:
-                        break
-                time.sleep(10)
-            else:
+            try:
+                self.putLog('%s/%s registerContainer %s' % (iDDMTry,nTry,containerName))
+                status = rucioAPI.registerContainer(containerName,datasetNames)
+                out = 'OK'
                 break
-        if out.find('DQDatasetExistsException') != -1:
-            pass
-        elif 'DQContainerAlreadyHasDataset' in out:
-            pass
-        elif status != 0 or out.startswith('Error'):
+            except:
+                status = False
+                errType,errValue = sys.exc_info()[:2]
+                out = '{0} {1}'.format(errType,errValue)
+                time.sleep(10)
+        if not status:
             self.putLog(out,'error')
-            self.putLog('bad DQ2 response to register %s' % containerName, 'error')
+            self.putLog('bad DDM response to register %s' % containerName, 'error')
             return False
         # return
+        self.putLog(out)
         return True
         
             
@@ -1087,8 +838,8 @@ class DynDataDistributer:
             try:
                 self.putLog('%s/%s registerNewDataset %s len=%s' % (iDDMTry,nTry,datasetName,
                                                                     len(files)))
-                out = rucioAPI.registerDatasetWithOldFiles(datasetName,lfns,guids,fsizes,chksums,
-                                                           lifetime=14)
+                out = rucioAPI.registerDataset(datasetName,lfns,guids,fsizes,chksums,
+                                               lifetime=14)
                 self.putLog(out)
                 break
             except:
@@ -1102,16 +853,20 @@ class DynDataDistributer:
         nTry = 3
         for iDDMTry in range(nTry):
             self.putLog('%s/%s freezeDataset %s' % (iDDMTry,nTry,datasetName))
-            status,out = ddm.DQ2.main('freezeDataset',datasetName)
-            if status != 0 and out.find('DQFrozenDatasetException') == -1:
+            try:
+                rucioAPI.closeDataset(datasetName)
+                status = True
+            except:
+                errtype,errvalue = sys.exc_info()[:2]
+                out = 'failed to freeze : {0} {1}'.format(errtype,errvalue)
+                status = False
+            if not status:
                 time.sleep(10)
             else:
                 break
-        if out.find('DQFrozenDatasetException') != -1:
-            pass
-        elif status != 0 or out.startswith('Error'):
+        if not status:
             self.putLog(out,'error')
-            self.putLog('bad DQ2 response to freeze %s' % datasetName, 'error')
+            self.putLog('bad DDM response to freeze %s' % datasetName, 'error')
             return resForFailure
         # register locations
         for tmpLocation in locations:
@@ -1121,20 +876,19 @@ class DynDataDistributer:
                     self.putLog('%s/%s registerDatasetLocation %s %s' % (iDDMTry,nTry,datasetName,tmpLocation))
                     out = rucioAPI.registerDatasetLocation(datasetName,[tmpLocation],14,owner)
                     self.putLog(out)
-                    out = str(out)
+                    status = True
                     break
                 except:
+                    status = False
                     errType,errValue = sys.exc_info()[:2]
                     self.putLog("%s %s" % (errType,errValue),'error')
                     if iDDMTry+1 == nTry:
                         self.putLog('failed to register {0} in rucio'.format(datasetName))
                         return resForFailure
                     time.sleep(10)
-            if out.find('DQLocationExistsException') != -1:
-                pass
-            elif status != 0 or out.startswith('Error'):
+            if not status:
                 self.putLog(out,'error')
-                self.putLog('bad DQ2 response to set owner %s' % datasetName, 'error')
+                self.putLog('bad DDM response to set owner %s' % datasetName, 'error')
                 return resForFailure
         return True
 
@@ -1147,12 +901,16 @@ class DynDataDistributer:
         nTry = 3
         for iDDMTry in range(nTry):
             self.putLog('%s/%s listDatasetsByGUIDs' % (iDDMTry,nTry))
-            status,out = ddm.DQ2.listDatasetsByGUIDs(guids)
-            if status != 0:
-                time.sleep(60)
-            else:
+            try:
+                out = rucioAPI.listDatasetsByGUIDs(guids)
+                status = True
                 break
-        if status != 0 or out.startswith('Error'):
+            except:
+                errtype,errvalue = sys.exc_info()[:2]
+                out = 'failed to get datasets with GUIDs : {0} {1}'.format(errtype,errvalue)
+                status = False
+                time.sleep(10)
+        if not status:
             self.putLog(out,'error')
             self.putLog('bad DQ2 response to list datasets by GUIDs','error')
             if 'DQUnknownDatasetException' in out:
@@ -1162,7 +920,7 @@ class DynDataDistributer:
         # get map
         retMap = {}
         try:
-            exec "outMap = %s" % out
+            outMap = out
             for guid in guids:
                 tmpDsNames = []
                 # GUID not found

@@ -11,8 +11,6 @@ import datetime
 import commands
 import threading
 import userinterface.Client as Client
-from dataservice.DDM import ddm
-from dataservice.DDM import dashBorad
 from taskbuffer.OraDBProxy import DBProxy
 from taskbuffer.TaskBuffer import taskBuffer
 from pandalogger.PandaLogger import PandaLogger
@@ -173,7 +171,6 @@ try:
     sqlJJ += "WHERE jediTaskID=:jediTaskID AND jobStatus IN (:jobS1,:jobS2,:jobS3,:jobS4,:jobS5) "
     sqlJJ += "AND jobDefinitionID=:jobDefID AND computingSite=:computingSite "
     if resList != []:
-        from userinterface.ReBroker import ReBroker
         recentRuntimeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
         # loop over all user/jobID combinations
         iComb = 0
@@ -228,19 +225,7 @@ try:
                 continue
             else:
                 if jediTaskID == None:
-                    _logger.debug("    -> rebro for normal task")
-                    reBroker = ReBroker(taskBuffer)
-                    # try to lock
-                    rebRet,rebOut = reBroker.lockJob(prodUserID,jobDefinitionID)
-                    if not rebRet:
-                        # failed to lock
-                        _logger.debug("    -> failed to lock : %s" % rebOut)
-                        continue
-                    else:
-                        # start
-                        _logger.debug("    -> start")
-                        reBroker.start()
-                        reBroker.join()
+                    _logger.debug("    -> rebro for normal task : no action")
                 else:
                     _logger.debug("    -> rebro for JEDI task")
                     killJobs = []

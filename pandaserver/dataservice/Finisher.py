@@ -7,7 +7,6 @@ import re
 import sys
 import commands
 import threading
-from DDM import ddm
 from config import panda_config
 
 from brokerage.SiteMapper import SiteMapper

@@ -8,9 +8,7 @@ import sys
 import time
 import urllib
 import commands
-from DDM import ddm
 import Notifier
-import RetryMaker
 from Activator import Activator
 from pandalogger.PandaLogger import PandaLogger
 from taskbuffer.JobSpec import JobSpec

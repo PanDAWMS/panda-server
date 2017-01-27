@@ -19,8 +19,7 @@ from dataservice.Notifier import Notifier
 from taskbuffer.JobSpec import JobSpec
 from userinterface import Client
 
-from dataservice.DDM import ddm
-from dataservice.DDM import rucioAPI,dq2Common,dq2Info
+from dataservice.DDM import rucioAPI
 
 from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
@@ -68,7 +67,6 @@ class EventPicker:
                 self.putLog("cannot lock %s" % self.evpFileName)
                 self.evpFile.close()
                 return True
-            ddm.useDirectDQ2()
             # options
             runEvtList          = []
             eventPickDataType   = ''
@@ -252,7 +250,7 @@ class EventPicker:
                 sitesUsed = []
                 for tmpUserDatasetName in userDatasetNameList:
                     # get size of dataset container
-                    tmpRet,totalInputSize = self.pd2p.getDatasetSize(tmpUserDatasetName)
+                    tmpRet,totalInputSize = rucioAPI.getDatasetSize(tmpUserDatasetName)
                     if not tmpRet:
                         self.endWithError('Failed to get the size of %s' % tmpUserDatasetName)
                         return False
@@ -268,7 +266,7 @@ class EventPicker:
                     self.putLog("site -> %s" % tmpJob.computingSite)
                     # send transfer request
                     try:
-                        tmpStatus,tmpDN = dq2Common.parse_dn(tmpDN)
+                        tmpDN = rucioAPI.parse_dn(tmpDN)
                         tmpStatus,userInfo = rucioAPI.finger(tmpDN)
                         if not tmpStatus:
                             raise RuntimeError,'user info not found for {0} with {1}'.format(tmpDN,userInfo)
@@ -316,7 +314,7 @@ class EventPicker:
             return True
         except:
             errType,errValue = sys.exc_info()[:2]
-            self.endWithError('Got exception %s:%s' % (errType,errValue))
+            self.endWithError('Got exception %s:%s %s' % (errType,errValue,traceback.format_exc()))
             return False
 
 

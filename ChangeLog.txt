@@ -1,5 +1,8 @@
 Release Notes
 
+* 1/27/2017
+  * removed dq2 dependency
+
 * 1/23/2017
   * added CAP_RUNNING_USER_JOBS
 

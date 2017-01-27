@@ -10,7 +10,6 @@ import ErrorCode
 import PandaSiteIDs
 from taskbuffer import ProcessGroups
 from dataservice import DataServiceUtils
-from dataservice.DDM import toa
 from dataservice.DDM import rucioAPI
 from config import panda_config
 
@@ -92,7 +91,7 @@ def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs,allOkFilesMap,tmpLog=None,
             dq2ID += '%s,' % tmpID
         dq2ID = dq2ID[:-1]    
     # set LFC and SE name 
-    tmpStat,dq2URL = toa.getLocalCatalog(v_ce.ddm)
+    dq2URL = 'rucio://atlas-rucio.cern.ch:/grid/atlas'
     tmpSE = v_ce.ddm_endpoints.getAllEndPoints()
     if tmpLog != None:
         tmpLog.debug('getOkFiles for %s with dq2ID:%s,LFC:%s,SE:%s' % (v_ce.sitename,dq2ID,dq2URL,str(tmpSE)))

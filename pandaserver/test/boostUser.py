@@ -5,7 +5,6 @@ from config import panda_config
 from taskbuffer.Initializer import initializer
 initializer.init()
 
-from dataservice.Merger import Merger
 from taskbuffer.TaskBuffer import taskBuffer
 from pandalogger.PandaLogger import PandaLogger
 

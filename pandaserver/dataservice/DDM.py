@@ -5,367 +5,12 @@ provide primitive methods for DDM
 
 import re
 import sys
-import types
-import commands
 import hashlib
-from config import panda_config
 
 from rucio.client import Client as RucioClient
 from rucio.common.exception import UnsupportedOperation,DataIdentifierNotFound,\
-    FileAlreadyExists,Duplicate,DataIdentifierAlreadyExists,DuplicateRule
-
-
-# change cwd
-_cwd = 'cd %s > /dev/null 2>&1; export HOME=%s; ' % (panda_config.home_dir_cwd,panda_config.home_dir_cwd)
-
-# environment variables
-_env = 'PATH=%s:%s:$PATH '    % (panda_config.native_python,panda_config.globus_dir+'/bin')
-_env+= 'LD_LIBRARY_PATH=%s '  % (panda_config.globus_dir+'/lib')
-_env+= 'DQ2_HOME=%s/opt/dq2 ' % panda_config.dq2_dir
-_env+= 'http_proxy=%s '       % panda_config.httpProxy
-_env+= 'https_proxy=%s '      % panda_config.httpProxy
-
-_env+= 'PYTHONPATH=%s/usr/lib/python2.3/site-packages:$PYTHONPATH' \
-       % panda_config.dq2_dir
-
-# method object wrapping DQ2 method
-class _DQMethod:
-    # constructor
-    def __init__(self,moduleName,methodName):
-        self.moduleName = moduleName
-        self.methodName = methodName
-
-    # method emulation
-    def __call__(self,*args,**kwargs):
-        # main method has disappeared since 0.3
-        args = list(args)
-        if self.methodName == 'main':
-            self.methodName = args[0]
-            args.pop(0)
-        # build command
-        com  = 'from dq2.clientapi.DQ2 import DQ2; '
-        if 'force_backend' in kwargs and kwargs['force_backend'] != None:
-            com += "dq2api = DQ2(force_backend='{0}'); ".format(kwargs['force_backend'])
-        else:
-            com += "dq2api = DQ2(force_backend='{0}'); ".format('rucio')
-        try:
-            del kwargs['force_backend']
-        except:
-            pass
-        if self.moduleName == 'DQ2':
-            # DQ2 is top-level module
-            com += 'print dq2api.%s(' % self.methodName
-        elif self.moduleName == 'DQ2_iter':
-            # iterator
-            com += 'iter = dq2api.%s(' % self.methodName
-        else:
-            com += 'print dq2api.%s.%s(' % (self.moduleName,self.methodName)
-        # expand args
-        for i in range(len(args)):
-            arg = args[i]
-            if isinstance(arg,types.UnicodeType):
-                arg = str(arg)
-            if isinstance(arg,types.StringType):
-                # check invalid characters
-                for invCh in ['"',"'",'(',')',';']:
-                    if invCh in arg:
-                        return -1,"invalid character %s in %s" % (invCh,arg)
-                com = "%s'%s'," % (com,arg)
-            else:
-                com = '%s%s,' % (com,str(arg))
-        for tmpK,tmpV in kwargs.iteritems():
-            if isinstance(tmpV,types.UnicodeType):
-                tmpV = str(tmpV)
-            if isinstance(tmpV,types.StringType):
-                com += "%s='%s'," % (tmpK,tmpV)
-            else:
-                com += "%s=%s," % (tmpK,tmpV)
-        com = com[:-1]        
-        com += ")"
-        # loop over iterator
-        if self.moduleName == 'DQ2_iter':
-            com += ";exec 'for item in iter:print item'"
-        # execute
-        return commands.getstatusoutput('%s env %s python -c "%s"' % (_cwd,_env,com))
-        
-
-# DQ module class
-class _DQModule:
-    # constructor
-    def __init__(self,moduleName):
-        self.moduleName = moduleName
-
-    # factory method
-    def __getattr__(self,methodName):
-        return _DQMethod(self.moduleName,methodName)
-
-
-# native DQ2 method class
-class NativeDQ2Method:
-    # constructor
-    def __init__(self):
-        self.moduleName = None
-        self.methodName = None
-    # set module and method name
-    def setNames(self,moduleName,methodName):
-        self.moduleName = moduleName
-        self.methodName = methodName
-    # method emulation
-    def __call__(self,*args,**kwargs):
-        try:
-            # make dq2api locally since global dq2 object is not thread-safe
-            from dq2.clientapi import DQ2
-            if 'force_backend' in kwargs and kwargs['force_backend'] != None:
-                dq2api = DQ2.DQ2(force_backend=kwargs['force_backend'])
-            else:
-                dq2api = DQ2.DQ2(force_backend='rucio')
-            try:
-                del kwargs['force_backend']
-            except:
-                pass
-            # main method has disappeared since 0.3
-            args = list(args)
-            if self.methodName == 'main':
-                self.methodName = args[0]
-                args.pop(0)
-            # get method object
-            if self.moduleName in ['DQ2','DQ2_iter']:
-                methodObj = getattr(dq2api,self.methodName)
-            else:
-                methodObj = getattr(getattr(dq2api,self.moduleName),self.methodName)
-            # execute
-            retVal = apply(methodObj,args,kwargs)
-            # loop over for iterator
-            if self.moduleName == 'DQ2_iter':
-                strRet = ''
-                for item in retVal:
-                    strRet += str(item)
-            else:
-                strRet = str(retVal)
-            # return
-            return 0,strRet
-        except:
-            errType,errVale = sys.exc_info()[:2]
-            return 1,'%s %s' % (errType,errVale)
-        
-    
-        
-# native DQ2 module class
-class NativeDQ2Module:
-    # constructor
-    def __init__(self):
-        self.moduleName = None
-    # set module name
-    def setModName(self,moduleName):
-        self.moduleName = moduleName
-    # getter
-    def __getattr__(self,methodName):
-        # set method name
-        api = NativeDQ2Method()        
-        api.setNames(self.moduleName,methodName)
-        return api
-        
-
-# factory class
-class DDM:
-    # constructor
-    def __init__(self):
-        self.usingNativeDQ2 = False
-    # switch to use DQ2 in the same session
-    def useDirectDQ2(self):
-        self.usingNativeDQ2 = True
-    # getter    
-    def __getattr__(self,moduleName):
-        if not self.usingNativeDQ2:
-            # run dq2 comamnd in another session
-            return _DQModule(moduleName)
-        else:
-            # run dq2 command in the same session
-            nativeDQ2 = NativeDQ2Module()
-            nativeDQ2.setModName(moduleName)
-            return nativeDQ2
-
-# instantiate
-ddm = DDM()
-del DDM
-
-
-# method object wrapping TOA method
-class _TOAMethod:
-    # constructor
-    def __init__(self,methodName):
-        self.methodName = methodName
-
-    # method emulation
-    def __call__(self,*args):
-        args = list(args)
-        # build command
-        com  = 'from dq2.info import TiersOfATLAS; '
-        com += 'print TiersOfATLAS.%s(' % self.methodName
-        # expand args
-        for i in range(len(args)):
-            arg = args[i]
-            if isinstance(arg,types.StringType):
-                com += "'%s'," % arg
-            else:
-                com += '%s,' % arg
-        com = com[:-1]        
-        com += ")"
-        # execute
-        return commands.getstatusoutput('%s env %s python -c "%s"' % (_cwd,_env,com))
-
-
-# native ToA method class
-class NativeTOAMethod:
-    # constructor
-    def __init__(self):
-        self.methodName = None
-        from dq2.info import TiersOfATLAS
-        self.api = TiersOfATLAS
-    # set method name
-    def setName(self,methodName):
-        self.methodName = methodName
-    # method emulation
-    def __call__(self,*args,**kwargs):
-        try:
-            methodObj = getattr(self.api,self.methodName)
-            # execute
-            retVal = apply(methodObj,args,kwargs)
-            strRet = str(retVal)
-            # return
-            return 0,strRet
-        except:
-            errType,errVale = sys.exc_info()[:2]
-            return 1,'%s %s' % (errType,errVale)
-
-
-# TOA module class
-class TOA:
-    # constructor
-    def __init__(self):
-        self.usingNativeDQ2 = False
-        self.nativeTOA = None
-    # getter
-    def __getattr__(self,methodName):
-        if not ddm.usingNativeDQ2:
-            # run dq2 comamnd in another session
-            return _TOAMethod(methodName)
-        else:
-            # make method object
-            if self.nativeTOA == None:
-                self.nativeTOA = NativeTOAMethod()
-            # run dq2 command in the same session
-            self.nativeTOA.setName(methodName)
-            return self.nativeTOA
-                                
-
-    
-# instantiate
-toa = TOA()
-del TOA
-
-
-# method object wrapping Dashboard method
-class _DashBoradMethod:
-    # constructor
-    def __init__(self,methodName):
-        self.methodName = methodName
-
-    # method emulation
-    def __call__(self,*args):
-        args = list(args)
-        # build command
-        com  = "import sys;sys.stderr=open('/dev/null','w');"
-        com += "import datetime;from dashboard.api.data.DataQuery import DataQuery;"
-        com += "sys.stderr=sys.__stderr__;"
-        com += "dash=DataQuery('dashb-atlas-data.cern.ch', 80);"
-        com += "print dash.%s(%s,'%s'," % (self.methodName,args[0],args[1])
-        com += "startDate=datetime.datetime.utcnow()-datetime.timedelta(hours=24))"
-        # execute
-        return commands.getstatusoutput('%s python -c "%s"' % (_cwd,com))
-
-
-# TOA module class
-class DashBorad:
-    def __getattr__(self,methodName):
-        return _DashBoradMethod(methodName)
-
-# instantiate
-dashBorad = DashBorad()
-del DashBorad
-    
-
-# method object wrapping DQ2Info method
-class _DQ2InfoMethod:
-    # constructor
-    def __init__(self,methodName):
-        self.methodName = methodName
-
-    # method emulation
-    def __call__(self,*args):
-        args = list(args)
-        # build command
-        com  = 'from dq2.info.client.infoClient import infoClient; '
-        com += 'print infoClient().%s(' % self.methodName
-        # expand args
-        for i in range(len(args)):
-            arg = args[i]
-            if isinstance(arg,types.StringType):
-                com += "'%s'," % arg
-            else:
-                com = '%s,' % arg
-        com = com[:-1]        
-        com += ")"
-        # execute
-        return commands.getstatusoutput('%s env %s python -c "%s"' % (_cwd,_env,com))
-
-
-# TOA module class
-class DQ2Info:
-    def __getattr__(self,methodName):
-        return _DQ2InfoMethod(methodName)
-
-    
-# instantiate
-dq2Info = DQ2Info()
-del DQ2Info
-
-
-# method object wrapping dq2 common
-class _DQ2CommonMethod:
-    # constructor
-    def __init__(self,methodName):
-        self.methodName = methodName
-
-    # method emulation
-    def __call__(self,*args):
-        args = list(args)
-        # build command
-        com  = 'from dq2.common import %s; ' % self.methodName
-        com += 'print %s(' % self.methodName
-        # expand args
-        for i in range(len(args)):
-            arg = args[i]
-            if isinstance(arg,types.StringType):
-                com += "'%s'," % arg
-            else:
-                com = '%s,' % arg
-        com = com[:-1]        
-        com += ")"
-        # execute
-        return commands.getstatusoutput('%s env %s python -c "%s"' % (_cwd,_env,com))
-
-
-# TOA module class
-class DQ2Common:
-    def __getattr__(self,methodName):
-        return _DQ2CommonMethod(methodName)
-
-    
-# instantiate
-dq2Common = DQ2Common()
-del DQ2Common
-
+    FileAlreadyExists,Duplicate,DataIdentifierAlreadyExists,DuplicateRule,\
+    DuplicateContent
 
 
 # rucio
@@ -385,8 +30,9 @@ class RucioAPI:
         return scope,dsn
 
 
-    # register dataset with existing files
-    def registerDatasetWithOldFiles(self,dsn,lfns=[],guids=[],sizes=[],checksums=[],lifetime=None,scope=None):
+    # register dataset
+    def registerDataset(self,dsn,lfns=[],guids=[],sizes=[],checksums=[],lifetime=None,scope=None,metadata=None):
+        presetScope = scope
         files = []
         for lfn, guid, size, checksum in zip(lfns, guids, sizes, checksums):
             if lfn.find(':') > -1:
@@ -403,7 +49,9 @@ class RucioAPI:
         client = RucioClient()
         try:
             scope,dsn = self.extract_scope(dsn)
-            client.add_dataset(scope=scope, name=dsn)
+            if presetScope is not None:
+                scope = presetScope
+            client.add_dataset(scope=scope, name=dsn, meta=metadata)
             if lifetime != None:
                 client.set_metadata(scope,dsn,key='lifetime',value=lifetime*86400)
         except DataIdentifierAlreadyExists:
@@ -414,14 +62,15 @@ class RucioAPI:
         except:
             pass
         # add files
-        try:
-            client.add_files_to_dataset(scope=scope,name=dsn,files=files, rse=None)
-        except FileAlreadyExists:
-            for f in files:
-                try:
-                    client.add_files_to_dataset(scope=scope, name=dsn, files=[f], rse=None)
-                except FileAlreadyExists:
-                    pass
+        if len(files) > 0:
+            try:
+                client.add_files_to_dataset(scope=scope,name=dsn,files=files, rse=None)
+            except FileAlreadyExists:
+                for f in files:
+                    try:
+                        client.add_files_to_dataset(scope=scope, name=dsn, files=[f], rse=None)
+                    except FileAlreadyExists:
+                        pass
         vuid = hashlib.md5(scope+':'+dsn).hexdigest()
         vuid = '%s-%s-%s-%s-%s' % (vuid[0:8], vuid[8:12], vuid[12:16], vuid[16:20], vuid[20:32])
         duid = vuid
@@ -430,10 +79,14 @@ class RucioAPI:
 
 
     # register dataset location
-    def registerDatasetLocation(self,dsn,rses,lifetime=None,owner=None,activity=None):
+    def registerDatasetLocation(self,dsn,rses,lifetime=None,owner=None,activity=None,scope=None,asynchronous=False,
+                                grouping='DATASET',notify='N'):
+        presetScope = scope
         if lifetime != None:
             lifetime = lifetime*24*60*60
         scope,dsn = self.extract_scope(dsn)    
+        if presetScope is not None:
+            scope = presetScope
         dids = []
         did = {'scope': scope, 'name': dsn}
         dids.append(did)
@@ -443,16 +96,16 @@ class RucioAPI:
         # check if a replication rule already exists
         client = RucioClient()
         # owner
-        if owner == None:
+        if owner is None:
             owner = client.account
         for rule in client.list_did_rules(scope=scope, name=dsn):
-            if (rule['rse_expression'] == location) and (rule['account'] == client.account):
+            if (rule['rse_expression'] == location) and (rule['account'] == owner):
                 return True
         try:
             client.add_replication_rule(dids=dids,copies=1,rse_expression=location,weight=None,
-                                        lifetime=lifetime, grouping='DATASET', account=owner,
-                                        locked=False,activity=activity,notify='N',
-                                        ignore_availability=True)
+                                        lifetime=lifetime, grouping=grouping, account=owner,
+                                        locked=False,activity=activity,notify=notify,
+                                        ignore_availability=True,)
         except (Duplicate,DuplicateRule):
             pass
         return True
@@ -490,7 +143,7 @@ class RucioAPI:
             else:
                 owner = client.account
         for rule in client.list_did_rules(scope=scope, name=dsn):
-            if (rule['rse_expression'] == location) and (rule['account'] == client.account):
+            if (rule['rse_expression'] == location) and (rule['account'] == owner):
                 return True
         try:
             client.add_replication_rule(dids=dids,copies=1,rse_expression=location,weight=None,
@@ -597,6 +250,59 @@ class RucioAPI:
         return retMap
 
 
+    # list datasets
+    def listDatasets(self,datasetName,old=False):
+        result = {}
+        # extract scope from dataset
+        scope,dsn = self.extract_scope(datasetName)
+        if dsn.endswith('/'):
+            dsn = dsn[:-1]
+            collection = 'container'
+        else:
+            collection = 'dataset'
+        filters = {'name': dsn}
+        try:
+            # get dids
+            client = RucioClient()
+            for name in client.list_dids(scope, filters, type=collection):
+                vuid = hashlib.md5(scope + ':' + name).hexdigest()
+                vuid = '%s-%s-%s-%s-%s' % (vuid[0:8], vuid[8:12], vuid[12:16], vuid[16:20], vuid[20:32])
+                duid = vuid
+                # add /
+                if datasetName.endswith('/') and not name.endswith('/'):
+                    name += '/'
+                if old or not ':' in datasetName:
+                    keyName = name
+                else:
+                    keyName = str('%s:%s' % (scope, name))
+                if keyName not in result:
+                    result[keyName] = {'duid': duid, 'vuids': [vuid]}
+            return result,''
+        except:
+            errType,errVale = sys.exc_info()[:2]
+            return None,'%s %s' % (errType,errVale)
+
+
+
+    # list datasets in container
+    def listDatasetsInContainer(self,containerName):
+        result = []
+        # extract scope from dataset
+        scope,cn = self.extract_scope(containerName)
+        if cn.endswith('/'):
+            cn = cn[:-1]
+        try:
+            # get dids
+            client = RucioClient()
+            for i in client.list_content(scope, cn):
+                if i['type'] == 'DATASET':
+                    result.append(str('%s:%s' % (i['scope'], i['name'])))
+            return result,''
+        except:
+            errType,errVale = sys.exc_info()[:2]
+            return None,'%s %s' % (errType,errVale)
+
+
 
     # list dataset replicas
     def listDatasetReplicas(self,datasetName):
@@ -660,6 +366,23 @@ class RucioAPI:
             return False
 
 
+    # delete dataset
+    def eraseDataset(self,dsn,scope=None):
+        presetScope = scope
+        # register dataset
+        client = RucioClient()
+        try:
+            scope,dsn = self.extract_scope(dsn)
+            if presetScope is not None:
+                scope = presetScope
+            client.set_metadata(scope=scope, name=dsn, key='lifetime', value=0.0001)
+        except:
+            errType,errVale = sys.exc_info()[:2]
+            return False,'%s %s' % (errType,errVale)
+        return True,''
+
+
+
 
     # close dataset
     def closeDataset(self,dsn):
@@ -721,7 +444,9 @@ class RucioAPI:
             dq2attrs = {}
             dq2attrs['chksum'] = "ad:" + str(x['adler32'])
             dq2attrs['md5sum'] = dq2attrs['chksum']
+            dq2attrs['checksum'] = dq2attrs['chksum']
             dq2attrs['fsize'] = x['bytes']
+            dq2attrs['filesize'] = dq2attrs['fsize']
             dq2attrs['scope'] = str(x['scope'])
             dq2attrs['events'] = str(x['events'])
             if long:
@@ -730,6 +455,90 @@ class RucioAPI:
             dq2attrs['guid'] = guid
             return_dict[tmpLFN] = dq2attrs
         return (return_dict, None)
+
+
+
+    # get # of files in dataset
+    def getNumberOfFiles(self,datasetName,presetScope=None):
+        # extract scope from dataset
+        scope,dsn = self.extract_scope(datasetName)
+        if presetScope is not None:
+            scope = presetScope
+        client = RucioClient()
+        nFiles = 0
+        try:
+            for x in client.list_files(scope, dsn, long=long):
+                nFiles += 1
+            return True,nFiles
+        except DataIdentifierNotFound:
+            return None,'dataset not found'
+        except:
+            errMsg = '{0} {1}'.format(errtype.__name__,errvalue)
+            return False,errMsg
+
+
+
+    # get dataset size
+    def getDatasetSize(self,datasetName):
+        # extract scope from dataset
+        scope,dsn = self.extract_scope(datasetName)
+        client = RucioClient()
+        tSize = 0
+        try:
+            for x in client.list_files(scope, dsn, long=long):
+                tSize += x['bytes']
+            return True,tSize
+        except DataIdentifierNotFound:
+            return None,'dataset not found'
+        except:
+            errMsg = '{0} {1}'.format(errtype.__name__,errvalue)
+            return False,errMsg
+
+
+
+    # delete dataset replicas
+    def deleteDatasetReplicas(self,datasetName,locations):
+        # extract scope from dataset
+        scope,dsn = self.extract_scope(datasetName)
+        client = RucioClient()
+        try:
+            for rule in self.client.list_did_rules(scope, dsn):
+                if rule['account'] != self.client.account:
+                    continue
+                if rule['rse_expression'] in locations:
+                    client.delete_replication_rule(rule['id'])
+        except DataIdentifierNotFound:
+            pass
+        except:
+            errMsg = '{0} {1}'.format(errtype.__name__,errvalue)
+            return False,errMsg
+        return True,''
+
+
+
+    # list active subscriptions
+    def deleteDatasetReplicas(self,datasetName):
+        # extract scope from dataset
+        scope,dsn = self.extract_scope(datasetName)
+        client = RucioClient()
+        rse_expressions = []
+        list_rses = []
+        result = []
+        try:
+            for rule in self.client.list_did_rules(scope, dsn):
+                if rule['state'] != 'OK' and rule['rse_expression'] not in rse_expressions:
+                    rse_expressions.append(rule['rse_expression'])
+            for rse_expression in rse_expressions:
+                for rse in client.list_rses(rse_expression):
+                    if rse not in list_rses:
+                        list_rses.append(rse['rse'])
+            result = list_rses
+        except DataIdentifierNotFound:
+            pass
+        except:
+            errMsg = '{0} {1}'.format(errtype.__name__,errvalue)
+            return False,errMsg
+        return True,result
 
 
 
@@ -761,6 +570,18 @@ class RucioAPI:
             pass
 
 
+
+    # list datasets with GUIDs
+    def listDatasetsByGUIDs(self,guids):
+        client = RucioClient()
+        result = {}
+        for guid in guids:
+            datasets = [str('%s:%s' % (i['scope'], i['name'])) for i in client.get_dataset_by_guid(guid)]
+            result[guid] = datasets
+        return result
+
+
+
     # finger
     def finger(self, userName):
         try:
@@ -785,6 +606,51 @@ class RucioAPI:
             errMsg = '{0} {1}'.format(errtype.__name__,errvalue)
             userInfo = errMsg
         return retVal,userInfo
+
+
+
+    # register container
+    def registerContainer(self,cname,datasets=[],presetScope=None):
+        if cname.endswith('/'):
+            cname = cname[:-1]
+        # register container
+        client = RucioClient()
+        try:
+            scope,dsn = self.extract_scope(cname)
+            if presetScope is not None:
+                scope = presetScope
+            client.add_container(scope=scope, name=cname)
+        except DataIdentifierAlreadyExists:
+            pass
+        # add files
+        if len(datasets) > 0:
+            try:
+                dsns = []
+                for ds in datasets:
+                    ds_scope, ds_name = self.extract_scope(ds)
+                    if ds_scope:
+                        dsn = {'scope': ds_scope, 'name': ds_name}
+                    else:
+                        dsn = {'scope': scope, 'name': ds}
+                dsns.append(dsn)
+                client.add_datasets_to_container(scope=scope, name=cname, dsns=dsns)
+            except DuplicateContent:
+                for ds in dsns:
+                    try:
+                        client.add_datasets_to_container(scope=scope, name=cname, dsns=[ds])
+                    except DuplicateContent:
+                        pass
+        return True
+
+
+    
+    # get a parsed certificate DN
+    def parse_dn(self,tmpDN):
+        if tmpDN is not None:
+            tmpDN = re.sub('/CN=limited proxy','',tmpDN)
+            tmpDN = re.sub('(/CN=proxy)+$', '', tmpDN)
+            #tmpDN = re.sub('(/CN=\d+)+$', '', tmpDN)
+        return tmpDN
         
 
 # instantiate

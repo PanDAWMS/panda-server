@@ -15,25 +15,10 @@ import exceptions
 import traceback
 import xml.dom.minidom
 import ErrorCode
-from dq2.clientapi import DQ2
-from dq2.filecatalog.FileCatalogUnknownFactory import FileCatalogUnknownFactory
-from dq2.filecatalog.FileCatalogException import FileCatalogException
 from rucio.common.exception import FileConsistencyMismatch,DataIdentifierNotFound,UnsupportedOperation,\
     InvalidPath,RSENotFound,InsufficientAccountLimit,RSEProtocolNotSupported
 
-from DDM import rucioAPI,dq2Common,dq2Info
-
-try:
-    from dq2.clientapi.cli import Register2
-except:
-    pass
-try:
-    from dq2.filecatalog.rucio.RucioFileCatalogException import RucioFileCatalogException
-except:
-    # dummy class
-    class RucioFileCatalogException:
-        pass
-
+from DDM import rucioAPI
 
 from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
@@ -54,7 +39,6 @@ class AdderAtlasPlugin (AdderPluginBase):
         self.goToTransferring = False
         self.logTransferring = False
         self.subscriptionMap = {}
-        self.dq2api = None
         self.pandaDDM = False
         self.goToMerging = False
 
@@ -67,11 +51,6 @@ class AdderAtlasPlugin (AdderPluginBase):
             self.ddmBackEnd = self.job.getDdmBackEnd()
             if self.ddmBackEnd == None:
                 self.ddmBackEnd = 'rucio'
-            # instantiate DQ2
-            if self.ddmBackEnd != None:
-                self.dq2api = DQ2.DQ2(force_backend=self.ddmBackEnd)
-            else:
-                self.dq2api = DQ2.DQ2()
             self.logger.debug("ddm backend = {0}".format(self.ddmBackEnd))
             # add files only to top-level datasets for transferring jobs
             if self.job.jobStatus == 'transferring':
@@ -165,14 +144,6 @@ class AdderAtlasPlugin (AdderPluginBase):
             if retOut != 0:
                 self.logger.debug('terminated when adding')
                 return
-            # remove unmerged
-            if self.job.processingType == 'usermerge' and self.job.prodSourceLabel == 'user' and \
-                   self.jobStatus == 'finished' and self.job.ddmErrorDiag == 'NULL':
-                retMerge = self._removeUnmerged()
-                # failed
-                if not retMerge:
-                    self.logger.debug('terminated when removing unmerged')
-                    return
             # succeeded    
             self.result.setSucceeded()    
             self.logger.debug("end plugin")
@@ -495,15 +466,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                                                                                              regNumFiles)
                 self.logger.debug('%s %s' % ('registerFilesInDatasets',str(destIdMap)))
                 out = rucioAPI.registerFilesInDataset(destIdMap)
-            except (DQ2.DQClosedDatasetException,
-                    DQ2.DQFrozenDatasetException,
-                    DQ2.DQUnknownDatasetException,
-                    DQ2.DQDatasetExistsException,
-                    DQ2.DQFileMetaDataMismatchException,
-                    FileCatalogUnknownFactory,
-                    FileCatalogException,
-                    DataIdentifierNotFound,
-                    RucioFileCatalogException,
+            except (DataIdentifierNotFound,
                     FileConsistencyMismatch,
                     UnsupportedOperation,
                     InvalidPath,
@@ -560,55 +523,33 @@ class AdderAtlasPlugin (AdderPluginBase):
             for tmpName,tmpVal in subMap.iteritems():
                 for dq2ID,optSub,optSource in tmpVal:
                     if not self.goToMerging:
-                        # make DQ2 subscription for prod jobs
+                        # make subscription for prod jobs
+                        repLifeTime = 14
                         self.logger.debug("%s %s %s" % ('registerDatasetSubscription',
                                                         (tmpName,dq2ID),
-                                                        {'version':0,'archived':0,'callbacks':optSub,
-                                                         'sources':optSource,'sources_policy':(001000 | 010000),
-                                                         'wait_for_sources':0,'destination':None,'query_more_sources':0,
-                                                         'sshare':"production",'group':None,'activity':subActivity,
-                                                         'acl_alias':None,'replica_lifetime':"14 days"}))
+                                                        {'activity':subActivity,
+                                                         'replica_lifetime':repLifeTime}))
                         for iDDMTry in range(3):
-                            out = 'OK'
                             isFailed = False                        
                             try:
-                                self.dq2api.registerDatasetSubscription(tmpName,dq2ID,version=0,archived=0,callbacks=optSub,
-                                                                        sources=optSource,sources_policy=(001000 | 010000),
-                                                                        wait_for_sources=0,destination=None,query_more_sources=0,
-                                                                        sshare="production",group=None,activity=subActivity,
-                                                                        acl_alias=None,replica_lifetime="14 days")
-                            except DQ2.DQSubscriptionExistsException:
-                                # harmless error
-                                errType,errValue = sys.exc_info()[:2]
-                                out = '%s : %s' % (errType,errValue)
-                            except:
-                                # unknown errors
-                                errType,errValue = sys.exc_info()[:2]
-                                out = '%s : %s' % (errType,errValue)
-                                isFailed = True
-                                if 'is not a Tiers of Atlas Destination' in str(errValue) or \
-                                        'is not in Tiers of Atlas' in str(errValue) or \
-                                        'RSE Expression resulted in an empty set' in str(errValue) or \
-                                        'RSE excluded due to write blacklisting' in str(errValue) or \
-                                        'used/quota' in str(errValue):
-                                    # fatal error
-                                    self.job.ddmErrorCode = ErrorCode.EC_Subscription
-                                else:
-                                    # retry for temporary errors
-                                    time.sleep(10)
-                            else:
+                                status = rucioAPI.registerDatasetSubscription(tmpName,[dq2ID],
+                                                                              owner='panda',
+                                                                              activity=subActivity,
+                                                                              lifetime=repLifeTime)
+                                out = 'OK'
                                 break
+                            except:
+                                status = False
+                                errType,errValue = sys.exc_info()[:2]
+                                out = "%s %s" % (errType,errValue)
+                                isFailed = True
+                                # retry for temporary errors
+                                time.sleep(10)
                         if isFailed:
                             self.logger.error('%s' % out)
-                            # extract important error string
-                            extractedErrStr = DataServiceUtils.extractImportantError(out)
                             if self.job.ddmErrorCode == ErrorCode.EC_Subscription:
                                 # fatal error
-                                if extractedErrStr == '':
-                                    self.job.ddmErrorDiag = "subscription failure with %s" % out
-                                else:
-                                    self.logger.error(extractedErrStr)
-                                    self.job.ddmErrorDiag = "subscription failure with %s" % extractedErrStr
+                                self.job.ddmErrorDiag = "subscription failure with %s" % out
                                 self.result.setFatal()
                             else:
                                 # temoprary errors
@@ -620,6 +561,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                     else:
                         # register location
                         tmpDsNameLoc = re.sub('_sub\d+$','',tmpName)
+                        repLifeTime = 14
                         for tmpLocName in optSource.keys():
                             self.logger.debug("%s %s %s %s" % ('registerDatasetLocation',tmpDsNameLoc,tmpLocName,
                                                                {'lifetime':"14 days"}))
@@ -627,20 +569,19 @@ class AdderAtlasPlugin (AdderPluginBase):
                                 out = 'OK'
                                 isFailed = False                        
                                 try:                        
-                                    self.dq2api.registerDatasetLocation(tmpDsNameLoc,tmpLocName,lifetime="14 days")
-                                except DQ2.DQLocationExistsException:
-                                    # harmless error
-                                    errType,errValue = sys.exc_info()[:2]
-                                    out = '%s : %s' % (errType,errValue)
+                                    rucioAPI.registerDatasetLocation(tmpDsNameLoc,[tmpLocName],
+                                                                     owner='panda',
+                                                                     activity=subActivity,
+                                                                     lifetime=repLifeTime)
+                                    out = 'OK'
+                                    break
                                 except:
-                                    # unknown errors
+                                    status = False
                                     errType,errValue = sys.exc_info()[:2]
-                                    out = '%s : %s' % (errType,errValue)
+                                    out = "%s %s" % (errType,errValue)
                                     isFailed = True
                                     # retry for temporary errors
                                     time.sleep(10)
-                                else:
-                                    break
                             if isFailed:
                                 self.logger.error('%s' % out)
                                 if self.job.ddmErrorCode == ErrorCode.EC_Location:
@@ -690,12 +631,11 @@ class AdderAtlasPlugin (AdderPluginBase):
                         tmpTopDatasets[tmpTopName].append(dq2ID)
             # remove redundant CN from DN
             tmpDN = self.job.prodUserID
-            tmpDN = re.sub('/CN=limited proxy','',tmpDN)
-            tmpDN = re.sub('(/CN=proxy)+$','',tmpDN)
+            tmpDN = rucioAPI.parse_dn(tmpDN)
             # send request
             if tmpTopDatasets != {} and self.jobStatus == 'finished':
                 try:
-                    status,tmpDN = dq2Common.parse_dn(tmpDN)
+                    tmpDN = rucioAPI.parse_dn(tmpDN)
                     status,userInfo = rucioAPI.finger(tmpDN)
                     if not status:
                         raise RuntimeError,'user info not found for {0} with {1}'.format(tmpDN,userInfo)
@@ -795,81 +735,6 @@ class AdderAtlasPlugin (AdderPluginBase):
                     destIdMap[tmpDest] = {}
                 destIdMap[tmpDest][tmpDS] = tmpFiles
         return destIdMap
-
-
-    # remove unmerged files
-    def _removeUnmerged(self):
-        self.logger.debug("start removeUnmerged")
-        # get input files
-        inputFileGUIDs = []
-        inputFileStr = ''
-        for file in self.job.Files:
-            if file.type == 'input':
-                # remove skipped files
-                if file.status in ['skipped']:
-                    continue
-                # ignore lib.tgz
-                if re.search('lib\.tgz\.*\d*',file.lfn) != None:
-                    continue
-                # ignore DBRelease
-                if re.search('DBRelease',file.lfn) != None:
-                    continue
-                # append
-                inputFileGUIDs.append(file.GUID)
-                inputFileStr += '%s,' % file.lfn
-        # extract parent dataset name
-        tmpMatch = re.search('--parentDS ([^ \'\"]+)',self.job.jobParameters)
-        # failed
-        if tmpMatch == None:
-            self.logger.error("failed to extract parentDS from params=%s" % (self.job.jobParameters))
-            return False
-        parentDS = tmpMatch.group(1)
-        # delete
-        self.logger.debug("registerNewVersion %s" % parentDS)
-        self.logger.debug("deleteFilesFromDataset %s %s" % (parentDS,inputFileStr[:-1]))
-        nTry = 3
-        for iTry in range(nTry):
-            # add data to datasets
-            isFailed = False
-            isFatal  = False
-            out = 'OK'
-            try:
-                self.dq2api.registerNewVersion(parentDS)
-                self.dq2api.deleteFilesFromDataset(parentDS,inputFileGUIDs)
-            except (DQ2.DQClosedDatasetException,
-                    DQ2.DQFrozenDatasetException,
-                    DQ2.DQUnknownDatasetException,
-                    DQ2.DQFileMetaDataMismatchException):
-                # fatal errors
-                errType,errValue = sys.exc_info()[:2]
-                out = '%s : %s' % (errType,errValue)
-                isFatal = True
-            except:
-                # unknown errors
-                errType,errValue = sys.exc_info()[:2]
-                out = '%s : %s' % (errType,errValue)
-                isFailed = True
-            # failed
-            if isFailed or isFatal:
-                self.logger.error('%s' % out)
-                if (iTry+1) == nTry or isFatal:
-                    self.job.ddmErrorCode = ErrorCode.EC_Adder
-                    errMsg = "failed to remove unmerged files : "
-                    self.job.ddmErrorDiag = errMsg + out.split('\n')[-1]
-                    if not isFatal:
-                        self.result.setTemporary()
-                    else:
-                        self.result.setFatal()
-                    return False
-                self.logger.error("removeUnmerged Try:%s" % iTry)
-                # sleep
-                time.sleep(10)                    
-            else:
-                self.logger.debug('%s' % str(out))
-                break
-        # succeeded    
-        self.logger.debug("removeUnmerged end")
-        return True
 
 
     # send email notification

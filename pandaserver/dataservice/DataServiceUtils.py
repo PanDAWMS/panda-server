@@ -361,28 +361,6 @@ def getDistributedDestination(destinationDBlockToken):
 
 
 
-# get assiciated TAPE endpoints
-def getAssociatedTapeEndPoints(endPoint,toa,replicaMap):
-    # get alternate name
-    exec "altName = {0}".format(toa.getSiteProperty(endPoint,'alternateName')[1])
-    # get assiciated endpoints
-    assEndPoints = []
-    if altName != None and altName != ['']:
-        exec "tmpEndPoints = {0}".format(toa.resolveGOC({altName[0]:None})[1])
-        # look for tape endpoints
-        for tmpEndPoint in tmpEndPoints[altName[0]]:
-            tmpS,tmpRet = toa.getSiteProperty(tmpEndPoint,'tape')
-            if tmpRet == 'True':
-                assEndPoints.append(tmpEndPoint)
-    # look for replicas
-    repEndPoints = []
-    for tmpDataset,tmpRepMap in replicaMap.iteritems():
-        for assEndPoint in assEndPoints:
-            if assEndPoint in tmpRepMap:
-                repEndPoints.append(assEndPoint)
-    return repEndPoints
-
-
 # change output of listDatasets to include dataset info
 def changeListDatasetsOut(out,datasetName=None):
     try:

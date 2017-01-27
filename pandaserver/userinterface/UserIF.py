@@ -18,8 +18,6 @@ from taskbuffer.JobSpec import JobSpec
 from taskbuffer.WrappedPickle import WrappedPickle
 from brokerage.SiteMapper import SiteMapper
 from pandalogger.PandaLogger import PandaLogger
-from RbLauncher import RbLauncher
-from ReBroker import ReBroker
 from taskbuffer import PrioUtil
 from dataservice.DDM import rucioAPI
 
@@ -182,27 +180,6 @@ class UserIF:
     # run rebrokerage
     def runReBrokerage(self,dn,jobID,cloud,excludedSite,forceRebro):
         returnVal = "True"
-        try:
-            # lock job in simulation mode to check
-            checker = ReBroker(self.taskBuffer,simulation=True,userRequest=True)
-            stLock,retLock = checker.lockJob(dn,jobID)
-            # failed
-            if not stLock:
-                returnVal = "ERROR: "+retLock
-                return returnVal
-            # continue to run rebrokerage in background
-            if excludedSite in [None,'']:
-                # use None for empty excludedSite
-                excludedSite = None
-            _logger.debug("runReBrokerage %s JobID:%s cloud=%s ex=%s forceOpt=%s" % (dn,jobID,cloud,str(excludedSite),forceRebro))
-            # instantiate ReBroker
-            thr = RbLauncher(dn,jobID,cloud,excludedSite)
-            # start ReBroker
-            thr.start()
-        except:
-            errType,errValue,errTraceBack = sys.exc_info()
-            _logger.error("runReBrokerage: %s %s" % (errType,errValue))
-            returnVal = "ERROR: runReBrokerage crashed"
         # return
         return returnVal
 
@@ -213,7 +190,6 @@ class UserIF:
         try:
             _logger.debug("retryFailedJobsInActive %s JobID:%s" % (dn,jobID))
             cUID = self.taskBuffer.cleanUserID(dn)            
-            # instantiate ReBroker
             tmpRet = self.taskBuffer.retryJobsInActive(cUID,jobID)
             returnVal = True
         except:

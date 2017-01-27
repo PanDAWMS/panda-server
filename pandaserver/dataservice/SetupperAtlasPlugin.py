@@ -6,6 +6,7 @@ setup dataset for ATLAS
 import re
 import sys
 import time
+import uuid
 import types
 import urllib
 import hashlib
@@ -14,11 +15,7 @@ import commands
 import threading
 import traceback
 import ErrorCode
-import TaskAssigner
-from DDM import ddm
-from DDM import toa
 from DDM import rucioAPI
-from dataservice.DDM import dq2Common
 from taskbuffer.JobSpec import JobSpec
 from taskbuffer.FileSpec import FileSpec
 from taskbuffer.DatasetSpec import DatasetSpec
@@ -85,9 +82,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 self.logger.debug(bunchTag)
             # instantiate site mapper
             self.siteMapper = SiteMapper(self.taskBuffer)
-            # use native DQ2
-            if self.useNativeDQ2:
-                ddm.useDirectDQ2()
             # correctLFN
             self._correctLFN()
             # run full Setupper
@@ -222,21 +216,18 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     self.logger.debug('listDatasets '+job.prodDBlock)
                     prodError[job.prodDBlock] = ''
                     for iDDMTry in range(3):
-                        status,out = ddm.DQ2.main('listDatasets',job.prodDBlock)
-                        if status != 0 or out.find("DQ2 internal server exception") != -1 \
-                               or out.find("An error occurred on the central catalogs") != -1 \
-                               or out.find("MySQL server has gone away") != -1:
+                        newOut,errMsg = rucioAPI.listDatasets(job.prodDBlock)
+                        if newOut is None:
                             time.sleep(10)
                         else:
                             break
-                    if status != 0 or out.find('Error') != -1:
-                        prodError[job.prodDBlock] = "Setupper._setupSource() could not get VUID of prodDBlock"
-                        self.logger.error(out)                                            
+                    if newOut is None:
+                        prodError[job.prodDBlock] = "Setupper._setupSource() could not get VUID of prodDBlock with {0}".format(errMsg)
+                        self.logger.error(errMsg)                                            
                     else:
-                        self.logger.debug(out)
-                        newOut = DataServiceUtils.changeListDatasetsOut(out,job.prodDBlock)
+                        self.logger.debug(newOut)
                         try:
-                            exec "vuids = %s['%s']['vuids']" % (newOut.split('\n')[0],job.prodDBlock)
+                            vuids = newOut[job.prodDBlock]['vuids']
                             nfiles = 0
                             # dataset spec
                             ds = DatasetSpec()
@@ -279,13 +270,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     dsTaskMap[job.dispatchDBlock] = job.jediTaskID
                 # DDM backend
                 if not job.dispatchDBlock in backEndMap:
-                    # check if rucio dataset
-                    if not self.checkRucioDataset(job.prodDBlock):
-                        backEndMap[job.dispatchDBlock] = None
-                    else:
-                        backEndMap[job.dispatchDBlock] = job.getDdmBackEnd()
-                        if backEndMap[job.dispatchDBlock] == None:
-                            backEndMap[job.dispatchDBlock] = 'rucio'
+                    backEndMap[job.dispatchDBlock] = 'rucio'
                 # collect LFN and GUID
                 for file in job.Files:
                     if file.type == 'input' and file.status == 'pending':
@@ -349,28 +334,24 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 ddmBackEnd = backEndMap[dispatchDBlock]
                 if ddmBackEnd == None:
                     ddmBackEnd = 'rucio'
-                tmpMsg = 'registerNewDataset {ds} {lfns} {guids} {fsizes} {chksums}'
-                self.logger.debug(tmpMsg.format(ds=dispatchDBlock,
-                                                lfns=str(disFiles['lfns']),
-                                                guids=str(disFiles['guids']),
-                                                fsizes=str(disFiles['fsizes']),
-                                                chksums=str(disFiles['chksums']),
-                                                ))
+                metadata = {'hidden':True,
+                            'purge_replicas': 0}
+                if dispatchDBlock in dsTaskMap and dsTaskMap[dispatchDBlock] not in ['NULL',0]:
+                    metadata['task_id'] = str(dsTaskMap[dispatchDBlock])
+                tmpMsg = 'registerDataset {ds} {meta}'
+                self.logger.debug(tmpMsg.format(ds=dispatchDBlock,meta=str(metadata)))
                 nDDMTry = 3
                 isOK = False
-                tmpTaskID = None
-                if dispatchDBlock in dsTaskMap and dsTaskMap[dispatchDBlock] not in ['NULL',0]:
-                    tmpTaskID = dsTaskMap[dispatchDBlock]
                 for iDDMTry in range(nDDMTry):
                     try:
-                        out = self.registerDispatchDataset(dispatchDBlock,disFiles['lfns'],disFiles['guids'],
-                                                           disFiles['fsizes'],disFiles['chksums'],
-                                                           jediTaskID=tmpTaskID)
+                        out = rucioAPI.registerDataset(dispatchDBlock,disFiles['lfns'],disFiles['guids'],
+                                                       disFiles['fsizes'],disFiles['chksums'],
+                                                       lifetime=7,scope='panda',metadata=metadata)
                         isOK = True
                         break
                     except:
                         errType,errValue = sys.exc_info()[:2]
-                        self.logger.error("registerDispatchDataset : failed with {0}:{1}".format(errType,errValue))
+                        self.logger.error("registerDataset : failed with {0}:{1}".format(errType,errValue))
                         if iDDMTry+1 == nDDMTry:
                             break
                         self.logger.debug("sleep {0}/{1}".format(iDDMTry,nDDMTry))
@@ -379,35 +360,31 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     dispError[dispatchDBlock] = "Setupper._setupSource() could not register dispatchDBlock"
                     continue
                 self.logger.debug(out)
-                vuidStr = str(out)
+                newOut = out
                 # freezeDataset dispatch dataset
-                self.logger.debug('freezeDataset '+dispatchDBlock)
-                for iDDMTry in range(3):            
-                    status,out = ddm.DQ2.main('freezeDataset',dispatchDBlock)
-                    if status != 0 or out.find("DQ2 internal server exception") != -1 \
-                           or out.find("An error occurred on the central catalogs") != -1 \
-                           or out.find("MySQL server has gone away") != -1:
-                        if out.find('DQFrozenDatasetException') != -1:
-                            break
-                        time.sleep(10)
-                    else:
+                self.logger.debug('closeDataset '+dispatchDBlock)
+                for iDDMTry in range(3):
+                    status = False
+                    try:
+                        rucioAPI.closeDataset(dispatchDBlock)
+                        status = True
                         break
-                if status != 0 and out.find('DQFrozenDatasetException') != -1:
-                    pass
-                elif status != 0 or (out.find('Error') != -1 and out.find("is frozen") == -1):
+                    except:
+                        errtype,errvalue = sys.exc_info()[:2]
+                        out = 'failed to close : {0} {1}'.format(errtype,errvalue)
+                        time.sleep(10)
+                if not status:
                     self.logger.error(out)
-                    dispError[dispatchDBlock] = "Setupper._setupSource() could not freeze dispatchDBlock"
+                    dispError[dispatchDBlock] = "Setupper._setupSource() could not freeze dispatchDBlock with {0}".format(out)
                     continue
-                self.logger.debug(out)
             else:
                 # use PandaDDM
                 self.dispFileList[dispatchDBlock] = fileList[dispatchDBlock]
-                # create a fake vuidStr for PandaDDM
-                tmpMap  = {'vuid':commands.getoutput('uuidgen')}
-                vuidStr = "%s" % tmpMap
+                # create a fake vuid
+                newOut  = {'vuid': str(uuid.uuid4())}
             # get VUID
             try:
-                exec "vuid = %s['vuid']" % vuidStr                
+                vuid = newOut['vuid']
                 # dataset spec. currentfiles is used to count the number of failed jobs
                 ds = DatasetSpec()
                 ds.vuid = vuid
@@ -502,6 +479,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         if name == originalName and not name.startswith('panda.um.'):
                             # for original dataset
                             computingSite = file.destinationSE
+                        newVUID = None
                         # use DQ2
                         if (not self.pandaDDM) and (job.prodSourceLabel != 'ddm') and (job.destinationSE != 'local'):
                             # get src and dest DDM conversion is needed for unknown sites
@@ -521,8 +499,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                             # skip registration for _sub when src=dest
                             if (tmpSrcDDM == tmpDstDDM or DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) != None) \
                                     and name != originalName and re.search('_sub\d+$',name) != None:
-                                # create a fake vuidStr
-                                vuidStr = 'vuid="%s"' % commands.getoutput('uuidgen')
+                                # create a fake vuid
+                                newVUID = str(uuid.uuid4())
                             else:
                                 # get list of tokens    
                                 tmpTokenList = file.destinationDBlockToken.split(',')
@@ -564,72 +542,44 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                             if not dq2ID in dq2IDList:
                                                 dq2IDList.append(dq2ID)
                                 # set hidden flag for _sub
-                                tmpHiddenFlag = False
                                 tmpActivity = None
+                                tmpLifeTime = None
+                                tmpMetadata = None
                                 if name != originalName and re.search('_sub\d+$',name) != None:
-                                    tmpHiddenFlag = True
                                     tmpActivity = 'Production Output'
+                                    tmpLifeTime = 14
+                                    tmpMetadata = {'hidden':True,
+                                                   'purge_replicas': 0}
                                 # backend
                                 ddmBackEnd = job.getDdmBackEnd()
                                 if ddmBackEnd == None:
                                     ddmBackEnd = 'rucio'
                                 # register dataset
-                                self.logger.debug('registerNewDataset {name} force_backend={force_backend} rse={rse}'.format(name=name,
-                                                                                                                             rse=None,
-                                                                                                                             force_backend=ddmBackEnd))
-                                atFailed = 0
+                                self.logger.debug('registerNewDataset {name} metadata={meta}'.format(name=name,
+                                                                                                     meta=tmpMetadata))
+                                isOK = False
                                 for iDDMTry in range(3):
-                                    status,out = ddm.DQ2.main('registerNewDataset',name,[],[],[],[],
-                                                              None,None,None,tmpHiddenFlag,
-                                                              rse=None,
-                                                              activity=tmpActivity,
-                                                              force_backend=ddmBackEnd)
-                                    if status != 0 and out.find('DQDatasetExistsException') != -1:
-                                        atFailed = iDDMTry
-                                        break
-                                    elif status != 0 or out.find("DQ2 internal server exception") != -1 \
-                                             or out.find("An error occurred on the central catalogs") != -1 \
-                                             or out.find("MySQL server has gone away") != -1:
-                                        self.logger.debug("sleep %s for %s" % (iDDMTry,name))
-                                        self.logger.debug(status)
+                                    try:
+                                        out = rucioAPI.registerDataset(name,metadata=tmpMetadata,
+                                                                       lifetime=tmpLifeTime)
                                         self.logger.debug(out)
-                                        self.logger.debug("-------------")                                                                
-                                        time.sleep(10)
-                                    else:
-                                        # set metadata
-                                        if name != originalName and re.search('_sub\d+$',name) != None:
-                                            metadata = {'lifetime':14*86400,'hidden':True}
-                                            rucioAPI.setMetaData(name,metadata)
+                                        newVUID = out['vuid']
+                                        isOK = True
                                         break
-                                if status != 0 or out.find('Error') != -1:
-                                    # unset vuidStr
-                                    vuidStr = ""
-                                    # ignore 'already exists' ERROR because original dataset may be registered by upstream.
-                                    # atFailed > 0 is for the case in which the first attempt succeeded but report failure
-                                    if (job.prodSourceLabel == 'panda' or (job.prodSourceLabel in ['ptest','rc_test'] and \
-                                                                           job.processingType in ['pathena','prun','gangarobot-rctest']) \
-                                        or name == originalName or atFailed > 0) and \
-                                           out.find('DQDatasetExistsException') != -1:
-                                        self.logger.debug('ignored DQDatasetExistsException')
-                                    else:
-                                        destError[dest] = "Setupper._setupDestination() could not register : %s" % name
-                                        self.logger.error(out)
-                                        continue
-                                else:
-                                    self.logger.debug(out)
-                                    vuidStr = "vuid = %s['vuid']" % out
-                                # set metadata
-                                if (name != originalName and re.search('_sub\d+$',name) != None):
-                                    subMetadata = {'hidden':True,
-                                                   'purge_replicas': 0}
-                                    self.logger.debug('set metadata {0} to {1}'.format(str(subMetadata),name)) 
-                                    tmpStat,tmpErrStr = rucioAPI.setMetaData(name,subMetadata)
-                                    self.logger.debug('{0} {1}'.format(tmpStat,tmpErrStr))
+                                    except:
+                                        errType,errValue = sys.exc_info()[:2]
+                                        self.logger.error("registerDataset : failed with {0}:{1}".format(errType,errValue))
+                                        time.sleep(10)
+                                if not isOK:
+                                    tmpMsg = "Setupper._setupDestination() could not register : %s" % name
+                                    destError[dest] = tmpMsg
+                                    self.logger.error(tmpMsg)
+                                    continue
                                 # register dataset locations
                                 if (job.lockedby == 'jedi' and job.getDdmBackEnd() == 'rucio' and job.prodSourceLabel in ['panda','user']) or \
                                         DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) != None:
                                     # skip registerDatasetLocations
-                                    status,out = 0,''
+                                    status,out = True,''
                                 elif name == originalName or tmpSrcDDM != tmpDstDDM or \
                                        job.prodSourceLabel == 'panda' or (job.prodSourceLabel in ['ptest','rc_test'] and \
                                                                           job.processingType in ['pathena','prun','gangarobot-rctest']) \
@@ -638,82 +588,63 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                     repLifeTime = None
                                     if (name != originalName and re.search('_sub\d+$',name) != None) or \
                                             (name == originalName and name.startswith('panda.')):
-                                        repLifeTime = "14 days"
+                                        repLifeTime = 14
                                     elif name.startswith('hc_test') or \
                                             name.startswith('panda.install.') or \
                                             name.startswith('user.gangarbt.'):
-                                        repLifeTime = "7 days"
+                                        repLifeTime = 7
                                     # register location
+                                    isOK = True
                                     for dq2ID in dq2IDList:
-                                        # set custodial to TAPE
-                                        acl_alias = None
-                                        if name == originalName:
-                                            tmpStat,tmpIsTape = toa.getSiteProperty(dq2ID,'tape')
-                                            if tmpIsTape == 'True':
-                                                acl_alias = 'custodial'
                                         activity = DataServiceUtils.getActivityForOut(job.prodSourceLabel)
-                                        tmpStr = 'registerDatasetLocation {name} {dq2ID} lifetime={repLifeTime} acl_alias={acl_alias} activity={activity}'
+                                        tmpStr = 'registerDatasetLocation {name} {dq2ID} lifetime={repLifeTime} activity={activity}'
                                         self.logger.debug(tmpStr.format(name=name,
                                                                         dq2ID=dq2ID,
                                                                         repLifeTime=repLifeTime,
                                                                         activity=activity,
-                                                                        acl_alias=acl_alias,
                                                                         ))
-                                        for iDDMTry in range(3):                            
-                                            status,out = ddm.DQ2.main('registerDatasetLocation',name,dq2ID,0,0,None,None,acl_alias,repLifeTime,
-                                                                      None,activity,force_backend=ddmBackEnd)
-                                            if status != 0 and out.find('DQLocationExistsException') != -1:
+                                        status = False
+                                        for iDDMTry in range(3):
+                                            try:
+                                                out = rucioAPI.registerDatasetLocation(name,[dq2ID],lifetime=repLifeTime,
+                                                                                       activity=activity)
+                                                self.logger.debug(out)
+                                                status = True
                                                 break
-                                            elif status != 0 or out.find("DQ2 internal server exception") != -1 \
-                                                     or out.find("An error occurred on the central catalogs") != -1 \
-                                                     or out.find("MySQL server has gone away") != -1:
+                                            except:
+                                                errType,errValue = sys.exc_info()[:2]
+                                                out = "{0}:{1}".format(errType,errValue)
+                                                self.logger.error("registerDatasetLocation : failed with {0}".format(out))
                                                 time.sleep(10)
-                                            else:
-                                                break
-                                        # ignore "already exists at location XYZ"
-                                        if out.find('DQLocationExistsException') != -1:
-                                            self.logger.debug('ignored DQLocationExistsException')
-                                            status,out = 0,''
-                                        else:
-                                            self.logger.debug(out)
                                         # failed
-                                        if status != 0 or out.find('Error') != -1:
-                                            self.logger.error(out)
+                                        if not status:
                                             break
                                 else:
                                     # skip registerDatasetLocations
-                                    status,out = 0,''
-                                if status != 0 or out.find('Error') != -1:
+                                    status,out = True,''
+                                if not status:
                                     destError[dest] = "Could not register location : %s %s" % (name,out.split('\n')[-1])
-                        # use PandaDDM or non-DQ2
-                        else:
-                            # create a fake vuidStr
-                            vuidStr = 'vuid="%s"' % commands.getoutput('uuidgen')
                         # already failed    
                         if destError[dest] != '' and name == originalName:
                             break
                         # get vuid
-                        if vuidStr == '':
+                        if newVUID is None:
                             self.logger.debug('listDatasets '+name)
-                            for iDDMTry in range(3):                    
-                                status,out = ddm.DQ2.main('listDatasets',name)
-                                if status != 0 or out.find("DQ2 internal server exception") != -1 \
-                                       or out.find("An error occurred on the central catalogs") != -1 \
-                                       or out.find("MySQL server has gone away") != -1:
+                            for iDDMTry in range(3):
+                                newOut,errMsg = rucioAPI.listDatasets(name)
+                                if newOut is None:
                                     time.sleep(10)
                                 else:
                                     break
-                            if status != 0 or out.find('Error') != -1:                                
-                                self.logger.error(out)
+                            if newOut is None:
+                                self.logger.error(errMsg)
                             else:
-                                self.logger.debug(out)
-                            newOut = DataServiceUtils.changeListDatasetsOut(out,name)
-                            vuidStr = "vuid = %s['%s']['vuids'][0]" % (newOut.split('\n')[0],name)
+                                self.logger.debug(newOut)
+                                newVUID = newOut[name]['vuids'][0]
                         try:
-                            exec vuidStr
                             # dataset spec
                             ds = DatasetSpec()
-                            ds.vuid         = vuid
+                            ds.vuid         = newVUID
                             ds.name         = name
                             ds.type         = 'output'
                             ds.numberfiles  = 0
@@ -873,25 +804,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                             isOK = True
                         else:
                             isOK = True
-                            """
-                            self.logger.debug('registerDatasetLocation {ds} {dq2ID} {lifeTime}days'.format(ds=job.dispatchDBlock,
-                                                                                                           dq2ID=str(dq2IDList),
-                                                                                                           lifeTime=7))
-                            nDDMTry = 3
-                            for iDDMTry in range(nDDMTry):
-                                try:
-                                    out = self.registerDispatchDatasetLocation(job.dispatchDBlock,dq2IDList,7)
-                                    self.logger.debug(out)
-                                    isOK = True
-                                    break
-                                except:
-                                    errType,errValue = sys.exc_info()[:2]
-                                    self.logger.error("registerDispatchDatasetLocation : failed with {0}:{1}".format(errType,errValue))
-                                    if iDDMTry+1 == nDDMTry:
-                                        break
-                                    self.logger.debug("sleep {0}/{1}".format(iDDMTry,nDDMTry))
-                                    time.sleep(10)
-                            """        
                     else:
                         # register locations later for prestaging
                         isOK = True
@@ -912,25 +824,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                             optSrcPolicy = 000010
                             # register dataset locations
                             isOK = True
-                            """
-                            self.logger.debug('pre registerDatasetLocation {ds} {dq2ID} {lifeTime}days'.format(ds=job.dispatchDBlock,
-                                                                                                               dq2ID=str(optSource.keys()),
-                                                                                                               lifeTime=7))
-                            nDDMTry = 3
-                            for iDDMTry in range(nDDMTry):
-                                try:
-                                    out = self.registerDispatchDatasetLocation(job.dispatchDBlock,optSource.keys(),7)
-                                    self.logger.debug(out)
-                                    isOK = True
-                                    break
-                                except:
-                                    errType,errValue = sys.exc_info()[:2]
-                                    self.logger.error("pre registerDispatchDatasetLocation : failed with {0}:{1}".format(errType,errValue))
-                                    if iDDMTry+1 == nDDMTry:
-                                        break
-                                    self.logger.debug("sleep {0}/{1}".format(iDDMTry,nDDMTry))
-                                    time.sleep(10)
-                            """        
                         else:
                             isOK = True
                             # set sources to handle T2s in another cloud and to transfer dis datasets being split in multiple sites 
@@ -985,9 +878,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                     errType,errValue = sys.exc_info()[:2]
                                     out = "%s %s" % (errType,errValue)
                                     time.sleep(10)
-                                else:
-                                    break
-                            if status == False:
+                            if not status:
                                 self.logger.error(out)
                                 dispError[disp] = "Setupper._subscribeDistpatchDB() could not register subscription"
                             else:
@@ -1072,45 +963,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 continue
             # ignore no prodDBlock jobs or container dataset
             if job.prodDBlock == 'NULL':
-                # set cloud
-                if panda_config.enableDynamicTA and job.prodSourceLabel in ['managed','validation'] \
-                       and job.getCloud() in ['NULL',''] and (not job.taskID in [None,'NULL',0]):
-                    # look into map to check if it is already gotten
-                    if not cloudMap.has_key(job.taskID):
-                        # instantiate TaskAssigner
-                        cloudResolver = TaskAssigner.TaskAssigner(self.taskBuffer,self.siteMapper,
-                                                                  job.taskID,job.prodSourceLabel,job)
-                        # check cloud
-                        self.logger.debug("check cloud for %s" % job.taskID)
-                        retCloud = cloudResolver.checkCloud()
-                        self.logger.debug("checkCloud() -> %s" % retCloud)
-                        # failed
-                        if retCloud == None:
-                            self.logger.error("failed to check cloud for %s" % job.taskID)
-                            # append job to waiting list
-                            jobsWaiting.append(job)
-                            continue
-                        # to be set
-                        elif retCloud == "":
-                            # collect LFN/GUID
-                            tmpLFNs  = []
-                            tmpGUIDs = []
-                            # set cloud
-                            self.logger.debug("set cloud for %s" % job.taskID)
-                            retCloud = cloudResolver.setCloud(tmpLFNs,tmpGUIDs,metadata=job.metadata)
-                            self.logger.debug("setCloud() %s -> %s" % (job.taskID,retCloud))
-                            if retCloud == None:
-                                self.logger.debug("failed to set cloud for %s" % job.taskID)
-                                # append job to waiting list
-                                jobsWaiting.append(job)
-                                continue
-                        # append to map
-                        cloudMap[job.taskID] = retCloud 
-                    # set cloud
-                    job.cloud = cloudMap[job.taskID]
-                    # message for TA
-                    if self.onlyTA:            
-                        self.logger.debug("set %s:%s" % (job.taskID,job.getCloud()))
                 # append job to processed list
                 jobsProcessed.append(job)
                 continue
@@ -1235,64 +1087,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     break
             if isFailed:
                 continue
-            # set cloud
-            if panda_config.enableDynamicTA and job.prodSourceLabel in ['managed','validation'] \
-               and job.getCloud() in ['NULL',''] and (not job.taskID in [None,'NULL',0]):
-                # look into map to check if it is already gotten
-                if not cloudMap.has_key(job.taskID):
-                    # instantiate TaskAssigner
-                    cloudResolver = TaskAssigner.TaskAssigner(self.taskBuffer,self.siteMapper,
-                                                              job.taskID,job.prodSourceLabel,job)
-                    # check cloud
-                    self.logger.debug("check cloud for %s" % job.taskID)
-                    retCloud = cloudResolver.checkCloud()
-                    self.logger.debug("checkCloud() -> %s" % retCloud)
-                    # failed
-                    if retCloud == None:
-                        self.logger.error("failed to check cloud for %s" % job.taskID)
-                        # append job to waiting list
-                        jobsWaiting.append(job)
-                        continue
-                    # to be set
-                    elif retCloud == "":
-                        # collect LFN/GUID
-                        tmpLFNs  = []
-                        tmpGUIDs = []
-                        tmpReLoc = {}
-                        tmpCountMap = {}
-                        tmpDsSizeMap = {}
-                        for dataset in datasets:
-                            # get LFNs
-                            eachDSLFNs = lfnMap[dataset].values()
-                            tmpLFNs += eachDSLFNs
-                            # get GUIDs
-                            tmpDsSize = 0
-                            for oneLFN in eachDSLFNs:
-                                tmpGUIDs.append(valMap[oneLFN]['guid'])
-                                tmpDsSize += valMap[oneLFN]['fsize']
-                            # locations
-                            tmpReLoc[dataset] = replicaMap[dataset]
-                            # file counts
-                            tmpCountMap[dataset] = len(eachDSLFNs)
-                            # dataset size
-                            tmpDsSizeMap[dataset] = tmpDsSize
-                        # set cloud
-                        self.logger.debug("set cloud for %s" % job.taskID)
-                        retCloud = cloudResolver.setCloud(tmpLFNs,tmpGUIDs,tmpReLoc,metadata=job.metadata,
-                                                          fileCounts=tmpCountMap,dsSizeMap=tmpDsSizeMap)
-                        self.logger.debug("setCloud() %s -> %s" % (job.taskID,retCloud))
-                        if retCloud == None:
-                            self.logger.debug("failed to set cloud for %s" % job.taskID)
-                            # append job to waiting list
-                            jobsWaiting.append(job)
-                            continue
-                    # append to map
-                    cloudMap[job.taskID] = retCloud 
-                # set cloud
-                job.cloud = cloudMap[job.taskID]
-                # message for TA
-                if self.onlyTA:            
-                    self.logger.debug("set %s:%s" % (job.taskID,job.getCloud()))
             if not self.onlyTA:
                 # replace generic LFN with real LFN
                 replaceList = []
@@ -1434,7 +1228,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 for tmpSiteName in self.availableLFNsInT2[cloudKey][tmpDsName]['sites'].keys():
                     tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
                     # get catalog 
-                    tmpStat,catURL = toa.getLocalCatalog(tmpSiteSpec.ddm)
+                    catURL = 'rucio://atlas-rucio.cern.ch:/grid/atlas'
                     # add catalog
                     if not checkLfcSeMap.has_key(catURL):
                         checkLfcSeMap[catURL] = {}
@@ -1664,16 +1458,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             return
 
 
-    # check DDM response
-    def isDQ2ok(self,out):
-        if out.find("DQ2 internal server exception") != -1 \
-               or out.find("An error occurred on the central catalogs") != -1 \
-               or out.find("MySQL server has gone away") != -1 \
-               or out == '()':
-            return False
-        return True
-
-
     # get list of files in dataset
     def getListFilesInDataset(self,dataset,fileList=None,useCache=True):
         # use cache data
@@ -1690,11 +1474,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 break
             except:
                 status = -2
-            status,out = ddm.DQ2.main('listFilesInDataset',dataset)
-            if out.find("DQUnknownDatasetException") != -1:
-                break
-            elif status == -1:
-                break
         if status != 0:
             errType,errValue = sys.exc_info()[:2]
             out = '{0} {1}'.format(errType,errValue)
@@ -1709,19 +1488,13 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         # get datasets in container
         self.logger.debug('listDatasetsInContainer '+container)
         for iDDMTry in range(3):
-            status,out = ddm.DQ2.main('listDatasetsInContainer',container)
-            if status != 0 or (not self.isDQ2ok(out)):
+            datasets,out = rucioAPI.listDatasetsInContainer(container)
+            if datasets is None:
                 time.sleep(10)
             else:
                 break
-        self.logger.debug(out)
-        if status != 0 or out.startswith('Error'):
-            return False,out
-        datasets = []
-        try:
-            # convert to list
-            exec "datasets = %s" % out
-        except:
+        if datasets is None:
+            self.logger.error(out)
             return False,out
         return True,datasets
 
@@ -1730,23 +1503,14 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         # get datasets in container
         self.logger.debug('listDatasetsInContainer '+container)
         for iDDMTry in range(3):
-            status,out = ddm.DQ2.main('listDatasetsInContainer',container)
-            if status != 0 or out.find("DQ2 internal server exception") != -1 \
-                   or out.find("An error occurred on the central catalogs") != -1 \
-                   or out.find("MySQL server has gone away") != -1 \
-                   or out == '()':
+            datasets,out = rucioAPI.listDatasetsInContainer(container)
+            if datasets is None:
                 time.sleep(10)
             else:
                 break
-        self.logger.debug(out)
-        if status != 0 or out.startswith('Error'):
-            return status,out
-        datasets = []
-        try:
-            # convert to list
-            exec "datasets = %s" % out
-        except:
-            return status,out
+        if datasets is None:
+            self.logger.error(out)
+            return 1,out
         # loop over all datasets
         allRepMap = {}
         for dataset in datasets:
@@ -1825,44 +1589,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 return 1,str({})
 
 
-    # delete original locations
-    def deleteDatasetReplicas(self,datasets,keepSites):
-        # loop over all datasets
-        for dataset in datasets:
-            # get locations
-            status,tmpRepSites = self.getListDatasetReplicas(dataset)
-            if not status:
-                return False
-            # no replicas
-            if len(tmpRepSites.keys()) == 0:
-                continue
-            delSites = []
-            for tmpRepSite in tmpRepSites.keys():
-                if not tmpRepSite in keepSites:
-                    delSites.append(tmpRepSite)
-            # no repilicas to be deleted
-            if delSites == []:
-                continue
-            # delete
-            nTry = 3
-            for iDDMTry in range(nTry):
-                self.logger.debug("%s/%s deleteDatasetReplicas %s %s" % (iDDMTry,nTry,dataset,str(delSites)))
-                status,out = ddm.DQ2.main('deleteDatasetReplicas',dataset,delSites)
-                if status != 0 or (not self.isDQ2ok(out)):
-                    time.sleep(10)
-                else:
-                    break
-            # result
-            if status != 0 or out.startswith('Error'):
-                self.logger.error(out)
-                self.logger.error('bad DQ2 response for %s' % dataset)
-                return False
-            self.logger.debug(out)
-        # return
-        self.logger.debug('deleted replicas for %s' % str(datasets))
-        return True
-
-
     # dynamic data placement for analysis jobs
     def _dynamicDataPlacement(self):
         # only first submission
@@ -1926,12 +1652,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 if tmpSeTokens.has_key('ATLASPRODDISK'):
                     destDQ2ID = tmpSeTokens['ATLASPRODDISK']
             # backend
-            if not self.checkRucioDataset(tmpJob.prodDBlock):
-                ddmBackEnd = None
-            else:
-                ddmBackEnd = tmpJob.getDdmBackEnd()
-            if ddmBackEnd == None:
-                ddmBackEnd = 'rucio'
+            ddmBackEnd = 'rucio'
             mapKeyJob = (destDQ2ID,logSubDsName)
             # increment the number of jobs per key
             if not nJobsMap.has_key(mapKeyJob):
@@ -2007,25 +1728,30 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                     tmpFileSpec.dispatchDBlock = disDBlock
                         # register datasets
                         iLoop += 1
-                        tmpMsg = 'ext registerNewDataset {ds} {lfns} {guids} {fsizes} {chksums}'
+                        nDDMTry = 3
+                        isOK = False
+                        metadata = {'hidden':True,
+                                    'purge_replicas': 0}
+                        if not tmpVal['taskID'] in [None,'NULL']:
+                            metadata['task_id'] = str(tmpVal['taskID'])
+                        tmpMsg = 'ext registerNewDataset {ds} {lfns} {guids} {fsizes} {chksums} {meta}'
                         self.logger.debug(tmpMsg.format(ds=disDBlock,
                                                         lfns=str(lfns),
                                                         guids=str(guids),
                                                         fsizes=str(fsizes),
                                                         chksums=str(chksums),
+                                                        meta=str(metadata)
                                                         ))
-                        nDDMTry = 3
-                        isOK = False
                         for iDDMTry in range(nDDMTry):
                             try:
-                                out = self.registerDispatchDataset(disDBlock,lfns,guids,fsizes,chksums,
-                                                                   jediTaskID=tmpVal['taskID'])
+                                out = rucioAPI.registerDataset(disDBlock,lfns,guids,fsizes,chksums,
+                                                               lifetime=7,scope='panda',metadata=metadata)
                                 self.logger.debug(out)
                                 isOK = True
                                 break
                             except:
                                 errType,errValue = sys.exc_info()[:2]
-                                self.logger.error("ext registerDispatchDataset : failed with {0}:{1}".format(errType,errValue))
+                                self.logger.error("ext registerDataset : failed with {0}:{1}".format(errType,errValue)+traceback.format_exc())
                                 if iDDMTry+1 == nDDMTry:
                                     break
                                 self.logger.debug("sleep {0}/{1}".format(iDDMTry,nDDMTry))
@@ -2051,19 +1777,19 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                             continue
                         # freezeDataset dispatch dataset
                         self.logger.debug('freezeDataset '+disDBlock)
-                        for iDDMTry in range(3):            
-                            status,out = ddm.DQ2.main('freezeDataset',disDBlock)
-                            if status != 0 or out.find("DQ2 internal server exception") != -1 \
-                                   or out.find("An error occurred on the central catalogs") != -1 \
-                                   or out.find("MySQL server has gone away") != -1:
-                                time.sleep(10)
-                            else:
+                        for iDDMTry in range(3):
+                            status = False
+                            try:
+                                rucioAPI.closeDataset(disDBlock)
+                                status = True
                                 break
-                        if status != 0 or (out.find('Error') != -1 and out.find("is frozen") == -1):
+                            except:
+                                errtype,errvalue = sys.exc_info()[:2]
+                                out = 'failed to close : {0} {1}'.format(errtype,errvalue)
+                                time.sleep(10)
+                        if not status:
                             self.logger.error(out)
                             continue
-                        else:
-                            self.logger.debug(out)
                         # register location
                         isOK = False
                         self.logger.debug('ext registerDatasetLocation {ds} {dq2ID} {lifeTime}days asynchronous=True'.format(ds=disDBlock,
@@ -2073,14 +1799,16 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         nDDMTry = 3
                         for iDDMTry in range(nDDMTry):
                             try:
-                                out = self.registerDispatchDatasetLocation(disDBlock,[tmpLocation],7,
-                                                                           asynchronous=True)
+                                out = rucioAPI.registerDatasetLocation(disDBlock,[tmpLocation],7,
+                                                                       activity='Production Input',
+                                                                       scope='panda',asynchronous=True,
+                                                                       grouping='NONE')
                                 self.logger.debug(out)
                                 isOK = True
                                 break
                             except:
                                 errType,errValue = sys.exc_info()[:2]
-                                self.logger.error("ext registerDispatchDatasetLocation : failed with {0}:{1}".format(errType,errValue))
+                                self.logger.error("ext registerDatasetLocation : failed with {0}:{1}".format(errType,errValue))
                                 if iDDMTry+1 == nDDMTry:
                                     break
                                 self.logger.debug("sleep {0}/{1}".format(iDDMTry,nDDMTry))
@@ -2180,21 +1908,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                         continue
                                     # append to avoid repetition
                                     doneList.append(tmpKey)
-                                    # get metadata
-                                    status,tmpMetadata = self.getReplicaMetadata(tmpDsName,tmpRepSite)
-                                    if not status:
-                                        continue
-                                    # check pin lifetime                            
-                                    if tmpMetadata.has_key('pin_expirationdate'):
-                                        if isinstance(tmpMetadata['pin_expirationdate'],types.StringType) and tmpMetadata['pin_expirationdate'] != 'None':
-                                            # keep original pin lifetime if it is longer 
-                                            origPinLifetime = datetime.datetime.strptime(tmpMetadata['pin_expirationdate'],'%Y-%m-%d %H:%M:%S')
-                                            if origPinLifetime > datetime.datetime.utcnow()+datetime.timedelta(days=pinLifeTime):
-                                                self.logger.debug('skip pinning for %s:%s due to longer lifetime %s' % (tmpDsName,tmpRepSite,
-                                                                                                                       tmpMetadata['pin_expirationdate']))
-                                                continue
                                     # set pin lifetime
-                                    status = self.setReplicaMetadata(tmpDsName,tmpRepSite,'pin_lifetime','%s days' % pinLifeTime)
+                                    #status = self.setReplicaMetadata(tmpDsName,tmpRepSite,'pin_lifetime','%s days' % pinLifeTime)
         # retrun                    
         self.logger.debug('pin input datasets done')
         return
@@ -2252,43 +1967,27 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         return
     
 
-    # check DDM response
-    def isDQ2ok(self,out):
-        if out.find("DQ2 internal server exception") != -1 \
-               or out.find("An error occurred on the central catalogs") != -1 \
-               or out.find("MySQL server has gone away") != -1 \
-               or out == '()':
-            return False
-        return True
-
     
     # make subscription
     def makeSubscription(self,dataset,dq2ID):
         # return for failuer
         retFailed = False
-        # make subscription    
-        optSrcPolicy = 000001
+        self.logger.debug('registerDatasetSubscription %s %s' % (dataset,dq2ID))
         nTry = 3
         for iDDMTry in range(nTry):
-            # register subscription
-            self.logger.debug('%s/%s registerDatasetSubscription %s %s' % (iDDMTry,nTry,dataset,dq2ID))
-            status,out = ddm.DQ2.main('registerDatasetSubscription',dataset,dq2ID,version=0,archived=0,
-                                      callbacks={},sources={},sources_policy=optSrcPolicy,
-                                      wait_for_sources=0,destination=None,query_more_sources=0,
-                                      sshare="production",group=None,activity='Production Input',acl_alias='secondary')
-            status,out = 0,''
-            if out.find('DQSubscriptionExistsException') != -1:
+            try:
+                # register subscription
+                status = rucioAPI.registerDatasetSubscription(dataset,[dq2ID],
+                                                              activity='Production Input')
+                out = 'OK'
                 break
-            elif out.find('DQLocationExistsException') != -1:
-                break
-            elif status != 0 or (not self.isDQ2ok(out)):
+            except:
+                status = False
+                errType,errValue = sys.exc_info()[:2]
+                out = "%s %s" % (errType,errValue)
                 time.sleep(10)
-            else:
-                break
         # result
-        if out.find('DQSubscriptionExistsException') != -1:
-            pass
-        elif status != 0 or out.startswith('Error'):
+        if not status:
             self.logger.error(out)
             return retFailed
         # update 
@@ -2297,61 +1996,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         return True
 
     
-    # get replica metadata
-    def getReplicaMetadata(self,datasetName,locationName):
-        # response for failure
-        resForFailure = False,{}
-        # get metadata
-        nTry = 3
-        for iDDMTry in range(nTry):
-            self.logger.debug('%s/%s listMetaDataReplica %s %s' % (iDDMTry,nTry,datasetName,locationName))
-            status,out = ddm.DQ2.main('listMetaDataReplica',locationName,datasetName)
-            if status != 0 or (not self.isDQ2ok(out)):
-                if 'ReplicaNotFound' in out:
-                    break
-                time.sleep(10)
-            else:
-                break
-        if status != 0 or out.startswith('Error'):
-            self.logger.error(out)
-            return resForFailure
-        metadata = {}
-        try:
-            # convert to map
-            exec "metadata = %s" % out
-        except:
-            self.logger.error('could not convert HTTP-res to replica metadata for %s:%s' % \
-                                  (datasetName,locationName))
-            return resForFailure
-        # return
-        self.logger.debug('getReplicaMetadata -> %s' % str(metadata))
-        return True,metadata
-
-
-    # set replica metadata
-    def setReplicaMetadata(self,datasetName,locationName,attrname,attrvalue):
-        # response for failure
-        resForFailure = False
-        # get metadata
-        nTry = 3
-        for iDDMTry in range(nTry):
-            self.logger.debug('%s/%s setReplicaMetaDataAttribute %s %s %s=%s' % (iDDMTry,nTry,datasetName,
-                                                                                 locationName,attrname,attrvalue))
-            status,out = ddm.DQ2.main('setReplicaMetaDataAttribute',datasetName,locationName,attrname,attrvalue)
-            if 'InvalidRSEExpression' in out:
-                break
-            elif status != 0 or (not self.isDQ2ok(out)):
-                time.sleep(10)
-            else:
-                break
-        if status != 0 or out.startswith('Error'):
-            self.logger.error(out)
-            return resForFailure
-        # return
-        self.logger.debug('setReplicaMetadata done')
-        return True
-
-
     # send task brokerage message to logger
     def sendTaMesg(self,message,msgType=None):
         try:
@@ -2380,83 +2024,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         except:
             pass
         time.sleep(1)
-
-
-    # check if rucio dataset
-    def checkRucioDataset(self,datasetName,scope=None):
-        return True
-
-
-
-    # register dispatch dataset
-    def registerDispatchDataset(self,dsn,lfns=[],guids=[],sizes=[],checksums=[],scope='panda',jediTaskID=None):
-        files = []
-        for lfn, guid, size, checksum in zip(lfns, guids, sizes, checksums):
-            if lfn.find(':') > -1:
-                s, lfn = lfn.split(':')[0], lfn.split(':')[1]
-            else:
-                s = scope
-            file = {'scope': s, 'name': lfn, 'bytes': size, 'meta': {'guid': guid}}
-            if checksum.startswith('md5:'):
-                file['md5'] = checksum[4:]
-            elif checksum.startswith('ad:'):
-                file['adler32'] = checksum[3:]
-            files.append(file)
-        # metadata
-        metadata = {'hidden':True,
-                    'purge_replicas': 0}
-        if jediTaskID is not None:
-            metadata['task_id'] = str(jediTaskID)
-        # register dataset
-        client = RucioClient()
-        try:
-            client.add_dataset(scope=scope,name=dsn,lifetime=7*86400,meta=metadata)
-        except DataIdentifierAlreadyExists:
-            pass
-        # add files
-        try:
-            client.add_files_to_dataset(scope=scope,name=dsn,files=files, rse=None)
-        except FileAlreadyExists:
-            for f in files:
-                try:
-                    client.add_files_to_dataset(scope=scope, name=dsn, files=[f], rse=None)
-                except FileAlreadyExists:
-                    pass
-        vuid = hashlib.md5(scope+':'+dsn).hexdigest()
-        vuid = '%s-%s-%s-%s-%s' % (vuid[0:8], vuid[8:12], vuid[12:16], vuid[16:20], vuid[20:32])
-        duid = vuid
-        return {'duid': duid, 'version': 1, 'vuid': vuid}
-
-
-
-    # register dispatch dataset
-    def registerDispatchDatasetLocation(self,dsn,rses,lifetime=None,scope='panda',activity=None,
-                                        asynchronous=False):
-        if lifetime != None:
-            lifetime = lifetime*24*60*60
-        dids = []
-        did = {'scope': scope, 'name': dsn}
-        dids.append(did)
-        # make location
-        rses.sort()
-        location = '|'.join(rses)
-        # set activity
-        if activity == None:
-            activity = 'Production Input'
-        # check if a replication rule already exists
-        client = RucioClient()
-        for rule in client.list_did_rules(scope=scope, name=dsn):
-            if (rule['rse_expression'] == location) and (rule['account'] == client.account):
-                return True
-        try:
-            client.add_replication_rule(dids=dids,copies=1,rse_expression=location,weight=None,
-                                        lifetime=lifetime, grouping='NONE', account=client.account,
-                                        locked=False, notify='N',ignore_availability=True,
-                                        activity=activity,asynchronous=asynchronous)
-        except Duplicate:
-            pass
-        return True
-
 
 
     # setup jumbo jobs
@@ -2535,8 +2102,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 try:
                     self.logger.debug('registering jumbo dis dataset {0} with {1} files'.format(dispatchDBlock,
                                                                                                 len(lfns)))
-                    out = rucioAPI.registerDatasetWithOldFiles(dispatchDBlock,lfns,guids,sizes,
-                                                               checksums,lifetime=14)
+                    out = rucioAPI.registerDataset(dispatchDBlock,lfns,guids,sizes,
+                                                   checksums,lifetime=14)
                     vuid = out['vuid']
                 except:
                     errType,errValue = sys.exc_info()[:2]

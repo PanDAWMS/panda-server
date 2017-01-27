@@ -16,7 +16,7 @@ import time
 from config import panda_config
 from taskbuffer.OraDBProxy import DBProxy
 from pandalogger.PandaLogger import PandaLogger
-from dataservice.DDM import dq2Info,rucioAPI
+from dataservice.DDM import rucioAPI
 import taskbuffer.ErrorCode
 
 # logger
