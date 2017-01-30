@@ -3309,19 +3309,19 @@ class DBProxy:
                                                     esOutputZipMap[esPandaID] = []
                                                 esOutputZipMap[esPandaID].append({'name':outputZipName,
                                                                                   'osid':outputZipBucketID})
-                                    # zip file in fileTable
-                                    if zipRow_ID != None and not zipRow_ID in esZipRow_IDs:
-                                        esZipRow_IDs.add(zipRow_ID)
-                                        varMap = {}
-                                        varMap[':row_ID'] = zipRow_ID
-                                        self.cur.execute(sqlZipFile+comment,varMap)
-                                        resZip = self.cur.fetchone()
-                                        if resZip != None:
-                                            outputZipName,outputZipBucketID = resZip
-                                            if not esPandaID in esOutputZipMap:
-                                                esOutputZipMap[esPandaID] = []
-                                            esOutputZipMap[esPandaID].append({'name':outputZipName,
-                                                                              'osid':outputZipBucketID})
+                                # zip file in fileTable
+                                if zipRow_ID != None and not zipRow_ID in esZipRow_IDs:
+                                    esZipRow_IDs.add(zipRow_ID)
+                                    varMap = {}
+                                    varMap[':row_ID'] = zipRow_ID
+                                    self.cur.execute(sqlZipFile+comment,varMap)
+                                    resZip = self.cur.fetchone()
+                                    if resZip != None:
+                                        outputZipName,outputZipBucketID = resZip
+                                        if not esPandaID in esOutputZipMap:
+                                            esOutputZipMap[esPandaID] = []
+                                        esOutputZipMap[esPandaID].append({'name':outputZipName,
+                                                                          'osid':outputZipBucketID})
                 # make input for event service output merging
                 mergeInputOutputMap = {}
                 mergeInputFiles = []
@@ -14316,6 +14316,7 @@ class DBProxy:
                         # append
                         eventDictList.append(eventDict)
             # loop over all events
+            zipRowIdMap = {}
             for eventDict in eventDictList:
                 # get event range ID
                 if not 'eventRangeID' in eventDict:
@@ -14423,20 +14424,24 @@ class DBProxy:
                             # insert zip
                             zipRow_ID = None
                             if 'zipFile' in eventDict and eventDict['zipFile'] != None:
-                                zipJobSpec = JobSpec()
-                                zipJobSpec.PandaID = pandaID
-                                zipFileSpec = FileSpec()
-                                zipFileSpec.jediTaskID = jediTaskID
-                                zipFileSpec.lfn = eventDict['zipFile']['lfn']
-                                zipFileSpec.fsize = 0
-                                zipFileSpec.type = 'zipoutput'
-                                zipFileSpec.status = 'ready'
-                                zipFileSpec.destinationSE = eventDict['zipFile']['objstoreID']
-                                zipJobSpec.addFile(zipFileSpec)
-                                varMap = zipFileSpec.valuesMap(useSeq=True)
-                                varMap[':newRowID'] = self.cur.var(varNUMBER)
-                                self.cur.execute(sqlF+comment, varMap)
-                                zipRow_ID = long(self.cur.getvalue(varMap[':newRowID']))
+                                if eventDict['zipFile']['lfn'] in zipRowIdMap:
+                                    zipRow_ID = zipRowIdMap[eventDict['zipFile']['lfn']]
+                                else:
+                                    zipJobSpec = JobSpec()
+                                    zipJobSpec.PandaID = pandaID
+                                    zipFileSpec = FileSpec()
+                                    zipFileSpec.jediTaskID = jediTaskID
+                                    zipFileSpec.lfn = eventDict['zipFile']['lfn']
+                                    zipFileSpec.fsize = 0
+                                    zipFileSpec.type = 'zipoutput'
+                                    zipFileSpec.status = 'ready'
+                                    zipFileSpec.destinationSE = eventDict['zipFile']['objstoreID']
+                                    zipJobSpec.addFile(zipFileSpec)
+                                    varMap = zipFileSpec.valuesMap(useSeq=True)
+                                    varMap[':newRowID'] = self.cur.var(varNUMBER)
+                                    self.cur.execute(sqlF+comment, varMap)
+                                    zipRow_ID = long(self.cur.getvalue(varMap[':newRowID']))
+                                    zipRowIdMap[eventDict['zipFile']['lfn']] = zipRow_ID
                             # update event
                             varMap = {}
                             varMap[':jediTaskID'] = jediTaskID

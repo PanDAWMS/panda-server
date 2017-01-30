@@ -80,7 +80,7 @@ class EiDBProxy(OraDBProxy.DBProxy):
             else:
                 sqlRG  = "SELECT runNumber,eventNumber,guid_{0},amiTag ".format(dataType)
                 sqlRG += "FROM {0}.V_PANDA_EVPICK_AMITAG_MANY ".format(panda_config.schemaEI)
-            if streamName != None:
+            if not streamName in [None,'']:
                 sqlRG += "WHERE streamName=:streamName "
                 varMap[':streamName'] = streamName
             self.cur.execute(sqlRG+comment, varMap)

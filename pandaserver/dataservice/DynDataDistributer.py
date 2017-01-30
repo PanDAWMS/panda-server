@@ -717,8 +717,8 @@ class DynDataDistributer:
                 self.putLog(out,'error')
                 self.putLog('bad DDM response to get size of %s' % datasetName, 'error')
                 return resForFailure
-        # append
-        g_filesInDsMap[datasetName] = fileItems
+            # append
+            g_filesInDsMap[datasetName] = fileItems
         # random mode
         if randomMode:
             tmpList = g_filesInDsMap[datasetName].keys()

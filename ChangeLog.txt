@@ -1,5 +1,9 @@
 Release Notes
 
+* 1/30/2017
+  * fixed EiOra for empty streamName
+  * fixed updateEventRanges
+
 * 1/27/2017
   * removed dq2 dependency
 
