@@ -31,6 +31,8 @@ class Share(Node):
     """
     Implement the share node
     """
+    _attributes = ('name', 'value', 'parent', 'prodsourcelabel', 'workinggroup', 'campaign', 'processingtype')
+
     def __str__(self, level=0):
         """
         Print the tree structure
@@ -57,6 +59,11 @@ class Share(Node):
         return self.__mul__
 
     def __init__(self, name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype):
+
+        # Create default attributes
+        for attr in self._attributes:
+            setattr(self, attr, None)
+
         Node.__init__(self)
         self.name = name
         self.value = value
@@ -125,16 +132,15 @@ class Share(Node):
             insert_index = len(children_sorted)  # insert at the end, if not deemed otherwise
 
             # Calculate under-pledging
-            child1_under_pledge = hs_distribution[child1.name][PLEDGED] - hs_distribution[child1.name][EXECUTING]
+            child1_under_pledge = hs_distribution[child1.name][EXECUTING] * 1.0 / hs_distribution[child1.name][PLEDGED]
             for child2 in children_sorted:
                 try:
                     # Calculate under-pledging
-                    child2_under_pledge = hs_distribution[child2.name][PLEDGED] \
-                                          - hs_distribution[child2.name][EXECUTING]
+                    child2_under_pledge = hs_distribution[child2.name][EXECUTING] * 1.0 / hs_distribution[child2.name][PLEDGED]
                 except KeyError:
                     continue
 
-                if child1_under_pledge > child2_under_pledge:
+                if child1_under_pledge < child2_under_pledge:
                     insert_index = loop_index
                     break
 
@@ -187,3 +193,14 @@ class Share(Node):
 
         # Return the aggregated values
         return executing, queued, pledged
+
+    # return column names
+    def column_names(cls):
+        ret = ''
+        for attr in cls._attributes:
+            if ret != '':
+                ret += ','
+            ret += attr
+        return ret
+
+    column_names = classmethod(column_names)
