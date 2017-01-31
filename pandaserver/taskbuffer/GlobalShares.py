@@ -132,13 +132,19 @@ class Share(Node):
             insert_index = len(children_sorted)  # insert at the end, if not deemed otherwise
 
             # Calculate under-pledging
-            child1_under_pledge = hs_distribution[child1.name][EXECUTING] * 1.0 / hs_distribution[child1.name][PLEDGED]
+            try:
+                child1_under_pledge = hs_distribution[child1.name][EXECUTING] * 1.0 / hs_distribution[child1.name][PLEDGED]
+            except ZeroDivisionError:
+                child1_under_pledge = 10**6 # Initialize to a large default number
+
             for child2 in children_sorted:
                 try:
                     # Calculate under-pledging
                     child2_under_pledge = hs_distribution[child2.name][EXECUTING] * 1.0 / hs_distribution[child2.name][PLEDGED]
+                except ZeroDivisionError:
+                    child2_under_pledge = 10 ** 6  # Initialize to a large default number
                 except KeyError:
-                    continue
+                    continue  # Does not exist
 
                 if child1_under_pledge < child2_under_pledge:
                     insert_index = loop_index
