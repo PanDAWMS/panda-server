@@ -3360,11 +3360,13 @@ class DBProxy:
                                 # zip
                                 mergeZipPandaIDs.append(esPandaID)
                                 for tmpEsOutZipFile in esOutputZipMap[esPandaID]:
+                                    # copy for zip
+                                    tmpZipInputFileSpec = copy.copy(tmpInputFileSpec)
                                     # add prefix
-                                    tmpInputFileSpec.lfn = 'zip://'+tmpEsOutZipFile['name']
-                                    mergeInputFiles.append(tmpInputFileSpec)
+                                    tmpZipInputFileSpec.lfn = 'zip://'+tmpEsOutZipFile['name']
+                                    mergeInputFiles.append(tmpZipInputFileSpec)
                                     # mapping for ObjStore
-                                    mergeFileObjStoreMap[tmpInputFileSpec.lfn] = tmpEsOutZipFile['osid']
+                                    mergeFileObjStoreMap[tmpZipInputFileSpec.lfn] = tmpEsOutZipFile['osid']
                 for tmpInputFileSpec in mergeInputFiles:
                     job.addFile(tmpInputFileSpec)
                 # job parameters
