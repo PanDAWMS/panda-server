@@ -1,5 +1,8 @@
 Release Notes
 
+* 2/2/2017
+  * added columns for new memory monitor
+
 * 1/30/2017
   * fixed EiOra for empty streamName
   * fixed updateEventRanges
