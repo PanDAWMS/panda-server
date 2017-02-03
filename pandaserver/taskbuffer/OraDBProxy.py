@@ -10876,30 +10876,41 @@ class DBProxy:
         comment = ' /* DBProxy.getPilotOwners */'        
         _logger.debug("getPilotOwners")        
         try:
+            ret = {None:set()}
             # set autocommit on
             self.conn.begin()
             # select
-            sql  = "SELECT pilotowners FROM ATLAS_PANDAMETA.cloudconfig"
-            self.cur.arraysize = 100
+            sql  = "SELECT pilotowners FROM ATLAS_PANDAMETA.cloudconfig "
+            self.cur.arraysize = 10000
             self.cur.execute(sql+comment)
             resList = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError, 'Commit error'
-            ret = []
             for tmpItem, in resList:
                 if tmpItem != None:
                     for tmpOwner in tmpItem.split('|'):
                         if tmpOwner != '':
-                            ret.append(tmpOwner)
-            _logger.debug("getPilotOwners -> %s" % str(ret))
+                            ret[None].add(tmpOwner)
+            sql  = "SELECT siteid,dn FROM ATLAS_PANDAMETA.schedconfig WHERE dn IS NOT NULL "
+            self.cur.execute(sql+comment)
+            resList = self.cur.fetchall()
+            for tmpSiteID,tmpItem in resList:
+                if tmpItem is not None:
+                    tmpItem = tmpItem.strip()
+                    for tmpOwner in tmpItem.split('|'):
+                        if tmpOwner not in ['','None']:
+                            if tmpSiteID not in ret:
+                                ret[tmpSiteID] = set()
+                            ret[tmpSiteID].add(tmpOwner)
+            _logger.debug("getPilotOwners -> %s" % str(ret)) 
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
             return ret
         except:
             # roll back
             self._rollback()
             type,value,traceBack = sys.exc_info()
             _logger.error("getPilotOwners : %s %s" % (type,value))
-            return []
+            return ret
 
 
     # get special dipatcher parameters

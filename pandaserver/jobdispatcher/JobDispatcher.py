@@ -622,7 +622,11 @@ def _checkRole(fqans,dn,jdCore,withVomsPatch=True,site='',hostname=''):
                         break
         # check DN with pilotOwners
         if (not prodManager) and (not dn in [None]):
-            for owner in jdCore.pilotOwners:
+            if site in jdCore.pilotOwners:
+                tmpPilotOwners = jdCore.pilotOwners[None].union(jdCore.pilotOwners[site])
+            else:
+                tmpPilotOwners = jdCore.pilotOwners[None]
+            for owner in tmpPilotOwners:
                 # check
                 if re.search(owner,dn) != None:
                     prodManager = True

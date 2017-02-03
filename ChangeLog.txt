@@ -1,5 +1,8 @@
 Release Notes
 
+* 2/3/2017
+  * using schedconfig.dn to specify pilot owners
+
 * 2/2/2017
   * added columns for new memory monitor
 
