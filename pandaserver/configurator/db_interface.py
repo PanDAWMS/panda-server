@@ -86,19 +86,20 @@ def write_panda_sites_db(session, panda_sites_list):
     """
     Cache the AGIS panda site information in the PanDA database
     """
-    try:
-        _logger.debug("Starting write_panda_sites_db")
-        for panda_site in panda_sites_list:
-            session.merge(PandaSite(panda_site_name = panda_site['panda_site_name'], 
-                                                 site_name = panda_site['site_name'],
-                                                 default_ddm_endpoint = panda_site['default_ddm_endpoint'],
-                                                 storage_site_name = panda_site['storage_site_name'],
-                                                 is_local = panda_site['is_local']))
-        session.commit()
-        _logger.debug("Done with write_panda_sites_db")
-    except exc.SQLAlchemyError:
-        session.rollback()
-        _logger.critical('write_panda_sites_db: Could not persist information --> {0}'.format(sys.exc_info()))
+    _logger.debug("Starting write_panda_sites_db")
+    for panda_site in panda_sites_list:
+        try:
+            _logger.debug("panda_site: {0}".format(panda_site['panda_site_name']))
+            session.merge(PandaSite(panda_site_name = panda_site['panda_site_name'],
+                                    site_name = panda_site['site_name'],
+                                    default_ddm_endpoint = panda_site['default_ddm_endpoint'],
+                                    storage_site_name = panda_site['storage_site_name'],
+                                    is_local = panda_site['is_local']))
+            session.commit()
+            _logger.debug("Done with write_panda_sites_db")
+        except exc.SQLAlchemyError:
+            session.rollback()
+            _logger.critical('write_panda_sites_db: Could not persist information --> {0}'.format(sys.exc_info()))
 
 
 def write_ddm_endpoints_db(session, ddm_endpoints_list):
