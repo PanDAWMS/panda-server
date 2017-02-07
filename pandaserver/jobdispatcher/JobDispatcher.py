@@ -276,7 +276,7 @@ class JobDipatcher:
 
         t_getJob_end = time.time()
         t_getJob_spent = t_getJob_end - t_getJob_start
-        _logger.debug("getJob : siteName={0} took timing={1}s".format(siteName, t_getJob_spent))
+        _logger.info("getJob : siteName={0} took timing={1}s".format(siteName, t_getJob_spent))
         return response.encode(acceptJson)
 
 
@@ -752,7 +752,7 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
                    maxRSS,maxVMEM,maxSWAP,maxPSS,avgRSS,avgVMEM,avgSWAP,avgPSS,
                    totRCHAR,totWCHAR,totRBYTES,totWBYTES,rateRCHAR,rateWCHAR,rateRBYTES,rateWBYTES,
                    xml,pilotLog,metaData,jobMetrics,stdout))
-    _pilotReqLogger.info('method=updateJob,site=%s,node=%s,type=None' % (siteName,node))
+    _pilotReqLogger.debug('method=updateJob,site=%s,node=%s,type=None' % (siteName,node))
     # invalid role
     if not prodManager:
         _logger.warning("updateJob(%s) : invalid role" % jobId)

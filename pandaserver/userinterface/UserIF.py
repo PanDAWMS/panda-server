@@ -45,7 +45,7 @@ class UserIF:
             _logger.debug("submitJobs %s len:%s prodRole=%s FQAN:%s" % (user,len(jobs),prodRole,str(userFQANs)))
             maxJobs = 5000
             if len(jobs) > maxJobs:
-                _logger.error("too may jobs more than %s" % maxJobs)
+                _logger.error("submitJobs: too many jobs more than %s" % maxJobs)
                 jobs = jobs[:maxJobs]
         except:
             type, value, traceBack = sys.exc_info()
@@ -469,7 +469,7 @@ class UserIF:
         ids = WrappedPickle.loads(idsStr)
         if not isinstance(ids,types.ListType):
             ids = [ids]
-        _logger.debug("killJob : %s %s %s %s %s" % (user,code,prodManager,fqans,ids))
+        _logger.info("killJob : %s %s %s %s %s" % (user,code,prodManager,fqans,ids))
         try:
             if useMailAsID:
                 _logger.debug("killJob : getting mail address for %s" % user)
@@ -698,7 +698,7 @@ class UserIF:
             # truncate
             maxIDs = 5500
             if len(pandaIDs) > maxIDs:
-                _logger.error("too long ID list more than %s" % maxIDs)
+                _logger.error("getSlimmedFileInfoPandaIDs: too long ID list more than %s" % maxIDs)
                 pandaIDs = pandaIDs[:maxIDs]
             # get
             _logger.debug("getSlimmedFileInfoPandaIDs start : %s %s" % (dn,len(pandaIDs)))            
@@ -758,7 +758,7 @@ class UserIF:
             # truncate
             maxIDs = 5500
             if len(ids) > maxIDs:
-                _logger.error("too long ID list more than %s" % maxIDs)
+                _logger.error("getFullJobStatus: too long ID list more than %s" % maxIDs)
                 ids = ids[:maxIDs]
         except:
             type, value, traceBack = sys.exc_info()

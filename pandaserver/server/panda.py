@@ -194,7 +194,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
         if panda_config.entryVerbose:
             _logger.debug("PID=%s %s out" % (os.getpid(),methodName))
         regTime = datetime.datetime.utcnow() - regStart
-        _logger.debug("PID=%s %s exec_time=%s.%03d sec, return len=%s B" % (os.getpid(),
+        _logger.info("PID=%s %s exec_time=%s.%03d sec, return len=%s B" % (os.getpid(),
                                                                               methodName,regTime.seconds,
                                                                               regTime.microseconds/1000,
                                                                               len(str(exeRes))))

@@ -1,5 +1,8 @@
 Release Notes
 
+* 2/6/2017
+  * Protection against undef
+
 * 2/3/2017
   * using schedconfig.dn to specify pilot owners
 

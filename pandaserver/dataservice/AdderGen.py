@@ -231,7 +231,7 @@ class AdderGen:
                         error_code = self.job.ddmErrorCode
                         error_diag = self.job.ddmErrorDiag
             
-                    _logger.debug("updatejob has source %s, error_code %s and error_diag %s"%(source, error_code, error_diag))
+                    _logger.info("updatejob has source %s, error_code %s and error_diag %s"%(source, error_code, error_diag))
                     
                     if source and error_code:
                         try:
@@ -239,7 +239,7 @@ class AdderGen:
                             retryModule.apply_retrial_rules(self.taskBuffer, self.job.PandaID, source, error_code, error_diag, self.job.attemptNr)
                             self.logger.debug("apply_retrial_rules is back")
                         except Exception as e:
-                            self.logger.debug("apply_retrial_rules excepted and needs to be investigated (%s)"%(e))
+                            self.logger.error("apply_retrial_rules excepted and needs to be investigated (%s)"%(e))
                     
                     self.job.jobStatus = 'failed'
                     for file in self.job.Files:
@@ -301,7 +301,7 @@ class AdderGen:
                     self.logger.debug("retU: %s" % retU)
                     # failed
                     if not retU[0]:
-                        self.logger.error('failed to update DB')
+                        self.logger.error('failed to update DB for pandaid={0}'.format(self.job.PandaID))
                         # unlock XML
                         try:
                             fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)

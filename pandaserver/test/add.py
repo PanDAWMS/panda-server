@@ -360,7 +360,7 @@ class AdderProcess:
         fileList = tmpList[:nFixed] + randTmp
         # add
         while len(fileList) != 0:
-            # time limit to aviod too many copyArchve running at the sametime
+            # time limit to avoid too many copyArchive running at the same time
             if (datetime.datetime.utcnow() - timeNow) > datetime.timedelta(minutes=overallTimeout):
                 tmpLog.debug("time over in Adder session")
                 break
