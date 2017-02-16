@@ -38,37 +38,37 @@ if panda_config.nDBConnection != 0:
 # import web I/F
 allowedMethods = []
 
-from taskbuffer.Utils            import isAlive,putFile,deleteFile,getServer,updateLog,fetchLog,\
-     touchFile,getVomsAttr,putEventPickingRequest,getAttr,getFile,uploadLog
+from taskbuffer.Utils import isAlive, putFile, deleteFile, getServer, updateLog, fetchLog,\
+     touchFile, getVomsAttr, putEventPickingRequest, getAttr, getFile, uploadLog
 allowedMethods += ['isAlive','putFile','deleteFile','getServer','updateLog','fetchLog',
                    'touchFile','getVomsAttr','putEventPickingRequest','getAttr','getFile',
                    'uploadLog']
 
-from dataservice.DataService     import datasetCompleted,updateFileStatusInDisp
-allowedMethods += ['datasetCompleted','updateFileStatusInDisp']
+from dataservice.DataService import datasetCompleted, updateFileStatusInDisp
+allowedMethods += ['datasetCompleted', 'updateFileStatusInDisp']
 
-from jobdispatcher.JobDispatcher import getJob,updateJob,getStatus,genPilotToken,\
-    getEventRanges,updateEventRange,getKeyPair,updateEventRanges,getDNsForS3
-allowedMethods += ['getJob','updateJob','getStatus','genPilotToken',
-                   'getEventRanges','updateEventRange','getKeyPair',
-                   'updateEventRanges','getDNsForS3']
+from jobdispatcher.JobDispatcher import getJob, updateJob, getStatus, genPilotToken,\
+    getEventRanges, updateEventRange, getKeyPair, updateEventRanges, getDNsForS3, getCommands, ackCommands
+allowedMethods += ['getJob', 'updateJob', 'getStatus', 'genPilotToken',
+                   'getEventRanges', 'updateEventRange', 'getKeyPair',
+                   'updateEventRanges', 'getDNsForS3', 'getCommands', 'ackCommands']
 
-from userinterface.UserIF        import submitJobs,getJobStatus,queryPandaIDs,killJobs,reassignJobs,\
-     getJobStatistics,getJobStatisticsPerSite,resubmitJobs,queryLastFilesInDataset,getPandaIDsSite,\
-     getJobsToBeUpdated,updateProdDBUpdateTimes,runTaskAssignment,getAssigningTask,getSiteSpecs,\
-     getCloudSpecs,runBrokerage,seeCloudTask,queryJobInfoPerCloud,registerProxyKey,getProxyKey,\
-     getJobIDsInTimeRange,getPandIDsWithJobID,getFullJobStatus,getJobStatisticsForBamboo,\
-     getNUserJobs,addSiteAccess,listSiteAccess,getFilesInUseForAnal,updateSiteAccess,\
-     getPandaClientVer,getSlimmedFileInfoPandaIDs,runReBrokerage,getQueuedAnalJobs,getHighestPrioJobStat,\
-     getActiveDatasets,setCloudTaskByUser,getSerialNumberForGroupJob,getCachePrefixes,\
-     checkMergeGenerationStatus,sendLogInfo,getNumPilots,retryFailedJobsInActive,\
-     getJobStatisticsWithLabel,getPandaIDwithJobExeID,getJobStatisticsPerUserSite,\
-     getDisInUseForAnal,getLFNsInUseForAnal,getScriptOfflineRunning,setDebugMode,\
-     insertSandboxFileInfo,checkSandboxFile,changeJobPriorities,insertTaskParams,\
-     killTask,finishTask,getCmtConfigList,getJediTasksInTimeRange,getJediTaskDetails,\
-     retryTask,getRetryHistory,changeTaskPriority,reassignTask,changeTaskAttributePanda,\
-     pauseTask,resumeTask,increaseAttemptNrPanda,killUnfinishedJobs,changeTaskSplitRulePanda,\
-     changeTaskModTimePanda,avalancheTask,getPandaIDsWithTaskID,reactivateTask,getTaskStatus, \
+from userinterface.UserIF import submitJobs, getJobStatus, queryPandaIDs, killJobs, reassignJobs,\
+     getJobStatistics, getJobStatisticsPerSite, resubmitJobs, queryLastFilesInDataset, getPandaIDsSite,\
+     getJobsToBeUpdated, updateProdDBUpdateTimes, runTaskAssignment, getAssigningTask, getSiteSpecs,\
+     getCloudSpecs, runBrokerage, seeCloudTask, queryJobInfoPerCloud, registerProxyKey, getProxyKey,\
+     getJobIDsInTimeRange, getPandIDsWithJobID, getFullJobStatus, getJobStatisticsForBamboo,\
+     getNUserJobs, addSiteAccess, listSiteAccess, getFilesInUseForAnal, updateSiteAccess,\
+     getPandaClientVer, getSlimmedFileInfoPandaIDs, runReBrokerage, getQueuedAnalJobs, getHighestPrioJobStat,\
+     getActiveDatasets, setCloudTaskByUser, getSerialNumberForGroupJob, getCachePrefixes,\
+     checkMergeGenerationStatus, sendLogInfo, getNumPilots, retryFailedJobsInActive,\
+     getJobStatisticsWithLabel, getPandaIDwithJobExeID, getJobStatisticsPerUserSite,\
+     getDisInUseForAnal, getLFNsInUseForAnal, getScriptOfflineRunning, setDebugMode,\
+     insertSandboxFileInfo, checkSandboxFile, changeJobPriorities, insertTaskParams,\
+     killTask, finishTask, getCmtConfigList, getJediTasksInTimeRange, getJediTaskDetails,\
+     retryTask, getRetryHistory, changeTaskPriority, reassignTask, changeTaskAttributePanda,\
+     pauseTask, resumeTask, increaseAttemptNrPanda, killUnfinishedJobs, changeTaskSplitRulePanda,\
+     changeTaskModTimePanda, avalancheTask, getPandaIDsWithTaskID, reactivateTask, getTaskStatus, \
      reassignShare, listTasksInShare, getTaskParamsMap
 allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reassignJobs',
                    'getJobStatistics','getJobStatisticsPerSite','resubmitJobs','queryLastFilesInDataset','getPandaIDsSite',
