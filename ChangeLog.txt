@@ -1,5 +1,9 @@
 Release Notes
 
+* 2/16/2017
+  * added getProxy
+  * changed killTask.py not to kill holding by default
+
 * 2/10/2017
   * added DBProxyFiltered
 

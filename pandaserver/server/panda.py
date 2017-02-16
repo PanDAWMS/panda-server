@@ -48,10 +48,10 @@ from dataservice.DataService     import datasetCompleted,updateFileStatusInDisp
 allowedMethods += ['datasetCompleted','updateFileStatusInDisp']
 
 from jobdispatcher.JobDispatcher import getJob,updateJob,getStatus,genPilotToken,\
-    getEventRanges,updateEventRange,getKeyPair,updateEventRanges,getDNsForS3
+    getEventRanges,updateEventRange,getKeyPair,updateEventRanges,getDNsForS3,getProxy
 allowedMethods += ['getJob','updateJob','getStatus','genPilotToken',
                    'getEventRanges','updateEventRange','getKeyPair',
-                   'updateEventRanges','getDNsForS3']
+                   'updateEventRanges','getDNsForS3','getProxy']
 
 from userinterface.UserIF        import submitJobs,getJobStatus,queryPandaIDs,killJobs,reassignJobs,\
      getJobStatistics,getJobStatisticsPerSite,resubmitJobs,queryLastFilesInDataset,getPandaIDsSite,\

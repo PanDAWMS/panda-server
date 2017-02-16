@@ -2,7 +2,6 @@ import re
 import sys
 import json
 import urllib
-from proxycache import panda_proxy_cache
 from taskbuffer import EventServiceUtils
 from dataservice import DataServiceUtils
 
@@ -29,6 +28,8 @@ SC_Role      = 60
 SC_Perms     = 70
 # key missing
 SC_MissKey   = 80
+# failure of proxy retrieval
+SC_ProxyError = 90
 
 
 # response
@@ -307,27 +308,6 @@ class Response:
                 self.data[name] = proxyKey[name]
             else:
                 self.data[name] = ''
-
-
-    # set user proxy
-    def setUserProxy(self,realDN=None,role=None):
-        try:
-            if realDN == None:
-                # remove redundant extensions
-                realDN = self.data['prodUserID']
-                realDN = re.sub('/CN=limited proxy','',realDN)
-                realDN = re.sub('(/CN=proxy)+','',realDN)
-            pIF = panda_proxy_cache.MyProxyInterface()
-            tmpOut = pIF.retrieve(realDN,role=role)
-            # not found
-            if tmpOut == None:
-                return False,'proxy not found for {0}'.format(realDN)
-            # set
-            self.data['userProxy'] = tmpOut
-            return True,''
-        except:
-            errtype,errvalue = sys.exc_info()[:2]
-            return False,"proxy retrieval failed with {0} {1}".format(errtype.__name__,errvalue)
 
 
     # set secret key for panda proxy

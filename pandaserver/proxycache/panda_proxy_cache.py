@@ -2,9 +2,14 @@ import subprocess
 import hashlib
 import os
 
+from pandalogger.PandaLogger import PandaLogger
+# logger
+_logger = PandaLogger().getLogger('ProxyCache')
+
+
 def execute(program):
     """Run a program on the command line. Return stderr, stdout and status."""
-    print("executable: %s" % program)
+    _logger.debug("executable: %s" % program)
     pipe = subprocess.Popen(program, bufsize=-1, shell=True, close_fds=False,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = pipe.communicate()
@@ -32,45 +37,45 @@ class MyProxyInterface(object):
 	# if myproxy.cern.ch fails, try myproxy on bnl as well
         stdout, stderr, status = execute(cmd)
         if stdout:
-            print 'stdout is %s ' % stdout
+            _logger.debug('stdout is %s ' % stdout)
         if stderr:
-            print 'stderr is %s ' % stderr
-        print('test the status of plain... %s' %status)
+            _logger.debug('stderr is %s ' % stderr)
+        _logger.debug('test the status of plain... %s' %status)
 	#proxyValidity = checkValidity(proxy_path)
         if role != None:
-            print 'proxy needs {0} - need to add voms attributes and store it in the cache'.format(role)
+            _logger.debug('proxy needs {0} - need to add voms attributes and store it in the cache'.format(role))
             tmpExtension = self.getExtension(role)
             prodproxy_path = os.path.join(self.__target_path, str(hashlib.sha1(user_dn + tmpExtension).hexdigest()))
-            print prodproxy_path
+            _logger.debug(prodproxy_path)
             prodcmd = "voms-proxy-init -valid 96:00 -cert %s -key %s -out %s -voms %s" % (proxy_path,proxy_path,
                                                                                           prodproxy_path,role)
             stdout, stderr, status = execute(prodcmd)
             if stdout:
-                print 'stdout is %s ' % stdout
+                _logger.debug('stdout is %s ' % stdout)
             if stderr:
-                print 'stderr is %s ' % stderr
-            print('test the status of production... %s' %status)
+                _logger.debug('stderr is %s ' % stderr)
+            _logger.debug('test the status of production... %s' %status)
         elif production:
-	    print 'production proxy needed - need to add voms attributes and store it in the cache'
+	    _logger.debug('production proxy needed - need to add voms attributes and store it in the cache')
 	    prodproxy_path = os.path.join(self.__target_path, str(hashlib.sha1(user_dn + '.prod').hexdigest()))
-	    print prodproxy_path
+	    _logger.debug(prodproxy_path)
             prodcmd = "voms-proxy-init -valid 96:00 -cert %s -key %s -out %s -voms atlas:/atlas/Role=production" % (proxy_path, proxy_path, prodproxy_path)
 	    stdout, stderr, status = execute(prodcmd)
 	    if stdout:
-		print 'stdout is %s ' % stdout
+		_logger.debug('stdout is %s ' % stdout)
             if stderr:
-		print 'stderr is %s ' % stderr
-            print('test the status of production... %s' %status)
+		_logger.debug('stderr is %s ' % stderr)
+            _logger.debug('test the status of production... %s' %status)
         else:
 	    # Now we need to add atlas roles and store it
 	    atlasproxy_path = os.path.join(self.__target_path, hashlib.sha1(user_dn).hexdigest())
             atlasrolescmd = "voms-proxy-init -valid 96:00 -cert %s -key %s -out %s -voms atlas" % (proxy_path, proxy_path, atlasproxy_path)
             stdout, stderr, status = execute(atlasrolescmd)
             if stdout:
-                print 'stdout is %s ' % stdout
+                _logger.debug('stdout is %s ' % stdout)
             if stderr:
-                print 'stderr is %s ' % stderr
-            print('test the status of atlas... %s' %status)
+                _logger.debug('stderr is %s ' % stderr)
+            _logger.debug('test the status of atlas... %s' %status)
 	# will remove the proxy later on as I need to check the actual validity in order to send notification emails
         #if os.path.exists(proxy_path):
         #    print 'will now remove the plain proxy from the cache'
@@ -90,7 +95,7 @@ class MyProxyInterface(object):
 	if os.path.isfile(proxy_path):
             return cat(proxy_path)
 	else:
-            print 'proxy file does not exist'
+            _logger.debug('proxy file does not exist')
 
 
     def checkProxy(self, user_dn, production=False, role=None):
@@ -103,36 +108,36 @@ class MyProxyInterface(object):
 	else:
            proxy_path = os.path.join(self.__target_path, hashlib.sha1(user_dn).hexdigest())
 	if os.path.isfile(proxy_path):
-		print 'Proxy is there. Need to check validity'
+		_logger.debug('Proxy is there. Need to check validity')
 		cmd = "voms-proxy-info -exists -hours 72 -file %s" % proxy_path
 		stdout, stderr, status = execute(cmd)
 		if stdout:
-			print 'stdout is %s ' % stdout
+			_logger.debug('stdout is %s ' % stdout)
 		if stderr:
-			print 'stderr is %s ' %stderr
+			_logger.debug('stderr is %s ' %stderr)
 		if status == 1:
-			print 'Proxy expires in 3 days or less. We need to renew proxy!'	
+			_logger.debug('Proxy expires in 3 days or less. We need to renew proxy!')
 	                if self.store(user_dn, self.__cred_name, production, role=role) == 0:
-        	                print 'Proxy stored successfully'
+        	                _logger.debug('Proxy stored successfully')
 	                else:
-        	                print 'Proxy retrieval failed'
+        	                _logger.debug('Proxy retrieval failed')
 		else:
-			print 'Proxy is valid for more than 3 days'
+			_logger.debug('Proxy is valid for more than 3 days')
 	
 	else:
-		print 'Proxy is not in the cache repo. Will try to get it from myproxy'
+		_logger.debug('Proxy is not in the cache repo. Will try to get it from myproxy')
 		if self.store(user_dn, self.__cred_name, production, role=role) == 0:
-			print 'proxy stored successfully'
+			_logger.debug('proxy stored successfully')
 		else:
-			print 'proxy retrieval failed'
+			_logger.debug('proxy retrieval failed')
 	plain_path = os.path.join(self.__target_path, hashlib.sha1(user_dn + '.plain').hexdigest())
 	if os.path.isfile(plain_path):
 		return self.checkValidity(plain_path)
 	else:
-		print 'plain proxy not there at the moment!'
+		_logger.debug('plain proxy not there at the moment!')
 
     def checkValidity(self, proxy_path):
-        print 'Need to check validity and expiry!'
+        _logger.debug('Need to check validity and expiry!')
 	datechecks = [24, 72, 168, 730.484]	
 	#datechecks = [1,2,3,4]
 	status = 0
@@ -140,7 +145,7 @@ class MyProxyInterface(object):
 	        cmd = "voms-proxy-info -exists -hours %s -file %s" % (i, proxy_path)
 	        stdout, stderr, status = execute(cmd)
 	        if status == 1:
-        	        print 'Proxy expires in %s hours. We need to send a notification!' %i
+        	        _logger.debug('Proxy expires in %s hours. We need to send a notification!' %i)
 			return i
 	return status
 

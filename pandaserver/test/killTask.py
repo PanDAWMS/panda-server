@@ -33,9 +33,10 @@ varMap[':taskID'] = args[0]
 if not options.noRunning or options.killAny:
     sql = "SELECT PandaID FROM %s WHERE prodSourceLabel=:prodSourceLabel AND taskID=:taskID ORDER BY PandaID"
 else:
-    sql = "SELECT PandaID FROM %s WHERE prodSourceLabel=:prodSourceLabel AND taskID=:taskID AND NOT jobStatus IN (:js1,:js2) ORDER BY PandaID"
+    sql = "SELECT PandaID FROM %s WHERE prodSourceLabel=:prodSourceLabel AND taskID=:taskID AND NOT jobStatus IN (:js1,:js2,:js3) ORDER BY PandaID"
     varMap[':js1'] = 'running'
     varMap[':js2'] = 'transferring'
+    varMap[':js3'] = 'holding'
 for table in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4','ATLAS_PANDA.jobsDefined4']:
     status,res = proxyS.querySQLS(sql % table,varMap)
     if res != None:
