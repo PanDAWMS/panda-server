@@ -18627,7 +18627,7 @@ class DBProxy:
         self.__t_update_distribution = datetime.datetime.now()
 
         # log the distribution for debugging purposes
-        _logger.info('Current HS06 distribution is {0}'.format(hs_distribution))
+        _logger.debug('Current HS06 distribution is {0}'.format(hs_distribution))
 
         return
 
