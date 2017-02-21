@@ -18858,7 +18858,7 @@ class DBProxy:
 
     def getCommands(self, harvester_id, n_commands):
         """
-        Gets n commands for a particular harvester instance
+        Gets n commands in status 'new' for a particular harvester instance and updates their status to 'retrieved'
         """
 
         comment = ' /* DBProxy.getCommands */'
@@ -18867,7 +18867,8 @@ class DBProxy:
         tmp_log.debug('start')
 
         try:
-            # Prepare the bindings and var map
+            self.conn.begin()
+            # Prepare the bindings and var map to get the oldest n commands in 'new' status
             var_map = {':harvester_id': harvester_id,
                        ':n_commands': n_commands,
                        ':status': 'new'}
@@ -18880,23 +18881,54 @@ class DBProxy:
                   WHERE ROWNUM <= :n_commands
                   """
             self.cur.execute(sql + comment, var_map)
+            entries = self.cur.fetchall()
+            tmp_log.debug('entries {0}'.format(entries))
 
             # pack the commands into a dictionary for transmission to harvester
-            commands_dict = {}
-            for entry in self.cur.fetchall():
-                commands_dict['command_id'] = entry[0]
-                commands_dict['command'] = entry[1]
-                commands_dict['params'] = entry[2]
-                commands_dict['ack_requested'] = entry[3]
-                commands_dict['creation_date'] = entry[4]
+            commands = []
+            command_ids = []
+            for entry in entries:
+                command_dict = {}
+                command_dict['command_id'] = entry[0]
+                command_ids.append(entry[0]) # we need to update the commands as dispatched
+                command_dict['command'] = entry[1]
+                command_dict['params'] = entry[2]
+                command_dict['ack_requested'] = entry[3]
+                command_dict['creation_date'] = entry[4].isoformat()
+                commands.append(command_dict)
+
+            tmp_log.debug('commands {0}'.format(commands))
+            tmp_log.debug('command_ids {0}'.format(command_ids))
+
+            if command_ids:
+                # update the commands and set them as retrieved
+                # Prepare the bindings and var map
+                var_map = {':retrieved': 'retrieved'}
+                for i, command_id in enumerate(command_ids):
+                    var_map[':command_id{0}'.format(i)] = command_id
+                command_id_bindings = ','.join(':command_id{0}'.format(i) for i in xrange(len(command_ids)))
+
+                sql = """
+                      UPDATE ATLAS_PANDA.HARVESTER_COMMANDS
+                      SET status=:retrieved
+                      WHERE command_id IN({0})
+                      """.format(command_id_bindings)
+
+                # run the update
+                self.cur.execute(sql + comment, var_map)
+
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+
             tmp_log.debug('done')
-            return 0, commands_dict
+            return 0, commands
 
         except:
+            self._rollback()
             type, value, traceBack = sys.exc_info()
             _logger.error("{0}: {1} {2}".format(comment, sql, var_map))
             _logger.error("{0}: {1} {2}".format(comment, type, value))
-            return -1, None
+            return -1, []
 
 
     def ackCommands(self, command_ids):
@@ -18912,7 +18944,7 @@ class DBProxy:
             # Prepare the bindings and var map
             var_map = {':acknowledged': 'acknowledged'}
             for i, command_id in enumerate(command_ids):
-                varMap[':command_id{0}'.format(i)] = command_ids
+                var_map[':command_id{0}'.format(i)] = command_id
             command_id_bindings = ','.join(':command_id{0}'.format(i) for i in xrange(len(command_ids)))
 
             sql = """
@@ -18927,16 +18959,7 @@ class DBProxy:
             if not self._commit():
                 raise RuntimeError, 'Commit error'
 
-            # pack the commands into a dictionary for transmission to harvester
-            commands_dict = {}
-            for entry in self.cur.fetchall():
-                commands_dict['command_id'] = entry[0]
-                commands_dict['command'] = entry[1]
-                commands_dict['params'] = entry[2]
-                commands_dict['ack_requested'] = entry[3]
-                commands_dict['creation_date'] = entry[4]
-            tmp_log.debug('done')
-            return 0, commands_dict
+            return 0
 
         except:
             # roll back
@@ -18944,4 +18967,4 @@ class DBProxy:
             type, value, traceback = sys.exc_info()
             _logger.error("{0}: {1} {2}".format(comment, sql, var_map))
             _logger.error("{0}: {1} {2}".format(comment, type, value))
-            return -1, None
+            return -1

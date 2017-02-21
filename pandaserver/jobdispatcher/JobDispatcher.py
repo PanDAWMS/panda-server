@@ -389,7 +389,7 @@ class JobDipatcher:
         return response.encode()
 
 
-    # get a list of even ranges for a PandaID
+    # get a list of event ranges for a PandaID
     def getEventRanges(self,pandaID,jobsetID,jediTaskID,nRanges,timeout,acceptJson):
         # peek jobs
         tmpWrapper = _TimedMethod(self.taskBuffer.getEventRanges,timeout)
@@ -564,7 +564,7 @@ class JobDipatcher:
             # success
             response = Protocol.Response(Protocol.SC_Success)
             response.appendNode('Returns', tmp_wrapper.result[0])
-            response.appendNode('Command', tmp_wrapper.result[1])
+            response.appendNode('Commands', tmp_wrapper.result[1])
 
         _logger.debug("getCommands : ret -> %s" % (response.encode(accept_json)))
         return response.encode(accept_json)
@@ -573,6 +573,7 @@ class JobDipatcher:
         """
         Acknowledge the commands from a list of IDs
         """
+        _logger.debug("command_ids : {0}".format(command_ids))
         tmp_wrapper = _TimedMethod(self.taskBuffer.ackCommands, timeout)
         tmp_wrapper.run(command_ids)
 
@@ -583,8 +584,7 @@ class JobDipatcher:
         else:
             # success
             response = Protocol.Response(Protocol.SC_Success)
-            response.appendNode('Returns', tmp_wrapper.result[0])
-            response.appendNode('Command', tmp_wrapper.result[1])
+            response.appendNode('Returns', tmp_wrapper.result)
 
         _logger.debug("ackCommands : ret -> %s" % (response.encode(accept_json)))
         return response.encode(accept_json)
@@ -1027,7 +1027,7 @@ def getCommands(req, harvester_id, n_commands, timeout=30):
     """
     Get n commands for a particular harvester instance
     """
-    tmp_str = "getCommands{0}".format(n_commands)
+    tmp_str = "getCommands"
 
     # check permissions
     tmp_stat, tmp_out = checkPilotPermission(req)
@@ -1039,5 +1039,21 @@ def getCommands(req, harvester_id, n_commands, timeout=30):
     return jobDispatcher.getCommands(harvester_id, n_commands, timeout, accept_json)
 
 
+
+def ackCommands(req, command_ids, timeout=30):
+    """
+    Ack the commands in the list of IDs
+    """
+    tmp_str = "ackCommands"
+
+    # check permissions
+    tmp_stat, tmp_out = checkPilotPermission(req)
+    if not tmp_stat:
+        _logger.error('{0} failed with {1}'.format(tmp_str, tmp_out))
+
+    command_ids = json.loads(command_ids)
+    accept_json = req.acceptJson()
+    # retrieve the commands
+    return jobDispatcher.ackCommands(command_ids, timeout, accept_json)
 
 
