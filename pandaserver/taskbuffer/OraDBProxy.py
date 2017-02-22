@@ -14543,7 +14543,7 @@ class DBProxy:
         pandaID = job.PandaID
         attemptNr = job.attemptNr
         methodName = comment.split(' ')[-2].split('.')[-1]
-        methodName += " <PandaID={0}>".format(pandaID)
+        methodName += " < PandaID={0} >".format(pandaID)
         _logger.debug("{0} : start attemptNr={1}".format(methodName,attemptNr))
         try:
             # return values
