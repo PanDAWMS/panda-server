@@ -48,10 +48,10 @@ from dataservice.DataService import datasetCompleted, updateFileStatusInDisp
 allowedMethods += ['datasetCompleted', 'updateFileStatusInDisp']
 
 from jobdispatcher.JobDispatcher import getJob, updateJob, getStatus, genPilotToken,\
-    getEventRanges, updateEventRange, getKeyPair, updateEventRanges, getDNsForS3, getCommands, ackCommands
+    getEventRanges, updateEventRange, getKeyPair, updateEventRanges, getDNsForS3, getProxy, getCommands, ackCommands
 allowedMethods += ['getJob', 'updateJob', 'getStatus', 'genPilotToken',
                    'getEventRanges', 'updateEventRange', 'getKeyPair',
-                   'updateEventRanges', 'getDNsForS3', 'getCommands', 'ackCommands']
+                   'updateEventRanges', 'getDNsForS3', 'getProxy', 'getCommands', 'ackCommands']
 
 from userinterface.UserIF import submitJobs, getJobStatus, queryPandaIDs, killJobs, reassignJobs,\
      getJobStatistics, getJobStatisticsPerSite, resubmitJobs, queryLastFilesInDataset, getPandaIDsSite,\
@@ -70,6 +70,7 @@ from userinterface.UserIF import submitJobs, getJobStatus, queryPandaIDs, killJo
      pauseTask, resumeTask, increaseAttemptNrPanda, killUnfinishedJobs, changeTaskSplitRulePanda,\
      changeTaskModTimePanda, avalancheTask, getPandaIDsWithTaskID, reactivateTask, getTaskStatus, \
      reassignShare, listTasksInShare, getTaskParamsMap
+
 allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reassignJobs',
                    'getJobStatistics','getJobStatisticsPerSite','resubmitJobs','queryLastFilesInDataset','getPandaIDsSite',
                    'getJobsToBeUpdated','updateProdDBUpdateTimes','runTaskAssignment','getAssigningTask','getSiteSpecs',

@@ -632,7 +632,7 @@ class RucioAPI:
                         dsn = {'scope': ds_scope, 'name': ds_name}
                     else:
                         dsn = {'scope': scope, 'name': ds}
-                dsns.append(dsn)
+                    dsns.append(dsn)
                 client.add_datasets_to_container(scope=scope, name=cname, dsns=dsns)
             except DuplicateContent:
                 for ds in dsns:

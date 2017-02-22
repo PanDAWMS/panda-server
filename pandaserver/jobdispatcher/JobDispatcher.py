@@ -24,6 +24,7 @@ import DispatcherUtils
 from taskbuffer import EventServiceUtils
 from taskbuffer import retryModule
 from brokerage.SiteMapper import SiteMapper
+from proxycache import panda_proxy_cache
 
 # logger
 _logger = PandaLogger().getLogger('JobDispatcher')
@@ -153,6 +154,32 @@ class JobDipatcher:
         self.lock.release()
         
 
+    # set user proxy
+    def setUserProxy(self,response,realDN=None,role=None):
+        try:
+            if realDN == None:
+                realDN = response.data['prodUserID']
+            # remove redundant extensions
+            realDN = re.sub('/CN=limited proxy','',realDN)
+            realDN = re.sub('(/CN=proxy)+','',realDN)
+            realDN = re.sub('(/CN=\d+)+$','',realDN)
+            pIF = panda_proxy_cache.MyProxyInterface()
+            tmpOut = pIF.retrieve(realDN,role=role)
+            # not found
+            if tmpOut == None:
+                tmpMsg = 'proxy not found for {0}'.format(realDN)
+                response.appendNode('errorDialog',tmpMsg)
+                return False,tmpMsg
+            # set
+            response.appendNode('userProxy',tmpOut)
+            return True,''
+        except:
+            errtype,errvalue = sys.exc_info()[:2]
+            tmpMsg = "proxy retrieval failed with {0} {1}".format(errtype.__name__,errvalue)
+            response.appendNode('errorDialog',tmpMsg)
+            return False,tmpMsg
+        
+
     # get job
     def getJob(self,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
                atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry,
@@ -230,10 +257,11 @@ class JobDipatcher:
                                                                                                          compactDN))
                         else:
                             if useProxyCache:
-                                tmpStat,tmpOut = response.setUserProxy(proxyCacheSites[siteName]['dn'],
-                                                                       proxyCacheSites[siteName]['role'])
+                                tmpStat,tmpOut = self.setUserProxy(response,
+                                                                   proxyCacheSites[siteName]['dn'],
+                                                                   proxyCacheSites[siteName]['role'])
                             else:
-                                tmpStat,tmpOut = response.setUserProxy()
+                                tmpStat,tmpOut = self.setUserProxy(response)
                             if not tmpStat:
                                 _logger.warning("getJob : %s %s failed to get user proxy : %s" % (siteName,node,
                                                                                                   tmpOut))
@@ -589,6 +617,44 @@ class JobDipatcher:
         _logger.debug("ackCommands : ret -> %s" % (response.encode(accept_json)))
         return response.encode(accept_json)
 
+    # get proxy
+    def getProxy(self,realDN,role):
+        tmpMsg = "getProxy DN={0} role={1} : ".format(realDN,role)
+        if realDN == None:
+            # cannot extract DN
+            tmpMsg += "failed since DN cannot be extracted"
+            _logger.debug(tmpMsg)
+            response = Protocol.Response(Protocol.SC_Perms,'Cannot extract DN from proxy. not HTTPS?')
+        else:
+            # get compact DN
+            compactDN = self.taskBuffer.cleanUserID(realDN)
+            # check permission
+            self.specialDispatchParams.update()
+            if not 'allowProxy' in self.specialDispatchParams:
+                allowProxy = []
+            else:
+                allowProxy = self.specialDispatchParams['allowProxy']
+            if not compactDN in allowProxy:
+                # permission denied
+                tmpMsg += "failed since '{0}' not in the authorized user list who have 'p' in {1}.USERS.GRIDPREF ".format(compactDN,
+                                                                                                                          panda_config.schemaMETA)
+                tmpMsg += "to get proxy"
+                _logger.debug(tmpMsg)
+                response = Protocol.Response(Protocol.SC_Perms,tmpMsg)
+            else:
+                # get proxy
+                response = Protocol.Response(Protocol.SC_Success,'')
+                tmpStat,tmpMsg = self.setUserProxy(response,realDN,role)
+                if not tmpStat: 
+                    _logger.debug(tmpMsg)
+                    response.appendNode('StatusCode',Protocol.SC_ProxyError)
+                else:
+                    tmpMsg = "sent proxy"
+                    _logger.debug(tmpMsg)
+        # return
+        return response.encode(True)
+
+    
         
 # Singleton
 jobDispatcher = JobDipatcher()
@@ -1000,6 +1066,15 @@ def getKeyPair(req,publicKeyName,privateKeyName):
     # get DN
     realDN = _getDN(req)
     return jobDispatcher.getKeyPair(realDN,publicKeyName,privateKeyName)
+
+
+
+# get proxy
+def getProxy(req,role=None):
+    # get DN
+    realDN = _getDN(req)
+    return jobDispatcher.getProxy(realDN,role)
+
 
 
 # check pilot permission
