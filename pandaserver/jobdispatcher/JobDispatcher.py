@@ -957,16 +957,28 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
     if totWCHAR is not None:
         param['totWCHAR'] = totWCHAR
     if totRBYTES is not None:
+        if totRBYTES >= 10**10:
+            totRBYTES = 9999999999
         param['totRBYTES'] = totRBYTES
     if totWBYTES is not None:
+        if totWBYTES >= 10**10:
+            totWBYTES = 9999999999
         param['totWBYTES'] = totWBYTES
     if rateRCHAR is not None:
+        if rateRCHAR >= 10**10:
+            rateRCHAR = 9999999999
         param['rateRCHAR'] = rateRCHAR
     if rateWCHAR is not None:
+        if rateWCHAR >= 10**10:
+            rateWCHAR = 9999999999
         param['rateWCHAR'] = rateWCHAR
     if rateRBYTES is not None:
+        if rateRBYTES >= 10**10:
+            rateRBYTES = 9999999999
         param['rateRBYTES'] = rateRBYTES
     if rateWBYTES is not None:
+        if rateWBYTES >= 10**10:
+            rateWBYTES = 9999999999
         param['rateWBYTES'] = rateWBYTES
     if startTime != None:
         try:
