@@ -953,8 +953,12 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
     if avgPSS != None:
         param['avgPSS'] = avgPSS
     if totRCHAR is not None:
+        if totRCHAR >= 10**10:
+            totRCHAR = 9999999999
         param['totRCHAR'] = totRCHAR
     if totWCHAR is not None:
+        if totWCHAR >= 10**10:
+            totWCHAR = 9999999999
         param['totWCHAR'] = totWCHAR
     if totRBYTES is not None:
         if totRBYTES >= 10**10:
