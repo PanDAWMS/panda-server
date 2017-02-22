@@ -3221,6 +3221,34 @@ class TaskBuffer:
         return res
 
 
+    def getCommands(self, harvester_id, n_commands):
+        """
+        Get n commands for a particular harvester instance
+        """
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.getCommands(harvester_id, n_commands)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
+    def ackCommands(self, command_ids):
+        """
+        Acknowledge a list of command IDs
+        """
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.ackCommands(command_ids)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 

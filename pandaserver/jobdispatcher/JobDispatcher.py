@@ -30,7 +30,7 @@ from proxycache import panda_proxy_cache
 _logger = PandaLogger().getLogger('JobDispatcher')
 _pilotReqLogger = PandaLogger().getLogger('PilotRequests')
 
-# a wrapper to install timpout into a method
+# a wrapper to install timeout into a method
 class _TimedMethod:
     def __init__(self,method,timeout):
         self.method  = method
@@ -417,7 +417,7 @@ class JobDipatcher:
         return response.encode()
 
 
-    # get a list of even ranges for a PandaID
+    # get a list of event ranges for a PandaID
     def getEventRanges(self,pandaID,jobsetID,jediTaskID,nRanges,timeout,acceptJson):
         # peek jobs
         tmpWrapper = _TimedMethod(self.taskBuffer.getEventRanges,timeout)
@@ -577,6 +577,45 @@ class JobDipatcher:
     def getSiteMapper(self):
         return SiteMapper(self.taskBuffer)
 
+    def getCommands(self, harvester_id, n_commands, timeout, accept_json):
+        """
+        Get commands for a particular harvester instance
+        """
+        tmp_wrapper = _TimedMethod(self.taskBuffer.getCommands, timeout)
+        tmp_wrapper.run(harvester_id, n_commands)
+
+        # Make response
+        if tmp_wrapper.result == Protocol.TimeOutToken:
+            # timeout
+            response = Protocol.Response(Protocol.SC_TimeOut)
+        else:
+            # success
+            response = Protocol.Response(Protocol.SC_Success)
+            response.appendNode('Returns', tmp_wrapper.result[0])
+            response.appendNode('Commands', tmp_wrapper.result[1])
+
+        _logger.debug("getCommands : ret -> %s" % (response.encode(accept_json)))
+        return response.encode(accept_json)
+
+    def ackCommands(self, command_ids, timeout, accept_json):
+        """
+        Acknowledge the commands from a list of IDs
+        """
+        _logger.debug("command_ids : {0}".format(command_ids))
+        tmp_wrapper = _TimedMethod(self.taskBuffer.ackCommands, timeout)
+        tmp_wrapper.run(command_ids)
+
+        # Make response
+        if tmp_wrapper.result == Protocol.TimeOutToken:
+            # timeout
+            response = Protocol.Response(Protocol.SC_TimeOut)
+        else:
+            # success
+            response = Protocol.Response(Protocol.SC_Success)
+            response.appendNode('Returns', tmp_wrapper.result)
+
+        _logger.debug("ackCommands : ret -> %s" % (response.encode(accept_json)))
+        return response.encode(accept_json)
 
     # get proxy
     def getProxy(self,realDN,role):
@@ -1053,8 +1092,43 @@ def checkPilotPermission(req):
     return True,None
 
 
-
 # get DNs authorized for S3
 def getDNsForS3(req):
     return jobDispatcher.getDNsForS3()
         
+
+
+def getCommands(req, harvester_id, n_commands, timeout=30):
+    """
+    Get n commands for a particular harvester instance
+    """
+    tmp_str = "getCommands"
+
+    # check permissions
+    tmp_stat, tmp_out = checkPilotPermission(req)
+    if not tmp_stat:
+        _logger.error('{0} failed with {1}'.format(tmp_str, tmp_out))
+
+    accept_json = req.acceptJson()
+    # retrieve the commands
+    return jobDispatcher.getCommands(harvester_id, n_commands, timeout, accept_json)
+
+
+
+def ackCommands(req, command_ids, timeout=30):
+    """
+    Ack the commands in the list of IDs
+    """
+    tmp_str = "ackCommands"
+
+    # check permissions
+    tmp_stat, tmp_out = checkPilotPermission(req)
+    if not tmp_stat:
+        _logger.error('{0} failed with {1}'.format(tmp_str, tmp_out))
+
+    command_ids = json.loads(command_ids)
+    accept_json = req.acceptJson()
+    # retrieve the commands
+    return jobDispatcher.ackCommands(command_ids, timeout, accept_json)
+
+
