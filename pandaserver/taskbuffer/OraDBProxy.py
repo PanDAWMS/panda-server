@@ -14623,7 +14623,7 @@ class DBProxy:
             varMap[':newStatus']  = EventServiceUtils.ST_done
             self.cur.execute(sqlED+comment, varMap)
             nRowDone = self.cur.rowcount
-            _logger.info("{0} : set done to {1} event ranges".format(methodName,nRowDone))
+            _logger.info("{0} : set done to n_er_done={1} event ranges".format(methodName,nRowDone))
             # release unprocessed event ranges
             sqlEC  = "UPDATE {0}.JEDI_Events SET status=:newStatus,attemptNr=attemptNr-1,pandaID=:jobsetID ".format(panda_config.schemaJEDI)
             sqlEC += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND NOT status IN (:esDone,:esFailed) "
@@ -14636,7 +14636,7 @@ class DBProxy:
             varMap[':newStatus']   = EventServiceUtils.ST_ready
             self.cur.execute(sqlEC+comment, varMap)
             nRowReleased = self.cur.rowcount
-            _logger.info("{0} : released {1} event ranges".format(methodName,nRowReleased))
+            _logger.info("{0} : released n_er_released={1} event ranges".format(methodName,nRowReleased))
             # copy failed event ranges
             varMap = {}
             varMap[':jediTaskID']  = jobSpec.jediTaskID
@@ -14663,7 +14663,7 @@ class DBProxy:
             varMap[':esFailed']    = EventServiceUtils.ST_failed
             self.cur.execute(sqlUP+comment, varMap)
             nRowFailed = self.cur.rowcount
-            _logger.info("{0} : failed {1} event ranges".format(methodName,nRowFailed))
+            _logger.info("{0} : failed n_er_failed={1} event ranges".format(methodName,nRowFailed))
             # look for hopeless event ranges
             sqlEU  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sqlEU += "WHERE jediTaskID=:jediTaskID AND pandaID=:jobsetID AND attemptNr=:minAttempt AND rownum=1 "
@@ -14707,7 +14707,7 @@ class DBProxy:
             self.cur.execute(sqlERP+comment, varMap)
             resERP = self.cur.fetchone()
             nRow, = resERP
-            _logger.info("{0} : left {1} unprocessed event ranges".format(methodName,nRow))
+            _logger.info("{0} : left n_er_unprocessed={1} unprocessed event ranges".format(methodName,nRow))
             otherRunning = False
             hasDoneRange = False
             if nRow == 0:
