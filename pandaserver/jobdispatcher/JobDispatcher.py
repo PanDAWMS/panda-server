@@ -969,16 +969,16 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
         totWBYTES = min(10 ** 10 - 1, totWBYTES)  # limit to 10 digit
         param['totWBYTES'] = totWBYTES
     if rateRCHAR is not None:
-        rateRCHAR = min(10 ** 10 - 1, rateRCHAR)  # limit to 10 digit
+        rateRCHAR = min(10 ** 10 - 1, int(rateRCHAR))  # limit to 10 digit
         param['rateRCHAR'] = rateRCHAR
     if rateWCHAR is not None:
-        rateWCHAR = min(10 ** 10 - 1, rateWCHAR)  # limit to 10 digit
+        rateWCHAR = min(10 ** 10 - 1, int(rateWCHAR))  # limit to 10 digit
         param['rateWCHAR'] = rateWCHAR
     if rateRBYTES is not None:
-        rateRBYTES = min(10 ** 10 - 1, rateRBYTES)  # limit to 10 digit
+        rateRBYTES = min(10 ** 10 - 1, int(rateRBYTES))  # limit to 10 digit
         param['rateRBYTES'] = rateRBYTES
     if rateWBYTES is not None:
-        rateWBYTES = min(10 ** 10 - 1, rateWBYTES)  # limit to 10 digit
+        rateWBYTES = min(10 ** 10 - 1, int(rateWBYTES))  # limit to 10 digit
         param['rateWBYTES'] = rateWBYTES
     if startTime != None:
         try:
