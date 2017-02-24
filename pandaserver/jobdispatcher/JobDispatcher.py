@@ -953,19 +953,19 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
     if avgPSS != None:
         param['avgPSS'] = avgPSS
     if totRCHAR is not None:
-        totRCHAR /= 1024 # convert to kByte
+        totRCHAR = int(totRCHAR) / 1024 # convert to kByte
         totRCHAR = min(10 ** 10 - 1, totRCHAR)  # limit to 10 digit
         param['totRCHAR'] = totRCHAR
     if totWCHAR is not None:
-        totWCHAR /= 1024 # convert to kByte
+        totWCHAR = int(totWCHAR) / 1024 # convert to kByte
         totWCHAR = min(10 ** 10 - 1, totWCHAR) # limit to 10 digit
         param['totWCHAR'] = totWCHAR
     if totRBYTES is not None:
-        totRBYTES /= 1024 #convert to kByte
+        totRBYTES = int(totRBYTES) / 1024 # convert to kByte
         totRBYTES = min(10 ** 10 - 1, totRBYTES)  # limit to 10 digit
         param['totRBYTES'] = totRBYTES
     if totWBYTES is not None:
-        totWBYTES /= 1024 #convert to kByte
+        totWBYTES = int(totWBYTES) / 1024 # convert to kByte
         totWBYTES = min(10 ** 10 - 1, totWBYTES)  # limit to 10 digit
         param['totWBYTES'] = totWBYTES
     if rateRCHAR is not None:
