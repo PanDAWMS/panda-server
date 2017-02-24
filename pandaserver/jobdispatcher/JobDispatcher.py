@@ -953,36 +953,32 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
     if avgPSS != None:
         param['avgPSS'] = avgPSS
     if totRCHAR is not None:
-        if totRCHAR >= 10**10:
-            totRCHAR = 9999999999
+        totRCHAR /= 1024 # convert to kByte
+        totRCHAR = min(10 ** 10 - 1, totRCHAR)  # limit to 10 digit
         param['totRCHAR'] = totRCHAR
     if totWCHAR is not None:
-        if totWCHAR >= 10**10:
-            totWCHAR = 9999999999
+        totWCHAR /= 1024 # convert to kByte
+        totWCHAR = min(10 ** 10 - 1, totWCHAR) # limit to 10 digit
         param['totWCHAR'] = totWCHAR
     if totRBYTES is not None:
-        if totRBYTES >= 10**10:
-            totRBYTES = 9999999999
+        totRBYTES /= 1024 #convert to kByte
+        totRBYTES = min(10 ** 10 - 1, totRBYTES)  # limit to 10 digit
         param['totRBYTES'] = totRBYTES
     if totWBYTES is not None:
-        if totWBYTES >= 10**10:
-            totWBYTES = 9999999999
+        totWBYTES /= 1024 #convert to kByte
+        totWBYTES = min(10 ** 10 - 1, totWBYTES)  # limit to 10 digit
         param['totWBYTES'] = totWBYTES
     if rateRCHAR is not None:
-        if rateRCHAR >= 10**10:
-            rateRCHAR = 9999999999
+        rateRCHAR = min(10 ** 10 - 1, rateRCHAR)  # limit to 10 digit
         param['rateRCHAR'] = rateRCHAR
     if rateWCHAR is not None:
-        if rateWCHAR >= 10**10:
-            rateWCHAR = 9999999999
+        rateWCHAR = min(10 ** 10 - 1, rateWCHAR)  # limit to 10 digit
         param['rateWCHAR'] = rateWCHAR
     if rateRBYTES is not None:
-        if rateRBYTES >= 10**10:
-            rateRBYTES = 9999999999
+        rateRBYTES = min(10 ** 10 - 1, rateRBYTES)  # limit to 10 digit
         param['rateRBYTES'] = rateRBYTES
     if rateWBYTES is not None:
-        if rateWBYTES >= 10**10:
-            rateWBYTES = 9999999999
+        rateWBYTES = min(10 ** 10 - 1, rateWBYTES)  # limit to 10 digit
         param['rateWBYTES'] = rateWBYTES
     if startTime != None:
         try:
