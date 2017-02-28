@@ -18839,7 +18839,7 @@ class DBProxy:
             var_map = {':gshare': gshare, 'status': status}
 
             sql = """
-                  SELECT jeditaskid FROM jedi_tasks
+                  SELECT jeditaskid FROM ATLAS_PANDA.jedi_tasks
                   WHERE gshare=:gshare AND status=:status
                   """
 
@@ -18850,8 +18850,121 @@ class DBProxy:
             return 0, jedi_task_ids
 
         except:
-            # roll back
             type, value, traceBack = sys.exc_info()
-            _logger.error("{0}: {1} {2}".format(comment, sql, str(varMap)))
+            _logger.error("{0}: {1} {2}".format(comment, sql, var_map))
             _logger.error("{0}: {1} {2}".format(comment, type, value))
             return -1, None
+
+
+    def getCommands(self, harvester_id, n_commands):
+        """
+        Gets n commands in status 'new' for a particular harvester instance and updates their status to 'retrieved'
+        """
+
+        comment = ' /* DBProxy.getCommands */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+
+        try:
+            self.conn.begin()
+            # Prepare the bindings and var map to get the oldest n commands in 'new' status
+            var_map = {':harvester_id': harvester_id,
+                       ':n_commands': n_commands,
+                       ':status': 'new'}
+
+            sql = """
+                  SELECT command_id, command, params, ack_requested, creation_date FROM
+                      (SELECT command_id, command, params, ack_requested, creation_date FROM harvester_commands
+                          WHERE harvester_id=:harvester_id AND status=:status
+                          ORDER BY creation_date)
+                  WHERE ROWNUM <= :n_commands
+                  """
+            self.cur.execute(sql + comment, var_map)
+            entries = self.cur.fetchall()
+            tmp_log.debug('entries {0}'.format(entries))
+
+            # pack the commands into a dictionary for transmission to harvester
+            commands = []
+            command_ids = []
+            for entry in entries:
+                command_dict = {}
+                command_dict['command_id'] = entry[0]
+                command_ids.append(entry[0]) # we need to update the commands as dispatched
+                command_dict['command'] = entry[1]
+                command_dict['params'] = entry[2]
+                command_dict['ack_requested'] = entry[3]
+                command_dict['creation_date'] = entry[4].isoformat()
+                commands.append(command_dict)
+
+            tmp_log.debug('commands {0}'.format(commands))
+            tmp_log.debug('command_ids {0}'.format(command_ids))
+
+            if command_ids:
+                # update the commands and set them as retrieved
+                # Prepare the bindings and var map
+                var_map = {':retrieved': 'retrieved'}
+                for i, command_id in enumerate(command_ids):
+                    var_map[':command_id{0}'.format(i)] = command_id
+                command_id_bindings = ','.join(':command_id{0}'.format(i) for i in xrange(len(command_ids)))
+
+                sql = """
+                      UPDATE ATLAS_PANDA.HARVESTER_COMMANDS
+                      SET status=:retrieved
+                      WHERE command_id IN({0})
+                      """.format(command_id_bindings)
+
+                # run the update
+                self.cur.execute(sql + comment, var_map)
+
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+
+            tmp_log.debug('done')
+            return 0, commands
+
+        except:
+            self._rollback()
+            type, value, traceBack = sys.exc_info()
+            _logger.error("{0}: {1} {2}".format(comment, sql, var_map))
+            _logger.error("{0}: {1} {2}".format(comment, type, value))
+            return -1, []
+
+
+    def ackCommands(self, command_ids):
+        """
+        Sets the commands to acknowledged
+        """
+        comment = ' /* DBProxy.ackCommands */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+
+        try:
+            # Prepare the bindings and var map
+            var_map = {':acknowledged': 'acknowledged'}
+            for i, command_id in enumerate(command_ids):
+                var_map[':command_id{0}'.format(i)] = command_id
+            command_id_bindings = ','.join(':command_id{0}'.format(i) for i in xrange(len(command_ids)))
+
+            sql = """
+                  UPDATE ATLAS_PANDA.HARVESTER_COMMANDS
+                  SET status=:acknowledged
+                  WHERE command_id IN({0})
+                  """.format(command_id_bindings)
+
+            # run the update
+            self.conn.begin()
+            self.cur.execute(sql + comment, var_map)
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+
+            return 0
+
+        except:
+            # roll back
+            self._rollback()
+            type, value, traceback = sys.exc_info()
+            _logger.error("{0}: {1} {2}".format(comment, sql, var_map))
+            _logger.error("{0}: {1} {2}".format(comment, type, value))
+            return -1
