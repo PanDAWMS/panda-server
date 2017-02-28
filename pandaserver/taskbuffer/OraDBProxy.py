@@ -1937,7 +1937,7 @@ class DBProxy:
                     # convert empty to NULL
                     if ret == '':
                         ret = 'NULL'
-                    if oldJobStatus == 'failed' and jobStatus in ['holding','transferring','starting']:
+                    if oldJobStatus == 'failed' and jobStatus in ['holding','transferring','starting','running']:
                         _logger.debug("updateJobStatus : PandaID=%s skip to set %s since it is alredy %s" \
                                           % (pandaID,jobStatus,oldJobStatus))
                         ret = 'alreadydone'
