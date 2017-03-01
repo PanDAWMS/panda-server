@@ -1371,7 +1371,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         if tmpInputFileProject == None:
                             tmpInputItems = tmpFile.dataset.split('.')
                             # input project
-                            tmpInputFileProject = tmpInputItems[0]
+                            tmpInputFileProject = tmpInputItems[0].split(':')[-1]
                             # input type. ignore user/group/groupXY 
                             if len(tmpInputItems) > 4 and (not tmpInputItems[0] in ['','NULL','user','group']) \
                                    and (not tmpInputItems[0].startswith('group')) \
