@@ -108,6 +108,11 @@ class AdderGen:
                 self.logger.error(': invalid state -> %s' % self.job.jobStatus)
             elif self.attemptNr != None and self.job.attemptNr != self.attemptNr:
                 self.logger.error('wrong attemptNr -> job=%s <> %s' % (self.job.attemptNr,self.attemptNr))
+            elif self.attemptNr is not None and self.job.jobStatus == 'transferring':
+                errMsg = 'XML with attemptNr for {0}'.format(self.job.jobStatus)
+                self.logger.error(errMsg)
+                # FIXME
+                raise RuntimeError, errMsg
             else:
                 # check file status in JEDI
                 if not self.job.isCancelled() and not self.job.taskBufferErrorCode in [taskbuffer.ErrorCode.EC_PilotRetried]:
