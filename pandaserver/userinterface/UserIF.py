@@ -1012,7 +1012,6 @@ def _isProdRoleATLAS(req):
     prodManager = False
     # get FQANs
     fqans = _getFQAN(req)
-    _logger.debug('<_isProdRoleATLAS> fqans: {0}'.format())
     # loop over all FQANs
     for fqan in fqans:
         # check production role
