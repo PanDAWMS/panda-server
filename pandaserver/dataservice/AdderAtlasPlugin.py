@@ -65,18 +65,15 @@ class AdderAtlasPlugin (AdderPluginBase):
             # check if the job should go to trasnferring
             srcSiteSpec = self.siteMapper.getSite(self.job.computingSite)
             tmpSrcDDM = srcSiteSpec.ddm
-            tmpSrcSEs = srcSiteSpec.ddm_endpoints.getLocalEndPoints()
             destSEwasSet = False
             brokenSched = False
             if self.job.prodSourceLabel == 'user' and not self.siteMapper.siteSpecList.has_key(self.job.destinationSE):
                 # DQ2 ID was set by using --destSE for analysis job to transfer output
                 destSEwasSet = True
                 tmpDstDDM = self.job.destinationSE
-                tmpDstSEs = self.job.destinationSE
             else:
                 dstSiteSpec = self.siteMapper.getSite(self.job.destinationSE)
                 tmpDstDDM = dstSiteSpec.ddm
-                tmpDstSEs = dstSiteSpec.ddm_endpoints.getLocalEndPoints()
                 # protection against disappearance of dest from schedconfig
                 if not self.siteMapper.checkSite(self.job.destinationSE) and self.job.destinationSE != 'local':
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
@@ -103,7 +100,6 @@ class AdderAtlasPlugin (AdderPluginBase):
                         somethingToTranfer = True
                         break
             self.logger.debug('DDM src:%s dst:%s' % (tmpSrcDDM,tmpDstDDM))
-            self.logger.debug('SE src:%s dst:%s' % (tmpSrcSEs,tmpDstSEs))
             if re.search('^ANALY_',self.job.computingSite) != None:
                 # analysis site
                 pass
@@ -112,9 +108,6 @@ class AdderAtlasPlugin (AdderPluginBase):
                 pass
             elif tmpSrcDDM == tmpDstDDM:
                 # same DQ2ID for src/dest
-                pass
-            elif tmpSrcSEs == tmpDstSEs:
-                # same SEs
                 pass
             elif self.addToTopOnly:
                 # already in transferring
@@ -319,19 +312,16 @@ class AdderAtlasPlugin (AdderPluginBase):
                                     # get DQ2 IDs
                                     srcSiteSpec = self.siteMapper.getSite(self.job.computingSite)
                                     tmpSrcDDM = srcSiteSpec.ddm
-                                    tmpSrcSEs = srcSiteSpec.ddm_endpoints.getLocalEndPoints()
                                     if self.job.prodSourceLabel == 'user' and not self.siteMapper.siteSpecList.has_key(file.destinationSE):
                                         # DQ2 ID was set by using --destSE for analysis job to transfer output
                                         tmpDstDDM = file.destinationSE
-                                        tmpDstSEs = file.destinationSE
                                     else:
                                         if DataServiceUtils.getDestinationSE(file.destinationDBlockToken) != None:
                                             tmpDstDDM = DataServiceUtils.getDestinationSE(file.destinationDBlockToken)
                                         else:
                                             tmpDstDDM = self.siteMapper.getSite(file.destinationSE).ddm
-                                        tmpDstSEs = self.siteMapper.getSite(file.destinationSE).ddm_endpoints.getLocalEndPoints()
                                     # if src != dest or multi-token
-                                    if (tmpSrcDDM != tmpDstDDM and tmpSrcSEs != tmpDstSEs) or \
+                                    if (tmpSrcDDM != tmpDstDDM) or \
                                        (tmpSrcDDM == tmpDstDDM and file.destinationDBlockToken.count(',') != 0):
                                         optSub = {'DATASET_COMPLETE_EVENT' : ['http://%s:%s/server/panda/datasetCompleted' % \
                                                                               (panda_config.pserverhosthttp,panda_config.pserverporthttp)]}

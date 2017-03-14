@@ -1,5 +1,8 @@
 Release Notes
 
+* 3/14/2017
+  * removed SE check in Adder
+
 * 2/16/2017
   * added getProxy
   * changed killTask.py not to kill holding by default
