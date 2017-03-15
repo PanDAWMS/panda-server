@@ -12909,12 +12909,32 @@ class DBProxy:
             schemaDEFT = self.getSchemaDEFT()
             sqlTtask  = "UPDATE {0}.T_TASK ".format(schemaDEFT)
             if jobSpec.processingType != 'pmerge':
+                updateNumDone = True
                 sqlTtask += "SET total_done_jobs=total_done_jobs+1,timestamp=CURRENT_DATE,total_events=total_events+:noutevents "
             else:
+                updateNumDone = False
                 sqlTtask += "SET timestamp=CURRENT_DATE,total_events=total_events+:noutevents "
             sqlTtask += "WHERE taskid=:jediTaskID AND status IN (:status1,:status2) "
             tmpLog.debug(sqlTtask+comment+str(varMap))
             cur.execute(sqlTtask+comment,varMap)
+            nRow = cur.rowcount
+            # get total_done_jobs
+            if updateNumDone and nRow == 1:
+                varMap = {}
+                varMap[':jediTaskID'] = jobSpec.jediTaskID
+                sqlNumDone  = "SELECT total_done_jobs FROM {0}.T_TASK ".format(schemaDEFT)
+                sqlNumDone += "WHERE taskid=:jediTaskID "
+                cur.execute(sqlNumDone+comment,varMap)
+                tmpResNumDone = self.cur.fetchone()
+                if tmpResNumDone is not None:
+                    numDone, = tmpResNumDone
+                    if numDone in [100]:
+                        # reset walltimeUnit to recalcurate task parameters
+                        varMap = {}
+                        varMap[':jediTaskID'] = jobSpec.jediTaskID
+                        sqlRecal  = "UPDATE ATLAS_PANDA.JEDI_Tasks SET walltimeUnit=NULL WHERE jediTaskId=:jediTaskID "
+                        tmpLog.debug("trigger recalcuration of task parameters with nDoneJobs={0}".format(numDone))
+                        cur.execute(sqlRecal+comment,varMap)
         # propagate failed result to unmerge job
         if len(finishUnmerge) > 0:
             self.updateUnmergedJobs(jobSpec,finishUnmerge)

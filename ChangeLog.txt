@@ -1,5 +1,8 @@
 Release Notes
 
+* 3/15/2017
+  * changed propageR to trigger recalculation of task params based on nDone
+
 * 3/14/2017
   * removed SE check in Adder
 
