@@ -12933,7 +12933,9 @@ class DBProxy:
                         varMap = {}
                         varMap[':jediTaskID'] = jobSpec.jediTaskID
                         sqlRecal  = "UPDATE ATLAS_PANDA.JEDI_Tasks SET walltimeUnit=NULL WHERE jediTaskId=:jediTaskID "
-                        tmpLog.debug("trigger recalcuration of task parameters with nDoneJobs={0}".format(numDone))
+                        msgStr  = "trigger recalcuration of task parameters "
+                        msgStr += "with nDoneJobs={0} for jediTaskID={1}".format(numDone,jobSpec.jediTaskID)
+                        tmpLog.debug(msgStr)
                         cur.execute(sqlRecal+comment,varMap)
         # propagate failed result to unmerge job
         if len(finishUnmerge) > 0:
