@@ -3236,7 +3236,7 @@ class DBProxy:
                 if job.AtlasRelease is not None:
                     try:
                         tmpMajorVer = job.AtlasRelease.split('-')[-1].split('.')[0]
-                        if int(tmpMajorVer) >= 20:
+                        if int(tmpMajorVer) == 20:
                             useNewFileFormatForES = True
                     except:
                         pass
