@@ -1,5 +1,8 @@
 Release Notes
 
+* 3/20/2017
+  * fixed increaseAttemptNr for maxAttempt<attemptNr
+
 * 3/15/2017
   * changed propageR to trigger recalculation of task params based on nDone
 

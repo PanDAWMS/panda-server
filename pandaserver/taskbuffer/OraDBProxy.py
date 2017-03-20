@@ -15979,11 +15979,12 @@ class DBProxy:
                 sqlM += 'WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) '
                 # sql to increase attempt numbers
                 sqlAB  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
-                sqlAB += "SET maxAttempt=maxAttempt+:increasedNr "
+                sqlAB += "SET maxAttempt=CASE WHEN maxAttempt > attemptNr THEN maxAttempt+:increasedNr ELSE attemptNr+:increasedNr END "
                 sqlAB += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status AND keepTrack=:keepTrack "
                 # sql to increase attempt numbers and failure counts
                 sqlAF  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
-                sqlAF += "SET maxAttempt=maxAttempt+:increasedNr,maxFailure=maxFailure+:increasedNr "
+                sqlAF += "SET maxAttempt=CASE WHEN maxAttempt > attemptNr THEN maxAttempt+:increasedNr ELSE attemptNr+:increasedNr END "
+                sqlAF += ",maxFailure=maxFailure+:increasedNr "
                 sqlAF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status AND keepTrack=:keepTrack "
                 # sql to update datasets
                 sqlD  = "UPDATE {0}.JEDI_Datasets ".format(panda_config.schemaJEDI)
@@ -16019,13 +16020,13 @@ class DBProxy:
                     nRow = self.cur.rowcount
                     nFilesIncreased += nRow
                     # already done and maxFailure is undefined
-                    sqlA = sqlAB + "AND maxAttempt=attemptNr AND maxFailure IS NULL "
+                    sqlA = sqlAB + "AND maxAttempt<=attemptNr AND maxFailure IS NULL "
                     self.cur.execute(sqlA+comment, varMap)
                     nRow = self.cur.rowcount
                     nFilesReset += nRow
                     nFilesIncreased += nRow
                     # already done and maxFailure is defined
-                    sqlA = sqlAF + "AND (maxAttempt=attemptNr OR (maxFailure IS NOT NULL AND maxFailure=failedAttempt)) "
+                    sqlA = sqlAF + "AND (maxAttempt<=attemptNr OR (maxFailure IS NOT NULL AND maxFailure=failedAttempt)) "
                     self.cur.execute(sqlA+comment, varMap)
                     nRow = self.cur.rowcount
                     nFilesReset += nRow
