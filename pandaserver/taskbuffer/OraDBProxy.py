@@ -5966,8 +5966,8 @@ class DBProxy:
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
                     return False
-                # skip cancelled
-                if jobStatus in ['cancelled','closed']:
+                # skip if in final state
+                if jobStatus in ['cancelled','closed','finished','failed']:
                     tmpLog.debug("skip jobStatus={0}".format(jobStatus))
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
