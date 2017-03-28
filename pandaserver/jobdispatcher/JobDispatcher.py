@@ -294,10 +294,16 @@ class JobDipatcher:
         else:
             if tmpWrapper.result == Protocol.TimeOutToken:
                 # timeout
-                response=Protocol.Response(Protocol.SC_TimeOut)
+                if acceptJson:
+                    response = Protocol.Response(Protocol.SC_TimeOut, 'database timeout')
+                else:
+                    response = Protocol.Response(Protocol.SC_TimeOut)
             else:
                 # no available jobs
-                response=Protocol.Response(Protocol.SC_NoJobs)
+                if acceptJson:
+                    response = Protocol.Response(Protocol.SC_NoJobs, 'no jobs in PanDA')
+                else:
+                    response = Protocol.Response(Protocol.SC_NoJobs)
                 _pilotReqLogger.info('method=noJob,site=%s,node=%s,type=%s' % (siteName, node, prodSourceLabel))
         # return
         _logger.debug("getJob : %s %s useGLEXEC=%s ret -> %s" % (siteName,node,useGLEXEC,response.encode(acceptJson)))
@@ -817,7 +823,10 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
     # invalid role
     if (not prodManager) and (not prodSourceLabel in ['user']):
         _logger.warning("getJob(%s) : invalid role" % siteName)
-        return Protocol.Response(Protocol.SC_Role).encode(req.acceptJson())
+        if req.acceptJson():
+            return Protocol.Response(Protocol.SC_Role).encode(req.acceptJson(), 'no production/pilot role in VOMS FQANs')
+        else:
+            return Protocol.Response(Protocol.SC_Role).encode(req.acceptJson())
     # invalid token
     if not validToken:
         _logger.warning("getJob(%s) : invalid token" % siteName)    
