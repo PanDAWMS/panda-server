@@ -967,6 +967,16 @@ class UserIF:
         ret = self.taskBuffer.getTaskParamsMap(jediTaskID)
         return ret
 
+    # update workers
+    def updateWorkers(self,user,host,harvesterID,data):
+        ret = self.taskBuffer.updateWorkers(harvesterID,data)
+        if ret is None:
+            retVal = (False,'database error')
+        else:
+            retVal = (True,ret)
+        # serialize 
+        return json.dumps(retVal)
+
 
 # Singleton
 userIF = UserIF()
@@ -2266,3 +2276,20 @@ def getTaskParamsMap(req,jediTaskID):
         return pickle.dumps((False,'jediTaskID must be an integer'))
     ret = userIF.getTaskParamsMap(jediTaskID)
     return pickle.dumps(ret)
+
+# update workers
+def updateWorkers(req,harvesterID,workers):
+    # check security
+    if not isSecure(req):
+        return json.dump((False,"SSL is required"))
+    # get DN
+    user = _getDN(req)        
+    # hostname
+    host = req.get_remote_host()
+    # convert
+    try:
+        data = json.loads(workers)
+    except:
+        return json.dumps((False,"failed to load JSON"))
+    # update
+    return userIF.updateWorkers(user,host,harvesterID,data)

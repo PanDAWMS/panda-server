@@ -3249,6 +3249,21 @@ class TaskBuffer:
         return res
 
 
+    # update workers
+    def updateWorkers(self, harvesterID, data):
+        """
+        Update workers
+        """
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.updateWorkers(harvesterID, data)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 

@@ -69,7 +69,7 @@ from userinterface.UserIF import submitJobs, getJobStatus, queryPandaIDs, killJo
      retryTask, getRetryHistory, changeTaskPriority, reassignTask, changeTaskAttributePanda,\
      pauseTask, resumeTask, increaseAttemptNrPanda, killUnfinishedJobs, changeTaskSplitRulePanda,\
      changeTaskModTimePanda, avalancheTask, getPandaIDsWithTaskID, reactivateTask, getTaskStatus, \
-     reassignShare, listTasksInShare, getTaskParamsMap
+     reassignShare, listTasksInShare, getTaskParamsMap, updateWorkers
 
 allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reassignJobs',
                    'getJobStatistics','getJobStatisticsPerSite','resubmitJobs','queryLastFilesInDataset','getPandaIDsSite',
@@ -87,7 +87,7 @@ allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reass
                    'retryTask','getRetryHistory','changeTaskPriority','reassignTask','changeTaskAttributePanda',
                    'pauseTask','resumeTask','increaseAttemptNrPanda','killUnfinishedJobs','changeTaskSplitRulePanda',
                    'changeTaskModTimePanda','avalancheTask','getPandaIDsWithTaskID', 'reactivateTask', 'getTaskStatus',
-                   'reassignShare', 'listTasksInShare', 'getTaskParamsMap']
+                   'reassignShare', 'listTasksInShare', 'getTaskParamsMap', 'updateWorkers']
 
 # import error
 import taskbuffer.ErrorCode
