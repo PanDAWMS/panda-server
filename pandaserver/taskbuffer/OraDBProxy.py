@@ -18968,3 +18968,50 @@ class DBProxy:
             _logger.error("{0}: {1} {2}".format(comment, sql, var_map))
             _logger.error("{0}: {1} {2}".format(comment, type, value))
             return -1
+
+
+    def storePilotLog(self, panda_id, pilot_log):
+        """
+        Stores the pilotlog in the pandalog table
+        """
+        comment = ' /* DBProxy.storePilotLog */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+
+        try:
+            # Prepare the bindings and var map
+            var_map = {':panda_id': panda_id,
+                       ':message': pilot_log[:4000], # clip if longer than 4k characters
+                       ':now': datetime.datetime.utcnow(),
+                       ':name': 'panda.mon.prod',
+                       ':module': 'JobDispatcher',
+                       ':type': 'pilotLog',
+                       ':file_name': 'JobDispatcher.py',
+                       ':log_level': 20,
+                       ':level_name': 'INFO',
+                       }
+
+            # TODO
+            sql = """
+                  INSERT INTO ATLAS_PANDA.PANDALOG (BINTIME, NAME, MODULE, TYPE, PID, LOGLEVEL, LEVELNAME, 
+                                                    TIME, FILENAME, MESSAGE)
+                  VALUES (:now, :name, :module, :type, :panda_id, :log_level, :level_name, 
+                          :now, :file_name, :message)
+                  """
+
+            # run the insert
+            self.conn.begin()
+            self.cur.execute(sql + comment, var_map)
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+
+            return 0
+
+        except:
+            # roll back
+            self._rollback()
+            type, value, traceback = sys.exc_info()
+            _logger.error("{0}: {1} {2}".format(comment, sql, var_map))
+            _logger.error("{0}: {1} {2}".format(comment, type, value))
+            return -1
