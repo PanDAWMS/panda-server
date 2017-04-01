@@ -95,7 +95,7 @@ class MyProxyInterface(object):
 	if os.path.isfile(proxy_path):
             return cat(proxy_path)
 	else:
-            _logger.debug('proxy file does not exist')
+            _logger.debug('proxy file does not exist : DN:{0} role:{1} file:{2}'.format(user_dn,role,proxy_path))
 
 
     def checkProxy(self, user_dn, production=False, role=None):
