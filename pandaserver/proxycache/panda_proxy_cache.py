@@ -108,7 +108,7 @@ class MyProxyInterface(object):
 	else:
            proxy_path = os.path.join(self.__target_path, hashlib.sha1(user_dn).hexdigest())
 	if os.path.isfile(proxy_path):
-		_logger.debug('Proxy is there. Need to check validity')
+		_logger.info('Proxy is there. Need to check validity')
 		cmd = "voms-proxy-info -exists -hours 72 -file %s" % proxy_path
 		stdout, stderr, status = execute(cmd)
 		if stdout:
@@ -116,25 +116,25 @@ class MyProxyInterface(object):
 		if stderr:
 			_logger.debug('stderr is %s ' %stderr)
 		if status == 1:
-			_logger.debug('Proxy expires in 3 days or less. We need to renew proxy!')
+			_logger.info('Proxy expires in 3 days or less. We need to renew proxy!')
 	                if self.store(user_dn, self.__cred_name, production, role=role) == 0:
-        	                _logger.debug('Proxy stored successfully')
+        	                _logger.info('Proxy stored successfully')
 	                else:
-        	                _logger.debug('Proxy retrieval failed')
+        	                _logger.info('Proxy retrieval failed')
 		else:
-			_logger.debug('Proxy is valid for more than 3 days')
+			_logger.info('Proxy is valid for more than 3 days')
 	
 	else:
-		_logger.debug('Proxy is not in the cache repo. Will try to get it from myproxy')
+		_logger.info('Proxy is not in the cache repo. Will try to get it from myproxy')
 		if self.store(user_dn, self.__cred_name, production, role=role) == 0:
-			_logger.debug('proxy stored successfully')
+			_logger.info('proxy stored successfully')
 		else:
-			_logger.debug('proxy retrieval failed')
+			_logger.info('proxy retrieval failed')
 	plain_path = os.path.join(self.__target_path, hashlib.sha1(user_dn + '.plain').hexdigest())
 	if os.path.isfile(plain_path):
 		return self.checkValidity(plain_path)
 	else:
-		_logger.debug('plain proxy not there at the moment!')
+		_logger.info('plain proxy not there at the moment!')
 
     def checkValidity(self, proxy_path):
         _logger.debug('Need to check validity and expiry!')
