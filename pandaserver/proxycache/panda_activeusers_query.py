@@ -26,7 +26,7 @@ if __name__ == '__main__' :
     if hasattr(panda_config,'proxy_cache_roles'):
         roles = panda_config.proxy_cache_roles.split(',')
     else:
-        roles = ['atlas','atlas:/Role=production','atlas:/Role=pilot']
+        roles = ['atlas','atlas:/atlas/Role=production','atlas:/atlas/Role=pilot']
     # get users
     sql = 'select distinct DN FROM ATLAS_PANDAMETA.users WHERE GRIDPREF LIKE :patt'
     varMap = {}
