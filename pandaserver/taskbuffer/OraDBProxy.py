@@ -19083,3 +19083,45 @@ class DBProxy:
             self._rollback()
             self.dumpErrorMessage(tmpLog,methodName)
             return None
+
+
+    # heartbeat for harvester
+    def harvesterIsAlive(self, user, host, harvesterID, data):
+        """
+        update harvester instance information
+        """
+        comment = ' /* DBProxy.harvesterIsAlive */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, methodName+' < HarvesterID={0} >'.format(harvesterID))
+        tmpLog.debug('start')
+        try:
+            # update
+            varMap = dict()
+            varMap[':harvesterID'] = harvesterID
+            varMap[':owner'] = self.cleanUserID(user)
+            varMap[':hostName'] = host
+            sqlC  = "UPDATE ATLAS_PANDA.Harvester_Instances SET owner=:owner,hostName=:hostName"
+            for tmpKey, tmpVal in data.iteritems():
+                sqlC += ',{0}=:{0}'.format(tmpKey)
+                if type(tmpVal) in [str,unicode] and tmpVal.startswith('datetime/'):
+                    tmpVal = datetime.datetime.strptime(tmpVal.split('/')[-1],'%Y-%m-%d %H:%M:%S.%f')
+                varMap[':{0}'.format(tmpKey)] = tmpVal
+            sqlC += " WHERE harvester_ID=:harvesterID "
+            # exec
+            self.conn.begin()
+            self.cur.execute(sqlC + comment, varMap)
+            nRow = self.cur.rowcount
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug('done')
+            if nRow == 0:
+                retStr = 'no instance record'
+            else:
+                retStr = 'succeeded'
+            return retStr
+        except:
+            # roll back
+            self._rollback()
+            self.dumpErrorMessage(tmpLog,methodName)
+            return None

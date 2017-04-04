@@ -3264,6 +3264,21 @@ class TaskBuffer:
         return res
 
 
+    # heartbeat for harvester
+    def harvesterIsAlive(self, user, host, harvesterID, data):
+        """
+        update harvester instance information
+        """
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.harvesterIsAlive(user,host,harvesterID,data)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 
