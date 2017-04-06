@@ -432,6 +432,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             # ignore failed jobs
             if job.jobStatus in ['failed','cancelled'] or job.isCancelled():
                 continue
+            zipFileMap = job.getZipFileMap()
             for file in job.Files:
                 # ignore input files
                 if file.type in ['input','pseudo_input']:
@@ -480,8 +481,10 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                             # for original dataset
                             computingSite = file.destinationSE
                         newVUID = None
-                        # use DQ2
-                        if (not self.pandaDDM) and (job.prodSourceLabel != 'ddm') and (job.destinationSE != 'local'):
+                        # skip dataset registraton for zip files
+                        if file.lfn in zipFileMap:
+                            newVUID = str(uuid.uuid4())
+                        elif (not self.pandaDDM) and (job.prodSourceLabel != 'ddm') and (job.destinationSE != 'local'):
                             # get src and dest DDM conversion is needed for unknown sites
                             if job.prodSourceLabel == 'user' and not self.siteMapper.siteSpecList.has_key(computingSite):
                                 # DQ2 ID was set by using --destSE for analysis job to transfer output

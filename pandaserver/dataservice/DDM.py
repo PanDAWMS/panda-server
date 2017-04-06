@@ -156,8 +156,52 @@ class RucioAPI:
 
 
 
+    # convert file attribute
+    def convFileAttr(self, tmpFile, scope):
+        # extract scope from LFN if available
+        if 'name' in tmpFile:
+            lfn = tmpFile['name']
+        else:
+            lfn = tmpFile['lfn']
+        if ':' in lfn:
+            s, lfn = lfn.split(':')
+        else:
+            s = scope
+        # set metadata
+        meta = {}
+        if 'guid' in tmpFile:
+            meta['guid'] = tmpFile['guid']
+        if 'events' in tmpFile:
+            meta['events'] = tmpFile['events']
+        if 'lumiblocknr' in tmpFile:
+            meta['lumiblocknr'] = tmpFile['lumiblocknr']
+        if 'panda_id' in tmpFile:
+            meta['panda_id'] = tmpFile['panda_id']
+        if 'campaign' in tmpFile:
+            meta['campaign'] = tmpFile['campaign']
+        if 'bytes' in tmpFile:
+            fsize = tmpFile['bytes']
+        else:
+            fsize = tmpFile['size']
+        # set mandatory fields
+        file = {'scope': s,
+                'name' : lfn,
+                'bytes': fsize,
+                'meta' : meta}
+        if 'checksum' in tmpFile:
+            checksum = tmpFile['checksum']
+            if checksum.startswith('md5:'):
+                file['md5'] = checksum[4:]
+            elif checksum.startswith('ad:'):
+                file['adler32'] = checksum[3:]
+        if 'surl' in tmpFile:
+            file['pfn'] = tmpFile['surl']
+        return file
+
+
+
     # register files in dataset
-    def registerFilesInDataset(self,idMap):
+    def registerFilesInDataset(self,idMap,filesWoRSEs=None):
         # loop over all rse
         attachmentList = []
         for rse,tmpMap in idMap.iteritems():
@@ -165,58 +209,65 @@ class RucioAPI:
             for datasetName,fileList in tmpMap.iteritems():
                 # extract scope from dataset
                 scope,dsn = self.extract_scope(datasetName)
-                files = []
+                filesWithRSE = []
+                filesWoRSE = []
                 for tmpFile in fileList:
-                    # extract scope from LFN if available
-                    if 'name' in tmpFile:
-                        lfn = tmpFile['name']
-                    else:
-                        lfn = tmpFile['lfn']
-                    if ':' in lfn:
-                        s, lfn = lfn.split(':')
-                    else:
-                        s = scope
-                    # set metadata
-                    meta = {}
-                    if 'guid' in tmpFile:
-                        meta['guid'] = tmpFile['guid']
-                    if 'events' in tmpFile:
-                        meta['events'] = tmpFile['events']
-                    if 'lumiblocknr' in tmpFile:
-                        meta['lumiblocknr'] = tmpFile['lumiblocknr']
-                    if 'panda_id' in tmpFile:
-                        meta['panda_id'] = tmpFile['panda_id']
-                    if 'campaign' in tmpFile:
-                        meta['campaign'] = tmpFile['campaign']
-                    if 'bytes' in tmpFile:
-                        fsize = tmpFile['bytes']
-                    else:
-                        fsize = tmpFile['size']
-                    # set mandatory fields
-                    file = {'scope': s,
-                            'name' : lfn,
-                            'bytes': fsize,
-                            'meta' : meta}
-                    if 'checksum' in tmpFile:
-                        checksum = tmpFile['checksum']
-                        if checksum.startswith('md5:'):
-                            file['md5'] = checksum[4:]
-                        elif checksum.startswith('ad:'):
-                            file['adler32'] = checksum[3:]
-                    if 'surl' in tmpFile:
-                        file['pfn'] = tmpFile['surl']
+                    # convert file attribute
+                    file = self.convFileAttr(tmpFile, scope)
                     # append files
-                    files.append(file)
+                    if rse != None and (filesWoRSEs is None or file['name'] not in filesWoRSEs):
+                        filesWithRSE.append(file)
+                    else:
+                        if 'pfn' in file:
+                            del file['pfn']
+                        filesWoRSE.append(file)
                 # add attachment
-                attachment = {'scope':scope,
-                              'name':dsn,
-                              'dids':files}
-                if rse != None:
-                    attachment['rse'] = rse
-                attachmentList.append(attachment)
+                if len(filesWithRSE) > 0:
+                    attachment = {'scope':scope,
+                                  'name':dsn,
+                                  'dids':filesWithRSE,
+                                  'rse':rse}
+                    attachmentList.append(attachment)
+                if len(filesWoRSE) > 0:
+                    attachment = {'scope':scope,
+                                  'name':dsn,
+                                  'dids':filesWoRSE}
+                    attachmentList.append(attachment)
         # add files
         client = RucioClient()
         return client.add_files_to_datasets(attachmentList,ignore_duplicate=True)
+
+
+
+    # register zip files
+    def registerZipFiles(self,zipMap):
+        # no zip files
+        if len(zipMap) == 0:
+            return
+        client = RucioClient()
+        # loop over all zip files
+        for zipFileName, zipFileAttr in zipMap.iteritems():
+            # convert file attribute
+            zipFile = self.convFileAttr(zipFileAttr, zipFileAttr['scope'])
+            # loop over all contents
+            files = []
+            for conFileAttr in zipFileAttr['files']:
+                # get scope
+                scope,dsn = self.extract_scope(conFileAttr['ds'])
+                # convert file attribute
+                conFile = self.convFileAttr(conFileAttr, scope)
+                conFile['type'] = 'FILE'
+                if 'pfn' in conFile:
+                    del conFile['pfn']
+                # append files
+                files.append(conFile)
+            # register zip file
+            for rse in zipFileAttr['rse']:
+                client.add_replicas(rse=rse, files=[zipFile])
+            # add files
+            client.add_files_to_archive(scope=zipFile['scope'],
+                                        name=zipFile['name'],
+                                        files=files)
 
 
 

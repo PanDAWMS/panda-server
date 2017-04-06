@@ -162,6 +162,8 @@ class AdderAtlasPlugin (AdderPluginBase):
             tmpRet = self.taskBuffer.getTaskAttributesPanda(self.job.jediTaskID,['campaign'])
             if 'campaign' in tmpRet:
                 campaign = tmpRet['campaign']
+        # zip file map
+        zipFileMap = self.job.getZipFileMap()
         # check files
         idMap = {}
         fileList = []
@@ -169,6 +171,8 @@ class AdderAtlasPlugin (AdderPluginBase):
         dsDestMap = {}
         distDSs = set()
         osDsFileMap = {}
+        zipFiles = {}
+        contZipMap = {}
         for file in self.job.Files:
             if file.type == 'output' or file.type == 'log':
                 # append to fileList
@@ -183,6 +187,30 @@ class AdderAtlasPlugin (AdderPluginBase):
                 # skip no output or failed
                 if file.status in ['nooutput','failed']:
                     continue
+                # check if zip file
+                if file.lfn in zipFileMap:
+                    isZipFile = True
+                    if not file.lfn in zipFiles and not self.addToTopOnly:
+                        zipFiles[file.lfn] = dict()
+                else:
+                    isZipFile = False
+                # skip zip files wjen topOnly
+                if self.addToTopOnly and isZipFile:
+                    continue
+                # check if zip content
+                zipFileName = None
+                if not isZipFile and not self.addToTopOnly:
+                    for tmpZipFileName, tmpZipContents in zipFileMap.iteritems():
+                        for tmpZipContent in tmpZipContents:
+                            if re.search('^'+tmpZipContent+'$', file.lfn) is not None:
+                                zipFileName = tmpZipFileName
+                                break
+                        if zipFileName is not None:
+                            break
+                    if zipFileName is not None:
+                        if zipFileName not in zipFiles:
+                            zipFiles[zipFileName] = dict()
+                        contZipMap[file.lfn] = zipFileName
                 try:
                     # fsize
                     fsize = None
@@ -198,12 +226,13 @@ class AdderAtlasPlugin (AdderPluginBase):
                     else:
                         fileDestinationDBlock = re.sub('_sub\d+$','',file.destinationDBlock)
                     # append to map
-                    if not idMap.has_key(fileDestinationDBlock):
+                    if not idMap.has_key(fileDestinationDBlock) and not isZipFile:
                         idMap[fileDestinationDBlock] = []
                     fileAttrs = {'guid'     : file.GUID,
                                  'lfn'      : file.lfn,
                                  'size'     : fsize,
-                                 'checksum' : file.checksum}
+                                 'checksum' : file.checksum,
+                                 'ds'       : fileDestinationDBlock}
                     # add SURLs if LFC registration is required
                     if self.useCentralLFC():
                         fileAttrs['surl'] = self.extraInfo['surl'][file.lfn]
@@ -287,7 +316,21 @@ class AdderAtlasPlugin (AdderPluginBase):
                                 del copiedFileAttrs['surl']
                                 osDsFileMap[pilotEndPoint][osFileDestinationDBlock].append(copiedFileAttrs)
                     if hasNormalURL:
-                        idMap[fileDestinationDBlock].append(fileAttrs)
+                        if not isZipFile:
+                            # add file to be added to dataset
+                            idMap[fileDestinationDBlock].append(fileAttrs)
+                            # add file to be added to zip
+                            if zipFileName is not None:
+                                if not 'files' in zipFiles[zipFileName]:
+                                    zipFiles[zipFileName]['files'] = []
+                                zipFiles[zipFileName]['files'].append(fileAttrs)
+                        else:
+                            # copy file attribute for zip file registration
+                            for tmpFileAttrName, tmpFileAttrVal in fileAttrs.iteritems():
+                                zipFiles[file.lfn][tmpFileAttrName] = tmpFileAttrVal
+                            zipFiles[file.lfn]['scope'] = file.scope
+                            zipFiles[file.lfn]['rse'] = dsDestMap[fileDestinationDBlock]
+                            continue
                     # for subscription
                     if self.job.prodSourceLabel in ['managed','test','software','rc_test','ptest','user','rucio_test'] and \
                            re.search('_sub\d+$',fileDestinationDBlock) != None and (not self.addToTopOnly) and \
@@ -454,8 +497,11 @@ class AdderAtlasPlugin (AdderPluginBase):
                 else:
                     regMsgStr = "LFC+DQ2 registraion with backend={0} for {1} files ".format(self.ddmBackEnd,
                                                                                              regNumFiles)
-                self.logger.debug('%s %s' % ('registerFilesInDatasets',str(destIdMap)))
-                out = rucioAPI.registerFilesInDataset(destIdMap)
+                if len(zipFiles) > 0:
+                    self.logger.debug('{0} {1}'.format('registerZipFiles',str(zipFiles)))
+                    rucioAPI.registerZipFiles(zipFiles)
+                self.logger.debug('{0} {1} zip={2}'.format('registerFilesInDatasets',str(destIdMap),str(contZipMap)))
+                out = rucioAPI.registerFilesInDataset(destIdMap, contZipMap)
             except (DataIdentifierNotFound,
                     FileConsistencyMismatch,
                     UnsupportedOperation,
@@ -466,12 +512,14 @@ class AdderAtlasPlugin (AdderPluginBase):
                 # fatal errors
                 errType,errValue = sys.exc_info()[:2]
                 out = '%s : %s' % (errType,errValue)
+                out += traceback.format_exc()
                 isFatal = True
                 isFailed = True
             except:
                 # unknown errors
                 errType,errValue = sys.exc_info()[:2]
                 out = '%s : %s' % (errType,errValue)
+                out += traceback.format_exc()
                 if 'value too large for column' in out or \
                         'unique constraint (ATLAS_RUCIO.DIDS_GUID_IDX) violate' in out:
                     isFatal = True
@@ -605,6 +653,9 @@ class AdderAtlasPlugin (AdderPluginBase):
                             continue
                         # skip alternative stage-out
                         if tmpFile.lfn in self.job.altStgOutFileList():
+                            continue
+                        # skip zip files
+                        if tmpFile.lfn in zipFileMap:
                             continue
                         self.result.transferringFiles.append(tmpFile.lfn)
         elif not "--mergeOutput" in self.job.jobParameters:

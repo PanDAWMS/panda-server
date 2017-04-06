@@ -1,5 +1,8 @@
 Release Notes
 
+* 4/6/2017
+  * zip outputs
+
 * 3/20/2017
   * fixed increaseAttemptNr for maxAttempt<attemptNr
 

@@ -491,3 +491,20 @@ class JobSpec(object):
             self.Files = newFiles
         except:
             pass
+
+
+
+    # get zip file map
+    def getZipFileMap(self):
+        zipMap = dict()
+        try:
+            if self.jobParameters is not None:
+                zipStr = re.search('<ZIP_MAP>(.+)</ZIP_MAP>',self.jobParameters)
+                if zipStr is not None:
+                    for item in zipStr.group(1).split():
+                        zipFile,conFiles = item.split(':')
+                        conFiles = conFiles.split(',')
+                        zipMap[zipFile] = conFiles
+        except:
+            pass
+        return zipMap
