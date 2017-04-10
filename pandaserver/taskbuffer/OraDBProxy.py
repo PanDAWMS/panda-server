@@ -18977,7 +18977,7 @@ class DBProxy:
         comment = ' /* DBProxy.storePilotLog */'
         method_name = comment.split(' ')[-2].split('.')[-1]
         tmp_log = LogWrapper(_logger, method_name)
-        tmp_log.debug('start')
+        tmp_log.debug('start {0} {1}'.format(panda_id, pilot_log))
 
         try:
             # Prepare the bindings and var map
@@ -18992,7 +18992,6 @@ class DBProxy:
                        ':level_name': 'INFO',
                        }
 
-            # TODO
             sql = """
                   INSERT INTO ATLAS_PANDA.PANDALOG (BINTIME, NAME, MODULE, TYPE, PID, LOGLEVEL, LEVELNAME, 
                                                     TIME, FILENAME, MESSAGE)

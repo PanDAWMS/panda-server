@@ -987,8 +987,8 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
         stdout = stdout[:2048]
     # invoke JD
     tmpLog.debug('executing')
-    return jobDispatcher.updateJob(int(jobId),state,int(timeout),xml,siteName,
-                                   param,metaData,attemptNr,stdout,acceptJson)
+    return jobDispatcher.updateJob(int(jobId), state, int(timeout), xml, siteName, param, metaData, pilotLog,
+                                   attemptNr, stdout, acceptJson)
 
 
 # get job status
