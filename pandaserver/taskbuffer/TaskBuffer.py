@@ -3278,6 +3278,7 @@ class TaskBuffer:
         # return
         return res
 
+
     def storePilotLog(self, panda_id, pilot_log):
         """
         Store the pilot log in the pandalog table
@@ -3285,7 +3286,7 @@ class TaskBuffer:
         # get DB proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        res = proxy.storePilotLog(panda_id, pilot_log)A
+        res = proxy.storePilotLog(panda_id, pilot_log)
         # release DB proxy
         self.proxyPool.putProxy(proxy)
         # return
