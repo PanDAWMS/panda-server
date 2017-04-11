@@ -315,7 +315,18 @@ class JobDipatcher:
 
 
     # update job status
-    def updateJob(self,jobID,jobStatus,timeout,xml,siteName,param,metadata,attemptNr=None,stdout='',acceptJson=False):
+    def updateJob(self, jobID, jobStatus, timeout, xml, siteName, param, metadata, pilotLog,
+                  attemptNr=None, stdout='', acceptJson=False):
+
+        # pilot log
+        if pilotLog != '':
+            _logger.debug('saving pilot log')
+            try:
+                self.taskBuffer.storePilotLog(int(jobID), pilotLog)
+                _logger.debug('saving pilot log done')
+            except:
+                _logger.debug('failed to save pilot log')
+
         # recoverable error for ES merge
         recoverableEsMerge = False
         if 'pilotErrorCode' in param and param['pilotErrorCode'] in ['1099','1137','1151','1152','1221','1224','1225']:
@@ -882,29 +893,6 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
     if not state in ['running','failed','finished','holding','starting','transferring']:
         _logger.warning("invalid state=%s for updateJob" % state)
         return Protocol.Response(Protocol.SC_Success).encode(acceptJson)        
-    # pilot log
-    tmpLog.debug('sending log')
-    if pilotLog != '':
-        try:
-            # make message
-            message = pilotLog
-            # get logger
-            _pandaLogger = PandaLogger()
-            _pandaLogger.lock()
-            _pandaLogger.setParams({'Type':'pilotLog','PandaID':int(jobId)})
-            logger = _pandaLogger.getHttpLogger(panda_config.loggername)
-            # add message
-            logger.info(message)                
-        except:
-            tmpLog.debug('failed to send log')
-        finally:
-            tmpLog.debug('release lock')
-            try:
-                # release HTTP handler
-                _pandaLogger.release()
-            except:
-                pass
-    tmpLog.debug('done log')
     # create parameter map
     param = {}
     if cpuConsumptionTime != None:
@@ -1008,8 +996,8 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
         stdout = stdout[:2048]
     # invoke JD
     tmpLog.debug('executing')
-    return jobDispatcher.updateJob(int(jobId),state,int(timeout),xml,siteName,
-                                   param,metaData,attemptNr,stdout,acceptJson)
+    return jobDispatcher.updateJob(int(jobId), state, int(timeout), xml, siteName, param, metaData, pilotLog,
+                                   attemptNr, stdout, acceptJson)
 
 
 # get job status
