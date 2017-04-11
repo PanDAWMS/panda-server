@@ -31,6 +31,7 @@ import GlobalShares
 from DdmSpec  import DdmSpec
 from JobSpec  import JobSpec
 from FileSpec import FileSpec
+from WorkerSpec import WorkerSpec
 from DatasetSpec import DatasetSpec
 from CloudTaskSpec import CloudTaskSpec
 from WrappedCursor import WrappedCursor
@@ -3236,7 +3237,7 @@ class DBProxy:
                 if job.AtlasRelease is not None:
                     try:
                         tmpMajorVer = job.AtlasRelease.split('-')[-1].split('.')[0]
-                        if int(tmpMajorVer) >= 20:
+                        if int(tmpMajorVer) == 20:
                             useNewFileFormatForES = True
                     except:
                         pass
@@ -5966,8 +5967,8 @@ class DBProxy:
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
                     return False
-                # skip cancelled
-                if jobStatus in ['cancelled','closed']:
+                # skip if in final state
+                if jobStatus in ['cancelled','closed','finished','failed']:
                     tmpLog.debug("skip jobStatus={0}".format(jobStatus))
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
@@ -12909,12 +12910,34 @@ class DBProxy:
             schemaDEFT = self.getSchemaDEFT()
             sqlTtask  = "UPDATE {0}.T_TASK ".format(schemaDEFT)
             if jobSpec.processingType != 'pmerge':
+                updateNumDone = True
                 sqlTtask += "SET total_done_jobs=total_done_jobs+1,timestamp=CURRENT_DATE,total_events=total_events+:noutevents "
             else:
+                updateNumDone = False
                 sqlTtask += "SET timestamp=CURRENT_DATE,total_events=total_events+:noutevents "
             sqlTtask += "WHERE taskid=:jediTaskID AND status IN (:status1,:status2) "
             tmpLog.debug(sqlTtask+comment+str(varMap))
             cur.execute(sqlTtask+comment,varMap)
+            nRow = cur.rowcount
+            # get total_done_jobs
+            if updateNumDone and nRow == 1:
+                varMap = {}
+                varMap[':jediTaskID'] = jobSpec.jediTaskID
+                sqlNumDone  = "SELECT total_done_jobs FROM {0}.T_TASK ".format(schemaDEFT)
+                sqlNumDone += "WHERE taskid=:jediTaskID "
+                cur.execute(sqlNumDone+comment,varMap)
+                tmpResNumDone = self.cur.fetchone()
+                if tmpResNumDone is not None:
+                    numDone, = tmpResNumDone
+                    if numDone in [100]:
+                        # reset walltimeUnit to recalcurate task parameters
+                        varMap = {}
+                        varMap[':jediTaskID'] = jobSpec.jediTaskID
+                        sqlRecal  = "UPDATE ATLAS_PANDA.JEDI_Tasks SET walltimeUnit=NULL WHERE jediTaskId=:jediTaskID "
+                        msgStr  = "trigger recalcuration of task parameters "
+                        msgStr += "with nDoneJobs={0} for jediTaskID={1}".format(numDone,jobSpec.jediTaskID)
+                        tmpLog.debug(msgStr)
+                        cur.execute(sqlRecal+comment,varMap)
         # propagate failed result to unmerge job
         if len(finishUnmerge) > 0:
             self.updateUnmergedJobs(jobSpec,finishUnmerge)
@@ -15957,11 +15980,12 @@ class DBProxy:
                 sqlM += 'WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) '
                 # sql to increase attempt numbers
                 sqlAB  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
-                sqlAB += "SET maxAttempt=maxAttempt+:increasedNr "
+                sqlAB += "SET maxAttempt=CASE WHEN maxAttempt > attemptNr THEN maxAttempt+:increasedNr ELSE attemptNr+:increasedNr END "
                 sqlAB += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status AND keepTrack=:keepTrack "
                 # sql to increase attempt numbers and failure counts
                 sqlAF  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
-                sqlAF += "SET maxAttempt=maxAttempt+:increasedNr,maxFailure=maxFailure+:increasedNr "
+                sqlAF += "SET maxAttempt=CASE WHEN maxAttempt > attemptNr THEN maxAttempt+:increasedNr ELSE attemptNr+:increasedNr END "
+                sqlAF += ",maxFailure=maxFailure+:increasedNr "
                 sqlAF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status AND keepTrack=:keepTrack "
                 # sql to update datasets
                 sqlD  = "UPDATE {0}.JEDI_Datasets ".format(panda_config.schemaJEDI)
@@ -15997,13 +16021,13 @@ class DBProxy:
                     nRow = self.cur.rowcount
                     nFilesIncreased += nRow
                     # already done and maxFailure is undefined
-                    sqlA = sqlAB + "AND maxAttempt=attemptNr AND maxFailure IS NULL "
+                    sqlA = sqlAB + "AND maxAttempt<=attemptNr AND maxFailure IS NULL "
                     self.cur.execute(sqlA+comment, varMap)
                     nRow = self.cur.rowcount
                     nFilesReset += nRow
                     nFilesIncreased += nRow
                     # already done and maxFailure is defined
-                    sqlA = sqlAF + "AND (maxAttempt=attemptNr OR (maxFailure IS NOT NULL AND maxFailure=failedAttempt)) "
+                    sqlA = sqlAF + "AND (maxAttempt<=attemptNr OR (maxFailure IS NOT NULL AND maxFailure=failedAttempt)) "
                     self.cur.execute(sqlA+comment, varMap)
                     nRow = self.cur.rowcount
                     nFilesReset += nRow
@@ -18969,6 +18993,138 @@ class DBProxy:
             _logger.error("{0}: {1} {2}".format(comment, type, value))
             return -1
 
+    # update workers
+    def updateWorkers(self, harvesterID, data):
+        """
+        Update workers
+        """
+        comment = ' /* DBProxy.updateWorkers */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, methodName+' < HarvesterID={0} >'.format(harvesterID))
+        tmpLog.debug('start')
+        try:
+            sqlC  = "SELECT {0} FROM ATLAS_PANDA.Harvester_Workers ".format(WorkerSpec.columnNames())
+            sqlC += "WHERE harvesterID=:harvesterID AND workerID=:workerID "
+            # loop over all workers
+            retList = []
+            for workerData in data:
+                timeNow = datetime.datetime.utcnow()
+                self.conn.begin()
+                workerSpec = WorkerSpec()
+                workerSpec.harvesterID = harvesterID
+                workerSpec.workerID = workerData['workerID']
+                # check if already exists
+                varMap = dict()
+                varMap[':harvesterID'] = workerSpec.harvesterID
+                varMap[':workerID'] = workerSpec.workerID
+                self.cur.execute(sqlC + comment, varMap)
+                resC = self.cur.fetchone()
+                if resC is None:
+                    # not exist
+                    toInsert = True
+                else:
+                    # already exists
+                    toInsert = False
+                    workerSpec.pack(resC)
+                # set new values
+                for key,val in workerData.iteritems():
+                    if hasattr(workerSpec, key):
+                        setattr(workerSpec, key, val)
+                workerSpec.lastUpdate = timeNow
+                # insert or update
+                if toInsert:
+                    # insert
+                    sqlI  = "INSERT INTO ATLAS_PANDA.Harvester_Workers ({0}) ".format(WorkerSpec.columnNames())
+                    sqlI += WorkerSpec.bindValuesExpression()
+                    varMap = workerSpec.valuesMap()
+                    self.cur.execute(sqlI+comment, varMap)
+                else:
+                    # update
+                    sqlU  = "UPDATE ATLAS_PANDA.Harvester_Workers SET {0} ".format(workerSpec.bindUpdateChangesExpression())
+                    sqlU += "WHERE harvesterID=:harvesterID AND workerID=:workerID "
+                    varMap = workerSpec.valuesMap(onlyChanged=True)
+                    self.cur.execute(sqlU+comment, varMap)
+                # job relation
+                if 'pandaid_list' in workerData:
+                    sqlJC  = "SELECT PandaID FROM ATLAS_PANDA.Harvester_Rel_Jobs_Workers "
+                    sqlJC += "WHERE harvesterID=:harvesterID AND workerID=:workerID AND PandaID=:PandaID "
+                    sqlJI  = "INSERT INTO ATLAS_PANDA.Harvester_Rel_Jobs_Workers (harvesterID,workerID,PandaID,lastUpdate) "
+                    sqlJI += "VALUES (:harvesterID,:workerID,:PandaID,:lastUpdate) "
+                    sqlJU  = "UPDATE ATLAS_PANDA.Harvester_Rel_Jobs_Workers SET lastUpdate=:lastUpdate "
+                    sqlJU += "WHERE harvesterID=:harvesterID AND workerID=:workerID AND PandaID=:PandaID "
+                    for pandaID in workerData['pandaid_list']:
+                        # check if exists
+                        varMap = dict()
+                        varMap[':harvesterID'] = harvesterID
+                        varMap[':workerID'] = workerData['workerID']
+                        varMap[':PandaID'] = pandaID
+                        self.cur.execute(sqlJC+comment, varMap)
+                        resJC = self.cur.fetchone()
+                        varMap = dict()
+                        varMap[':harvesterID'] = harvesterID
+                        varMap[':workerID'] = workerData['workerID']
+                        varMap[':PandaID'] = pandaID
+                        varMap[':lastUpdate'] = timeNow
+                        if resJC is None:
+                            # insert
+                            self.cur.execute(sqlJI+comment, varMap)
+                        else:
+                            # update
+                            self.cur.execute(sqlJU+comment, varMap)
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                retList.append(True)
+            tmpLog.debug('done')
+            return retList
+        except:
+            # roll back
+            self._rollback()
+            self.dumpErrorMessage(tmpLog,methodName)
+            return None
+
+
+    # heartbeat for harvester
+    def harvesterIsAlive(self, user, host, harvesterID, data):
+        """
+        update harvester instance information
+        """
+        comment = ' /* DBProxy.harvesterIsAlive */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, methodName+' < HarvesterID={0} >'.format(harvesterID))
+        tmpLog.debug('start')
+        try:
+            # update
+            varMap = dict()
+            varMap[':harvesterID'] = harvesterID
+            varMap[':owner'] = self.cleanUserID(user)
+            varMap[':hostName'] = host
+            sqlC  = "UPDATE ATLAS_PANDA.Harvester_Instances SET owner=:owner,hostName=:hostName"
+            for tmpKey, tmpVal in data.iteritems():
+                sqlC += ',{0}=:{0}'.format(tmpKey)
+                if type(tmpVal) in [str,unicode] and tmpVal.startswith('datetime/'):
+                    tmpVal = datetime.datetime.strptime(tmpVal.split('/')[-1],'%Y-%m-%d %H:%M:%S.%f')
+                varMap[':{0}'.format(tmpKey)] = tmpVal
+            sqlC += " WHERE harvester_ID=:harvesterID "
+            # exec
+            self.conn.begin()
+            self.cur.execute(sqlC + comment, varMap)
+            nRow = self.cur.rowcount
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug('done')
+            if nRow == 0:
+                retStr = 'no instance record'
+            else:
+                retStr = 'succeeded'
+            return retStr
+        except:
+            # roll back
+            self._rollback()
+            self.dumpErrorMessage(tmpLog,methodName)
+            return None
+
 
     def storePilotLog(self, panda_id, pilot_log):
         """
@@ -18993,9 +19149,9 @@ class DBProxy:
                        }
 
             sql = """
-                  INSERT INTO ATLAS_PANDA.PANDALOG (BINTIME, NAME, MODULE, TYPE, PID, LOGLEVEL, LEVELNAME, 
+                  INSERT INTO ATLAS_PANDA.PANDALOG (BINTIME, NAME, MODULE, TYPE, PID, LOGLEVEL, LEVELNAME,
                                                     TIME, FILENAME, MESSAGE)
-                  VALUES (:now, :name, :module, :type, :panda_id, :log_level, :level_name, 
+                  VALUES (:now, :name, :module, :type, :panda_id, :log_level, :level_name,
                           :now, :file_name, :message)
                   """
 

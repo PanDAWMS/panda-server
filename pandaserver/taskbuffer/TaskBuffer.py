@@ -3249,6 +3249,35 @@ class TaskBuffer:
         return res
 
 
+    # update workers
+    def updateWorkers(self, harvesterID, data):
+        """
+        Update workers
+        """
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.updateWorkers(harvesterID, data)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
+    # heartbeat for harvester
+    def harvesterIsAlive(self, user, host, harvesterID, data):
+        """
+        update harvester instance information
+        """
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.harvesterIsAlive(user,host,harvesterID,data)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
     def storePilotLog(self, panda_id, pilot_log):
         """
         Store the pilot log in the pandalog table
@@ -3256,12 +3285,11 @@ class TaskBuffer:
         # get DB proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        res = proxy.storePilotLog(panda_id, pilot_log)
+        res = proxy.storePilotLog(panda_id, pilot_log)A
         # release DB proxy
         self.proxyPool.putProxy(proxy)
         # return
         return res
-
 
 # Singleton
 taskBuffer = TaskBuffer()
