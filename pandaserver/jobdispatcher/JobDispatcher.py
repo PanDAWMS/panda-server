@@ -323,9 +323,9 @@ class JobDipatcher:
             _logger.debug('saving pilot log')
             try:
                 self.taskBuffer.storePilotLog(int(jobID), pilotLog)
-                _logger.debug('saving pilot log done')
+                _logger.debug('saving pilot log DONE')
             except:
-                _logger.debug('failed to save pilot log')
+                _logger.debug('saving pilot log FAILED')
 
         # recoverable error for ES merge
         recoverableEsMerge = False
