@@ -54,6 +54,7 @@ class JobSpec(object):
                     }
     # tag for special handling
     _tagForSH = {'altStgOut'        : 'ao',
+                 'noExecStrCnv'     : 'nc',
                  'putLogToOS'       : 'po',
                  'requestType'      : 'rt',
                  'writeInputToFile' : 'wf',
@@ -508,3 +509,23 @@ class JobSpec(object):
         except:
             pass
         return zipMap
+
+
+
+    # suppress execute string conversion
+    def noExecStrCnv(self):
+        if self.specialHandling != None:
+            return self._tagForSH['noExecStrCnv'] in self.specialHandling.split(',')
+        return False
+
+
+
+    # set to suppress execute string conversion
+    def setNoExecStrCnv(self):
+        if self.specialHandling != None:
+            items = self.specialHandling.split(',')
+        else:
+            items = []
+        if not self._tagForSH['noExecStrCnv'] in items:
+            items.append(self._tagForSH['noExecStrCnv'])
+        self.specialHandling = ','.join(items)

@@ -298,6 +298,10 @@ class Response:
         # log to OS
         if job.putLogToOS():
             self.data['putLogToOS'] = 'True'
+        # suppress execute string conversion
+        if job.noExecStrCnv():
+            self.data['noExecStrCnv'] = 'True'
+
 
 
     # set proxy key
