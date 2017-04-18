@@ -641,7 +641,8 @@ class T2Cleaner (threading.Thread):
             pass
         self.pool.remove(self)
         self.lock.release()
-                            
+
+"""                            
 # delete dataset replica from T2
 _logger.debug("==== delete datasets from T2 ====")
 timeLimitU = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
@@ -685,7 +686,7 @@ while True:
     t2cleanThreadPool.join()
     if len(res) < maxRows:
         break
-
+"""
 
 # delete dis datasets
 class EraserThr (threading.Thread):
@@ -710,30 +711,11 @@ class EraserThr (threading.Thread):
                 # delete
                 _logger.debug("Eraser %s dis %s %s" % (self.operationType,modDate,name))
                 # delete or shorten
-                if self.operationType == 'deleting':
-                    # erase
-                    endStatus = 'deleted'
-                    status,out = rucioAPI.eraseDataset(name)
-                    if not status:
-                        _logger.error(out)
-                        continue
-                else:
-                    # change replica lifetime
-                    endStatus = 'shortened'
-                    # get list of replicas
-                    status,out = rucioAPI.listDatasetReplicas(name)
-                    if status != 0:
-                        _logger.error(out)
-                        continue
-                    if True:
-                        tmpRepSites = out
-                        # set replica lifetime
-                        setMetaFlag = True
-                        _logger.debug('deleteDatasetReplicas %s %s' % (name,str(tmpRepSites.keys())))
-                        status,out = rucioAPI.deleteDatasetReplicas(name,tmpRepSites.keys())
-                        if not status:
-                            _logger.error(out)
-                            continue
+                endStatus = 'deleted'
+                status,out = rucioAPI.eraseDataset(name)
+                if not status:
+                    _logger.error(out)
+                    continue
                 _logger.debug('OK with %s' % name)
                 # update
                 self.proxyLock.acquire()
@@ -744,7 +726,8 @@ class EraserThr (threading.Thread):
                                      varMap)
                 self.proxyLock.release()
         except:
-            pass
+            errStr = traceback.format_exc()
+            _logger.error(errStr)
         self.pool.remove(self)
         self.lock.release()
 
@@ -755,41 +738,43 @@ timeLimitL = datetime.datetime.utcnow() - datetime.timedelta(days=3)
 disEraseLock = threading.Semaphore(5)
 disEraseProxyLock = threading.Lock()
 disEraseThreadPool = ThreadPool()
-maxRows = 100000
+#maxRows = 100000
+maxRows = 5000
 for targetStatus in ['deleting','shortening']:
-    # lock
-    disEraseLock.acquire()
-    # get datasets
-    varMap = {}
-    varMap[':modificationdateU'] = timeLimitU
-    varMap[':modificationdateL'] = timeLimitL    
-    varMap[':type']   = 'dispatch'
-    varMap[':status'] = targetStatus
-    sqlQuery = "type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= %s" % maxRows     
-    disEraseProxyLock.acquire()
-    proxyS = taskBuffer.proxyPool.getProxy()
-    res = proxyS.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60')
-    taskBuffer.proxyPool.putProxy(proxyS)
-    if res == None:
-        _logger.debug("# of dis datasets for %s: None" % targetStatus)
-    else:
-        _logger.debug("# of dis datasets for %s: %s" % (targetStatus,len(res)))
-    if res==None or len(res)==0:
-        disEraseProxyLock.release()
+    for i in range(10):
+        # lock
+        disEraseLock.acquire()
+        # get datasets
+        varMap = {}
+        varMap[':modificationdateU'] = timeLimitU
+        varMap[':modificationdateL'] = timeLimitL    
+        varMap[':type']   = 'dispatch'
+        varMap[':status'] = targetStatus
+        sqlQuery = "type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= %s" % maxRows     
+        disEraseProxyLock.acquire()
+        proxyS = taskBuffer.proxyPool.getProxy()
+        res = proxyS.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60')
+        taskBuffer.proxyPool.putProxy(proxyS)
+        if res == None:
+            _logger.debug("# of dis datasets for %s: None" % targetStatus)
+        else:
+            _logger.debug("# of dis datasets for %s: %s" % (targetStatus,len(res)))
+        if res==None or len(res)==0:
+            disEraseProxyLock.release()
+            disEraseLock.release()
+            break
+        disEraseProxyLock.release()            
+        # release
         disEraseLock.release()
-        break
-    disEraseProxyLock.release()            
-    # release
-    disEraseLock.release()
-    # run disEraser
-    iRows = 0
-    nRows = 500
-    while iRows < len(res):        
-        disEraser = EraserThr(disEraseLock,disEraseProxyLock,res[iRows:iRows+nRows],
-                              disEraseThreadPool,targetStatus)
-        disEraser.start()
-        iRows += nRows
-    disEraseThreadPool.join()
+        # run disEraser
+        iRows = 0
+        nRows = 500
+        while iRows < len(res):        
+            disEraser = EraserThr(disEraseLock,disEraseProxyLock,res[iRows:iRows+nRows],
+                                  disEraseThreadPool,targetStatus)
+            disEraser.start()
+            iRows += nRows
+        disEraseThreadPool.join()
 
 
 _memoryCheck("finisher")
@@ -1071,6 +1056,135 @@ for ii in range(1000):
     actThr.start()
 # wait
 activatorThreadPool.join()
+
+
+# thread to delete sub datasets
+class SubDeleter (threading.Thread):
+    def __init__(self,lock,proxyLock,datasets,pool):
+        threading.Thread.__init__(self)
+        self.datasets   = datasets
+        self.lock       = lock
+        self.proxyLock  = proxyLock
+        self.pool       = pool
+        self.pool.add(self)
+                                        
+    def run(self):
+        self.lock.acquire()
+        try:
+            for vuid,name,modDate in self.datasets:
+                # check just in case
+                if re.search('_sub\d+$',name) is None:
+                    _logger.debug("skip non sub %s" % name)
+                    continue
+                _logger.debug("delete sub %s" % name)
+                if name.startswith('pandaddm_') or name.startswith('user.') or name.startswith('group.') \
+                        or name.startswith('hc_test.') or name.startswith('panda.um.'):
+                    dsExists = False
+                else:
+                    dsExists = True
+                    # get PandaIDs
+                    self.proxyLock.acquire()
+                    retF,resF = taskBuffer.querySQLS("SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ DISTINCT PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock ",
+                                                     {':destinationDBlock':name})
+                    self.proxyLock.release()
+                    if retF is None:
+                        _logger.error("SQL error for sub {0}".format(name))
+                        continue
+                    else:
+                        _logger.debug("sub {0} has {1} jobs".format(name,len(resF)))
+                        self.proxyLock.acquire()
+                        # check jobs
+                        sqlP  = "SELECT jobStatus FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID "
+                        sqlP += "UNION "
+                        sqlP += "SELECT jobStatus FROM ATLAS_PANDAARCH.jobsArchived WHERE PandaID=:PandaID AND modificationTime>CURRENT_DATE-30 "
+                        allDone = True
+                        for pandaID, in resF:
+                            retP,resP = taskBuffer.querySQLS(sqlP, {':PandaID':pandaID})
+                            if len(resP) == 0:
+                                _logger.debug("skip delete sub {0} PandaID={1} not found".format(name,pandaID))
+                                allDone = False
+                                break
+                            jobStatus = resP[0][0]
+                            if jobStatus not in ['finished','failed','cancelled','closed']:
+                                _logger.debug("skip delete sub {0} PandaID={1} is active {2}".format(name,pandaID,jobStatus))
+                                allDone = False
+                                break
+                        self.proxyLock.release()
+                        if allDone:
+                            _logger.debug("deleting sub %s" % name)
+                            try:
+                                rucioAPI.eraseDataset(name)
+                                status = True
+                            except:
+                                errtype,errvalue = sys.exc_info()[:2]
+                                out = '{0} {1}'.format(errtype,errvalue)
+                                _logger.error('{0} failed to erase with {1}'.format(name,out))
+                        else:
+                            _logger.debug("wait sub %s" % name)
+                # update dataset
+                self.proxyLock.acquire()
+                varMap = {}
+                varMap[':vuid'] = vuid
+                varMap[':ost1'] = 'completed' 
+                varMap[':ost2'] = 'cleanup' 
+                varMap[':newStatus'] = 'deleted' 
+                taskBuffer.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status=:newStatus,modificationdate=CURRENT_DATE WHERE vuid=:vuid AND status IN (:ost1,:ost2) ",
+                                     varMap)
+                self.proxyLock.release()                            
+                _logger.debug("end %s " % name)
+        except:
+            errStr = traceback.format_exc()
+            _logger.error(errStr)
+        self.pool.remove(self)
+        self.lock.release()
+
+                            
+# delete sub datasets
+_logger.debug("==== delete sub datasets ====")
+timeLimitU = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
+timeLimitL = datetime.datetime.utcnow() - datetime.timedelta(days=14)
+subdeleteLock = threading.Semaphore(5)
+subdeleteProxyLock = threading.Lock()
+subdeleteThreadPool = ThreadPool()
+maxRows = 5000
+while True:
+    # lock
+    subdeleteLock.acquire()
+    # get datasets
+    varMap = {}
+    varMap[':modificationdateU'] = timeLimitU
+    varMap[':modificationdateL'] = timeLimitL    
+    varMap[':type']    = 'output'
+    varMap[':subtype'] = 'sub'
+    varMap[':st1']  = 'completed'
+    varMap[':st2']  = 'cleanup'
+    sqlQuery = "type=:type AND subType=:subtype AND status IN (:st1,:st2) AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= %s" % maxRows   
+    subdeleteProxyLock.acquire()
+    proxyS = taskBuffer.proxyPool.getProxy()
+    res = proxyS.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60')
+    taskBuffer.proxyPool.putProxy(proxyS)
+    if res == None:
+        _logger.debug("# of sub datasets to be deleted %s" % res)
+    else:
+        _logger.debug("# of sub datasets to be deleted %s" % len(res))
+    if res==None or len(res)==0:
+        subdeleteProxyLock.release()
+        subdeleteLock.release()
+        break
+    subdeleteProxyLock.release()            
+    # release
+    subdeleteLock.release()
+    # run subdeleter
+    iRows = 0
+    nRows = 500
+    while iRows < len(res):
+        subdeleter = SubDeleter(subdeleteLock,subdeleteProxyLock,res[iRows:iRows+nRows],subdeleteThreadPool)
+        subdeleter.start()
+        iRows += nRows
+    subdeleteThreadPool.join()
+    if len(res) < maxRows:
+        break
+
 
 
 _memoryCheck("end")
