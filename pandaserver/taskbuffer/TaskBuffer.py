@@ -3292,6 +3292,30 @@ class TaskBuffer:
         # return
         return res
 
+
+    # read the resource types from the DB
+    def load_resource_types(self, task_spec):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret_val = proxy.load_resource_types(task_spec)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret_val
+
+
+    # get the resource of a task
+    def get_resource_type_task(self, task_spec):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret_val = proxy.get_resource_type_task(task_spec)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret_val
+
 # Singleton
 taskBuffer = TaskBuffer()
 
