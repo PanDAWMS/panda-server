@@ -775,6 +775,8 @@ for targetStatus in ['deleting','shortening']:
             disEraser.start()
             iRows += nRows
         disEraseThreadPool.join()
+        if len(res) < 100:
+            break
 
 
 _memoryCheck("finisher")
@@ -1182,7 +1184,7 @@ while True:
         subdeleter.start()
         iRows += nRows
     subdeleteThreadPool.join()
-    if len(res) < maxRows:
+    if len(res) < 100:
         break
 
 
