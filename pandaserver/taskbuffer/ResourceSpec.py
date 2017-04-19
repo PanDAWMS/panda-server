@@ -15,9 +15,22 @@ class ResourceSpec(object):
         object.__setattr__(self, 'maxrampercore', maxrampercore)
 
     def match_task(self, task_spec):
-        return self.match_task_basic(task_spec.corecount, task_spec.ramcount)
+        return self.match_task_basic(task_spec.corecount, task_spec.ramcount,
+                                     task_spec.baseramcount, task_spec.ramunit)
 
-    def match_task_basic(self, corecount, ramcount):
+    def match_task_basic(self, corecount, ramcount, base_ramcount, ram_unit):
+        # Default parameters
+        if corecount is None: # corecount None is also used for 1
+            corecount = 1
+        elif corecount == 0: # corecount 0 means it can be anything. We will use 8 as a standard MCORE default
+            corecount = 8
+
+        if ramcount is None:
+            ramcount = 0
+
+        if base_ramcount is None:
+            base_ramcount = 0
+
         # check min cores
         if self.mincore is not None and corecount < self.mincore:
             return False
@@ -26,12 +39,47 @@ class ResourceSpec(object):
         if self.maxcore is not None and corecount > self.maxcore:
             return False
 
+        if ram_unit in ('MBPerCore', 'MBPerCoreFixed'):
+            ram_per_core = (ramcount * corecount + base_ramcount) / corecount
+        else:
+            ram_per_core = (ramcount + base_ramcount) / corecount
+
         # check min ram
-        if self.minrampercore is not None and ramcount < self.minrampercore:
+        if self.minrampercore is not None and ram_per_core < self.minrampercore:
             return False
 
         # check max ram
-        if self.maxrampercore is not None and ramcount > self.maxrampercore:
+        if self.maxrampercore is not None and ram_per_core > self.maxrampercore:
+            return False
+
+        return True
+
+    def match_job(self, job_spec):
+        # Default parameters
+        if job_spec.coreCount is None: # corecount None is also used for 1
+            corecount = 1
+        elif job_spec.coreCount == 0: # corecount 0 means it can be anything. We will use 8 as a standard MCORE default
+            corecount = 8
+
+        if job_spec.minRamCount is None: # jobs come with ram already pre-calculated
+            ramcount = 0
+
+        # check min cores
+        if self.mincore is not None and corecount < self.mincore:
+            return False
+
+        # check max cores
+        if self.maxcore is not None and corecount > self.maxcore:
+            return False
+
+        # We assume ram unit is always MB
+        ram_per_core = ramcount / corecount
+        # check min ram
+        if self.minrampercore is not None and ram_per_core < self.minrampercore:
+            return False
+
+        # check max ram
+        if self.maxrampercore is not None and ram_per_core > self.maxrampercore:
             return False
 
         return True
