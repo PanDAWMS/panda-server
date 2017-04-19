@@ -1123,6 +1123,7 @@ class SubDeleter (threading.Thread):
                                 _logger.error('{0} failed to erase with {1}'.format(name,out))
                         else:
                             _logger.debug("wait sub %s" % name)
+                            continue
                 # update dataset
                 self.proxyLock.acquire()
                 varMap = {}
@@ -1154,13 +1155,13 @@ while True:
     subdeleteLock.acquire()
     # get datasets
     varMap = {}
-    varMap[':modificationdateU'] = timeLimitU
-    varMap[':modificationdateL'] = timeLimitL    
+    varMap[':limitU'] = timeLimitU
+    varMap[':limitL'] = timeLimitL    
     varMap[':type']    = 'output'
     varMap[':subtype'] = 'sub'
     varMap[':st1']  = 'completed'
     varMap[':st2']  = 'cleanup'
-    sqlQuery = "type=:type AND subType=:subtype AND status IN (:st1,:st2) AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= %s" % maxRows   
+    sqlQuery = "type=:type AND subType=:subtype AND status IN (:st1,:st2) AND (creationdate BETWEEN :limitL AND :limitU) AND modificationdate<limitU AND rownum <= %s" % maxRows   
     subdeleteProxyLock.acquire()
     proxyS = taskBuffer.proxyPool.getProxy()
     res = proxyS.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60')
