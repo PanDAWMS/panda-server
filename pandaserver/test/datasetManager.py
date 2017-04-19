@@ -1161,7 +1161,7 @@ while True:
     varMap[':subtype'] = 'sub'
     varMap[':st1']  = 'completed'
     varMap[':st2']  = 'cleanup'
-    sqlQuery = "type=:type AND subType=:subtype AND status IN (:st1,:st2) AND (creationdate BETWEEN :limitL AND :limitU) AND modificationdate<limitU AND rownum <= %s" % maxRows   
+    sqlQuery = "type=:type AND subType=:subtype AND status IN (:st1,:st2) AND (creationdate BETWEEN :limitL AND :limitU) AND (modificationdate BETWEEN :limitL AND :limitU) AND rownum <= %s" % maxRows   
     subdeleteProxyLock.acquire()
     proxyS = taskBuffer.proxyPool.getProxy()
     res = proxyS.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60')
