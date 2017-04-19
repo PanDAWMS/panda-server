@@ -77,7 +77,7 @@ class Closer:
                     flagComplete = False
                     continue
                 # skip tobedeleted/tobeclosed 
-                if dataset.status in ['cleanup','tobeclosed','completed']:
+                if dataset.status in ['cleanup','tobeclosed','completed','deleted']:
                     _logger.debug('%s skip %s due to %s' % (self.pandaID,destinationDBlock,dataset.status))
                     continue
                 dsList.append(dataset)
@@ -135,7 +135,7 @@ class Closer:
                                 topUserDs = self.taskBuffer.queryDatasetWithMap({'name':topUserDsName})
                                 if topUserDs != None:
                                     # check status
-                                    if topUserDs.status in ['completed','cleanup','tobeclosed',
+                                    if topUserDs.status in ['completed','cleanup','tobeclosed','deleted',
                                                             'tobemerged','merging']:
                                         _logger.debug('%s skip %s due to status=%s' % (self.pandaID,topUserDsName,topUserDs.status))
                                     else:
