@@ -368,7 +368,9 @@ class DBProxy:
         # obtain the share and resource type
         if job.gshare in ('NULL', None, ''):
             job.gshare = self.get_share_for_job(job)
+        _logger.debug('resource_type is set to {0}'.format(job.resource_type))
         if job.resource_type in ('NULL', None, ''):
+            _logger.debug('reset resource_type to {0}'.format(job.resource_type))
             job.resource_type = self.get_resource_type_job(job)
         
 
@@ -19183,8 +19185,8 @@ class DBProxy:
         Load the resource type table to memory
         """
         comment = ' /* JediDBProxy.load_resource_types */'
-        method_name = self.getMethodName(comment)
-        tmp_log = MsgWrapper(logger, method_name)
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug('start')
     
         sql = """
@@ -19208,8 +19210,8 @@ class DBProxy:
         Return the name of the resource type
         """
         comment = ' /* JediDBProxy.get_resource_type_task */'
-        method_name = self.getMethodName(comment)
-        tmp_log = MsgWrapper(logger, method_name)
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug('start')
     
         resource_map = self.load_resource_types()
@@ -19226,8 +19228,8 @@ class DBProxy:
         Retrieve the relevant task parameters and reset the resource type  
         """
         comment = ' /* JediDBProxy.reset_resource_type */'
-        method_name = self.getMethodName(comment)
-        tmp_log = MsgWrapper(logger, method_name)
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug('start')
         
         # 1. Get the task parameters
@@ -19278,14 +19280,15 @@ class DBProxy:
         Return the name of the resource type
         """
         comment = ' /* JediDBProxy.get_resource_type_job */'
-        method_name = self.getMethodName(comment)
-        tmp_log = MsgWrapper(logger, method_name)
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug('start')
     
         resource_map = self.load_resource_types()
     
         for resource_spec in resource_map:
-            if resource_spec.match_task(job_spec):
+            if resource_spec.match_job(job_spec):
+                tmp_log.debug('done. resource_type is {0}'.format(resource_spec.resource_name))
                 return resource_spec.resource_name
-    
+        tmp_log.debug('done. resource_type is Undefined')
         return 'Undefined'

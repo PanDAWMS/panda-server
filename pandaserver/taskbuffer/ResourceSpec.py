@@ -15,8 +15,8 @@ class ResourceSpec(object):
         object.__setattr__(self, 'maxrampercore', maxrampercore)
 
     def match_task(self, task_spec):
-        return self.match_task_basic(task_spec.corecount, task_spec.ramcount,
-                                     task_spec.baseramcount, task_spec.ramunit)
+        return self.match_task_basic(task_spec.coreCount, task_spec.ramCount,
+                                     task_spec.baseRamCount, task_spec.ramUnit)
 
     def match_task_basic(self, corecount, ramcount, base_ramcount, ram_unit):
         # Default parameters
@@ -60,9 +60,13 @@ class ResourceSpec(object):
             corecount = 1
         elif job_spec.coreCount == 0: # corecount 0 means it can be anything. We will use 8 as a standard MCORE default
             corecount = 8
+        else:
+            corecount = job_spec.coreCount
 
-        if job_spec.minRamCount is None: # jobs come with ram already pre-calculated
+        if job_spec.minRamCount is None: # jobs come with ram already pre-calculated and in MB
             ramcount = 0
+        else:
+            ramcount = job_spec.minRamCount
 
         # check min cores
         if self.mincore is not None and corecount < self.mincore:
@@ -95,4 +99,4 @@ class ResourceSpec(object):
             ret += '{0},'.format(attr)
         ret = ret[:-1]
         return ret
-    columnNames = classmethod(column_names)
+    column_names = classmethod(column_names)

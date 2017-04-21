@@ -3333,7 +3333,7 @@ class TaskBuffer:
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret_val = proxy.get_resource_type_task(job_spec)
+        ret_val = proxy.get_resource_type_job(job_spec)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
