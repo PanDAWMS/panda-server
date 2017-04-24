@@ -375,7 +375,7 @@ class DBProxy:
                 _logger.debug('reset resource_type to {0}'.format(job.resource_type))
             except:
                 job.resource_type = 'Undefined'
-                _logger.error('reset resource_type excepted with: {0}'.format(traceback.print_exc()))
+                _logger.error('reset resource_type excepted with: {0}'.format(traceback.format_exc()))
 
         try:
             # use JEDI
@@ -16300,7 +16300,7 @@ class DBProxy:
                 try:
                     self.reset_resource_type(jediTaskID)
                 except:
-                    _logger.error("reset_resource_type excepted with {0}".format(traceback.print_exc()))
+                    _logger.error("reset_resource_type excepted with {0}".format(traceback.format_exc()))
             
             # commit
             if not self._commit():
@@ -19296,6 +19296,10 @@ class DBProxy:
         tmp_log.debug('start')
     
         resource_map = self.load_resource_types()
+        tmp_log.debug(
+            'going to call match_job for pandaid {0} with minRamCount {1} (type{2}) and coreCount {3} (type{4})'.format(
+                job_spec.PandaID, jobspec.minRamCount, type(jobspec.minRamCount), jobspec.coreCount,
+                type(jobspec.coreCount)))
 
         for resource_spec in resource_map:
             if resource_spec.match_job(job_spec):

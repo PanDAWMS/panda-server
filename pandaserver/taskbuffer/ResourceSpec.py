@@ -56,14 +56,14 @@ class ResourceSpec(object):
 
     def match_job(self, job_spec):
         # Default parameters
-        if job_spec.coreCount is None: # corecount None is also used for 1
+        if job_spec.coreCount in (None, 'NULL'): # corecount None is also used for 1
             corecount = 1
         elif job_spec.coreCount == 0: # corecount 0 means it can be anything. We will use 8 as a standard MCORE default
             corecount = 8
         else:
             corecount = job_spec.coreCount
 
-        if job_spec.minRamCount is None: # jobs come with ram already pre-calculated and in MB
+        if job_spec.minRamCount in (None, 'NULL'): # jobs come with ram already pre-calculated and in MB
             ramcount = 0
         else:
             ramcount = job_spec.minRamCount
