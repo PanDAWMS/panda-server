@@ -16297,7 +16297,10 @@ class DBProxy:
                 self.cur.execute(sqlRL+comment,varMap)
                 _logger.debug("{0} : increased RAM limit to {1} from {2}".format(methodName,nextLimit,taskRamCount))
                 # reset the tasks resource type, since it could have jumped to HIMEM
-                self.reset_resource_type(jediTaskID)
+                try:
+                    self.reset_resource_type(jediTaskID)
+                except:
+                    _logger.error("reset_resource_type excepted with {0}".format(traceback.format_exc()))
             
             # commit
             if not self._commit():
