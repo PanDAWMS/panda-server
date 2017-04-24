@@ -16263,7 +16263,7 @@ class DBProxy:
             limitList = [1000,2000,3000,4000,6000,8000]
             # begin transaction
             self.conn.begin()
-            # get currnet limit
+            # get current limit
             varMap = {}
             varMap[':jediTaskID'] = jediTaskID
             sqlUE  = "SELECT ramCount FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
@@ -16271,6 +16271,8 @@ class DBProxy:
             self.cur.execute(sqlUE+comment,varMap)
             taskRamCount, = self.cur.fetchone()
             _logger.debug("{0} : RAM limit task={1} job={2}".format(methodName,taskRamCount,jobRamCount))
+            
+            increased = False
 
             # skip if already increased or largest limit
             if taskRamCount > jobRamCount:
@@ -16283,6 +16285,7 @@ class DBProxy:
                                                                                                                  limitList[-1])
                 _logger.debug("{0} : {1}".format(methodName,dbgStr))
             else:
+                increased = True
                 limit = max(taskRamCount, jobRamCount) 
                 for nextLimit in limitList:
                     if limit < nextLimit:
@@ -16297,14 +16300,16 @@ class DBProxy:
                 self.cur.execute(sqlRL+comment,varMap)
                 _logger.debug("{0} : increased RAM limit to {1} from {2}".format(methodName,nextLimit,taskRamCount))
                 # reset the tasks resource type, since it could have jumped to HIMEM
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            
+            if increased:
                 try:
                     self.reset_resource_type(jediTaskID)
                 except:
                     _logger.error("reset_resource_type excepted with {0}".format(traceback.format_exc()))
-            
-            # commit
-            if not self._commit():
-                raise RuntimeError, 'Commit error'
+
             _logger.debug("{0} : done".format(methodName))
             return True
         except:
@@ -19234,7 +19239,7 @@ class DBProxy:
         return 'Undefined'
     
     
-    def reset_resource_type_task(self, jedi_task_id):
+    def reset_resource_type_task(self, jedi_task_id, useCommit=True):
         """
         Retrieve the relevant task parameters and reset the resource type  
         """
@@ -19251,6 +19256,8 @@ class DBProxy:
         """
         self.cur.execute(sql + comment, var_map)
         corecount, ramcount, baseramcount, ramunit = self.cur.fetchone()
+        tmp_log.debug('retrieved following values for jediTaskid {0}: corecount {1}, ramcount {2}, baseramcount {3}, ramunit {4}'.
+                      format(jedi_task_id, corecount, ramcount, baseramcount, ramunit))
 
         # 2. Load the resource types and figure out the matching one
         resource_map = self.load_resource_types()
@@ -19259,6 +19266,8 @@ class DBProxy:
             if resource_spec.match_task_basic(corecount, ramcount, baseramcount, ramunit):
                 resource_name = resource_spec.resource_name
                 break
+
+        tmp_log.debug('decided resource_type {0} jediTaskid {1}'.format(resource_name, jedi_task_id))
         
         # 3. Update the task
         try:
@@ -19269,13 +19278,21 @@ class DBProxy:
                    SET resource_type = :resource_type
                    WHERE jeditaskid = :jedi_task_id
                    """
-            self.conn.begin()
+            tmp_log.debug('conn begin...')
+            if not useCommit:
+                self.conn.begin()
+            tmp_log.debug('execute...')
             self.cur.execute(sql + comment, var_map)
-            if not self._commit():
-                raise RuntimeError, 'Commit error'
+            tmp_log.debug('commit...')
+            if not useCommit:
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                tmp_log.debug('commited...')
         except:
             # roll back
-            self._rollback()
+            if not useCommit:
+                tmp_log.debug('rolling back...')
+                self._rollback()
             type, value, traceback = sys.exc_info()
             _logger.error("{0}: {1} {2}".format(comment, sql, var_map))
             _logger.error("{0}: {1} {2}".format(comment, type, value))
