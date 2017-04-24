@@ -31,7 +31,7 @@ class JobSpec(object):
                    'jobSubStatus','actualCoreCount','reqID','maxRSS','maxVMEM','maxSWAP','maxPSS',
                    'avgRSS','avgVMEM','avgSWAP','avgPSS','maxWalltime','nucleus','eventService',
                    'failedAttempt','hs06sec', 'gshare', 'hs06','totRCHAR','totWCHAR','totRBYTES',
-                   'totWBYTES','rateRCHAR','rateWCHAR','rateRBYTES','rateWBYTES')
+                   'totWBYTES','rateRCHAR','rateWCHAR','rateRBYTES','rateWBYTES','resource_type')
     # slots
     __slots__ = _attributes+('Files','_changedAttrs')
     # attributes which have 0 by default

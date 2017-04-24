@@ -1,4 +1,4 @@
-The core package for the PanDA server 
+Core package for the PanDA server
 
 
 ** Documentation

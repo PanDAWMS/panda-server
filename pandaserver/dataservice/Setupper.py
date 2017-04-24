@@ -9,7 +9,6 @@ import datetime
 import commands
 import threading
 
-
 from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
 from pandalogger.LogWrapper import LogWrapper
@@ -100,7 +99,7 @@ class Setupper (threading.Thread):
                         tmpLog.debug('done plugin')
                     except:
                         errtype,errvalue = sys.exc_info()[:2]
-                        tmpLog.error('plugin failed with {0}:{1}'.format(errtype,errvalue))
+                        tmpLog.error('plugin failed with {0}:{1}'.format(errtype, errvalue))
                 tmpLog.debug('main end')
             else:
                 tmpLog.debug('fork start')

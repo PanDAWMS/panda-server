@@ -33,6 +33,7 @@ from JobSpec  import JobSpec
 from FileSpec import FileSpec
 from WorkerSpec import WorkerSpec
 from DatasetSpec import DatasetSpec
+from ResourceSpec import ResourceSpec
 from CloudTaskSpec import CloudTaskSpec
 from WrappedCursor import WrappedCursor
 from Utils import create_shards
@@ -364,9 +365,17 @@ class DBProxy:
                 if job.maxAttempt <= job.attemptNr:    
                     job.maxAttempt = job.attemptNr + 2
 
-        # obtain the share
+        # obtain the share and resource type
         if job.gshare in ('NULL', None, ''):
             job.gshare = self.get_share_for_job(job)
+        _logger.debug('resource_type is set to {0}'.format(job.resource_type))
+        if job.resource_type in ('NULL', None, ''):
+            try:
+                job.resource_type = self.get_resource_type_job(job)
+                _logger.debug('reset resource_type to {0}'.format(job.resource_type))
+            except:
+                job.resource_type = 'Undefined'
+                _logger.error('reset resource_type excepted with: {0}'.format(traceback.format_exc()))
 
         try:
             # use JEDI
@@ -16244,7 +16253,7 @@ class DBProxy:
         
         
     # increase memory limit
-    def increaseRamLimitJEDI(self,jediTaskID,jobRamCount):
+    def increaseRamLimitJEDI(self, jediTaskID, jobRamCount):
         comment = ' /* DBProxy.increaseRamLimitJEDI */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <jediTaskID={0}>".format(jediTaskID)
@@ -16287,6 +16296,11 @@ class DBProxy:
                 sqlRL += "WHERE jediTaskID=:jediTaskID "
                 self.cur.execute(sqlRL+comment,varMap)
                 _logger.debug("{0} : increased RAM limit to {1} from {2}".format(methodName,nextLimit,taskRamCount))
+                # reset the tasks resource type, since it could have jumped to HIMEM
+                try:
+                    self.reset_resource_type(jediTaskID)
+                except:
+                    _logger.error("reset_resource_type excepted with {0}".format(traceback.format_exc()))
             
             # commit
             if not self._commit():
@@ -16380,7 +16394,7 @@ class DBProxy:
                 try:
                     normalizedJobRamCount = (jobRamCount - taskBaseRamCount) * 1.0
                     if taskRamUnit in ['MBPerCore','MBPerCoreFixed'] and job.minRamUnit in ('MB', None, 'NULL'):
-                        normalizedJobRamCount  = normalizedJobRamCount /siteCoreCount
+                        normalizedJobRamCount  = normalizedJobRamCount / siteCoreCount
                 except TypeError:
                     normalizedJobRamCount = 0
 
@@ -18879,7 +18893,7 @@ class DBProxy:
             _logger.error("{0}: {1} {2}".format(comment, type, value))
             return -1, None
 
-
+ 
     def getCommands(self, harvester_id, n_commands):
         """
         Gets n commands in status 'new' for a particular harvester instance and updates their status to 'retrieved'
@@ -19170,3 +19184,123 @@ class DBProxy:
             _logger.error("{0}: {1} {2}".format(comment, sql, var_map))
             _logger.error("{0}: {1} {2}".format(comment, type, value))
             return -1
+
+
+    def load_resource_types(self):
+        """
+        Load the resource type table to memory
+        """
+        comment = ' /* JediDBProxy.load_resource_types */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+        try:
+            sql = """
+            SELECT {0} FROM atlas_panda.resource_types
+            """.format(ResourceSpec.column_names())
+
+            self.cur.execute(sql + comment)
+            resource_list = self.cur.fetchall()
+            resource_spec_list = []
+            for row in resource_list:
+                resource_name, mincore, maxcore, minrampercore, maxrampercore = row
+                resource_spec_list.append(ResourceSpec(resource_name, mincore, maxcore, minrampercore, maxrampercore))
+
+            tmp_log.debug('done')
+            return resource_spec_list
+        except:
+            type, value, traceBack = sys.exc_info()
+            _logger.error("{0}: {1}".format(comment, sql))
+            return []
+
+    def get_resource_type_task(self, task_spec):
+        """
+        Identify the resource type of the task based on the resource type map. 
+        Return the name of the resource type
+        """
+        comment = ' /* JediDBProxy.get_resource_type_task */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+
+        resource_map = self.load_resource_types()
+
+        for resource_spec in resource_map:
+            if resource_spec.match_task(task_spec):
+                tmp_log.debug('done. resource_type is {0}'.format(resource_spec.resource_name))
+                return resource_spec.resource_name
+
+        tmp_log.debug('done. resource_type is Undefined')
+        return 'Undefined'
+    
+    
+    def reset_resource_type_task(self, jedi_task_id):
+        """
+        Retrieve the relevant task parameters and reset the resource type  
+        """
+        comment = ' /* JediDBProxy.reset_resource_type */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+        
+        # 1. Get the task parameters
+        var_map = {':jedi_task_id': jedi_task_id}
+        sql = """
+        SELECT corecount, ramcount, baseramcount, ramunit FROM atlas_panda.jedi_tasks
+        WHERE jeditaskid = :jedi_task_id
+        """
+        self.cur.execute(sql + comment, var_map)
+        corecount, ramcount, baseramcount, ramunit = self.cur.fetchone()
+
+        # 2. Load the resource types and figure out the matching one
+        resource_map = self.load_resource_types()
+        resource_name = 'Undefined'
+        for resource_spec in resource_map:
+            if resource_spec.match_task_basic(corecount, ramcount, baseramcount, ramunit):
+                resource_name = resource_spec.resource_name
+                break
+        
+        # 3. Update the task
+        try:
+            var_map = {':jedi_task_id': jedi_task_id,
+                       ':resource_type': resource_name}
+            sql = """
+                   UPDATE atlas_panda.jedi_tasks
+                   SET resource_type = :resource_type
+                   WHERE jeditaskid = :jedi_task_id
+                   """
+            self.conn.begin()
+            self.cur.execute(sql + comment, var_map)
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+        except:
+            # roll back
+            self._rollback()
+            type, value, traceback = sys.exc_info()
+            _logger.error("{0}: {1} {2}".format(comment, sql, var_map))
+            _logger.error("{0}: {1} {2}".format(comment, type, value))
+            return False
+        
+        tmp_log.debug('done')
+        return True
+
+
+    def get_resource_type_job(self, job_spec):
+        """
+        Identify the resource type of the job based on the resource type map. 
+        Return the name of the resource type
+        """
+        comment = ' /* JediDBProxy.get_resource_type_job */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+    
+        resource_map = self.load_resource_types()
+
+        for resource_spec in resource_map:
+            if resource_spec.match_job(job_spec):
+                tmp_log.debug('done. resource_type is {0}'.format(resource_spec.resource_name))
+                return resource_spec.resource_name
+        
+        tmp_log.debug('done. resource_type is Undefined')
+        return 'Undefined'
