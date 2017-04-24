@@ -375,7 +375,7 @@ class DBProxy:
                 _logger.debug('reset resource_type to {0}'.format(job.resource_type))
             except:
                 job.resource_type = 'Undefined'
-                _logger.error('reset resource_type excepted with: {0}'.format(traceback.format_exc()))
+                _logger.error('reset resource_type excepted with: {0}'.format(traceback.print_exc()))
 
         try:
             # use JEDI
@@ -16300,7 +16300,7 @@ class DBProxy:
                 try:
                     self.reset_resource_type(jediTaskID)
                 except:
-                    _logger.error("reset_resource_type excepted with {0}".format(traceback.format_exc()))
+                    _logger.error("reset_resource_type excepted with {0}".format(traceback.print_exc()))
             
             # commit
             if not self._commit():
