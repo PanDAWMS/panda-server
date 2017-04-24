@@ -370,9 +370,12 @@ class DBProxy:
             job.gshare = self.get_share_for_job(job)
         _logger.debug('resource_type is set to {0}'.format(job.resource_type))
         if job.resource_type in ('NULL', None, ''):
-            _logger.debug('reset resource_type to {0}'.format(job.resource_type))
-            job.resource_type = self.get_resource_type_job(job)
-        
+            try:
+                job.resource_type = self.get_resource_type_job(job)
+                _logger.debug('reset resource_type to {0}'.format(job.resource_type))
+            except:
+                job.resource_type = 'Undefined'
+                _logger.error('reset resource_type excepted with: {0}'.format(traceback.format_exc()))
 
         try:
             # use JEDI
@@ -18887,7 +18890,7 @@ class DBProxy:
             _logger.error("{0}: {1} {2}".format(comment, type, value))
             return -1, None
 
-
+ 
     def getCommands(self, harvester_id, n_commands):
         """
         Gets n commands in status 'new' for a particular harvester instance and updates their status to 'retrieved'
@@ -19188,22 +19191,25 @@ class DBProxy:
         method_name = comment.split(' ')[-2].split('.')[-1]
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug('start')
-    
-        sql = """
-        SELECT {0} FROM atlas_panda.resource_types
-        """.format(ResourceSpec.column_names())
-    
-        self.cur.execute(sql + comment)
-        resource_list = self.cur.fetchall()
-        resource_spec_list = []
-        for row in resource_list:
-            resource_name, mincore, maxcore, minrampercore, maxrampercore = row
-            resource_spec_list.append(ResourceSpec(resource_name, mincore, maxcore, minrampercore, maxrampercore))
+        try:
+            sql = """
+            SELECT {0} FROM atlas_panda.resource_types
+            """.format(ResourceSpec.column_names())
 
-        tmp_log.debug('done')
-        return resource_spec_list
-    
-    
+            self.cur.execute(sql + comment)
+            resource_list = self.cur.fetchall()
+            resource_spec_list = []
+            for row in resource_list:
+                resource_name, mincore, maxcore, minrampercore, maxrampercore = row
+                resource_spec_list.append(ResourceSpec(resource_name, mincore, maxcore, minrampercore, maxrampercore))
+
+            tmp_log.debug('done')
+            return resource_spec_list
+        except:
+            type, value, traceBack = sys.exc_info()
+            _logger.error("{0}: {1}".format(comment, sql))
+            return []
+
     def get_resource_type_task(self, task_spec):
         """
         Identify the resource type of the task based on the resource type map. 
@@ -19213,13 +19219,15 @@ class DBProxy:
         method_name = comment.split(' ')[-2].split('.')[-1]
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug('start')
-    
+
         resource_map = self.load_resource_types()
-    
+
         for resource_spec in resource_map:
             if resource_spec.match_task(task_spec):
+                tmp_log.debug('done. resource_type is {0}'.format(resource_spec.resource_name))
                 return resource_spec.resource_name
-    
+
+        tmp_log.debug('done. resource_type is Undefined')
         return 'Undefined'
     
     
@@ -19285,10 +19293,11 @@ class DBProxy:
         tmp_log.debug('start')
     
         resource_map = self.load_resource_types()
-    
+
         for resource_spec in resource_map:
             if resource_spec.match_job(job_spec):
                 tmp_log.debug('done. resource_type is {0}'.format(resource_spec.resource_name))
                 return resource_spec.resource_name
+        
         tmp_log.debug('done. resource_type is Undefined')
         return 'Undefined'
