@@ -3317,11 +3317,11 @@ class TaskBuffer:
         return ret_val
 
 
-    def reset_resource_type_task(self, jedi_task_id):
+    def reset_resource_type_task(self, jedi_task_id, use_commit = True):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret_val = proxy.reset_resource_type_task(jedi_task_id)
+        ret_val = proxy.reset_resource_type_task(jedi_task_id, use_commit)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

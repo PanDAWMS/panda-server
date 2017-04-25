@@ -16299,11 +16299,11 @@ class DBProxy:
                 sqlRL += "WHERE jediTaskID=:jediTaskID "
                 self.cur.execute(sqlRL+comment,varMap)
                 _logger.debug("{0} : increased RAM limit to {1} from {2}".format(methodName,nextLimit,taskRamCount))
-                # reset the tasks resource type, since it could have jumped to HIMEM
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
-            
+
+            # reset the tasks resource type, since it could have jumped to HIMEM
             if increased:
                 try:
                     self.reset_resource_type(jediTaskID)
@@ -19239,7 +19239,7 @@ class DBProxy:
         return 'Undefined'
     
     
-    def reset_resource_type_task(self, jedi_task_id, useCommit=True):
+    def reset_resource_type_task(self, jedi_task_id, use_commit=True):
         """
         Retrieve the relevant task parameters and reset the resource type  
         """
@@ -19279,18 +19279,18 @@ class DBProxy:
                    WHERE jeditaskid = :jedi_task_id
                    """
             tmp_log.debug('conn begin...')
-            if not useCommit:
+            if use_commit:
                 self.conn.begin()
             tmp_log.debug('execute...')
             self.cur.execute(sql + comment, var_map)
             tmp_log.debug('commit...')
-            if not useCommit:
+            if use_commit:
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
                 tmp_log.debug('commited...')
         except:
             # roll back
-            if not useCommit:
+            if use_commit:
                 tmp_log.debug('rolling back...')
                 self._rollback()
             type, value, traceback = sys.exc_info()
