@@ -876,7 +876,7 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
                    batchID,attemptNr,jobSubStatus,coreCount,realDN,prodManager,token,validToken,str(fqans),
                    maxRSS,maxVMEM,maxSWAP,maxPSS,avgRSS,avgVMEM,avgSWAP,avgPSS,
                    totRCHAR,totWCHAR,totRBYTES,totWBYTES,rateRCHAR,rateWCHAR,rateRBYTES,rateWBYTES,
-                   xml,pilotLog,metaData,jobMetrics,stdout))
+                   xml,pilotLog[:1024],metaData[:1024],jobMetrics,stdout))
     _pilotReqLogger.debug('method=updateJob,site=%s,node=%s,type=None' % (siteName,node))
     # invalid role
     if not prodManager:
