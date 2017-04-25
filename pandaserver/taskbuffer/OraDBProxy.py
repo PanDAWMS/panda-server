@@ -19315,8 +19315,8 @@ class DBProxy:
         resource_map = self.load_resource_types()
         tmp_log.debug(
             'going to call match_job for pandaid {0} with minRamCount {1} (type{2}) and coreCount {3} (type{4})'.format(
-                job_spec.PandaID, jobspec.minRamCount, type(jobspec.minRamCount), jobspec.coreCount,
-                type(jobspec.coreCount)))
+                job_spec.PandaID, job_spec.minRamCount, type(job_spec.minRamCount), job_spec.coreCount,
+                type(job_spec.coreCount)))
 
         for resource_spec in resource_map:
             if resource_spec.match_job(job_spec):
