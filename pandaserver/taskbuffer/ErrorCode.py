@@ -66,6 +66,9 @@ EC_EventServicePreemption = 122
 # retred but didn't process any events on WN
 EC_EventServiceNoEvent = 123
 
+# input files inconsitent with JEDI
+EC_EventServiceInconsistentIn = 124
+
 # failed to lock semaphore for job cloning
 EC_JobCloningUnlock = 200
 

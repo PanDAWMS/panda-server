@@ -962,7 +962,7 @@ if len(jobs):
             iJob += nJob
 
 # kill too long waiting jobs
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=1)
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=7)
 status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsWaiting4 WHERE creationTime<:creationTime",
                               {':creationTime':timeLimit})
 jobs = []
@@ -976,6 +976,7 @@ if len(jobs):
 
 
 # reassign long waiting jobs
+"""
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
 status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsWaiting4",timeLimit,['waiting'],['managed'],[],[],[],True)
 jobs = []
@@ -1002,6 +1003,7 @@ if len(jediJobs) != 0:
         _logger.debug('reassignJobs for JEDI Waiting (%s)' % jediJobs[iJob:iJob+nJob])
         Client.killJobs(jediJobs[iJob:iJob+nJob],51)
         iJob += nJob
+"""
 
 # kill too long running jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=21)

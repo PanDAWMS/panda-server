@@ -1,6 +1,7 @@
 Release Notes
 
 * 4/25/2017
+  * fake co-jumbo
   * added path_convention
 
 * 4/18/2017

@@ -7,9 +7,11 @@ import fcntl
 import random
 import datetime
 import commands
+import traceback
 import threading
 import multiprocessing
 from taskbuffer.TaskBuffer import taskBuffer
+import taskbuffer.ErrorCode
 import pandalogger.PandaLogger
 from pandalogger.PandaLogger import PandaLogger
 from brokerage.SiteMapper import SiteMapper
@@ -231,15 +233,42 @@ mailSender.start()
 
 # session for co-jumbo jobs
 tmpLog.debug("co-jumbo session")
-ret = taskBuffer.getCoJumboJobsToBeFinished(10,0)
-if ret == None:
-    tmpLog.debug("failed to get co-jumbo jobs to finish")
-else:
-    coJumboA,coJumboD = ret
-    tmpLog.debug("finish {0} co-jumbo jobs in Active".format(len(coJumboA)))
-    taskBuffer.archiveJobs(coJumboA,False)
-    tmpLog.debug("finish {0} co-jumbo jobs in Defined".format(len(coJumboD)))
-    taskBuffer.archiveJobs(coJumboD,True)
+try:
+    ret = taskBuffer.getCoJumboJobsToBeFinished(10,0)
+    if ret == None:
+        tmpLog.debug("failed to get co-jumbo jobs to finish")
+    else:
+        coJumboA,coJumboD,coJumboW = ret
+        tmpLog.debug("finish {0} co-jumbo jobs in Active".format(len(coJumboA)))
+        jobSpecs = taskBuffer.peekJobs(coJumboA,fromDefined=False,fromActive=True,fromArchived=False,fromWaiting=False)
+        for jobSpec in jobSpecs:
+            fileCheckInJEDI = taskBuffer.checkInputFileStatusInJEDI(jobSpec)
+            if not fileCheckInJEDI:
+                jobSpec.jobStatus = 'closed'
+                jobSpec.jobSubStatus = 'cojumbo_wrong'
+                jobSpec.taskBufferErrorCode = taskbuffer.ErrorCode.EC_EventServiceInconsistentIn
+            taskBuffer.archiveJobs([jobSpec],False)
+        tmpLog.debug("finish {0} co-jumbo jobs in Defined".format(len(coJumboD)))
+        jobSpecs = taskBuffer.peekJobs(coJumboD,fromDefined=True,fromActive=False,fromArchived=False,fromWaiting=False)
+        for jobSpec in jobSpecs:
+            fileCheckInJEDI = taskBuffer.checkInputFileStatusInJEDI(jobSpec)
+            if not fileCheckInJEDI:
+                jobSpec.jobStatus = 'closed'
+                jobSpec.jobSubStatus = 'cojumbo_wrong'
+                jobSpec.taskBufferErrorCode = taskbuffer.ErrorCode.EC_EventServiceInconsistentIn
+            taskBuffer.archiveJobs([jobSpec],True)
+        tmpLog.debug("finish {0} co-jumbo jobs in Waiting".format(len(coJumboW)))
+        jobSpecs = taskBuffer.peekJobs(coJumboW,fromDefined=False,fromActive=False,fromArchived=False,fromWaiting=True)
+        for jobSpec in jobSpecs:
+            fileCheckInJEDI = taskBuffer.checkInputFileStatusInJEDI(jobSpec)
+            if not fileCheckInJEDI:
+                jobSpec.jobStatus = 'closed'
+                jobSpec.jobSubStatus = 'cojumbo_wrong'
+                jobSpec.taskBufferErrorCode = taskbuffer.ErrorCode.EC_EventServiceInconsistentIn
+            taskBuffer.archiveJobs([jobSpec],False,True)
+except:
+    errStr = traceback.format_exc()
+    tmpLog.error(errStr)
 
 
 tmpLog.debug("Fork session")

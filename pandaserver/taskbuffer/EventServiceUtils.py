@@ -37,6 +37,10 @@ coJumboJobFlagNumber = 5
 eventTableIsJumbo = 1
 
 
+# siteid for waiting co-jumbo jobs
+siteIdForWaitingCoJumboJobs = 'WAITING_CO_JUMBO'
+
+
 # relation type for jobsets
 relationTypeJS_ID = 'jobset_id'
 relationTypeJS_Retry = 'jobset_retry'

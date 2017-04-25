@@ -533,12 +533,15 @@ class TaskBuffer:
                 if not allDone:
                     job.jobStatus = 'holding'
             elif EventServiceUtils.isJumboJob(job):
-                # check if there are done events
-                hasDone = proxy.hasDoneEvents(job.jediTaskID,job.PandaID)
-                if hasDone:
-                    job.jobStatus = 'finished'
+                if job.jobStatus in ['defined','assigned','activated']:
+                    pass
                 else:
-                    job.jobStatus = 'failed'
+                    # check if there are done events
+                    hasDone = proxy.hasDoneEvents(job.jediTaskID,job.PandaID)
+                    if hasDone:
+                        job.jobStatus = 'finished'
+                    else:
+                        job.jobStatus = 'failed'
             if job.jobStatus == 'failed' and job.prodSourceLabel == 'user' and not inJobsDefined:
                 # keep failed analy jobs in Active4
                 ret = proxy.updateJob(job,inJobsDefined,oldJobStatus=oldJobStatus)
@@ -639,14 +642,14 @@ class TaskBuffer:
 
 
     # archive jobs
-    def archiveJobs(self,jobs,inJobsDefined):
+    def archiveJobs(self,jobs,inJobsDefined,fromJobsWaiting=False):
         # get DB proxy
         proxy = self.proxyPool.getProxy()        
         # loop over all jobs
         returns = []
         for job in jobs:
             # update DB
-            ret = proxy.archiveJob(job,inJobsDefined)
+            ret = proxy.archiveJob(job,inJobsDefined,fromJobsWaiting=fromJobsWaiting)
             returns.append(ret[0]) 
         # release proxy
         self.proxyPool.putProxy(proxy)
