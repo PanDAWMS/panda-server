@@ -3216,7 +3216,7 @@ class DBProxy:
                 job.pack(res)
                 # sql to read range
                 sqlRR  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
-                sqlRR += "PandaID,job_processID,attemptNr,objStore_ID,zipRow_ID "
+                sqlRR += "PandaID,job_processID,attemptNr,objStore_ID,zipRow_ID,path_convention "
                 sqlRR += "FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
                 sqlRR += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND status=:eventStatus "
                 # sql to read log backet IDs
@@ -3287,7 +3287,7 @@ class DBProxy:
                             varMap[':eventStatus'] = EventServiceUtils.ST_done
                             self.cur.execute(sqlRR+comment, varMap)
                             resRR = self.cur.fetchall()
-                            for esPandaID,job_processID,attemptNr,objStoreID,zipRow_ID in resRR:
+                            for esPandaID,job_processID,attemptNr,objStoreID,zipRow_ID,pathConvention in resRR:
                                 tmpEventRangeID = self.makeEventRangeID(file.jediTaskID,esPandaID,file.fileID,job_processID,attemptNr)
                                 if not eventRangeIDs.has_key(file.fileID):
                                     eventRangeIDs[file.fileID] = {}
@@ -3301,6 +3301,9 @@ class DBProxy:
                                         if oldEsPandaID in esDonePandaIDs:
                                             esDonePandaIDs.remove(oldEsPandaID)
                                 if addFlag:
+                                    # append 
+                                    if pathConvention is not None:
+                                        objStoreID = '{0}/{1}'.format(objStoreID,pathConvention)
                                     eventRangeIDs[file.fileID][job_processID] = {'pandaID':esPandaID,
                                                                                  'eventRangeID':tmpEventRangeID,
                                                                                  'objStoreID':objStoreID}
@@ -14319,7 +14322,7 @@ class DBProxy:
             commandMap = {}
             # sql to update status
             sqlU  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
-            sqlU += "SET status=:eventStatus,objstore_ID=:objstoreID,error_code=:errorCode"
+            sqlU += "SET status=:eventStatus,objstore_ID=:objstoreID,error_code=:errorCode,path_convention=:pathConvention"
             if version != 0:
                 sqlU += ",zipRow_ID=:zipRow_ID"
             sqlU += " WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND fileID=:fileID "
@@ -14430,6 +14433,11 @@ class DBProxy:
                     errorCode = eventDict['errorCode']
                 else:
                     errorCode = None
+                # path convention
+                if 'pathConvention' in eventDict:
+                    pathConvention = eventDict['pathConvention']
+                else:
+                    pathConvention = None
                 # start transaction
                 self.conn.begin()
                 nRow = 0
@@ -14488,6 +14496,9 @@ class DBProxy:
                                     zipFileSpec.type = 'zipoutput'
                                     zipFileSpec.status = 'ready'
                                     zipFileSpec.destinationSE = eventDict['zipFile']['objstoreID']
+                                    if 'pathConvention' in eventDict['zipFile']:
+                                        zipFileSpec.destinationSE = '{0}/{1}'.format(zipFileSpec.destinationSE,
+                                                                                     eventDict['zipFile']['pathConvention'])
                                     zipJobSpec.addFile(zipFileSpec)
                                     varMap = zipFileSpec.valuesMap(useSeq=True)
                                     varMap[':newRowID'] = self.cur.var(varNUMBER)
@@ -14504,6 +14515,7 @@ class DBProxy:
                             varMap[':eventStatus'] = intEventStatus
                             varMap[':objstoreID'] = objstoreID
                             varMap[':errorCode'] = errorCode
+                            varMap[':pathConvention'] = pathConvention
                             if version != 0:
                                 varMap[':zipRow_ID'] = zipRow_ID
                             self.cur.execute(sqlU+comment, varMap)
