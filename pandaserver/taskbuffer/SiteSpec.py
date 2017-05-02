@@ -17,7 +17,8 @@ class SiteSpec(object):
                    'mintime','allowfax','wansourcelimit','wansinklimit','pandasite',
                    'sitershare','cloudrshare','corepower','wnconnectivity','catchall',
                    'role','pandasite_state','ddm_endpoints','maxrss','minrss',
-                   'direct_access_lan','direct_access_wan','tier','objectstores')
+                   'direct_access_lan','direct_access_wan','tier','objectstores','is_parent',
+                   'parent_name')
 
     # constructor
     def __init__(self):
@@ -126,3 +127,10 @@ class SiteSpec(object):
     def useJumboJobs(self):
         return self.hasValueInCatchall('useJumboJobs')
         
+
+
+    # get parent name
+    def get_parent_name(self):
+        if self.parent_name is None:
+            return self.sitename
+        return self.parent_name

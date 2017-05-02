@@ -1,5 +1,8 @@
 Release Notes
 
+* 5/2/2017
+  * added unified PQs
+
 * 4/25/2017
   * fake co-jumbo
   * added path_convention

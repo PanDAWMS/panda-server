@@ -9618,6 +9618,8 @@ class DBProxy:
                         ret.objectstores = json.loads(objectstores)
                     except:
                         ret.objectstores = []
+                    # default parent flag
+                    ret.is_parent = False
                     # append
                     retList[ret.nickname] = ret
             _logger.debug("getSiteInfo done")

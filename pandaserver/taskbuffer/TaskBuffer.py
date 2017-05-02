@@ -3297,11 +3297,11 @@ class TaskBuffer:
 
 
     # read the resource types from the DB
-    def load_resource_types(self, task_spec):
+    def load_resource_types(self):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret_val = proxy.load_resource_types(task_spec)
+        ret_val = proxy.load_resource_types()
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

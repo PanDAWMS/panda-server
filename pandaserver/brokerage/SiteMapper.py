@@ -1,5 +1,6 @@
 import re
 import sys
+import copy
 import traceback
 from config import panda_config
 
@@ -54,6 +55,8 @@ class SiteMapper:
             # satellites
             self.satellites = {}
 
+            # get resource types
+            resourceTypes = taskBuffer.load_resource_types()
             # create CloudSpec list 
             tmpCloudListDB = taskBuffer.getCloudList()
             for tmpName,tmpCloudSpec in tmpCloudListDB.iteritems():
@@ -147,6 +150,35 @@ class SiteMapper:
                             satellite.state = ret.pandasite_state
                             self.satellites[ret.pandasite] = satellite
                         self.satellites[ret.pandasite].add(ret.sitename,ret.ddm_endpoints)
+            # make virtual queues from merged queues
+            try:
+                for siteName in self.siteSpecList.keys():
+                    siteSpec = self.siteSpecList[siteName]
+                    if siteSpec.hasValueInCatchall('mergedPQ'):
+                        for resourceSpec in resourceTypes:
+                            # make site spec for child
+                            childSiteSpec = copy.copy(siteSpec)
+                            childSiteSpec.sitename = '{0}/{1}'.format(siteSpec.sitename,resourceSpec.resource_name)
+                            coreCount = max(1,siteSpec.coreCount)
+                            # skip if not good for core count requirement
+                            if resourceSpec.mincore is not None and coreCount < resourceSpec.mincore:
+                                continue
+                            # change resource requirements
+                            childSiteSpec.coreCount = max(min(coreCount,resourceSpec.maxcore),resourceSpec.mincore)
+                            if resourceSpec.minrampercore is not None:
+                                childSiteSpec.minrss = max(childSiteSpec.coreCount*resourceSpec.minrampercore,
+                                                           siteSpec.minrss)
+                            if resourceSpec.maxrampercore is not None:
+                                childSiteSpec.maxrss = min(childSiteSpec.coreCount*resourceSpec.maxrampercore,
+                                                           siteSpec.maxrss)
+                            # set parent
+                            childSiteSpec.parent_name = siteSpec.sitename
+                            # append
+                            self.siteSpecList[childSiteSpec.sitename] = childSiteSpec
+                        # set parent flag
+                        siteSpec.is_parent = True
+            except:
+                _logger.error(traceback.format_exc())
             # make cloudSpec
             for siteSpec in self.siteSpecList.values():
                 # choose only prod sites
