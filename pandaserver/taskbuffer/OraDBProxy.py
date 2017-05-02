@@ -690,8 +690,9 @@ class DBProxy:
                             lastEvent = eventServiceInfo[file.lfn]['startEvent'] + iEvent -1
                             varMap[':lastEvent'] = lastEvent
                             # add offset for positional event numbers
-                            varMap[':startEvent'] += totalInputEvents
-                            varMap[':lastEvent'] += totalInputEvents
+                            if not job.inFilePosEvtNum():
+                                varMap[':startEvent'] += totalInputEvents
+                                varMap[':lastEvent'] += totalInputEvents
                             # total offset
                             varMap[':eventOffset'] = eventServiceInfo[file.lfn]['nEvents']
                             varMaps.append(varMap)
@@ -14952,9 +14953,11 @@ class DBProxy:
                     # there are active consumers
                     retValue = 5,None
                 return retValue
-            # no merging for inaction co-jumbo
-            if doMerging and EventServiceUtils.isCoJumboJob(jobSpec) and nRowDoneJumbo == 0 and nRowDone == 0:
+            # no merging for inaction ES jobs
+            if doMerging and nRowDoneJumbo == 0 and nRowDone == 0:
+                _logger.debug("{0} : skip merge generation since nDone=0".format(methodName))
                 retValue = 5,None
+                return retValue
             # check if there is fatal range
             hasFatalRange = False
             if doMerging:

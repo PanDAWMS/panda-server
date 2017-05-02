@@ -301,6 +301,9 @@ class Response:
         # suppress execute string conversion
         if job.noExecStrCnv():
             self.data['noExecStrCnv'] = 'True'
+        # in-file positional event number
+        if job.inFilePosEvtNum():
+            self.data['inFilePosEvtNum'] = 'True'
 
 
 

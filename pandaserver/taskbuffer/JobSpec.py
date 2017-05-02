@@ -54,6 +54,7 @@ class JobSpec(object):
                     }
     # tag for special handling
     _tagForSH = {'altStgOut'        : 'ao',
+                 'inFilePosEvtNum'  : 'if',
                  'noExecStrCnv'     : 'nc',
                  'putLogToOS'       : 'po',
                  'requestType'      : 'rt',
@@ -528,4 +529,24 @@ class JobSpec(object):
             items = []
         if not self._tagForSH['noExecStrCnv'] in items:
             items.append(self._tagForSH['noExecStrCnv'])
+        self.specialHandling = ','.join(items)
+
+
+
+    # in-file positional event number
+    def inFilePosEvtNum(self):
+        if self.specialHandling != None:
+            return self._tagForSH['inFilePosEvtNum'] in self.specialHandling.split(',')
+        return False
+
+
+
+    # set to use in-file positional event number
+    def setInFilePosEvtNum(self):
+        if self.specialHandling != None:
+            items = self.specialHandling.split(',')
+        else:
+            items = []
+        if not self._tagForSH['inFilePosEvtNum'] in items:
+            items.append(self._tagForSH['inFilePosEvtNum'])
         self.specialHandling = ','.join(items)
