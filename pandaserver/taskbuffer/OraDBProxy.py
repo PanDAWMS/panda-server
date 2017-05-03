@@ -12622,10 +12622,10 @@ class DBProxy:
             # sql to set delete flag
             sqlDelE  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
             sqlDelE += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
-            sqlDelE += "SET file_not_deleted=:delFlag "
+            sqlDelE += "SET file_not_deleted=CASE WHEN objStore_ID IS NULL THEN NULL ELSE :delFlag END "
             if jobSpec.jobStatus == 'finished':
                 sqlDelE += ",status=CASE WHEN status=:st_done THEN :st_merged ELSE status END "
-            sqlDelE += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND objStore_ID IS NOT NULL "
+            sqlDelE += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
             for fileSpec in jobSpec.Files:
                 if not fileSpec.type in ['input','pseudo_input']:
                     continue

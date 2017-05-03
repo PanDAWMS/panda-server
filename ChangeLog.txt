@@ -1,5 +1,8 @@
 Release Notes
 
+* 5/3/2017
+  * fixed eventStatus=merged for objStore_ID=None
+
 * 5/2/2017
   * added unified PQs
   * added inFilePosEvtNum
