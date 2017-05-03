@@ -269,7 +269,7 @@ class DBProxy:
             value_str, type = self.cur.fetchone()
         except TypeError:
             error_message = 'Specified key={0} not found for component={1} app={2}'.format(key,component,app)
-            _logger.error(error_message)
+            _logger.debug(error_message)
             return None
 
         try:
@@ -289,7 +289,7 @@ class DBProxy:
                 raise ValueError
         except ValueError:
             error_message = 'Wrong value/type pair. Value: {0}, Type: {1}'.format(value_str, type)
-            _logger.error(error_message)
+            _logger.debug(error_message)
             return None
 
 
