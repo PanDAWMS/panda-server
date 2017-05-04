@@ -835,9 +835,10 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
     if (not prodManager) and (not prodSourceLabel in ['user']):
         _logger.warning("getJob(%s) : invalid role" % siteName)
         if req.acceptJson():
-            return Protocol.Response(Protocol.SC_Role).encode(req.acceptJson(), 'no production/pilot role in VOMS FQANs')
+            tmpMsg = 'no production/pilot role in VOMS FQANs or non pilot owner'
         else:
-            return Protocol.Response(Protocol.SC_Role).encode(req.acceptJson())
+            tmpMsg = None
+        return Protocol.Response(Protocol.SC_Role, tmpMsg).encode(req.acceptJson())
     # invalid token
     if not validToken:
         _logger.warning("getJob(%s) : invalid token" % siteName)    
@@ -881,7 +882,11 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
     # invalid role
     if not prodManager:
         _logger.warning("updateJob(%s) : invalid role" % jobId)
-        return Protocol.Response(Protocol.SC_Role).encode(acceptJson)        
+        if acceptJson:
+            tmpMsg = 'no production/pilot role in VOMS FQANs or non pilot owner'
+        else:
+            tmpMsg = None
+        return Protocol.Response(Protocol.SC_Role, tmpMsg).encode(acceptJson)        
     # invalid token
     if not validToken:
         _logger.warning("updateJob(%s) : invalid token" % jobId)
