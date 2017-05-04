@@ -13,6 +13,7 @@ import userinterface.Client as Client
 from dataservice.DDM import rucioAPI
 from taskbuffer.OraDBProxy import DBProxy
 from taskbuffer.TaskBuffer import taskBuffer
+from taskbuffer import EventServiceUtils
 from pandalogger.PandaLogger import PandaLogger
 from jobdispatcher.Watcher import Watcher
 from brokerage.SiteMapper import SiteMapper
@@ -961,6 +962,30 @@ if len(jobs):
             Client.killJobs(jobs[iJob:iJob+nJob],4)
             iJob += nJob
 
+
+# kill too long waiting jobs
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+varMap = {}
+varMap[':jobStatus']    = 'waiting'
+varMap[':creationTime'] = timeLimit
+varMap[':coJumbo'] = EventServiceUtils.coJumboJobFlagNumber
+sql  = "SELECT PandaID FROM ATLAS_PANDA.jobsWaiting4 WHERE jobStatus=:jobStatus AND creationTime<:creationTime "
+sql += "AND (eventService IS NULL OR eventService<>:coJumbo) "
+status,res = taskBuffer.querySQLS(sql, varMap)
+jobs = []
+if res != None:
+    for (id,) in res:
+        jobs.append(id)
+# kill
+if len(jobs):
+    if len(jobs):
+        nJob = 100
+        iJob = 0
+        while iJob < len(jobs):
+            _logger.debug("killJobs for Waiting (%s)" % str(jobs[iJob:iJob+nJob]))
+            Client.killJobs(jobs[iJob:iJob+nJob],4)
+            iJob += nJob
+
 # kill too long waiting jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=7)
 status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsWaiting4 WHERE creationTime<:creationTime",
@@ -972,7 +997,7 @@ if res != None:
 # kill
 if len(jobs):
     Client.killJobs(jobs,4)
-    _logger.debug("killJobs for Waiting (%s)" % str(jobs))
+    _logger.debug("killJobs in jobsWaiting (%s)" % str(jobs))
 
 
 # reassign long waiting jobs
