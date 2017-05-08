@@ -134,3 +134,12 @@ class SiteSpec(object):
         if self.parent_name is None:
             return self.sitename
         return self.parent_name
+
+
+
+    # get number of simulated events for dynamic number of events
+    def get_n_sim_events(self):
+        tmpVal = self.getValueFromCatchall('nSimEvents')
+        if tmpVal is None:
+            return None
+        return int(tmpVal)
