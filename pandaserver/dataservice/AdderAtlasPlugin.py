@@ -217,7 +217,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                         if file.lfn not in self.extraInfo['nevents']:
                             errMsg = "nevents is missing in jobReport for {0}".format(file.lfn)
                             self.logger.error(errMsg)
-                            #raise ValueError, errMsg
+                            raise ValueError, errMsg
                     # fsize
                     fsize = None
                     if not file.fsize in ['NULL','',0]:
