@@ -216,8 +216,9 @@ class AdderAtlasPlugin (AdderPluginBase):
                     if file.type == 'output' and not isZipFile and not self.addToTopOnly and self.job.prodSourceLabel in ['managed']:
                         if file.lfn not in self.extraInfo['nevents']:
                             errMsg = "nevents is missing in jobReport for {0}".format(file.lfn)
-                            self.logger.error(errMsg)
-                            raise ValueError, errMsg
+                            self.logger.warning(errMsg)
+                            #self.job.ddmErrorCode = ErrorCode.EC_MissingNumEvents
+                            #raise ValueError, errMsg
                     # fsize
                     fsize = None
                     if not file.fsize in ['NULL','',0]:
