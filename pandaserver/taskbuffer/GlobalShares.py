@@ -31,7 +31,7 @@ class Share(Node):
     """
     Implement the share node
     """
-    _attributes = ('name', 'value', 'parent', 'prodsourcelabel', 'workinggroup', 'campaign', 'processingtype')
+    _attributes = ('name', 'value', 'parent', 'prodsourcelabel', 'workinggroup', 'campaign', 'processingtype', 'queue_id')
 
     def __str__(self, level=0):
         """
@@ -58,7 +58,7 @@ class Share(Node):
     def __imul__(self, other):
         return self.__mul__
 
-    def __init__(self, name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype):
+    def __init__(self, name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype, queue_id):
 
         # Create default attributes
         for attr in self._attributes:
@@ -72,6 +72,7 @@ class Share(Node):
         self.workinggroup = workinggroup
         self.campaign = campaign
         self.processingtype = processingtype
+        self.queue_id = queue_id
 
     def pretty_print_hs_distribution(self, hs_distribution, level=0):
         try:

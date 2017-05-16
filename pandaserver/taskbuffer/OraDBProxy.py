@@ -18708,7 +18708,7 @@ class DBProxy:
         tmpLog.debug('start')
 
         sql = """
-               SELECT NAME, VALUE, PARENT, PRODSOURCELABEL, WORKINGGROUP, CAMPAIGN, PROCESSINGTYPE
+               SELECT NAME, VALUE, PARENT, PRODSOURCELABEL, WORKINGGROUP, CAMPAIGN, PROCESSINGTYPE, QUEUE_ID
                FROM ATLAS_PANDA.GLOBAL_SHARES
                """
         var_map = None
@@ -18756,7 +18756,7 @@ class DBProxy:
 
         # Root dummy node
         t_before = time.time()
-        tree = GlobalShares.Share('root', 100, None, None, None, None, None)
+        tree = GlobalShares.Share('root', 100, None, None, None, None, None, None)
         t_after = time.time()
         total = t_after - t_before
         _logger.debug('Root dummy tree took {0}s'.format(total))
@@ -18770,8 +18770,8 @@ class DBProxy:
 
         # Load branches
         t_before = time.time()
-        for (name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype) in shares_top_level:
-            share = GlobalShares.Share(name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype)
+        for (name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype, queue_id) in shares_top_level:
+            share = GlobalShares.Share(name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype, queue_id)
             tree.children.append(self.__load_branch(share))
         t_after = time.time()
         total = t_after - t_before
@@ -18855,14 +18855,15 @@ class DBProxy:
         Recursively load a branch
         """
         node = GlobalShares.Share(share.name, share.value, share.parent, share.prodsourcelabel,
-                                  share.workinggroup, share.campaign, share.processingtype)
+                                  share.workinggroup, share.campaign, share.processingtype, share.queue_id)
 
         children = self.get_shares(parents=share.name)
         if not children:
             return node
 
-        for (name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype) in children:
-            child = GlobalShares.Share(name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype)
+        for (name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype, queue_id) in children:
+            child = GlobalShares.Share(name, value, parent, prodsourcelabel,
+                                       workinggroup, campaign, processingtype, queue_id)
             node.children.append(self.__load_branch(child))
 
         return node
@@ -18872,17 +18873,20 @@ class DBProxy:
         """
         Logic to compare the relevant fields of share and task
         """
-
-        if share.prodsourcelabel is not None and re.match(share.prodsourcelabel, task.prodSourceLabel) is None:
+        if share.prodsourcelabel is not None and task.prodSourceLabel is not None \
+                and re.match(share.prodsourcelabel, task.prodSourceLabel) is None:
             return False
 
-        if share.workinggroup is not None and re.match(share.workinggroup, task.workingGroup) is None:
+        if share.workinggroup is not None and task.workingGroup is not None \
+                and re.match(share.workinggroup, task.workingGroup) is None:
             return False
 
-        if share.campaign is not None and re.match(share.campaign, task.campaign) is None:
+        if share.campaign is not None and task.campaign \
+                and re.match(share.campaign, task.campaign) is None:
             return False
 
-        if share.processingtype is not None and re.match(share.processingtype, task.processingType) is None:
+        if share.processingtype is not None and task.processingType is not None \
+                and re.match(share.processingtype, task.processingType) is None:
             return False
 
         return True
