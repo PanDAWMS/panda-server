@@ -1,5 +1,8 @@
 Release Notes
 
+* 5/17/2017
+  * introduced timeout for throttled jobs
+
 * 5/8/2017
   * added nSimEvents
   * changed managed to fail when nevents is not set

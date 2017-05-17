@@ -1072,6 +1072,23 @@ if len(jobs):
     _logger.debug("killJobs for DDM (%s)" % str(jobs))
 
 
+# kill too long throttled jobs
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=7)
+varMap = {}
+varMap[':jobStatus'] = 'throttled'
+varMap[':creationTime'] = timeLimit
+status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND creationTime<:creationTime ",
+                                  varMap)
+jobs = []
+if res != None:
+    for (id,) in res:
+        jobs.append(id)
+# kill
+if len(jobs):
+    Client.killJobs(jobs,2)
+    _logger.debug("killJobs for throttled (%s)" % str(jobs))
+
+
 # check if merge job is valid
 _logger.debug('kill invalid pmerge')
 varMap = {}
