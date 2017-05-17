@@ -15121,6 +15121,7 @@ class DBProxy:
                     sqlSN += "WHERE ps1.panda_site_name=:site AND ps1.site_name=ps2.site_name AND sc.siteid=ps2.panda_site_name "
                     sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1) "
                     sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
+                    sqlSN += "AND (sc.catchall IS NULL OR NOT sc.catchall LIKE '%jobseed=es%') "
                     varMap = {}
                     varMap[':site'] = jobSpec.computingSite
                     # get sites
@@ -15152,6 +15153,7 @@ class DBProxy:
                         sqlSN += "WHERE site_name=:nucleus AND sc.siteid=ps.panda_site_name "
                         sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1) "
                         sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
+                        sqlSN += "AND (sc.catchall IS NULL OR NOT sc.catchall LIKE '%jobseed=es%') "                        
                         varMap = {}
                         varMap[':nucleus'] = tmpNucleus
                         # get sites

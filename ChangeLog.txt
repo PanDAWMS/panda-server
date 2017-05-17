@@ -2,6 +2,7 @@ Release Notes
 
 * 5/17/2017
   * introduced timeout for throttled jobs
+  * changed ES merge to avoid jobseed=es
 
 * 5/8/2017
   * added nSimEvents
