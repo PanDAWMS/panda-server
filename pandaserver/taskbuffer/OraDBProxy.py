@@ -18708,7 +18708,7 @@ class DBProxy:
         tmpLog.debug('start')
 
         sql = """
-               SELECT NAME, VALUE, PARENT, PRODSOURCELABEL, WORKINGGROUP, CAMPAIGN, PROCESSINGTYPE, QUEUE_ID
+               SELECT NAME, VALUE, PARENT, PRODSOURCELABEL, WORKINGGROUP, CAMPAIGN, PROCESSINGTYPE, VO, QUEUE_ID, THROTTLED
                FROM ATLAS_PANDA.GLOBAL_SHARES
                """
         var_map = None
@@ -18770,8 +18770,10 @@ class DBProxy:
 
         # Load branches
         t_before = time.time()
-        for (name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype, queue_id) in shares_top_level:
-            share = GlobalShares.Share(name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype, queue_id)
+        for (name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype, vo, queue_id, throttled) \
+                in shares_top_level:
+            share = GlobalShares.Share(name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype,
+                                       vo, queue_id, throttled)
             tree.children.append(self.__load_branch(share))
         t_after = time.time()
         total = t_after - t_before
@@ -18854,16 +18856,16 @@ class DBProxy:
         """
         Recursively load a branch
         """
-        node = GlobalShares.Share(share.name, share.value, share.parent, share.prodsourcelabel,
-                                  share.workinggroup, share.campaign, share.processingtype, share.queue_id)
+        node = GlobalShares.Share(share.name, share.value, share.parent, share.prodsourcelabel, share.workinggroup,
+                                  share.campaign, share.processingtype, share.vo, share.queue_id, share.throttled)
 
         children = self.get_shares(parents=share.name)
         if not children:
             return node
 
-        for (name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype, queue_id) in children:
+        for (name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype, vo, queue_id, throttled) in children:
             child = GlobalShares.Share(name, value, parent, prodsourcelabel,
-                                       workinggroup, campaign, processingtype, queue_id)
+                                       workinggroup, campaign, processingtype, vo, queue_id, throttled)
             node.children.append(self.__load_branch(child))
 
         return node
