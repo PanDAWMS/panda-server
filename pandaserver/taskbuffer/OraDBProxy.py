@@ -18756,7 +18756,7 @@ class DBProxy:
 
         # Root dummy node
         t_before = time.time()
-        tree = GlobalShares.Share('root', 100, None, None, None, None, None, None)
+        tree = GlobalShares.Share('root', 100, None, None, None, None, None, None, None, None)
         t_after = time.time()
         total = t_after - t_before
         _logger.debug('Root dummy tree took {0}s'.format(total))
