@@ -2362,8 +2362,11 @@ class DBProxy:
     # retry analysis job
     def retryJob(self,pandaID,param,failedInActive=False,changeJobInMem=False,inMemJob=None,
                  getNewPandaID=False,attemptNr=None,recoverableEsMerge=False):
-        comment = ' /* DBProxy.retryJob */'                
-        _logger.debug("retryJob : %s inActive=%s" % (pandaID,failedInActive))
+        comment = ' /* DBProxy.retryJob */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " < PandaID={0} >".format(pandaID)
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("inActive=%s" % failedInActive)
         sql1 = "SELECT %s FROM ATLAS_PANDA.jobsActive4 " % JobSpec.columnNames()
         sql1+= "WHERE PandaID=:PandaID "
         if failedInActive:
@@ -2385,7 +2388,7 @@ class DBProxy:
                     self.cur.execute(sql1+comment, varMap)
                     res = self.cur.fetchall()
                     if len(res) == 0:
-                        _logger.debug("retryJob() : PandaID %d not found" % pandaID)
+                        tmpLog.debug("PandaID not found")
                         self._rollback()
                         return retValue
                     job = JobSpec()
@@ -2404,12 +2407,12 @@ class DBProxy:
                 try:
                     attemptNr = int(attemptNr)
                 except:
-                    _logger.debug("retryJob : %s attemptNr=%s non-integer" % (pandaID,attemptNr))
+                    tmpLog.debug("attemptNr=%s non-integer" % attemptNr)
                     attemptNr = -999
                 # check attemptNr
                 if attemptNr != None:
                     if job.attemptNr != attemptNr:
-                        _logger.debug("retryJob : %s bad attemptNr job.%s != pilot.%s" % (pandaID,job.attemptNr,attemptNr))
+                        tmpLog.debug("bad attemptNr job.%s != pilot.%s" % (job.attemptNr,attemptNr))
                         if not changeJobInMem:
                             # commit
                             if not self._commit():
@@ -2418,7 +2421,7 @@ class DBProxy:
                         return retValue
                 # check if already retried
                 if job.taskBufferErrorCode in [ErrorCode.EC_Reassigned,ErrorCode.EC_Retried,ErrorCode.EC_PilotRetried]:
-                    _logger.debug("retryJob : %s already retried %s" % (pandaID,job.taskBufferErrorCode))
+                    tmpLog.debug("already retried %s" % job.taskBufferErrorCode)
                     if not changeJobInMem:
                         # commit
                         if not self._commit():
@@ -2457,7 +2460,7 @@ class DBProxy:
                         moreRetryForJEDI = self.checkMoreRetryJEDI(job)
                     # OK in JEDI
                     if moreRetryForJEDI:
-                        _logger.debug('reset PandaID:%s #%s' % (job.PandaID,job.attemptNr))
+                        tmpLog.debug('reset PandaID:%s #%s' % (job.PandaID,job.attemptNr))
                         if not changeJobInMem:
                             # job parameters
                             sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
@@ -2517,11 +2520,14 @@ class DBProxy:
                                         break
                                 # use long site if exists
                                 if longSite != None:
-                                    _logger.debug('sending PandaID:%s to %s' % (job.PandaID,longSite))
+                                    tmpLog.debug('sending PandaID:%s to %s' % (job.PandaID,longSite))
                                     job.computingSite = longSite
                                     # set destinationSE if queue is changed
                                     if oldComputingSite == job.destinationSE:
                                         job.destinationSE = job.computingSite
+                        # set site to ES merger job
+                        if recoverableEsMerge and EventServiceUtils.isEventServiceMerge(job):
+                            self.setSiteForEsMerge(job, False, methodName, comment)
                         if not changeJobInMem:                                
                             # select files
                             varMap = {}
@@ -2629,7 +2635,7 @@ class DBProxy:
                                 retI = self.cur.execute(sql1+comment, varMap)
                                 # set PandaID
                                 job.PandaID = long(self.cur.getvalue(varMap[':newPandaID']))
-                                _logger.debug('Generate new PandaID %s -> %s #%s' % (job.parentID,job.PandaID,job.attemptNr))
+                                tmpLog.debug('Generate new PandaID %s -> %s #%s' % (job.parentID,job.PandaID,job.attemptNr))
                                 # insert files
                                 sqlFile = "INSERT INTO ATLAS_PANDA.filesTable4 (%s) " % FileSpec.columnNames()
                                 sqlFile+= FileSpec.bindValuesExpression(useSeq=True)
@@ -2670,7 +2676,7 @@ class DBProxy:
                         if updatedFlag:
                             self.recordStatusChange(job.PandaID,job.jobStatus,jobInfo=job)
                     except:
-                        _logger.error('recordStatusChange in retryJob')
+                        tmpLog.error('recordStatusChange in retryJob')
                 return retValue
             except:
                 # roll back
@@ -2680,8 +2686,7 @@ class DBProxy:
                     time.sleep(random.randint(10,20))
                     continue
                 # error report
-                type, value, traceBack = sys.exc_info()
-                _logger.error("retryJob : %s %s" % (type,value))
+                self.dumpErrorMessage(_logger,methodName)
                 return False
 
 
@@ -3781,7 +3786,8 @@ class DBProxy:
             if getUserInfo:
                 return False,{}                
             return False
-        sql0  = "SELECT prodUserID,prodSourceLabel,jobDefinitionID,jobsetID,workingGroup,specialHandling,jobStatus FROM %s WHERE PandaID=:PandaID "
+        sql0  = "SELECT prodUserID,prodSourceLabel,jobDefinitionID,jobsetID,workingGroup,specialHandling,jobStatus,taskBufferErrorCode FROM %s "
+        sql0 += "WHERE PandaID=:PandaID "
         sql0 += "FOR UPDATE NOWAIT "
         sql1  = "UPDATE %s SET commandToPilot=:commandToPilot,taskBufferErrorDiag=:taskBufferErrorDiag WHERE PandaID=:PandaID AND commandToPilot IS NULL"
         sql1F = "UPDATE %s SET commandToPilot=:commandToPilot,taskBufferErrorDiag=:taskBufferErrorDiag WHERE PandaID=:PandaID"
@@ -3835,7 +3841,7 @@ class DBProxy:
                         distinguishedName = dn
                     return distinguishedName
                 # prevent prod proxy from killing analysis jobs
-                userProdUserID,userProdSourceLabel,userJobDefinitionID,userJobsetID,workingGroup,specialHandling,jobStatusInDB = res
+                userProdUserID,userProdSourceLabel,userJobDefinitionID,userJobsetID,workingGroup,specialHandling,jobStatusInDB,taskBufferErrorCode = res
                 # check group prod role
                 validGroupProdRole = False
                 if res[1] in ['managed','test'] and workingGroup != '':
@@ -4009,14 +4015,16 @@ class DBProxy:
                         fileSpec = FileSpec()
                         fileSpec.pack(resF)
                         job.addFile(fileSpec)
-                    # kill associated consumers for event service
-                    if useEventService:
-                        self.killEventServiceConsumers(job,True,False)
-                        self.killUnusedEventServiceConsumers(job,False)
-                        self.updateRelatedEventServiceJobs(job,True)
-                        self.killUnusedEventRanges(job.jediTaskID,job.jobsetID)
-                    elif useEventServiceMerge:
-                        self.updateRelatedEventServiceJobs(job,True)
+                    # actions for event service unless it was already retried
+                    if taskBufferErrorCode not in [ErrorCode.EC_Reassigned,ErrorCode.EC_Retried,ErrorCode.EC_PilotRetried]:
+                        # kill associated consumers for event service
+                        if useEventService:
+                            self.killEventServiceConsumers(job,True,False)
+                            self.killUnusedEventServiceConsumers(job,False)
+                            self.updateRelatedEventServiceJobs(job,True)
+                            self.killUnusedEventRanges(job.jediTaskID,job.jobsetID)
+                        elif useEventServiceMerge:
+                            self.updateRelatedEventServiceJobs(job,True)
                     # disable reattempt
                     if job.processingType == 'pmerge' and not 'keepUnmerged' in killOpts:
                         self.disableFurtherReattempt(job)
@@ -4917,7 +4925,8 @@ class DBProxy:
 
     # lock jobs for reassign
     def lockJobsForReassign(self,tableName,timeLimit,statList,labels,processTypes,sites,clouds,
-                            useJEDI=False,onlyReassignable=False,useStateChangeTime=False):
+                            useJEDI=False,onlyReassignable=False,useStateChangeTime=False,
+                            getEventService=False):
         comment = ' /* DBProxy.lockJobsForReassign */'                        
         _logger.debug("lockJobsForReassign : %s %s %s %s %s %s %s %s" % \
                       (tableName,timeLimit,statList,labels,processTypes,sites,clouds,useJEDI))
@@ -4925,6 +4934,8 @@ class DBProxy:
             # make sql
             if not useJEDI:
                 sql  = "SELECT PandaID FROM %s " % tableName
+            elif getEventService:
+                sql  = "SELECT PandaID,lockedby,eventService,attemptNr FROM %s " % tableName
             else:
                 sql  = "SELECT PandaID,lockedby FROM %s " % tableName
             if not useStateChangeTime:
@@ -15087,103 +15098,10 @@ class DBProxy:
                                 break
                         if toEscape:
                             break
-                # merge on OS
-                isMergeAtOS = EventServiceUtils.isMergeAtOS(jobSpec.specialHandling)
                 # change special handling
                 EventServiceUtils.setEventServiceMerge(jobSpec)
-                # check where merge is done
-                lookForMergeSite = True
-                sqlWM  = "SELECT catchAll,objectstores FROM ATLAS_PANDAMETA.schedconfig WHERE siteid=:siteid "
-                varMap = {}
-                varMap[':siteid'] = jobSpec.computingSite
-                self.cur.execute(sqlWM+comment, varMap)
-                resWM = self.cur.fetchone()
-                resSN = []
-                catchAll,objectstores = None,None
-                if resWM != None:
-                    catchAll,objectstores = resWM
-                if catchAll == None:
-                    catchAll = ''
-                try:
-                    objectstores = json.loads(objectstores)
-                except:
-                    objectstores = []
-                if isFakeCJ:
-                    # use nucleus for fake co-jumbo since they don't have sub datasets 
-                    pass
-                elif 'localEsMergeNC' in catchAll:
-                    # no site change
-                    lookForMergeSite = False
-                elif 'localEsMerge' in catchAll:
-                    # get sites in the nucleus associated to the site to run merge jobs in the same nucleus
-                    sqlSN  = "SELECT ps2.panda_site_name,ps2.default_ddm_endpoint "
-                    sqlSN += "FROM ATLAS_PANDA.panda_site ps1,ATLAS_PANDA.panda_site ps2,ATLAS_PANDAMETA.schedconfig sc "
-                    sqlSN += "WHERE ps1.panda_site_name=:site AND ps1.site_name=ps2.site_name AND sc.siteid=ps2.panda_site_name "
-                    sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1) "
-                    sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
-                    sqlSN += "AND (sc.catchall IS NULL OR NOT sc.catchall LIKE '%jobseed=es%') "
-                    varMap = {}
-                    varMap[':site'] = jobSpec.computingSite
-                    # get sites
-                    self.cur.execute(sqlSN+comment,varMap)
-                    resSN = self.cur.fetchall()
-                if len(resSN) == 0 and lookForMergeSite:
-                    # run merge jobs at destination
-                    if not jobSpec.destinationSE.startswith('nucleus:'):
-                        jobSpec.computingSite = jobSpec.destinationSE
-                        lookForMergeSite = False
-                    else:
-                        # use nucleus close to OS
-                        tmpNucleus = None
-                        if isMergeAtOS and len(objectstores) > 0 and not isFakeCJ:
-                            osEndpoint = objectstores[0]['ddmendpoint']
-                            sqlCO = "SELECT site_name FROM ATLAS_PANDA.ddm_endpoint WHERE ddm_endpoint_name=:osEndpoint "
-                            varMap = dict()
-                            varMap[':osEndpoint'] = osEndpoint
-                            self.cur.execute(sqlCO+comment,varMap)
-                            resCO = self.cur.fetchone()
-                            if resCO is not None:
-                                tmpNucleus, = resCO
-                        # use nucleus
-                        if tmpNucleus is None:
-                            tmpNucleus = jobSpec.destinationSE.split(':')[-1]
-                        _logger.debug('{0} look for merge sites in {1}'.format(methodName,tmpNucleus))
-                        # get sites in a nucleus
-                        sqlSN  = "SELECT panda_site_name,default_ddm_endpoint FROM ATLAS_PANDA.panda_site ps,ATLAS_PANDAMETA.schedconfig sc "
-                        sqlSN += "WHERE site_name=:nucleus AND sc.siteid=ps.panda_site_name "
-                        sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1) "
-                        sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
-                        sqlSN += "AND (sc.catchall IS NULL OR NOT sc.catchall LIKE '%jobseed=es%') "                        
-                        varMap = {}
-                        varMap[':nucleus'] = tmpNucleus
-                        # get sites
-                        self.cur.execute(sqlSN+comment,varMap)
-                        resSN = self.cur.fetchall()
-                # look for a site for merging
-                if lookForMergeSite:
-                    # compare number of pilot requests
-                    maxNumPilot = 0
-                    sqlUG  = "SELECT updateJob+getJob FROM ATLAS_PANDAMETA.sitedata "
-                    sqlUG += "WHERE site=:panda_site AND HOURS=:hours AND FLAG=:flag "
-                    for tmp_panda_site_name,tmp_ddm_endpoint in resSN:
-                        varMap = {}
-                        varMap[':panda_site'] = tmp_panda_site_name
-                        varMap[':hours'] = 3
-                        varMap[':flag'] = 'production'
-                        self.cur.execute(sqlUG+comment,varMap)
-                        resUG = self.cur.fetchone()
-                        if resUG == None:
-                            nPilots = 0
-                        else:
-                            nPilots, = resUG
-                        # use larger
-                        if maxNumPilot < nPilots:
-                            maxNumPilot = nPilots
-                            jobSpec.computingSite = tmp_panda_site_name
-                            for tmpFileSpec in jobSpec.Files:
-                                if tmpFileSpec.destinationDBlockToken.startswith('ddd:'):
-                                    tmpFileSpec.destinationDBlockToken = 'ddd:{0}'.format(tmp_ddm_endpoint)
-                                    tmpFileSpec.destinationSE = jobSpec.computingSite
+                # set site
+                self.setSiteForEsMerge(jobSpec, isFakeCJ, methodName, comment)
                 jobSpec.coreCount = None
                 jobSpec.minRamCount = 0
             # insert job with new PandaID
@@ -15267,6 +15185,116 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return None,None
+
+
+
+    # set site for ES merge
+    def setSiteForEsMerge(self, jobSpec, isFakeCJ, methodName, comment):
+        # merge on OS
+        isMergeAtOS = EventServiceUtils.isMergeAtOS(jobSpec.specialHandling)
+        # check where merge is done
+        lookForMergeSite = True
+        sqlWM  = "SELECT catchAll,objectstores FROM ATLAS_PANDAMETA.schedconfig WHERE siteid=:siteid "
+        varMap = {}
+        varMap[':siteid'] = jobSpec.computingSite
+        self.cur.execute(sqlWM+comment, varMap)
+        resWM = self.cur.fetchone()
+        resSN = []
+        catchAll,objectstores = None,None
+        if resWM != None:
+            catchAll,objectstores = resWM
+        if catchAll == None:
+            catchAll = ''
+        try:
+            objectstores = json.loads(objectstores)
+        except:
+            objectstores = []
+        if isFakeCJ:
+            # use nucleus for fake co-jumbo since they don't have sub datasets 
+            pass
+        elif 'localEsMergeNC' in catchAll:
+            # no site change
+            lookForMergeSite = False
+        elif 'localEsMerge' in catchAll:
+            # get sites in the nucleus associated to the site to run merge jobs in the same nucleus
+            sqlSN  = "SELECT ps2.panda_site_name,ps2.default_ddm_endpoint "
+            sqlSN += "FROM ATLAS_PANDA.panda_site ps1,ATLAS_PANDA.panda_site ps2,ATLAS_PANDAMETA.schedconfig sc "
+            sqlSN += "WHERE ps1.panda_site_name=:site AND ps1.site_name=ps2.site_name AND sc.siteid=ps2.panda_site_name "
+            sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1) "
+            sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
+            sqlSN += "AND (sc.catchall IS NULL OR NOT sc.catchall LIKE '%jobseed=es%') "
+            sqlSN += "AND sc.status=:siteStatus "
+            varMap = {}
+            varMap[':site'] = jobSpec.computingSite
+            varMap[':siteStatus'] = 'online'
+            # get sites
+            self.cur.execute(sqlSN+comment,varMap)
+            resSN = self.cur.fetchall()
+        if len(resSN) == 0 and lookForMergeSite:
+            # run merge jobs at destination
+            if not jobSpec.destinationSE.startswith('nucleus:'):
+                jobSpec.computingSite = jobSpec.destinationSE
+                lookForMergeSite = False
+            else:
+                # use nucleus close to OS
+                tmpNucleus = None
+                if isMergeAtOS and len(objectstores) > 0 and not isFakeCJ:
+                    osEndpoint = objectstores[0]['ddmendpoint']
+                    sqlCO = "SELECT site_name FROM ATLAS_PANDA.ddm_endpoint WHERE ddm_endpoint_name=:osEndpoint "
+                    varMap = dict()
+                    varMap[':osEndpoint'] = osEndpoint
+                    self.cur.execute(sqlCO+comment,varMap)
+                    resCO = self.cur.fetchone()
+                    if resCO is not None:
+                        tmpNucleus, = resCO
+                # use nucleus
+                if tmpNucleus is None:
+                    tmpNucleus = jobSpec.destinationSE.split(':')[-1]
+                _logger.debug('{0} look for merge sites in nucleus:{1}'.format(methodName,tmpNucleus))
+                # get sites in a nucleus
+                sqlSN  = "SELECT panda_site_name,default_ddm_endpoint FROM ATLAS_PANDA.panda_site ps,ATLAS_PANDAMETA.schedconfig sc "
+                sqlSN += "WHERE site_name=:nucleus AND sc.siteid=ps.panda_site_name "
+                sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1) "
+                sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
+                sqlSN += "AND (sc.catchall IS NULL OR NOT sc.catchall LIKE '%jobseed=es%') "
+                sqlSN += "AND sc.status=:siteStatus "
+                varMap = {}
+                varMap[':nucleus'] = tmpNucleus
+                varMap[':siteStatus'] = 'online'
+                # get sites
+                self.cur.execute(sqlSN+comment,varMap)
+                resSN = self.cur.fetchall()
+        # look for a site for merging
+        if lookForMergeSite:
+            # compare number of pilot requests
+            maxNumPilot = 0
+            sqlUG  = "SELECT updateJob+getJob FROM ATLAS_PANDAMETA.sitedata "
+            sqlUG += "WHERE site=:panda_site AND HOURS=:hours AND FLAG=:flag "
+            newSiteName = None
+            for tmp_panda_site_name,tmp_ddm_endpoint in resSN:
+                varMap = {}
+                varMap[':panda_site'] = tmp_panda_site_name
+                varMap[':hours'] = 3
+                varMap[':flag'] = 'production'
+                self.cur.execute(sqlUG+comment,varMap)
+                resUG = self.cur.fetchone()
+                if resUG == None:
+                    nPilots = 0
+                else:
+                    nPilots, = resUG
+                # use larger
+                if maxNumPilot < nPilots:
+                    maxNumPilot = nPilots
+                    jobSpec.computingSite = tmp_panda_site_name
+                    newSiteName = jobSpec.computingSite
+                    for tmpFileSpec in jobSpec.Files:
+                        if tmpFileSpec.destinationDBlockToken.startswith('ddd:'):
+                            tmpFileSpec.destinationDBlockToken = 'ddd:{0}'.format(tmp_ddm_endpoint)
+                            tmpFileSpec.destinationSE = jobSpec.computingSite
+            if newSiteName is not None:
+                _logger.debug('{0} set merge site to {1}'.format(methodName,newSiteName))
+        # return
+        return
 
 
 

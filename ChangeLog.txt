@@ -1,5 +1,8 @@
 Release Notes
 
+* 5/23/2017
+  * changed retryJob to reset computingSite to ES merge jobs
+
 * 5/17/2017
   * introduced timeout for throttled jobs
   * changed ES merge to avoid jobseed=es

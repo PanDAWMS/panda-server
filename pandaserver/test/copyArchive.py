@@ -661,7 +661,7 @@ varMap[':rFlag1']    = 2
 stDS,resDS = taskBuffer.querySQLS(sql,varMap)
 sqlSS  = 'SELECT laststart FROM ATLAS_PANDAMETA.siteData '
 sqlSS += 'WHERE site=:site AND flag=:flag AND hours=:hours AND laststart<:laststart '
-sqlPI  = 'SELECT PandaID FROM ATLAS_PANDA.jobsActive4 '
+sqlPI  = 'SELECT PandaID,eventService,attemptNr FROM ATLAS_PANDA.jobsActive4 '
 sqlPI += 'WHERE prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) '
 sqlPI += 'AND (modificationTime<:timeLimit OR stateChangeTime<:timeLimit) '
 sqlPI += 'AND lockedby=:lockedby AND currentPriority>=:prioLimit '
@@ -688,11 +688,15 @@ for tmpSite, in resDS:
         varMap[':rFlag1']    = 2
         stPI,resPI = taskBuffer.querySQLS(sqlPI,varMap)
         jediJobs = []
-        if resPI != None:
-            for id, in resPI:
-                jediJobs.append(id)
         # reassign
-        _logger.debug('reassignJobs for JEDI at inactive site %s laststart=%s -> #%s' % (tmpSite,resSS[0][0],len(jediJobs)))
+        _logger.debug('reassignJobs for JEDI at inactive site %s laststart=%s' % (tmpSite,resSS[0][0]))
+        if resPI != None:
+            for pandaID, eventService, attemptNr in resPI:
+                if eventService in [EventServiceUtils.esMergeJobFlagNumber]:
+                    _logger.debug('retrying {0} at inactive site %s' % (pandaID,tmpSite))
+                    taskBuffer.retryJob(pandaID,{},getNewPandaID=True,attemptNr=attemptNr,
+                                                 recoverableEsMerge=True)
+                jediJobs.append(pandaID)
         if len(jediJobs) != 0:
             nJob = 100
             iJob = 0
@@ -866,15 +870,19 @@ except:
 # reassign too long activated jobs in active table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=2)
 status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsActive4",timeLimit,['activated'],['managed'],[],[],[],True,
-                                            onlyReassignable=True)
+                                            onlyReassignable=True,getEventService=True)
 jobs = []
 jediJobs = []
 if res != None:
-    for (id,lockedby) in res:
+    for pandaID, lockedby, eventService, attemptNr in res:
         if lockedby == 'jedi':
-            jediJobs.append(id)
+            if eventService in [EventServiceUtils.esMergeJobFlagNumber]:
+                _logger.debug('retrying {0} in long activated' % pandaID)
+                taskBuffer.retryJob(pandaID,{},getNewPandaID=True,attemptNr=attemptNr,
+                                    recoverableEsMerge=True)
+            jediJobs.append(pandaID)
         else:
-            jobs.append(id)
+            jobs.append(pandaID)
 _logger.debug('reassignJobs for long activated in active table -> #%s' % len(jobs))
 if len(jobs) != 0:
     nJob = 100

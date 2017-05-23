@@ -430,12 +430,13 @@ class TaskBuffer:
 
     # lock jobs for reassign
     def lockJobsForReassign(self,tableName,timeLimit,statList,labels,processTypes,sites,clouds,
-                            useJEDI=False,onlyReassignable=False,useStateChangeTime=False):
+                            useJEDI=False,onlyReassignable=False,useStateChangeTime=False,
+                            getEventService=False):
         # get DB proxy
         proxy = self.proxyPool.getProxy()
         # exec
         res = proxy.lockJobsForReassign(tableName,timeLimit,statList,labels,processTypes,sites,clouds,
-                                        useJEDI,onlyReassignable,useStateChangeTime)
+                                        useJEDI,onlyReassignable,useStateChangeTime,getEventService)
         # release DB proxy
         self.proxyPool.putProxy(proxy)
         # return
