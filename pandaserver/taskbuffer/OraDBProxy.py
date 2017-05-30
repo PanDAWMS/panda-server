@@ -15270,8 +15270,11 @@ class DBProxy:
             maxNumPilot = 0
             sqlUG  = "SELECT updateJob+getJob FROM ATLAS_PANDAMETA.sitedata "
             sqlUG += "WHERE site=:panda_site AND HOURS=:hours AND FLAG=:flag "
+            sqlRJ  = "SELECT SUM(num_of_jobs) FROM ATLAS_PANDA.MV_JOBSACTIVE4_STATS "
+            sqlRJ += "WHERE computingSite=:panda_site AND jobStatus=:jobStatus "
             newSiteName = None
             for tmp_panda_site_name,tmp_ddm_endpoint in resSN:
+                # get nPilot
                 varMap = {}
                 varMap[':panda_site'] = tmp_panda_site_name
                 varMap[':hours'] = 3
@@ -15282,6 +15285,16 @@ class DBProxy:
                     nPilots = 0
                 else:
                     nPilots, = resUG
+                # get nRunning
+                varMap = {}
+                varMap[':panda_site'] = tmp_panda_site_name
+                varMap[':jobStatus'] = 'running'
+                self.cur.execute(sqlRJ+comment,varMap)
+                resRJ = self.cur.fetchone()
+                if resRJ is None:
+                    nRunning = 0
+                else:
+                    nRunning, = resRJ
                 # use larger
                 if maxNumPilot < nPilots:
                     maxNumPilot = nPilots
