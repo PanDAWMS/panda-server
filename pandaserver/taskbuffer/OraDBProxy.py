@@ -15295,6 +15295,8 @@ class DBProxy:
                     nRunning = 0
                 else:
                     nRunning, = resRJ
+                tmpStr = 'site={0} nPilot={1} nRunning={2}'.format(tmp_panda_site_name, nPilots, nRunning)
+                _logger.debug('{0} {1}'.format(methodName,tmpStr))
                 # use larger
                 if maxNumPilot < nPilots:
                     maxNumPilot = nPilots
