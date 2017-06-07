@@ -20,6 +20,7 @@ from taskbuffer.JobSpec import JobSpec
 from taskbuffer.FileSpec import FileSpec
 from taskbuffer.DatasetSpec import DatasetSpec
 from taskbuffer import retryModule
+from taskbuffer import EventServiceUtils
 from brokerage.SiteMapper import SiteMapper
 from brokerage.PandaSiteIDs import PandaMoverIDs
 import brokerage.broker
@@ -500,7 +501,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                             else:
                                 tmpDstDDM = self.siteMapper.getSite(file.destinationSE).ddm
                             # skip registration for _sub when src=dest
-                            if (tmpSrcDDM == tmpDstDDM or DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) != None) \
+                            if ((tmpSrcDDM == tmpDstDDM and not EventServiceUtils.isMergeAtOS(job.specialHandling)) \
+                                    or DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) != None) \
                                     and name != originalName and re.search('_sub\d+$',name) != None:
                                 # create a fake vuid
                                 newVUID = str(uuid.uuid4())
@@ -586,7 +588,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                 elif name == originalName or tmpSrcDDM != tmpDstDDM or \
                                        job.prodSourceLabel == 'panda' or (job.prodSourceLabel in ['ptest','rc_test'] and \
                                                                           job.processingType in ['pathena','prun','gangarobot-rctest']) \
-                                       or len(tmpTokenList) > 1:
+                                       or len(tmpTokenList) > 1 or EventServiceUtils.isMergeAtOS(job.specialHandling):
                                     # set replica lifetime to _sub
                                     repLifeTime = None
                                     if (name != originalName and re.search('_sub\d+$',name) != None) or \

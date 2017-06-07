@@ -139,8 +139,8 @@ try:
                 errMsg = 'failed to expand/copy %s with : %s' % (tmpDispLogName,loout)
                 raise RuntimeError,errMsg
             # search string
-            sStr  = '^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).* '
-            sStr += 'INFO .* method=(.+),site=(.+),node=(.+),type=(.+)'        
+            sStr  = '^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*'
+            sStr += 'method=(.+),site=(.+),node=(.+),type=(.+)'        
             # read
             logFH = open(tmpLogName)
             for line in logFH:

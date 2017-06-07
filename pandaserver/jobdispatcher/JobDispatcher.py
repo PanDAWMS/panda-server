@@ -329,7 +329,7 @@ class JobDipatcher:
 
         # recoverable error for ES merge
         recoverableEsMerge = False
-        if 'pilotErrorCode' in param and param['pilotErrorCode'] in ['1099','1137','1151','1152','1221','1224','1225']:
+        if 'pilotErrorCode' in param and param['pilotErrorCode'] in ['1008','1099','1137','1151','1152','1221','1224','1225']:
             recoverableEsMerge = True
         # retry failed analysis job and ddm job
         if jobStatus=='failed' \

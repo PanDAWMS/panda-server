@@ -51,6 +51,10 @@ relationTypesForJS = [relationTypeJS_ID,relationTypeJS_Retry]
 esSuffixDDM = '.events'
 
 
+# default max number of ES job attempt
+defMaxAttemptEsJob = 3
+
+
 # encode file info
 def encodeFileInfo(lfn,startEvent,endEvent,nEventsPerWorker,
                    maxAttempt=None,firstOffset=None,firstEvent=None):

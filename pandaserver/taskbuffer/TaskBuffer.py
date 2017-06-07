@@ -430,12 +430,13 @@ class TaskBuffer:
 
     # lock jobs for reassign
     def lockJobsForReassign(self,tableName,timeLimit,statList,labels,processTypes,sites,clouds,
-                            useJEDI=False,onlyReassignable=False,useStateChangeTime=False):
+                            useJEDI=False,onlyReassignable=False,useStateChangeTime=False,
+                            getEventService=False):
         # get DB proxy
         proxy = self.proxyPool.getProxy()
         # exec
         res = proxy.lockJobsForReassign(tableName,timeLimit,statList,labels,processTypes,sites,clouds,
-                                        useJEDI,onlyReassignable,useStateChangeTime)
+                                        useJEDI,onlyReassignable,useStateChangeTime,getEventService)
         # release DB proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -1228,7 +1229,22 @@ class TaskBuffer:
         # kill jobs
         pandaIDforCloserMap = {}
         for id in ids:
-            ret,userInfo = proxy.killJob(id,user,code,prodManager,True,wgProdRole,killOptions)
+            # retry event service merge
+            toKill = True
+            if 'keepUnmerged' in killOptions:
+                tmpJobSpec = proxy.peekJob(id,True,True,False,False,False)
+                if tmpJobSpec is not None:
+                    if EventServiceUtils.isEventServiceMerge(tmpJobSpec):
+                        # retry ES merge jobs not to discard events
+                        proxy.retryJob(id,{},getNewPandaID=True,attemptNr=tmpJobSpec.attemptNr,
+                                       recoverableEsMerge=True)
+                    elif EventServiceUtils.isEventServiceJob(tmpJobSpec):
+                        # trigger ppE for ES jobs to properly trigger subsequent procedures
+                        ret = proxy.archiveJob(tmpJobSpec, tmpJobSpec.jobStatus in ['defined','assigned'])
+                        toKill = False
+                        userInfo = {'prodSourceLabel': None}
+            if toKill:
+                ret,userInfo = proxy.killJob(id,user,code,prodManager,True,wgProdRole,killOptions)
             rets.append(ret)
             if ret and userInfo['prodSourceLabel'] in ['user','managed','test']:
                 jobIDKey = (userInfo['prodUserID'],userInfo['jobDefinitionID'],userInfo['jobsetID'])
