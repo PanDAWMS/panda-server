@@ -1166,6 +1166,7 @@ class TaskBuffer:
             if not tmpJob.prodSourceLabel in ['managed','test']:
                 return "ERROR: Non production job : prodSourceLabel=%s. This method is only for production jobs" % tmpJob.prodSourceLabel
             # release and trf
+            tmpAtls = tmpJob.AtlasRelease.split("\n") 
             tmpRels = tmpJob.homepackage.split("\n")
             tmpPars = tmpJob.jobParameters.split("\n")
             tmpTrfs = tmpJob.transformation.split("\n")
@@ -1192,7 +1193,11 @@ class TaskBuffer:
             scrStr += "\n#transform commands\n\n"
             for tmpIdx,tmpRel in enumerate(tmpRels):
                 # asetup
-                scrStr += "asetup --cmtconfig=%s %s,%s\n" % tuple([tmpJob.cmtConfig]+tmpRel.split("/"))
+                atlRel = re.sub('Atlas-', '', tmpAtls[tmpIdx])
+                atlTags = tmpRel.split("/")
+                if atlRel != '' and atlRel not in atlTags and re.search('^\d+\.\d+\.\d+$', atlRel) is None:
+                    atlTags.append(atlRel)
+                scrStr += "asetup --cmtconfig=%s %s\n" % (tmpJob.cmtConfig, ','.join(atlTags))
                 # athenaMP
                 if not tmpJob.coreCount in ['NULL',None] and tmpJob.coreCount > 1:
                     scrStr += "export ATHENA_PROC_NUMBER=%s\n" % tmpJob.coreCount
