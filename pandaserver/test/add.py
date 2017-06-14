@@ -155,6 +155,12 @@ try:
                     tmpSite   = match.group(3)
                     tmpNode   = match.group(4)
                     tmpType   = match.group(5)
+
+                    # protection against corrupted entries from pilot,
+                    # e.g. pilot reading site json from cvmfs while it was being updated
+                    if tmpSite not in aSiteMapper.siteSpecList.keys():
+                        continue
+
                     # sum
                     if not pilotCounts.has_key(tmpSite):
                         pilotCounts[tmpSite] = {}
