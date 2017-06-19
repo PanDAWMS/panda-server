@@ -154,7 +154,7 @@ class SiteMapper:
             try:
                 for siteName in self.siteSpecList.keys():
                     siteSpec = self.siteSpecList[siteName]
-                    if siteSpec.hasValueInCatchall('mergedPQ'):
+                    if siteSpec.hasValueInCatchall('unifiedPandaQueue'):
                         for resourceSpec in resourceTypes:
                             # make site spec for child
                             childSiteSpec = copy.copy(siteSpec)
