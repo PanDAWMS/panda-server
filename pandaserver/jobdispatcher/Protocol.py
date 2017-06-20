@@ -242,7 +242,10 @@ class Response:
         else:
             self.data['taskID'] = job.taskID
         # core count
-        self.data['coreCount'] = job.coreCount
+        if job.coreCount in ['NULL', None]:
+            self.data['coreCount'] = 1
+        else:
+            self.data['coreCount'] = job.coreCount
         # jobsetID
         self.data['jobsetID'] = job.jobsetID
         # nucleus
