@@ -175,6 +175,8 @@ def setEventServiceMerge(job):
     try:
         # set ES flag
         job.eventService = esMergeJobFlagNumber
+        # set gshare to express
+        job.gshare = 'Express'
         # set flag for merging
         if job.specialHandling == None:
             job.specialHandling = esMergeToken

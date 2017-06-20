@@ -15098,7 +15098,7 @@ class DBProxy:
                                 break
                         if toEscape:
                             break
-                # change special handling
+                # change special handling and set the share to express for merge jobs
                 EventServiceUtils.setEventServiceMerge(jobSpec)
                 # set site
                 self.setSiteForEsMerge(jobSpec, isFakeCJ, methodName, comment)
@@ -18974,6 +18974,10 @@ class DBProxy:
         """
         Return the share based on a job specification
         """
+        # special case: esmerge jobs go to Express share
+        if job.eventservice == EventServiceUtils.esMergeJobFlagNumber:
+            return 'Express'
+            
         self.__reload_shares()
         selected_share_name = 'Undefined'
 
