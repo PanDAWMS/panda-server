@@ -18975,7 +18975,7 @@ class DBProxy:
         Return the share based on a job specification
         """
         # special case: esmerge jobs go to Express share
-        if job.eventservice == EventServiceUtils.esMergeJobFlagNumber:
+        if job.eventService == EventServiceUtils.esMergeJobFlagNumber:
             return 'Express'
             
         self.__reload_shares()
