@@ -171,12 +171,12 @@ class SiteMapper:
                             if resourceSpec.maxrampercore is not None:
                                 childSiteSpec.maxrss = min(childSiteSpec.coreCount*resourceSpec.maxrampercore,
                                                            siteSpec.maxrss)
-                            # set parent
-                            childSiteSpec.parent_name = siteSpec.sitename
+                            # set unified name
+                            childSiteSpec.unified_name = siteSpec.sitename
                             # append
                             self.siteSpecList[childSiteSpec.sitename] = childSiteSpec
-                        # set parent flag
-                        siteSpec.is_parent = True
+                        # set unified flag
+                        siteSpec.is_unified = True
             except:
                 _logger.error(traceback.format_exc())
             # make cloudSpec

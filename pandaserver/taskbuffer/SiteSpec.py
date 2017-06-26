@@ -17,8 +17,8 @@ class SiteSpec(object):
                    'mintime','allowfax','wansourcelimit','wansinklimit','pandasite',
                    'sitershare','cloudrshare','corepower','wnconnectivity','catchall',
                    'role','pandasite_state','ddm_endpoints','maxrss','minrss',
-                   'direct_access_lan','direct_access_wan','tier','objectstores','is_parent',
-                   'parent_name')
+                   'direct_access_lan','direct_access_wan','tier','objectstores','is_unified',
+                   'unified_name')
 
     # constructor
     def __init__(self):
@@ -129,11 +129,11 @@ class SiteSpec(object):
         
 
 
-    # get parent name
-    def get_parent_name(self):
-        if self.parent_name is None:
+    # get unified name
+    def get_unified_name(self):
+        if self.unified_name is None:
             return self.sitename
-        return self.parent_name
+        return self.unified_name
 
 
 
@@ -143,3 +143,9 @@ class SiteSpec(object):
         if tmpVal is None:
             return None
         return int(tmpVal)
+
+
+
+    # check if opportunistic
+    def is_opportunistic(self):
+        return self.pledgedCPU == -1
