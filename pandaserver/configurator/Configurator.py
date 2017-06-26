@@ -157,12 +157,19 @@ class Configurator(threading.Thread):
                     continue
 
                 # Get the storage space
-                try: 
+                try:
                     space_used = self.rse_usage[ddm_endpoint_name]['storage']['used']/GB
+                    _logger.debug('process_site_dumps: endpoint {0} has used space {1}GB'.format(ddm_endpoint_name,
+                                                                                                 space_used))
                     space_free = self.rse_usage[ddm_endpoint_name]['storage']['free']/GB
+                    _logger.debug('process_site_dumps: endpoint {0} has free space {1}GB'.format(ddm_endpoint_name,
+                                                                                                 space_free))
                     space_total = space_used + space_free
                     space_timestamp = datetime.strptime(self.rse_usage[ddm_endpoint_name]['storage']['updated_at'],
                                                         '%Y-%m-%d %H:%M:%S')
+                    _logger.debug('process_site_dumps: endpoint {0} has space timestamp {1}'.format(ddm_endpoint_name,
+                                                                                                 space_timestamp))
+
                 except (KeyError, ValueError):
                     space_used, space_free, space_total, space_timestamp = None, None, None, None
                     _logger.error('process_site_dumps: no rse storage usage information for {0}'.format(ddm_endpoint_name))
