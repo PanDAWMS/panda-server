@@ -13,7 +13,7 @@ from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
 
 #Configurator libraries
-from models import Site, PandaSite, DdmEndpoint, Schedconfig, Jobsactive4, SiteStats
+from models import Site, PandaSite, DdmEndpoint, Schedconfig, Jobsactive4, SiteStats, PandaDdmRelationship
 
 #Read connection parameters
 __host = panda_config.dbhost
@@ -126,6 +126,23 @@ def write_ddm_endpoints_db(session, ddm_endpoints_list):
     except exc.SQLAlchemyError:
         session.rollback()
         _logger.critical('write_ddm_endpoints_db: Could not persist information --> {0}'.format(sys.exc_info()))
+
+def write_ddm_relationship_db(session, ddm_relationship_dict):
+    """
+#TODO: will add description
+    """
+    try:
+        _logger.debug("")
+        for ddm_endpoint in ddm_relationship_dict:
+            session.merge(PandaDdmRelationship(panda_site_name=ddm_endpoint['panda_site_name'],
+                                               ddm_endpoint_name=ddm_endpoint['ddm_site'],
+                                               roles=ddm_endpoint['roles'],
+                                               ord=int(ddm_endpoint['ord'])))
+        session.commit()
+        _logger.debug("")
+    except exc.SQLAlchemyError:
+        session.rollback()
+        _logger.critical(': Could not persist information --> {0}'.format(sys.exc_info()))
 
 
 def read_panda_ddm_relationships_schedconfig(session):

@@ -126,7 +126,7 @@ class Configurator(threading.Thread):
         panda_sites_list = []
         
         relationship_dict = self.process_schedconfig_dump()
-        
+        ddm_relationship_dict = self.get_ddm_relationship()
         # Iterate the site dump
         for site in self.site_dump:
             # Add the site info to a list
@@ -236,7 +236,36 @@ class Configurator(threading.Thread):
                                              'storage_site_name': storage_site_name,
                                              'is_local': is_local})
         
-        return sites_list, panda_sites_list, ddm_endpoints_list
+        return sites_list, panda_sites_list, ddm_endpoints_list, ddm_relationship_dict
+
+    def get_ddm_relationship(self):
+        dict_ddm = {}
+        #dict_ddm_relationship = {}
+        dict_ddm_list = []
+        for long_panda_site_name in self.schedconfig_dump:
+            panda_site_name = self.schedconfig_dump[long_panda_site_name]['panda_resource']
+            dict_ddm[panda_site_name] = {}
+            if (self.schedconfig_dump[long_panda_site_name]['astorages']!=0):
+                panda_site_astorages = self.schedconfig_dump[long_panda_site_name]['astorages']
+                for role in panda_site_astorages:
+                    for ddm in panda_site_astorages[role]:
+                        dict_ddm[panda_site_name].setdefault(ddm,[]).append(role)
+                index = 1
+                #isRead = 'N'
+                #isWrite = 'N'
+                for key,value in dict_ddm[panda_site_name].items():
+                    new_dic = {'ddm_site':key,'roles': ','.join(value),'ord':str(index)}
+                    #if ('pr' in value):
+                    #    isRead = 'Y'
+                    #if('pw' in value):
+                    #    isWrite = 'Y'
+                    index += 1
+                    if(key in self.endpoint_token_dict):
+                        dict_ddm_list.append({'long_panda_site_name':long_panda_site_name,'panda_site_name': panda_site_name,'ddm_site':str(new_dic['ddm_site']),'roles':str(new_dic['roles']),'ord':str(new_dic['ord'])})
+            #dict_ddm_relationship[long_panda_site_name] = dict_ddm_list
+            dict_ddm = {}
+            #dict_ddm_list = []
+        return dict_ddm_list
 
     def process_schedconfig_dump(self):
         """
@@ -377,14 +406,14 @@ class Configurator(threading.Thread):
         Principal function
         """
         # Get pre-processed AGIS dumps
-        sites_list, panda_sites_list, ddm_endpoints_list = self.process_site_dumps()
+        sites_list, panda_sites_list, ddm_endpoints_list,ddm_relationship_dict = self.process_site_dumps()
 
         # Persist the information to the PanDA DB
-        dbif.write_sites_db(_session, sites_list)
-        dbif.write_panda_sites_db(_session, panda_sites_list)
-        dbif.write_ddm_endpoints_db(_session, ddm_endpoints_list)
-        # dbif.write_panda_ddm_relations(_session, relationships_list)
-
+        #dbif.write_sites_db(_session, sites_list)
+        #dbif.write_panda_sites_db(_session, panda_sites_list)
+        #dbif.write_ddm_endpoints_db(_session, ddm_endpoints_list)
+        #dbif.write_panda_ddm_relations(_session, relationships_list)
+        dbif.write_ddm_relationship_db(_session, ddm_relationship_dict)
         #Get a snapshot of the corecount usage by site
         self.get_corepower_and_cleanup()
 
