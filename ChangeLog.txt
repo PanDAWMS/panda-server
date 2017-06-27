@@ -1,5 +1,8 @@
 Release Notes
 
+* 6/26/2017
+  * WQ-GS alignment
+
 * 5/26/2017
   * fixed killJob with keepUnmerged not to discard evens
   * changed SetupAtlas to make _sub when esMergeOnOS is used
