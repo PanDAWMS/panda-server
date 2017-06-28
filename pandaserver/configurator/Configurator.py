@@ -239,32 +239,28 @@ class Configurator(threading.Thread):
         return sites_list, panda_sites_list, ddm_endpoints_list, ddm_relationship_dict
 
     def get_ddm_relationship(self):
-        dict_ddm = {}
-        #dict_ddm_relationship = {}
+        """
+
+        """
+        dict_ddm_endpoint = {}
         dict_ddm_list = []
         for long_panda_site_name in self.schedconfig_dump:
             panda_site_name = self.schedconfig_dump[long_panda_site_name]['panda_resource']
-            dict_ddm[panda_site_name] = {}
+            dict_ddm_endpoint[panda_site_name] = {}
             if (self.schedconfig_dump[long_panda_site_name]['astorages']!=0):
                 panda_site_astorages = self.schedconfig_dump[long_panda_site_name]['astorages']
                 for role in panda_site_astorages:
                     for ddm in panda_site_astorages[role]:
-                        dict_ddm[panda_site_name].setdefault(ddm,[]).append(role)
-                index = 1
-                #isRead = 'N'
-                #isWrite = 'N'
-                for key,value in dict_ddm[panda_site_name].items():
-                    new_dic = {'ddm_site':key,'roles': ','.join(value),'ord':str(index)}
-                    #if ('pr' in value):
-                    #    isRead = 'Y'
-                    #if('pw' in value):
-                    #    isWrite = 'Y'
-                    index += 1
+                        dict_ddm_endpoint[panda_site_name].setdefault(ddm,[]).append(role)
+                order = 1
+
+                for key,value in dict_ddm_endpoint[panda_site_name].items():
+                    new_dic = {'ddm_site':key,'roles': ','.join(value),'ord':str(order)}
+                    order += 1
                     if(key in self.endpoint_token_dict):
                         dict_ddm_list.append({'long_panda_site_name':long_panda_site_name,'panda_site_name': panda_site_name,'ddm_site':str(new_dic['ddm_site']),'roles':str(new_dic['roles']),'ord':str(new_dic['ord'])})
-            #dict_ddm_relationship[long_panda_site_name] = dict_ddm_list
-            dict_ddm = {}
-            #dict_ddm_list = []
+            dict_ddm_endpoint = {}
+
         return dict_ddm_list
 
     def process_schedconfig_dump(self):

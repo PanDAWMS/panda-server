@@ -83,8 +83,8 @@ class SiteStats(Base):
 class PandaDdmRelationship(Base):
     __tablename__ = 'panda_ddm_relationship'
     __table_args__ = {u'schema': 'atlas_panda'}
-    panda_site_name = Column(String(52), ForeignKey(u'atlas_panda.panda_site.panda_site_name'), primary_key=True, nullable=False)
-    ddm_endpoint_name = Column(String(52), ForeignKey(u'atlas_panda.ddm_endpoint.ddm_endpoint_name'), primary_key=True, nullable=False)
+    panda_site_name = Column(String(52), ForeignKey(u'atlas_panda.panda_site.panda_site_name', ondelete='CASCADE'), primary_key=True, nullable=False)
+    ddm_endpoint_name = Column(String(52), ForeignKey(u'atlas_panda.ddm_endpoint.ddm_endpoint_name',  ondelete='CASCADE'), primary_key=True, nullable=False)
     roles = Column(String(60))
     ord = Column(Numeric(3, 0, asdecimal=False))
 
