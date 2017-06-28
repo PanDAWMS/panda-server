@@ -405,9 +405,9 @@ class Configurator(threading.Thread):
         sites_list, panda_sites_list, ddm_endpoints_list,ddm_relationship_dict = self.process_site_dumps()
 
         # Persist the information to the PanDA DB
-        #dbif.write_sites_db(_session, sites_list)
-        #dbif.write_panda_sites_db(_session, panda_sites_list)
-        #dbif.write_ddm_endpoints_db(_session, ddm_endpoints_list)
+        dbif.write_sites_db(_session, sites_list)
+        dbif.write_panda_sites_db(_session, panda_sites_list)
+        dbif.write_ddm_endpoints_db(_session, ddm_endpoints_list)
         #dbif.write_panda_ddm_relations(_session, relationships_list)
         dbif.write_ddm_relationship_db(_session, ddm_relationship_dict)
         #Get a snapshot of the corecount usage by site
