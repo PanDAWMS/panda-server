@@ -987,6 +987,10 @@ class UserIF:
         # serialize 
         return json.dumps(retVal)
 
+    # report stat of workers
+    def reportWorkerStats(self, harvesterID, siteName, paramsList):
+        return self.taskBuffer.reportWorkerStats(harvesterID, siteName, paramsList)
+
 
 
 # Singleton
@@ -2325,3 +2329,13 @@ def harvesterIsAlive(req,harvesterID,data=None):
         return json.dumps((False,"failed to load JSON"))
     # update
     return userIF.harvesterIsAlive(user,host,harvesterID,data)
+
+
+# report stat of workers
+def reportWorkerStats(req, harvesterID, siteName, paramsList):
+    # check security
+    if not isSecure(req):
+        return json.dumps((False,"SSL is required"))
+    # update
+    ret = userIF.reportWorkerStats(harvesterID, siteName, paramsList)
+    return json.dumps(ret)

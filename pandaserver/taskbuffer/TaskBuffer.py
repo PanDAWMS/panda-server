@@ -3273,6 +3273,54 @@ class TaskBuffer:
         return res
 
 
+    # send command to harvester or lock command
+    def commandToHarvester(self, harvester_ID, command, ack_requested, status, lockInterval=None, comInterval= None, params=None):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.commandToHarvester(harvester_ID, command, ack_requested, status, lockInterval, comInterval, params)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
+    # report stat of workers
+    def reportWorkerStats(self, harvesterID, siteName, paramsList):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.reportWorkerStats(harvesterID, siteName, paramsList)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
+    # request to refresh worker stat
+    def requestRefreshWorkerStats(self, refreshInterval, lockInterval):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.requestRefreshWorkerStats(refreshInterval, lockInterval)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
+    # get sites to set nWorkers 
+    def getSitesToSetNumWorkers(self, refreshInterval, lockInterval):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.getSitesToSetNumWorkers(refreshInterval, lockInterval)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
     # update workers
     def updateWorkers(self, harvesterID, data):
         """
@@ -3358,6 +3406,18 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # exec
         ret_val = proxy.get_resource_type_job(job_spec)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret_val
+
+
+    # get activated job statistics per resouce
+    def getActivatedJobStatisticsPerResource(self, siteName):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret_val = proxy.getActivatedJobStatisticsPerResource(siteName)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
