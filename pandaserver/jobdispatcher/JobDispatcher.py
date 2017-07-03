@@ -43,6 +43,7 @@ class _TimedMethod:
 
     # run
     def run(self,*var):
+        _logger.debug(var)
         thr = threading.Thread(target=self,args=var)
         # run thread
         thr.start()
@@ -432,6 +433,27 @@ class JobDipatcher:
                 response=Protocol.Response(Protocol.SC_Failed)
         _logger.debug("getStatus : %s ret -> %s" % (strIDs,response.encode()))
         return response.encode()
+
+
+    # check job status
+    def checkJobStatus(self, pandaIDs, timeout):
+        # peek jobs
+        tmpWrapper = _TimedMethod(self.taskBuffer.checkJobStatus,timeout)
+        tmpWrapper.run(pandaIDs)
+        # make response
+        if tmpWrapper.result == Protocol.TimeOutToken:
+            # timeout
+            response=Protocol.Response(Protocol.SC_TimeOut)
+        else:
+            if isinstance(tmpWrapper.result,types.ListType):
+                # succeed
+                response=Protocol.Response(Protocol.SC_Success)
+                response.appendNode('data', tmpWrapper.result)
+            else:
+                # failed
+                response=Protocol.Response(Protocol.SC_Failed)
+        _logger.debug("checkJobStatus : %s ret -> %s" % (pandaIDs, response.encode(True)))
+        return response.encode(True)
 
 
     # get a list of event ranges for a PandaID
@@ -1010,6 +1032,10 @@ def getStatus(req,ids,timeout=60):
     _logger.debug("getStatus(%s)" % ids)
     return jobDispatcher.getStatus(ids,int(timeout))
 
+
+# check job status
+def checkJobStatus(req,ids,timeout=60):
+    return jobDispatcher.checkJobStatus(ids,int(timeout))
 
 
 # get a list of even ranges for a PandaID

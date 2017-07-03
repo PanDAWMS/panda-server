@@ -3424,6 +3424,26 @@ class TaskBuffer:
         return ret_val
 
 
+    # check Job status
+    def checkJobStatus(self, pandaIDs):
+        try:
+            pandaIDs = pandaIDs.split(',')
+        except:
+            pandaIDs = []
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        retList = []
+        for pandaID in pandaIDs:
+            ret = proxy.checkJobStatus(pandaID)
+            retList.append(ret)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return retList
+
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 

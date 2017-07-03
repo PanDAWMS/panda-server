@@ -19795,3 +19795,38 @@ class DBProxy:
             self._rollback()
             self.dumpErrorMessage(tmpLog,methodName)
             return []
+
+
+
+    # check Job status
+    def checkJobStatus(self, pandaID):
+        comment = ' /* DBProxy.checkJobStatus */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, methodName + ' < PandaID={0} >'.format(pandaID))
+        tmpLog.debug('start')
+        retVal = {'command': None, 'status': None}
+        try:
+            sqlC = "SELECT jobStatus,commandToPilot FROM ATLAS_PANDA.jobsActive4 "
+            sqlC += "WHERE PandaID=:pandaID "
+            varMap = dict()
+            varMap[':pandaID'] = pandaID
+            # begin transaction
+            self.conn.begin()
+            # select
+            self.cur.arraysize = 10
+            self.cur.execute (sqlC+comment, varMap)
+            res = self.cur.fetchone()
+            if res != None:
+                retVal['status'], retVal['command'] = res
+            else:
+                retVal['status'], retVal['command'] = 'unknown', 'tobekilled'
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug('done with {0}'.format(str(retVal)))
+            return retVal
+        except:
+            # roll back
+            self._rollback()
+            self.dumpErrorMessage(tmpLog,methodName)
+            return retVal
