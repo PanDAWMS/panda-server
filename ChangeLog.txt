@@ -1,5 +1,8 @@
 Release Notes
 
+* 7/6/2017
+  * added tighter isolation for check of concurrent running consumers
+
 * 7/3/2017
   * added checkJobStatus
 

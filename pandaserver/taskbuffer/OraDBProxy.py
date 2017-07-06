@@ -14870,10 +14870,11 @@ class DBProxy:
             if nRow == 0:
                 # check if other consumers finished
                 sqlEOC  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
-                sqlEOC += "COUNT(*) FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
+                sqlEOC += "job_processID,attemptNr,status,processed_upto_eventID FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
                 sqlEOC += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                 sqlEOC += "AND ((NOT status IN (:esDone,:esDiscarded,:esCancelled,:esFatal,:esFailed)) "
-                sqlEOC += "OR (status=:esFailed AND processed_upto_eventID IS NOT NULL)) AND rownum=1 "
+                sqlEOC += "OR (status=:esFailed AND processed_upto_eventID IS NOT NULL)) "
+                sqlEOC += "FOR UPDATE "
                 # count the number of done ranges
                 sqlCDO  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
                 sqlCDO += "COUNT(*) FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
@@ -14892,11 +14893,18 @@ class DBProxy:
                         varMap[':esFailed']    = EventServiceUtils.ST_failed
                         self.cur.execute(sqlEOC+comment, varMap)
                         resEOC = self.cur.fetchone()
-                        nOCRow, = resEOC
-                        if nOCRow != 0:
+                        if resEOC is not None:
                             # there are unprocessed ranges
                             otherRunning = True
-                            _logger.debug("{0} : {1} event ranges still running".format(methodName,nOCRow))
+                            eocDump = dict()
+                            eocDump['jediTaskID'] = fileSpec.jediTaskID
+                            eocDump['datasetID'] = fileSpec.datasetID
+                            eocDump['fileID'] = fileSpec.fileID
+                            eocDump['job_processID'] = resEOC[0]
+                            eocDump['attemptNr'] = resEOC[1]
+                            eocDump['status'] = resEOC[2]
+                            eocDump['processed_upto_eventID'] = resEOC[3]
+                            _logger.debug("{0} : some event ranges still running like {1}".format(methodName,str(eocDump)))
                             break
                         # check if there are done ranges
                         if not hasDoneRange:
