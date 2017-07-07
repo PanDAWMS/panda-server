@@ -229,7 +229,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
                     if active:
                         task_buffer.setMaxAttempt(jobID, job.jediTaskID, job.Files, attemptNr)
                     # Log to pandamon and logfile
-                    message = "action=setMaxAttempt for PandaID={0}, jediTaskID={1}, maxAttempt={2}. (ErrorSource: {3}. ErrorCode: {4}. ErrorDiag: {5}. Error/action active={6})"\
+                    message = "action=setMaxAttempt for PandaID={0} jediTaskID={1} maxAttempt={2} (ErrorSource: {3}. ErrorCode: {4}. ErrorDiag: {5}. Error/action active={6})"\
                         .format(jobID, job.jediTaskID, attemptNr, error_source, error_code, error_diag_rule, active)
                     pandalog(message)
                     _logger.info(message)
@@ -239,7 +239,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
                         if active:
                             task_buffer.setMaxAttempt(jobID, job.jediTaskID, job.Files, int(parameters['maxAttempt']))
                         # Log to pandamon and logfile
-                        message = "action=setMaxAttempt for PandaID={0}, jediTaskID={1}, maxAttempt={2}. (ErrorSource: {3}. ErrorCode: {4}. ErrorDiag: {5}. Error/action active={6})"\
+                        message = "action=setMaxAttempt for PandaID={0} jediTaskID={1} maxAttempt={2} (ErrorSource: {3}. ErrorCode: {4}. ErrorDiag: {5}. Error/action active={6})"\
                             .format(jobID, job.jediTaskID, int(parameters['maxAttempt']), error_source, error_code, error_diag_rule, active)
                         pandalog(message)
                         _logger.info(message)
@@ -251,7 +251,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
                         if active:
                             task_buffer.increaseRamLimitJobJEDI(job, job.minRamCount, job.jediTaskID)
                         # Log to pandamon and logfile
-                        message = "action=increaseRAMLimit for PandaID={0}, jediTaskID={1}. (ErrorSource: {2}. ErrorCode: {3}. ErrorDiag: {4}. Error/action active={5})"\
+                        message = "action=increaseRAMLimit for PandaID={0} jediTaskID={1} (ErrorSource: {2}. ErrorCode: {3}. ErrorDiag: {4}. Error/action active={5})"\
                             .format(jobID, job.jediTaskID,  error_source, error_code, error_diag_rule, active)
                         pandalog(message)
                         _logger.info(message)
@@ -274,7 +274,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
                             applied = True
 
                         # Log to pandamon and logfile
-                        message = "action=increaseCpuTime requested recalculation of task parameters for PandaID={0}, jediTaskID={1} (active={2}), applied={3}. (ErrorSource: {4}. ErrorCode: {5}. ErrorDiag: {6}. Error/action active: {7})"\
+                        message = "action=increaseCpuTime requested recalculation of task parameters for PandaID={0} jediTaskID={1} (active={2} ), applied={3}. (ErrorSource: {4}. ErrorCode: {5}. ErrorDiag: {6}. Error/action active: {7})"\
                             .format(jobID, job.jediTaskID, active, applied, error_source, error_code, error_diag_rule, active)
                         pandalog(message)
                         _logger.info(message)
@@ -282,7 +282,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
                         errtype,errvalue = sys.exc_info()[:2]
                         _logger.error("Failed to increase CPU-Time : %s %s" % (errtype,errvalue))
 
-                _logger.debug("Finished rule {0} for PandaID={1}, error_source={2}, error_code={3}, attemptNr={4}"
+                _logger.debug("Finished rule {0} for PandaID={1} error_source={2} error_code={3} attemptNr={4}"
                               .format(rule, jobID, error_source, error_code, attemptNr))
             
             except KeyError:
