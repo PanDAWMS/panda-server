@@ -15662,7 +15662,7 @@ class DBProxy:
             # look for consumers for each input
             killPandaIDs = {}
             for fileSpec in job.Files:
-                if fileSpec.type != 'input':
+                if fileSpec.type not in ['input', 'pseudo_input']:
                     continue
                 # get PandaIDs
                 varMap = {}
@@ -17684,7 +17684,7 @@ class DBProxy:
             esPandaIDs = set()
             for tmpFile in job.Files:
                 # only for input
-                if not tmpFile.type in ['output','log']:
+                if tmpFile.type in ['input','pseudo_input']:
                     # get ranges 
                     varMap = {}
                     varMap[':jediTaskID']  = tmpFile.jediTaskID
