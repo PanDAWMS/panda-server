@@ -42,7 +42,7 @@ def timeit(method):
         result = method(*args, **kwargs)
         te = time.time()
 
-        _logger.info('%r (%r, %r) took %.2f sec' %(method.__name__, args, kwargs, te-ts))
+        _logger.debug('%r (%r, %r) took %.2f sec' %(method.__name__, args, kwargs, te-ts))
         return result
 
     return timed
