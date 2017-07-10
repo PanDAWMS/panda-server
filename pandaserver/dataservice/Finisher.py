@@ -183,7 +183,7 @@ class Finisher (threading.Thread):
                                 oXML.close()
                             except:
                                 type, value, traceBack = sys.exc_info()
-                                _logger.error("%s : %s %s" % (job.PandaID,type,value))
+                                _logger.error("Job: %s %s %s" % (job.PandaID,type,value))
                     _logger.debug("Job: %s status: %s" % (job.PandaID,job.jobStatus))                
             # end
             if self.job == None:        
