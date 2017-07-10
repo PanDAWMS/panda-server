@@ -236,7 +236,7 @@ class AdderGen:
                         error_code = self.job.ddmErrorCode
                         error_diag = self.job.ddmErrorDiag
             
-                    _logger.info("updatejob has source %s, error_code %s and error_diag %s"%(source, error_code, error_diag))
+                    # _logger.info("updatejob has source %s, error_code %s and error_diag %s"%(source, error_code, error_diag))
                     
                     if source and error_code:
                         try:
