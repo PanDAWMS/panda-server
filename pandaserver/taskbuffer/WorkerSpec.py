@@ -14,7 +14,9 @@ class WorkerSpec(object):
     __slots__ = _attributes + ('_changedAttrs',)
     # attributes which have 0 by default
     _zeroAttrs = ()
-
+    # catchall resouce type
+    RT_catchall = 'ANY'
+    
 
     # constructor
     def __init__(self):

@@ -19351,6 +19351,8 @@ class DBProxy:
             varMap[':hostName'] = host
             sqlC  = "UPDATE ATLAS_PANDA.Harvester_Instances SET owner=:owner,hostName=:hostName"
             for tmpKey, tmpVal in data.iteritems():
+                if tmpKey == 'commands':
+                    continue
                 sqlC += ',{0}=:{0}'.format(tmpKey)
                 if type(tmpVal) in [str,unicode] and tmpVal.startswith('datetime/'):
                     tmpVal = datetime.datetime.strptime(tmpVal.split('/')[-1],'%Y-%m-%d %H:%M:%S.%f')
@@ -19360,6 +19362,11 @@ class DBProxy:
             self.conn.begin()
             self.cur.execute(sqlC + comment, varMap)
             nRow = self.cur.rowcount
+            # insert command locks
+            if 'commands' in data:
+                for item in data['commands']:
+                    self.addCommandLockHarvester(harvesterID, item['command'], item['computingSite'],
+                                                 item['resourceType'],False)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -19604,6 +19611,44 @@ class DBProxy:
 
 
 
+    # get stat of workers
+    def getWorkerStats(self, siteName):
+        comment = ' /* DBProxy.getWorkerStat */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, methodName+' < siteName={0} >'.format(siteName))
+        tmpLog.debug('start')
+        try:
+            # set autocommit on
+            self.conn.begin()
+            # sql to get stat
+            sqlG = "SELECT SUM(n_workers),COUNT(harvester_ID),resourceType,status FROM ATLAS_PANDA.Harvester_Worker_Stats "
+            sqlG += "WHERE computingSite=:siteName "
+            sqlG += "GROUP BY resourceType,status "
+            varMap = dict()
+            varMap[':siteName'] = siteName
+            self.cur.execute(sqlG+comment, varMap)
+            res = self.cur.fetchall()
+            retMap = {}
+            for cnt, nInstances, resourceType, status in res:
+                if resourceType not in retMap:
+                    retMap[resourceType] = {'stats':dict(), 'nInstances':0}
+                retMap[resourceType]['stats'][status] = cnt
+                if nInstances > retMap[resourceType]['nInstances']:
+                    retMap[resourceType]['nInstances'] = nInstances
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # return
+            tmpLog.debug('done with {0}'.format(str(retMap)))
+            return retMap
+        except:
+            # roll back
+            self._rollback()
+            self.dumpErrorMessage(tmpLog,methodName)
+            return {}
+
+
+
     # send command to harvester or lock command
     def commandToHarvester(self, harvester_ID, command, ack_requested, status, lockInterval, comInterval, params, useCommit=True):
         comment = ' /* DBProxy.commandToHarvester */'
@@ -19674,102 +19719,7 @@ class DBProxy:
             return False
 
 
-
-    # request to refresh worker stat
-    def requestRefreshWorkerStats(self, refreshInterval, lockInterval):
-        comment = ' /* DBProxy.requestRefreshWorkerStat */'
-        methodName = comment.split(' ')[-2].split('.')[-1]
-        tmpLog = LogWrapper(_logger, methodName)
-        tmpLog.debug('start')
-        try:
-            # set autocommit on
-            self.conn.begin()
-            timeNow = datetime.datetime.utcnow()
-            # get sites to refresh
-            sqlS = "SELECT DISTINCT tabS.harvester_ID,tabS.computingSite "
-            sqlS += "FROM ATLAS_PANDA.Harvester_Instances tabI, ATLAS_PANDA.Harvester_Worker_Stats tabS "
-            sqlS += "WHERE tabI.harvester_ID=tabS.harvester_ID AND tabI.startTime>:iTimeLimit AND tabS.lastUpdate<:sTimeLimit "
-            varMap = dict()
-            varMap[':iTimeLimit'] = timeNow - datetime.timedelta(minutes=60)
-            varMap[':sTimeLimit'] = timeNow - datetime.timedelta(minutes=refreshInterval)
-            self.cur.execute(sqlS+comment, varMap)
-            resS = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError, 'Commit error'
-            # send command
-            for harvester_ID, siteName in resS:
-                com = 'REPORT_WORKER_STATS:{0}'.format(siteName)
-                retC = self.commandToHarvester(harvester_ID, com, 0, 'new', lockInterval, None, None)
-                tmpLog.debug('sending command {0} to {1} wtih {2}'.format(com, harvester_ID, retC))
-            # return
-            tmpLog.debug('done')
-            return True
-        except:
-            # roll back
-            self._rollback()
-            self.dumpErrorMessage(tmpLog,methodName)
-            return False
-
-
-
-    # get sites to set nWorkers 
-    def getSitesToSetNumWorkers(self, refreshInterval, lockInterval):
-        comment = ' /* DBProxy.getSitesToSetNumWorkers */'
-        methodName = comment.split(' ')[-2].split('.')[-1]
-        tmpLog = LogWrapper(_logger, methodName)
-        tmpLog.debug('start')
-        try:
-            # set autocommit on
-            self.conn.begin()
-            timeNow = datetime.datetime.utcnow()
-            # get sites to set nWorkers
-            sqlS = "SELECT * FROM (SELECT SUM(tabS.n_workers) tot_workers,tabS.harvester_ID,tabS.computingSite "
-            sqlS += "FROM ATLAS_PANDA.Harvester_Instances tabI, ATLAS_PANDA.Harvester_Worker_Stats tabS "
-            sqlS += "WHERE tabI.harvester_ID=tabS.harvester_ID AND tabI.startTime>:iTimeLimit AND tabS.lastUpdate>:sTimeLimit AND tabS.status=:status "
-            sqlS += "GROUP BY tabS.harvester_ID,tabS.computingSite) "
-            sqlS += "WHERE tot_workers=0 "
-            varMap = dict()
-            varMap[':iTimeLimit'] = timeNow - datetime.timedelta(minutes=60)
-            varMap[':sTimeLimit'] = timeNow - datetime.timedelta(minutes=60)
-            varMap[':status'] = 'to_submit'
-            self.cur.execute(sqlS+comment, varMap)
-            resS = self.cur.fetchall()
-            # sql to get worker stats
-            sqlW = "SELECT status,n_workers,resourceType FROM ATLAS_PANDA.Harvester_Worker_Stats "
-            sqlW += "WHERE harvester_ID=:harvester_ID AND computingSite=:siteName "
-            # send command
-            retList = []
-            for cnt, harvester_ID, siteName in resS:
-                retC = self.commandToHarvester(harvester_ID, 'SET_N_WORKERS:{0}'.format(siteName), 0, 'lock', lockInterval,
-                                               refreshInterval, None, useCommit=False)
-                if retC:
-                    # get worker stat
-                    varMap = dict()
-                    varMap[':harvester_ID'] = harvester_ID
-                    varMap[':siteName'] = siteName
-                    self.cur.execute(sqlW+comment, varMap)
-                    workerStats = dict()
-                    for workerStatus,nWorkers,resourceType in self.cur.fetchall():
-                        if resourceType not in workerStats:
-                            workerStats[resourceType] = dict()
-                        workerStats[resourceType][workerStatus] = nWorkers
-                    retList.append((harvester_ID, siteName, workerStats))
-            # commit
-            if not self._commit():
-                raise RuntimeError, 'Commit error'
-            # return
-            tmpLog.debug('got {0} sites'.format(len(retList)))
-            return retList
-        except:
-            # roll back
-            self._rollback()
-            self.dumpErrorMessage(tmpLog,methodName)
-            return []
-
-
-
-    # get activated job statistics per resouce
+    # get activated job statistics per resource
     def getActivatedJobStatisticsPerResource(self, siteName):
         comment = ' /* DBProxy.getJobStatisticsPerResource */'        
         methodName = comment.split(' ')[-2].split('.')[-1]
@@ -19806,7 +19756,6 @@ class DBProxy:
             return []
 
 
-
     # check Job status
     def checkJobStatus(self, pandaID):
         comment = ' /* DBProxy.checkJobStatus */'
@@ -19839,3 +19788,172 @@ class DBProxy:
             self._rollback()
             self.dumpErrorMessage(tmpLog,methodName)
             return retVal
+
+
+    # add command lock
+    def addCommandLockHarvester(self, harvester_ID, command, computingSite, resourceType, useCommit=True):
+        comment = ' /* DBProxy.addCommandLockHarvester */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, methodName + ' < harvesterID={0} command={1} site={2}> resource={3} >'.format(harvester_ID, command,
+                                                                                                                   computingSite, resourceType))
+        tmpLog.debug('start')
+        try:
+            # check if lock is available
+            sqlC = "SELECT 1 FROM ATLAS_PANDA.Harvester_Command_Lock "
+            sqlC += "WHERE harvester_ID=:harvester_ID AND computingSite=:siteName AND resourceType=:resourceType AND command=:command "
+            # sql to add lock
+            sqlA = "INSERT INTO ATLAS_PANDA.Harvester_Command_Lock "
+            sqlA += "(harvester_ID,computingSite,resourceType,command,lockedTime) "
+            sqlA += "VALUES (:harvester_ID,:siteName,:resourceType,:command,CURRENT_DATE-1) "
+            if useCommit:
+                self.conn.begin()
+            # check
+            varMap = dict()
+            varMap[':harvester_ID'] = harvester_ID
+            varMap[':siteName'] = computingSite
+            varMap[':resourceType'] = resourceType
+            varMap[':command'] = command
+            self.cur.execute(sqlC+comment, varMap)
+            res = self.cur.fetchone()
+            if res is None:
+                # add lock
+                self.cur.execute(sqlA+comment, varMap)
+            # commit
+            if useCommit:
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+            tmpLog.debug('done')
+            return True
+        except:
+            # roll back
+            if useCommit:
+                self._rollback()
+            self.dumpErrorMessage(tmpLog,methodName)
+            return False
+
+
+    # get command locks
+    def getCommandLocksHarvester(self, harvester_ID, command, lockedBy, 
+                                 lockInterval, commandInterval):
+        comment = ' /* DBProxy.getCommandLocksHarvester */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, methodName + ' < harvesterID={0} command={1} >'.format(harvester_ID, command))
+        tmpLog.debug('start')
+        try:
+            timeNow = datetime.datetime.utcnow()
+            # sql to get commands
+            sqlC = "SELECT computingSite,resourceType FROM ATLAS_PANDA.Harvester_Command_Lock "
+            sqlC += "WHERE harvester_ID=:harvester_ID AND command=:command "
+            sqlC += "AND ((lockedBy IS NULL AND lockedTime<:limitComm) OR (lockedBy IS NOT NULL AND lockedTime<:limitLock)) "
+            sqlC += "FOR UPDATE "
+            # sql to lock command
+            sqlL = "UPDATE ATLAS_PANDA.Harvester_Command_Lock SET lockedBy=:lockedBy,lockedTime=CURRENT_DATE "
+            sqlL += "WHERE harvester_ID=:harvester_ID AND command=:command AND computingSite=:siteName AND resourceType=:resourceType "
+            sqlL += "AND ((lockedBy IS NULL AND lockedTime<:limitComm) OR (lockedBy IS NOT NULL AND lockedTime<:limitLock)) "
+            # get commands
+            self.conn.begin()
+            self.cur.arraysize = 10000
+            varMap = dict()
+            varMap[':harvester_ID'] = harvester_ID
+            varMap[':command'] = command
+            varMap[':limitComm'] = timeNow - datetime.timedelta(minutes=commandInterval)
+            varMap[':limitLock'] = timeNow - datetime.timedelta(minutes=lockInterval)
+            self.cur.execute(sqlC+comment, varMap)
+            res = self.cur.fetchall()
+            # lock commands
+            retMap = dict()
+            for computingSite, resourceType in res:
+                varMap = dict()
+                varMap[':harvester_ID'] = harvester_ID
+                varMap[':command'] = command
+                varMap[':siteName'] = computingSite
+                varMap[':resourceType'] = resourceType
+                varMap[':limitComm'] = timeNow - datetime.timedelta(minutes=commandInterval)
+                varMap[':limitLock'] = timeNow - datetime.timedelta(minutes=lockInterval)
+                varMap[':lockedBy'] = lockedBy
+                self.cur.execute(sqlL+comment, varMap)
+                nRow = self.cur.rowcount
+                if nRow > 0:
+                    if computingSite not in retMap:
+                        retMap[computingSite] = []
+                    retMap[computingSite].append(resourceType)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug('done with {0}'.format(str(retMap)))
+            return retMap
+        except:
+            # roll back
+            self._rollback()
+            self.dumpErrorMessage(tmpLog,methodName)
+            return {}
+
+
+    # release command lock
+    def releaseCommandLockHarvester(self, harvester_ID, command, computingSite, resourceType, lockedBy):
+        comment = ' /* DBProxy.releaseCommandLockHarvester */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, methodName + \
+                                ' < harvesterID={0} com={1} site={2} resource={3} lockedBy={4} >'.format(harvester_ID, command, 
+                                                                                                        computingSite, resourceType,
+                                                                                                        lockedBy))
+        tmpLog.debug('start')
+        try:
+            # sql to release lock
+            sqlL = "UPDATE ATLAS_PANDA.Harvester_Command_Lock SET lockedBy=NULL "
+            sqlL += "WHERE harvester_ID=:harvester_ID AND command=:command "
+            sqlL += "AND computingSite=:computingSite AND resourceType=:resourceType AND lockedBy=:lockedBy "
+            varMap = dict()
+            varMap[':harvester_ID'] = harvester_ID
+            varMap[':command'] = command
+            varMap[':computingSite'] = computingSite
+            varMap[':resourceType'] = resourceType
+            varMap[':lockedBy'] = lockedBy
+            # release lock
+            self.conn.begin()
+            self.cur.execute(sqlL+comment, varMap)
+            nRow = self.cur.rowcount
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug('done with {0}'.format(nRow))
+            return True
+        except:
+            # roll back
+            self._rollback()
+            self.dumpErrorMessage(tmpLog,methodName)
+            return False
+
+
+
+    # get active harvesters
+    def getActiveHarvesters(self, interval):
+        comment = ' /* DBProxy.getActiveHarvesters */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, methodName)
+        tmpLog.debug('start')
+        try:
+            timeNow = datetime.datetime.utcnow()
+            # sql to get instances
+            sqlC = "SELECT harvester_ID FROM ATLAS_PANDA.Harvester_Instances "
+            sqlC += "WHERE startTime>:timeLimit "
+            # get instances
+            self.conn.begin()
+            self.cur.arraysize = 10000
+            varMap = dict()
+            varMap[':timeLimit'] = timeNow - datetime.timedelta(minutes=interval)
+            self.cur.execute(sqlC+comment, varMap)
+            res = self.cur.fetchall()
+            retList = []
+            for harvester_ID, in res:
+                retList.append(harvester_ID)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug('done with {0}'.format(str(retList)))
+            return retList
+        except:
+            # roll back
+            self._rollback()
+            self.dumpErrorMessage(tmpLog,methodName)
+            return []

@@ -1,5 +1,8 @@
 Release Notes
 
+* 7/10/2017
+  * added command_lock stuff
+
 * 7/6/2017
   * added tighter isolation for check of concurrent running consumers
 

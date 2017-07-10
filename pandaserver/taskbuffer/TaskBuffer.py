@@ -3297,24 +3297,38 @@ class TaskBuffer:
         return res
 
 
-    # request to refresh worker stat
-    def requestRefreshWorkerStats(self, refreshInterval, lockInterval):
+    # get command locks
+    def getCommandLocksHarvester(self, harvester_ID, command, lockedBy, 
+                                 lockInterval, commandInterval):
         # get DB proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        res = proxy.requestRefreshWorkerStats(refreshInterval, lockInterval)
+        res = proxy.getCommandLocksHarvester(harvester_ID, command, lockedBy, 
+                                             lockInterval, commandInterval)
         # release DB proxy
         self.proxyPool.putProxy(proxy)
         # return
         return res
 
 
-    # get sites to set nWorkers 
-    def getSitesToSetNumWorkers(self, refreshInterval, lockInterval):
+    # release command lock
+    def releaseCommandLockHarvester(self, harvester_ID, command, computingSite, resourceType, lockedBy):
         # get DB proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        res = proxy.getSitesToSetNumWorkers(refreshInterval, lockInterval)
+        res = proxy.releaseCommandLockHarvester(harvester_ID, command, computingSite, resourceType, lockedBy)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
+    # get active harvesters
+    def getActiveHarvesters(self, interval):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.getActiveHarvesters(interval)
         # release DB proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -3412,7 +3426,7 @@ class TaskBuffer:
         return ret_val
 
 
-    # get activated job statistics per resouce
+    # get activated job statistics per resource
     def getActivatedJobStatisticsPerResource(self, siteName):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
@@ -3441,6 +3455,18 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         # return
         return retList
+
+
+    # get stat of workers
+    def getWorkerStats(self, siteName):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getWorkerStats(siteName)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
 
 
 
