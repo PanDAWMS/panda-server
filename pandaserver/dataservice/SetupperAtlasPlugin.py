@@ -1394,6 +1394,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 maxInputFileBytes = 99999999999
                 if tmpJob.inputFileBytes > maxInputFileBytes:
                     tmpJob.inputFileBytes = maxInputFileBytes
+                # set background-able flag
+                tmpJob.setBackgroundableFlag()
             except:
                 errType,errValue = sys.exc_info()[:2]
                 self.logger.error("failed to set data summary fields for PandaID=%s: %s %s" % (tmpJob.PandaID,errType,errValue))

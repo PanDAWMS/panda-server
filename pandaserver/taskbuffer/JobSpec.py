@@ -550,3 +550,24 @@ class JobSpec(object):
         if not self._tagForSH['inFilePosEvtNum'] in items:
             items.append(self._tagForSH['inFilePosEvtNum'])
         self.specialHandling = ','.join(items)
+
+
+
+    # set background-able flag
+    def setBackgroundableFlag(self):
+        self.jobExecutionID = 0
+        if self.prodSourceLabel not in ['managed', 'test']:
+            return
+        try:
+            if self.inputFileBytes / self.maxWalltime > 5000:
+                return
+        except:
+            return
+        try:
+            if self.coreCount <= 1:
+                return
+        except:
+            return
+        if self.currentPriority > 250:
+            return
+        self.jobExecutionID = 1

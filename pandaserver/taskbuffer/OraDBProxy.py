@@ -2838,7 +2838,8 @@ class DBProxy:
         
     # get jobs
     def getJobs(self,nJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-                atlasRelease,prodUserID,countryGroup,workingGroup,allowOtherCountry,taskID):
+                atlasRelease,prodUserID,countryGroup,workingGroup,allowOtherCountry,taskID,background,
+                resourceType):
         """
         1. Construct where clause (sql1) based on applicable filters for request
         2. Select n jobs with the highest priorities and the lowest pandaids
@@ -2885,6 +2886,11 @@ class DBProxy:
         if not diskSpace in [0,'0']:
             sql1+= "AND (maxDiskCount<=:maxDiskCount OR maxDiskCount=0) "
             getValMap[':maxDiskCount'] = diskSpace
+        if background == True:
+            sql1+= "AND jobExecutionID=1 "
+        if resourceType is not None:
+            sql1+= "AND resource_type=:resourceType "
+            getValMap[':resourceType'] = resourceType
         if prodSourceLabel == 'user':
             sql1+= "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3) "
             getValMap[':prodSourceLabel1'] = 'user'
@@ -3190,6 +3196,9 @@ class DBProxy:
                                             varMap[':specialHandling'] = specialHandlingMap[tmpPandaID]
                                     else:
                                         varMap[':specialHandling'] = spString
+                                # background flag
+                                if background != True:
+                                    sqlJ+= ",jobExecutionID=0"
                                 sqlJ+= " WHERE PandaID=:PandaID AND jobStatus=:oldJobStatus"
                                 # SQL to get nSent
                                 sentLimit = timeStart - datetime.timedelta(seconds=60)
@@ -15013,6 +15022,8 @@ class DBProxy:
             jobSpec.hs06sec          = None
             jobSpec.nEvents          = None
             jobSpec.cpuConsumptionTime = None
+            # disable background flag
+            jobSpec.jobExecutionID = 0
             if hasFatalRange:
                 jobSpec.jobSubStatus = 'partial'
             for attr in jobSpec._attributes:

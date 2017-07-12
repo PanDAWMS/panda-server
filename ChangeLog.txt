@@ -1,5 +1,9 @@
 Release Notes
 
+* 7/12/2017
+  * added background and resourceType in getJob
+  * setting background-able flag
+
 * 7/10/2017
   * added command_lock stuff
 

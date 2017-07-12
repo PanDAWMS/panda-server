@@ -184,7 +184,7 @@ class JobDipatcher:
     # get job
     def getJob(self,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
                atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry,
-               realDN,taskID,nJobs,acceptJson):
+               realDN,taskID,nJobs,acceptJson,background,resourceType):
 
         t_getJob_start = time.time()
         jobs = []
@@ -200,7 +200,7 @@ class JobDipatcher:
         tmpWrapper = _TimedMethod(self.taskBuffer.getJobs, timeout)
         tmpWrapper.run(tmpNumJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
                        atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry,
-                       taskID)
+                       taskID,background,resourceType)
 
         if isinstance(tmpWrapper.result,types.ListType):
             jobs = jobs + tmpWrapper.result
@@ -812,7 +812,7 @@ web service interface
 # get job
 def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,prodSourceLabel=None,node=None,
            computingElement=None,AtlasRelease=None,prodUserID=None,getProxyKey=None,countryGroup=None,
-           workingGroup=None,allowOtherCountry=None,taskID=None,nJobs=None):
+           workingGroup=None,allowOtherCountry=None,taskID=None,nJobs=None,background=None,resourceType=None):
     _logger.debug("getJob(%s)" % siteName)
     # get DN
     realDN = _getDN(req)
@@ -847,11 +847,16 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
         if diskSpace < 0:
             diskSpace = 0
     except:
-        diskSpace = 0        
-    _logger.debug("getJob(%s,nJobs=%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,taskID=%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s,json:%s)" \
+        diskSpace = 0
+    if background == 'True':
+        background = True
+    else:
+        background = False
+    _logger.debug("getJob(%s,nJobs=%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,taskID=%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s,json:%s,bg=%s,rt=%s)" \
                   % (siteName,nJobs,cpu,mem,diskSpace,prodSourceLabel,node,
                      computingElement,AtlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,
-                     allowOtherCountry,taskID,realDN,prodManager,token,validToken,str(fqans),req.acceptJson()))
+                     allowOtherCountry,taskID,realDN,prodManager,token,validToken,str(fqans),req.acceptJson(),
+                     background,resourceType))
     _pilotReqLogger.info('method=getJob,site=%s,node=%s,type=%s' % (siteName,node,prodSourceLabel))    
     # invalid role
     if (not prodManager) and (not prodSourceLabel in ['user']):
@@ -868,7 +873,8 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
     # invoke JD
     return jobDispatcher.getJob(siteName,prodSourceLabel,cpu,mem,diskSpace,node,int(timeout),
                                 computingElement,AtlasRelease,prodUserID,getProxyKey,countryGroup,
-                                workingGroup,allowOtherCountry,realDN,taskID,nJobs,req.acceptJson())
+                                workingGroup,allowOtherCountry,realDN,taskID,nJobs,req.acceptJson(),
+                                background,resourceType)
     
 
 # update job status
