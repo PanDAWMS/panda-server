@@ -247,11 +247,17 @@ class Configurator(threading.Thread):
         for long_panda_site_name in self.schedconfig_dump:
             panda_site_name = self.schedconfig_dump[long_panda_site_name]['panda_resource']
             dict_ddm_endpoint[panda_site_name] = {}
-            if (self.schedconfig_dump[long_panda_site_name]['astorages']!=0):
-                panda_site_astorages = self.schedconfig_dump[long_panda_site_name]['astorages']
+            if (self.schedconfig_dump[long_panda_site_name]['astorages0']!=0):
+                panda_site_astorages = self.schedconfig_dump[long_panda_site_name]['astorages0']
                 for role in panda_site_astorages:
-                    for ddm in panda_site_astorages[role]:
-                        dict_ddm_endpoint[panda_site_name].setdefault(ddm,[]).append(role)
+                    for site in panda_site_astorages[role]:
+                        if (len(panda_site_astorages[role][site])!=0):
+                            for ddm in panda_site_astorages[role][site]:
+                                dict_ddm_endpoint[panda_site_name].setdefault(ddm,[]).append(role)
+                        else:
+                            ddm_list_isempty = self.site_endpoint_dict[site]
+                            for ddm in ddm_list_isempty:
+                                dict_ddm_endpoint[panda_site_name].setdefault(ddm, []).append(role)
                 order = 1
 
                 for key,value in dict_ddm_endpoint[panda_site_name].items():
