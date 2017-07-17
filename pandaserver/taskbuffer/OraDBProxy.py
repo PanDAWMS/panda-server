@@ -15277,12 +15277,11 @@ class DBProxy:
                 sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
                 sqlSN += "AND (sc.catchall IS NULL OR NOT sc.catchall LIKE '%jobseed=es%') "
                 sqlSN += "AND sc.status=:siteStatus "
-                sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity IN (:wc1,:wc2)) "
+                sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity=:wc1) "
                 varMap = {}
                 varMap[':nucleus'] = tmpNucleus
                 varMap[':siteStatus'] = 'online'
                 varMap[':wc1'] = 'full'
-                varMap[':wc2'] = 'http'
                 # get sites
                 self.cur.execute(sqlSN+comment,varMap)
                 resSN = self.cur.fetchall()
