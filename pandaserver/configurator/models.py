@@ -68,8 +68,8 @@ class SiteStats(Base):
     site = relationship('Site')
 
 
-class PandaDdmRelationship(Base):
-    __tablename__ = 'panda_ddm_relationship'
+class PandaDdmRelation(Base):
+    __tablename__ = 'panda_ddm_relation'
     __table_args__ = {u'schema': 'atlas_panda'}
 
     panda_site_name = Column(String(52), ForeignKey(u'atlas_panda.panda_site.panda_site_name', ondelete='CASCADE'), primary_key=True, nullable=False)

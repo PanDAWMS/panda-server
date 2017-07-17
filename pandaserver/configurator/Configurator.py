@@ -126,7 +126,7 @@ class Configurator(threading.Thread):
         panda_sites_list = []
         
         relationship_dict = self.process_schedconfig_dump()
-        ddm_relationship_dict = self.get_ddm_relationship()
+        panda_ddm_relation_dict = self.get_panda_ddm_relation()
         # Iterate the site dump
         for site in self.site_dump:
             # Add the site info to a list
@@ -236,35 +236,47 @@ class Configurator(threading.Thread):
                                              'storage_site_name': storage_site_name,
                                              'is_local': is_local})
         
-        return sites_list, panda_sites_list, ddm_endpoints_list, ddm_relationship_dict
+        return sites_list, panda_sites_list, ddm_endpoints_list, panda_ddm_relation_dict
 
-    def get_ddm_relationship(self):
+    def get_panda_ddm_relation(self):
         """
-
+        Gets the DDM endpoints assigned to a panda queue, based on the AGIS astorage0 field of the panda queue definition
         """
         dict_ddm_endpoint = {}
         dict_ddm_list = []
+
+        # iterate on panda queues
         for long_panda_site_name in self.schedconfig_dump:
             panda_site_name = self.schedconfig_dump[long_panda_site_name]['panda_resource']
             dict_ddm_endpoint[panda_site_name] = {}
-            if (self.schedconfig_dump[long_panda_site_name]['astorages0']!=0):
-                panda_site_astorages = self.schedconfig_dump[long_panda_site_name]['astorages0']
-                for role in panda_site_astorages:
-                    for site in panda_site_astorages[role]:
-                        if (len(panda_site_astorages[role][site])!=0):
-                            for ddm in panda_site_astorages[role][site]:
+
+            # get the astorages0 field
+            if self.schedconfig_dump[long_panda_site_name]['astorages0']:
+                astorages = self.schedconfig_dump[long_panda_site_name]['astorages0']
+
+                # iterate the storages
+                for role in astorages:
+                    for site in astorages[role]:
+                        if astorages[role][site]:
+                            for ddm in astorages[role][site]:
                                 dict_ddm_endpoint[panda_site_name].setdefault(ddm,[]).append(role)
-                        else:
+                        else: # an empty fields means we need to take all endpoints
                             ddm_list_isempty = self.site_endpoint_dict[site]
                             for ddm in ddm_list_isempty:
                                 dict_ddm_endpoint[panda_site_name].setdefault(ddm, []).append(role)
                 order = 1
-
-                for key,value in dict_ddm_endpoint[panda_site_name].items():
-                    new_dic = {'ddm_site':key,'roles': ','.join(value),'ord':str(order)}
+                for key, value in dict_ddm_endpoint[panda_site_name].items():
+                    new_dic = {'ddm_site': key,
+                               'roles': ','.join(value),
+                               'ord': str(order)}
                     order += 1
-                    if(key in self.endpoint_token_dict):
-                        dict_ddm_list.append({'long_panda_site_name':long_panda_site_name,'panda_site_name': panda_site_name,'ddm_site':str(new_dic['ddm_site']),'roles':str(new_dic['roles']),'ord':str(new_dic['ord'])})
+                    if key in self.endpoint_token_dict:
+                        dict_ddm_list.append({'long_panda_site_name': long_panda_site_name,
+                                              'panda_site_name': panda_site_name,
+                                              'ddm_site': str(new_dic['ddm_site']),
+                                              'roles': str(new_dic['roles']),
+                                              'ord': str(new_dic['ord'])})
+
             dict_ddm_endpoint = {}
 
         return dict_ddm_list
@@ -275,7 +287,6 @@ class Configurator(threading.Thread):
         and prepares a format loadable to the DB
         """
 
-        # relationship_tuples = dbif.read_panda_ddm_relationships_schedconfig(_session) #data almost as it comes from schedconfig
         relationships_dict = {} # data to be loaded to configurator DB
         
         for long_panda_site_name in self.schedconfig_dump:
@@ -408,14 +419,13 @@ class Configurator(threading.Thread):
         Principal function
         """
         # Get pre-processed AGIS dumps
-        sites_list, panda_sites_list, ddm_endpoints_list,ddm_relationship_dict = self.process_site_dumps()
+        sites_list, panda_sites_list, ddm_endpoints_list, panda_ddm_relation_dict = self.process_site_dumps()
 
         # Persist the information to the PanDA DB
         dbif.write_sites_db(_session, sites_list)
         dbif.write_panda_sites_db(_session, panda_sites_list)
         dbif.write_ddm_endpoints_db(_session, ddm_endpoints_list)
-        #dbif.write_panda_ddm_relations(_session, relationships_list)
-        dbif.write_ddm_relationship_db(_session, ddm_relationship_dict)
+        dbif.write_panda_ddm_relation_db(_session, panda_ddm_relation_dict)
         #Get a snapshot of the corecount usage by site
         self.get_corepower_and_cleanup()
 
