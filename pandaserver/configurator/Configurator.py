@@ -248,7 +248,7 @@ class Configurator(threading.Thread):
         # iterate on panda queues
         for long_panda_site_name in self.schedconfig_dump:
             panda_site_name = self.schedconfig_dump[long_panda_site_name]['panda_resource']
-            dict_ddm_endpoint[panda_site_name] = {}
+            dict_ddm_endpoint = {}
 
             # get the astorages0 field
             if self.schedconfig_dump[long_panda_site_name]['astorages0']:
@@ -259,13 +259,13 @@ class Configurator(threading.Thread):
                     for site in astorages[role]:
                         if astorages[role][site]:
                             for ddm in astorages[role][site]:
-                                dict_ddm_endpoint[panda_site_name].setdefault(ddm,[]).append(role)
+                                dict_ddm_endpoint.setdefault(ddm,[]).append(role)
                         else: # an empty fields means we need to take all endpoints
                             ddm_list_isempty = self.site_endpoint_dict[site]
                             for ddm in ddm_list_isempty:
-                                dict_ddm_endpoint[panda_site_name].setdefault(ddm, []).append(role)
+                                dict_ddm_endpoint.setdefault(ddm, []).append(role)
                 order = 1
-                for key, value in dict_ddm_endpoint[panda_site_name].items():
+                for key, value in dict_ddm_endpoint.items():
                     new_dic = {'ddm_site': key,
                                'roles': ','.join(value),
                                'ord': str(order)}
@@ -276,8 +276,6 @@ class Configurator(threading.Thread):
                                               'ddm_site': str(new_dic['ddm_site']),
                                               'roles': str(new_dic['roles']),
                                               'ord': str(new_dic['ord'])})
-
-            dict_ddm_endpoint = {}
 
         return dict_ddm_list
 
