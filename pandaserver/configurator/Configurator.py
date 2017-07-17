@@ -1,16 +1,12 @@
-import time
 import threading
 import sys
 import aux
 from aux import *
 from datetime import datetime, timedelta
 
-from sqlalchemy import exc
-
 from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
 import db_interface as dbif
-from configurator.models import Schedconfig
 from taskbuffer.TaskBuffer import taskBuffer
 
 _logger = PandaLogger().getLogger('configurator')
@@ -22,7 +18,7 @@ class Configurator(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
 
-        if hasattr(panda_config,'AGIS_URL_SITES'):
+        if hasattr(panda_config, 'AGIS_URL_SITES'):
             self.AGIS_URL_SITES = panda_config.AGIS_URL_SITES
         else:
             self.AGIS_URL_SITES = 'http://atlas-agis-api.cern.ch/request/site/query/?json&vo_name=atlas&state=ACTIVE'
@@ -31,8 +27,8 @@ class Configurator(threading.Thread):
         _logger.debug('Done')
         self.site_endpoint_dict = self.get_site_endpoint_dictionary()
 
-        if hasattr(panda_config,'AGIS_URL_DDMENDPOINTS'):
-             self.AGIS_URL_DDMENDPOINTS = panda_config.AGIS_URL_DDMENDPOINTS
+        if hasattr(panda_config, 'AGIS_URL_DDMENDPOINTS'):
+            self.AGIS_URL_DDMENDPOINTS = panda_config.AGIS_URL_DDMENDPOINTS
         else:
             self.AGIS_URL_DDMENDPOINTS = 'http://atlas-agis-api.cern.ch/request/ddmendpoint/query/list/?json&state=ACTIVE'
         _logger.debug('Getting DDM endpoints dump...')
@@ -42,16 +38,16 @@ class Configurator(threading.Thread):
         self.endpoint_token_dict = self.parse_endpoints()
         _logger.debug('Done')
 
-        if hasattr(panda_config,'AGIS_URL_SCHEDCONFIG'):
-             self.AGIS_URL_SCHEDCONFIG = panda_config.AGIS_URL_SCHEDCONFIG
+        if hasattr(panda_config, 'AGIS_URL_SCHEDCONFIG'):
+            self.AGIS_URL_SCHEDCONFIG = panda_config.AGIS_URL_SCHEDCONFIG
         else:
             self.AGIS_URL_SCHEDCONFIG = 'http://atlas-agis-api.cern.ch/request/pandaqueue/query/list/?json&preset=schedconf.all&vo_name=atlas&state=ACTIVE'
         _logger.debug('Getting schedconfig dump...')
         self.schedconfig_dump = aux.get_dump(self.AGIS_URL_SCHEDCONFIG)
         _logger.debug('Done')
 
-        if hasattr(panda_config,'AGIS_URL_DDMBLACKLIST'):
-             self.AGIS_URL_DDMBLACKLIST = panda_config.AGIS_URL_DDMBLACKLIST
+        if hasattr(panda_config, 'AGIS_URL_DDMBLACKLIST'):
+            self.AGIS_URL_DDMBLACKLIST = panda_config.AGIS_URL_DDMBLACKLIST
         else:
             self.AGIS_URL_DDMBLACKLIST = 'http://atlas-agis-api.cern.ch/request/ddmendpointstatus/query/list/?json&fstate=OFF&activity=w'
         _logger.debug('Getting schedconfig dump...')
@@ -59,8 +55,8 @@ class Configurator(threading.Thread):
         _logger.debug('Blacklisted endpoints {0}'.format(self.blacklisted_endpoints))
         _logger.debug('Done')
         
-        if hasattr(panda_config,'RUCIO_RSE_USAGE'):
-             self.RUCIO_RSE_USAGE = panda_config.RUCIO_RSE_USAGE
+        if hasattr(panda_config, 'RUCIO_RSE_USAGE'):
+            self.RUCIO_RSE_USAGE = panda_config.RUCIO_RSE_USAGE
         else:
             self.RUCIO_RSE_USAGE = 'https://rucio-hadoop.cern.ch/dumps/rse_usage/current.json'
         _logger.debug('Getting Rucio RSE usage dump...')
@@ -81,7 +77,7 @@ class Configurator(threading.Thread):
         else:
             role = 'satellite'
         
-        return (name, role, state, tier_level)
+        return name, role, state, tier_level
 
     def parse_endpoints(self):
         """
@@ -126,7 +122,13 @@ class Configurator(threading.Thread):
         panda_sites_list = []
         
         relationship_dict = self.process_schedconfig_dump()
-        panda_ddm_relation_dict = self.get_panda_ddm_relation()
+        try:
+            panda_ddm_relation_dict = self.get_panda_ddm_relation()
+        except:
+            # Temporary protection to
+            _logger.critical('get_panda_ddm_relation excepted with {0}'.format(sys.exc_info()))
+            panda_ddm_relation_dict = {}
+
         # Iterate the site dump
         for site in self.site_dump:
             # Add the site info to a list
@@ -168,7 +170,7 @@ class Configurator(threading.Thread):
                     space_timestamp = datetime.strptime(self.rse_usage[ddm_endpoint_name]['storage']['updated_at'],
                                                         '%Y-%m-%d %H:%M:%S')
                     _logger.debug('process_site_dumps: endpoint {0} has space timestamp {1}'.format(ddm_endpoint_name,
-                                                                                                 space_timestamp))
+                                                                                                    space_timestamp))
 
                 except (KeyError, ValueError):
                     space_used, space_free, space_total, space_timestamp = None, None, None, None
@@ -242,7 +244,6 @@ class Configurator(threading.Thread):
         """
         Gets the DDM endpoints assigned to a panda queue, based on the AGIS astorage0 field of the panda queue definition
         """
-        dict_ddm_endpoint = {}
         dict_ddm_list = []
 
         # iterate on panda queues
@@ -259,8 +260,8 @@ class Configurator(threading.Thread):
                     for site in astorages[role]:
                         if astorages[role][site]:
                             for ddm in astorages[role][site]:
-                                dict_ddm_endpoint.setdefault(ddm,[]).append(role)
-                        else: # an empty fields means we need to take all endpoints
+                                dict_ddm_endpoint.setdefault(ddm, []).append(role)
+                        else:  # an empty fields means we need to take all endpoints
                             ddm_list_isempty = self.site_endpoint_dict[site]
                             for ddm in ddm_list_isempty:
                                 dict_ddm_endpoint.setdefault(ddm, []).append(role)
@@ -285,7 +286,7 @@ class Configurator(threading.Thread):
         and prepares a format loadable to the DB
         """
 
-        relationships_dict = {} # data to be loaded to configurator DB
+        relationships_dict = {}  # data to be loaded to configurator DB
         
         for long_panda_site_name in self.schedconfig_dump:
             
@@ -320,7 +321,7 @@ class Configurator(threading.Thread):
         Point out sites, panda sites and DDM endpoints that are missing in one of the sources 
         """
         # Check for site inconsistencies
-        agis_sites = set([site['name'] for site in self.site_dump if site['state']=='ACTIVE'])
+        agis_sites = set([site['name'] for site in self.site_dump if site['state'] == 'ACTIVE'])
         _logger.debug("Sites in AGIS {0}".format(agis_sites))
         configurator_sites = dbif.read_configurator_sites(_session)
         _logger.debug("Sites in Configurator {0}".format(configurator_sites))
@@ -424,13 +425,14 @@ class Configurator(threading.Thread):
         dbif.write_panda_sites_db(_session, panda_sites_list)
         dbif.write_ddm_endpoints_db(_session, ddm_endpoints_list)
         dbif.write_panda_ddm_relation_db(_session, panda_ddm_relation_dict)
-        #Get a snapshot of the corecount usage by site
+        # Get a snapshot of the corecount usage by site
         self.get_corepower_and_cleanup()
 
         # Do a data quality check
         self.consistency_check()
         
         return True
+
 
 class NetworkConfigurator(threading.Thread):
 
@@ -439,7 +441,7 @@ class NetworkConfigurator(threading.Thread):
 
         taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
 
-        if hasattr(panda_config,'NWS_URL'):
+        if hasattr(panda_config, 'NWS_URL'):
             self.NWS_URL = panda_config.NWS_URL
         else:
             self.NWS_URL = 'http://atlas-adc-netmetrics-lb.cern.ch/metrics/latest.json'
@@ -483,14 +485,14 @@ class NetworkConfigurator(threading.Thread):
 
             except ValueError:
                 _logger.error("Json wrongly formatted. Expected key with format src:dst, but found key {0}"
-                               .format(src_dst))
+                              .format(src_dst))
                 continue
 
             # Transferred files
             try:
                 done = self.nws_dump[src_dst][FILES][DONE]
                 for activity in [PROD_INPUT, PROD_OUTPUT, EXPRESS]:
-                    if not done.has_key(activity):
+                    if activity not in done:
                         continue
                     try:
                         updated_at = datetime.strptime(done[activity][TIMESTAMP], '%Y-%m-%dT%H:%M:%S')
@@ -510,7 +512,7 @@ class NetworkConfigurator(threading.Thread):
             try:
                 queued = self.nws_dump[src_dst][FILES][QUEUED]
                 for activity in [PROD_INPUT, PROD_OUTPUT, EXPRESS]:
-                    if not queued.has_key(activity):
+                    if activity not in queued:
                         continue
                     try:
                         updated_at = datetime.strptime(queued[activity][TIMESTAMP], '%Y-%m-%dT%H:%M:%S')
@@ -583,7 +585,7 @@ class NetworkConfigurator(threading.Thread):
                 if not src or not dst:
                     continue
 
-                #Prepare data for bulk upserts
+                # Prepare data for bulk upserts
                 data.append((src, dst, 'AGIS_closeness', closeness, ts))
 
             except KeyError:
@@ -620,7 +622,7 @@ class NetworkConfigurator(threading.Thread):
 if __name__ == "__main__":
 
     # If no argument, call the basic configurator
-    if len(sys.argv)==1:
+    if len(sys.argv) == 1:
         t1 = time.time()
         configurator = Configurator()
         if not configurator.run():
