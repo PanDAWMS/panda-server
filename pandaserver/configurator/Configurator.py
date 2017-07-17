@@ -406,13 +406,6 @@ class Configurator(threading.Thread):
         ddm_endpoints_to_delete = configurator_ddm_endpoints - agis_ddm_endpoints
         dbif.delete_ddm_endpoints(_session, ddm_endpoints_to_delete)
 
-    def get_corepower_and_cleanup(self):
-        """
-        Get the snapshot of the current corepower provided by each site. Delete old stats
-        """
-        dbif.get_cores_by_site(_session)
-        dbif.clean_site_stats_key(_session, 'total_corepower', days=7)
-
     def run(self):
         """
         Principal function
@@ -425,8 +418,6 @@ class Configurator(threading.Thread):
         dbif.write_panda_sites_db(_session, panda_sites_list)
         dbif.write_ddm_endpoints_db(_session, ddm_endpoints_list)
         dbif.write_panda_ddm_relation_db(_session, panda_ddm_relation_dict)
-        # Get a snapshot of the corecount usage by site
-        self.get_corepower_and_cleanup()
 
         # Do a data quality check
         self.consistency_check()
