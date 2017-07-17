@@ -1,5 +1,8 @@
 Release Notes
 
+* 7/17/2017
+  * changed ES merge to choose sites with wnconnectivity
+
 * 7/12/2017
   * added background and resourceType in getJob
   * setting background-able flag
