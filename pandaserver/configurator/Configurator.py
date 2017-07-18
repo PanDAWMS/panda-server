@@ -125,7 +125,7 @@ class Configurator(threading.Thread):
         try:
             panda_ddm_relation_dict = self.get_panda_ddm_relation()
         except:
-            # Temporary protection to
+            # Temporary protection to prevent issues
             _logger.critical('get_panda_ddm_relation excepted with {0}'.format(sys.exc_info()))
             panda_ddm_relation_dict = {}
 
@@ -174,14 +174,14 @@ class Configurator(threading.Thread):
 
                 except (KeyError, ValueError):
                     space_used, space_free, space_total, space_timestamp = None, None, None, None
-                    _logger.error('process_site_dumps: no rse storage usage information for {0}'.format(ddm_endpoint_name))
+                    _logger.warning('process_site_dumps: no rse storage usage information for {0}'.format(ddm_endpoint_name))
 
                 # Get the Expired space
                 try:
                     space_expired = self.rse_usage[ddm_endpoint_name]['expired']['used']/GB
                 except KeyError:
                     space_expired = 0
-                    _logger.error('process_site_dumps: no rse EXPIRED usage information for {0}'
+                    _logger.warning('process_site_dumps: no rse EXPIRED usage information for {0}'
                                   .format(ddm_endpoint_name))
 
                 ddm_spacetoken_state = site['ddmendpoints'][ddm_endpoint_name]['state']
@@ -224,7 +224,7 @@ class Configurator(threading.Thread):
                         storage_site_name = relationship_info['storage_site_name']
                         is_local = relationship_info['is_local']
                     except KeyError:
-                        _logger.error('process_site_dumps: Investigate why panda_site_name {0} not in relationship_info dictionary'
+                        _logger.warning('process_site_dumps: Investigate why panda_site_name {0} not in relationship_info dictionary'
                                       .format(panda_site_name))
                         default_ddm_endpoint = None
                         storage_site_name = None
@@ -340,7 +340,7 @@ class Configurator(threading.Thread):
             if site not in schedconfig_sites:
                 missing.append('Schedconfig')
             if missing:
-                _logger.error("SITE inconsistency: {0} was not found in {1}".format(site, missing))
+                _logger.warning("SITE inconsistency: {0} was not found in {1}".format(site, missing))
 
         # Check for panda-site inconsistencies
         agis_panda_sites = set([self.schedconfig_dump[long_panda_site_name]['panda_resource']
@@ -363,7 +363,7 @@ class Configurator(threading.Thread):
             if site not in schedconfig_panda_sites:
                 missing.append('Schedconfig')
             if missing:
-                _logger.error("PanDA SITE inconsistency: {0} was not found in {1}".format(site, missing))
+                _logger.warning("PanDA SITE inconsistency: {0} was not found in {1}".format(site, missing))
 
         # Check for DDM endpoint inconsistencies
         agis_ddm_endpoints = set([ddm_endpoint_name for ddm_endpoint_name in self.endpoint_token_dict])
@@ -381,7 +381,7 @@ class Configurator(threading.Thread):
             if site not in configurator_ddm_endpoints:
                 missing.append('Configurator')
             if missing:
-                _logger.error("DDM ENDPOINT inconsistency: {0} was not found in {1}".format(site, missing))
+                _logger.warning("DDM ENDPOINT inconsistency: {0} was not found in {1}".format(site, missing))
 
         self.cleanup_configurator(agis_sites, agis_panda_sites, agis_ddm_endpoints, configurator_sites,
                                   configurator_panda_sites, configurator_ddm_endpoints)
