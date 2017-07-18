@@ -547,8 +547,8 @@ class JobDipatcher:
 
 
     # get key pair
-    def getKeyPair(self,realDN,publicKeyName,privateKeyName):
-        tmpMsg = "getKeyPair {0}/{1} : ".format(publicKeyName,privateKeyName)
+    def getKeyPair(self,realDN,publicKeyName,privateKeyName,acceptJson):
+        tmpMsg = "getKeyPair {0}/{1} json={2}: ".format(publicKeyName,privateKeyName,acceptJson)
         if realDN == None:
             # cannot extract DN
             tmpMsg += "failed since DN cannot be extracted"
@@ -596,7 +596,7 @@ class JobDipatcher:
                     tmpMsg += "sent key-pair to '{0}'".format(compactDN)
                     _logger.debug(tmpMsg)
         # return
-        return response.encode()
+        return response.encode(acceptJson)
 
 
     # get DNs authorized for S3
@@ -1111,7 +1111,7 @@ def genPilotToken(req,schedulerid,host=None):
 def getKeyPair(req,publicKeyName,privateKeyName):
     # get DN
     realDN = _getDN(req)
-    return jobDispatcher.getKeyPair(realDN,publicKeyName,privateKeyName)
+    return jobDispatcher.getKeyPair(realDN,publicKeyName,privateKeyName,req.acceptJson())
 
 
 
