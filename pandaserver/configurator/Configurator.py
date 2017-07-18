@@ -12,6 +12,9 @@ from taskbuffer.TaskBuffer import taskBuffer
 _logger = PandaLogger().getLogger('configurator')
 _session = dbif.get_session()
 
+# Definitions of roles
+WRITE_LAN = 'write_lan'
+READ_LAN = 'read_lan'
 
 class Configurator(threading.Thread):
 
@@ -249,7 +252,7 @@ class Configurator(threading.Thread):
         """
         Gets the DDM endpoints assigned to a panda queue, based on the AGIS astorage0 field of the panda queue definition
         """
-        dict_ddm_list = []
+        relation_list = []
 
         # iterate on panda queues
         for long_panda_site_name in self.schedconfig_dump:
@@ -271,19 +274,24 @@ class Configurator(threading.Thread):
                             for ddm in ddm_list_isempty:
                                 dict_ddm_endpoint.setdefault(ddm, []).append(role)
                 order = 1
-                for key, value in dict_ddm_endpoint.items():
-                    new_dic = {'ddm_site': key,
-                               'roles': ','.join(value),
-                               'ord': str(order)}
-                    order += 1
-                    if key in self.endpoint_token_dict:
-                        dict_ddm_list.append({'long_panda_site_name': long_panda_site_name,
+                default_set = False
+                for ddm_endpoint_name, roles in dict_ddm_endpoint.items():
+                    # we consider the first write_lan endpoint to be default one
+                    is_default = 'N'
+                    if not default_set and WRITE_LAN in roles:
+                        default_set = True
+                        is_default = 'Y'
+                    # add the values to the list of relations if the ddm endpoint is valid
+                    if ddm_endpoint_name in self.endpoint_token_dict:
+                        relation_list.append({'long_panda_site_name': long_panda_site_name,
                                               'panda_site_name': panda_site_name,
-                                              'ddm_site': str(new_dic['ddm_site']),
-                                              'roles': str(new_dic['roles']),
-                                              'ord': str(new_dic['ord'])})
+                                              'ddm_site': ddm_endpoint_name,
+                                              'roles': ','.join(roles),
+                                              'is_default': is_default,
+                                              'ord': order})
+                        order += 1
 
-        return dict_ddm_list
+        return relation_list
 
     def process_schedconfig_dump(self):
         """
