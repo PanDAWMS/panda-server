@@ -120,8 +120,13 @@ class Configurator(threading.Thread):
         included_sites = []
         ddm_endpoints_list = []
         panda_sites_list = []
-        
+
+        # Old relationship information based on DDM field in AGIS.
+        # Used for atlas_panda.panda_site.default_ddm_endpoint and atlas_panda.panda_site.storage_site_name
         relationship_dict = self.process_schedconfig_dump()
+
+        # New relationship information based on astorage0 field in AGIS.
+        # Used to fill atlas_panda.panda_ddm_relation table
         try:
             panda_ddm_relation_dict = self.get_panda_ddm_relation()
         except:
