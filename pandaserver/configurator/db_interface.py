@@ -13,7 +13,7 @@ from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
 
 #Configurator libraries
-from models import Site, PandaSite, DdmEndpoint, Schedconfig, Jobsactive4, SiteStats
+from models import Site, PandaSite, DdmEndpoint, Schedconfig, Jobsactive4, SiteStats, PandaDdmRelation
 
 #Read connection parameters
 __host = panda_config.dbhost
@@ -127,13 +127,30 @@ def write_ddm_endpoints_db(session, ddm_endpoints_list):
         session.rollback()
         _logger.critical('write_ddm_endpoints_db: Could not persist information --> {0}'.format(sys.exc_info()))
 
+def write_panda_ddm_relation_db(session, relationship_dict):
+    """
+    Store the relationship between Panda sites and DDM endpoints
+    """
+    try:
+        _logger.debug("")
+        for ddm_endpoint in relationship_dict:
+            session.merge(PandaDdmRelation(panda_site_name=ddm_endpoint['panda_site_name'],
+                                           ddm_endpoint_name=ddm_endpoint['ddm_site'],
+                                           roles=ddm_endpoint['roles'],
+                                           ord=int(ddm_endpoint['ord'])))
+        session.commit()
+        _logger.debug("")
+    except exc.SQLAlchemyError:
+        session.rollback()
+        _logger.critical(': Could not persist information --> {0}'.format(sys.exc_info()))
 
-def read_panda_ddm_relationships_schedconfig(session):
+
+def read_panda_ddm_relation_schedconfig(session):
     """
     Read the PanDA - DDM relationships from schedconfig
     """
     try:
-        _logger.debug("Starting read_panda_ddm_relationships_schedconfig")
+        _logger.debug("Starting read_panda_ddm_relation_schedconfig")
         schedconfig = session.query(Schedconfig.site, Schedconfig.siteid, Schedconfig.ddm).all()
         relationship_tuples = []
         for entry in schedconfig:
@@ -144,11 +161,11 @@ def read_panda_ddm_relationships_schedconfig(session):
                 ddm_endpoints = [ddm_endpoint.strip() for ddm_endpoint in entry.ddm.split(',')]
             # Return the tuples and let the caller mingle it the way he wants
             relationship_tuples.append((site, panda_site, ddm_endpoints))
-        _logger.debug("Done with read_panda_ddm_relationships_schedconfig")
+        _logger.debug("Done with read_panda_ddm_relation_schedconfig")
         return relationship_tuples
     except exc.SQLAlchemyError:
         session.rollback()
-        _logger.critical('read_panda_ddm_relationships_schedconfig excepted --> {0}'.format(sys.exc_info()))
+        _logger.critical('read_panda_ddm_relation_schedconfig excepted --> {0}'.format(sys.exc_info()))
         return []
 
 
@@ -311,50 +328,3 @@ def delete_ddm_endpoints(session, ddm_endpoints_to_delete):
         except exc.SQLAlchemyError:
             session.rollback()
             _logger.critical('delete_ddm_endpoints excepted for ddm_endpoint {0} with {1}'.format(ddm_endpoint_name, sys.exc_info()))
-
-
-def get_cores_by_site(session):
-    """
-    Gets the number of cores by site
-    """
-    # SELECT sysdate, ps.site_name, VO, SUM(corecount) AS num_cores
-    # FROM ATLAS_PANDA.jobsActive4 ja4, atlas_panda.panda_site ps
-    # WHERE jobstatus in ('sent', 'starting', 'running', 'holding')
-    # AND ps.panda_site_name = ja4.computingsite
-    # GROUP BY sysdate, ps.site_name, VO
-
-    try:
-        for ts, site_name, core_count in session.query(func.sysdate(), PandaSite.site_name, func.sum(Jobsactive4.corecount)).\
-                                                   filter(Jobsactive4.computingsite==PandaSite.panda_site_name).\
-                                                   filter(Jobsactive4.jobstatus=='running').\
-                                                   group_by(func.sysdate(), PandaSite.site_name).all():
-            try:
-                site_stat = SiteStats(site_name=site_name, ts=ts, key='total_corepower', value=core_count)
-                session.add(site_stat)
-                session.commit()
-            except exc.SQLAlchemyError:
-                session.rollback()
-                _logger.critical('get_cores_by_site excepted when adding new site stats (site_name: {0}, ts: {1}, key: corecount, value: {2}). Exception {3}'.format(site_name, ts, core_count, sys.exc_info()))
-
-    except exc.SQLAlchemyError:
-        session.rollback()
-        _logger.critical('get_cores_by_site excepted querying the corecount by sites with {0}'.format(sys.exc_info()))
-
-
-def clean_site_stats_key(session, key, days=7):
-    """
-    Cleans entries older than days
-    """
-    ts_limit = datetime.datetime.now() - timedelta(days=7)
-    try:
-        entries_to_remove = session.query(SiteStats).filter(SiteStats.ts<ts_limit).filter(SiteStats.key==key).all()
-        for entry_to_remove in entries_to_remove:
-            try:
-                session.delete(entry_to_remove)
-                session.commit()
-            except exc.SQLAlchemyError:
-                session.rollback()
-                _logger.critical('clean_site_stats_key excepted when deleting entry {0} with: {1}'.format(entry_to_remove, sys.exc_info()))
-    except exc.SQLAlchemyError:
-        session.rollback()
-        _logger.critical('clean_site_stats_key excepted querying stats to remove: {0}'.format(sys.exc_info()))
