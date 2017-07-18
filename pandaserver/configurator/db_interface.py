@@ -39,28 +39,6 @@ except exc.SQLAlchemyError:
 def get_session():
     return sessionmaker(bind=__engine)()
 
-
-def db_interaction(method):
-    """
-    NOTE: THIS FUNCTION IS A REMAINDER FROM PREVIOUS DEVELOPMENT AND IS NOT CURRENTLY USED,
-    BUT SHOULD BE ADAPTED TO REMOVE THE BOILERPLATE CODE IN ALL FUNCTIONS BELOW
-    Decorator to wrap a function with the necessary session handling.
-    FIXME: Getting a session has a 50ms overhead. See if there are better ways.
-    FIXME: Note that this method inserts the session as the first parameter of the function. There might
-        be more elegant solutions to do this.
-    """
-    def session_wrapper(*args, **kwargs):
-        try:
-            session = sessionmaker(bind=__engine)()
-            result = method(session, *args, **kwargs)
-            session.commit()
-            return result
-        except exc.SQLAlchemyError:
-            _logger.critical("db_session excepted with error: %s"%sys.exc_info())
-            session.rollback()
-            raise
-    return session_wrapper
-
 # TODO: The performance of all write methods could significantly be improved by writing in bulks.
 # The current implementation was the fastest way to get it done with the merge method and avoiding
 # issues with duplicate keys
@@ -132,14 +110,19 @@ def write_panda_ddm_relation_db(session, relationship_dict):
     Store the relationship between Panda sites and DDM endpoints
     """
     try:
-        _logger.debug("")
+        _logger.debug("Starting write_panda_ddm_relation_db")
+        # Reset the relations. Important to do this inside the transaction
+        session.query(PandaDdmRelation).delete()
+
+        # Insert the relations
         for ddm_endpoint in relationship_dict:
             session.merge(PandaDdmRelation(panda_site_name=ddm_endpoint['panda_site_name'],
                                            ddm_endpoint_name=ddm_endpoint['ddm_site'],
                                            roles=ddm_endpoint['roles'],
                                            ord=int(ddm_endpoint['ord'])))
+        # Finish the transactions
         session.commit()
-        _logger.debug("")
+        _logger.debug("Done with write_panda_ddm_relation_db")
     except exc.SQLAlchemyError:
         session.rollback()
         _logger.critical(': Could not persist information --> {0}'.format(sys.exc_info()))
