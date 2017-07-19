@@ -17,7 +17,7 @@ class DdmSpec(object):
 
 
     # add endpoint
-    def add(self,endPoint,endpointDict):
+    def add(self, endPoint, endpointDict):
         name = endPoint['ddm_endpoint_name']
         # all endpoints
         self.all[name] = endpointDict[name]
@@ -41,7 +41,7 @@ class DdmSpec(object):
     # get endpoint
     def getEndPoint(self,endpointName):
         if endpointName in self.all:
-            return  self.all[endpointName]
+            return self.all[endpointName]
         return None
 
 
@@ -77,7 +77,7 @@ class DdmSpec(object):
 
 
     # get DDM endpoint associated with a pattern
-    def getAssoicatedEndpoint(self,patt):
+    def getAssociatedEndpoint(self,patt):
         patt = patt.split('/')[-1]
         if patt in self.all:
             return self.all[patt]

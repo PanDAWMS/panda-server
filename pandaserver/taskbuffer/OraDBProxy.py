@@ -9653,8 +9653,10 @@ class DBProxy:
             return {}
 
 
-    # get list of ddm endpoints
     def getDdmEndpoints(self):
+        """
+        get list of ddm input endpoints
+        """
         comment = ' /* DBProxy.getDdmEndpoints */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         _logger.debug("{0} start".format(methodName))
@@ -9673,11 +9675,14 @@ class DBProxy:
             if tmpEP['type'] == 'TEST':
                 continue
             endpointDict[tmpEP['ddm_endpoint_name']] = tmpEP
-        # get panda sites
-        sqlP  = "SELECT ps.panda_site_name,de.ddm_endpoint_name,ps.is_local,de.ddm_spacetoken_name,de.is_tape,"
-        sqlP += "CASE WHEN de.ddm_endpoint_name=ps.default_ddm_endpoint THEN 'Y' ELSE 'N' END is_default "
-        sqlP += "FROM ATLAS_PANDA.panda_site ps,ATLAS_PANDA.ddm_endpoint de "
-        sqlP += "WHERE ps.storage_site_name=de.site_name "
+        # get relationship between panda sites and ddm endpoints
+        sqlP = """
+               SELECT pdr.panda_site_name, pdr.ddm_endpoint_name, pdr.is_local, 
+                      de.ddm_spacetoken_name, de.is_tape, pdr.is_default 
+               FROM atlas_panda.panda_ddm_relation pdr, atlas_panda.ddm_endpoint de
+               WHERE pdr.ddm_endpoint_name = de.ddm_endpoint_name
+               AND pdr.roles like '%read_lan%'
+               """
         self.cur.execute(sqlP+comment)
         resP = self.cur.fetchall()
         columNames = [i[0].lower() for i in self.cur.description]
