@@ -120,7 +120,10 @@ def write_panda_ddm_relation_db(session, relation_list):
                                            ddm_endpoint_name=ddm_endpoint_dict['ddm_site'],
                                            roles=ddm_endpoint_dict['roles'],
                                            is_default=ddm_endpoint_dict['is_default'],
-                                           ord=int(ddm_endpoint_dict['ord'])))
+                                           is_local=ddm_endpoint_dict['is_local'],
+                                           ord=ddm_endpoint_dict['ord']
+                                           )
+                          )
         # Finish the transactions
         session.commit()
         _logger.debug("Done with write_panda_ddm_relation_db")
