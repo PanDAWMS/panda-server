@@ -164,7 +164,10 @@ class SiteMapper:
                             if resourceSpec.mincore is not None and coreCount < resourceSpec.mincore:
                                 continue
                             # change resource requirements
-                            childSiteSpec.coreCount = max(min(coreCount,resourceSpec.maxcore),resourceSpec.mincore)
+                            if resourceSpec.maxcore is None:
+                                childSiteSpec.coreCount = max(coreCount,resourceSpec.mincore)
+                            else:
+                                childSiteSpec.coreCount = max(min(coreCount,resourceSpec.maxcore),resourceSpec.mincore)
                             if resourceSpec.minrampercore is not None:
                                 childSiteSpec.minrss = max(childSiteSpec.coreCount*resourceSpec.minrampercore,
                                                            siteSpec.minrss)
