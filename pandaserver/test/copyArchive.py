@@ -693,7 +693,7 @@ for tmpSite, in resDS:
         if resPI != None:
             for pandaID, eventService, attemptNr in resPI:
                 if eventService in [EventServiceUtils.esMergeJobFlagNumber]:
-                    _logger.debug('retrying {0} at inactive site %s' % (pandaID,tmpSite))
+                    _logger.debug('retrying es merge %s at inactive site %s' % (pandaID,tmpSite))
                     taskBuffer.retryJob(pandaID,{},getNewPandaID=True,attemptNr=attemptNr,
                                                  recoverableEsMerge=True)
                 jediJobs.append(pandaID)
