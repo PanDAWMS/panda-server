@@ -16,7 +16,7 @@ class SiteSpec(object):
                    'iscvmfs','transferringlimit','maxwdir','fairsharePolicy','minmemory','maxmemory',
                    'mintime','allowfax','wansourcelimit','wansinklimit','pandasite',
                    'sitershare','cloudrshare','corepower','wnconnectivity','catchall',
-                   'role','pandasite_state','ddm_endpoints','maxrss','minrss',
+                   'role','pandasite_state','ddm_endpoints_input','maxrss','minrss',
                    'direct_access_lan','direct_access_wan','tier','objectstores','is_unified',
                    'unified_name')
 

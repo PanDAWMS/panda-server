@@ -259,7 +259,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 srcDQ2ID = self.siteMapper.getSite(tmpSrcID).ddm
                 # use srcDQ2ID as dstDQ2ID when it is associated to dest
                 dstSiteSpec = self.siteMapper.getSite(job.computingSite)
-                if dstSiteSpec.ddm_endpoints.isAssociated(srcDQ2ID):
+                if dstSiteSpec.ddm_endpoints_input.isAssociated(srcDQ2ID):
                     dstDQ2ID = srcDQ2ID
                 else:
                     dstDQ2ID = dstSiteSpec.ddm
@@ -720,7 +720,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     self.logger.debug('use remote SiteSpec of %s for %s' % (tmpDstID,job.computingSite))
                 # use srcDQ2ID as dstDQ2ID when it is associated to dest
                 dstSiteSpec = self.siteMapper.getSite(tmpDstID)
-                if dstSiteSpec.ddm_endpoints.isAssociated(srcDQ2ID):
+                if dstSiteSpec.ddm_endpoints_input.isAssociated(srcDQ2ID):
                     dstDQ2ID = srcDQ2ID
                 else:
                     dstDQ2ID = dstSiteSpec.ddm
@@ -1164,8 +1164,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             # use cloud's source
             tmpSrcID   = self.siteMapper.getCloud(cloudKey)['source']
             srcSiteSpec = self.siteMapper.getSite(tmpSrcID)
-            allSEs = srcSiteSpec.ddm_endpoints.getAllEndPoints()
-            tapeSEs = srcSiteSpec.ddm_endpoints.getTapeEndPoints()
+            allSEs = srcSiteSpec.ddm_endpoints_input.getAllEndPoints()
+            tapeSEs = srcSiteSpec.ddm_endpoints_input.getTapeEndPoints()
             # get availabe files
             tmpStat,tmpAvaFiles = rucioAPI.listFileReplicas(allScopes[cloudKey],
                                                             allLFNs[cloudKey],
@@ -1241,7 +1241,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     if not checkLfcSeMap[catURL].has_key(tmpSiteName):
                         checkLfcSeMap[catURL][tmpSiteName] = []
                     # add SE        
-                        checkLfcSeMap[catURL][tmpSiteName] += tmpSiteSpec.ddm_endpoints.getTapeEndPoints()
+                        checkLfcSeMap[catURL][tmpSiteName] += tmpSiteSpec.ddm_endpoints_input.getTapeEndPoints()
                 # LFC lookup
                 for tmpCatURL in checkLfcSeMap.keys():  
                     # get SEs
@@ -1641,7 +1641,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             tmpSrcID = self.siteMapper.getCloud(tmpJob.getCloud())['source']
             srcSiteSpec = self.siteMapper.getSite(tmpSrcID)
             dstSiteSpec = self.siteMapper.getSite(tmpJob.computingSite)
-            if dstSiteSpec.ddm_endpoints.isAssociated(srcSiteSpec.ddm):
+            if dstSiteSpec.ddm_endpoints_input.isAssociated(srcSiteSpec.ddm):
                 continue
             # look for log _sub dataset to be used as a key
             logSubDsName = ''

@@ -92,7 +92,7 @@ def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs,allOkFilesMap,tmpLog=None,
         dq2ID = dq2ID[:-1]    
     # set LFC and SE name 
     dq2URL = 'rucio://atlas-rucio.cern.ch:/grid/atlas'
-    tmpSE = v_ce.ddm_endpoints.getAllEndPoints()
+    tmpSE = v_ce.ddm_endpoints_input.getAllEndPoints()
     if tmpLog != None:
         tmpLog.debug('getOkFiles for %s with dq2ID:%s,LFC:%s,SE:%s' % (v_ce.sitename,dq2ID,dq2URL,str(tmpSE)))
     anyID = 'any'
