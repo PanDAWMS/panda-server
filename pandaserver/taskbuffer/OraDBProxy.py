@@ -13370,14 +13370,22 @@ class DBProxy:
                     taskParamsJson['countryGroup'] = countryGroup
             _logger.debug('{0} taskName={1}'.format(methodName,taskParamsJson['taskName']))
             schemaDEFT = self.getSchemaDEFT()
-            # sql to check task duplication
-            sqlTD  = "SELECT jediTaskID,status FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
-            sqlTD += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND userName=:userName AND taskName=:taskName "
-            sqlTD += "ORDER BY jediTaskID DESC FOR UPDATE "
-            # sql to check DEFT table
-            sqlCD  = "SELECT taskid FROM {0}.T_TASK ".format(schemaDEFT)
-            sqlCD += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND userName=:userName AND taskName=:taskName "
-            sqlCD += "ORDER BY taskid DESC FOR UPDATE " 
+            # sql to check task duplication for user
+            sqlTDU  = "SELECT jediTaskID,status FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+            sqlTDU += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND userName=:userName AND taskName=:taskName "
+            sqlTDU += "ORDER BY jediTaskID DESC FOR UPDATE "
+            # sql to check task duplication for group
+            sqlTDW  = "SELECT jediTaskID,status FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+            sqlTDW += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND taskName=:taskName "
+            sqlTDW += "ORDER BY jediTaskID DESC FOR UPDATE "
+            # sql to check DEFT table for user
+            sqlCDU  = "SELECT taskid FROM {0}.T_TASK ".format(schemaDEFT)
+            sqlCDU += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND userName=:userName AND taskName=:taskName "
+            sqlCDU += "ORDER BY taskid DESC FOR UPDATE " 
+            # sql to check DEFT table for group
+            sqlCDW  = "SELECT taskid FROM {0}.T_TASK ".format(schemaDEFT)
+            sqlCDW += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND taskName=:taskName "
+            sqlCDW += "ORDER BY taskid DESC FOR UPDATE " 
             # sql to insert task parameters
             sqlT  = "INSERT INTO {0}.T_TASK ".format(schemaDEFT)
             sqlT += "(taskid,status,submit_time,vo,prodSourceLabel,userName,taskName,jedi_task_parameters,priority,current_priority,parent_tid) VALUES "
@@ -13426,20 +13434,37 @@ class DBProxy:
             errorCode = 0
             if taskParamsJson['taskType'] == 'anal' and \
                     (taskParamsJson.has_key('uniqueTaskName') and taskParamsJson['uniqueTaskName'] == True):
-                varMap[':vo']       = taskParamsJson['vo']
-                varMap[':userName'] = taskParamsJson['userName']
+                if 'official' in taskParamsJson and taskParamsJson['official'] == True:
+                    isOfficial = True
+                else:
+                    isOfficial = False
+                # check JEDI
+                varMap[':vo'] = taskParamsJson['vo']
+                if isOfficial:
+                    pass
+                else:
+                    varMap[':userName'] = taskParamsJson['userName']
                 varMap[':taskName'] = taskParamsJson['taskName']
                 varMap[':prodSourceLabel'] = taskParamsJson['prodSourceLabel']
-                self.cur.execute(sqlTD+comment,varMap)
+                if isOfficial:
+                    self.cur.execute(sqlTDW+comment,varMap)
+                else:
+                    self.cur.execute(sqlTDU+comment,varMap)
                 resDT = self.cur.fetchone()
                 if resDT == None:
                     # check DEFT table
                     varMap = {}
-                    varMap[':vo']       = taskParamsJson['vo']
-                    varMap[':userName'] = taskParamsJson['userName']
+                    varMap[':vo'] = taskParamsJson['vo']
+                    if isOfficial:
+                        pass
+                    else:
+                        varMap[':userName'] = taskParamsJson['userName']
                     varMap[':taskName'] = taskParamsJson['taskName']
                     varMap[':prodSourceLabel'] = taskParamsJson['prodSourceLabel']
-                    self.cur.execute(sqlCD+comment,varMap)
+                    if isOfficial:
+                        self.cur.execute(sqlCDW+comment,varMap)
+                    else:
+                        self.cur.execute(sqlCDU+comment,varMap)
                     resCD = self.cur.fetchone()
                     if resCD != None:
                         # task is already in DEFT

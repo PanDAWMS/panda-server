@@ -1,6 +1,7 @@
 Release Notes
 
 * 7/25/2017
+  * added protection against duplicated submission by group users
   * added blank pilots to harvesterCtl
 
 * 7/17/2017
