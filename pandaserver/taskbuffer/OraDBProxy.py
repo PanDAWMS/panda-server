@@ -9445,7 +9445,6 @@ class DBProxy:
                     ret.nickname   = nickname
                     ret.dq2url     = dq2url
                     ret.cloud      = cloud.split(',')[0]
-                    ret.ddm        = ddm.split(',')[0]
                     ret.lfchost    = lfchost
                     ret.gatekeeper = gatekeeper
                     ret.memory     = memory
@@ -9633,8 +9632,15 @@ class DBProxy:
                     else:
                         # empty
                         ret.ddm_endpoints_input = DdmSpec()
+                        ret.ddm_endpoints_output = DdmSpec()
                     # mapping between token and endpoints
-                    ret.setokens = ret.ddm_endpoints_input.getTokenMap()
+                    ret.setokens_input = ret.ddm_endpoints_input.getTokenMap()
+                    ret.setokens_output = ret.ddm_endpoints_output.getTokenMap()
+
+                    # set DDM to the default endpoint
+                    ret.ddm_input = ret.ddm_endpoints_input.default
+                    ret.ddm_output = ret.ddm_endpoints_output.default
+
                     # object stores
                     try:
                         ret.objectstores = json.loads(objectstores)

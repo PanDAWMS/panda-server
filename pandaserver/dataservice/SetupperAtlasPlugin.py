@@ -196,7 +196,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         
         
 
-    # make dipatchDBlocks, insert prod/dispatchDBlock to database
+    # make dispatchDBlocks, insert prod/dispatchDBlock to database
     def _setupSource(self):
         fileList    = {}
         prodList    = []

@@ -820,7 +820,7 @@ class FinisherThr (threading.Thread):
                     else:
                         tmpDstID = job.destinationSE
                     tmpDstSite = siteMapper.getSite(tmpDstID)
-                    seList = tmpDstSite.ddm_endpoints_input.getLocalEndPoints()
+                    seList = tmpDstSite.ddm_endpoints_output.getLocalEndPoints()
                 # get LFN list
                 lfns   = []
                 guids  = []
