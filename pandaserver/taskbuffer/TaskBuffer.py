@@ -2028,11 +2028,11 @@ class TaskBuffer:
 
 
     # update site data
-    def updateSiteData(self,hostID,pilotRequests):
+    def updateSiteData(self,hostID,pilotRequests,interval=3):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get serial number
-        ret = proxy.updateSiteData(hostID,pilotRequests)
+        ret = proxy.updateSiteData(hostID,pilotRequests,interval)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -3463,6 +3463,18 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # exec
         ret = proxy.getWorkerStats(siteName)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # get minimal resource
+    def getMinimalResource(self):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getMinimalResource()
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

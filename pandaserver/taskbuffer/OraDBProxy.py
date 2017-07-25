@@ -8944,7 +8944,7 @@ class DBProxy:
     # LogDBProxy stuff   
 
     # update site data
-    def updateSiteData(self, hostID, pilotRequests):
+    def updateSiteData(self, hostID, pilotRequests, interval):
         comment = ' /* DBProxy.updateSiteData */'                            
         _logger.debug("updateSiteData start")
 
@@ -8969,21 +8969,22 @@ class DBProxy:
         sqlAll +=  "FROM ATLAS_PANDAMETA.SiteData WHERE HOURS=:HOURS AND SITE=:SITE"
 
         try:
+            timeNow = datetime.datetime.utcnow()
             self.conn.begin()
             # delete old records
             varMap = {}
-            varMap[':LASTMOD'] = datetime.datetime.utcnow()-datetime.timedelta(hours=48)
+            varMap[':LASTMOD'] = timeNow - datetime.timedelta(hours=48)
             self.cur.execute(sqlDel+comment,varMap)
             # set 0 to old records
             varMap = {}
-            varMap[':HOURS'] = 3
+            varMap[':HOURS'] = interval
             varMap[':GETJOB'] = 0
             varMap[':UPDATEJOB'] = 0
             varMap[':NOJOB'] = 0
             varMap[':GETJOBABS'] = 0
             varMap[':UPDATEJOBABS'] = 0
             varMap[':NOJOBABS'] = 0
-            varMap[':LASTMOD'] = datetime.datetime.utcnow()-datetime.timedelta(hours=varMap[':HOURS'])
+            varMap[':LASTMOD'] = timeNow - datetime.timedelta(hours=interval)
             self.cur.execute(sqlRst+comment,varMap)
             # commit
             if not self._commit():
@@ -9000,7 +9001,7 @@ class DBProxy:
                 varMap = {}
                 varMap[':FLAG']  = hostID
                 varMap[':SITE']  = tmpSite
-                varMap[':HOURS'] = 3                
+                varMap[':HOURS'] = interval
                 self.cur.arraysize = 10
                 self.cur.execute(sqlCh+comment,varMap)
                 res = self.cur.fetchone()
@@ -9048,7 +9049,7 @@ class DBProxy:
                 sumExist = False
                 varMap = {}
                 varMap[':SITE']  = tmpSite
-                varMap[':HOURS'] = 3
+                varMap[':HOURS'] = interval
                 self.cur.arraysize = 100
                 self.cur.execute(sqlAll+comment,varMap)
                 res = self.cur.fetchall()
@@ -9119,8 +9120,8 @@ class DBProxy:
                     sql = sqlIn
                 # update
                 self.cur.execute(sql+comment,varMap)
-                _logger.debug('updateSiteData : %s getJob=%s updateJob=%s, noJob=%s, getJobAbs=%s updateJobAbs=%s, noJobAbs=%s' %
-                              (tmpSite,varMap[':GETJOB'],varMap[':UPDATEJOB'],varMap[':NOJOB'],
+                _logger.debug('updateSiteData : %s hours=%s getJob=%s updateJob=%s, noJob=%s, getJobAbs=%s updateJobAbs=%s, noJobAbs=%s' %
+                              (tmpSite,interval,varMap[':GETJOB'],varMap[':UPDATEJOB'],varMap[':NOJOB'],
                                varMap[':GETJOBABS'], varMap[':UPDATEJOBABS'], varMap[':NOJOBABS']))
                 # commit
                 if not self._commit():
@@ -19633,6 +19634,19 @@ class DBProxy:
         try:
             # set autocommit on
             self.conn.begin()
+            # sql to get nPilot
+            sqlP = "SELECT getJob+updateJob FROM ATLAS_PANDAMETA.SiteData "
+            sqlP += "WHERE HOURS=:hours AND FLAG IN (:flag1,:flag2) "
+            varMap = dict()
+            varMap[':hours'] = 1
+            varMap[':flag1'] = 'production'
+            varMap[':flag2'] = 'analysis'
+            self.cur.execute(sqlP+comment, varMap)
+            res = self.cur.fetchone()
+            if res is not None:
+                nPilot, = res
+            else:
+                nPilot = 0
             # sql to get stat
             sqlG = "SELECT SUM(n_workers),COUNT(harvester_ID),resourceType,status FROM ATLAS_PANDA.Harvester_Worker_Stats "
             sqlG += "WHERE computingSite=:siteName "
@@ -19652,13 +19666,13 @@ class DBProxy:
             if not self._commit():
                 raise RuntimeError, 'Commit error'
             # return
-            tmpLog.debug('done with {0}'.format(str(retMap)))
-            return retMap
+            tmpLog.debug('done with {0} nPilot={1}'.format(str(retMap), nPilot))
+            return retMap, nPilot
         except:
             # roll back
             self._rollback()
             self.dumpErrorMessage(tmpLog,methodName)
-            return {}
+            return {}, 0
 
 
 
@@ -19970,3 +19984,31 @@ class DBProxy:
             self._rollback()
             self.dumpErrorMessage(tmpLog,methodName)
             return []
+
+
+    # get minimal resource
+    def getMinimalResource(self):
+        comment = ' /* JediDBProxy.getMinimalResource */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, method_name)
+        tmpLog.debug('start')
+        try:
+            timeNow = datetime.datetime.utcnow()
+            # sql to get minimal
+            sqlC = "SELECT resource_name FROM ATLAS_PANDA.resource_types "
+            sqlC += "ORDER BY mincore, (CASE WHEN maxrampercore IS NULL THEN 1 ELSE 0 END), maxrampercore "
+            # get instances
+            self.conn.begin()
+            self.cur.execute(sqlC+comment)
+            res = self.cur.fetchone()
+            resourceName, = res
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug('got {0}'.format(resourceName))
+            return resourceName
+        except:
+            # roll back
+            self._rollback()
+            self.dumpErrorMessage(tmpLog,methodName)
+            return None

@@ -108,6 +108,7 @@ try:
         dispLogName = '%s/panda-PilotRequests.log' % panda_config.logdir
         # time limit
         timeLimit  = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
+        timeLimitS  = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
         # check if tgz is required
         com = 'head -1 %s' % dispLogName
         lostat,loout = commands.getstatusoutput(com)
@@ -128,6 +129,7 @@ try:
         tmpLogName = '%s.tmp-%s' % (dispLogName,datetime.datetime.utcnow().strftime('%Y-%m-%d-%H-%M-%S'))
         # loop over all files
         pilotCounts = {}
+        pilotCountsS = {}
         for tmpDispLogName in dispLogNameList:
             # expand or copy
             if tmpDispLogName.endswith('.gz'):
@@ -158,9 +160,8 @@ try:
 
                     # protection against corrupted entries from pilot,
                     # e.g. pilot reading site json from cvmfs while it was being updated
-                    if tmpSite not in aSiteMapper.siteSpecList.keys():
+                    if tmpSite not in aSiteMapper.siteSpecList:
                         continue
-
                     # sum
                     if not pilotCounts.has_key(tmpSite):
                         pilotCounts[tmpSite] = {}
@@ -169,6 +170,15 @@ try:
                     if not pilotCounts[tmpSite][tmpMethod].has_key(tmpNode):
                         pilotCounts[tmpSite][tmpMethod][tmpNode] = 0
                     pilotCounts[tmpSite][tmpMethod][tmpNode] += 1
+                    # short
+                    if timeStamp > timeLimitS:
+                        if tmpSite not in pilotCountsS:
+                            pilotCountsS[tmpSite] = dict()
+                        if tmpMethod not in pilotCountsS[tmpSite]:
+                            pilotCountsS[tmpSite][tmpMethod] = dict()
+                        if tmpNode not in pilotCountsS[tmpSite][tmpMethod]:
+                            pilotCountsS[tmpSite][tmpMethod][tmpNode] = 0
+                        pilotCountsS[tmpSite][tmpMethod][tmpNode] += 1
             # close            
             logFH.close()
         # delete tmp
@@ -176,8 +186,9 @@ try:
         # update
         hostID = panda_config.pserverhost.split('.')[0]
         tmpLog.debug("pilotCounts session")    
-        tmpLog.debug(pilotCounts)
-        retPC = taskBuffer.updateSiteData(hostID,pilotCounts)
+        retPC = taskBuffer.updateSiteData(hostID,pilotCounts,interval=3)
+        tmpLog.debug(retPC)
+        retPC = taskBuffer.updateSiteData(hostID,pilotCountsS,interval=1)
         tmpLog.debug(retPC)
 except:
     errType,errValue = sys.exc_info()[:2]

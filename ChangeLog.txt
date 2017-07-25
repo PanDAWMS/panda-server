@@ -1,5 +1,8 @@
 Release Notes
 
+* 7/25/2017
+  * added blank pilots to harvesterCtl
+
 * 7/17/2017
   * changed ES merge to choose sites with wnconnectivity
 

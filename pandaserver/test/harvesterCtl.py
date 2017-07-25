@@ -8,6 +8,7 @@ import json
 import socket
 import random
 import datetime
+import commands
 
 from taskbuffer.TaskBuffer import taskBuffer
 from taskbuffer.WorkerSpec import WorkerSpec
@@ -74,6 +75,9 @@ setInterval = 3
 
 pid = '{0}-{1}_{2}'.format(socket.getfqdn().split('.')[0],os.getpid(),os.getpgrp())
 
+# get minimal resource
+minResourceName = taskBuffer.getMinimalResource()
+
 # get active harvesters
 harvesterIDs = taskBuffer.getActiveHarvesters(activeInterval)
 random.shuffle(harvesterIDs)
@@ -82,10 +86,12 @@ random.shuffle(harvesterIDs)
 for harvesterID in harvesterIDs:
     # get lock to send REPORT_WORKER_STATS command
     com = 'REPORT_WORKER_STATS'
+    tmpLog.debug('locking for com={0} id={1}'.format(com, harvesterID))
     locks = taskBuffer.getCommandLocksHarvester(harvesterID, com, pid, lockInterval, refreshInterval)
     # send command to refresh worker stats
     for siteName, resourceTypes in locks.iteritems():
         comSite = '{0}:{1}'.format(com, siteName)
+        tmpLog.debug('sending {0} to {1}'.format(comSite, harvesterID))
         taskBuffer.commandToHarvester(harvesterID, comSite, 0, 'new', None, None, None)    
         # release lock
         for resourceType in resourceTypes:
@@ -93,13 +99,14 @@ for harvesterID in harvesterIDs:
 
     # get lock to send SET_N_WORKERS command
     com = 'SET_N_WORKERS'
+    tmpLog.debug('locking for com={0} id={1}'.format(com, harvesterID))
     locks = taskBuffer.getCommandLocksHarvester(harvesterID, com, pid, lockInterval, setInterval)
     # send command to set nWorkers
     for siteName, resourceTypes in locks.iteritems():
         # calcurate the number of new workers
         # FIXME : using nActivated and workerStats for now, to be given by global share
         nActivatedStats = taskBuffer.getActivatedJobStatisticsPerResource(siteName)
-        workerStats = taskBuffer.getWorkerStats(siteName)
+        workerStats, nPilot = taskBuffer.getWorkerStats(siteName)
         nWorkersToSubmit = dict()
         for resourceType in resourceTypes:
             # number of incarnated workers
@@ -122,9 +129,17 @@ for harvesterID in harvesterIDs:
             nWorkers = int(math.ceil(float(nActivated) / float(nHarvester)))
             if nWorkers > 0:
                 nWorkersToSubmit[resourceType] = nWorkers
+            else:
+                # to send dummy getJob with minimal config when the site is inactive
+                if nPilot == 0 and nIncarnated == 0 and resourceType == minResourceName:
+                    nWorkersToSubmit[resourceType] = 1
+            tmpLog.debug('site={0} resource={1} nWorkers={2} nInc={3} nAct={4} nPilot={5}'.format(siteName, resourceType,
+                                                                                                  nWorkers, nIncarnated,
+                                                                                                  nActivated, nPilot))
         # send command
         if len(nWorkersToSubmit) > 0:
             comSite = '{0}:{1}'.format(com, siteName)
+            tmpLog.debug('sending {0} with {1} to {2}'.format(comSite, str(nWorkersToSubmit), harvesterID))
             taskBuffer.commandToHarvester(harvesterID, comSite, 0, 'new', None, None, nWorkersToSubmit)
         # release lock
         for resourceType in resourceTypes:
