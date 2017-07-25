@@ -98,7 +98,7 @@ class DdmSpec(object):
     # get mapping between tokens and endpoint names
     def getTokenMap(self):
         retMap = {}
-        for tmpName,tmpVal in self.all.iteritems():
+        for tmpName, tmpVal in self.all.iteritems():
             token = tmpVal['ddm_spacetoken_name']
             # already exists
             if token in retMap:

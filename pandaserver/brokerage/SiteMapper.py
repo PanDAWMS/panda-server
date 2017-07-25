@@ -142,14 +142,14 @@ class SiteMapper:
                             nucleus = NucleusSpec(ret.pandasite)
                             nucleus.state = ret.pandasite_state
                             self.nuclei[ret.pandasite] = nucleus
-                        self.nuclei[ret.pandasite].add(ret.sitename,ret.ddm_endpoints)
+                        self.nuclei[ret.pandasite].add(ret.sitename,ret.ddm_endpoints_input)
                     # collect satellites
                     if ret.role == 'satellite' and ret.type == 'production':
                         if not ret.pandasite in self.satellites:
                             satellite = NucleusSpec(ret.pandasite)
                             satellite.state = ret.pandasite_state
                             self.satellites[ret.pandasite] = satellite
-                        self.satellites[ret.pandasite].add(ret.sitename,ret.ddm_endpoints)
+                        self.satellites[ret.pandasite].add(ret.sitename,ret.ddm_endpoints_input)
             # make virtual queues from merged queues
             try:
                 for siteName in self.siteSpecList.keys():
