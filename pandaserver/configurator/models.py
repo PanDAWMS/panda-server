@@ -76,8 +76,12 @@ class PandaDdmRelation(Base):
     ddm_endpoint_name = Column(String(52), ForeignKey(u'atlas_panda.ddm_endpoint.ddm_endpoint_name',  ondelete='CASCADE'), primary_key=True, nullable=False)
     roles = Column(String(60))
     ord = Column(Numeric(3, 0, asdecimal=False))
+    order_read = Column(Numeric(3, 0, asdecimal=False))
+    order_write = Column(Numeric(3, 0, asdecimal=False))
     is_local = Column(String(1))
     is_default = Column(String(1))
+    default_read = Column(String(1))
+    default_write = Column(String(1))
 
 
 class Schedconfig(Base):
