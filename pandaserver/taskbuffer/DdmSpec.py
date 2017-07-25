@@ -11,7 +11,8 @@ class DdmSpec(object):
     def __init__(self):
         self.all = {}
         self.local = set()
-        self.default = None
+        self.default_read = None
+        self.default_write = None
         self.tape = set()
 
 
@@ -24,9 +25,11 @@ class DdmSpec(object):
         # local endpoints
         if endPoint['is_local'] != 'N':
             self.local.add(name)
-        # default
-        if endPoint['is_default'] == 'Y':
-            self.default = name
+        # defaults
+        if endPoint['default_read'] == 'Y':
+            self.default_read = name
+        if endPoint['default_write'] == 'Y':
+            self.default_write = name
         # tape
         if endPoint['is_tape'] == 'Y':
             self.tape.add(name)
@@ -54,10 +57,13 @@ class DdmSpec(object):
 
 
 
-    # get default endpoint
-    def getDefault(self):
-        return self.default
+    # get default write endpoint
+    def getDefaultWrite(self):
+        return self.default_write
 
+    # get default read endpoint
+    def getDefaultRead(self):
+        return self.default_read
 
     # get tape endpoints
     def getTapeEndPoints(self):
@@ -96,14 +102,17 @@ class DdmSpec(object):
 
 
     # get mapping between tokens and endpoint names
-    def getTokenMap(self):
+    def getTokenMap(self, mode):
+        # TODO: review this part and discuss with Tadashi
         retMap = {}
         for tmpName, tmpVal in self.all.iteritems():
             token = tmpVal['ddm_spacetoken_name']
             # already exists
             if token in retMap:
                 # use default
-                if retMap[token] == self.default:
+                if retMap[token] == self.default_read and mode=='input':
+                    continue
+                if retMap[token] == self.default_write and mode=='output':
                     continue
                 # use local
                 if retMap[token] in self.local:

@@ -9634,12 +9634,12 @@ class DBProxy:
                         ret.ddm_endpoints_input = DdmSpec()
                         ret.ddm_endpoints_output = DdmSpec()
                     # mapping between token and endpoints
-                    ret.setokens_input = ret.ddm_endpoints_input.getTokenMap()
-                    ret.setokens_output = ret.ddm_endpoints_output.getTokenMap()
+                    ret.setokens_input = ret.ddm_endpoints_input.getTokenMap('input')
+                    ret.setokens_output = ret.ddm_endpoints_output.getTokenMap('output')
 
                     # set DDM to the default endpoint
-                    ret.ddm_input = ret.ddm_endpoints_input.default
-                    ret.ddm_output = ret.ddm_endpoints_output.default
+                    ret.ddm_input = ret.ddm_endpoints_input.getDefaultRead()
+                    ret.ddm_output = ret.ddm_endpoints_output.getDefaultWrite()
 
                     # object stores
                     try:
@@ -9693,8 +9693,8 @@ class DBProxy:
         
         # get relationship between panda sites and ddm endpoints
         sql_panda_ddm = """
-               SELECT pdr.panda_site_name, pdr.ddm_endpoint_name, pdr.is_local, 
-                      de.ddm_spacetoken_name, de.is_tape, pdr.is_default, pdr.roles 
+               SELECT pdr.panda_site_name, pdr.ddm_endpoint_name, pdr.is_local, de.ddm_spacetoken_name, 
+                      de.is_tape, pdr.default_read, pdr.default_write, pdr.roles 
                FROM atlas_panda.panda_ddm_relation pdr, atlas_panda.ddm_endpoint de
                WHERE pdr.ddm_endpoint_name = de.ddm_endpoint_name
                """
