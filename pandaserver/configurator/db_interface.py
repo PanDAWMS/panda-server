@@ -120,7 +120,6 @@ def write_panda_ddm_relation_db(session, relation_list):
                                            ddm_endpoint_name=ddm_endpoint_dict['ddm_site'],
                                            roles=ddm_endpoint_dict['roles'],
                                            is_local=ddm_endpoint_dict['is_local'],
-                                           ord=ddm_endpoint_dict['ord'],
                                            order_read=ddm_endpoint_dict['order_read'],
                                            order_write=ddm_endpoint_dict['order_write'],
                                            default_read=ddm_endpoint_dict['default_read'],
