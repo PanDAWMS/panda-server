@@ -971,7 +971,7 @@ class UserIF:
     def updateWorkers(self,user,host,harvesterID,data):
         ret = self.taskBuffer.updateWorkers(harvesterID,data)
         if ret is None:
-            retVal = (False,'database error')
+            retVal = (False,'database error in the panda server')
         else:
             retVal = (True,ret)
         # serialize 
