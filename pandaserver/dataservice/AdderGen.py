@@ -235,6 +235,10 @@ class AdderGen:
                         source = 'ddmErrorCode'
                         error_code = self.job.ddmErrorCode
                         error_diag = self.job.ddmErrorDiag
+                    elif self.job.transExitCode:
+                        source = 'transExitCode'
+                        error_code = self.job.transExitCode
+                        error_diag = ''
             
                     # _logger.info("updatejob has source %s, error_code %s and error_diag %s"%(source, error_code, error_diag))
                     
