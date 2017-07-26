@@ -9444,6 +9444,7 @@ class DBProxy:
                     ret.sitename   = siteid
                     ret.nickname   = nickname
                     ret.dq2url     = dq2url
+                    ret.ddm = ddm.split(',')[0]
                     ret.cloud      = cloud.split(',')[0]
                     ret.lfchost    = lfchost
                     ret.gatekeeper = gatekeeper

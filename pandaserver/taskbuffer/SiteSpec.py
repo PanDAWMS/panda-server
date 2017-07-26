@@ -7,8 +7,8 @@ import re
 
 class SiteSpec(object):
     # attributes
-    _attributes = ('sitename','nickname','dq2url','cloud','ddm','lfchost','type','gatekeeper',
-                   'releases','memory','maxtime','status','space','retry','cmtconfig','setokens',
+    _attributes = ('sitename','nickname','dq2url','cloud','ddm','ddm_input','ddm_output','lfchost','type','gatekeeper',
+                   'releases','memory','maxtime','status','space','retry','cmtconfig','setokens_input','setokens_output'
                    'glexec','priorityoffset','allowedgroups','defaulttoken','queue',
                    'localqueue','validatedreleases','accesscontrol','copysetup','maxinputsize',
                    'cachedse','allowdirectaccess','comment','cloudlist','statusmodtime','lfcregister',
@@ -16,7 +16,7 @@ class SiteSpec(object):
                    'iscvmfs','transferringlimit','maxwdir','fairsharePolicy','minmemory','maxmemory',
                    'mintime','allowfax','wansourcelimit','wansinklimit','pandasite',
                    'sitershare','cloudrshare','corepower','wnconnectivity','catchall',
-                   'role','pandasite_state','ddm_endpoints_input','maxrss','minrss',
+                   'role','pandasite_state','ddm_endpoints_input','ddm_endpoints_output','maxrss','minrss',
                    'direct_access_lan','direct_access_wan','tier','objectstores','is_unified',
                    'unified_name')
 
