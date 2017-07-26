@@ -645,8 +645,9 @@ timeLimitSite = datetime.datetime.utcnow() - datetime.timedelta(hours=inactiveTi
 timeLimitJob  = datetime.datetime.utcnow() - datetime.timedelta(hours=inactiveTimeLimitJob)
 # get PandaIDs
 sql  = 'SELECT distinct computingSite FROM ATLAS_PANDA.jobsActive4 '
-sql += 'WHERE prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) '
-sql += 'AND (modificationTime<:timeLimit OR stateChangeTime<:timeLimit) '
+sql += 'WHERE prodSourceLabel=:prodSourceLabel '
+sql += 'AND ((modificationTime<:timeLimit AND jobStatus=:jobStatus1) '
+sql += 'OR (stateChangeTime<:timeLimit AND jobStatus=:jobStatus2)) '
 sql += 'AND lockedby=:lockedby AND currentPriority>=:prioLimit '
 sql += 'AND NOT processingType IN (:pType1) AND relocationFlag<>:rFlag1 '
 varMap = {}

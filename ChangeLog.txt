@@ -1,5 +1,9 @@
 Release Notes
 
+* 7/26/2017
+  * setting cancelled/failed to es_killed/es_aborted
+  * not to kill consumers in inactive sites when associated consumers are active
+
 * 7/25/2017
   * added protection against duplicated submission by group users
   * added blank pilots to harvesterCtl

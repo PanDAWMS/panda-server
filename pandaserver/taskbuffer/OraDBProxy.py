@@ -15763,17 +15763,19 @@ class DBProxy:
                 if retD == 0:
                     continue
                 # set error code
-                dJob.jobStatus = 'closed'
                 dJob.endTime   = datetime.datetime.utcnow()
                 if EventServiceUtils.isJobCloningJob(dJob):
+                    dJob.jobStatus = 'closed'
                     dJob.jobSubStatus = 'jc_unlock'
                     dJob.taskBufferErrorCode = ErrorCode.EC_JobCloningUnlock
                     dJob.taskBufferErrorDiag = 'closed since another clone PandaID={0} got semaphore'.format(job.PandaID)
                 elif killedFlag:
+                    dJob.jobStatus = 'cancelled'
                     dJob.jobSubStatus = 'es_killed'
                     dJob.taskBufferErrorCode = ErrorCode.EC_EventServiceKillOK
                     dJob.taskBufferErrorDiag = 'killed since an associated consumer PandaID={0} was killed'.format(job.PandaID)
                 else:
+                    dJob.jobStatus = 'failed'
                     dJob.jobSubStatus = 'es_aborted'
                     dJob.taskBufferErrorCode = ErrorCode.EC_EventServiceKillNG
                     dJob.taskBufferErrorDiag = 'killed since an associated consumer PandaID={0} failed'.format(job.PandaID)
