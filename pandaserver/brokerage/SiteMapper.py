@@ -19,11 +19,13 @@ defSite = SiteSpec()
 defSite.sitename   = panda_config.def_sitename
 defSite.nickname   = panda_config.def_nickname
 defSite.dq2url     = panda_config.def_dq2url
-defSite.ddm        = panda_config.def_ddm
+defSite.ddm_input  = panda_config.def_ddm
+defSite.ddm_output = panda_config.def_ddm
 defSite.type       = panda_config.def_type
 defSite.gatekeeper = panda_config.def_gatekeeper
 defSite.status     = panda_config.def_status
-defSite.setokens   = {}
+defSite.setokens_input   = {}
+defSite.setokens_output   = {}
 
 worldCloudName = 'WORLD'
 nucleusTag = 'nucleus:'
@@ -142,14 +144,14 @@ class SiteMapper:
                             nucleus = NucleusSpec(ret.pandasite)
                             nucleus.state = ret.pandasite_state
                             self.nuclei[ret.pandasite] = nucleus
-                        self.nuclei[ret.pandasite].add(ret.sitename,ret.ddm_endpoints_input)
+                        self.nuclei[ret.pandasite].add(ret.sitename, ret.ddm_endpoints_output)
                     # collect satellites
                     if ret.role == 'satellite' and ret.type == 'production':
                         if not ret.pandasite in self.satellites:
                             satellite = NucleusSpec(ret.pandasite)
                             satellite.state = ret.pandasite_state
                             self.satellites[ret.pandasite] = satellite
-                        self.satellites[ret.pandasite].add(ret.sitename,ret.ddm_endpoints_input)
+                        self.satellites[ret.pandasite].add(ret.sitename, ret.ddm_endpoints_output)
             # make virtual queues from merged queues
             try:
                 for siteName in self.siteSpecList.keys():
@@ -323,7 +325,7 @@ class SiteMapper:
         siteSpec =  self.getSite(siteID)
         if siteSpec.setokens.has_key(storageToken):
             return siteSpec.setokens[storageToken]
-        return siteSpec.ddm
+        return siteSpec.ddm_output # TODO: confirm with Tadashi
 
 
 

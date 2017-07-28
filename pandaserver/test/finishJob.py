@@ -56,7 +56,7 @@ for file in job.Files:
                 siteSpec.setokens.has_key(file.destinationDBlockToken):
             tmpSrcDDM = siteSpec.setokens[file.destinationDBlockToken]
         else:
-            tmpSrcDDM = siteMapper.getSite(job.computingSite).ddm
+            tmpSrcDDM = siteMapper.getSite(job.computingSite).ddm_out
         srm = TiersOfATLAS.getSiteProperty(tmpSrcDDM,'srm')
         srm = re.sub('^token:[^:]+:','',srm)
         xml += """

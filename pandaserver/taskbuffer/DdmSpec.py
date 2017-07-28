@@ -15,8 +15,6 @@ class DdmSpec(object):
         self.default_write = None
         self.tape = set()
 
-
-
     # add endpoint
     def add(self, endPoint, endpointDict):
         name = endPoint['ddm_endpoint_name']
@@ -34,12 +32,9 @@ class DdmSpec(object):
         if endPoint['is_tape'] == 'Y':
             self.tape.add(name)
 
-
     # get all endpoints
     def getAllEndPoints(self):
         return self.all.keys()
-
-
 
     # get endpoint
     def getEndPoint(self,endpointName):
@@ -47,15 +42,11 @@ class DdmSpec(object):
             return self.all[endpointName]
         return None
 
-
-
     # get local endpoints
     def getLocalEndPoints(self):
         tmpRet = list(self.local)
         tmpRet.sort()
         return tmpRet
-
-
 
     # get default write endpoint
     def getDefaultWrite(self):
@@ -69,18 +60,13 @@ class DdmSpec(object):
     def getTapeEndPoints(self):
         return tuple(self.tape)
 
-
     # check association
     def isAssociated(self,endpointName):
         return endpointName in self.all
 
-
-
     # check local
     def isLocal(self,endpointName):
         return endpointName in self.local
-
-
 
     # get DDM endpoint associated with a pattern
     def getAssociatedEndpoint(self,patt):
@@ -99,7 +85,6 @@ class DdmSpec(object):
             if self.all[endPointName]['type'] == pattwoVO:
                 return self.all[endPointName]
         return None
-
 
     # get mapping between tokens and endpoint names
     def getTokenMap(self, mode):

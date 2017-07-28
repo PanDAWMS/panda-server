@@ -142,7 +142,7 @@ class Response:
                 else:
                     strCheckSum += '%s,' % file.md5sum
                 strScopeIn += '%s,' % file.scope
-                ddmEndPointIn.append(self.getDdmEndpoint(siteSpec,file.dispatchDBlockToken))
+                ddmEndPointIn.append(self.getDdmEndpoint(siteSpec,file.dispatchDBlockToken, 'input'))
                 if not file.dataset in inDsLfnMap:
                     inDsLfnMap[file.dataset] = []
                 inDsLfnMap[file.dataset].append(file.lfn)
@@ -168,7 +168,7 @@ class Response:
                 strDestToken += re.sub('^ddd:','dst:',file.destinationDBlockToken.split(',')[0])
                 strDisTokenForOutput += '%s,' % file.dispatchDBlockToken
                 strProdTokenForOutput += '%s,' % file.prodDBlockToken
-                ddmEndPointOut.append(self.getDdmEndpoint(siteSpec,file.destinationDBlockToken.split(',')[0]))
+                ddmEndPointOut.append(self.getDdmEndpoint(siteSpec,file.destinationDBlockToken.split(',')[0], 'output'))
                 if file.isAllowedNoOutput():
                     noOutput.append(file.lfn)
         # inFiles
@@ -326,8 +326,8 @@ class Response:
 
 
     # get ddm endpoint
-    def getDdmEndpoint(self,siteSpec,spaceToken):
-        if siteSpec == None:
+    def getDdmEndpoint(self,siteSpec,spaceToken, mode):
+        if siteSpec == None or mode not in ['input', 'output']:
             return ''
         endPoint = DataServiceUtils.getDestinationSE(spaceToken)
         if endPoint != None:
@@ -335,9 +335,15 @@ class Response:
         endPoint = DataServiceUtils.getDistributedDestination(spaceToken)
         if endPoint != None:
             return endPoint
-        if spaceToken in siteSpec.setokens:
-            return siteSpec.setokens[spaceToken]
-        return siteSpec.ddm
+        if mode == 'input':
+            setokens = siteSpec.setokens_input
+            ddm = siteSpec.ddm_input
+        elif mode == 'output':
+            setokens = siteSpec.setokens_output
+            ddm = siteSpec.ddm_output
+        if spaceToken in setokens:
+            return setokens[spaceToken]
+        return ddm
 
                 
 

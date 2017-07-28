@@ -52,7 +52,7 @@ def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=Fa
             if tmpSiteName == siteMapper.getCloud(cloudKey)['source']:
                 continue
             # hospital queue
-            if siteMapper.getSite(tmpSiteName).ddm == siteMapper.getSite(siteMapper.getCloud(cloudKey)['source']).ddm:
+            if siteMapper.getSite(tmpSiteName).ddm_input == siteMapper.getSite(siteMapper.getCloud(cloudKey)['source']).ddm_input:
                 continue
         # use home cloud
         if useHomeCloud:
@@ -64,7 +64,7 @@ def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=Fa
         # check all associated DQ2 IDs
         tmpFoundFlag = False
         tmpSiteSpec = siteMapper.getSite(tmpSiteName)
-        for tmpSiteDQ2ID in [tmpSiteSpec.ddm]+tmpSiteSpec.setokens.values():
+        for tmpSiteDQ2ID in [tmpSiteSpec.ddm_input]+tmpSiteSpec.setokens_input.values():
             # prefix of DQ2 ID
             tmpDQ2IDPrefix = getDQ2Prefix(tmpSiteDQ2ID)
             # ignore empty
@@ -110,7 +110,7 @@ def getNumAvailableFilesSite(siteName,siteMapper,replicaMap,badMetaMap,additiona
         # get DQ2 endpoints 
         tmpSiteSpec = siteMapper.getSite(siteName)
         prefixList = []
-        for tmpSiteDQ2ID in [tmpSiteSpec.ddm]+tmpSiteSpec.setokens.values():
+        for tmpSiteDQ2ID in [tmpSiteSpec.ddm_input]+tmpSiteSpec.setokens_input.values():
             # prefix of DQ2 ID
             tmpDQ2IDPrefix = getDQ2Prefix(tmpSiteDQ2ID)
             # ignore empty
@@ -159,7 +159,7 @@ def getNumAvailableFilesSite(siteName,siteMapper,replicaMap,badMetaMap,additiona
                             maxNumFile = tmpN
             else:
                 # check explicit endpoint name
-                for tmpSiteDQ2ID in [tmpSiteSpec.ddm]+tmpSiteSpec.setokens.values():
+                for tmpSiteDQ2ID in [tmpSiteSpec.ddm_input]+tmpSiteSpec.setokens_input.values():
                     # skip bad metadata
                     if badMetaMap.has_key(tmpDsName) and tmpSiteDQ2ID in badMetaMap[tmpDsName]:
                         continue
@@ -264,7 +264,7 @@ def getSitesWithCacheDS(cloudKey,excludedSites,siteMapper,datasetName):
         if tmpSiteName == siteMapper.getCloud(cloudKey)['source']:
             continue
         # hospital queue
-        if siteMapper.getSite(tmpSiteName).ddm == siteMapper.getSite(siteMapper.getCloud(cloudKey)['source']).ddm:
+        if siteMapper.getSite(tmpSiteName).ddm_input == siteMapper.getSite(siteMapper.getCloud(cloudKey)['source']).ddm_input:
             continue
         # not home cloud
         if siteMapper.getSite(tmpSiteName).cloud != cloudKey:
@@ -319,7 +319,7 @@ def getSitesShareDDM(siteMapper,siteName):
         if tmpSiteSpec.status != 'online':
             continue
         # same endpoint
-        if siteSpec.ddm != tmpSiteSpec.ddm:
+        if siteSpec.ddm_input != tmpSiteSpec.ddm_input:
             continue
         # skip itself
         if siteName == tmpSiteSpec.sitename:

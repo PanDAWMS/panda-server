@@ -256,7 +256,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 if self.siteMapper.checkCloud(job.getCloud()):
                     # use cloud's source
                     tmpSrcID = self.siteMapper.getCloud(job.getCloud())['source']
-                srcDQ2ID = self.siteMapper.getSite(tmpSrcID).ddm_input # TODO: check with tadashi
+                srcDQ2ID = self.siteMapper.getSite(tmpSrcID).ddm_output # TODO: check with tadashi
                 # use srcDQ2ID as dstDQ2ID when it is associated to dest
                 dstSiteSpec = self.siteMapper.getSite(job.computingSite)
                 if dstSiteSpec.ddm_endpoints_input.isAssociated(srcDQ2ID):
@@ -710,7 +710,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 elif self.siteMapper.checkCloud(job.getCloud()):
                     # use cloud's source
                     tmpSrcID = self.siteMapper.getCloud(job.getCloud())['source']
-                srcDQ2ID = self.siteMapper.getSite(tmpSrcID).ddm_input
+                srcDQ2ID = self.siteMapper.getSite(tmpSrcID).ddm_output
                 # destination
                 tmpDstID = job.computingSite
                 if srcDQ2ID != self.siteMapper.getSite(job.computingSite).ddm_input and \
@@ -973,7 +973,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 continue
             # check if T1
             tmpSrcID = self.siteMapper.getCloud(job.getCloud())['source']
-            srcDQ2ID = self.siteMapper.getSite(tmpSrcID).ddm_input
+            srcDQ2ID = self.siteMapper.getSite(tmpSrcID).ddm_output
             dstDQ2ID = self.siteMapper.getSite(job.computingSite).ddm_input
             # collect datasets
             datasets = []
@@ -1164,7 +1164,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             # use cloud's source
             tmpSrcID   = self.siteMapper.getCloud(cloudKey)['source']
             srcSiteSpec = self.siteMapper.getSite(tmpSrcID)
-            allSEs = srcSiteSpec.ddm_endpoints_input.getAllEndPoints()
+            allSEs = srcSiteSpec.ddm_endpoints_input.getAllEndPoints() # TODO: confirm with Tadashi. TAPE endpoints!!!
             tapeSEs = srcSiteSpec.ddm_endpoints_input.getTapeEndPoints()
             # get availabe files
             tmpStat,tmpAvaFiles = rucioAPI.listFileReplicas(allScopes[cloudKey],

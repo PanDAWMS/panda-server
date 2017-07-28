@@ -73,7 +73,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                 tmpDstDDM = self.job.destinationSE
             else:
                 dstSiteSpec = self.siteMapper.getSite(self.job.destinationSE) # TODO: confirm with Tadashi
-                tmpDstDDM = dstSiteSpec.ddm_input
+                tmpDstDDM = dstSiteSpec.ddm_output
                 # protection against disappearance of dest from schedconfig
                 if not self.siteMapper.checkSite(self.job.destinationSE) and self.job.destinationSE != 'local':
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
@@ -260,12 +260,12 @@ class AdderAtlasPlugin (AdderPluginBase):
                                         tmpDestList = [self.siteMapper.getSite(file.destinationSE).setokens_input[file.destinationDBlockToken]]
                                     else:
                                         # use defalt endpoint
-                                        tmpDestList = [self.siteMapper.getSite(file.destinationSE).ddm_input]
+                                        tmpDestList = [self.siteMapper.getSite(file.destinationSE).ddm_output]
                             elif file.destinationDBlockToken in ['',None,'NULL']:
-                                # use defalt endpoint
+                                # use default endpoint
                                 tmpDestList = [self.siteMapper.getSite(self.job.computingSite).ddm_output]
                             elif DataServiceUtils.getDestinationSE(file.destinationDBlockToken) != None and \
-                                    self.siteMapper.getSite(self.job.computingSite).ddm_output == self.siteMapper.getSite(file.destinationSE).ddm_input:
+                                    self.siteMapper.getSite(self.job.computingSite).ddm_output == self.siteMapper.getSite(file.destinationSE).ddm_output:
                                 tmpDestList = [DataServiceUtils.getDestinationSE(file.destinationDBlockToken)]
                                 # RSE is specified
                                 toConvert = False
@@ -369,7 +369,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                                         if DataServiceUtils.getDestinationSE(file.destinationDBlockToken) != None:
                                             tmpDstDDM = DataServiceUtils.getDestinationSE(file.destinationDBlockToken)
                                         else:
-                                            tmpDstDDM = self.siteMapper.getSite(file.destinationSE).ddm_input
+                                            tmpDstDDM = self.siteMapper.getSite(file.destinationSE).ddm_output
                                     # if src != dest or multi-token
                                     if (tmpSrcDDM != tmpDstDDM) or \
                                        (tmpSrcDDM == tmpDstDDM and file.destinationDBlockToken.count(',') != 0):
