@@ -9522,7 +9522,7 @@ class DBProxy:
                     else:
                         ret.mintime = 0
                     # reliability
-                    tmpPrefix = re.sub('_[^_]+DISK$','',ret.ddm)
+                    tmpPrefix = re.sub('_[^_]+DISK$','',ret.ddm) # TODO: ask Tadashi what is the reliability map
                     if reliabilityMap.has_key(tmpPrefix):
                         ret.reliabilityLevel = reliabilityMap[tmpPrefix]
                     else:
