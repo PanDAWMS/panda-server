@@ -412,8 +412,8 @@ class AdderAtlasPlugin (AdderPluginBase):
                                                 # loop over all tokens
                                                 for idxToken,tmpDstToken in enumerate(tmpDstTokens):
                                                     dq2ID = tmpDstDDM
-                                                    if tmpDstToken in self.siteMapper.getSite(file.destinationSE).setokens_intput: # TODO: confirm with Tadashi
-                                                        dq2ID = self.siteMapper.getSite(file.destinationSE).setokens_intput[tmpDstToken]
+                                                    if tmpDstToken in self.siteMapper.getSite(file.destinationSE).setokens_input: # TODO: confirm with Tadashi
+                                                        dq2ID = self.siteMapper.getSite(file.destinationSE).setokens_input[tmpDstToken]
                                                     # keep the fist destination for multi-hop
                                                     if idxToken == 0:
                                                         firstDestDDM = dq2ID
