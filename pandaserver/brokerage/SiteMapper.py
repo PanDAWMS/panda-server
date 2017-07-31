@@ -323,8 +323,8 @@ class SiteMapper:
         if not self.checkSite(siteID):
             return None
         siteSpec =  self.getSite(siteID)
-        if siteSpec.setokens.has_key(storageToken):
-            return siteSpec.setokens[storageToken]
+        if storageToken in siteSpec.setokens_output:
+            return siteSpec.setokens_output[storageToken]
         return siteSpec.ddm_output # TODO: confirm with Tadashi
 
 

@@ -601,7 +601,7 @@ class T2Cleaner (threading.Thread):
                             _logger.error("cannot find cloud for %s : %s" % (name,str(tmpRepSites)))
                         else:
                             _logger.debug('cloud=%s for %s' % (cloudName,name))
-                            t1SiteDDMs  = siteMapper.getSite(destSE).setokens.values()
+                            t1SiteDDMs  = siteMapper.getSite(destSE).setokens_output.values() # TODO: check with Tadashi
                             specifiedDest = DataServiceUtils.getDestinationSE(destDBlockToken)
                             if specifiedDest != None:
                                 t1SiteDDMs.append(specifiedDest)
