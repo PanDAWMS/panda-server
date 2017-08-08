@@ -15163,6 +15163,7 @@ class DBProxy:
                 self.setSiteForEsMerge(jobSpec, isFakeCJ, methodName, comment)
                 jobSpec.coreCount = None
                 jobSpec.minRamCount = 0
+                jobSpec.resource_type = self.get_resource_type_job(jobSpec)
             # insert job with new PandaID
             if currentJobStatus in ['defined','assigned']:
                 sql1  = "INSERT INTO ATLAS_PANDA.jobsDefined4 ({0}) ".format(JobSpec.columnNames())
@@ -15285,13 +15286,15 @@ class DBProxy:
             sqlSN  = "SELECT ps2.panda_site_name,ps2.default_ddm_endpoint "
             sqlSN += "FROM ATLAS_PANDA.panda_site ps1,ATLAS_PANDA.panda_site ps2,ATLAS_PANDAMETA.schedconfig sc "
             sqlSN += "WHERE ps1.panda_site_name=:site AND ps1.site_name=ps2.site_name AND sc.siteid=ps2.panda_site_name "
-            sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1) "
+            sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1 OR sc.catchall LIKE '%unifiedPandaQueue%') "
             sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
             sqlSN += "AND (sc.catchall IS NULL OR NOT sc.catchall LIKE '%jobseed=es%') "
             sqlSN += "AND sc.status=:siteStatus "
+            sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity=:wc1) "
             varMap = {}
             varMap[':site'] = jobSpec.computingSite
             varMap[':siteStatus'] = 'online'
+            varMap[':wc1'] = 'full'
             # get sites
             self.cur.execute(sqlSN+comment,varMap)
             if 'localEsMerge' in catchAll:
@@ -15322,7 +15325,7 @@ class DBProxy:
                 # get sites in a nucleus
                 sqlSN  = "SELECT panda_site_name,default_ddm_endpoint FROM ATLAS_PANDA.panda_site ps,ATLAS_PANDAMETA.schedconfig sc "
                 sqlSN += "WHERE site_name=:nucleus AND sc.siteid=ps.panda_site_name "
-                sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1) "
+                sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1 OR sc.catchall LIKE '%unifiedPandaQueue%') "
                 sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
                 sqlSN += "AND (sc.catchall IS NULL OR NOT sc.catchall LIKE '%jobseed=es%') "
                 sqlSN += "AND sc.status=:siteStatus "
