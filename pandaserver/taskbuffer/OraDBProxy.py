@@ -1185,8 +1185,10 @@ class DBProxy:
         comment = ' /* DBProxy.archiveJob */'                
         _logger.debug("archiveJob : %s" % job.PandaID)                
         if fromJobsDefined:
+            sql0 = "SELECT jobStatus FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID "
             sql1 = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2)"
         elif fromJobsWaiting:
+            sql0 = "SELECT jobStatus FROM ATLAS_PANDA.jobsWaiting4 WHERE PandaID=:PandaID "
             sql1 = "DELETE FROM ATLAS_PANDA.jobsWaiting4 WHERE PandaID=:PandaID"
         else:
             sql1 = "DELETE FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID"            
@@ -1513,11 +1515,20 @@ class DBProxy:
                 if useCommit:
                     self.conn.begin()
                 oldJobSubStatus = None
+                # get current status
+                currentJobStatus = None
+                if fromJobsDefined or fromJobsWaiting:
+                    varMap = {}
+                    varMap[':PandaID'] = job.PandaID
+                    self.cur.execute(sql0+comment, varMap)
+                    res0 = self.cur.fetchone()
+                    if res0 is not None:
+                        currentJobStatus, = res0
                 # actions for successful normal ES jobs
                 if useJEDI and EventServiceUtils.isEventServiceJob(job) \
                         and not EventServiceUtils.isJobCloningJob(job):
                     oldJobSubStatus = job.jobSubStatus
-                    retEvS,retNewPandaID = self.ppEventServiceJob(job,False)
+                    retEvS,retNewPandaID = self.ppEventServiceJob(job,currentJobStatus,False)
                     # DB error
                     if retEvS == None:
                         raise RuntimeError, 'Faied to retry for Event Service'
@@ -14729,7 +14740,7 @@ class DBProxy:
 
 
     # post-process for event service job
-    def ppEventServiceJob(self,job,useCommit=True):
+    def ppEventServiceJob(self,job,currentJobStatus,useCommit=True):
         comment = ' /* DBProxy.ppEventServiceJob */'
         pandaID = job.PandaID
         attemptNr = job.attemptNr
@@ -15029,7 +15040,10 @@ class DBProxy:
                 if nRowCEF > 0:
                     hasFatalRange = True
             # reset job attributes
-            jobSpec.jobStatus        = 'activated'
+            if currentJobStatus in ['defined','assigned','waiting','pending']:
+                jobSpec.jobStatus = currentJobStatus
+            else:
+                jobSpec.jobStatus = 'activated'
             jobSpec.startTime        = None
             jobSpec.creationTime     = datetime.datetime.utcnow()
             jobSpec.modificationTime = jobSpec.creationTime
@@ -15150,7 +15164,12 @@ class DBProxy:
                 jobSpec.coreCount = None
                 jobSpec.minRamCount = 0
             # insert job with new PandaID
-            sql1  = "INSERT INTO ATLAS_PANDA.jobsActive4 ({0}) ".format(JobSpec.columnNames())
+            if currentJobStatus in ['defined','assigned']:
+                sql1  = "INSERT INTO ATLAS_PANDA.jobsDefined4 ({0}) ".format(JobSpec.columnNames())
+            elif currentJobStatus in ['waiting','pending']:
+                sql1  = "INSERT INTO ATLAS_PANDA.jobsWaiting4 ({0}) ".format(JobSpec.columnNames())
+            else:
+                sql1  = "INSERT INTO ATLAS_PANDA.jobsActive4 ({0}) ".format(JobSpec.columnNames())
             sql1 += JobSpec.bindValuesExpression(useSeq=True)
             sql1 += " RETURNING PandaID INTO :newPandaID"
             # set parentID

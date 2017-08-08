@@ -1,5 +1,8 @@
 Release Notes
 
+* 8/8/2017
+  * fixed ppE to keep job status when old job is closed in jobsDefined/Waiting
+
 * 7/26/2017
   * setting cancelled/failed to es_killed/es_aborted
   * not to kill consumers in inactive sites when associated consumers are active
