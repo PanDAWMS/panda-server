@@ -15264,6 +15264,7 @@ class DBProxy:
         self.cur.execute(sqlWM+comment, varMap)
         resWM = self.cur.fetchone()
         resSN = []
+        resSN_back = []
         catchAll,objectstores = None,None
         if resWM != None:
             catchAll,objectstores = resWM
@@ -15279,7 +15280,7 @@ class DBProxy:
         elif 'localEsMergeNC' in catchAll:
             # no site change
             lookForMergeSite = False
-        elif 'localEsMerge' in catchAll:
+        else:
             # get sites in the nucleus associated to the site to run merge jobs in the same nucleus
             sqlSN  = "SELECT ps2.panda_site_name,ps2.default_ddm_endpoint "
             sqlSN += "FROM ATLAS_PANDA.panda_site ps1,ATLAS_PANDA.panda_site ps2,ATLAS_PANDAMETA.schedconfig sc "
@@ -15293,7 +15294,10 @@ class DBProxy:
             varMap[':siteStatus'] = 'online'
             # get sites
             self.cur.execute(sqlSN+comment,varMap)
-            resSN = self.cur.fetchall()
+            if 'localEsMerge' in catchAll:
+                resSN = self.cur.fetchall()
+            else:
+                resSN_back = self.cur.fetchall() 
         if len(resSN) == 0 and lookForMergeSite:
             # run merge jobs at destination
             if not jobSpec.destinationSE.startswith('nucleus:'):
@@ -15314,7 +15318,7 @@ class DBProxy:
                 # use nucleus
                 if tmpNucleus is None:
                     tmpNucleus = jobSpec.destinationSE.split(':')[-1]
-                _logger.debug('{0} look for merge sites in nucleus:{1}'.format(methodName,tmpNucleus))
+                _logger.info('{0} look for merge sites in nucleus:{1}'.format(methodName,tmpNucleus))
                 # get sites in a nucleus
                 sqlSN  = "SELECT panda_site_name,default_ddm_endpoint FROM ATLAS_PANDA.panda_site ps,ATLAS_PANDAMETA.schedconfig sc "
                 sqlSN += "WHERE site_name=:nucleus AND sc.siteid=ps.panda_site_name "
@@ -15339,41 +15343,43 @@ class DBProxy:
             sqlRJ  = "SELECT SUM(num_of_jobs) FROM ATLAS_PANDA.MV_JOBSACTIVE4_STATS "
             sqlRJ += "WHERE computingSite=:panda_site AND jobStatus=:jobStatus "
             newSiteName = None
-            for tmp_panda_site_name,tmp_ddm_endpoint in resSN:
-                # get nPilot
-                varMap = {}
-                varMap[':panda_site'] = tmp_panda_site_name
-                varMap[':hours'] = 3
-                varMap[':flag'] = 'production'
-                self.cur.execute(sqlUG+comment,varMap)
-                resUG = self.cur.fetchone()
-                if resUG == None:
-                    nPilots = 0
-                else:
-                    nPilots, = resUG
-                # get nRunning
-                varMap = {}
-                varMap[':panda_site'] = tmp_panda_site_name
-                varMap[':jobStatus'] = 'running'
-                self.cur.execute(sqlRJ+comment,varMap)
-                resRJ = self.cur.fetchone()
-                if resRJ is None:
-                    nRunning = 0
-                else:
-                    nRunning, = resRJ
-                tmpStr = 'site={0} nPilot={1} nRunning={2}'.format(tmp_panda_site_name, nPilots, nRunning)
-                _logger.debug('{0} {1}'.format(methodName,tmpStr))
-                # use larger
-                if maxNumPilot < nPilots:
-                    maxNumPilot = nPilots
-                    jobSpec.computingSite = tmp_panda_site_name
-                    newSiteName = jobSpec.computingSite
-                    for tmpFileSpec in jobSpec.Files:
-                        if tmpFileSpec.destinationDBlockToken.startswith('ddd:'):
-                            tmpFileSpec.destinationDBlockToken = 'ddd:{0}'.format(tmp_ddm_endpoint)
-                            tmpFileSpec.destinationSE = jobSpec.computingSite
-            if newSiteName is not None:
-                _logger.debug('{0} set merge site to {1}'.format(methodName,newSiteName))
+            for resItem in [resSN, resSN_back]:
+                for tmp_panda_site_name,tmp_ddm_endpoint in resItem:
+                    # get nPilot
+                    varMap = {}
+                    varMap[':panda_site'] = tmp_panda_site_name
+                    varMap[':hours'] = 3
+                    varMap[':flag'] = 'production'
+                    self.cur.execute(sqlUG+comment,varMap)
+                    resUG = self.cur.fetchone()
+                    if resUG == None:
+                        nPilots = 0
+                    else:
+                        nPilots, = resUG
+                    # get nRunning
+                    varMap = {}
+                    varMap[':panda_site'] = tmp_panda_site_name
+                    varMap[':jobStatus'] = 'running'
+                    self.cur.execute(sqlRJ+comment,varMap)
+                    resRJ = self.cur.fetchone()
+                    if resRJ is None:
+                        nRunning = 0
+                    else:
+                        nRunning, = resRJ
+                    tmpStr = 'site={0} nPilot={1} nRunning={2}'.format(tmp_panda_site_name, nPilots, nRunning)
+                    _logger.info('{0} {1}'.format(methodName,tmpStr))
+                    # use larger
+                    if maxNumPilot < nPilots:
+                        maxNumPilot = nPilots
+                        jobSpec.computingSite = tmp_panda_site_name
+                        newSiteName = jobSpec.computingSite
+                        for tmpFileSpec in jobSpec.Files:
+                            if tmpFileSpec.destinationDBlockToken.startswith('ddd:'):
+                                tmpFileSpec.destinationDBlockToken = 'ddd:{0}'.format(tmp_ddm_endpoint)
+                                tmpFileSpec.destinationSE = jobSpec.computingSite
+                if newSiteName is not None:
+                    _logger.info('{0} set merge site to {1}'.format(methodName,newSiteName))
+                    break
         # return
         return
 
