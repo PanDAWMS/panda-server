@@ -1559,7 +1559,7 @@ class DBProxy:
                         job.jobStatus = 'merging'
                         job.jobSubStatus = 'es_wait'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceWaitOthers
-                        job.taskBufferErrorDiag = 'no further action since other Event ServiceEvent Service consumers were still running'
+                        job.taskBufferErrorDiag = 'no further action since other Event Service consumers were still running'
                         # kill unused
                         self.killUnusedEventServiceConsumers(job,False)
                     elif retEvS == 5:
@@ -14899,17 +14899,18 @@ class DBProxy:
                     varMap[':minAttempt']  = 0
                     self.cur.execute(sqlFH+comment, varMap)
             # look for event ranges to process
-            sqlERP  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlERP  = "SELECT 1 FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sqlERP += "WHERE jediTaskID=:jediTaskID AND pandaID=:jobsetID AND status=:esReady "
-            sqlERP += "AND attemptNr>:minAttempt AND rownum=1 "
+            sqlERP += "AND attemptNr>:minAttempt "
+            sqlERP += "FOR UPDATE "
             varMap = {}
             varMap[':jediTaskID']  = jobSpec.jediTaskID
             varMap[':jobsetID']    = jobSpec.jobsetID
             varMap[':esReady']     = EventServiceUtils.ST_ready
             varMap[':minAttempt']  = 0
             self.cur.execute(sqlERP+comment, varMap)
-            resERP = self.cur.fetchone()
-            nRow, = resERP
+            resERP = self.cur.fetchall()
+            nRow = len(resERP)
             _logger.info("{0} : left n_er_unprocessed={1} unprocessed event ranges".format(methodName,nRow))
             otherRunning = False
             hasDoneRange = False

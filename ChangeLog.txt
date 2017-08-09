@@ -1,5 +1,8 @@
 Release Notes
 
+* 8/9/2017
+  * fixed ppE to exclusively count num of unprocessed events
+
 * 8/8/2017
   * improved setMerge to try local if remote is unavailable
   * fixed ppE to keep job status when old job is closed in jobsDefined/Waiting
