@@ -319,7 +319,7 @@ def getSitesShareDDM(siteMapper,siteName):
         if tmpSiteSpec.status != 'online':
             continue
         # same endpoint
-        if siteSpec.ddm_input != tmpSiteSpec.ddm_input:
+        if siteSpec.ddm_input != tmpSiteSpec.ddm_input: # TODO: check with Tadashi
             continue
         # skip itself
         if siteName == tmpSiteSpec.sitename:

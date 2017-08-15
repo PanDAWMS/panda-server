@@ -255,9 +255,9 @@ class AdderAtlasPlugin (AdderPluginBase):
                                     # RSE is specified
                                     tmpDestList = [DataServiceUtils.getDestinationSE(file.destinationDBlockToken)]
                                 else:
-                                    if file.destinationDBlockToken in self.siteMapper.getSite(file.destinationSE).setokens_input:
+                                    if file.destinationDBlockToken in self.siteMapper.getSite(file.destinationSE).setokens_output:
                                         # get endpoint for token
-                                        tmpDestList = [self.siteMapper.getSite(file.destinationSE).setokens_input[file.destinationDBlockToken]]
+                                        tmpDestList = [self.siteMapper.getSite(file.destinationSE).setokens_output[file.destinationDBlockToken]]
                                     else:
                                         # use defalt endpoint
                                         tmpDestList = [self.siteMapper.getSite(file.destinationSE).ddm_output]
@@ -281,7 +281,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                                 tmpDestList = [self.siteMapper.getSite(self.job.computingSite).ddm_output]
                             else:
                                 tmpDestList = []
-                                tmpSeTokens = self.siteMapper.getSite(self.job.computingSite).setokens_input
+                                tmpSeTokens = self.siteMapper.getSite(self.job.computingSite).setokens_output
                                 for tmpDestToken in file.destinationDBlockToken.split(','):
                                     if tmpSeTokens.has_key(tmpDestToken):
                                         tmpDest = tmpSeTokens[tmpDestToken]
@@ -412,8 +412,8 @@ class AdderAtlasPlugin (AdderPluginBase):
                                                 # loop over all tokens
                                                 for idxToken,tmpDstToken in enumerate(tmpDstTokens):
                                                     dq2ID = tmpDstDDM
-                                                    if tmpDstToken in self.siteMapper.getSite(file.destinationSE).setokens_input: # TODO: confirm with Tadashi
-                                                        dq2ID = self.siteMapper.getSite(file.destinationSE).setokens_input[tmpDstToken]
+                                                    if tmpDstToken in self.siteMapper.getSite(file.destinationSE).setokens_output: # TODO: confirm with Tadashi
+                                                        dq2ID = self.siteMapper.getSite(file.destinationSE).setokens_output[tmpDstToken]
                                                     # keep the fist destination for multi-hop
                                                     if idxToken == 0:
                                                         firstDestDDM = dq2ID

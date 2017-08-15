@@ -349,7 +349,7 @@ def getHospitalQueues(siteMapper):
                 continue
             tmpSiteSpec = siteMapper.getSite(tmpSiteName)
             # check DDM
-            if tmpT1Spec.ddm_input == tmpSiteSpec.ddm_input:
+            if tmpT1Spec.ddm_input == tmpSiteSpec.ddm_input: # TODO: check with Tadashi
                 # append
                 if not retMap.has_key(tmpCloudName):
                     retMap[tmpCloudName] = []

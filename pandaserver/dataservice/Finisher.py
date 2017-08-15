@@ -56,9 +56,9 @@ class Finisher (threading.Thread):
                 # get corresponding token
                 tmpSrcSiteSpec = siteMapper.getSite(computingSite)
                 tmpDstSiteSpec = siteMapper.getSite(destinationSE)
-                _logger.debug(tmpDstSiteSpec.setokens_input)
+                _logger.debug(tmpDstSiteSpec.setokens_output)
                 destToken = None
-                for tmpToken,tmpDdmId in tmpDstSiteSpec.setokens_input.iteritems():
+                for tmpToken,tmpDdmId in tmpDstSiteSpec.setokens_output.iteritems():
                     if self.site == tmpDdmId:
                         destToken = tmpToken
                         break

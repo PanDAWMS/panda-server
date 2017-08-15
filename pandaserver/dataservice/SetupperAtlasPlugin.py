@@ -499,7 +499,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                 # destination is specified
                                 tmpDstDDM = DataServiceUtils.getDestinationSE(file.destinationDBlockToken)
                             else:
-                                tmpDstDDM = self.siteMapper.getSite(file.destinationSE).ddm_output # TODO: check with Tadashi
+                                tmpDstDDM = self.siteMapper.getSite(file.destinationSE).ddm_output
                             # skip registration for _sub when src=dest
                             if ((tmpSrcDDM == tmpDstDDM and not EventServiceUtils.isMergeAtOS(job.specialHandling)) \
                                     or DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) != None) \
@@ -710,7 +710,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 elif self.siteMapper.checkCloud(job.getCloud()):
                     # use cloud's source
                     tmpSrcID = self.siteMapper.getCloud(job.getCloud())['source']
-                srcDQ2ID = self.siteMapper.getSite(tmpSrcID).ddm_output
+                srcDQ2ID = self.siteMapper.getSite(tmpSrcID).ddm_output # TODO: check with Tadashi
                 # destination
                 tmpDstID = job.computingSite
                 if srcDQ2ID != self.siteMapper.getSite(job.computingSite).ddm_input and \
