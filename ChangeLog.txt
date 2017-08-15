@@ -1,5 +1,9 @@
 Release Notes
 
+* 8/15/2017
+  * removed sleep in copyArchive
+  * removed FOR UPDATE when counting events for now
+
 * 8/9/2017
   * fixed ppE to exclusively count num of unprocessed events
 

@@ -382,7 +382,6 @@ else:
         thr = Watcher(taskBuffer,id,single=True,sleepTime=60,sitemapper=siteMapper)
         thr.start()
         thr.join()
-        time.sleep(1)
 
 # check heartbeat for analysis jobs in transferring
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=2)
@@ -403,7 +402,6 @@ else:
         thr = Watcher(taskBuffer,id,single=True,sleepTime=60,sitemapper=siteMapper)
         thr.start()
         thr.join()
-        time.sleep(1)
 
 # check heartbeat for sent jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
@@ -421,7 +419,6 @@ else:
         thr = Watcher(taskBuffer,id,single=True,sleepTime=30,sitemapper=siteMapper)
         thr.start()
         thr.join()
-        time.sleep(1)
 
 # check heartbeat for 'holding' analysis/ddm jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
@@ -454,7 +451,6 @@ else:
         thr = Watcher(taskBuffer,id,single=True,sleepTime=180,sitemapper=siteMapper)
         thr.start()
         thr.join()
-        time.sleep(1)
 
 
 # check heartbeat for high prio production jobs
@@ -477,7 +473,6 @@ else:
         thr = Watcher(taskBuffer,id,single=True,sleepTime=60*timeOutVal,sitemapper=siteMapper)
         thr.start()
         thr.join()
-        time.sleep(1)
 
 # check heartbeat for production jobs
 timeOutVal = 48
@@ -497,7 +492,6 @@ else:
         thr = Watcher(taskBuffer,id,single=True,sleepTime=60*timeOutVal,sitemapper=siteMapper)
         thr.start()
         thr.join()
-        time.sleep(1)
 
 # check heartbeat for ddm jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=2)
@@ -519,7 +513,6 @@ else:
         thr = Watcher(taskBuffer,id,single=True,sleepTime=120,sitemapper=siteMapper)
         thr.start()
         thr.join()
-        time.sleep(1)
 
 # check heartbeat for production jobs
 timeOutVal = 2
@@ -541,7 +534,6 @@ else:
         thr = Watcher(taskBuffer,id,single=True,sleepTime=60*timeOutVal,sitemapper=siteMapper)
         thr.start()
         thr.join()
-        time.sleep(1)
 
 _memoryCheck("reassign")
 

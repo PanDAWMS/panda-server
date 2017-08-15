@@ -124,7 +124,9 @@ class AdderGen:
                         # set job status to failed since some file status is wrong in JEDI 
                         self.jobStatus = 'failed'
                         self.job.ddmErrorCode = ErrorCode.EC_Adder
-                        self.job.ddmErrorDiag = "wrong file status in source database"
+                        errStr = "inconsistent file status between Panda and JEDI. "
+                        errStr += "failed to avoid duplicated processing caused by synchronization failure"
+                        self.job.ddmErrorDiag = errStr
                         self.logger.debug("set jobStatus={0} since input is inconsistent between Panda and JEDI".format(self.jobStatus))
                     elif self.job.jobSubStatus in ['pilot_closed']:
                         # terminated by the pilot

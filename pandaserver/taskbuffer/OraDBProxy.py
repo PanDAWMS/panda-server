@@ -14899,10 +14899,11 @@ class DBProxy:
                     varMap[':minAttempt']  = 0
                     self.cur.execute(sqlFH+comment, varMap)
             # look for event ranges to process
-            sqlERP  = "SELECT 1 FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlERP  = "SELECT job_processID FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sqlERP += "WHERE jediTaskID=:jediTaskID AND pandaID=:jobsetID AND status=:esReady "
             sqlERP += "AND attemptNr>:minAttempt "
-            sqlERP += "FOR UPDATE "
+            # removed due to ORA-24371
+            #sqlERP += "FOR UPDATE "
             varMap = {}
             varMap[':jediTaskID']  = jobSpec.jediTaskID
             varMap[':jobsetID']    = jobSpec.jobsetID
