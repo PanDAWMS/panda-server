@@ -1560,8 +1560,6 @@ class DBProxy:
                         job.jobSubStatus = 'es_wait'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceWaitOthers
                         job.taskBufferErrorDiag = 'no further action since other Event Service consumers were still running'
-                        # kill unused
-                        self.killUnusedEventServiceConsumers(job,False)
                     elif retEvS == 5:
                         # didn't process any event ranges
                         job.jobStatus = 'closed'
@@ -3795,7 +3793,8 @@ class DBProxy:
         # 91 : kill user jobs with prod role
         comment = ' /* DBProxy.killJob */'
         methodName = comment.split(' ')[-2].split('.')[-1]
-        tmpLog = LogWrapper(_logger,methodName+' <PandaID={0}>'.format(pandaID))
+        methodName += ' <PandaID={0}>'.format(pandaID)
+        tmpLog = LogWrapper(_logger,methodName)
         tmpLog.debug("code=%s role=%s user=%s wg=%s opts=%s" % (code,prodManager,user,wgProdRole,killOpts))
         timeStart = datetime.datetime.utcnow()
         # check PandaID
@@ -14902,8 +14901,6 @@ class DBProxy:
             sqlERP  = "SELECT job_processID FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sqlERP += "WHERE jediTaskID=:jediTaskID AND pandaID=:jobsetID AND status=:esReady "
             sqlERP += "AND attemptNr>:minAttempt "
-            # removed due to ORA-24371
-            #sqlERP += "FOR UPDATE "
             varMap = {}
             varMap[':jediTaskID']  = jobSpec.jediTaskID
             varMap[':jobsetID']    = jobSpec.jobsetID
