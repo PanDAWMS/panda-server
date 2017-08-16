@@ -5863,7 +5863,7 @@ class DBProxy:
             # find table
             if status in ['defined','assigned']:
                 table = 'ATLAS_PANDA.jobsDefined4'
-            elif status in ['activated','running','holding','trasnferring']:
+            elif status in ['activated','running','holding','transferring']:
                 table = 'ATLAS_PANDA.jobsActive4'
             elif status in ['waiting']:
                 table = 'ATLAS_PANDA.jobsWaiting4'
