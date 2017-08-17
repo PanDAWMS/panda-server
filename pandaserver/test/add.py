@@ -13,6 +13,7 @@ import multiprocessing
 from taskbuffer.TaskBuffer import taskBuffer
 import taskbuffer.ErrorCode
 import pandalogger.PandaLogger
+from taskbuffer import EventServiceUtils
 from pandalogger.PandaLogger import PandaLogger
 from brokerage.SiteMapper import SiteMapper
 from pandautils import PandaUtils
@@ -388,13 +389,15 @@ class AdderProcess:
             if match != None:
                 fileName = '%s/%s' % (dirName,file)
                 id = match.group(1)
+                jobStatus = match.group(2)
                 if uMap.has_key(id):
                     try:
                         os.remove(fileName)
                     except:
                         pass
                 else:
-                    uMap[id] = fileName
+                    if jobStatus != EventServiceUtils.esRegStatus:
+                        uMap[id] = fileName
                     if long(id) in holdingAna:
                         # give a priority to buildJobs
                         tmpList.insert(0,file)
@@ -424,13 +427,15 @@ class AdderProcess:
                     if match != None:
                         fileName = '%s/%s' % (dirName,file)
                         id = match.group(1)
+                        jobStatus = match.group(2)
                         if uMap.has_key(id):
                             try:
                                 os.remove(fileName)
                             except:
                                 pass
                         else:
-                            uMap[id] = fileName
+                            if jobStatus != EventServiceUtils.esRegStatus:
+                                uMap[id] = fileName
                             if long(id) in holdingAna:
                                 # give a priority to buildJob
                                 tmpList.insert(0,file)

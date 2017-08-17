@@ -9,6 +9,7 @@ import json
 import time
 import copy
 import glob
+import uuid
 import fcntl
 import types
 import random
@@ -14491,7 +14492,7 @@ class DBProxy:
             sqlC += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND fileID=:fileID "
             sqlC += "AND job_processID=:job_processID "
             # sql to get nEvents
-            sqlE  = "SELECT jobStatus,nEvents,commandToPilot,supErrorCode FROM ATLAS_PANDA.jobsActive4 "
+            sqlE  = "SELECT jobStatus,nEvents,commandToPilot,supErrorCode,specialHandling FROM ATLAS_PANDA.jobsActive4 "
             sqlE += "WHERE PandaID=:pandaID "
             # sql to set nEvents
             sqlS  = "UPDATE ATLAS_PANDA.jobsActive4 "
@@ -14501,6 +14502,9 @@ class DBProxy:
             sqlT  = "UPDATE ATLAS_PANDA.jobsActive4 "
             sqlT += "SET cpuConsumptionTime=cpuConsumptionTime+:actualCpuTime "
             sqlT += "WHERE PandaID=:PandaID "
+            # sql to check zip file
+            sqlFC = "SELECT row_ID FROM ATLAS_PANDA.filesTable4 "
+            sqlFC += "WHERE PandaID=:pandaID AND lfn=:lfn "
             # sql to insert zip file
             sqlF  = "INSERT INTO ATLAS_PANDA.filesTable4 (%s) " % FileSpec.columnNames()
             sqlF += FileSpec.bindValuesExpression(useSeq=True)
@@ -14616,7 +14620,7 @@ class DBProxy:
                     commandToPilot = 'tobekilled'
                 else:
                     # check job status
-                    jobStatus,nEventsOld,commandToPilot,supErrorCode = resE
+                    jobStatus,nEventsOld,commandToPilot,supErrorCode,specialHandling = resE
                     if not jobStatus in ['sent','running','starting','transferring']:
                         tmpLog.error("<eventRangeID={0}> wrong jobStatus={1}".format(eventRangeID,jobStatus))
                         _logger.debug("{0} : wrong jobStatus={1}".format(methodName,jobStatus))
@@ -14646,24 +14650,47 @@ class DBProxy:
                                 if eventDict['zipFile']['lfn'] in zipRowIdMap:
                                     zipRow_ID = zipRowIdMap[eventDict['zipFile']['lfn']]
                                 else:
-                                    zipJobSpec = JobSpec()
-                                    zipJobSpec.PandaID = pandaID
-                                    zipFileSpec = FileSpec()
-                                    zipFileSpec.jediTaskID = jediTaskID
-                                    zipFileSpec.lfn = eventDict['zipFile']['lfn']
-                                    zipFileSpec.fsize = 0
-                                    zipFileSpec.type = 'zipoutput'
-                                    zipFileSpec.status = 'ready'
-                                    zipFileSpec.destinationSE = eventDict['zipFile']['objstoreID']
-                                    if 'pathConvention' in eventDict['zipFile']:
-                                        zipFileSpec.destinationSE = '{0}/{1}'.format(zipFileSpec.destinationSE,
-                                                                                     eventDict['zipFile']['pathConvention'])
-                                    zipJobSpec.addFile(zipFileSpec)
-                                    varMap = zipFileSpec.valuesMap(useSeq=True)
-                                    varMap[':newRowID'] = self.cur.var(varNUMBER)
-                                    self.cur.execute(sqlF+comment, varMap)
-                                    zipRow_ID = long(self.cur.getvalue(varMap[':newRowID']))
-                                    zipRowIdMap[eventDict['zipFile']['lfn']] = zipRow_ID
+                                    # check zip
+                                    varMap = dict()
+                                    varMap[':pandaID'] = pandaID
+                                    varMap[':lfn'] = eventDict['zipFile']['lfn']
+                                    self.cur.execute(sqlFC+comment, varMap)
+                                    resFC = self.cur.fetchone()
+                                    if resFC is not None:
+                                        zipRow_ID, = resFC
+                                    else:
+                                        # insert new file
+                                        zipJobSpec = JobSpec()
+                                        zipJobSpec.PandaID = pandaID
+                                        zipJobSpec.specialHandling = specialHandling
+                                        zipFileSpec = FileSpec()
+                                        zipFileSpec.jediTaskID = jediTaskID
+                                        zipFileSpec.lfn = eventDict['zipFile']['lfn']
+                                        if 'fsize' in eventDict['zipFile']:
+                                            zipFileSpec.fsize = long(eventDict['zipFile']['fsize'])
+                                        else:
+                                            zipFileSpec.fsize = 0
+                                        zipFileSpec.type = 'zipoutput'
+                                        zipFileSpec.status = 'ready'
+                                        zipFileSpec.destinationSE = eventDict['zipFile']['objstoreID']
+                                        if 'pathConvention' in eventDict['zipFile']:
+                                            zipFileSpec.destinationSE = '{0}/{1}'.format(zipFileSpec.destinationSE,
+                                                                                         eventDict['zipFile']['pathConvention'])
+                                        zipJobSpec.addFile(zipFileSpec)
+                                        varMap = zipFileSpec.valuesMap(useSeq=True)
+                                        varMap[':newRowID'] = self.cur.var(varNUMBER)
+                                        self.cur.execute(sqlF+comment, varMap)
+                                        zipRow_ID = long(self.cur.getvalue(varMap[':newRowID']))
+                                        zipRowIdMap[eventDict['zipFile']['lfn']] = zipRow_ID
+                                        # make an empty file to trigger registration for zip files in Adder
+                                        if zipJobSpec.registerEsFiles():
+                                            tmpFileName = '{0}_{1}_{2}'.format(pandaID, EventServiceUtils.esRegStatus,
+                                                                               uuid.uuid3(uuid.NAMESPACE_DNS,''))
+                                            tmpFileName = os.path.join(panda_config.logdir, tmpFileName)
+                                            try:
+                                                open(tmpFileName, 'w').close()
+                                            except:
+                                                pass
                             # update event
                             varMap = {}
                             varMap[':jediTaskID'] = jediTaskID
@@ -14796,6 +14823,24 @@ class DBProxy:
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
                 return retValue
+            # use an input file as lock since FOR UPDATE doesn't work on JEDI_Events
+            lockFileSpec = None
+            for fileSpec in job.Files:
+                if fileSpec.type in ['input', 'pseudo_input']:
+                    if lockFileSpec is None or lockFileSpec.fileID > fileSpec.fileID:
+                        lockFileSpec = fileSpec
+            if lockFileSpec is not None:
+                # sql to lock the file
+                sqlLIF = "SELECT status FROM {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
+                sqlLIF += 'WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID '
+                sqlLIF += 'FOR UPDATE '
+                varMap = dict()
+                varMap[':jediTaskID'] = lockFileSpec.jediTaskID
+                varMap[':datasetID'] = lockFileSpec.datasetID
+                varMap[':fileID'] = lockFileSpec.fileID
+                _logger.debug("{0} : locking {1}".format(methodName, str(varMap)))
+                self.cur.execute(sqlLIF+comment, varMap)
+                _logger.debug("{0} : locked".format(methodName))
             # change event status processed by jumbo jobs
             nRowDoneJumbo = 0
             if EventServiceUtils.isCoJumboJob(jobSpec):
@@ -14921,7 +14966,6 @@ class DBProxy:
                 sqlEOC += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                 sqlEOC += "AND ((NOT status IN (:esDone,:esDiscarded,:esCancelled,:esFatal,:esFailed)) "
                 sqlEOC += "OR (status=:esFailed AND processed_upto_eventID IS NOT NULL)) "
-                sqlEOC += "FOR UPDATE "
                 # count the number of done ranges
                 sqlCDO  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
                 sqlCDO += "COUNT(*) FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
@@ -18545,10 +18589,8 @@ class DBProxy:
             f = open(srcFileName)
             data = json.load(f)
             for rseName,rseData in data.iteritems():
-                if rseData['resource']['bucket_id'] == objID:
-                    path = rseData['arprotocols']['w'][0]['endpoint']+rseData['arprotocols']['w'][0]['path']
-                    retMap = {'name':rseName,
-                              'path':path}
+                if rseData['id'] == objID:
+                    retMap = {'name':rseName, "is_deterministic":rseData['is_deterministic']}
                     tmpLog.debug("got {0}".format(str(retMap)))
                     return retMap
         except:

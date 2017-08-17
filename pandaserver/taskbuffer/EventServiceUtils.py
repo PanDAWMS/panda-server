@@ -49,7 +49,8 @@ relationTypesForJS = [relationTypeJS_ID,relationTypeJS_Retry]
 
 # suffix for ES dataset and files to register to DDM
 esSuffixDDM = '.events'
-
+esScopeDDM = 'transient'
+esRegStatus = 'esregister'
 
 # default max number of ES job attempt
 defMaxAttemptEsJob = 3
@@ -327,3 +328,9 @@ def isMergeAtOS(specialHandling):
         pass
     return False
 
+
+
+# get dataset name for event service
+def getEsDatasetName(taskID):
+    esDataset = '{0}:{1}{2}'.format(esScopeDDM, taskID, esSuffixDDM)
+    return esDataset
