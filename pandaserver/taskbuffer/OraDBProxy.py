@@ -338,6 +338,8 @@ class DBProxy:
             job.currentPriority = job.assignedPriority
         if job.prodSourceLabel == 'install':
             job.currentPriority = 4100
+        elif job.prodUserName in ['artprod'] and job.prodSourceLabel in ['user', 'panda']:
+            job.currentPriority = 7000
         elif job.prodSourceLabel == 'user':
             if job.processingType in ['usermerge','pmerge'] and not job.currentPriority in ['NULL',None]:
                 # avoid prio reduction for merge jobs 
