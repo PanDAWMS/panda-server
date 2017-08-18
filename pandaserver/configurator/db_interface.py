@@ -131,7 +131,7 @@ def write_panda_ddm_relation_db(session, relation_list):
         _logger.debug("Done with write_panda_ddm_relation_db")
     except exc.SQLAlchemyError:
         session.rollback()
-        _logger.critical(': Could not persist information --> {0}'.format(sys.exc_info()))
+        _logger.critical('write_panda_ddm_relation_db: Could not persist information --> {0}'.format(sys.exc_info()))
 
 
 def read_panda_ddm_relation_schedconfig(session):

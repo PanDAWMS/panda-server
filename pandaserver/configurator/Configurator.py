@@ -285,7 +285,6 @@ class Configurator(threading.Thread):
                                 # append the roles
                                 dict_ddm_endpoint[ddm_endpoint_name]['role'].append(role)
                         else:  # an empty fields means we need to take all endpoints
-                            print 'THIS IS A PROBLEM'
                             ddm_list_isempty = self.site_endpoint_dict[site]
                             for ddm in ddm_list_isempty:
                                 dict_ddm_endpoint.setdefault(ddm, []).append(role)
