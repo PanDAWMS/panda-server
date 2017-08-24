@@ -57,6 +57,7 @@ class JobSpec(object):
                  'inFilePosEvtNum'  : 'if',
                  'noExecStrCnv'     : 'nc',
                  'putLogToOS'       : 'po',
+                 'registerEsFiles'  : 're',
                  'requestType'      : 'rt',
                  'writeInputToFile' : 'wf',
                  }
@@ -549,6 +550,26 @@ class JobSpec(object):
             items = []
         if not self._tagForSH['inFilePosEvtNum'] in items:
             items.append(self._tagForSH['inFilePosEvtNum'])
+        self.specialHandling = ','.join(items)
+
+
+
+    # register event service files
+    def registerEsFiles(self):
+        if self.specialHandling != None:
+            return self._tagForSH['registerEsFiles'] in self.specialHandling.split(',')
+        return False
+
+
+
+    # set to register event service files
+    def setRegisterEsFiles(self):
+        if self.specialHandling != None:
+            items = self.specialHandling.split(',')
+        else:
+            items = []
+        if not self._tagForSH['registerEsFiles'] in items:
+            items.append(self._tagForSH['registerEsFiles'])
         self.specialHandling = ','.join(items)
 
 

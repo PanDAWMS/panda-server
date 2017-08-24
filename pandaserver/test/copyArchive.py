@@ -382,7 +382,6 @@ else:
         thr = Watcher(taskBuffer,id,single=True,sleepTime=60,sitemapper=siteMapper)
         thr.start()
         thr.join()
-        time.sleep(1)
 
 # check heartbeat for analysis jobs in transferring
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=2)
@@ -403,7 +402,6 @@ else:
         thr = Watcher(taskBuffer,id,single=True,sleepTime=60,sitemapper=siteMapper)
         thr.start()
         thr.join()
-        time.sleep(1)
 
 # check heartbeat for sent jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
@@ -421,7 +419,6 @@ else:
         thr = Watcher(taskBuffer,id,single=True,sleepTime=30,sitemapper=siteMapper)
         thr.start()
         thr.join()
-        time.sleep(1)
 
 # check heartbeat for 'holding' analysis/ddm jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
@@ -454,7 +451,6 @@ else:
         thr = Watcher(taskBuffer,id,single=True,sleepTime=180,sitemapper=siteMapper)
         thr.start()
         thr.join()
-        time.sleep(1)
 
 
 # check heartbeat for high prio production jobs
@@ -477,7 +473,6 @@ else:
         thr = Watcher(taskBuffer,id,single=True,sleepTime=60*timeOutVal,sitemapper=siteMapper)
         thr.start()
         thr.join()
-        time.sleep(1)
 
 # check heartbeat for production jobs
 timeOutVal = 48
@@ -497,7 +492,6 @@ else:
         thr = Watcher(taskBuffer,id,single=True,sleepTime=60*timeOutVal,sitemapper=siteMapper)
         thr.start()
         thr.join()
-        time.sleep(1)
 
 # check heartbeat for ddm jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=2)
@@ -519,7 +513,6 @@ else:
         thr = Watcher(taskBuffer,id,single=True,sleepTime=120,sitemapper=siteMapper)
         thr.start()
         thr.join()
-        time.sleep(1)
 
 # check heartbeat for production jobs
 timeOutVal = 2
@@ -541,7 +534,6 @@ else:
         thr = Watcher(taskBuffer,id,single=True,sleepTime=60*timeOutVal,sitemapper=siteMapper)
         thr.start()
         thr.join()
-        time.sleep(1)
 
 _memoryCheck("reassign")
 
@@ -645,8 +637,9 @@ timeLimitSite = datetime.datetime.utcnow() - datetime.timedelta(hours=inactiveTi
 timeLimitJob  = datetime.datetime.utcnow() - datetime.timedelta(hours=inactiveTimeLimitJob)
 # get PandaIDs
 sql  = 'SELECT distinct computingSite FROM ATLAS_PANDA.jobsActive4 '
-sql += 'WHERE prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) '
-sql += 'AND (modificationTime<:timeLimit OR stateChangeTime<:timeLimit) '
+sql += 'WHERE prodSourceLabel=:prodSourceLabel '
+sql += 'AND ((modificationTime<:timeLimit AND jobStatus=:jobStatus1) '
+sql += 'OR (stateChangeTime<:timeLimit AND jobStatus=:jobStatus2)) '
 sql += 'AND lockedby=:lockedby AND currentPriority>=:prioLimit '
 sql += 'AND NOT processingType IN (:pType1) AND relocationFlag<>:rFlag1 '
 varMap = {}
@@ -693,7 +686,7 @@ for tmpSite, in resDS:
         if resPI != None:
             for pandaID, eventService, attemptNr in resPI:
                 if eventService in [EventServiceUtils.esMergeJobFlagNumber]:
-                    _logger.debug('retrying {0} at inactive site %s' % (pandaID,tmpSite))
+                    _logger.debug('retrying es merge %s at inactive site %s' % (pandaID,tmpSite))
                     taskBuffer.retryJob(pandaID,{},getNewPandaID=True,attemptNr=attemptNr,
                                                  recoverableEsMerge=True)
                 jediJobs.append(pandaID)

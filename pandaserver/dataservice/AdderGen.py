@@ -10,6 +10,7 @@ import time
 import fcntl
 import datetime
 import commands
+import traceback
 import xml.dom.minidom
 import ErrorCode
 import uuid
@@ -69,6 +70,18 @@ class AdderGen:
         file.close()
 
 
+    # get plugin class
+    def getPluginClass(self, tmpVO):
+        # instantiate concrete plugin
+        adderPluginClass = panda_config.getPlugin('adder_plugins',tmpVO)
+        if adderPluginClass == None:
+            # use ATLAS plugin by default
+            from AdderAtlasPlugin import AdderAtlasPlugin
+            adderPluginClass = AdderAtlasPlugin
+        self.logger.debug('plugin name {0}'.format(adderPluginClass.__name__))
+        return adderPluginClass
+
+
     # main
     def run(self):
         try:
@@ -113,6 +126,16 @@ class AdderGen:
                 self.logger.error(errMsg)
                 # FIXME
                 raise RuntimeError, errMsg
+            elif self.jobStatus == EventServiceUtils.esRegStatus:
+                # instantiate concrete plugin
+                adderPluginClass = self.getPluginClass(self.job.VO)
+                adderPlugin = adderPluginClass(self.job,
+                                               taskBuffer=self.taskBuffer,
+                                               siteMapper=self.siteMapper,
+                                               logger=self.logger)
+                # execute
+                self.logger.debug('plugin is ready for ES file registration')
+                adderPlugin.registerEventServiceFiles()
             else:
                 # check file status in JEDI
                 if not self.job.isCancelled() and not self.job.taskBufferErrorCode in [taskbuffer.ErrorCode.EC_PilotRetried]:
@@ -124,7 +147,9 @@ class AdderGen:
                         # set job status to failed since some file status is wrong in JEDI 
                         self.jobStatus = 'failed'
                         self.job.ddmErrorCode = ErrorCode.EC_Adder
-                        self.job.ddmErrorDiag = "wrong file status in source database"
+                        errStr = "inconsistent file status between Panda and JEDI. "
+                        errStr += "failed to avoid duplicated processing caused by synchronization failure"
+                        self.job.ddmErrorDiag = errStr
                         self.logger.debug("set jobStatus={0} since input is inconsistent between Panda and JEDI".format(self.jobStatus))
                     elif self.job.jobSubStatus in ['pilot_closed']:
                         # terminated by the pilot
@@ -172,18 +197,8 @@ class AdderGen:
                 if parseResult < 2:
                     # intraction with DDM
                     try:
-                        # set VO=local for DDM free
-                        if self.job.destinationSE == 'local':
-                            tmpVO = 'local'
-                        else:
-                            tmpVO = self.job.VO
                         # instantiate concrete plugin
-                        adderPluginClass = panda_config.getPlugin('adder_plugins',tmpVO)
-                        if adderPluginClass == None:
-                            # use ATLAS plugin by default
-                            from AdderAtlasPlugin import AdderAtlasPlugin
-                            adderPluginClass = AdderAtlasPlugin
-                        self.logger.debug('plugin name {0}'.format(adderPluginClass.__name__))
+                        adderPluginClass = self.getPluginClass(self.job.VO)
                         adderPlugin = adderPluginClass(self.job,
                                                        taskBuffer=self.taskBuffer,
                                                        siteMapper=self.siteMapper,
@@ -196,7 +211,7 @@ class AdderGen:
                         self.logger.debug('plugin done with %s' % (addResult.statusCode))
                     except:
                         errtype,errvalue = sys.exc_info()[:2]
-                        self.logger.error("failed to execute AdderPlugin for VO={0} with {1}:{2}".format(tmpVO,
+                        self.logger.error("failed to execute AdderPlugin for VO={0} with {1}:{2}".format(self.job.VO,
                                                                                                          errtype,
                                                                                                          errvalue)) 
                         addResult = None
@@ -235,6 +250,10 @@ class AdderGen:
                         source = 'ddmErrorCode'
                         error_code = self.job.ddmErrorCode
                         error_diag = self.job.ddmErrorDiag
+                    elif self.job.transExitCode:
+                        source = 'transExitCode'
+                        error_code = self.job.transExitCode
+                        error_diag = ''
             
                     # _logger.info("updatejob has source %s, error_code %s and error_diag %s"%(source, error_code, error_diag))
                     
@@ -380,7 +399,9 @@ class AdderGen:
                 self.lockXML.close()            
         except:
             type, value, traceBack = sys.exc_info()
-            self.logger.debug(": %s %s" % (type,value))
+            errStr = ": %s %s " % (type,value)
+            errStr += traceback.format_exc()
+            self.logger.debug(errStr)
             self.logger.debug("except")
             # unlock XML just in case
             try:

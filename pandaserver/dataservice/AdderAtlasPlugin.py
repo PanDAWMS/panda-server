@@ -16,7 +16,7 @@ import traceback
 import xml.dom.minidom
 import ErrorCode
 from rucio.common.exception import FileConsistencyMismatch,DataIdentifierNotFound,UnsupportedOperation,\
-    InvalidPath,RSENotFound,InsufficientAccountLimit,RSEProtocolNotSupported
+    InvalidPath,RSENotFound,InsufficientAccountLimit,RSEProtocolNotSupported,InvalidRSEExpression
 
 from DDM import rucioAPI
 
@@ -515,6 +515,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                     InvalidPath,
                     RSENotFound,
                     RSEProtocolNotSupported,
+                    InvalidRSEExpression,
                     exceptions.KeyError):
                 # fatal errors
                 errType,errValue = sys.exc_info()[:2]
@@ -732,19 +733,20 @@ class AdderAtlasPlugin (AdderPluginBase):
         # register ES files
         if EventServiceUtils.isEventServiceJob(self.job) \
                 and not EventServiceUtils.isJobCloningJob(self.job):
-            try:
-                pass
-                #self.registerEventServiceFiles()
-            except:
-                errType,errValue = sys.exc_info()[:2]
-                self.logger.error('failed to register ES files with {0}:{1}'.format(errType,errValue))
-                self.result.setTemporary()
-                return 1
+            if self.job.registerEsFiles():
+                try:
+                    self.registerEventServiceFiles()
+                except:
+                    errType,errValue = sys.exc_info()[:2]
+                    self.logger.error('failed to register ES files with {0}:{1}'.format(errType,errValue))
+                    self.result.setTemporary()
+                    return 1
         elif EventServiceUtils.isEventServiceMerge(self.job):
             # delete ES files
             if self.job.jobStatus == 'finished' or self.job.attemptNr >= self.job.maxAttempt:
                 try:
-                    self.deleteEventServiceFiles()
+                    pass
+                    #self.deleteEventServiceFiles()
                 except:
                     errType,errValue = sys.exc_info()[:2]
                     self.logger.error('failed to delete ES files with {0}:{1}'.format(errType,errValue))
@@ -799,66 +801,51 @@ class AdderAtlasPlugin (AdderPluginBase):
 
 
 
-    # get ES dataset and file
-    def getEsDatasetFile(self,fileSpec):
-        falseRet = False,None,None
-        if not fileSpec.type in ['output']:
-            return falseRet
-        esDataset = fileSpec.dataset + EventServiceUtils.esSuffixDDM
-        esLFN = fileSpec.lfn + EventServiceUtils.esSuffixDDM
-        # check if dataset exists
-        dsOK = rucioAPI.checkDatasetExist(esDataset)
-        if not dsOK:
-            self.logger.debug("skip {0} since it is missing in DDM".format(esDataset))
-            return falseRet
-        return dsOK,esDataset,esLFN
-
-
-
     # register ES files
     def registerEventServiceFiles(self):
         self.logger.debug("registering ES files")
-        # get files
-        idMap = {}
-        for fileSpec in self.job.Files:
-            # ES dataset and file name
-            dsOK,esDataset,esLFN = self.getEsDatasetFile(fileSpec)
-            if not dsOK:
-                continue
-            # make ES folder
-            file = {'scope' : fileSpec.scope,
-                    'name'  : esLFN,
-                    'bytes' : 0,
-                    'state' : "A"}
-            # get OS IDs
-            osIDs = self.taskBuffer.getObjIDs(self.job.jediTaskID,self.job.PandaID)
-            self.logger.debug("got {0} OS IDs for {1}".format(len(osIDs),esLFN))
-            for osID in osIDs:
-                # convert to DDM endpoint
-                rse = self.taskBuffer.convertObjIDtoEndPoint('/cvmfs/atlas.cern.ch/repo/sw/local/etc/agis_ddmendpoints_objectstores.json',
-                                                             osID)
-                if rse != None:
-                    tmpFile = copy.copy(file)
-                    tmpFile['pfn'] = '/'.join([rse['path'],fileSpec.scope,esDataset,fileSpec.scope+':'+esLFN])
-                    # register file
-                    self.logger.debug("registering ES file={0} to {1}".format(str(tmpFile),rse['name']))
-                    rucioAPI.registerFiles([tmpFile],rse['name'])
+        try:
+            # get ES dataset name
+            esDataset = EventServiceUtils.getEsDatasetName(self.job.jediTaskID)
             # collect files
-            if len(osIDs) > 0:
-                if not None in idMap:
-                    idMap[None] = {}
-                if not esDataset in idMap[None]:
-                    idMap[None][esDataset] = []
-                idMap[None][esDataset].append(file)
-        # add files to dataset
-        if idMap != {}:
-            self.logger.debug("adding ES files {0}".format(str(idMap)))
-            try:
-                rucioAPI.registerFilesInDataset(idMap)
-            except DataIdentifierNotFound:
-                self.logger.debug("ignored DataIdentifierNotFound")
+            idMap = dict()
+            fileSet = set()
+            for fileSpec in self.job.Files:
+                if fileSpec.type != 'zipoutput':
+                    continue
+                if fileSpec.lfn in fileSet:
+                    continue
+                fileSet.add(fileSpec.lfn)
+                # make file data
+                fileData = {'scope' : EventServiceUtils.esScopeDDM,
+                            'name'  : fileSpec.lfn,
+                            'bytes' : fileSpec.fsize,
+                            }
+                # get endpoint ID
+                epID = int(fileSpec.destinationSE.split('/')[0])
+                # convert to DDM endpoint
+                rse = self.taskBuffer.convertObjIDtoEndPoint('/cvmfs/atlas.cern.ch/repo/sw/local/etc/agis_ddmendpoints.json',
+                                                             epID)
+                if rse['is_deterministic']:
+                    epName = rse['name']
+                    if epName not in idMap:
+                        idMap[epName] = dict()
+                    if esDataset not in idMap[epName]:
+                        idMap[epName][esDataset] = []
+                    idMap[epName][esDataset].append(fileData)
+            # add files to dataset
+            if idMap != {}:
+                self.logger.debug("adding ES files {0}".format(str(idMap)))
+                try:
+                    rucioAPI.registerFilesInDataset(idMap)
+                except DataIdentifierNotFound:
+                    self.logger.debug("ignored DataIdentifierNotFound")
+        except:
+            errtype,errvalue = sys.exc_info()[:2]
+            errStr = " : %s %s" % (errtype,errvalue)
+            errStr += traceback.format_exc()
+            self.logger.error(errStr)
         self.logger.debug("done")
-
 
 
     # delete ES files

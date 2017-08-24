@@ -1,5 +1,30 @@
 Release Notes
 
+* 8/17/2017
+  * added registerEsFiles
+  * changed AdderAtlas to catch InvalidRSEExpression
+
+* 8/15/2017
+  * removed sleep in copyArchive
+  * removed FOR UPDATE when counting events for now
+
+* 8/9/2017
+  * fixed ppE to exclusively count num of unprocessed events
+
+* 8/8/2017
+  * improved setMerge to try local if remote is unavailable
+  * fixed ppE to keep job status when old job is closed in jobsDefined/Waiting
+  * improved ppE to take unifiedPQ into account
+  * fixed ppE to set resource_type to merge
+
+* 7/26/2017
+  * setting cancelled/failed to es_killed/es_aborted
+  * not to kill consumers in inactive sites when associated consumers are active
+
+* 7/25/2017
+  * added protection against duplicated submission by group users
+  * added blank pilots to harvesterCtl
+
 * 7/17/2017
   * changed ES merge to choose sites with wnconnectivity
 

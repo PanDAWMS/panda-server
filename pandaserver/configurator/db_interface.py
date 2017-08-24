@@ -119,9 +119,11 @@ def write_panda_ddm_relation_db(session, relation_list):
             session.merge(PandaDdmRelation(panda_site_name=ddm_endpoint_dict['panda_site_name'],
                                            ddm_endpoint_name=ddm_endpoint_dict['ddm_site'],
                                            roles=ddm_endpoint_dict['roles'],
-                                           is_default=ddm_endpoint_dict['is_default'],
                                            is_local=ddm_endpoint_dict['is_local'],
-                                           ord=ddm_endpoint_dict['ord']
+                                           order_read=ddm_endpoint_dict['order_read'],
+                                           order_write=ddm_endpoint_dict['order_write'],
+                                           default_read=ddm_endpoint_dict['default_read'],
+                                           default_write=ddm_endpoint_dict['default_write']
                                            )
                           )
         # Finish the transactions
@@ -129,7 +131,7 @@ def write_panda_ddm_relation_db(session, relation_list):
         _logger.debug("Done with write_panda_ddm_relation_db")
     except exc.SQLAlchemyError:
         session.rollback()
-        _logger.critical(': Could not persist information --> {0}'.format(sys.exc_info()))
+        _logger.critical('write_panda_ddm_relation_db: Could not persist information --> {0}'.format(sys.exc_info()))
 
 
 def read_panda_ddm_relation_schedconfig(session):

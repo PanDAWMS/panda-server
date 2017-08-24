@@ -9,6 +9,7 @@ import json
 import time
 import copy
 import glob
+import uuid
 import fcntl
 import types
 import random
@@ -338,6 +339,8 @@ class DBProxy:
             job.currentPriority = job.assignedPriority
         if job.prodSourceLabel == 'install':
             job.currentPriority = 4100
+        elif job.prodUserName in ['artprod'] and job.prodSourceLabel in ['user', 'panda']:
+            job.currentPriority = 7000
         elif job.prodSourceLabel == 'user':
             if job.processingType in ['usermerge','pmerge'] and not job.currentPriority in ['NULL',None]:
                 # avoid prio reduction for merge jobs 
@@ -1185,8 +1188,10 @@ class DBProxy:
         comment = ' /* DBProxy.archiveJob */'                
         _logger.debug("archiveJob : %s" % job.PandaID)                
         if fromJobsDefined:
+            sql0 = "SELECT jobStatus FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID "
             sql1 = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2)"
         elif fromJobsWaiting:
+            sql0 = "SELECT jobStatus FROM ATLAS_PANDA.jobsWaiting4 WHERE PandaID=:PandaID "
             sql1 = "DELETE FROM ATLAS_PANDA.jobsWaiting4 WHERE PandaID=:PandaID"
         else:
             sql1 = "DELETE FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID"            
@@ -1513,11 +1518,20 @@ class DBProxy:
                 if useCommit:
                     self.conn.begin()
                 oldJobSubStatus = None
+                # get current status
+                currentJobStatus = None
+                if fromJobsDefined or fromJobsWaiting:
+                    varMap = {}
+                    varMap[':PandaID'] = job.PandaID
+                    self.cur.execute(sql0+comment, varMap)
+                    res0 = self.cur.fetchone()
+                    if res0 is not None:
+                        currentJobStatus, = res0
                 # actions for successful normal ES jobs
                 if useJEDI and EventServiceUtils.isEventServiceJob(job) \
                         and not EventServiceUtils.isJobCloningJob(job):
                     oldJobSubStatus = job.jobSubStatus
-                    retEvS,retNewPandaID = self.ppEventServiceJob(job,False)
+                    retEvS,retNewPandaID = self.ppEventServiceJob(job,currentJobStatus,False)
                     # DB error
                     if retEvS == None:
                         raise RuntimeError, 'Faied to retry for Event Service'
@@ -1548,9 +1562,7 @@ class DBProxy:
                         job.jobStatus = 'merging'
                         job.jobSubStatus = 'es_wait'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceWaitOthers
-                        job.taskBufferErrorDiag = 'no further action since other Event ServiceEvent Service consumers were still running'
-                        # kill unused
-                        self.killUnusedEventServiceConsumers(job,False)
+                        job.taskBufferErrorDiag = 'no further action since other Event Service consumers were still running'
                     elif retEvS == 5:
                         # didn't process any event ranges
                         job.jobStatus = 'closed'
@@ -3784,7 +3796,8 @@ class DBProxy:
         # 91 : kill user jobs with prod role
         comment = ' /* DBProxy.killJob */'
         methodName = comment.split(' ')[-2].split('.')[-1]
-        tmpLog = LogWrapper(_logger,methodName+' <PandaID={0}>'.format(pandaID))
+        methodName += ' <PandaID={0}>'.format(pandaID)
+        tmpLog = LogWrapper(_logger,methodName)
         tmpLog.debug("code=%s role=%s user=%s wg=%s opts=%s" % (code,prodManager,user,wgProdRole,killOpts))
         timeStart = datetime.datetime.utcnow()
         # check PandaID
@@ -5853,7 +5866,7 @@ class DBProxy:
             # find table
             if status in ['defined','assigned']:
                 table = 'ATLAS_PANDA.jobsDefined4'
-            elif status in ['activated','running','holding','trasnferring']:
+            elif status in ['activated','running','holding','transferring']:
                 table = 'ATLAS_PANDA.jobsActive4'
             elif status in ['waiting']:
                 table = 'ATLAS_PANDA.jobsWaiting4'
@@ -8944,7 +8957,7 @@ class DBProxy:
     # LogDBProxy stuff   
 
     # update site data
-    def updateSiteData(self, hostID, pilotRequests):
+    def updateSiteData(self, hostID, pilotRequests, interval):
         comment = ' /* DBProxy.updateSiteData */'                            
         _logger.debug("updateSiteData start")
 
@@ -8969,21 +8982,22 @@ class DBProxy:
         sqlAll +=  "FROM ATLAS_PANDAMETA.SiteData WHERE HOURS=:HOURS AND SITE=:SITE"
 
         try:
+            timeNow = datetime.datetime.utcnow()
             self.conn.begin()
             # delete old records
             varMap = {}
-            varMap[':LASTMOD'] = datetime.datetime.utcnow()-datetime.timedelta(hours=48)
+            varMap[':LASTMOD'] = timeNow - datetime.timedelta(hours=48)
             self.cur.execute(sqlDel+comment,varMap)
             # set 0 to old records
             varMap = {}
-            varMap[':HOURS'] = 3
+            varMap[':HOURS'] = interval
             varMap[':GETJOB'] = 0
             varMap[':UPDATEJOB'] = 0
             varMap[':NOJOB'] = 0
             varMap[':GETJOBABS'] = 0
             varMap[':UPDATEJOBABS'] = 0
             varMap[':NOJOBABS'] = 0
-            varMap[':LASTMOD'] = datetime.datetime.utcnow()-datetime.timedelta(hours=varMap[':HOURS'])
+            varMap[':LASTMOD'] = timeNow - datetime.timedelta(hours=interval)
             self.cur.execute(sqlRst+comment,varMap)
             # commit
             if not self._commit():
@@ -9000,7 +9014,7 @@ class DBProxy:
                 varMap = {}
                 varMap[':FLAG']  = hostID
                 varMap[':SITE']  = tmpSite
-                varMap[':HOURS'] = 3                
+                varMap[':HOURS'] = interval
                 self.cur.arraysize = 10
                 self.cur.execute(sqlCh+comment,varMap)
                 res = self.cur.fetchone()
@@ -9048,7 +9062,7 @@ class DBProxy:
                 sumExist = False
                 varMap = {}
                 varMap[':SITE']  = tmpSite
-                varMap[':HOURS'] = 3
+                varMap[':HOURS'] = interval
                 self.cur.arraysize = 100
                 self.cur.execute(sqlAll+comment,varMap)
                 res = self.cur.fetchall()
@@ -9119,8 +9133,8 @@ class DBProxy:
                     sql = sqlIn
                 # update
                 self.cur.execute(sql+comment,varMap)
-                _logger.debug('updateSiteData : %s getJob=%s updateJob=%s, noJob=%s, getJobAbs=%s updateJobAbs=%s, noJobAbs=%s' %
-                              (tmpSite,varMap[':GETJOB'],varMap[':UPDATEJOB'],varMap[':NOJOB'],
+                _logger.debug('updateSiteData : %s hours=%s getJob=%s updateJob=%s, noJob=%s, getJobAbs=%s updateJobAbs=%s, noJobAbs=%s' %
+                              (tmpSite,interval,varMap[':GETJOB'],varMap[':UPDATEJOB'],varMap[':NOJOB'],
                                varMap[':GETJOBABS'], varMap[':UPDATEJOBABS'], varMap[':NOJOBABS']))
                 # commit
                 if not self._commit():
@@ -13399,14 +13413,22 @@ class DBProxy:
                     taskParamsJson['countryGroup'] = countryGroup
             _logger.debug('{0} taskName={1}'.format(methodName,taskParamsJson['taskName']))
             schemaDEFT = self.getSchemaDEFT()
-            # sql to check task duplication
-            sqlTD  = "SELECT jediTaskID,status FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
-            sqlTD += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND userName=:userName AND taskName=:taskName "
-            sqlTD += "ORDER BY jediTaskID DESC FOR UPDATE "
-            # sql to check DEFT table
-            sqlCD  = "SELECT taskid FROM {0}.T_TASK ".format(schemaDEFT)
-            sqlCD += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND userName=:userName AND taskName=:taskName "
-            sqlCD += "ORDER BY taskid DESC FOR UPDATE " 
+            # sql to check task duplication for user
+            sqlTDU  = "SELECT jediTaskID,status FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+            sqlTDU += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND userName=:userName AND taskName=:taskName "
+            sqlTDU += "ORDER BY jediTaskID DESC FOR UPDATE "
+            # sql to check task duplication for group
+            sqlTDW  = "SELECT jediTaskID,status FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+            sqlTDW += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND taskName=:taskName "
+            sqlTDW += "ORDER BY jediTaskID DESC FOR UPDATE "
+            # sql to check DEFT table for user
+            sqlCDU  = "SELECT taskid FROM {0}.T_TASK ".format(schemaDEFT)
+            sqlCDU += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND userName=:userName AND taskName=:taskName "
+            sqlCDU += "ORDER BY taskid DESC FOR UPDATE " 
+            # sql to check DEFT table for group
+            sqlCDW  = "SELECT taskid FROM {0}.T_TASK ".format(schemaDEFT)
+            sqlCDW += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND taskName=:taskName "
+            sqlCDW += "ORDER BY taskid DESC FOR UPDATE " 
             # sql to insert task parameters
             sqlT  = "INSERT INTO {0}.T_TASK ".format(schemaDEFT)
             sqlT += "(taskid,status,submit_time,vo,prodSourceLabel,userName,taskName,jedi_task_parameters,priority,current_priority,parent_tid) VALUES "
@@ -13455,20 +13477,37 @@ class DBProxy:
             errorCode = 0
             if taskParamsJson['taskType'] == 'anal' and \
                     (taskParamsJson.has_key('uniqueTaskName') and taskParamsJson['uniqueTaskName'] == True):
-                varMap[':vo']       = taskParamsJson['vo']
-                varMap[':userName'] = taskParamsJson['userName']
+                if 'official' in taskParamsJson and taskParamsJson['official'] == True:
+                    isOfficial = True
+                else:
+                    isOfficial = False
+                # check JEDI
+                varMap[':vo'] = taskParamsJson['vo']
+                if isOfficial:
+                    pass
+                else:
+                    varMap[':userName'] = taskParamsJson['userName']
                 varMap[':taskName'] = taskParamsJson['taskName']
                 varMap[':prodSourceLabel'] = taskParamsJson['prodSourceLabel']
-                self.cur.execute(sqlTD+comment,varMap)
+                if isOfficial:
+                    self.cur.execute(sqlTDW+comment,varMap)
+                else:
+                    self.cur.execute(sqlTDU+comment,varMap)
                 resDT = self.cur.fetchone()
                 if resDT == None:
                     # check DEFT table
                     varMap = {}
-                    varMap[':vo']       = taskParamsJson['vo']
-                    varMap[':userName'] = taskParamsJson['userName']
+                    varMap[':vo'] = taskParamsJson['vo']
+                    if isOfficial:
+                        pass
+                    else:
+                        varMap[':userName'] = taskParamsJson['userName']
                     varMap[':taskName'] = taskParamsJson['taskName']
                     varMap[':prodSourceLabel'] = taskParamsJson['prodSourceLabel']
-                    self.cur.execute(sqlCD+comment,varMap)
+                    if isOfficial:
+                        self.cur.execute(sqlCDW+comment,varMap)
+                    else:
+                        self.cur.execute(sqlCDU+comment,varMap)
                     resCD = self.cur.fetchone()
                     if resCD != None:
                         # task is already in DEFT
@@ -14483,7 +14522,7 @@ class DBProxy:
             sqlC += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND fileID=:fileID "
             sqlC += "AND job_processID=:job_processID "
             # sql to get nEvents
-            sqlE  = "SELECT jobStatus,nEvents,commandToPilot,supErrorCode FROM ATLAS_PANDA.jobsActive4 "
+            sqlE  = "SELECT jobStatus,nEvents,commandToPilot,supErrorCode,specialHandling FROM ATLAS_PANDA.jobsActive4 "
             sqlE += "WHERE PandaID=:pandaID "
             # sql to set nEvents
             sqlS  = "UPDATE ATLAS_PANDA.jobsActive4 "
@@ -14493,6 +14532,9 @@ class DBProxy:
             sqlT  = "UPDATE ATLAS_PANDA.jobsActive4 "
             sqlT += "SET cpuConsumptionTime=cpuConsumptionTime+:actualCpuTime "
             sqlT += "WHERE PandaID=:PandaID "
+            # sql to check zip file
+            sqlFC = "SELECT row_ID FROM ATLAS_PANDA.filesTable4 "
+            sqlFC += "WHERE PandaID=:pandaID AND lfn=:lfn "
             # sql to insert zip file
             sqlF  = "INSERT INTO ATLAS_PANDA.filesTable4 (%s) " % FileSpec.columnNames()
             sqlF += FileSpec.bindValuesExpression(useSeq=True)
@@ -14608,7 +14650,7 @@ class DBProxy:
                     commandToPilot = 'tobekilled'
                 else:
                     # check job status
-                    jobStatus,nEventsOld,commandToPilot,supErrorCode = resE
+                    jobStatus,nEventsOld,commandToPilot,supErrorCode,specialHandling = resE
                     if not jobStatus in ['sent','running','starting','transferring']:
                         tmpLog.error("<eventRangeID={0}> wrong jobStatus={1}".format(eventRangeID,jobStatus))
                         _logger.debug("{0} : wrong jobStatus={1}".format(methodName,jobStatus))
@@ -14638,24 +14680,47 @@ class DBProxy:
                                 if eventDict['zipFile']['lfn'] in zipRowIdMap:
                                     zipRow_ID = zipRowIdMap[eventDict['zipFile']['lfn']]
                                 else:
-                                    zipJobSpec = JobSpec()
-                                    zipJobSpec.PandaID = pandaID
-                                    zipFileSpec = FileSpec()
-                                    zipFileSpec.jediTaskID = jediTaskID
-                                    zipFileSpec.lfn = eventDict['zipFile']['lfn']
-                                    zipFileSpec.fsize = 0
-                                    zipFileSpec.type = 'zipoutput'
-                                    zipFileSpec.status = 'ready'
-                                    zipFileSpec.destinationSE = eventDict['zipFile']['objstoreID']
-                                    if 'pathConvention' in eventDict['zipFile']:
-                                        zipFileSpec.destinationSE = '{0}/{1}'.format(zipFileSpec.destinationSE,
-                                                                                     eventDict['zipFile']['pathConvention'])
-                                    zipJobSpec.addFile(zipFileSpec)
-                                    varMap = zipFileSpec.valuesMap(useSeq=True)
-                                    varMap[':newRowID'] = self.cur.var(varNUMBER)
-                                    self.cur.execute(sqlF+comment, varMap)
-                                    zipRow_ID = long(self.cur.getvalue(varMap[':newRowID']))
-                                    zipRowIdMap[eventDict['zipFile']['lfn']] = zipRow_ID
+                                    # check zip
+                                    varMap = dict()
+                                    varMap[':pandaID'] = pandaID
+                                    varMap[':lfn'] = eventDict['zipFile']['lfn']
+                                    self.cur.execute(sqlFC+comment, varMap)
+                                    resFC = self.cur.fetchone()
+                                    if resFC is not None:
+                                        zipRow_ID, = resFC
+                                    else:
+                                        # insert new file
+                                        zipJobSpec = JobSpec()
+                                        zipJobSpec.PandaID = pandaID
+                                        zipJobSpec.specialHandling = specialHandling
+                                        zipFileSpec = FileSpec()
+                                        zipFileSpec.jediTaskID = jediTaskID
+                                        zipFileSpec.lfn = eventDict['zipFile']['lfn']
+                                        if 'fsize' in eventDict['zipFile']:
+                                            zipFileSpec.fsize = long(eventDict['zipFile']['fsize'])
+                                        else:
+                                            zipFileSpec.fsize = 0
+                                        zipFileSpec.type = 'zipoutput'
+                                        zipFileSpec.status = 'ready'
+                                        zipFileSpec.destinationSE = eventDict['zipFile']['objstoreID']
+                                        if 'pathConvention' in eventDict['zipFile']:
+                                            zipFileSpec.destinationSE = '{0}/{1}'.format(zipFileSpec.destinationSE,
+                                                                                         eventDict['zipFile']['pathConvention'])
+                                        zipJobSpec.addFile(zipFileSpec)
+                                        varMap = zipFileSpec.valuesMap(useSeq=True)
+                                        varMap[':newRowID'] = self.cur.var(varNUMBER)
+                                        self.cur.execute(sqlF+comment, varMap)
+                                        zipRow_ID = long(self.cur.getvalue(varMap[':newRowID']))
+                                        zipRowIdMap[eventDict['zipFile']['lfn']] = zipRow_ID
+                                        # make an empty file to trigger registration for zip files in Adder
+                                        if zipJobSpec.registerEsFiles():
+                                            tmpFileName = '{0}_{1}_{2}'.format(pandaID, EventServiceUtils.esRegStatus,
+                                                                               uuid.uuid3(uuid.NAMESPACE_DNS,''))
+                                            tmpFileName = os.path.join(panda_config.logdir, tmpFileName)
+                                            try:
+                                                open(tmpFileName, 'w').close()
+                                            except:
+                                                pass
                             # update event
                             varMap = {}
                             varMap[':jediTaskID'] = jediTaskID
@@ -14733,7 +14798,7 @@ class DBProxy:
 
 
     # post-process for event service job
-    def ppEventServiceJob(self,job,useCommit=True):
+    def ppEventServiceJob(self,job,currentJobStatus,useCommit=True):
         comment = ' /* DBProxy.ppEventServiceJob */'
         pandaID = job.PandaID
         attemptNr = job.attemptNr
@@ -14788,6 +14853,24 @@ class DBProxy:
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
                 return retValue
+            # use an input file as lock since FOR UPDATE doesn't work on JEDI_Events
+            lockFileSpec = None
+            for fileSpec in job.Files:
+                if fileSpec.type in ['input', 'pseudo_input']:
+                    if lockFileSpec is None or lockFileSpec.fileID > fileSpec.fileID:
+                        lockFileSpec = fileSpec
+            if lockFileSpec is not None:
+                # sql to lock the file
+                sqlLIF = "SELECT status FROM {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
+                sqlLIF += 'WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID '
+                sqlLIF += 'FOR UPDATE '
+                varMap = dict()
+                varMap[':jediTaskID'] = lockFileSpec.jediTaskID
+                varMap[':datasetID'] = lockFileSpec.datasetID
+                varMap[':fileID'] = lockFileSpec.fileID
+                _logger.debug("{0} : locking {1}".format(methodName, str(varMap)))
+                self.cur.execute(sqlLIF+comment, varMap)
+                _logger.debug("{0} : locked".format(methodName))
             # change event status processed by jumbo jobs
             nRowDoneJumbo = 0
             if EventServiceUtils.isCoJumboJob(jobSpec):
@@ -14892,17 +14975,17 @@ class DBProxy:
                     varMap[':minAttempt']  = 0
                     self.cur.execute(sqlFH+comment, varMap)
             # look for event ranges to process
-            sqlERP  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlERP  = "SELECT job_processID FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sqlERP += "WHERE jediTaskID=:jediTaskID AND pandaID=:jobsetID AND status=:esReady "
-            sqlERP += "AND attemptNr>:minAttempt AND rownum=1 "
+            sqlERP += "AND attemptNr>:minAttempt "
             varMap = {}
             varMap[':jediTaskID']  = jobSpec.jediTaskID
             varMap[':jobsetID']    = jobSpec.jobsetID
             varMap[':esReady']     = EventServiceUtils.ST_ready
             varMap[':minAttempt']  = 0
             self.cur.execute(sqlERP+comment, varMap)
-            resERP = self.cur.fetchone()
-            nRow, = resERP
+            resERP = self.cur.fetchall()
+            nRow = len(resERP)
             _logger.info("{0} : left n_er_unprocessed={1} unprocessed event ranges".format(methodName,nRow))
             otherRunning = False
             hasDoneRange = False
@@ -14913,7 +14996,6 @@ class DBProxy:
                 sqlEOC += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                 sqlEOC += "AND ((NOT status IN (:esDone,:esDiscarded,:esCancelled,:esFatal,:esFailed)) "
                 sqlEOC += "OR (status=:esFailed AND processed_upto_eventID IS NOT NULL)) "
-                sqlEOC += "FOR UPDATE "
                 # count the number of done ranges
                 sqlCDO  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
                 sqlCDO += "COUNT(*) FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
@@ -15033,7 +15115,10 @@ class DBProxy:
                 if nRowCEF > 0:
                     hasFatalRange = True
             # reset job attributes
-            jobSpec.jobStatus        = 'activated'
+            if currentJobStatus in ['defined','assigned','waiting','pending']:
+                jobSpec.jobStatus = currentJobStatus
+            else:
+                jobSpec.jobStatus = 'activated'
             jobSpec.startTime        = None
             jobSpec.creationTime     = datetime.datetime.utcnow()
             jobSpec.modificationTime = jobSpec.creationTime
@@ -15153,8 +15238,14 @@ class DBProxy:
                 self.setSiteForEsMerge(jobSpec, isFakeCJ, methodName, comment)
                 jobSpec.coreCount = None
                 jobSpec.minRamCount = 0
+                jobSpec.resource_type = self.get_resource_type_job(jobSpec)
             # insert job with new PandaID
-            sql1  = "INSERT INTO ATLAS_PANDA.jobsActive4 ({0}) ".format(JobSpec.columnNames())
+            if currentJobStatus in ['defined','assigned']:
+                sql1  = "INSERT INTO ATLAS_PANDA.jobsDefined4 ({0}) ".format(JobSpec.columnNames())
+            elif currentJobStatus in ['waiting','pending']:
+                sql1  = "INSERT INTO ATLAS_PANDA.jobsWaiting4 ({0}) ".format(JobSpec.columnNames())
+            else:
+                sql1  = "INSERT INTO ATLAS_PANDA.jobsActive4 ({0}) ".format(JobSpec.columnNames())
             sql1 += JobSpec.bindValuesExpression(useSeq=True)
             sql1 += " RETURNING PandaID INTO :newPandaID"
             # set parentID
@@ -15249,6 +15340,7 @@ class DBProxy:
         self.cur.execute(sqlWM+comment, varMap)
         resWM = self.cur.fetchone()
         resSN = []
+        resSN_back = []
         catchAll,objectstores = None,None
         if resWM != None:
             catchAll,objectstores = resWM
@@ -15264,21 +15356,26 @@ class DBProxy:
         elif 'localEsMergeNC' in catchAll:
             # no site change
             lookForMergeSite = False
-        elif 'localEsMerge' in catchAll:
+        else:
             # get sites in the nucleus associated to the site to run merge jobs in the same nucleus
             sqlSN  = "SELECT ps2.panda_site_name,ps2.default_ddm_endpoint "
             sqlSN += "FROM ATLAS_PANDA.panda_site ps1,ATLAS_PANDA.panda_site ps2,ATLAS_PANDAMETA.schedconfig sc "
             sqlSN += "WHERE ps1.panda_site_name=:site AND ps1.site_name=ps2.site_name AND sc.siteid=ps2.panda_site_name "
-            sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1) "
+            sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1 OR sc.catchall LIKE '%unifiedPandaQueue%') "
             sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
             sqlSN += "AND (sc.catchall IS NULL OR NOT sc.catchall LIKE '%jobseed=es%') "
             sqlSN += "AND sc.status=:siteStatus "
+            sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity=:wc1) "
             varMap = {}
             varMap[':site'] = jobSpec.computingSite
             varMap[':siteStatus'] = 'online'
+            varMap[':wc1'] = 'full'
             # get sites
             self.cur.execute(sqlSN+comment,varMap)
-            resSN = self.cur.fetchall()
+            if 'localEsMerge' in catchAll:
+                resSN = self.cur.fetchall()
+            else:
+                resSN_back = self.cur.fetchall() 
         if len(resSN) == 0 and lookForMergeSite:
             # run merge jobs at destination
             if not jobSpec.destinationSE.startswith('nucleus:'):
@@ -15299,11 +15396,11 @@ class DBProxy:
                 # use nucleus
                 if tmpNucleus is None:
                     tmpNucleus = jobSpec.destinationSE.split(':')[-1]
-                _logger.debug('{0} look for merge sites in nucleus:{1}'.format(methodName,tmpNucleus))
+                _logger.info('{0} look for merge sites in nucleus:{1}'.format(methodName,tmpNucleus))
                 # get sites in a nucleus
                 sqlSN  = "SELECT panda_site_name,default_ddm_endpoint FROM ATLAS_PANDA.panda_site ps,ATLAS_PANDAMETA.schedconfig sc "
                 sqlSN += "WHERE site_name=:nucleus AND sc.siteid=ps.panda_site_name "
-                sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1) "
+                sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1 OR sc.catchall LIKE '%unifiedPandaQueue%') "
                 sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
                 sqlSN += "AND (sc.catchall IS NULL OR NOT sc.catchall LIKE '%jobseed=es%') "
                 sqlSN += "AND sc.status=:siteStatus "
@@ -15324,41 +15421,43 @@ class DBProxy:
             sqlRJ  = "SELECT SUM(num_of_jobs) FROM ATLAS_PANDA.MV_JOBSACTIVE4_STATS "
             sqlRJ += "WHERE computingSite=:panda_site AND jobStatus=:jobStatus "
             newSiteName = None
-            for tmp_panda_site_name,tmp_ddm_endpoint in resSN:
-                # get nPilot
-                varMap = {}
-                varMap[':panda_site'] = tmp_panda_site_name
-                varMap[':hours'] = 3
-                varMap[':flag'] = 'production'
-                self.cur.execute(sqlUG+comment,varMap)
-                resUG = self.cur.fetchone()
-                if resUG == None:
-                    nPilots = 0
-                else:
-                    nPilots, = resUG
-                # get nRunning
-                varMap = {}
-                varMap[':panda_site'] = tmp_panda_site_name
-                varMap[':jobStatus'] = 'running'
-                self.cur.execute(sqlRJ+comment,varMap)
-                resRJ = self.cur.fetchone()
-                if resRJ is None:
-                    nRunning = 0
-                else:
-                    nRunning, = resRJ
-                tmpStr = 'site={0} nPilot={1} nRunning={2}'.format(tmp_panda_site_name, nPilots, nRunning)
-                _logger.debug('{0} {1}'.format(methodName,tmpStr))
-                # use larger
-                if maxNumPilot < nPilots:
-                    maxNumPilot = nPilots
-                    jobSpec.computingSite = tmp_panda_site_name
-                    newSiteName = jobSpec.computingSite
-                    for tmpFileSpec in jobSpec.Files:
-                        if tmpFileSpec.destinationDBlockToken.startswith('ddd:'):
-                            tmpFileSpec.destinationDBlockToken = 'ddd:{0}'.format(tmp_ddm_endpoint)
-                            tmpFileSpec.destinationSE = jobSpec.computingSite
-            if newSiteName is not None:
-                _logger.debug('{0} set merge site to {1}'.format(methodName,newSiteName))
+            for resItem in [resSN, resSN_back]:
+                for tmp_panda_site_name,tmp_ddm_endpoint in resItem:
+                    # get nPilot
+                    varMap = {}
+                    varMap[':panda_site'] = tmp_panda_site_name
+                    varMap[':hours'] = 3
+                    varMap[':flag'] = 'production'
+                    self.cur.execute(sqlUG+comment,varMap)
+                    resUG = self.cur.fetchone()
+                    if resUG == None:
+                        nPilots = 0
+                    else:
+                        nPilots, = resUG
+                    # get nRunning
+                    varMap = {}
+                    varMap[':panda_site'] = tmp_panda_site_name
+                    varMap[':jobStatus'] = 'running'
+                    self.cur.execute(sqlRJ+comment,varMap)
+                    resRJ = self.cur.fetchone()
+                    if resRJ is None:
+                        nRunning = 0
+                    else:
+                        nRunning, = resRJ
+                    tmpStr = 'site={0} nPilot={1} nRunning={2}'.format(tmp_panda_site_name, nPilots, nRunning)
+                    _logger.info('{0} {1}'.format(methodName,tmpStr))
+                    # use larger
+                    if maxNumPilot < nPilots:
+                        maxNumPilot = nPilots
+                        jobSpec.computingSite = tmp_panda_site_name
+                        newSiteName = jobSpec.computingSite
+                        for tmpFileSpec in jobSpec.Files:
+                            if tmpFileSpec.destinationDBlockToken.startswith('ddd:'):
+                                tmpFileSpec.destinationDBlockToken = 'ddd:{0}'.format(tmp_ddm_endpoint)
+                                tmpFileSpec.destinationSE = jobSpec.computingSite
+                if newSiteName is not None:
+                    _logger.info('{0} set merge site to {1}'.format(methodName,newSiteName))
+                    break
         # return
         return
 
@@ -15767,17 +15866,19 @@ class DBProxy:
                 if retD == 0:
                     continue
                 # set error code
-                dJob.jobStatus = 'closed'
                 dJob.endTime   = datetime.datetime.utcnow()
                 if EventServiceUtils.isJobCloningJob(dJob):
+                    dJob.jobStatus = 'closed'
                     dJob.jobSubStatus = 'jc_unlock'
                     dJob.taskBufferErrorCode = ErrorCode.EC_JobCloningUnlock
                     dJob.taskBufferErrorDiag = 'closed since another clone PandaID={0} got semaphore'.format(job.PandaID)
                 elif killedFlag:
+                    dJob.jobStatus = 'cancelled'
                     dJob.jobSubStatus = 'es_killed'
                     dJob.taskBufferErrorCode = ErrorCode.EC_EventServiceKillOK
                     dJob.taskBufferErrorDiag = 'killed since an associated consumer PandaID={0} was killed'.format(job.PandaID)
                 else:
+                    dJob.jobStatus = 'failed'
                     dJob.jobSubStatus = 'es_aborted'
                     dJob.taskBufferErrorCode = ErrorCode.EC_EventServiceKillNG
                     dJob.taskBufferErrorDiag = 'killed since an associated consumer PandaID={0} failed'.format(job.PandaID)
@@ -18518,10 +18619,8 @@ class DBProxy:
             f = open(srcFileName)
             data = json.load(f)
             for rseName,rseData in data.iteritems():
-                if rseData['resource']['bucket_id'] == objID:
-                    path = rseData['arprotocols']['w'][0]['endpoint']+rseData['arprotocols']['w'][0]['path']
-                    retMap = {'name':rseName,
-                              'path':path}
+                if rseData['id'] == objID:
+                    retMap = {'name':rseName, "is_deterministic":rseData['is_deterministic']}
                     tmpLog.debug("got {0}".format(str(retMap)))
                     return retMap
         except:
@@ -19663,6 +19762,19 @@ class DBProxy:
         try:
             # set autocommit on
             self.conn.begin()
+            # sql to get nPilot
+            sqlP = "SELECT getJob+updateJob FROM ATLAS_PANDAMETA.SiteData "
+            sqlP += "WHERE HOURS=:hours AND FLAG IN (:flag1,:flag2) "
+            varMap = dict()
+            varMap[':hours'] = 1
+            varMap[':flag1'] = 'production'
+            varMap[':flag2'] = 'analysis'
+            self.cur.execute(sqlP+comment, varMap)
+            res = self.cur.fetchone()
+            if res is not None:
+                nPilot, = res
+            else:
+                nPilot = 0
             # sql to get stat
             sqlG = "SELECT SUM(n_workers),COUNT(harvester_ID),resourceType,status FROM ATLAS_PANDA.Harvester_Worker_Stats "
             sqlG += "WHERE computingSite=:siteName "
@@ -19682,13 +19794,13 @@ class DBProxy:
             if not self._commit():
                 raise RuntimeError, 'Commit error'
             # return
-            tmpLog.debug('done with {0}'.format(str(retMap)))
-            return retMap
+            tmpLog.debug('done with {0} nPilot={1}'.format(str(retMap), nPilot))
+            return retMap, nPilot
         except:
             # roll back
             self._rollback()
             self.dumpErrorMessage(tmpLog,methodName)
-            return {}
+            return {}, 0
 
 
 
@@ -20000,3 +20112,31 @@ class DBProxy:
             self._rollback()
             self.dumpErrorMessage(tmpLog,methodName)
             return []
+
+
+    # get minimal resource
+    def getMinimalResource(self):
+        comment = ' /* JediDBProxy.getMinimalResource */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, method_name)
+        tmpLog.debug('start')
+        try:
+            timeNow = datetime.datetime.utcnow()
+            # sql to get minimal
+            sqlC = "SELECT resource_name FROM ATLAS_PANDA.resource_types "
+            sqlC += "ORDER BY mincore, (CASE WHEN maxrampercore IS NULL THEN 1 ELSE 0 END), maxrampercore "
+            # get instances
+            self.conn.begin()
+            self.cur.execute(sqlC+comment)
+            res = self.cur.fetchone()
+            resourceName, = res
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug('got {0}'.format(resourceName))
+            return resourceName
+        except:
+            # roll back
+            self._rollback()
+            self.dumpErrorMessage(tmpLog,methodName)
+            return None
