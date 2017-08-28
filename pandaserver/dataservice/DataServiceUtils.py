@@ -64,6 +64,11 @@ def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=Fa
         # check all associated DQ2 IDs
         tmpFoundFlag = False
         tmpSiteSpec = siteMapper.getSite(tmpSiteName)
+
+        # skip misconfigured sites
+        if not tmpSiteSpec.ddm_input and not tmpSiteSpec.setokens_input.values():
+            continue
+
         for tmpSiteDQ2ID in [tmpSiteSpec.ddm_input]+tmpSiteSpec.setokens_input.values():
             # prefix of DQ2 ID
             tmpDQ2IDPrefix = getDQ2Prefix(tmpSiteDQ2ID)
