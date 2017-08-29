@@ -841,7 +841,7 @@ class FinisherThr (threading.Thread):
                 _logger.debug("%s Cloud:%s" % (job.PandaID,job.cloud))
                 tmpStat,okFiles = rucioAPI.listFileReplicas(scopes,lfns,seList)
                 if not tmpStat:
-                    _logger.errpr("%s failed to get file replicas" % job.PandaID)
+                    _logger.error("%s failed to get file replicas" % job.PandaID)
                     okFiles = {}
                 # count files
                 nOkTokens = 0
