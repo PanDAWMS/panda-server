@@ -1,5 +1,8 @@
 Release Notes
 
+* 8/30/2017
+  * metadata registration for ES files
+
 * 8/17/2017
   * added registerEsFiles
   * changed AdderAtlas to catch InvalidRSEExpression
