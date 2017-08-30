@@ -214,8 +214,14 @@ class Response:
         self.data['scopeOut'] = strScopeOut[:-1]
         self.data['scopeLog'] = strScopeLog
         # DDM endpoints
-        self.data['ddmEndPointIn']  = ','.join(ddmEndPointIn)
-        self.data['ddmEndPointOut'] = ','.join(ddmEndPointOut)
+        try:
+            self.data['ddmEndPointIn'] = ','.join(ddmEndPointIn)
+        except TypeError:
+            self.data['ddmEndPointIn'] = ''
+        try:
+            self.data['ddmEndPointOut'] = ','.join(ddmEndPointOut)
+        except TypeError:
+            self.data['ddmEndPointOut'] = ''
         # destinationSE
         self.data['destinationSE'] = job.destinationSE
         # user ID
@@ -343,6 +349,11 @@ class Response:
             ddm = siteSpec.ddm_output
         if spaceToken in setokens:
             return setokens[spaceToken]
+
+        # Protection against misconfigured sites
+        if not ddm:
+            ddm = ''
+
         return ddm
 
                 
