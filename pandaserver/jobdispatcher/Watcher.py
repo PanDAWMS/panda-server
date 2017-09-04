@@ -127,8 +127,8 @@ class Watcher (threading.Thread):
                         # Additional call if there is also a taskbuffer error code
                         if job.taskBufferErrorCode:
                             source = 'taskBufferErrorCode'
-                            error_code = self.job.taskBufferErrorCode
-                            error_diag = self.job.taskBufferErrorDiag
+                            error_code = job.taskBufferErrorCode
+                            error_diag = job.taskBufferErrorDiag
                             try:
                                 _logger.debug("Watcher will call apply_retrial_rules 2")
                                 retryModule.apply_retrial_rules(self.taskBuffer, job.PandaID, source, error_code,
