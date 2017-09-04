@@ -142,7 +142,7 @@ class Response:
                 else:
                     strCheckSum += '%s,' % file.md5sum
                 strScopeIn += '%s,' % file.scope
-                ddmEndPointIn.append(self.getDdmEndpoint(siteSpec,file.dispatchDBlockToken, 'input'))
+                ddmEndPointIn.append(self.getDdmEndpoint(siteSpec,file.dispatchDBlockToken))
                 if not file.dataset in inDsLfnMap:
                     inDsLfnMap[file.dataset] = []
                 inDsLfnMap[file.dataset].append(file.lfn)
@@ -168,7 +168,7 @@ class Response:
                 strDestToken += re.sub('^ddd:','dst:',file.destinationDBlockToken.split(',')[0])
                 strDisTokenForOutput += '%s,' % file.dispatchDBlockToken
                 strProdTokenForOutput += '%s,' % file.prodDBlockToken
-                ddmEndPointOut.append(self.getDdmEndpoint(siteSpec,file.destinationDBlockToken.split(',')[0], 'output'))
+                ddmEndPointOut.append(self.getDdmEndpoint(siteSpec,file.destinationDBlockToken.split(',')[0]))
                 if file.isAllowedNoOutput():
                     noOutput.append(file.lfn)
         # inFiles
@@ -214,14 +214,8 @@ class Response:
         self.data['scopeOut'] = strScopeOut[:-1]
         self.data['scopeLog'] = strScopeLog
         # DDM endpoints
-        try:
-            self.data['ddmEndPointIn'] = ','.join(ddmEndPointIn)
-        except TypeError:
-            self.data['ddmEndPointIn'] = ''
-        try:
-            self.data['ddmEndPointOut'] = ','.join(ddmEndPointOut)
-        except TypeError:
-            self.data['ddmEndPointOut'] = ''
+        self.data['ddmEndPointIn']  = ','.join(ddmEndPointIn)
+        self.data['ddmEndPointOut'] = ','.join(ddmEndPointOut)
         # destinationSE
         self.data['destinationSE'] = job.destinationSE
         # user ID
@@ -332,8 +326,8 @@ class Response:
 
 
     # get ddm endpoint
-    def getDdmEndpoint(self,siteSpec,spaceToken, mode):
-        if siteSpec == None or mode not in ['input', 'output']:
+    def getDdmEndpoint(self,siteSpec,spaceToken):
+        if siteSpec == None:
             return ''
         endPoint = DataServiceUtils.getDestinationSE(spaceToken)
         if endPoint != None:
@@ -341,20 +335,9 @@ class Response:
         endPoint = DataServiceUtils.getDistributedDestination(spaceToken)
         if endPoint != None:
             return endPoint
-        if mode == 'input':
-            setokens = siteSpec.setokens_input
-            ddm = siteSpec.ddm_input
-        elif mode == 'output':
-            setokens = siteSpec.setokens_output
-            ddm = siteSpec.ddm_output
-        if spaceToken in setokens:
-            return setokens[spaceToken]
-
-        # Protection against misconfigured sites
-        if not ddm:
-            ddm = ''
-
-        return ddm
+        if spaceToken in siteSpec.setokens:
+            return siteSpec.setokens[spaceToken]
+        return siteSpec.ddm
 
                 
 
