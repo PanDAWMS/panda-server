@@ -9670,7 +9670,6 @@ class DBProxy:
         except:
             type, value, traceBack = sys.exc_info()
             _logger.error("getSiteInfo : %s %s" % (type,value))
-            _logger.error("getSiteInfo : %s" % (traceback.print_exc()))
             # roll back
             self._rollback()
             return {}
