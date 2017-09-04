@@ -89,7 +89,7 @@ class Configurator(threading.Thread):
         endpoint_token_dict = {}
         for endpoint in self.endpoint_dump:
             # Filter out testing and inactive endpoints
-            if endpoint['type'] != 'TEST' and endpoint['state'] == 'ACTIVE':
+            if endpoint['state'] == 'ACTIVE':  # and endpoint['type'] != 'TEST'
                 endpoint_token_dict[endpoint['name']] = {}
                 endpoint_token_dict[endpoint['name']]['token'] = endpoint['token']
                 endpoint_token_dict[endpoint['name']]['site_name'] = endpoint['site']
