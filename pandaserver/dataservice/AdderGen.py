@@ -318,12 +318,11 @@ class AdderGen:
                     pass
                 else:
                     self.logger.debug("updating DB")
+                    self.logger.debug("before updateJobs {0}".format(self.job))
                     retU = self.taskBuffer.updateJobs([self.job],False,oldJobStatusList=[oldJobStatus],
                                                       extraInfo=self.extraInfo)
+                    self.logger.debug("after updateJobs {0}".format(self.job))
                     self.logger.debug("retU: %s" % retU)
-                    self.logger.debug("status {0}, taskBufferErrorCode {1}, taskBufferErrorDiag {2}".format(self.job.jobStatus,
-                                                                                                            self.job.taskBufferErrorCode,
-                                                                                                            self.job.taskBufferErrorDiag))
                     # failed
                     if not retU[0]:
                         self.logger.error('failed to update DB for pandaid={0}'.format(self.job.PandaID))
