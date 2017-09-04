@@ -9670,6 +9670,7 @@ class DBProxy:
         except:
             type, value, traceBack = sys.exc_info()
             _logger.error("getSiteInfo : %s %s" % (type,value))
+            _logger.error("getSiteInfo : %s" % (traceback.print_exc()))
             # roll back
             self._rollback()
             return {}
@@ -9701,8 +9702,8 @@ class DBProxy:
                 tmp_endpoint[column_name] = column_val
             
             # ignore TEST
-            if tmp_endpoint['type'] == 'TEST':
-                continue
+            #if tmp_endpoint['type'] == 'TEST':
+            #    continue
 
             endpoint_dict[tmp_endpoint['ddm_endpoint_name']] = tmp_endpoint
         
