@@ -254,9 +254,7 @@ class AdderGen:
                         source = 'transExitCode'
                         error_code = self.job.transExitCode
                         error_diag = ''
-            
-                    # _logger.info("updatejob has source %s, error_code %s and error_diag %s"%(source, error_code, error_diag))
-                    
+
                     if source and error_code:
                         try:
                             self.logger.debug("AdderGen.run will call apply_retrial_rules")
@@ -323,6 +321,9 @@ class AdderGen:
                     retU = self.taskBuffer.updateJobs([self.job],False,oldJobStatusList=[oldJobStatus],
                                                       extraInfo=self.extraInfo)
                     self.logger.debug("retU: %s" % retU)
+                    self.logger.debug("status {0}, taskBufferErrorCode {1}, taskBufferErrorDiag {2}".format(self.job.jobStatus,
+                                                                                                            self.job.taskBufferErrorCode,
+                                                                                                            self.job.taskBufferErrorDiag))
                     # failed
                     if not retU[0]:
                         self.logger.error('failed to update DB for pandaid={0}'.format(self.job.PandaID))
