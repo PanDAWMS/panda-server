@@ -534,7 +534,7 @@ class UserIF:
                 # convert to map
                 tmpSpec = {}
                 for attr in spec._attributes:
-                    if attr in ['ddm_endpoints_input', 'ddm_endpoints_output', 'ddm_input', 'ddm_output', 'setokens_input']:
+                    if attr in ['ddm_endpoints']:
                         continue
                     tmpSpec[attr] = getattr(spec,attr)
                 specList[id] = tmpSpec

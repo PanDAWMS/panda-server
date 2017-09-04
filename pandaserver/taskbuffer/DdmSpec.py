@@ -11,36 +11,40 @@ class DdmSpec(object):
     def __init__(self):
         self.all = {}
         self.local = set()
-        self.default_read = None
-        self.default_write = None
+        self.default = None
         self.tape = set()
 
+
+
     # add endpoint
-    def add(self, endPoint, endpointDict):
+    def add(self,endPoint,endpointDict):
         name = endPoint['ddm_endpoint_name']
         # all endpoints
         self.all[name] = endpointDict[name]
         # local endpoints
         if endPoint['is_local'] != 'N':
             self.local.add(name)
-        # defaults
-        if endPoint['default_read'] == 'Y':
-            self.default_read = name
-        if endPoint['default_write'] == 'Y':
-            self.default_write = name
+        # default
+        if endPoint['is_default'] == 'Y':
+            self.default = name
         # tape
         if endPoint['is_tape'] == 'Y':
             self.tape.add(name)
+
 
     # get all endpoints
     def getAllEndPoints(self):
         return self.all.keys()
 
+
+
     # get endpoint
     def getEndPoint(self,endpointName):
         if endpointName in self.all:
-            return self.all[endpointName]
+            return  self.all[endpointName]
         return None
+
+
 
     # get local endpoints
     def getLocalEndPoints(self):
@@ -48,28 +52,32 @@ class DdmSpec(object):
         tmpRet.sort()
         return tmpRet
 
-    # get default write endpoint
-    def getDefaultWrite(self):
-        return self.default_write
 
-    # get default read endpoint
-    def getDefaultRead(self):
-        return self.default_read
+
+    # get default endpoint
+    def getDefault(self):
+        return self.default
+
 
     # get tape endpoints
     def getTapeEndPoints(self):
         return tuple(self.tape)
 
+
     # check association
     def isAssociated(self,endpointName):
         return endpointName in self.all
+
+
 
     # check local
     def isLocal(self,endpointName):
         return endpointName in self.local
 
+
+
     # get DDM endpoint associated with a pattern
-    def getAssociatedEndpoint(self,patt):
+    def getAssoicatedEndpoint(self,patt):
         patt = patt.split('/')[-1]
         if patt in self.all:
             return self.all[patt]
@@ -86,18 +94,16 @@ class DdmSpec(object):
                 return self.all[endPointName]
         return None
 
+
     # get mapping between tokens and endpoint names
-    def getTokenMap(self, mode):
-        # TODO: review this part and discuss with Tadashi
+    def getTokenMap(self):
         retMap = {}
-        for tmpName, tmpVal in self.all.iteritems():
+        for tmpName,tmpVal in self.all.iteritems():
             token = tmpVal['ddm_spacetoken_name']
             # already exists
             if token in retMap:
                 # use default
-                if retMap[token] == self.default_read and mode=='input':
-                    continue
-                if retMap[token] == self.default_write and mode=='output':
+                if retMap[token] == self.default:
                     continue
                 # use local
                 if retMap[token] in self.local:
