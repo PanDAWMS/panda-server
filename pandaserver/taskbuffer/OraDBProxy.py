@@ -1557,7 +1557,7 @@ class DBProxy:
                         # kill other consumers
                         self.killEventServiceConsumers(job,False,False)
                         self.killUnusedEventServiceConsumers(job,False)
-                        _logger.debug("in archiveJobs {0}".format(job))
+                        _logger.debug("archiveJobs: {0}, job object {1}".format(job.PandaID, job))
                     elif retEvS == 4:
                         # other consumers are running
                         job.jobStatus = 'merging'
