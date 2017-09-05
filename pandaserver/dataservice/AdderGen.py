@@ -254,7 +254,9 @@ class AdderGen:
                         source = 'transExitCode'
                         error_code = self.job.transExitCode
                         error_diag = ''
-
+            
+                    # _logger.info("updatejob has source %s, error_code %s and error_diag %s"%(source, error_code, error_diag))
+                    
                     if source and error_code:
                         try:
                             self.logger.debug("AdderGen.run will call apply_retrial_rules")
@@ -318,10 +320,8 @@ class AdderGen:
                     pass
                 else:
                     self.logger.debug("updating DB")
-                    self.logger.debug("before updateJobs {0}".format(self.job))
                     retU = self.taskBuffer.updateJobs([self.job],False,oldJobStatusList=[oldJobStatus],
                                                       extraInfo=self.extraInfo)
-                    self.logger.debug("after updateJobs {0}".format(self.job))
                     self.logger.debug("retU: %s" % retU)
                     # failed
                     if not retU[0]:
@@ -335,9 +335,8 @@ class AdderGen:
                             self.logger.debug(": %s %s" % (type,value))
                             self.logger.debug("cannot unlock XML")
                         return
-
                     # updateJobs was successful and it failed a job with taskBufferErrorCode
-                    if self.job.jobStatus == 'failed' and self.job.taskBufferErrorCode:
+                    elif self.job.jobStatus == 'failed' and self.job.taskBufferErrorCode:
                         source = 'taskBufferErrorCode'
                         error_code = self.job.taskBufferErrorCode
                         error_diag = self.job.taskBufferErrorDiag
