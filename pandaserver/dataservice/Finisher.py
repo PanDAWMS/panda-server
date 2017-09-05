@@ -56,9 +56,9 @@ class Finisher (threading.Thread):
                 # get corresponding token
                 tmpSrcSiteSpec = siteMapper.getSite(computingSite)
                 tmpDstSiteSpec = siteMapper.getSite(destinationSE)
-                _logger.debug(tmpDstSiteSpec.setokens_output)
+                _logger.debug(tmpDstSiteSpec.setokens)
                 destToken = None
-                for tmpToken,tmpDdmId in tmpDstSiteSpec.setokens_output.iteritems():
+                for tmpToken,tmpDdmId in tmpDstSiteSpec.setokens.iteritems():
                     if self.site == tmpDdmId:
                         destToken = tmpToken
                         break
@@ -81,7 +81,7 @@ class Finisher (threading.Thread):
                 # completed bitmap
                 compBitMap = (1 << len(reqTokens.split(',')))-1
                 # ignore the lowest bit for T1, file on DISK is already there
-                if tmpSrcSiteSpec.ddm_output == tmpDstSiteSpec.ddm_output:
+                if tmpSrcSiteSpec.ddm == tmpDstSiteSpec.ddm:
                     compBitMap = compBitMap & 0xFFFE
                 # update bitmap in DB
                 updatedBitMap = self.taskBuffer.updateTransferStatus(self.dataset.name,bitMap)

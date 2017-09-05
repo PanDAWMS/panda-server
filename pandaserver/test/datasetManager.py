@@ -601,7 +601,7 @@ class T2Cleaner (threading.Thread):
                             _logger.error("cannot find cloud for %s : %s" % (name,str(tmpRepSites)))
                         else:
                             _logger.debug('cloud=%s for %s' % (cloudName,name))
-                            t1SiteDDMs  = siteMapper.getSite(destSE).setokens_output.values() # TODO: check with Tadashi
+                            t1SiteDDMs  = siteMapper.getSite(destSE).setokens.values()
                             specifiedDest = DataServiceUtils.getDestinationSE(destDBlockToken)
                             if specifiedDest != None:
                                 t1SiteDDMs.append(specifiedDest)
@@ -811,7 +811,7 @@ class FinisherThr (threading.Thread):
                 if job.prodSourceLabel == 'user' and not siteMapper.siteSpecList.has_key(job.destinationSE):
                     # using --destSE for analysis job to transfer output
                     seList = [job.destinationSE]
-                elif tmpNucleus is not None:
+                elif tmpNucleus != None:
                     seList = tmpNucleus.allDdmEndPoints.keys()
                 elif siteMapper.checkCloud(job.cloud):
                     # normal production jobs
@@ -820,7 +820,7 @@ class FinisherThr (threading.Thread):
                     else:
                         tmpDstID = job.destinationSE
                     tmpDstSite = siteMapper.getSite(tmpDstID)
-                    seList = tmpDstSite.ddm_endpoints_output.getLocalEndPoints()
+                    seList = tmpDstSite.ddm_endpoints.getLocalEndPoints()
                 # get LFN list
                 lfns   = []
                 guids  = []
@@ -1003,8 +1003,8 @@ class ActivatorThr (threading.Thread):
                             # check RSEs
                             if tmpFile.lfn in okFiles:
                                 for rse in okFiles[tmpFile.lfn]:
-                                    if siteSpec.ddm_endpoints_input.isAssociated(rse) and \
-                                            siteSpec.ddm_endpoints_input.getEndPoint(rse)['is_tape'] == 'N':
+                                    if siteSpec.ddm_endpoints.isAssociated(rse) and \
+                                            siteSpec.ddm_endpoints.getEndPoint(rse)['is_tape'] == 'N':
                                         tmpFile.status = 'ready'
                                         break
                             # missing
