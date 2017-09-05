@@ -17,20 +17,23 @@ class DdmSpec(object):
 
     # add endpoint
     def add(self, endPoint, endpointDict):
-        name = endPoint['ddm_endpoint_name']
-        # all endpoints
-        self.all[name] = endpointDict[name]
-        # local endpoints
-        if endPoint['is_local'] != 'N':
-            self.local.add(name)
-        # defaults
-        if endPoint['default_read'] == 'Y':
-            self.default_read = name
-        if endPoint['default_write'] == 'Y':
-            self.default_write = name
-        # tape
-        if endPoint['is_tape'] == 'Y':
-            self.tape.add(name)
+        try:
+            name = endPoint['ddm_endpoint_name']
+            # all endpoints
+            self.all[name] = endpointDict[name]
+            # local endpoints
+            if endPoint['is_local'] != 'N':
+                self.local.add(name)
+            # defaults
+            if endPoint['default_read'] == 'Y':
+                self.default_read = name
+            if endPoint['default_write'] == 'Y':
+                self.default_write = name
+            # tape
+            if endPoint['is_tape'] == 'Y':
+                self.tape.add(name)
+        except KeyError:
+            pass
 
     # get all endpoints
     def getAllEndPoints(self):
@@ -75,7 +78,7 @@ class DdmSpec(object):
             return self.all[patt]
         for endPointName in self.all.keys():
             # ignore TEST or SPECIAL
-            if self.all[endPointName]['type'] in ['TEST','SPECIAL']:
+            if self.all[endPointName]['type'] in ['SPECIAL']:  # 'TEST'
                 continue
             # check name
             if re.search(patt,endPointName) != None:
