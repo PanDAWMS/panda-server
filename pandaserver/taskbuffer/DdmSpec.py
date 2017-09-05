@@ -88,7 +88,7 @@ class DdmSpec(object):
             return self.all[patt]
         for endPointName in self.all.keys():
             # ignore TEST or SPECIAL
-            if self.all[endPointName]['type'] in ['SPECIAL']: # 'TEST'
+            if self.all[endPointName]['type'] in ['TEST', 'SPECIAL']:
                 continue
             # check name
             if re.search(patt,endPointName) != None:

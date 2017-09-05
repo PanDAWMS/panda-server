@@ -9685,8 +9685,8 @@ class DBProxy:
             for columName,columVal in zip(columNames,tmpRes):
                 tmpEP[columName] = columVal
             # ignore TEST
-            #if tmp_endpoint['type'] == 'TEST':
-            #    continue
+            if tmp_endpoint['type'] == 'TEST':
+                continue
 
             endpoint_dict[tmp_endpoint['ddm_endpoint_name']] = tmp_endpoint
         
