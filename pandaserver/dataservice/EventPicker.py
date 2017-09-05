@@ -271,7 +271,7 @@ class EventPicker:
                         if not tmpStatus:
                             raise RuntimeError,'user info not found for {0} with {1}'.format(tmpDN,userInfo)
                         tmpDN = userInfo['nickname']
-                        tmpDQ2ID = self.siteMapper.getSite(tmpJob.computingSite).ddm_input
+                        tmpDQ2ID = self.siteMapper.getSite(tmpJob.computingSite).ddm
                         tmpMsg = "%s ds=%s site=%s id=%s" % ('registerDatasetLocation for DaTRI ',
                                                              tmpUserDatasetName,
                                                              tmpDQ2ID,

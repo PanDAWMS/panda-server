@@ -1557,6 +1557,7 @@ class DBProxy:
                         # kill other consumers
                         self.killEventServiceConsumers(job,False,False)
                         self.killUnusedEventServiceConsumers(job,False)
+                        _logger.debug("archiveJobs: {0}, job object {1}".format(job.PandaID, job))
                     elif retEvS == 4:
                         # other consumers are running
                         job.jobStatus = 'merging'
@@ -9458,8 +9459,8 @@ class DBProxy:
                     ret.sitename   = siteid
                     ret.nickname   = nickname
                     ret.dq2url     = dq2url
-                    ret.ddm = ddm.split(',')[0]
                     ret.cloud      = cloud.split(',')[0]
+                    ret.ddm        = ddm.split(',')[0]
                     ret.lfchost    = lfchost
                     ret.gatekeeper = gatekeeper
                     ret.memory     = memory
@@ -9536,7 +9537,7 @@ class DBProxy:
                     else:
                         ret.mintime = 0
                     # reliability
-                    tmpPrefix = re.sub('_[^_]+DISK$','',ret.ddm) # TODO: ask Tadashi what is the reliability map
+                    tmpPrefix = re.sub('_[^_]+DISK$','',ret.ddm)
                     if reliabilityMap.has_key(tmpPrefix):
                         ret.reliabilityLevel = reliabilityMap[tmpPrefix]
                     else:
@@ -9642,20 +9643,12 @@ class DBProxy:
                         ret.wansinklimit = wansinklimit
                     # DDM endpoints
                     if siteid in pandaEndpointMap:
-                        ret.ddm_endpoints_input = pandaEndpointMap[siteid]['input']
-                        ret.ddm_endpoints_output = pandaEndpointMap[siteid]['output']
+                        ret.ddm_endpoints = pandaEndpointMap[siteid]
                     else:
                         # empty
-                        ret.ddm_endpoints_input = DdmSpec()
-                        ret.ddm_endpoints_output = DdmSpec()
+                        ret.ddm_endpoints = DdmSpec()
                     # mapping between token and endpoints
-                    ret.setokens_input = ret.ddm_endpoints_input.getTokenMap('input')
-                    ret.setokens_output = ret.ddm_endpoints_output.getTokenMap('output')
-
-                    # set DDM to the default endpoint
-                    ret.ddm_input = ret.ddm_endpoints_input.getDefaultRead()
-                    ret.ddm_output = ret.ddm_endpoints_output.getDefaultWrite()
-
+                    ret.setokens = ret.ddm_endpoints.getTokenMap()
                     # object stores
                     try:
                         ret.objectstores = json.loads(objectstores)
@@ -9675,33 +9668,24 @@ class DBProxy:
             return {}
 
 
+    # get list of ddm endpoints
     def getDdmEndpoints(self):
-        """
-        get list of ddm input endpoints
-        """
         comment = ' /* DBProxy.getDdmEndpoints */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         _logger.debug("{0} start".format(methodName))
-        
-        # get all ddm endpoints
-        sql_ddm  = "SELECT * FROM ATLAS_PANDA.ddm_endpoint "
+        # get endpoints
+        sqlD  = "SELECT * FROM ATLAS_PANDA.ddm_endpoint "
         self.cur.arraysize = 10000            
-        self.cur.execute('{0}{1}'.format(sql_ddm, comment))
-        results_ddm = self.cur.fetchall()
-        
-        # extract the column names from the query
-        column_names = [i[0].lower() for i in self.cur.description]
-
-        # save the endpoints into a dictionary
-        endpoint_dict = {}
-        for ddm_endpoint_row in results_ddm:
-            tmp_endpoint = {}
-            # unzip the ddm_endpoint row into a dictionary
-            for column_name, column_val in zip(column_names, ddm_endpoint_row):
-                tmp_endpoint[column_name] = column_val
-            
+        self.cur.execute(sqlD+comment)
+        resD = self.cur.fetchall()
+        columNames = [i[0].lower() for i in self.cur.description]
+        endpointDict = {}
+        for tmpRes in resD:
+            tmpEP = {}
+            for columName,columVal in zip(columNames,tmpRes):
+                tmpEP[columName] = columVal
             # ignore TEST
-            # if tmp_endpoint['type'] == 'TEST':
+            #if tmp_endpoint['type'] == 'TEST':
             #    continue
 
             endpoint_dict[tmp_endpoint['ddm_endpoint_name']] = tmp_endpoint
@@ -9737,7 +9721,7 @@ class DBProxy:
                 panda_endpoint_map[panda_site_name]['output'].add(tmp_relation, endpoint_dict)
         
         _logger.debug("{0} done".format(methodName))
-        return panda_endpoint_map
+        return pandaEndpointMap
 
 
 

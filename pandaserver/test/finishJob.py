@@ -53,10 +53,10 @@ for file in job.Files:
     if file.type in ['output','log']:
         file.GUID = commands.getoutput('uuidgen')
         if job.computingSite == file.destinationSE and \
-                siteSpec.setokens_output.has_key(file.destinationDBlockToken):
-            tmpSrcDDM = siteSpec.setokens_output[file.destinationDBlockToken]
+                siteSpec.setokens.has_key(file.destinationDBlockToken):
+            tmpSrcDDM = siteSpec.setokens[file.destinationDBlockToken]
         else:
-            tmpSrcDDM = siteMapper.getSite(job.computingSite).ddm_output
+            tmpSrcDDM = siteMapper.getSite(job.computingSite).ddm
         srm = TiersOfATLAS.getSiteProperty(tmpSrcDDM,'srm')
         srm = re.sub('^token:[^:]+:','',srm)
         xml += """
