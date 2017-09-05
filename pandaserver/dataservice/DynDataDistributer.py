@@ -392,7 +392,7 @@ class DynDataDistributer:
         for cloud in self.pd2pClouds:
             # DQ2 prefix of T1
             tmpT1SiteID = self.siteMapper.getCloud(cloud)['source']
-            tmpT1DQ2ID  = self.siteMapper.getSite(tmpT1SiteID).ddm
+            tmpT1DQ2ID  = self.siteMapper.getSite(tmpT1SiteID).ddm_input # TODO: check with Tadashi
             prefixDQ2T1 = re.sub('[^_]+DISK$','',tmpT1DQ2ID)
             # loop over all datasets     
             for tmpDS,tmpRepMap in tmpRepMaps.iteritems():
@@ -440,7 +440,7 @@ class DynDataDistributer:
                     if tmpSiteSpec.cloud != cloud:
                         continue
                     # prefix of DQ2 ID
-                    prefixDQ2 = re.sub('[^_]+DISK$','',tmpSiteSpec.ddm)
+                    prefixDQ2 = re.sub('[^_]+DISK$','',tmpSiteSpec.ddm_input) # TODO: Check with Tadashi
                     # skip T1
                     if prefixDQ2 == prefixDQ2T1:
                         continue
@@ -492,7 +492,7 @@ class DynDataDistributer:
         if not self.siteMapper.checkSite(sitename):
             self.putLog("cannot find SiteSpec for %s" % sitename)
             return ''
-        dq2ID = self.siteMapper.getSite(sitename).ddm
+        dq2ID = self.siteMapper.getSite(sitename).ddm_input # TODO: check with Tadashi
         if True:
             # data
             matchEOS = re.search('_EOS[^_]+DISK$',dq2ID)
