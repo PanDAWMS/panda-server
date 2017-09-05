@@ -335,8 +335,9 @@ class AdderGen:
                             self.logger.debug(": %s %s" % (type,value))
                             self.logger.debug("cannot unlock XML")
                         return
+
                     # updateJobs was successful and it failed a job with taskBufferErrorCode
-                    elif self.job.jobStatus == 'failed' and self.job.taskBufferErrorCode:
+                    if self.job.jobStatus == 'failed' and self.job.taskBufferErrorCode:
                         source = 'taskBufferErrorCode'
                         error_code = self.job.taskBufferErrorCode
                         error_diag = self.job.taskBufferErrorDiag
