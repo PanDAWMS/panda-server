@@ -179,8 +179,6 @@ class RucioAPI:
             meta['panda_id'] = tmpFile['panda_id']
         if 'campaign' in tmpFile:
             meta['campaign'] = tmpFile['campaign']
-        if 'task_id' in tmpFile:
-            meta['task_id'] = tmpFile['task_id']
         if 'bytes' in tmpFile:
             fsize = tmpFile['bytes']
         else:

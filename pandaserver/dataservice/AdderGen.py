@@ -335,19 +335,6 @@ class AdderGen:
                             self.logger.debug(": %s %s" % (type,value))
                             self.logger.debug("cannot unlock XML")
                         return
-                    # updateJobs was successful and it failed a job with taskBufferErrorCode
-                    elif self.job.jobStatus == 'failed' and self.job.taskBufferErrorCode:
-                        source = 'taskBufferErrorCode'
-                        error_code = self.job.taskBufferErrorCode
-                        error_diag = self.job.taskBufferErrorDiag
-                        try:
-                            self.logger.debug("AdderGen.run 2 will call apply_retrial_rules")
-                            retryModule.apply_retrial_rules(self.taskBuffer, self.job.PandaID, source, error_code,
-                                                            error_diag, self.job.attemptNr)
-                            self.logger.debug("apply_retrial_rules 2 is back")
-                        except Exception as e:
-                            self.logger.error("apply_retrial_rules 2 excepted and needs to be investigated (%s)" % (e))
-
                     # setup for closer
                     if not (EventServiceUtils.isEventServiceJob(self.job) and self.job.isCancelled()):
                         destDBList = []
@@ -414,16 +401,16 @@ class AdderGen:
             type, value, traceBack = sys.exc_info()
             errStr = ": %s %s " % (type,value)
             errStr += traceback.format_exc()
-            self.logger.error(errStr)
-            self.logger.error("except")
+            self.logger.debug(errStr)
+            self.logger.debug("except")
             # unlock XML just in case
             try:
                 if self.lockXML != None:
                     fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
             except:
                 type, value, traceBack = sys.exc_info()
-                self.logger.error(": %s %s" % (type,value))
-                self.logger.error("cannot unlock XML")
+                self.logger.debug(": %s %s" % (type,value))
+                self.logger.debug("cannot unlock XML")
 
 
     # parse XML
