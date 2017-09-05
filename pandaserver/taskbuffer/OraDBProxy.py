@@ -9701,8 +9701,8 @@ class DBProxy:
                 tmp_endpoint[column_name] = column_val
             
             # ignore TEST
-            # if tmp_endpoint['type'] == 'TEST':
-            #    continue
+            if tmp_endpoint['type'] == 'TEST':
+                continue
 
             endpoint_dict[tmp_endpoint['ddm_endpoint_name']] = tmp_endpoint
         
