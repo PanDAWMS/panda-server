@@ -79,7 +79,7 @@ if not tmpSelf.__dict__.has_key('def_nickname'):
 if not tmpSelf.__dict__.has_key('def_dq2url'):
     tmpSelf.__dict__['def_dq2url']= 'http://dms02.usatlas.bnl.gov:8000/dq2/'
 if not tmpSelf.__dict__.has_key('def_ddm'):
-    tmpSelf.__dict__['def_ddm']= 'PANDA_UNDEFINED'
+    tmpSelf.__dict__['def_ddm']= 'PANDA_UNDEFINED2'
 if not tmpSelf.__dict__.has_key('def_type'):
     tmpSelf.__dict__['def_type']= 'production'
 if not tmpSelf.__dict__.has_key('def_gatekeeper'):
