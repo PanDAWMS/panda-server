@@ -401,16 +401,16 @@ class AdderGen:
             type, value, traceBack = sys.exc_info()
             errStr = ": %s %s " % (type,value)
             errStr += traceback.format_exc()
-            self.logger.debug(errStr)
-            self.logger.debug("except")
+            self.logger.error(errStr)
+            self.logger.error("except")
             # unlock XML just in case
             try:
                 if self.lockXML != None:
                     fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
             except:
                 type, value, traceBack = sys.exc_info()
-                self.logger.debug(": %s %s" % (type,value))
-                self.logger.debug("cannot unlock XML")
+                self.logger.error(": %s %s" % (type,value))
+                self.logger.error("cannot unlock XML")
 
 
     # parse XML
