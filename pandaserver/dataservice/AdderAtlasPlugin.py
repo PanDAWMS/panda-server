@@ -820,7 +820,18 @@ class AdderAtlasPlugin (AdderPluginBase):
                 fileData = {'scope' : EventServiceUtils.esScopeDDM,
                             'name'  : fileSpec.lfn,
                             'bytes' : fileSpec.fsize,
+                            'panda_id': fileSpec.PandaID,
+                            'task_id': fileSpec.jediTaskID
                             }
+                if fileSpec.GUID not in [None, 'NULL', '']:
+                    fileData['guid'] = fileSpec.GUID
+                if fileSpec.dispatchDBlockToken not in [None, 'NULL', '']:
+                    try:
+                        fileData['events'] = long(fileSpec.dispatchDBlockToken)
+                    except:
+                        pass
+                if fileSpec.checksum not in [None, 'NULL', '']:
+                    fileData['checksum'] = fileSpec.checksum
                 # get endpoint ID
                 epID = int(fileSpec.destinationSE.split('/')[0])
                 # convert to DDM endpoint

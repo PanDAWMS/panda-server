@@ -14696,10 +14696,15 @@ class DBProxy:
                                         zipFileSpec = FileSpec()
                                         zipFileSpec.jediTaskID = jediTaskID
                                         zipFileSpec.lfn = eventDict['zipFile']['lfn']
+                                        zipFileSpec.GUID = str(uuid.uuid4())
                                         if 'fsize' in eventDict['zipFile']:
                                             zipFileSpec.fsize = long(eventDict['zipFile']['fsize'])
                                         else:
                                             zipFileSpec.fsize = 0
+                                        if 'adler32' in eventDict['zipFile']:
+                                            zipFileSpec.checksum = 'ad:{0}'.format(eventDict['zipFile']['adler32'])
+                                        if 'numEvents' in eventDict['zipFile']:
+                                            zipFileSpec.dispatchDBlockToken = eventDict['zipFile']['numEvents']
                                         zipFileSpec.type = 'zipoutput'
                                         zipFileSpec.status = 'ready'
                                         zipFileSpec.destinationSE = eventDict['zipFile']['objstoreID']
