@@ -338,6 +338,7 @@ class AdderGen:
                     # updateJobs was successful and it failed a job with taskBufferErrorCode
                     elif self.job.jobStatus == 'failed':
                         try:
+                            self.logger.debug("AdderGen.run will peek the job")
                             job_tmp = self.taskBuffer.peekJobs([self.job.PandaID], fromDefined=False, fromArchived=True, fromWaiting=False)[0]
                             if job_tmp.taskBufferErrorCode:
                                 source = 'taskBufferErrorCode'
