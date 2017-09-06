@@ -124,18 +124,24 @@ class Watcher (threading.Thread):
                         except Exception as e:
                             _logger.debug("apply_retrial_rules excepted and needs to be investigated (%s)"%(e))
 
-                        # Additional call if there is also a taskbuffer error code
-                        if job.taskBufferErrorCode:
-                            source = 'taskBufferErrorCode'
-                            error_code = job.taskBufferErrorCode
-                            error_diag = job.taskBufferErrorDiag
-                            try:
-                                _logger.debug("Watcher will call apply_retrial_rules 2")
-                                retryModule.apply_retrial_rules(self.taskBuffer, job.PandaID, source, error_code,
-                                                                error_diag, job.attemptNr)
-                                _logger.debug("apply_retrial_rules 2 is back")
-                            except Exception as e:
-                                _logger.debug("apply_retrial_rules 2 excepted and needs to be investigated (%s)" % (e))
+                        # updateJobs was successful and it failed a job with taskBufferErrorCode
+                        try:
+
+                            self.logger.debug("AdderGen.run will peek the job")
+                            job_tmp = self.taskBuffer.peekJobs([job.PandaID], fromDefined=False, fromArchived=True,
+                                                               fromWaiting=False)[0]
+                            if job_tmp.taskBufferErrorCode:
+                                source = 'taskBufferErrorCode'
+                                error_code = job_tmp.taskBufferErrorCode
+                                error_diag = job_tmp.taskBufferErrorDiag
+                                self.logger.debug("AdderGen.run 2 will call apply_retrial_rules")
+                                retryModule.apply_retrial_rules(self.taskBuffer, job_tmp.PandaID, source, error_code,
+                                                                error_diag, job_tmp.attemptNr)
+                                self.logger.debug("apply_retrial_rules 2 is back")
+                        except IndexError:
+                            pass
+                        except Exception as e:
+                            self.logger.error("apply_retrial_rules 2 excepted and needs to be investigated (%s)" % (e))
 
                         cThr = Closer(self.taskBuffer,destDBList,job)
                         cThr.start()
