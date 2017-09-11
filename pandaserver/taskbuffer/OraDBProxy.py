@@ -17377,7 +17377,6 @@ class DBProxy:
                 WHERE JEDITaskID = :taskID
                 AND datasetID IN ({0})
                 AND fileID IN ({1})
-                AND pandaID = :pandaID
                 """.format(dataset_bindings, file_bindings)
     
                 self.cur.execute(sql_update + comment, varMap)
