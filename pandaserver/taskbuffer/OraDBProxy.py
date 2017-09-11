@@ -17355,7 +17355,6 @@ class DBProxy:
     
                 varMap = {}
                 varMap[':taskID'] = taskID
-                varMap[':pandaID'] = jobID
     
                 # Bind the files
                 f = 0
