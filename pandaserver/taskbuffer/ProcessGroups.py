@@ -1,5 +1,6 @@
 processGroups = [('others',       []),
                  ('evgensimul',   ['evgen','simul']),
+                 ('evgen',        ['evgen']),
                  ('reprocessing', ['reprocessing']),
                  ('test',         ['prod_test','rc_test','validation']),
                  ('mcore',        ['mcore']),

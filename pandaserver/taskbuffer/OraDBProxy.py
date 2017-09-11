@@ -17279,7 +17279,6 @@ class DBProxy:
         if input_fileIDs:
             #Start transaction
             self.conn.begin()
-
             
             varMap = {}
             varMap[':taskID'] = taskID
@@ -17313,8 +17312,7 @@ class DBProxy:
             except TypeError, IndexError:
                 maxAttempt_select = None
 
-            #Don't update the maxAttempt if the value in the retrial table is lower
-            #than the value defined in the task
+            # Don't update the maxAttempt if the new value is higher than the old value
             if maxAttempt_select and maxAttempt_select > maxAttempt:
                 varMap[':maxAttempt'] = min(maxAttempt, maxAttempt_select)
 
@@ -17330,6 +17328,60 @@ class DBProxy:
                 self.cur.execute(sql_update+comment, varMap)
 
             #Commit updates
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+
+        tmpLog.debug("done")
+        return True
+
+
+    def setNotRetry(self, jobID, taskID, files):
+        # Logging
+        comment = ' /* DBProxy.setMaxAttempt */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, methodName)
+        tmpLog.debug("start")
+
+        # Update the file entries to avoid JEDI generating new jobs
+        input_types = ('input', 'pseudo_input', 'pp_input', 'trn_log', 'trn_output')
+        input_files = filter(lambda pandafile: pandafile.type in input_types and re.search('DBRelease', pandafile.lfn) == None, files)
+        input_fileIDs = [input_file.fileID for input_file in input_files]
+        input_datasetIDs = [input_file.datasetID for input_file in input_files]
+
+        if input_fileIDs:
+            # Start transaction
+            self.conn.begin()
+
+            varMap = {}
+            varMap[':taskID'] = taskID
+            varMap[':pandaID'] = jobID
+
+            # Bind the files
+            f = 0
+            for fileID in input_fileIDs:
+                varMap[':file{0}'.format(f)] = fileID
+                f += 1
+            file_bindings = ','.join(':file{0}'.format(i) for i in xrange(len(input_fileIDs)))
+
+            # Bind the datasets
+            d = 0
+            for datasetID in input_datasetIDs:
+                varMap[':dataset{0}'.format(d)] = datasetID
+                d += 1
+            dataset_bindings = ','.join(':dataset{0}'.format(i) for i in xrange(len(input_fileIDs)))
+
+            sql_update = """
+            UPDATE ATLAS_PANDA.JEDI_Dataset_Contents
+            SET maxAttempt=attemptNr
+            WHERE JEDITaskID = :taskID
+            AND datasetID IN ({0})
+            AND fileID IN ({1})
+            AND pandaID = :pandaID
+            """.format(dataset_bindings, file_bindings)
+
+            self.cur.execute(sql_update + comment, varMap)
+
+            # Commit updates
             if not self._commit():
                 raise RuntimeError, 'Commit error'
 
