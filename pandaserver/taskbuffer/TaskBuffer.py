@@ -2900,7 +2900,7 @@ class TaskBuffer:
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.setNotRetry(jobID, jediTaskID, files)
+        ret = proxy.setNoRetry(jobID, jediTaskID, files)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
