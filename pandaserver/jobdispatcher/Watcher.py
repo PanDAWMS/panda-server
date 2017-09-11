@@ -9,6 +9,7 @@ import time
 import commands
 import datetime
 import threading
+import traceback
 import ErrorCode
 
 import taskbuffer.ErrorCode
@@ -122,7 +123,7 @@ class Watcher (threading.Thread):
                                                             error_diag, job.attemptNr)
                             _logger.debug("apply_retrial_rules is back")
                         except Exception as e:
-                            _logger.debug("apply_retrial_rules excepted and needs to be investigated (%s)"%(e))
+                            _logger.debug("apply_retrial_rules excepted and needs to be investigated (%s): %s"%(e, traceback.format_exc()))
 
                         # updateJobs was successful and it failed a job with taskBufferErrorCode
                         try:
@@ -141,7 +142,7 @@ class Watcher (threading.Thread):
                         except IndexError:
                             pass
                         except Exception as e:
-                            self.logger.error("apply_retrial_rules 2 excepted and needs to be investigated (%s)" % (e))
+                            self.logger.error("apply_retrial_rules 2 excepted and needs to be investigated (%s): %s" % (e, traceback.format_exc()))
 
                         cThr = Closer(self.taskBuffer,destDBList,job)
                         cThr.start()

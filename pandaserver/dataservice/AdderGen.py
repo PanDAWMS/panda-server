@@ -263,7 +263,7 @@ class AdderGen:
                             retryModule.apply_retrial_rules(self.taskBuffer, self.job.PandaID, source, error_code, error_diag, self.job.attemptNr)
                             self.logger.debug("apply_retrial_rules is back")
                         except Exception as e:
-                            self.logger.error("apply_retrial_rules excepted and needs to be investigated (%s)"%(e))
+                            self.logger.error("apply_retrial_rules excepted and needs to be investigated (%s): %s"%(e, traceback.format_exc()))
                     
                     self.job.jobStatus = 'failed'
                     for file in self.job.Files:
@@ -355,7 +355,7 @@ class AdderGen:
                     except IndexError:
                         pass
                     except Exception as e:
-                        self.logger.error("apply_retrial_rules 2 excepted and needs to be investigated (%s)" % (e))
+                        self.logger.error("apply_retrial_rules 2 excepted and needs to be investigated (%s): %s" % (e, traceback.format_exc()))
 
                     # setup for closer
                     if not (EventServiceUtils.isEventServiceJob(self.job) and self.job.isCancelled()):
