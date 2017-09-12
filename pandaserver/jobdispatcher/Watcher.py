@@ -9,6 +9,7 @@ import time
 import commands
 import datetime
 import threading
+import traceback
 import ErrorCode
 
 import taskbuffer.ErrorCode
@@ -121,7 +122,26 @@ class Watcher (threading.Thread):
                             retryModule.apply_retrial_rules(self.taskBuffer, job.PandaID, source, error_code, error_diag, job.attemptNr)
                             _logger.debug("apply_retrial_rules is back")
                         except Exception as e:
-                            _logger.debug("apply_retrial_rules excepted and needs to be investigated (%s)"%(e))
+                            _logger.debug("apply_retrial_rules excepted and needs to be investigated (%s): %s"%(e, traceback.format_exc()))
+
+                        # updateJobs was successful and it failed a job with taskBufferErrorCode
+                        try:
+
+                            _logger.debug("Watcher.run will peek the job")
+                            job_tmp = self.taskBuffer.peekJobs([job.PandaID], fromDefined=False, fromArchived=True,
+                                                               fromWaiting=False)[0]
+                            if job_tmp.taskBufferErrorCode:
+                                source = 'taskBufferErrorCode'
+                                error_code = job_tmp.taskBufferErrorCode
+                                error_diag = job_tmp.taskBufferErrorDiag
+                                _logger.debug("Watcher.run 2 will call apply_retrial_rules")
+                                retryModule.apply_retrial_rules(self.taskBuffer, job_tmp.PandaID, source, error_code,
+                                                                error_diag, job_tmp.attemptNr)
+                                _logger.debug("apply_retrial_rules 2 is back")
+                        except IndexError:
+                            pass
+                        except Exception as e:
+                            self.logger.error("apply_retrial_rules 2 excepted and needs to be investigated (%s): %s" % (e, traceback.format_exc()))
 
                         cThr = Closer(self.taskBuffer,destDBList,job)
                         cThr.start()

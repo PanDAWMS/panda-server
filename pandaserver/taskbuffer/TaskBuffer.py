@@ -2895,6 +2895,19 @@ class TaskBuffer:
 
 
 
+    # retry module action: set maxAttempt to the current attemptNr to avoid further retries
+    def setNoRetry(self, jobID, jediTaskID, files):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.setNoRetry(jobID, jediTaskID, files)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
     # retry module action: increase CPU Time
     def increaseCpuTimeTask(self, jobID, taskID, siteid, files, active):
         # get proxy

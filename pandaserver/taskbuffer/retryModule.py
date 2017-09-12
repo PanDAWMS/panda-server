@@ -12,26 +12,6 @@ INCREASE_MEM = 'increase_memory'
 LIMIT_RETRY = 'limit_retry'
 INCREASE_CPU = 'increase_cputime'
 
-
-def pandalog(message):
-    """
-    Function to send message to panda logger.
-    https://github.com/PanDAWMS/panda-jedi/blob/master/pandajedi/jediorder/JobGenerator.py#L405
-    """
-    try:
-        # get logger and lock it
-        tmpPandaLogger = PandaLogger()
-        tmpPandaLogger.lock()
-        # set category (usually prod) and type
-        tmpPandaLogger.setParams({'Type':'retryModule'})
-        tmpLogger = tmpPandaLogger.getHttpLogger(panda_config.loggername)
-        # send the message and release the logger
-        tmpLogger.debug(message)
-        tmpPandaLogger.release()
-    except Exception as e:
-        _logger.warning("Could not upload message (%s) to pandamon logger. (Error: %s)"%(message, e))
-
-
 def timeit(method):
     """
     Decorator function to time the execution time of any given method. Use as decorator.
@@ -227,11 +207,10 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
                 
                 if action == NO_RETRY:
                     if active:
-                        task_buffer.setMaxAttempt(jobID, job.jediTaskID, job.Files, attemptNr)
+                        task_buffer.setNoRetry(jobID, job.jediTaskID, job.Files)
                     # Log to pandamon and logfile
-                    message = "action=setMaxAttempt for PandaID={0} jediTaskID={1} maxAttempt={2} ( ErrorSource={3} ErrorCode={4} ErrorDiag: {5}. Error/action active={6} error_id={7} )"\
-                        .format(jobID, job.jediTaskID, attemptNr, error_source, error_code, error_diag_rule, active, error_id)
-                    pandalog(message)
+                    message = "action=setNoRetry for PandaID={0} jediTaskID={1} ( ErrorSource={2} ErrorCode={3} ErrorDiag: {4}. Error/action active={5} error_id={6} )"\
+                        .format(jobID, job.jediTaskID, error_source, error_code, error_diag_rule, active, error_id)
                     _logger.info(message)
                 
                 elif action == LIMIT_RETRY:
@@ -241,7 +220,6 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
                         # Log to pandamon and logfile
                         message = "action=setMaxAttempt for PandaID={0} jediTaskID={1} maxAttempt={2} ( ErrorSource={3} ErrorCode={4} ErrorDiag: {5}. Error/action active={6} error_id={7} )"\
                             .format(jobID, job.jediTaskID, int(parameters['maxAttempt']), error_source, error_code, error_diag_rule, active, error_id)
-                        pandalog(message)
                         _logger.info(message)
                     except (KeyError, ValueError):
                         _logger.error("Inconsistent definition of limit_retry rule - maxAttempt not defined. parameters: %s" %parameters)
@@ -253,7 +231,6 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
                         # Log to pandamon and logfile
                         message = "action=increaseRAMLimit for PandaID={0} jediTaskID={1} ( ErrorSource={2} ErrorCode={3} ErrorDiag: {4}. Error/action active={5} error_id={6} )"\
                             .format(jobID, job.jediTaskID,  error_source, error_code, error_diag_rule, active, error_id)
-                        pandalog(message)
                         _logger.info(message)
                     except:
                         errtype,errvalue = sys.exc_info()[:2]
@@ -276,7 +253,6 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
                         # Log to pandamon and logfile
                         message = "action=increaseCpuTime requested recalculation of task parameters for PandaID={0} jediTaskID={1} (active={2} ), applied={3}. ( ErrorSource={4} ErrorCode={5} ErrorDiag: {6}. Error/action active={7} error_id={8} )"\
                             .format(jobID, job.jediTaskID, active, applied, error_source, error_code, error_diag_rule, active, error_id)
-                        pandalog(message)
                         _logger.info(message)
                     except:
                         errtype,errvalue = sys.exc_info()[:2]

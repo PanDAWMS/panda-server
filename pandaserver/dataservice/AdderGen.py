@@ -263,7 +263,7 @@ class AdderGen:
                             retryModule.apply_retrial_rules(self.taskBuffer, self.job.PandaID, source, error_code, error_diag, self.job.attemptNr)
                             self.logger.debug("apply_retrial_rules is back")
                         except Exception as e:
-                            self.logger.error("apply_retrial_rules excepted and needs to be investigated (%s)"%(e))
+                            self.logger.error("apply_retrial_rules excepted and needs to be investigated (%s): %s"%(e, traceback.format_exc()))
                     
                     self.job.jobStatus = 'failed'
                     for file in self.job.Files:
@@ -335,6 +335,28 @@ class AdderGen:
                             self.logger.debug(": %s %s" % (type,value))
                             self.logger.debug("cannot unlock XML")
                         return
+
+                    try:
+                        # updateJobs was successful and it failed a job with taskBufferErrorCode
+                        self.logger.debug("AdderGen.run will peek the job")
+                        job_tmp = self.taskBuffer.peekJobs([self.job.PandaID], fromDefined=False, fromArchived=True,
+                                                           fromWaiting=False)[0]
+                        self.logger.debug("status {0}, taskBufferErrorCode {1}, taskBufferErrorDiag {2}".format(job_tmp.jobStatus,
+                                                                                                                job_tmp.taskBufferErrorCode,
+                                                                                                                job_tmp.taskBufferErrorDiag))
+                        if job_tmp.jobStatus == 'failed' and job_tmp.taskBufferErrorCode:
+                            source = 'taskBufferErrorCode'
+                            error_code = job_tmp.taskBufferErrorCode
+                            error_diag = job_tmp.taskBufferErrorDiag
+                            self.logger.debug("AdderGen.run 2 will call apply_retrial_rules")
+                            retryModule.apply_retrial_rules(self.taskBuffer, job_tmp.PandaID, source, error_code,
+                                                            error_diag, job_tmp.attemptNr)
+                            self.logger.debug("apply_retrial_rules 2 is back")
+                    except IndexError:
+                        pass
+                    except Exception as e:
+                        self.logger.error("apply_retrial_rules 2 excepted and needs to be investigated (%s): %s" % (e, traceback.format_exc()))
+
                     # setup for closer
                     if not (EventServiceUtils.isEventServiceJob(self.job) and self.job.isCancelled()):
                         destDBList = []
