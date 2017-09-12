@@ -209,7 +209,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
                     if active:
                         task_buffer.setNoRetry(jobID, job.jediTaskID, job.Files)
                     # Log to pandamon and logfile
-                    message = "action=setNoRetry for PandaID={0} jediTaskID={1} ( ErrorSource={3} ErrorCode={4} ErrorDiag: {5}. Error/action active={6} error_id={7} )"\
+                    message = "action=setNoRetry for PandaID={0} jediTaskID={1} ( ErrorSource={2} ErrorCode={3} ErrorDiag: {4}. Error/action active={5} error_id={6} )"\
                         .format(jobID, job.jediTaskID, error_source, error_code, error_diag_rule, active, error_id)
                     _logger.info(message)
                 
