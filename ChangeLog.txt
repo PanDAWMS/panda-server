@@ -1,5 +1,8 @@
 Release Notes
 
+* 9/12/2017
+  * locking a file in getEventRanges
+
 * 8/30/2017
   * metadata registration for ES files
 

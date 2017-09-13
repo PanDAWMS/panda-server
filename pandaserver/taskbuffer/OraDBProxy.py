@@ -1530,6 +1530,11 @@ class DBProxy:
                 # actions for successful normal ES jobs
                 if useJEDI and EventServiceUtils.isEventServiceJob(job) \
                         and not EventServiceUtils.isJobCloningJob(job):
+                    # update some job attributes
+                    hs06sec = self.setHS06sec(job.PandaID, inActive=True)
+                    if hs06sec is not None:
+                        job.hs06sec = hs06sec
+                    # post processing
                     oldJobSubStatus = job.jobSubStatus
                     retEvS,retNewPandaID = self.ppEventServiceJob(job,currentJobStatus,False)
                     # DB error
@@ -14294,6 +14299,14 @@ class DBProxy:
             # sql to get job
             sqlJ  = "SELECT jobStatus,commandToPilot,eventService FROM {0}.jobsActive4 ".format(panda_config.schemaPANDA)
             sqlJ += "WHERE PandaID=:pandaID "
+            # sql to find a file to lock
+            sqlFF = "SELECT jediTaskID,datasetID,fileID FROM {0}.filesTable4 ".format(panda_config.schemaPANDA)
+            sqlFF += "WHERE PandaID=:pandaID AND type IN (:type1,:type2) "
+            sqlFF += "ORDER BY fileID "
+            # sql to use a file as lock
+            sqlLK = "SELECT status FROM {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
+            sqlLK += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+            sqlLK += "FOR UPDATE "
             # sql to get ranges
             sql  = 'SELECT * FROM ('
             sql += 'SELECT jediTaskID,datasetID,fileID,attemptNr,job_processID,def_min_eventID,def_max_eventID,pandaID '
@@ -14366,6 +14379,21 @@ class DBProxy:
                     isJumbo = True
                 else:
                     isJumbo = False
+                # find a file to lock
+                varMap = dict()
+                varMap[':pandaID'] = pandaID
+                varMap[':type1'] = 'input'
+                varMap[':type2'] = 'pseudo_input'
+                self.cur.execute(sqlFF+comment,varMap)
+                resFF = self.cur.fetchone()
+                if resFF is not None:
+                    ffJediTask, ffDatasetID, ffFileID = resFF
+                    varMap = dict()
+                    varMap[':jediTaskID'] = ffJediTask
+                    varMap[':datasetID'] = ffDatasetID
+                    varMap[':fileID'] = ffFileID
+                    self.cur.execute(sqlLK+comment, varMap)
+                    tmpLog.debug("locked fileID={0}".format(ffFileID))
                 # get event ranges
                 varMap = {}
                 varMap[':eventStatus']  = EventServiceUtils.ST_ready
@@ -18288,14 +18316,18 @@ class DBProxy:
 
 
     # set HS06sec
-    def setHS06sec(self,pandaID):
+    def setHS06sec(self, pandaID, inActive=False):
         comment = ' /* DBProxy.setHS06sec */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         tmpLog = LogWrapper(_logger,methodName+" <PandaID={0}>".format(pandaID))
         tmpLog.debug("start")
+        hs06sec = None
         # sql to get job attributes
         sqlJ  = "SELECT jediTaskID,startTime,endTime,actualCoreCount,coreCount,jobMetrics,computingSite "
-        sqlJ += "FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID "
+        if inActive:
+            sqlJ += "FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
+        else:
+            sqlJ += "FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID "
         # sql to get task attributes
         sqlT  = "SELECT baseWalltime,cpuEfficiency FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
         sqlT += "WHERE jediTaskID=:jediTaskID "
@@ -18303,7 +18335,11 @@ class DBProxy:
         sqlS  = "SELECT corePower FROM ATLAS_PANDAMETA.schedconfig "
         sqlS += "WHERE siteid=:siteid "
         # sql to update HS06sec
-        sqlU  = "UPDATE ATLAS_PANDA.jobsArchived4 SET hs06sec=:hs06sec WHERE PandaID=:PandaID "
+        if inActive:
+            sqlU  = "UPDATE ATLAS_PANDA.jobsActive4 "
+        else:
+            sqlU  = "UPDATE ATLAS_PANDA.jobsArchived4 "
+        sqlU += "SET hs06sec=:hs06sec WHERE PandaID=:PandaID "
         # get job attributes
         varMap = {}
         varMap[':PandaID'] = pandaID
@@ -18357,7 +18393,7 @@ class DBProxy:
                             self.cur.execute(sqlU+comment,varMap)
                             tmpLog.debug('set HS06sec={0}'.format(hs06sec))
         # return
-        return
+        return hs06sec
 
 
     # check if all events are done
