@@ -2542,9 +2542,6 @@ class DBProxy:
                                     # set destinationSE if queue is changed
                                     if oldComputingSite == job.destinationSE:
                                         job.destinationSE = job.computingSite
-                        # set site to ES merger job
-                        if recoverableEsMerge and EventServiceUtils.isEventServiceMerge(job):
-                            self.setSiteForEsMerge(job, False, methodName, comment)
                         if not changeJobInMem:                                
                             # select files
                             varMap = {}
@@ -2610,6 +2607,9 @@ class DBProxy:
                                 if varMap != {}:
                                     varMap[':row_ID'] = file.row_ID
                                     self.cur.execute(sqlFup+comment, varMap)
+                        # set site to ES merger job
+                        if recoverableEsMerge and EventServiceUtils.isEventServiceMerge(job):
+                            self.setSiteForEsMerge(job, False, methodName, comment)
                         if not changeJobInMem:
                             # reuse original PandaID
                             if not getNewPandaID:
