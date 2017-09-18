@@ -111,10 +111,16 @@ class FileCallbackListener(stomp.ConnectionListener):
                     continue
                 # check site
                 tmpSiteSpec = self.siteMapper.getSite(pandaSite)
-                if tmpSiteSpec.setokens.has_key(dsToken):
-                    pandaSiteDdmID = tmpSiteSpec.setokens[dsToken]
+                if re.search('_dis\d+$',dsName) != None:
+                    setokens = tmpSiteSpec.setokens_input
+                    ddm = tmpSiteSpec.ddm_input
+                elif re.search('_sub\d+$',dsName) != None:
+                    setokens = tmpSiteSpec.setokens_output
+                    ddm = tmpSiteSpec.ddm_output
+                if dsToken in setokens:
+                    pandaSiteDdmID = setokens[dsToken]
                 else:
-                    pandaSiteDdmID = tmpSiteSpec.ddm
+                    pandaSiteDdmID = ddm
                 if  pandaSiteDdmID != ddmSite:
                     _logger.debug('%s ignore ds=%s site=%s:%s <> %s' % \
                                   (lfn,dsName,pandaSite,pandaSiteDdmID,ddmSite))

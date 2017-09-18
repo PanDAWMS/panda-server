@@ -9463,8 +9463,8 @@ class DBProxy:
                     ret.sitename   = siteid
                     ret.nickname   = nickname
                     ret.dq2url     = dq2url
+                    ret.ddm = ddm.split(',')[0]
                     ret.cloud      = cloud.split(',')[0]
-                    ret.ddm        = ddm.split(',')[0]
                     ret.lfchost    = lfchost
                     ret.gatekeeper = gatekeeper
                     ret.memory     = memory
@@ -9541,7 +9541,7 @@ class DBProxy:
                     else:
                         ret.mintime = 0
                     # reliability
-                    tmpPrefix = re.sub('_[^_]+DISK$','',ret.ddm)
+                    tmpPrefix = re.sub('_[^_]+DISK$','',ret.ddm) # TODO: ask Tadashi what is the reliability map
                     if reliabilityMap.has_key(tmpPrefix):
                         ret.reliabilityLevel = reliabilityMap[tmpPrefix]
                     else:
@@ -9647,12 +9647,20 @@ class DBProxy:
                         ret.wansinklimit = wansinklimit
                     # DDM endpoints
                     if siteid in pandaEndpointMap:
-                        ret.ddm_endpoints = pandaEndpointMap[siteid]
+                        ret.ddm_endpoints_input = pandaEndpointMap[siteid]['input']
+                        ret.ddm_endpoints_output = pandaEndpointMap[siteid]['output']
                     else:
                         # empty
-                        ret.ddm_endpoints = DdmSpec()
+                        ret.ddm_endpoints_input = DdmSpec()
+                        ret.ddm_endpoints_output = DdmSpec()
                     # mapping between token and endpoints
-                    ret.setokens = ret.ddm_endpoints.getTokenMap()
+                    ret.setokens_input = ret.ddm_endpoints_input.getTokenMap('input')
+                    ret.setokens_output = ret.ddm_endpoints_output.getTokenMap('output')
+
+                    # set DDM to the default endpoint
+                    ret.ddm_input = ret.ddm_endpoints_input.getDefaultRead()
+                    ret.ddm_output = ret.ddm_endpoints_output.getDefaultWrite()
+
                     # object stores
                     try:
                         ret.objectstores = json.loads(objectstores)
@@ -9672,47 +9680,69 @@ class DBProxy:
             return {}
 
 
-    # get list of ddm endpoints
     def getDdmEndpoints(self):
+        """
+        get list of ddm input endpoints
+        """
         comment = ' /* DBProxy.getDdmEndpoints */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         _logger.debug("{0} start".format(methodName))
-        # get endpoints
-        sqlD  = "SELECT * FROM ATLAS_PANDA.ddm_endpoint "
+        
+        # get all ddm endpoints
+        sql_ddm  = "SELECT * FROM ATLAS_PANDA.ddm_endpoint "
         self.cur.arraysize = 10000            
-        self.cur.execute(sqlD+comment)
-        resD = self.cur.fetchall()
-        columNames = [i[0].lower() for i in self.cur.description]
-        endpointDict = {}
-        for tmpRes in resD:
-            tmpEP = {}
-            for columName,columVal in zip(columNames,tmpRes):
-                tmpEP[columName] = columVal
+        self.cur.execute('{0}{1}'.format(sql_ddm, comment))
+        results_ddm = self.cur.fetchall()
+        
+        # extract the column names from the query
+        column_names = [i[0].lower() for i in self.cur.description]
+
+        # save the endpoints into a dictionary
+        endpoint_dict = {}
+        for ddm_endpoint_row in results_ddm:
+            tmp_endpoint = {}
+            # unzip the ddm_endpoint row into a dictionary
+            for column_name, column_val in zip(column_names, ddm_endpoint_row):
+                tmp_endpoint[column_name] = column_val
+            
             # ignore TEST
-            if tmpEP['type'] == 'TEST':
+            if tmp_endpoint['type'] == 'TEST':
                 continue
-            endpointDict[tmpEP['ddm_endpoint_name']] = tmpEP
-        # get panda sites
-        sqlP  = "SELECT ps.panda_site_name,de.ddm_endpoint_name,ps.is_local,de.ddm_spacetoken_name,de.is_tape,"
-        sqlP += "CASE WHEN de.ddm_endpoint_name=ps.default_ddm_endpoint THEN 'Y' ELSE 'N' END is_default "
-        sqlP += "FROM ATLAS_PANDA.panda_site ps,ATLAS_PANDA.ddm_endpoint de "
-        sqlP += "WHERE ps.storage_site_name=de.site_name "
-        self.cur.execute(sqlP+comment)
-        resP = self.cur.fetchall()
-        columNames = [i[0].lower() for i in self.cur.description]
-        pandaEndpointMap = {}
-        for tmpRes in resP:
-            tmpMap = {}
-            for columName,columVal in zip(columNames,tmpRes):
-                if columName.startswith('space_') and columVal == None:
-                    columVal = 0
-                tmpMap[columName] = columVal
-            panda_site_name = tmpMap['panda_site_name']
-            if not panda_site_name in pandaEndpointMap:
-                pandaEndpointMap[panda_site_name] = DdmSpec()
-            pandaEndpointMap[panda_site_name].add(tmpMap,endpointDict)
+
+            endpoint_dict[tmp_endpoint['ddm_endpoint_name']] = tmp_endpoint
+        
+        # get relationship between panda sites and ddm endpoints
+        sql_panda_ddm = """
+               SELECT pdr.panda_site_name, pdr.ddm_endpoint_name, pdr.is_local, de.ddm_spacetoken_name, 
+                      de.is_tape, pdr.default_read, pdr.default_write, pdr.roles 
+               FROM atlas_panda.panda_ddm_relation pdr, atlas_panda.ddm_endpoint de
+               WHERE pdr.ddm_endpoint_name = de.ddm_endpoint_name
+               """
+        self.cur.execute('{0}{1}'.format(sql_panda_ddm, comment))
+        results_panda_ddm = self.cur.fetchall()
+        column_names = [i[0].lower() for i in self.cur.description]
+
+        # save the panda ddm relations into a dictionary
+        panda_endpoint_map = {}
+        for panda_ddm_row in results_panda_ddm:
+            tmp_relation = {}
+            for column_name, column_val in zip(column_names, panda_ddm_row):
+                # Default unavailable endpoint space to 0
+                if column_name.startswith('space_') and column_val is None:
+                    column_val = 0
+                tmp_relation[column_name] = column_val
+            
+            # add the relations to the panda endpoint map
+            panda_site_name = tmp_relation['panda_site_name']
+            if panda_site_name not in panda_endpoint_map:
+                panda_endpoint_map[panda_site_name] = {'input': DdmSpec(), 'output': DdmSpec()}
+            if 'read_lan' in tmp_relation['roles']:
+                panda_endpoint_map[panda_site_name]['input'].add(tmp_relation, endpoint_dict)
+            if 'write_lan' in tmp_relation['roles']:
+                panda_endpoint_map[panda_site_name]['output'].add(tmp_relation, endpoint_dict)
+        
         _logger.debug("{0} done".format(methodName))
-        return pandaEndpointMap
+        return panda_endpoint_map
 
 
 
