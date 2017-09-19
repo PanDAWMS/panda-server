@@ -89,7 +89,7 @@ class Configurator(threading.Thread):
         endpoint_token_dict = {}
         for endpoint in self.endpoint_dump:
             # Filter out testing and inactive endpoints
-            if endpoint['type'] != 'TEST' and endpoint['state'] == 'ACTIVE': 
+            if endpoint['state'] == 'ACTIVE': # and endpoint['type'] != 'TEST'
                 endpoint_token_dict[endpoint['name']] = {}
                 endpoint_token_dict[endpoint['name']]['token'] = endpoint['token']
                 endpoint_token_dict[endpoint['name']]['site_name'] = endpoint['site']
@@ -300,7 +300,7 @@ class Configurator(threading.Thread):
                     try:
                         storage_site_name = self.endpoint_token_dict[ddm_endpoint_name]['site_name']
                     except KeyError:
-                        _logger.warning("Skipped {0}, because primary associated DDM endpoint {1} not found (e.g. in TEST mode or DISABLED)"
+                        _logger.warning("Skipped {0}, because primary associated DDM endpoint {1} not found (e.g.DISABLED)"
                                         .format(long_panda_site_name, ddm_endpoint_name))
                         continue
 
@@ -352,7 +352,7 @@ class Configurator(threading.Thread):
             try:
                 storage_site_name = self.endpoint_token_dict[default_ddm_endpoint]['site_name']
             except KeyError:
-                _logger.warning("Skipped {0}, because primary associated DDM endpoint {1} not found (e.g. in TEST mode or DISABLED)"
+                _logger.warning("Skipped {0}, because primary associated DDM endpoint {1} not found (e.g. DISABLED)"
                                 .format(long_panda_site_name, default_ddm_endpoint))
                 continue
 
