@@ -17418,34 +17418,50 @@ class DBProxy:
             try:
                 # Start transaction
                 self.conn.begin()
-    
-                varMap = {}
-                varMap[':taskID'] = taskID
-    
-                # Bind the files
-                f = 0
-                for fileID in input_fileIDs:
-                    varMap[':file{0}'.format(f)] = fileID
-                    f += 1
-                file_bindings = ','.join(':file{0}'.format(i) for i in xrange(len(input_fileIDs)))
-    
-                # Bind the datasets
-                d = 0
+
+                # loop over all datasets
                 for datasetID in input_datasetIDs:
-                    varMap[':dataset{0}'.format(d)] = datasetID
-                    d += 1
-                dataset_bindings = ','.join(':dataset{0}'.format(i) for i in xrange(len(input_fileIDs)))
+                    varMap = {}
+                    varMap[':taskID'] = taskID
+                    varMap[':datasetID'] = datasetID
+                    varMap[':keepTrack'] = 1
+                    varMap[':status'] = 'ready'
+                    
+                    # Bind the files
+                    f = 0
+                    for fileID in input_fileIDs:
+                        varMap[':file{0}'.format(f)] = fileID
+                        f += 1
+                    file_bindings = ','.join(':file{0}'.format(i) for i in xrange(len(input_fileIDs)))
     
-                sql_update = """
-                UPDATE ATLAS_PANDA.JEDI_Dataset_Contents
-                SET maxAttempt=attemptNr
-                WHERE JEDITaskID = :taskID
-                AND datasetID IN ({0})
-                AND fileID IN ({1})
-                """.format(dataset_bindings, file_bindings)
+                    sql_update = """
+                    UPDATE ATLAS_PANDA.JEDI_Dataset_Contents
+                    SET maxAttempt=attemptNr
+                    WHERE JEDITaskID = :taskID
+                    AND datasetID=:datasetID
+                    AND fileID IN ({0})
+                    AND maxAttempt IS NOT NULL AND attemptNr IS NOT NULL
+                    AND maxAttempt > attemptNr 
+                    AND (maxFailure IS NULL OR failedAttempt IS NULL OR maxFailure > failedAttempt)
+                    AND keepTrack=:keepTrack 
+                    AND status=:status 
+                    """.format(file_bindings)
     
-                self.cur.execute(sql_update + comment, varMap)
-    
+                    # update files
+                    self.cur.execute(sql_update + comment, varMap)
+                    rowcount = self.cur.rowcount
+
+                    # update datasets
+                    if rowcount > 0:
+                        sql_dataset = "UPDATE ATLAS_PANDA.JEDI_Datasets "
+                        sql_dataset += "SET nFilesUsed=nFilesUsed+:nDiff,nFilesFailed=nFilesFailed+:nDiff "
+                        sql_dataset += "WHERE jediTaskID=:taskID AND datasetID=:datasetID "
+                        varMap = dict()
+                        varMap[':taskID'] = taskID
+                        varMap[':datasetID'] = datasetID
+                        varMap[':nDiff'] = rowcount
+                        self.cur.execute(sql_dataset + comment, varMap)
+
                 # Commit updates
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
