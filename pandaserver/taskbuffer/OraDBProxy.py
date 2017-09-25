@@ -17405,6 +17405,7 @@ class DBProxy:
         # Logging
         comment = ' /* DBProxy.setNoRetry */'
         methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <PandaID={0} jediTaskID={1}>".format(jobID, taskID)
         tmpLog = LogWrapper(_logger, methodName)
         tmpLog.debug("start")
 
