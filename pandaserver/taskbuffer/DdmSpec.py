@@ -18,6 +18,9 @@ class DdmSpec(object):
     # add endpoint
     def add(self, endPoint, endpointDict):
         name = endPoint['ddm_endpoint_name']
+        # protection against inconsistent dict
+        if name not in endpointDict:
+            return
         # all endpoints
         self.all[name] = endpointDict[name]
         # local endpoints

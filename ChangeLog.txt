@@ -1,5 +1,8 @@
 Release Notes
 
+* 9/27/2017
+  * added resurrectConsumers
+
 * 9/26/2017
   * using DATADISK for analysis staging-in
 
