@@ -1,5 +1,8 @@
 Release Notes
 
+* 10/02/2017
+  * enabling TEST and SPECIAL endpoints
+
 * 9/12/2017
   * locking a file in getEventRanges
 
