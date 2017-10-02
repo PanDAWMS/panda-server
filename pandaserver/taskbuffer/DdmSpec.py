@@ -17,7 +17,7 @@ class DdmSpec(object):
 
     # add endpoint
     def add(self, relation, endpointDict):
-        name = endPoint['ddm_endpoint_name']
+        name = relation['ddm_endpoint_name']
 
         # all endpoints, copy all properties about ddm endpoint and relation
         self.all[name] = {}
@@ -26,7 +26,6 @@ class DdmSpec(object):
         for key, value in relation.iteritems():
             self.all[name][key] = value
 
-        self.all[name] = relation[name]
         # local endpoints
         if relation['is_local'] != 'N':
             self.local.add(name)
@@ -106,9 +105,9 @@ class DdmSpec(object):
             elif mode == 'output':
                 order = tmp_ddm_endpoint_dict['order_write']
 
-            print 'ddm_endpoint_name: {0}'.format(tmp_ddm_endpoint_name)
-            print 'self.default_read: {0}'.format(self.default_read)
-            print 'self.default_write: {0}'.format(self.default_write)
+            #print 'ddm_endpoint_name: {0}'.format(tmp_ddm_endpoint_name)
+            #print 'self.default_read: {0}'.format(self.default_read)
+            #print 'self.default_write: {0}'.format(self.default_write)
 
             # map already contains this token
             if token in ret_map and orders[token] < order:

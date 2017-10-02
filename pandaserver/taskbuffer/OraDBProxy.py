@@ -9674,7 +9674,8 @@ class DBProxy:
             return retList
         except:
             type, value, traceBack = sys.exc_info()
-            _logger.error("getSiteInfo : %s %s" % (type,value))
+            _logger.error("getSiteInfo : %s %s" % (type, value))
+            _logger.error('getSiteInfo exception : {0}'.format(traceback.format_exc()))
             # roll back
             self._rollback()
             return {}
