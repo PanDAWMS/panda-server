@@ -24,6 +24,7 @@ singleConsumerType = {'runonce':  '1',
                       'storeonce':'2'}
 dynamicNumEventsToken = 'dy'
 mergeAtOsToken = 'mo'
+resurrectConsumersToken = 'sc'
 
 # values for job.eventService
 esJobFlagNumber = 1
@@ -44,7 +45,8 @@ siteIdForWaitingCoJumboJobs = 'WAITING_CO_JUMBO'
 # relation type for jobsets
 relationTypeJS_ID = 'jobset_id'
 relationTypeJS_Retry = 'jobset_retry'
-relationTypesForJS = [relationTypeJS_ID,relationTypeJS_Retry]
+relationTypeJS_Map = 'jobset_map'
+relationTypesForJS = [relationTypeJS_ID, relationTypeJS_Retry, relationTypeJS_Map]
 
 
 # suffix for ES dataset and files to register to DDM
@@ -334,3 +336,31 @@ def isMergeAtOS(specialHandling):
 def getEsDatasetName(taskID):
     esDataset = '{0}:{1}{2}'.format(esScopeDDM, taskID, esSuffixDDM)
     return esDataset
+
+
+
+# set header to resurrect consumers
+def setHeaderToResurrectConsumers(specialHandling):
+    if specialHandling == None:
+        specialHandling = ''
+    tokens = specialHandling.split(',')
+    while True:
+        try:
+            tokens.remove('')
+        except:
+            break
+    if resurrectConsumersToken not in tokens:
+        tokens.append(resurrectConsumersToken)
+    return ','.join(tokens)
+
+
+
+# check if specialHandling to resurrect consumers
+def isResurrectConsumers(specialHandling):
+    try:
+        if specialHandling is not None:
+            if resurrectConsumersToken in specialHandling.split(','):
+                return True
+    except:
+        pass
+    return False

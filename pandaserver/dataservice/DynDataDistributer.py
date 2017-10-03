@@ -994,6 +994,7 @@ class DynDataDistributer:
                 guidListELSSI,tmpCom,tmpOut,tmpErr = elssiIF.doLookup(tmpRunEvtList,stream=streamName,tokens=streamRef,
                                                                       amitag=amiTag,user=user)
                 regTime = datetime.datetime.utcnow()-regStart
+                self.putLog("Hadoop EI command: {0}".format(tmpCom))
                 self.putLog("Hadoop EI took {0}.{1:03d} sec for {2} events" .format(regTime.seconds,
                                                                                     regTime.microseconds/1000,
                                                                                     len(tmpRunEvtList)))
@@ -1044,10 +1045,11 @@ class DynDataDistributer:
                 return failedRet
             # empty
             if tmpDsMap == {}:
-                self.putLog("there is no dataset for Run:%s Evt:%s" % (runNr,evtNr),type='error')
+                self.putLog("there is no dataset for Run:%s Evt:%s GUIDs:%s" % (runNr,evtNr,str(tmpguids)),type='error')
                 return fatalRet
             if len(tmpDsMap) != 1:
-                self.putLog("there are multiple datasets %s for Run:%s Evt:%s" % (str(tmpDsMap),runNr,evtNr),
+                self.putLog("there are multiple datasets %s for Run:%s Evt:%s GUIDs:%s" % (str(tmpDsMap),runNr,evtNr,
+                                                                                           str(tmpguids)),
                             type='error')
                 return fatalRet
             # append

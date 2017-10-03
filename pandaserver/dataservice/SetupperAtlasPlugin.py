@@ -609,6 +609,11 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                                                         activity=activity,
                                                                         ))
                                         status = False
+                                        # invalid location
+                                        if dq2ID is None:
+                                            out = "wrong location : {0}".format(dq2ID)
+                                            self.logger.error(out)
+                                            break
                                         for iDDMTry in range(3):
                                             try:
                                                 out = rucioAPI.registerDatasetLocation(name,[dq2ID],lifetime=repLifeTime,
@@ -825,6 +830,14 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         # prestaging
                         if srcDQ2ID == dstDQ2ID and not missingAtT1:
                             # prestage to associated endpoints 
+                            if job.prodSourceLabel in ['user','panda']:
+                                # use DATADISK
+                                tmpSiteSpec = self.siteMapper.getSite(job.computingSite)
+                                if 'ATLASDATADISK' in tmpSiteSpec.setokens_input:
+                                    tmpDq2ID = tmpSiteSpec.setokens_input['ATLASDATADISK']
+                                    if tmpDq2ID in tmpSiteSpec.ddm_endpoints_input.getLocalEndPoints():
+                                        self.logger.debug('use {0} instead of {1} for tape prestaging'.format(tmpDq2ID, dq2ID))
+                                        dq2ID = tmpDq2ID
                             self.logger.debug('use {0} for tape prestaging'.format(dq2ID))
                             optSrcPolicy = 000010
                             # register dataset locations
@@ -847,7 +860,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         # set share and activity
                         if job.prodSourceLabel in ['user','panda']:
                             optShare = "production"
-                            optActivity = "Staging"
+                            optActivity = "Analysis Input"
                             optOwner = DataServiceUtils.cleanupDN(job.prodUserID)
                         else:
                             optShare = "production"

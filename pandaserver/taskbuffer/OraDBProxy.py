@@ -796,7 +796,10 @@ class DBProxy:
                     for oldPandaID in oldPandaIDs:
                         oldJobsetID = self.getJobsetIDforPandaID(oldPandaID,job.jediTaskID)
                         if oldJobsetID != None:
-                            self.recordRetryHistoryJEDI(job.jediTaskID,job.jobsetID,[oldJobsetID],EventServiceUtils.relationTypeJS_Retry)            
+                            self.recordRetryHistoryJEDI(job.jediTaskID,job.jobsetID,[oldJobsetID],EventServiceUtils.relationTypeJS_Retry)
+            # record jobset mapping for event service
+            if EventServiceUtils.isEventServiceJob(job) and EventServiceUtils.isResurrectConsumers(job.specialHandling):
+                self.recordRetryHistoryJEDI(job.jediTaskID, job.jobsetID, [job.PandaID], EventServiceUtils.relationTypeJS_Map)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -1590,6 +1593,14 @@ class DBProxy:
                         job.jobSubStatus = 'es_noevent'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceNoEvent
                         job.taskBufferErrorDiag = "didn't process any events on WN and retry unprocessed even ranges in PandaID={0}".format(retNewPandaID)
+                    # resurrect consumers at other sites
+                    if retEvS in [0, 5, 8] and EventServiceUtils.isResurrectConsumers(job.specialHandling):
+                        archivedConsumers = self.getOriginalConsumers(job.jediTaskID, job.jobsetID, job.PandaID)
+                        for archivedConsumer in archivedConsumers:
+                            tmpS,tmpID = self.ppEventServiceJob(archivedConsumer,None,False)
+                            _logger.debug('archiveJob : {0} tried to resurrect old consumer {1} ret={2} new={3}'.format(job.PandaID,
+                                                                                                                        archivedConsumer.PandaID,
+                                                                                                                        tmpS,tmpID))
                     # kill unused event ranges
                     if job.jobStatus == 'failed':
                         self.killUnusedEventRanges(job.jediTaskID,job.jobsetID)
@@ -9384,6 +9395,7 @@ class DBProxy:
     def getSiteInfo(self):
         comment = ' /* DBProxy.getSiteInfo */'
         _logger.debug("getSiteInfo start")
+        methodName = comment.split(' ')[-2].split('.')[-1]
         try:
             # set autocommit on
             self.conn.begin()
@@ -9676,6 +9688,7 @@ class DBProxy:
             type, value, traceBack = sys.exc_info()
             _logger.error("getSiteInfo : %s %s" % (type, value))
             _logger.error('getSiteInfo exception : {0}'.format(traceback.format_exc()))
+            self.dumpErrorMessage(_logger,methodName)
             # roll back
             self._rollback()
             return {}
@@ -13260,6 +13273,110 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return None
+
+
+
+    # get original consumers
+    def getOriginalConsumers(self, jediTaskID, jobsetID, pandaID):
+        comment = ' /* DBProxy.getOriginalConsumers */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " < jediTaskID={0} jobsetID={1} PandaID={2} >".format(jediTaskID, jobsetID, pandaID)
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        try:
+            # sql to get sites where consumers are active
+            sqlA = "SELECT computingSite FROM ATLAS_PANDA.jobsActive4 WHERE jediTaskID=:jediTaskID AND jobsetID=:jobsetID "
+            sqlA += "UNION "
+            sqlA += "SELECT computingSite FROM ATLAS_PANDA.jobsDefined4 WHERE jediTaskID=:jediTaskID AND jobsetID=:jobsetID "
+            # sql to get original IDs
+            sqlG  = "SELECT oldPandaID FROM {0}.JEDI_Job_Retry_History ".format(panda_config.schemaJEDI)
+            sqlG += "WHERE jediTaskID=:jediTaskID AND newPandaID=:jobsetID AND relationType=:relationType "
+            # sql to check computingSite
+            sqlC1 = "SELECT computingSite FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID "
+            sqlC2 = "SELECT computingSite FROM ATLAS_PANDAARCH.jobsArchived WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-30) "
+            # sql to get job info
+            sqlJ = "SELECT {0} ".format(JobSpec.columnNames())
+            sqlJ += "FROM {0} "
+            sqlJ += "WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-30) "
+            sqlF = "SELECT {0} FROM ATLAS_PANDA.filesTable4 ".format(FileSpec.columnNames())
+            sqlF += "WHERE PandaID=:PandaID "
+            sqlP = "SELECT jobParameters FROM {0} WHERE PandaID=:PandaID "
+            # get sites
+            aSites = set()
+            varMap = dict()
+            varMap[':jediTaskID'] = jediTaskID
+            varMap[':jobsetID'] = jobsetID
+            self.cur.execute(sqlA+comment, varMap)
+            resA = self.cur.fetchall()
+            for computingSite, in resA:
+                aSites.add(computingSite)
+            # get original IDs
+            varMap = dict()
+            varMap[':jediTaskID'] = jediTaskID
+            varMap[':jobsetID'] = jobsetID
+            varMap[':relationType'] = EventServiceUtils.relationTypeJS_Map
+            self.cur.execute(sqlG+comment, varMap)
+            resG = self.cur.fetchall()
+            jobList = []
+            for pandaID, in resG:
+                # check computingSite
+                varMap = dict()
+                varMap[':PandaID'] = pandaID
+                self.cur.execute(sqlC1+comment, varMap)
+                resC = self.cur.fetchone()
+                if resC is None:
+                    # try archived
+                    self.cur.execute(sqlC2+comment, varMap)
+                    resC = self.cur.fetchone()
+                    inArchived = True
+                else:
+                    inArchived = False
+                # skip since it is not yet archived and thus is still active
+                if resC is None:
+                    continue
+                computingSite, = resC
+                # skip since there is an active consumer at the site
+                if computingSite in aSites:
+                    continue
+                # get job
+                if inArchived:
+                    self.cur.execute(sqlJ.format('ATLAS_PANDAARCH.jobsArchived')+comment, varMap)
+                else:
+                    self.cur.execute(sqlJ.format('ATLAS_PANDA.jobsArchived4')+comment, varMap)
+                resJ = self.cur.fetchone()
+                if resJ is not None:
+                    jobSpec = JobSpec()
+                    jobSpec.pack(resJ)
+                    # get files
+                    self.cur.execute(sqlF+comment, varMap)
+                    resFs = self.cur.fetchall()
+                    if len(resFs) == 0:
+                        continue
+                    for resF in resFs:
+                        fileSpec = FileSpec()
+                        fileSpec.pack(resF)
+                        jobSpec.addFile(fileSpec)
+                    # get job params
+                    if inArchived:
+                        self.cur.execute(sqlP.format('ATLAS_PANDAARCH.jobParamsTable_ARCH')+comment, varMap)
+                    else:
+                        self.cur.execute(sqlP.format('ATLAS_PANDA.jobParamsTable')+comment, varMap)
+                    for clobJobP, in self.cur:
+                        if clobJobP != None:
+                            try:
+                                jobSpec.jobParameters = clobJobP.read()
+                            except AttributeError:
+                                jobSpec.jobParameters = str(clobJobP)
+                        break
+                    # add
+                    jobList.append(jobSpec)
+                    aSites.add(computingSite)
+            tmpLog.debug("got {0} consumers".format(len(jobList)))
+            return jobList
+        except:
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return []
 
 
 
@@ -17406,6 +17523,7 @@ class DBProxy:
         # Logging
         comment = ' /* DBProxy.setNoRetry */'
         methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <PandaID={0} jediTaskID={1}>".format(jobID, taskID)
         tmpLog = LogWrapper(_logger, methodName)
         tmpLog.debug("start")
 
@@ -17419,34 +17537,50 @@ class DBProxy:
             try:
                 # Start transaction
                 self.conn.begin()
-    
-                varMap = {}
-                varMap[':taskID'] = taskID
-    
-                # Bind the files
-                f = 0
-                for fileID in input_fileIDs:
-                    varMap[':file{0}'.format(f)] = fileID
-                    f += 1
-                file_bindings = ','.join(':file{0}'.format(i) for i in xrange(len(input_fileIDs)))
-    
-                # Bind the datasets
-                d = 0
+
+                # loop over all datasets
                 for datasetID in input_datasetIDs:
-                    varMap[':dataset{0}'.format(d)] = datasetID
-                    d += 1
-                dataset_bindings = ','.join(':dataset{0}'.format(i) for i in xrange(len(input_fileIDs)))
+                    varMap = {}
+                    varMap[':taskID'] = taskID
+                    varMap[':datasetID'] = datasetID
+                    varMap[':keepTrack'] = 1
+                    varMap[':status'] = 'ready'
+                    
+                    # Bind the files
+                    f = 0
+                    for fileID in input_fileIDs:
+                        varMap[':file{0}'.format(f)] = fileID
+                        f += 1
+                    file_bindings = ','.join(':file{0}'.format(i) for i in xrange(len(input_fileIDs)))
     
-                sql_update = """
-                UPDATE ATLAS_PANDA.JEDI_Dataset_Contents
-                SET maxAttempt=attemptNr
-                WHERE JEDITaskID = :taskID
-                AND datasetID IN ({0})
-                AND fileID IN ({1})
-                """.format(dataset_bindings, file_bindings)
+                    sql_update = """
+                    UPDATE ATLAS_PANDA.JEDI_Dataset_Contents
+                    SET maxAttempt=attemptNr
+                    WHERE JEDITaskID = :taskID
+                    AND datasetID=:datasetID
+                    AND fileID IN ({0})
+                    AND maxAttempt IS NOT NULL AND attemptNr IS NOT NULL
+                    AND maxAttempt > attemptNr 
+                    AND (maxFailure IS NULL OR failedAttempt IS NULL OR maxFailure > failedAttempt)
+                    AND keepTrack=:keepTrack 
+                    AND status=:status 
+                    """.format(file_bindings)
     
-                self.cur.execute(sql_update + comment, varMap)
-    
+                    # update files
+                    self.cur.execute(sql_update + comment, varMap)
+                    rowcount = self.cur.rowcount
+
+                    # update datasets
+                    if rowcount > 0:
+                        sql_dataset = "UPDATE ATLAS_PANDA.JEDI_Datasets "
+                        sql_dataset += "SET nFilesUsed=nFilesUsed+:nDiff,nFilesFailed=nFilesFailed+:nDiff "
+                        sql_dataset += "WHERE jediTaskID=:taskID AND datasetID=:datasetID "
+                        varMap = dict()
+                        varMap[':taskID'] = taskID
+                        varMap[':datasetID'] = datasetID
+                        varMap[':nDiff'] = rowcount
+                        self.cur.execute(sql_dataset + comment, varMap)
+
                 # Commit updates
                 if not self._commit():
                     raise RuntimeError, 'Commit error'

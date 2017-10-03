@@ -19,6 +19,10 @@ class DdmSpec(object):
     def add(self, relation, endpointDict):
         name = relation['ddm_endpoint_name']
 
+        # protection against inconsistent dict
+        if name not in endpointDict:
+            return
+
         # all endpoints, copy all properties about ddm endpoint and relation
         self.all[name] = {}
         for key, value in endpointDict[name].iteritems():
