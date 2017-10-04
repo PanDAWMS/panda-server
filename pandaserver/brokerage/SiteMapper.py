@@ -137,7 +137,7 @@ class SiteMapper:
                                         self.siteSpecList[tmpID].memory = ret.memory
                             except:
                                 errtype, errvalue = sys.exc_info()[:2]
-                                _logger.error("%s memory/inputsize failuer : %s %s" % (tmpID,errtype,errvalue))
+                                _logger.error("%s memory/inputsize failure : %s %s" % (tmpID,errtype,errvalue))
                     # collect nuclei
                     if ret.role == 'nucleus' and ret.type == 'production':
                         if not ret.pandasite in self.nuclei:

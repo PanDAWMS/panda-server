@@ -1,5 +1,8 @@
 Release Notes
 
+* 10/02/2017
+  * enabling TEST and SPECIAL endpoints
+
 * 9/27/2017
   * added resurrectConsumers
 

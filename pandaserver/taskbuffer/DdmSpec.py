@@ -16,23 +16,30 @@ class DdmSpec(object):
         self.tape = set()
 
     # add endpoint
-    def add(self, endPoint, endpointDict):
-        name = endPoint['ddm_endpoint_name']
+    def add(self, relation, endpointDict):
+        name = relation['ddm_endpoint_name']
+
         # protection against inconsistent dict
         if name not in endpointDict:
             return
-        # all endpoints
-        self.all[name] = endpointDict[name]
+
+        # all endpoints, copy all properties about ddm endpoint and relation
+        self.all[name] = {}
+        for key, value in endpointDict[name].iteritems():
+            self.all[name][key] = value
+        for key, value in relation.iteritems():
+            self.all[name][key] = value
+
         # local endpoints
-        if endPoint['is_local'] != 'N':
+        if relation['is_local'] != 'N':
             self.local.add(name)
         # defaults
-        if endPoint['default_read'] == 'Y':
+        if relation['default_read'] == 'Y':
             self.default_read = name
-        if endPoint['default_write'] == 'Y':
+        if relation['default_write'] == 'Y':
             self.default_write = name
         # tape
-        if endPoint['is_tape'] == 'Y':
+        if relation['is_tape'] == 'Y':
             self.tape.add(name)
 
     # get all endpoints
@@ -78,8 +85,8 @@ class DdmSpec(object):
             return self.all[patt]
         for endPointName in self.all.keys():
             # ignore TEST or SPECIAL
-            if self.all[endPointName]['type'] in ['TEST','SPECIAL']:
-                continue
+            # if self.all[endPointName]['type'] in ['TEST','SPECIAL']:
+            #    continue
             # check name
             if re.search(patt,endPointName) != None:
                 return self.all[endPointName]
@@ -91,24 +98,28 @@ class DdmSpec(object):
 
     # get mapping between tokens and endpoint names
     def getTokenMap(self, mode):
-        # TODO: review this part and discuss with Tadashi
-        retMap = {}
-        for tmpName, tmpVal in self.all.iteritems():
-            token = tmpVal['ddm_spacetoken_name']
-            # already exists
-            if token in retMap:
-                # use default
-                if retMap[token] == self.default_read and mode=='input':
-                    continue
-                if retMap[token] == self.default_write and mode=='output':
-                    continue
-                # use local
-                if retMap[token] in self.local:
-                    continue
-                # use first remote
-                if tmpName not in self.local:
-                    continue
+        ret_map = {}
+        orders = {}
+        for tmp_ddm_endpoint_name, tmp_ddm_endpoint_dict in self.all.iteritems():
+            token = tmp_ddm_endpoint_dict['ddm_spacetoken_name']
+
+            # get the order
+            if mode=='input':
+                order = tmp_ddm_endpoint_dict['order_read']
+            elif mode == 'output':
+                order = tmp_ddm_endpoint_dict['order_write']
+
+            #print 'ddm_endpoint_name: {0}'.format(tmp_ddm_endpoint_name)
+            #print 'self.default_read: {0}'.format(self.default_read)
+            #print 'self.default_write: {0}'.format(self.default_write)
+
+            # map already contains this token
+            if token in ret_map and orders[token] < order:
+                continue
+
             # add
-            retMap[token] = tmpName
-        return retMap
+            ret_map[token] = tmp_ddm_endpoint_name
+            orders[token] = order
+
+        return ret_map
 

@@ -9685,6 +9685,9 @@ class DBProxy:
             _logger.debug("getSiteInfo done")
             return retList
         except:
+            type, value, traceBack = sys.exc_info()
+            _logger.error("getSiteInfo : %s %s" % (type, value))
+            _logger.error('getSiteInfo exception : {0}'.format(traceback.format_exc()))
             self.dumpErrorMessage(_logger,methodName)
             # roll back
             self._rollback()
@@ -9717,15 +9720,15 @@ class DBProxy:
                 tmp_endpoint[column_name] = column_val
             
             # ignore TEST
-            if tmp_endpoint['type'] == 'TEST':
-                continue
+            # if tmp_endpoint['type'] == 'TEST':
+            #    continue
 
             endpoint_dict[tmp_endpoint['ddm_endpoint_name']] = tmp_endpoint
         
         # get relationship between panda sites and ddm endpoints
         sql_panda_ddm = """
                SELECT pdr.panda_site_name, pdr.ddm_endpoint_name, pdr.is_local, de.ddm_spacetoken_name, 
-                      de.is_tape, pdr.default_read, pdr.default_write, pdr.roles 
+                      de.is_tape, pdr.default_read, pdr.default_write, pdr.roles, pdr.order_read, pdr.order_write 
                FROM atlas_panda.panda_ddm_relation pdr, atlas_panda.ddm_endpoint de
                WHERE pdr.ddm_endpoint_name = de.ddm_endpoint_name
                """
