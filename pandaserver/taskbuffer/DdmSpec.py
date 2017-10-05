@@ -79,22 +79,35 @@ class DdmSpec(object):
         return endpointName in self.local
 
     # get DDM endpoint associated with a pattern
-    def getAssociatedEndpoint(self,patt):
+    def getAssociatedEndpoint(self, patt, mode='output'):
         patt = patt.split('/')[-1]
         if patt in self.all:
             return self.all[patt]
-        for endPointName in self.all.keys():
-            # ignore TEST or SPECIAL
-            # if self.all[endPointName]['type'] in ['TEST','SPECIAL']:
-            #    continue
+
+        endpoint = None
+        order = 10**6
+        for tmp_ddm_endpoint_name, tmp_ddm_endpoint_dict in self.all.iteritems():
+            # get the order of the current loop endpoint
+            if mode == 'input':
+                tmp_order = tmp_ddm_endpoint_dict['order_read']
+            elif mode == 'output':
+                tmp_order = tmp_ddm_endpoint_dict['order_write']
+            # we already have a closer endpoint, so skip the looping one
+            if tmp_order > order:
+                continue
+
             # check name
-            if re.search(patt,endPointName) != None:
-                return self.all[endPointName]
+            if re.search(patt, tmp_ddm_endpoint_name) != None:
+                endpoint = self.all[tmp_ddm_endpoint_name]
+                order = tmp_order
+
             # check type
             pattwoVO = re.sub('ATLAS','',patt)
-            if self.all[endPointName]['type'] == pattwoVO:
-                return self.all[endPointName]
-        return None
+            if self.all[tmp_ddm_endpoint_name]['type'] == pattwoVO:
+                endpoint = self.all[tmp_ddm_endpoint_name]
+                order = tmp_order
+
+        return endpoint
 
     # get mapping between tokens and endpoint names
     def getTokenMap(self, mode):
@@ -104,7 +117,7 @@ class DdmSpec(object):
             token = tmp_ddm_endpoint_dict['ddm_spacetoken_name']
 
             # get the order
-            if mode=='input':
+            if mode == 'input':
                 order = tmp_ddm_endpoint_dict['order_read']
             elif mode == 'output':
                 order = tmp_ddm_endpoint_dict['order_write']
