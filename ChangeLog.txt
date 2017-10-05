@@ -1,5 +1,8 @@
 Release Notes
 
+* 10/05/2017
+  * DDMSpec.getAssociatedEndpoint choosing endpoint with lowest order
+
 * 10/02/2017
   * enabling TEST and SPECIAL endpoints
 

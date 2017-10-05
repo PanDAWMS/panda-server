@@ -85,7 +85,7 @@ class DdmSpec(object):
             return self.all[patt]
 
         endpoint = None
-        order = 10**6
+        order = 10**6 # Like infinite
         for tmp_ddm_endpoint_name, tmp_ddm_endpoint_dict in self.all.iteritems():
             # get the order of the current loop endpoint
             if mode == 'input':
