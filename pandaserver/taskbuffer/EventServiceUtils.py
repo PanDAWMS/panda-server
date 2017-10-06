@@ -17,14 +17,17 @@ ST_merged    = 9
 
 # identifiers for specialHandling
 esHeader = 'es:'
-esToken  = 'eventservice'
-esMergeToken = 'esmerge'
-singleToken = 'sc'
 singleConsumerType = {'runonce':  '1',
                       'storeonce':'2'}
-dynamicNumEventsToken = 'dy'
-mergeAtOsToken = 'mo'
-resurrectConsumersToken = 'sc'
+
+# tags for special handling. check JobSpec._tagForSH for duplication
+esToken                 = 'eventservice'
+esMergeToken            = 'esmerge'
+dynamicNumEventsToken   = 'dy'
+mergeAtOsToken          = 'mo'
+resurrectConsumersToken = 'rs'
+singleToken             = 'sc'
+
 
 # values for job.eventService
 esJobFlagNumber = 1
