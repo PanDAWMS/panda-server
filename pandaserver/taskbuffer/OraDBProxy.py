@@ -17562,7 +17562,7 @@ class DBProxy:
                     AND maxAttempt > attemptNr 
                     AND (maxFailure IS NULL OR failedAttempt IS NULL OR maxFailure > failedAttempt)
                     AND keepTrack=:keepTrack 
-                    AND status=:status) 
+                    AND status=:status
                     """.format(file_bindings)
 
                     # update files in 'running' status. These files do NOT need to be counted for the nFiles*
