@@ -2,7 +2,7 @@ Release Notes
 
 * 10/09/2017
   * setNoRetry to update also files in running status
-
+  * added usePrefetcher
 
 * 10/06/2017
   * added PQ.status=paused

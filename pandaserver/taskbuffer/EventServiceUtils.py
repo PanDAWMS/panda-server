@@ -1,5 +1,6 @@
 import re
 
+from JobSpec import JobSpec
 
 # status codes for each event range
 ST_ready     = 0
@@ -23,10 +24,10 @@ singleConsumerType = {'runonce':  '1',
 # tags for special handling. check JobSpec._tagForSH for duplication
 esToken                 = 'eventservice'
 esMergeToken            = 'esmerge'
-dynamicNumEventsToken   = 'dy'
-mergeAtOsToken          = 'mo'
-resurrectConsumersToken = 'rs'
-singleToken             = 'sc'
+dynamicNumEventsToken   = JobSpec._tagForSH['dynamicNumEvents']
+mergeAtOsToken          = JobSpec._tagForSH['mergeAtOs']
+resurrectConsumersToken = JobSpec._tagForSH['resurrectConsumers']
+singleToken             = JobSpec._tagForSH['jobCloning']
 
 
 # values for job.eventService

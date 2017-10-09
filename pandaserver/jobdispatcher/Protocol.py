@@ -313,6 +313,9 @@ class Response:
         # in-file positional event number
         if job.inFilePosEvtNum():
             self.data['inFilePosEvtNum'] = 'True'
+        # use prefetcher
+        if job.usePrefetcher():
+            self.data['usePrefetcher'] = 'True'
 
 
 

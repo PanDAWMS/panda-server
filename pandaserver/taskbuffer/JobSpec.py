@@ -53,13 +53,20 @@ class JobSpec(object):
                     'jobSubStatus'           : 80,
                     }
     # tag for special handling
-    _tagForSH = {'altStgOut'        : 'ao',
-                 'inFilePosEvtNum'  : 'if',
-                 'noExecStrCnv'     : 'nc',
-                 'putLogToOS'       : 'po',
-                 'registerEsFiles'  : 're',
-                 'requestType'      : 'rt',
-                 'writeInputToFile' : 'wf',
+    _tagForSH = {'altStgOut'          : 'ao',
+                 'dynamicNumEvents'   : 'dy',
+                 'homeCloud'          : 'hc',
+                 'inFilePosEvtNum'    : 'if',
+                 'lumiBlock'          : 'lb',
+                 'mergeAtOs'          : 'mo',
+                 'noExecStrCnv'       : 'nc',
+                 'putLogToOS'         : 'po',
+                 'registerEsFiles'    : 're',
+                 'resurrectConsumers' : 'rs',
+                 'requestType'        : 'rt',
+                 'jobCloning'         : 'sc',
+                 'usePrefetcher'      : 'up',
+                 'writeInputToFile'   : 'wf',
                  }
 
 
@@ -592,3 +599,23 @@ class JobSpec(object):
         if self.currentPriority > 250:
             return
         self.jobExecutionID = 1
+
+
+
+    # use prefetcher
+    def usePrefetcher(self):
+        if self.specialHandling != None:
+            return self._tagForSH['usePrefetcher'] in self.specialHandling.split(',')
+        return False
+
+
+
+    # set to use prefetcher
+    def setUsePrefetcher(self):
+        if self.specialHandling != None:
+            items = self.specialHandling.split(',')
+        else:
+            items = []
+        if not self._tagForSH['usePrefetcher'] in items:
+            items.append(self._tagForSH['usePrefetcher'])
+        self.specialHandling = ','.join(items)
