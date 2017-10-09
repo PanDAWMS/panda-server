@@ -17544,7 +17544,6 @@ class DBProxy:
                     varMap[':taskID'] = taskID
                     varMap[':datasetID'] = datasetID
                     varMap[':keepTrack'] = 1
-                    varMap[':status'] = 'ready'
                     
                     # Bind the files
                     f = 0
@@ -17563,10 +17562,15 @@ class DBProxy:
                     AND maxAttempt > attemptNr 
                     AND (maxFailure IS NULL OR failedAttempt IS NULL OR maxFailure > failedAttempt)
                     AND keepTrack=:keepTrack 
-                    AND status=:status 
+                    AND status=:status) 
                     """.format(file_bindings)
-    
-                    # update files
+
+                    # update files in 'running' status. These files do NOT need to be counted for the nFiles*
+                    varMap[':status'] = 'running'
+                    self.cur.execute(sql_update + comment, varMap)
+
+                    # update files in 'ready' status. These files need to be counted for the nFiles*
+                    varMap[':status'] = 'ready'
                     self.cur.execute(sql_update + comment, varMap)
                     rowcount = self.cur.rowcount
 
