@@ -4973,7 +4973,7 @@ class DBProxy:
             if not useJEDI:
                 sql  = "SELECT PandaID FROM %s " % tableName
             elif getEventService:
-                sql  = "SELECT PandaID,lockedby,eventService,attemptNr FROM %s " % tableName
+                sql  = "SELECT PandaID,lockedby,eventService,attemptNr,computingSite FROM %s " % tableName
             else:
                 sql  = "SELECT PandaID,lockedby FROM %s " % tableName
             if not useStateChangeTime:
