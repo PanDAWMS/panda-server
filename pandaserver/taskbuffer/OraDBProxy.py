@@ -3129,7 +3129,7 @@ class DBProxy:
                         specialHandlingMap = {}
                         # get max priority for analysis jobs
                         if prodSourceLabel in ['panda','user']:
-                            sqlMX = "SELECT /*+ INDEX_RS_ASC(tab (PRODSOURCELABEL COMPUTINGSITE JOBSTATUS) ) */ MAX(currentPriority) FROM ATLAS_PANDA.jobsActive4 tab "
+                            sqlMX = "SELECT /*+ INDEX_RS_ASC(tab JOBSACTIVE4_COMPSITESTATUS_IDX) */ MAX(currentPriority) FROM ATLAS_PANDA.jobsActive4 tab "
                             sqlMX += sql1
                             if global_share_sql:
                                 sqlMX = 'SELECT * FROM (' + sqlMX
