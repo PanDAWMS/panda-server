@@ -176,6 +176,9 @@ class SiteMapper:
                             if resourceSpec.maxrampercore is not None:
                                 childSiteSpec.maxrss = min(childSiteSpec.coreCount*resourceSpec.maxrampercore,
                                                            siteSpec.maxrss)
+                            else:
+                                childSiteSpec.maxrss = min(siteSpec.maxrss * childSiteSpec.coreCount / coreCount,
+                                                           siteSpec.maxrss)
                             # set unified name
                             childSiteSpec.unified_name = siteSpec.sitename
                             # append
