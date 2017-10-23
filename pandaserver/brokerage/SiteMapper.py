@@ -138,21 +138,9 @@ class SiteMapper:
                             except:
                                 errtype, errvalue = sys.exc_info()[:2]
                                 _logger.error("%s memory/inputsize failure : %s %s" % (tmpID,errtype,errvalue))
-                    # collect nuclei
-                    if ret.role == 'nucleus' and ret.type == 'production':
-                        if not ret.pandasite in self.nuclei:
-                            nucleus = NucleusSpec(ret.pandasite)
-                            nucleus.state = ret.pandasite_state
-                            self.nuclei[ret.pandasite] = nucleus
-                        self.nuclei[ret.pandasite].add(ret.sitename, ret.ddm_endpoints_output) # TODO: check with Tadashi
-                    # collect satellites
-                    if ret.role == 'satellite' and ret.type == 'production':
-                        if not ret.pandasite in self.satellites:
-                            satellite = NucleusSpec(ret.pandasite)
-                            satellite.state = ret.pandasite_state
-                            self.satellites[ret.pandasite] = satellite
-                        self.satellites[ret.pandasite].add(ret.sitename, ret.ddm_endpoints_output) # TODO: check with Tadashi
-            # make virtual queues from merged queues
+                    # collect nuclei and satellites
+                    self.collectNS(ret) 
+            # make virtual queues from unified queues
             try:
                 for siteName in self.siteSpecList.keys():
                     siteSpec = self.siteSpecList[siteName]
@@ -183,6 +171,7 @@ class SiteMapper:
                             childSiteSpec.unified_name = siteSpec.sitename
                             # append
                             self.siteSpecList[childSiteSpec.sitename] = childSiteSpec
+                            self.collectNS(childSiteSpec)
                         # set unified flag
                         siteSpec.is_unified = True
             except:
@@ -242,6 +231,24 @@ class SiteMapper:
             _logger.error(traceback.format_exc())
         _logger.debug('__init__ SiteMapper done')
         
+
+    # collect nuclei and satellites
+    def collectNS(self, ret):
+        # collect nuclei
+        if ret.role == 'nucleus' and ret.type == 'production':
+            if not ret.pandasite in self.nuclei:
+                nucleus = NucleusSpec(ret.pandasite)
+                nucleus.state = ret.pandasite_state
+                self.nuclei[ret.pandasite] = nucleus
+            self.nuclei[ret.pandasite].add(ret.sitename, ret.ddm_endpoints_output)
+        # collect satellites
+        if ret.role == 'satellite' and ret.type == 'production':
+            if not ret.pandasite in self.satellites:
+                satellite = NucleusSpec(ret.pandasite)
+                satellite.state = ret.pandasite_state
+                self.satellites[ret.pandasite] = satellite
+            self.satellites[ret.pandasite].add(ret.sitename, ret.ddm_endpoints_output)
+
 
     # accessor for site
     def getSite(self,site):
