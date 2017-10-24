@@ -13044,8 +13044,6 @@ class DBProxy:
         if jobSpec.jobStatus == 'finished' and not jobSpec.prodSourceLabel in ['panda']:
             varMap = {}
             varMap[':jediTaskID'] = jobSpec.jediTaskID
-            varMap[':status1']    = 'running'
-            varMap[':status2']    = 'submitting'
             varMap['noutevents']  = nOutEvents
             schemaDEFT = self.getSchemaDEFT()
             sqlTtask  = "UPDATE {0}.T_TASK ".format(schemaDEFT)
@@ -13055,7 +13053,7 @@ class DBProxy:
             else:
                 updateNumDone = False
                 sqlTtask += "SET timestamp=CURRENT_DATE,total_events=total_events+:noutevents "
-            sqlTtask += "WHERE taskid=:jediTaskID AND status IN (:status1,:status2) "
+            sqlTtask += "WHERE taskid=:jediTaskID "
             tmpLog.debug(sqlTtask+comment+str(varMap))
             cur.execute(sqlTtask+comment,varMap)
             nRow = cur.rowcount
