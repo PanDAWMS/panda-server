@@ -80,6 +80,7 @@ class EventPicker:
             tagStreamRef        = ''
             skipDaTRI           = False
             runEvtGuidMap       = {}
+            ei_api              = ''
             # read evp file
             for tmpLine in self.evpFile:
                 tmpMatch = re.search('^([^=]+)=(.+)$',tmpLine)
@@ -129,6 +130,9 @@ class EventPicker:
                 elif tmpItems[0] == 'params':
                     # parameters
                     self.params = tmpItems[1]
+                elif tmpItems[0] == 'ei_api':
+                    # ei api parameter for MC
+                    ei_api = tmpItems[1]
                 elif tmpItems[0] == 'inputFileList':
                     # input file list
                     inputFileList = tmpItems[1].split(',')
@@ -180,7 +184,8 @@ class EventPicker:
                                                                                 eventPickDS,
                                                                                 eventPickAmiTag,
                                                                                 self.userDN,
-                                                                                runEvtGuidMap
+                                                                                runEvtGuidMap,
+                                                                                ei_api
                                                                                 )
                 if not tmpRet:
                     if 'isFatal' in locationMap and locationMap['isFatal'] == True:

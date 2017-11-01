@@ -9,7 +9,7 @@ class eventLookupClientEI:
         pass
 
 
-    def doLookup(self,runEvtList,stream=None,tokens=None,amitag=None,user=None):
+    def doLookup(self,runEvtList,stream=None,tokens=None,amitag=None,user=None,ei_api=None):
         command = 'java -jar ' + \
             os.getenv('EIDIR', '/afs/cern.ch/sw/lcg/external/Java/TagConvertor/head/share') + \
             '/lib/EIHadoopEL.exe.jar '
@@ -25,6 +25,8 @@ class eventLookupClientEI:
             command += "-p {0} ".format(amitag)
         if user != None:
             command += '-info "{0}" '.format(user)
+        if ei_api:
+            command += '-api {0} '.format(ei_api)
         command += r"""-details richtype """
         p = subprocess.Popen(command, stdout=subprocess.PIPE,shell=True)
         tmpOut,tmpErr = p.communicate()
