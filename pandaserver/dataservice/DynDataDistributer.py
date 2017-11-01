@@ -966,7 +966,7 @@ class DynDataDistributer:
 
 
     # conver event/run list to datasets
-    def convertEvtRunToDatasets(self,runEvtList,dsType,streamName,dsFilters,amiTag,user,runEvtGuidMap):
+    def convertEvtRunToDatasets(self,runEvtList,dsType,streamName,dsFilters,amiTag,user,runEvtGuidMap,ei_api):
         self.putLog('convertEvtRunToDatasets type=%s stream=%s dsPatt=%s amitag=%s' % \
                     (dsType,streamName,str(dsFilters),amiTag))
         # check data type
@@ -992,7 +992,7 @@ class DynDataDistributer:
                 iEventsTotal += nEventsPerLoop
                 regStart = datetime.datetime.utcnow()
                 guidListELSSI,tmpCom,tmpOut,tmpErr = elssiIF.doLookup(tmpRunEvtList,stream=streamName,tokens=streamRef,
-                                                                      amitag=amiTag,user=user)
+                                                                      amitag=amiTag,user=user,ei_api=ei_api)
                 regTime = datetime.datetime.utcnow()-regStart
                 self.putLog("Hadoop EI command: {0}".format(tmpCom))
                 self.putLog("Hadoop EI took {0}.{1:03d} sec for {2} events" .format(regTime.seconds,
