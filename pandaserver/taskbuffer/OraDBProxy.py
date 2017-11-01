@@ -15321,8 +15321,12 @@ class DBProxy:
                 except AttributeError:
                     jobSpec.jobParameters = str(clobJobP)
                 break
-            # changes some attributes for merging
-            if doMerging:
+            # changes some attributes
+            if not doMerging:
+                minUnprocessed = self.getConfigValue('dbproxy', 'AES_MINEVENTSFORMCORE')
+                if jobSpec.coreCount > 1 and minUnprocessed is not None and minUnprocessed > nRow:
+                    self.setScoreSiteToEs(jobSpec, methodName, comment)
+            else:
                 # extract parameters for merge
                 try:
                     tmpMatch = re.search('<PANDA_ESMERGE_TRF>(.*)</PANDA_ESMERGE_TRF>',jobSpec.jobParameters)
@@ -15607,6 +15611,67 @@ class DBProxy:
                 if newSiteName is not None:
                     _logger.info('{0} set merge site to {1}'.format(methodName,newSiteName))
                     break
+        # return
+        return
+
+
+
+    # set score site to ES job
+    def setScoreSiteToEs(self, jobSpec, methodName, comment):
+        # get sites in the nucleus associated to the site to run merge jobs in the same nucleus
+        sqlSN  = "SELECT ps2.panda_site_name "
+        sqlSN += "FROM ATLAS_PANDA.panda_site ps1,ATLAS_PANDA.panda_site ps2,ATLAS_PANDAMETA.schedconfig sc "
+        sqlSN += "WHERE ps1.panda_site_name=:site AND ps1.site_name=ps2.site_name AND sc.siteid=ps2.panda_site_name "
+        sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1 OR sc.catchall LIKE '%unifiedPandaQueue%') "
+        sqlSN += "AND (sc.catchall IS NULL OR NOT sc.catchall LIKE '%jobseed=es%') "
+        sqlSN += "AND sc.status=:siteStatus "
+        varMap = {}
+        varMap[':site'] = jobSpec.computingSite
+        varMap[':siteStatus'] = 'online'
+        # get sites
+        self.cur.execute(sqlSN+comment,varMap)
+        resSN = self.cur.fetchall()
+        # compare number of pilot requests
+        maxNumPilot = 0
+        sqlUG  = "SELECT updateJob+getJob FROM ATLAS_PANDAMETA.sitedata "
+        sqlUG += "WHERE site=:panda_site AND HOURS=:hours AND FLAG=:flag "
+        sqlRJ  = "SELECT SUM(num_of_jobs) FROM ATLAS_PANDA.MV_JOBSACTIVE4_STATS "
+        sqlRJ += "WHERE computingSite=:panda_site AND jobStatus=:jobStatus "
+        newSiteName = None
+        for tmp_panda_site_name, in resSN:
+            # get nPilot
+            varMap = {}
+            varMap[':panda_site'] = tmp_panda_site_name
+            varMap[':hours'] = 3
+            varMap[':flag'] = 'production'
+            self.cur.execute(sqlUG+comment,varMap)
+            resUG = self.cur.fetchone()
+            if resUG == None:
+                nPilots = 0
+            else:
+                nPilots, = resUG
+            # get nRunning
+            varMap = {}
+            varMap[':panda_site'] = tmp_panda_site_name
+            varMap[':jobStatus'] = 'running'
+            self.cur.execute(sqlRJ+comment,varMap)
+            resRJ = self.cur.fetchone()
+            if resRJ is None:
+                nRunning = 0
+            else:
+                nRunning, = resRJ
+            tmpStr = 'site={0} nPilot={1} nRunning={2}'.format(tmp_panda_site_name, nPilots, nRunning)
+            _logger.info('{0} {1}'.format(methodName,tmpStr))
+            # use larger
+            if maxNumPilot < nPilots:
+                maxNumPilot = nPilots
+                jobSpec.computingSite = tmp_panda_site_name
+                jobSpec.coreCount = 1
+                jobSpec.minRamCount = 0
+                jobSpec.resource_type = self.get_resource_type_job(jobSpec)
+                newSiteName = jobSpec.computingSite
+        if newSiteName is not None:
+            _logger.info('{0} set SCORE site to {1}'.format(methodName, newSiteName))
         # return
         return
 

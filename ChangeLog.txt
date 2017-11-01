@@ -1,5 +1,8 @@
 Release Notes
 
+* 11/1/2017
+  * sending ES consumers to SCORE if there are not enough events
+
 * 10/10/2017
   * updated hint in getJobs
 
