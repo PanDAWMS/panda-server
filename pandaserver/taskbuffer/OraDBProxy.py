@@ -2867,7 +2867,7 @@ class DBProxy:
     # get jobs
     def getJobs(self,nJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
                 atlasRelease,prodUserID,countryGroup,workingGroup,allowOtherCountry,taskID,background,
-                resourceType):
+                resourceType,harvester_id,worker_id):
         """
         1. Construct where clause (sql1) based on applicable filters for request
         2. Select n jobs with the highest priorities and the lowest pandaids
@@ -3255,6 +3255,39 @@ class DBProxy:
                                         resSent = self.cur.fetchone()
                                         if resSent != None:
                                             nSent, = resSent
+                                    # insert job and worker mapping
+                                    if harvester_id is not None and worker_id is not None:
+                                        sqlJWH = "SELECT 1 FROM ATLAS_PANDA.Harvester_Instances WHERE harvester_ID=:harvesterID "
+                                        sqlJWC  = "SELECT PandaID FROM ATLAS_PANDA.Harvester_Rel_Jobs_Workers "
+                                        sqlJWC += "WHERE harvesterID=:harvesterID AND workerID=:workerID AND PandaID=:PandaID "
+                                        sqlJWI  = "INSERT INTO ATLAS_PANDA.Harvester_Rel_Jobs_Workers (harvesterID,workerID,PandaID,lastUpdate) "
+                                        sqlJWI += "VALUES (:harvesterID,:workerID,:PandaID,:lastUpdate) "
+                                        sqlJWU  = "UPDATE ATLAS_PANDA.Harvester_Rel_Jobs_Workers SET lastUpdate=:lastUpdate "
+                                        sqlJWU += "WHERE harvesterID=:harvesterID AND workerID=:workerID AND PandaID=:PandaID "
+                                        varMap = dict()
+                                        varMap[':harvesterID'] = harvester_id
+                                        self.cur.execute(sqlJWH+comment, varMap)
+                                        resJWH = self.cur.fetchone()
+                                        if resJWH is None:
+                                            _logger.debug("getJobs : Site {0} harvester_id={1} not found".format(tmpSiteID, harvester_id))
+                                        else:
+                                            varMap = dict()
+                                            varMap[':harvesterID'] = harvester_id
+                                            varMap[':workerID'] = worker_id
+                                            varMap[':PandaID'] = tmpPandaID
+                                            self.cur.execute(sqlJWC+comment, varMap)
+                                            resJWC = self.cur.fetchone()
+                                            varMap = dict()
+                                            varMap[':harvesterID'] = harvester_id
+                                            varMap[':workerID'] = worker_id
+                                            varMap[':PandaID'] = tmpPandaID
+                                            varMap[':lastUpdate'] = datetime.datetime.utcnow()
+                                            if resJWC is None:
+                                                # insert
+                                                self.cur.execute(sqlJWI+comment, varMap)
+                                            else:
+                                                # update
+                                                self.cur.execute(sqlJWU+comment, varMap)
                                 # commit
                                 if not self._commit():
                                     raise RuntimeError, 'Commit error'
