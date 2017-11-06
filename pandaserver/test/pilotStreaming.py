@@ -43,7 +43,7 @@ class PilotStreaming:
             new_workers_per_harvester = taskBuffer.ups_new_worker_distribution(ups_queue, tmp_worker_stats)
 
             # variables for the harvester command
-            command = 'set_pilot_streaming'
+            command = 'SET_N_WORKERS'
             status = 'new'
             ack_requested = False
             lock_interval = None
