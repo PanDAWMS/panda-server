@@ -7,6 +7,7 @@ import os
 import sys
 import json
 import time
+import math
 import copy
 import glob
 import uuid
@@ -9881,9 +9882,6 @@ class DBProxy:
                       ORDER BY DECODE (gshare, {1}, {2}), currentpriority desc, pandaid asc)
                       WHERE ROWNUM <= {0}
                       """.format(':njobs', leave_bindings, len(sorted_leaves))
-
-            # TODO: a job might be stuck on a site because its share is completely filled by sites with
-            # TODO: specific site-capability that won't run anything else. Job brokerage should be global share aware
 
             _logger.debug('ret_sql: {0}'.format(ret_sql))
             _logger.debug('var_map: {0}'.format(var_map))
@@ -20385,3 +20383,187 @@ class DBProxy:
             self._rollback()
             self.dumpErrorMessage(tmpLog,methodName)
             return None
+
+
+    def ups_get_queues(self):
+        """
+        Identify unified pilot streaming (ups) queues: served in pull (late binding) model
+        :return: list of panda queues
+        """
+        comment = ' /* DBProxy.get_ups_queues */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, method_name)
+        tmpLog.debug('start')
+
+        ups_queues = []
+        # TODO: the pilot manager column is not available in schedconfig and something needs to be implemented
+        sql = """
+              SELECT siteid FROM atlas_pandameta.schedconfig
+              WHERE catchall LIKE '%unifiedPandaQueue%'
+              """
+
+        self.cur.execute(sql + comment)
+        res = self.cur.fetchall()
+        for ups_queue, in res:
+            ups_queues.append(ups_queue)
+
+        tmpLog.debug('done')
+        return ups_queues
+
+
+    def ups_load_worker_stats(self):
+        """
+        Load the harvester worker stats
+        :return: dictionary with worker statistics
+        """
+        comment = ' /* DBProxy.load_worker_stats */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, method_name)
+        tmpLog.debug('start')
+
+        # get current pilot distribution in harvester for the queue
+        sql = """
+              SELECT computingsite, harvester_id, resourcetype, status, n_workers 
+              FROM atlas_panda.harvester_worker_stats
+              """
+        # TODO: query should probably consider an expiration date for the data!!!
+        self.cur.execute(sql + comment)
+        worker_stats_rows = self.cur.fetchall()
+        worker_stats_dict = {}
+        for computing_site, harvester_id, resource_type, status, n_workers in worker_stats_rows:
+            worker_stats_dict.setdefault(computing_site, {})
+            worker_stats_dict[computing_site].setdefault(harvester_id, {})
+            worker_stats_dict[computing_site][harvester_id].setdefault(resource_type, {})
+            worker_stats_dict[computing_site][harvester_id][resource_type][status] = n_workers
+
+        tmpLog.debug('done')
+        return worker_stats_dict
+
+
+    def ups_load_activated_job_stats(self, ups_queues):
+        """
+        TODO: I'm not using the function finally, probably should be deleted
+        Load the job stats per queue
+        :ups_queues list with names of the queues served by pilot streaming model
+        :return: dictionary with statistics on activated jobs
+        """
+        comment = ' /* DBProxy.load_activated_job_stats */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, method_name)
+        tmpLog.debug('start')
+
+        if not ups_queues:
+            tmpLog.debug('done - ups_queues was empty')
+            return {}
+
+        # bind the ups queues for the query
+        var_map = {':activated': 'activated'}
+        counter = 0
+        for ups_queue in ups_queues:
+            var_map[':ups{0}'.format(counter)] = ups_queue
+            counter += 1
+        ups_queue_bindings = ','.join(':ups{0}'.format(i) for i in xrange(len(ups_queues)))
+
+        # get currently queued job distribution per queue
+        sql = """
+              SELECT computingsite, gshare, resource_type, njobs, hs
+              FROM atlas_panda.jobs_share_stats
+              WHERE computingsite IN ({0})
+              AND jobstatus=:activated
+              """.format(ups_queue_bindings)
+
+        # TODO: query should probably consider an expiration date for the data!!!
+        self.cur.execute(sql + comment, var_map)
+        job_stats_rows = self.cur.fetchall()
+        job_stats_dict = {}
+        for computing_site, gshare, resource_type, njobs, hs06 in job_stats_rows:
+            job_stats_dict.setdefault(computing_site, {})
+            job_stats_dict[computing_site].setdefault(gshare, {})
+            job_stats_dict[computing_site][gshare][resource_type] = {'njobs': njobs, 'hs06': hs06}
+
+        tmpLog.debug('done')
+        return job_stats_dict
+
+    def ups_new_worker_distribution(self, queue, worker_stats):
+        """
+        Assuming we want to have n_cores_queued >= n_cores_running, calculate how many pilots need to be submitted
+        and choose the number  
+
+        :param queue: name of the queue
+        :param worker_stats: queue worker stats
+        :return:
+        """
+
+        comment = ' /* DBProxy.ups_calculate_submit_distribution */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, method_name)
+        tmpLog.debug('start')
+        
+        n_harvesters = len(worker_stats)
+        workers_running = {}
+        workers_queued = {}
+        harvester_ids = worker_stats.keys()
+        for harvester_id in harvester_ids:
+            for resource_type in worker_stats[harvester_id]:
+                # TODO: this needs to be converted into cores, or we stay at worker level???
+                # how do I know ncores from only the resource_type???
+                try:
+                    n_workers_running = workers_running + worker_stats[harvester_id][resource_type]['running']
+                except KeyError:
+                    pass
+
+                try:
+                    n_workers_queued = workers_queued + worker_stats[harvester_id][resource_type]['submitted']
+                except KeyError:
+                    pass
+
+                try:
+                    n_workers_queued = workers_queued + worker_stats[harvester_id][resource_type]['ready']
+                except KeyError:
+                    pass
+
+        # TODO: what is a good strategy??? how many jobs/cores should be queued compared to running
+        # TODO: for the moment we'll target nqueued = nrunning for simplification
+        n_workers_to_submit = n_workers_running - n_workers_queued
+
+        # Get the sorted global shares
+        sorted_shares = self.get_sorted_leaves()
+        for share in sorted_shares:
+            var_map = {':queue': queue}
+            sql = """
+                  SELECT gshare, resource_type FROM atlas_panda.jobsactive4
+                  WHERE jobstatus = 'activated'
+                     AND computingsite=:queue 
+                  ORDER BY currentpriority DESC
+                  """
+            self.cur.execute(sql + comment, var_map)
+            activated_jobs = self.cur.fetchall()
+            for gshare, resource_type in activated_jobs:
+                workers_queued[resource_type] = workers_queued[resource_type] - 1
+                n_workers_to_submit = n_workers_to_submit - 1
+                if n_workers_to_submit <= 0:
+                    break
+
+            if n_workers_to_submit <= 0:
+                break
+
+        # TODO: is it good enough to say the resource_type or do we need to specify the sub_queue?!?
+        new_workers = {}
+        for resource_type in workers_queued:
+            if workers_queued[resource_type] > 0:
+                # we have too many workers queued already, don't submit more
+                new_workers[resource_type] = 0
+            elif workers_queued[resource_type] < 0:
+                # we don't have enough workers for this resource type
+                new_workers[resource_type] = - workers_queued[resource_type]
+        
+        # In case multiple harvester instances are serving a panda queue, split workers evenly between them
+        # TODO: think if there are better ways
+        new_workers_per_harvester = {}
+        for harvester_id in harvester_ids:
+            for resource_type in new_workers:
+                new_workers_per_harvester[harvester_id] = math.ceil(new_workers[resource_type] * 1.0 / len(harvester_ids))
+
+        tmpLog.debug('Workers to submit: {0}'.format(new_workers))
+        tmpLog.debug('done')
+        return new_workers_per_harvester

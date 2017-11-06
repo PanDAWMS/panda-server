@@ -3494,6 +3494,53 @@ class TaskBuffer:
         return ret
 
 
+    # get unified pilot streaming queues
+    def ups_get_queues(self):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.ups_get_queues()
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # load harvester worker stats
+    def ups_load_worker_stats(self):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.ups_load_worker_stats()
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # load activated job stats
+    def ups_load_activated_job_stats(self, ups_queues):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.ups_load_activated_job_stats(ups_queues)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # get the distribution of new workers to submit
+    def ups_new_worker_distribution(self, queue, worker_stats):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.ups_new_worker_distribution(queue, worker_stats)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
 
 # Singleton
 taskBuffer = TaskBuffer()
