@@ -18,7 +18,7 @@ class SiteSpec(object):
                    'sitershare','cloudrshare','corepower','wnconnectivity','catchall',
                    'role','pandasite_state','ddm_endpoints_input','ddm_endpoints_output','maxrss','minrss',
                    'direct_access_lan','direct_access_wan','tier','objectstores','is_unified',
-                   'unified_name')
+                   'unified_name','jobseed')
 
     # constructor
     def __init__(self):
@@ -86,7 +86,7 @@ class SiteSpec(object):
 
     # check what type of jobs are allowed
     def getJobSeed(self):
-        tmpVal = self.getValueFromCatchall('jobseed')
+        tmpVal = self.jobseed
         if tmpVal == None:
             return 'std'
         return tmpVal
