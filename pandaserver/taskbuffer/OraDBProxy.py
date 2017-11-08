@@ -600,7 +600,8 @@ class DBProxy:
                         varMap[':PandaID'] = job.jobsetID
                     else:
                         varMap[':PandaID'] = file.PandaID
-                    sqlJediFile  = "UPDATE ATLAS_PANDA.JEDI_Dataset_Contents SET status=:status,PandaID=:PandaID"
+                    varMap[':jobsetID'] = job.jobsetID
+                    sqlJediFile  = "UPDATE ATLAS_PANDA.JEDI_Dataset_Contents SET status=:status,PandaID=:PandaID,jobsetID=:jobsetID"
                     if file.type in ['output','log']:
                         sqlJediFile += ",outPandaID=:PandaID"
                     if isFileForWaitingCoJumbo:

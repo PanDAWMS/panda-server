@@ -1,6 +1,7 @@
 Release Notes
 
 * 11/8/2017
+  * setting jobsetID in JEDI_Dataset_Contents
   * using separate site attribute for jobseed
 
 * 11/1/2017
