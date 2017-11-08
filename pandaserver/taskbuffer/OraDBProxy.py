@@ -15550,7 +15550,7 @@ class DBProxy:
             sqlSN += "WHERE ps1.panda_site_name=:site AND ps1.site_name=ps2.site_name AND sc.siteid=ps2.panda_site_name "
             sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1 OR sc.catchall LIKE '%unifiedPandaQueue%') "
             sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
-            sqlSN += "AND (sc.catchall IS NULL OR NOT sc.catchall LIKE '%jobseed=es%') "
+            sqlSN += "AND (sc.jobseed IS NULL OR sc.jobseed<>'es') "
             sqlSN += "AND sc.status=:siteStatus "
             sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity=:wc1) "
             varMap = {}
@@ -15589,7 +15589,7 @@ class DBProxy:
                 sqlSN += "WHERE site_name=:nucleus AND sc.siteid=ps.panda_site_name "
                 sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1 OR sc.catchall LIKE '%unifiedPandaQueue%') "
                 sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
-                sqlSN += "AND (sc.catchall IS NULL OR NOT sc.catchall LIKE '%jobseed=es%') "
+                sqlSN += "AND (sc.jobseed IS NULL OR sc.jobseed<>'es') "
                 sqlSN += "AND sc.status=:siteStatus "
                 sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity=:wc1) "
                 varMap = {}
@@ -15652,12 +15652,12 @@ class DBProxy:
 
     # set score site to ES job
     def setScoreSiteToEs(self, jobSpec, methodName, comment):
-        # get sites in the nucleus associated to the site to run merge jobs in the same nucleus
+        # get score PQ in the nucleus associated to the site to run the smal ES job 
         sqlSN  = "SELECT ps2.panda_site_name "
         sqlSN += "FROM ATLAS_PANDA.panda_site ps1,ATLAS_PANDA.panda_site ps2,ATLAS_PANDAMETA.schedconfig sc "
         sqlSN += "WHERE ps1.panda_site_name=:site AND ps1.site_name=ps2.site_name AND sc.siteid=ps2.panda_site_name "
         sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1 OR sc.catchall LIKE '%unifiedPandaQueue%') "
-        sqlSN += "AND (sc.catchall IS NULL OR NOT sc.catchall LIKE '%jobseed=es%') "
+        sqlSN += "AND (sc.jobseed IS NULL OR sc.jobseed='es') "
         sqlSN += "AND sc.status=:siteStatus "
         varMap = {}
         varMap[':site'] = jobSpec.computingSite
