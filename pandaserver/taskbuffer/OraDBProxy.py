@@ -2142,8 +2142,7 @@ class DBProxy:
                                 _logger.debug(sqlJediDU+comment+str(varMap))
                                 self.cur.execute(sqlJediDU+comment, varMap)
                         # update lastStart
-                        if oldJobStatus in ('starting','sent') and jobStatus=='running' and \
-                                prodSourceLabel in ('managed','user','panda'):
+                        if oldJobStatus in ('starting','sent') and jobStatus=='running':
                             sqlLS  = "UPDATE ATLAS_PANDAMETA.siteData SET lastStart=CURRENT_DATE "
                             sqlLS += "WHERE site=:site AND hours=:hours AND flag IN (:flag1,:flag2) "
                             varMap = {}
