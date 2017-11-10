@@ -13113,6 +13113,8 @@ class DBProxy:
         # propagate failed result to unmerge job
         if len(finishUnmerge) > 0:
             self.updateUnmergedJobs(jobSpec,finishUnmerge)
+        # update some job attributes
+        self.setHS06sec(jobSpec.PandaID)
         # return
         return True
 
@@ -18606,6 +18608,12 @@ class DBProxy:
                     maxHS06sec = 999999999
                     if hs06sec > maxHS06sec:
                         hs06sec = maxHS06sec
+                    # update HS06sec
+                    varMap = {}
+                    varMap[':PandaID'] = pandaID
+                    varMap[':hs06sec'] = hs06sec
+                    self.cur.execute(sqlU + comment, varMap)
+                    tmpLog.debug('set HS06sec={0}'.format(hs06sec))
         # return
         return hs06sec
 
