@@ -2,7 +2,7 @@ import re
 
 
 # get core count
-def getCoreCount(actualCoreCount,defCoreCount,jobMetrics):
+def getCoreCount(actualCoreCount, defCoreCount, jobMetrics):
     coreCount = 1
     try:
         if actualCoreCount != None:
@@ -16,7 +16,7 @@ def getCoreCount(actualCoreCount,defCoreCount,jobMetrics):
                 coreCount = long(tmpMatch.group(1))
             else:
                 # use jobdef
-                if not defCoreCount in [None,0]:
+                if not defCoreCount in [None, 0]:
                     coreCount = defCoreCount
     except:
         pass
@@ -25,18 +25,12 @@ def getCoreCount(actualCoreCount,defCoreCount,jobMetrics):
 
 
 # get HS06sec
-def getHS06sec(startTime,endTime,baseWalltime,cpuEfficiency,corePower,coreCount):
+def getHS06sec(startTime, endTime, corePower, coreCount):
     try:
-        # no scaling
-        if cpuEfficiency == 0:
-            return 0
         # get execution time
         tmpTimeDelta = endTime-startTime
-        tmpVal = (tmpTimeDelta.seconds+tmpTimeDelta.days*24*3600)
-        # execution time is shorter than offset
-        if tmpVal <= baseWalltime:
-            return 0
-        tmpVal = float(tmpVal-baseWalltime)*corePower*coreCount*float(cpuEfficiency)/100.0
+        tmpVal = tmpTimeDelta.seconds + tmpTimeDelta.days * 24 * 3600
+        tmpVal = tmpVal * corePower * coreCount
         return tmpVal
     except:
         return None
