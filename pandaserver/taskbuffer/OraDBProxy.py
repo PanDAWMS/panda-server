@@ -18558,24 +18558,25 @@ class DBProxy:
         tmpLog = LogWrapper(_logger,methodName+" <PandaID={0}>".format(pandaID))
         tmpLog.debug("start")
         hs06sec = None
+
         # sql to get job attributes
         sqlJ  = "SELECT jediTaskID,startTime,endTime,actualCoreCount,coreCount,jobMetrics,computingSite "
         if inActive:
             sqlJ += "FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
         else:
             sqlJ += "FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID "
-        # sql to get task attributes
-        sqlT  = "SELECT baseWalltime,cpuEfficiency FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
-        sqlT += "WHERE jediTaskID=:jediTaskID "
+
         # sql to get site attributes
         sqlS  = "SELECT corePower FROM ATLAS_PANDAMETA.schedconfig "
         sqlS += "WHERE siteid=:siteid "
+
         # sql to update HS06sec
         if inActive:
             sqlU  = "UPDATE ATLAS_PANDA.jobsActive4 "
         else:
             sqlU  = "UPDATE ATLAS_PANDA.jobsArchived4 "
         sqlU += "SET hs06sec=:hs06sec WHERE PandaID=:PandaID "
+
         # get job attributes
         varMap = {}
         varMap[':PandaID'] = pandaID
@@ -18584,50 +18585,35 @@ class DBProxy:
         if resJ == None:
             tmpLog.debug('skip since job not found')
         else:
-            jediTaskID,startTime,endTime,actualCoreCount,defCoreCount,jobMetrics,computingSite = resJ
-            if jediTaskID == None:
-                # ignore non JEDI jobs
-                tmpLog.debug('skip since no JEDI job')
+            jediTaskID, startTime, endTime, actualCoreCount, defCoreCount, jobMetrics, computingSite = resJ
+            
+            # get site attributes
+            varMap = {}
+            varMap[':siteid'] = computingSite
+            self.cur.execute(sqlS+comment,varMap)
+            resS = self.cur.fetchone()
+            if resS == None:
+                tmpLog.debug('skip since site={0} not found'.format(computingSite))
             else:
-                # get task attributes
-                varMap = {}
-                varMap[':jediTaskID'] = jediTaskID
-                self.cur.execute(sqlT+comment,varMap)
-                resT = self.cur.fetchone()
-                if resT == None:
-                    tmpLog.debug('skip since jediTaskID={0} not found'.format(jediTaskID))
+                corePower, = resS
+                # get core count
+                coreCount = JobUtils.getCoreCount(actualCoreCount, defCoreCount, jobMetrics)
+                # get HS06sec
+                hs06sec = JobUtils.getHS06sec(startTime, endTime, corePower, coreCount)
+                if hs06sec == None:
+                    tmpLog.debug('skip since HS06sec is None')
                 else:
-                    baseWalltime,cpuEfficiency = resT
-                    # get site attributes
+                    # cap
+                    hs06sec = long(hs06sec)
+                    maxHS06sec = 999999999
+                    if hs06sec > maxHS06sec:
+                        hs06sec = maxHS06sec
+                    # update HS06sec
                     varMap = {}
-                    varMap[':siteid'] = computingSite
-                    self.cur.execute(sqlS+comment,varMap)
-                    resS = self.cur.fetchone()
-                    if resS == None:
-                        tmpLog.debug('skip since site={0} not found'.format(computingSite))
-                    else:
-                        corePower, = resS
-                        # get core count
-                        coreCount = JobUtils.getCoreCount(actualCoreCount,defCoreCount,jobMetrics)
-                        # enable scaling
-                        if cpuEfficiency == 0:
-                            cpuEfficiency = 100
-                        # get HS06sec
-                        hs06sec = JobUtils.getHS06sec(startTime,endTime,baseWalltime,cpuEfficiency,corePower,coreCount)
-                        if hs06sec == None:
-                            tmpLog.debug('skip since HS06sec is None')
-                        else:
-                            # cap
-                            hs06sec = long(hs06sec)
-                            maxHS06sec = 999999999
-                            if hs06sec > maxHS06sec:
-                                hs06sec = maxHS06sec
-                            # update HS06sec
-                            varMap = {}
-                            varMap[':PandaID'] = pandaID
-                            varMap[':hs06sec'] = hs06sec
-                            self.cur.execute(sqlU+comment,varMap)
-                            tmpLog.debug('set HS06sec={0}'.format(hs06sec))
+                    varMap[':PandaID'] = pandaID
+                    varMap[':hs06sec'] = hs06sec
+                    self.cur.execute(sqlU + comment, varMap)
+                    tmpLog.debug('set HS06sec={0}'.format(hs06sec))
         # return
         return hs06sec
 
