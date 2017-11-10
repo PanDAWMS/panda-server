@@ -35,7 +35,7 @@ def getHS06sec(startTime, endTime, corePower, coreCount, baseWalltime=0, cpuEffi
         tmpVal = tmpTimeDelta.seconds + tmpTimeDelta.days * 24 * 3600
         if tmpVal <= baseWalltime:
             return 0
-        hs06sec = float(tmpVal-baseWalltime) * corePower * coreCount
+        hs06sec = float(tmpVal-baseWalltime) * corePower * coreCount * float(cpuEfficiency) / 100.0
         return hs06sec
     except:
         return None
