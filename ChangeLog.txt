@@ -1,5 +1,8 @@
 Release Notes
 
+* 11/20/2017
+  * Using AES_MINEVENTSFORMCORE = max(AES_MINEVENTSFORMCORE, schedconfig.corecount)
+
 * 11/10/2017
   * Changed HS06sec formula to actualcorecount * corepower * duration
 

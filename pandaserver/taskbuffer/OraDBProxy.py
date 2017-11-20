@@ -15358,6 +15358,18 @@ class DBProxy:
             # changes some attributes
             if not doMerging:
                 minUnprocessed = self.getConfigValue('dbproxy', 'AES_MINEVENTSFORMCORE')
+                sqlCore = "SELECT coreCount FROM ATLAS_PANDAMETA.schedconfig WHERE siteid=:siteid "
+                varMap = {}
+                varMap[':siteid'] = jobSpec.computingSite
+                self.cur.execute(sqlCore+comment, varMap)
+                resCore = self.cur.fetchone()
+                if resCore is not None:
+                    coreCount, = resCore
+                    if coreCount is not None:
+                        if minUnprocessed is None:
+                            minUnprocessed = coreCount
+                        else:
+                            minUnprocessed = max(minUnprocessed, coreCount)
                 if jobSpec.coreCount > 1 and minUnprocessed is not None and minUnprocessed > nRow:
                     self.setScoreSiteToEs(jobSpec, methodName, comment)
             else:
@@ -15517,6 +15529,7 @@ class DBProxy:
 
     # set site for ES merge
     def setSiteForEsMerge(self, jobSpec, isFakeCJ, methodName, comment):
+        _logger.debug('{0} looking for ES merge site'.format(methodName))
         # merge on OS
         isMergeAtOS = EventServiceUtils.isMergeAtOS(jobSpec.specialHandling)
         # check where merge is done
@@ -15652,6 +15665,7 @@ class DBProxy:
 
     # set score site to ES job
     def setScoreSiteToEs(self, jobSpec, methodName, comment):
+        _logger.debug('{0} looking for SCORE site'.format(methodName))
         # get score PQ in the nucleus associated to the site to run the smal ES job 
         sqlSN  = "SELECT ps2.panda_site_name "
         sqlSN += "FROM ATLAS_PANDA.panda_site ps1,ATLAS_PANDA.panda_site ps2,ATLAS_PANDAMETA.schedconfig sc "
