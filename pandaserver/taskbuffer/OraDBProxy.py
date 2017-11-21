@@ -13681,7 +13681,7 @@ class DBProxy:
                     _logger.debug('{0} old jediTaskID={1} with taskName={2} in status={3}'.format(methodName,jediTaskID,
                                                                                                   varMap[':taskName'],taskStatus))
                     # check task status
-                    if not taskStatus in ['finished','failed','aborted','done'] and \
+                    if not taskStatus in ['finished','failed','aborted','done', 'exhausted'] and \
                             not (allowActiveTask and taskStatus in ['running','scouting','pending'] and taskParamsJson['prodSourceLabel'] in ['user']):
                         # still active
                         goForward = False
@@ -13713,7 +13713,7 @@ class DBProxy:
                                     newTaskParams['sourceURL'] = taskParamsJson['sourceURL']
                                 continue
                         # send command to reactivate the task
-                        if not allowActiveTask or taskStatus in ['finished','failed','aborted','done']:
+                        if not allowActiveTask or taskStatus in ['finished','failed','aborted','done','exhausted']:
                             # delete command just in case
                             varMap = {}
                             varMap[':jediTaskID'] = jediTaskID

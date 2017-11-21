@@ -1,5 +1,8 @@
 Release Notes
 
+* 11/21/2017
+  * allowing incexec for exhausted
+
 * 11/20/2017
   * Using AES_MINEVENTSFORMCORE = max(AES_MINEVENTSFORMCORE, schedconfig.corecount)
 
