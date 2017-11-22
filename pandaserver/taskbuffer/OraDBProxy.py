@@ -19735,8 +19735,8 @@ class DBProxy:
         comment = ' /* DBProxy.updateWorkers */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         tmpLog = LogWrapper(_logger, methodName+' < HarvesterID={0} >'.format(harvesterID))
-        tmpLog.debug('start')
         try:
+            tmpLog.debug('start {0} workers'.format(len(data)))
             sqlC  = "SELECT {0} FROM ATLAS_PANDA.Harvester_Workers ".format(WorkerSpec.columnNames())
             sqlC += "WHERE harvesterID=:harvesterID AND workerID=:workerID "
             # loop over all workers
