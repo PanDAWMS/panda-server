@@ -474,7 +474,7 @@ def updateLog(req,file):
         # stdout name
         logName  = '%s/%s' % (panda_config.cache_dir,file.filename.split('/')[-1])
         # append
-        ft = open(logName,'wa')
+        ft = open(logName,'a')
         ft.write(extStr)
         ft.close()
     except:

@@ -1,5 +1,8 @@
 Release Notes
 
+* 11/24/2017
+  * disabled OracleEI for https://cern.service-now.com/service-portal/view-incident.do?n=INC1529405
+
 * 11/21/2017
   * allowing incexec for exhausted
 

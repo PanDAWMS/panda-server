@@ -999,11 +999,13 @@ class DynDataDistributer:
                                                                                     regTime.microseconds/1000,
                                                                                     len(tmpRunEvtList)))
                 regStart = datetime.datetime.utcnow()
+                """
                 statOra,guidListOraEI = eiTaskBuffer.getGUIDsFromEventIndex(tmpRunEvtList,streamName,amiTag,dsType)
                 regTime = datetime.datetime.utcnow()-regStart
                 self.putLog("Oracle EI took {0}.{1:03d} sec for {2} events" .format(regTime.seconds,
                                                                                     regTime.microseconds/1000,
                                                                                     len(tmpRunEvtList)))
+                """
                 # failed
                 if not tmpErr in [None,''] or len(guidListELSSI) == 0:
                     self.putLog(tmpCom)
@@ -1016,10 +1018,12 @@ class DynDataDistributer:
                     paramStr = 'Run:%s Evt:%s Stream:%s' % (runNr,evtNr,streamName)
                     self.putLog(paramStr)
                     tmpRunEvtKey = (long(runNr),long(evtNr))
+                    """
                     # check in Oracle EI
                     if not tmpRunEvtKey in guidListOraEI:
                         errStr = "no GUIDs were found in Oracle EI for %s" % paramStr
                         self.putLog(errStr)
+                    """
                     # not found
                     if not tmpRunEvtKey in guidListELSSI:
                         self.putLog(tmpCom)
