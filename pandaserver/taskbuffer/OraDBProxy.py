@@ -15887,7 +15887,8 @@ class DBProxy:
         tmpLog.debug("start")
         try:
             # sql to update job
-            sqlT  = 'UPDATE ATLAS_PANDA.jobsActive4 SET jobStatus=:newJobStatus,relocationFlag=:newRelFlag '
+            sqlT  = 'UPDATE /*+ INDEX_RS_ASC(tab JOBSACTIVE4_PRODUSERNAMEST_IDX) */ '
+            sqlT += 'ATLAS_PANDA.jobsActive4 tab SET jobStatus=:newJobStatus,relocationFlag=:newRelFlag '
             sqlT += 'WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName '
             sqlT += 'AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag '
             # start transaction
@@ -15966,7 +15967,8 @@ class DBProxy:
         tmpLog.debug("start")
         try:
             # sql to update job
-            sqlT  = 'UPDATE ATLAS_PANDA.jobsActive4 SET jobStatus=:newJobStatus,relocationFlag=:newRelFlag '
+            sqlT  = 'UPDATE /*+ INDEX_RS_ASC(tab JOBSACTIVE4_PRODUSERNAMEST_IDX) */ '
+            sqlT += 'ATLAS_PANDA.jobsActive4 tab SET jobStatus=:newJobStatus,relocationFlag=:newRelFlag '
             sqlT += 'WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName '
             sqlT += 'AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag '
             # start transaction

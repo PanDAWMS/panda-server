@@ -1,6 +1,7 @@
 Release Notes
 
 * 11/24/2017
+  * added a hint to (un)throttle users
   * disabled OracleEI for https://cern.service-now.com/service-portal/view-incident.do?n=INC1529405
 
 * 11/21/2017
