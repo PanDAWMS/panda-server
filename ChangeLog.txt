@@ -1,5 +1,9 @@
 Release Notes
 
+
+* 11/29/2017
+  * changed JD to allow xml=json
+
 * 11/24/2017
   * added a hint to (un)throttle users
   * disabled OracleEI for https://cern.service-now.com/service-portal/view-incident.do?n=INC1529405

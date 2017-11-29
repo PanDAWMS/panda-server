@@ -516,21 +516,71 @@ class AdderGen:
                 if fullLFN != None:
                     fullLfnMap[lfn] = fullLFN
         except:
-            # check if file exists
-            if os.path.exists(self.xmlFile):
-                type, value, traceBack = sys.exc_info()
-                self.logger.error(": %s %s" % (type,value))
-                # set failed anyway
-                self.job.jobStatus = 'failed'
-                # XML error happens when pilot got killed due to wall-time limit or failures in wrapper
-                if (self.job.pilotErrorCode in [0,'0','NULL']) and \
-                   (self.job.transExitCode  in [0,'0','NULL']):
-                    self.job.ddmErrorCode = ErrorCode.EC_Adder
-                    self.job.ddmErrorDiag = "Could not get GUID/LFN/MD5/FSIZE/SURL from pilot XML"
-                return 2
-            else:
-                # XML was deleted
-                return 1
+            # parse json
+            try:
+                import json
+                with open(self.xmlFile) as tmpF:
+                    jsonDict = json.load(tmpF)
+                    for lfn, fileData in jsonDict.iteritems():
+                        lfn = str(lfn)
+                        fsize   = None
+                        md5sum  = None
+                        adler32 = None
+                        surl    = None
+                        fullLFN = None
+                        guid = str(fileData['guid'])
+                        if 'fsize' in fileData:
+                            fsize = long(fileData['fsize'])
+                        if 'md5sum' in fileData:
+                            md5sum = str(fileData['md5sum'])
+                            # check
+                            if re.search("^[a-fA-F0-9]{32}$",md5sum) == None:
+                                md5sum = None
+                        if 'adler32' in fileData:
+                            adler32 = str(fileData['adler32'])
+                        if 'surl' in fileData:
+                            surl = str(fileData['surl'])
+                        if 'full_lfn' in fileData:
+                            fullLFN = str(fileData['full_lfn'])
+                        # endpoints
+                        self.extraInfo['endpoint'][lfn] = []
+                        if 'endpoint' in fileData:
+                            self.extraInfo['endpoint'][lfn] = fileData['endpoint']
+                        # error check
+                        if (not lfn in inputLFNs) and (fsize == None or (md5sum == None and adler32 == None)):
+                            if EventServiceUtils.isEventServiceMerge(self.job):
+                                continue
+                            else:
+                                raise RuntimeError, 'fsize/md5sum/adler32/surl=None'
+                        # append
+                        lfns.append(lfn)
+                        guids.append(guid)
+                        fsizes.append(fsize)
+                        md5sums.append(md5sum)
+                        surls.append(surl)
+                        if adler32 != None:
+                            # use adler32 if available
+                            chksums.append("ad:%s" % adler32)
+                        else:
+                            chksums.append("md5:%s" % md5sum)
+                        if fullLFN != None:
+                            fullLfnMap[lfn] = fullLFN
+            except:
+                # check if file exists
+                if os.path.exists(self.xmlFile):
+                    type, value, traceBack = sys.exc_info()
+                    self.logger.error(": %s %s" % (type,value))
+                    # set failed anyway
+                    self.job.jobStatus = 'failed'
+                    # XML error happens when pilot got killed due to wall-time limit or failures in wrapper
+                    if (self.job.pilotErrorCode in [0,'0','NULL']) and \
+                       (self.job.transExitCode  in [0,'0','NULL']):
+                        self.job.ddmErrorCode = ErrorCode.EC_Adder
+                        self.job.ddmErrorDiag = "Could not get GUID/LFN/MD5/FSIZE/SURL from pilot XML"
+                    return 2
+                else:
+                    # XML was deleted
+                    return 1
         # parse metadata to get nEvents
         try:
             root  = xml.dom.minidom.parseString(self.job.metadata)
