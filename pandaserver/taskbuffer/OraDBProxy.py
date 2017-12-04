@@ -20598,26 +20598,30 @@ class DBProxy:
         tmpLog = LogWrapper(_logger, method_name)
         tmpLog.debug('start')
         
-        n_harvesters = len(worker_stats)
-        workers_running = {}
+        n_workers_running = 0
         workers_queued = {}
+        n_workers_queued = 0
         harvester_ids = worker_stats.keys()
         for harvester_id in harvester_ids:
             for resource_type in worker_stats[harvester_id]:
                 # TODO: this needs to be converted into cores, or we stay at worker level???
                 # how do I know ncores from only the resource_type???
                 try:
-                    n_workers_running = workers_running + worker_stats[harvester_id][resource_type]['running']
+                    n_workers_running = n_workers_running + worker_stats[harvester_id][resource_type]['running']
                 except KeyError:
                     pass
 
                 try:
-                    n_workers_queued = workers_queued + worker_stats[harvester_id][resource_type]['submitted']
+                    workers_queued.set_default(resource_type, 0)
+                    workers_queued[resource_type] = workers_queued[resource_type] + worker_stats[harvester_id][resource_type]['running']
+                    n_workers_queued = n_workers_queued + worker_stats[harvester_id][resource_type]['submitted']
                 except KeyError:
                     pass
 
                 try:
-                    n_workers_queued = workers_queued + worker_stats[harvester_id][resource_type]['ready']
+                    workers_queued.set_default(resource_type, 0)
+                    workers_queued[resource_type] = workers_queued[resource_type] + worker_stats[harvester_id][resource_type]['running']
+                    n_workers_queued = n_workers_queued + worker_stats[harvester_id][resource_type]['ready']
                 except KeyError:
                     pass
 
@@ -20627,6 +20631,9 @@ class DBProxy:
 
         # Get the sorted global shares
         sorted_shares = self.get_sorted_leaves()
+
+        # Run over the activated jobs by gshare&priority and substract them from the queued
+        # A negative value for queued will mean more pilots of that resource type are missing
         for share in sorted_shares:
             var_map = {':queue': queue}
             sql = """
@@ -20640,13 +20647,15 @@ class DBProxy:
             for gshare, resource_type in activated_jobs:
                 workers_queued[resource_type] = workers_queued[resource_type] - 1
                 n_workers_to_submit = n_workers_to_submit - 1
+
+                # We reached the number of workers needed
                 if n_workers_to_submit <= 0:
                     break
 
+            # We reached the number of workers needed
             if n_workers_to_submit <= 0:
                 break
 
-        # TODO: is it good enough to say the resource_type or do we need to specify the sub_queue?!?
         new_workers = {}
         for resource_type in workers_queued:
             if workers_queued[resource_type] > 0:
@@ -20657,7 +20666,7 @@ class DBProxy:
                 new_workers[resource_type] = - workers_queued[resource_type]
         
         # In case multiple harvester instances are serving a panda queue, split workers evenly between them
-        # TODO: think if there are better ways
+        # TODO: think if there are better ways to split
         new_workers_per_harvester = {}
         for harvester_id in harvester_ids:
             for resource_type in new_workers:
