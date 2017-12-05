@@ -44,7 +44,7 @@ class PilotStreaming:
             print new_workers_per_harvester
 
             # variables for the harvester command
-            command = 'SET_N_WORKERS'
+            command = '{0}:{1}'.format('SET_N_WORKERS', ups_queue)
             status = 'new'
             ack_requested = False
             lock_interval = None
