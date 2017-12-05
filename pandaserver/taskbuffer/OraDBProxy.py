@@ -12668,8 +12668,8 @@ class DBProxy:
                 varMap[tmpKey] = None
         # insert
         sql  = "INSERT INTO ATLAS_PANDA.jobs_StatusLog "
-        sql += "(PandaID,modificationTime,jobStatus,prodSourceLabel,cloud,computingSite,modificationHost) "
-        sql += "VALUES (:PandaID,CURRENT_DATE,:jobStatus,:prodSourceLabel,:cloud,:computingSite,:modificationHost) "
+        sql += "(PandaID,modificationTime,jobStatus,prodSourceLabel,cloud,computingSite,modificationHost,modiftime_extended) "
+        sql += "VALUES (:PandaID,CURRENT_DATE,:jobStatus,:prodSourceLabel,:cloud,:computingSite,:modificationHost,CURRENT_TIMESTAMP) "
         try:
             # start transaction
             if useCommit:
