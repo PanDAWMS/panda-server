@@ -41,6 +41,7 @@ class PilotStreaming:
                 continue
 
             new_workers_per_harvester = taskBuffer.ups_new_worker_distribution(ups_queue, tmp_worker_stats)
+            print new_workers_per_harvester
 
             # variables for the harvester command
             command = 'SET_N_WORKERS'
