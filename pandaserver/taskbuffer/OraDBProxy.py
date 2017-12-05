@@ -20612,14 +20612,14 @@ class DBProxy:
                     pass
 
                 try:
-                    workers_queued.set_default(resource_type, 0)
+                    workers_queued.setdefault(resource_type, 0)
                     workers_queued[resource_type] = workers_queued[resource_type] + worker_stats[harvester_id][resource_type]['running']
                     n_workers_queued = n_workers_queued + worker_stats[harvester_id][resource_type]['submitted']
                 except KeyError:
                     pass
 
                 try:
-                    workers_queued.set_default(resource_type, 0)
+                    workers_queued.setdefault(resource_type, 0)
                     workers_queued[resource_type] = workers_queued[resource_type] + worker_stats[harvester_id][resource_type]['running']
                     n_workers_queued = n_workers_queued + worker_stats[harvester_id][resource_type]['ready']
                 except KeyError:
