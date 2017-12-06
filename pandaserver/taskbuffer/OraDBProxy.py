@@ -1595,14 +1595,30 @@ class DBProxy:
                         job.jobSubStatus = 'es_noevent'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceNoEvent
                         job.taskBufferErrorDiag = "didn't process any events on WN and retry unprocessed even ranges in PandaID={0}".format(retNewPandaID)
-                    # resurrect consumers at other sites
-                    if retEvS in [0, 5, 8] and EventServiceUtils.isResurrectConsumers(job.specialHandling):
-                        archivedConsumers = self.getOriginalConsumers(job.jediTaskID, job.jobsetID, job.PandaID)
-                        for archivedConsumer in archivedConsumers:
-                            tmpS,tmpID = self.ppEventServiceJob(archivedConsumer,None,False)
-                            _logger.debug('archiveJob : {0} tried to resurrect old consumer {1} ret={2} new={3}'.format(job.PandaID,
-                                                                                                                        archivedConsumer.PandaID,
-                                                                                                                        tmpS,tmpID))
+                    # additional actions when retry
+                    codeListWithRetry = [0, 5, 8]
+                    if retEvS in codeListWithRetry:
+                        # resurrect consumers at other sites
+                        if EventServiceUtils.isResurrectConsumers(job.specialHandling):
+                            archivedConsumers = self.getOriginalConsumers(job.jediTaskID, job.jobsetID, job.PandaID)
+                            for archivedConsumer in archivedConsumers:
+                                tmpS,tmpID = self.ppEventServiceJob(archivedConsumer,None,False)
+                                _logger.debug('archiveJob : {0} tried to resurrect old consumer {1} ret={2} new={3}'.format(job.PandaID,
+                                                                                                                            archivedConsumer.PandaID,
+                                                                                                                            tmpS,tmpID))
+                                if tmpID is not None:
+                                    retNewPandaID = tmpID
+                        # no new jobs
+                        if retNewPandaID is None:
+                            nActiveConsumers = self.getActiveConsumers(job.jediTaskID, job.jobsetID, job.PandaID)
+                            # no ES queues for retry
+                            if nActiveConsumers == 0:
+                                job.jobStatus = 'failed'
+                                job.taskBufferErrorCode = ErrorCode.EC_EventServiceNoEsQueues
+                                job.taskBufferErrorDiag = "no ES queues available for new consumers"
+                                _logger.debug('archiveJob : {0} set {1} since {2}'.format(job.PandaID,
+                                                                                          job.jobStatus,
+                                                                                          job.taskBufferErrorDiag))
                     # kill unused event ranges
                     if job.jobStatus == 'failed':
                         self.killUnusedEventRanges(job.jediTaskID,job.jobsetID)
@@ -15354,20 +15370,24 @@ class DBProxy:
                     jobSpec.jobParameters = str(clobJobP)
                 break
             # changes some attributes
+            noNewJob = False
             if not doMerging:
                 minUnprocessed = self.getConfigValue('dbproxy', 'AES_MINEVENTSFORMCORE')
-                sqlCore = "SELECT coreCount FROM ATLAS_PANDAMETA.schedconfig WHERE siteid=:siteid "
+                sqlCore = "SELECT coreCount,status,jobseed FROM ATLAS_PANDAMETA.schedconfig WHERE siteid=:siteid "
                 varMap = {}
                 varMap[':siteid'] = jobSpec.computingSite
                 self.cur.execute(sqlCore+comment, varMap)
                 resCore = self.cur.fetchone()
                 if resCore is not None:
-                    coreCount, = resCore
+                    coreCount,tmpState,tmpJobSeed = resCore
                     if coreCount is not None:
                         if minUnprocessed is None:
                             minUnprocessed = coreCount
                         else:
                             minUnprocessed = max(minUnprocessed, coreCount)
+                    
+                    if tmpState not in ['online', 'brokeroff'] or tmpJobSeed == 'std':
+                        noNewJob = True
                 if jobSpec.coreCount > 1 and minUnprocessed is not None and minUnprocessed > nRow:
                     self.setScoreSiteToEs(jobSpec, methodName, comment)
             else:
@@ -15436,64 +15456,73 @@ class DBProxy:
                 jobSpec.coreCount = None
                 jobSpec.minRamCount = 0
                 jobSpec.resource_type = self.get_resource_type_job(jobSpec)
-            # insert job with new PandaID
-            if currentJobStatus in ['defined','assigned']:
-                sql1  = "INSERT INTO ATLAS_PANDA.jobsDefined4 ({0}) ".format(JobSpec.columnNames())
-            elif currentJobStatus in ['waiting','pending']:
-                sql1  = "INSERT INTO ATLAS_PANDA.jobsWaiting4 ({0}) ".format(JobSpec.columnNames())
+            # no new job since ES is disabled
+            if noNewJob:
+                jobSpec.PandaID = None
+                msgStr = '{0} No new job since event service is disabled or queue is offline'.format(methodName)
+                _logger.debug(msgStr)
             else:
-                sql1  = "INSERT INTO ATLAS_PANDA.jobsActive4 ({0}) ".format(JobSpec.columnNames())
-            sql1 += JobSpec.bindValuesExpression(useSeq=True)
-            sql1 += " RETURNING PandaID INTO :newPandaID"
-            # set parentID
-            jobSpec.parentID = jobSpec.PandaID
-            varMap = jobSpec.valuesMap(useSeq=True)
-            varMap[':newPandaID'] = self.cur.var(varNUMBER)
-            # insert
-            retI = self.cur.execute(sql1+comment, varMap)
-            # set PandaID
-            jobSpec.PandaID = long(self.cur.getvalue(varMap[':newPandaID']))
-            msgStr = '{0} Generate new PandaID -> {1}#{2} at {3} '.format(methodName,jobSpec.PandaID,jobSpec.attemptNr,
-                                                                          jobSpec.computingSite)
-            if doMerging:
-                msgStr += "for merge"
-            else:
-                msgStr += "for retry"
-            _logger.debug(msgStr)
-            # insert files
-            sqlFile = "INSERT INTO ATLAS_PANDA.filesTable4 ({0}) ".format(FileSpec.columnNames())
-            sqlFile+= FileSpec.bindValuesExpression(useSeq=True)
-            sqlFile+= " RETURNING row_ID INTO :newRowID"
-            for fileSpec in jobSpec.Files:
-                # skip zip
-                if fileSpec.type.startswith('zip'):
-                    continue
-                # reset rowID
-                fileSpec.row_ID = None
-                # change GUID and LFN for log
-                if fileSpec.type == 'log':
-                    fileSpec.GUID = commands.getoutput('uuidgen')
-                    if doMerging:
-                        fileSpec.lfn = re.sub('\.{0}$'.format(pandaID),''.format(jobSpec.PandaID),fileSpec.lfn)
-                    else:
-                        fileSpec.lfn = re.sub('\.{0}$'.format(pandaID),'.{0}'.format(jobSpec.PandaID),fileSpec.lfn)
+                # insert job with new PandaID
+                if currentJobStatus in ['defined','assigned']:
+                    sql1  = "INSERT INTO ATLAS_PANDA.jobsDefined4 ({0}) ".format(JobSpec.columnNames())
+                elif currentJobStatus in ['waiting','pending']:
+                    sql1  = "INSERT INTO ATLAS_PANDA.jobsWaiting4 ({0}) ".format(JobSpec.columnNames())
+                else:
+                    sql1  = "INSERT INTO ATLAS_PANDA.jobsActive4 ({0}) ".format(JobSpec.columnNames())
+                sql1 += JobSpec.bindValuesExpression(useSeq=True)
+                sql1 += " RETURNING PandaID INTO :newPandaID"
+                # set parentID
+                jobSpec.parentID = jobSpec.PandaID
+                varMap = jobSpec.valuesMap(useSeq=True)
+                varMap[':newPandaID'] = self.cur.var(varNUMBER)
                 # insert
-                varMap = fileSpec.valuesMap(useSeq=True)
-                varMap[':newRowID'] = self.cur.var(varNUMBER)
-                self.cur.execute(sqlFile+comment, varMap)
-                fileSpec.row_ID = long(self.cur.getvalue(varMap[':newRowID']))
-            # insert job parameters
-            sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters) VALUES (:PandaID,:param)"
-            varMap = {}
-            varMap[':PandaID'] = jobSpec.PandaID
-            varMap[':param']   = jobSpec.jobParameters
-            self.cur.execute(sqlJob+comment, varMap)
-            # propagate change to JEDI
-            if doMerging:
-                relationType = 'es_merge'
-            else:
-                relationType = None
-            self.updateForPilotRetryJEDI(jobSpec,self.cur,onlyHistory=True,relationType=relationType)
+                if not noNewJob:
+                    retI = self.cur.execute(sql1+comment, varMap)
+                    # set PandaID
+                    jobSpec.PandaID = long(self.cur.getvalue(varMap[':newPandaID']))
+                else:
+                    jobSpec.PandaID = None
+                msgStr = '{0} Generate new PandaID -> {1}#{2} at {3} '.format(methodName,jobSpec.PandaID,jobSpec.attemptNr,
+                                                                              jobSpec.computingSite)
+                if doMerging:
+                    msgStr += "for merge"
+                else:
+                    msgStr += "for retry"
+                _logger.debug(msgStr)
+                # insert files
+                sqlFile = "INSERT INTO ATLAS_PANDA.filesTable4 ({0}) ".format(FileSpec.columnNames())
+                sqlFile+= FileSpec.bindValuesExpression(useSeq=True)
+                sqlFile+= " RETURNING row_ID INTO :newRowID"
+                for fileSpec in jobSpec.Files:
+                    # skip zip
+                    if fileSpec.type.startswith('zip'):
+                        continue
+                    # reset rowID
+                    fileSpec.row_ID = None
+                    # change GUID and LFN for log
+                    if fileSpec.type == 'log':
+                        fileSpec.GUID = commands.getoutput('uuidgen')
+                        if doMerging:
+                            fileSpec.lfn = re.sub('\.{0}$'.format(pandaID),''.format(jobSpec.PandaID),fileSpec.lfn)
+                        else:
+                            fileSpec.lfn = re.sub('\.{0}$'.format(pandaID),'.{0}'.format(jobSpec.PandaID),fileSpec.lfn)
+                    # insert
+                    varMap = fileSpec.valuesMap(useSeq=True)
+                    varMap[':newRowID'] = self.cur.var(varNUMBER)
+                    self.cur.execute(sqlFile+comment, varMap)
+                    fileSpec.row_ID = long(self.cur.getvalue(varMap[':newRowID']))
+                # insert job parameters
+                sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters) VALUES (:PandaID,:param)"
+                varMap = {}
+                varMap[':PandaID'] = jobSpec.PandaID
+                varMap[':param']   = jobSpec.jobParameters
+                self.cur.execute(sqlJob+comment, varMap)
+                # propagate change to JEDI
+                if doMerging:
+                    relationType = 'es_merge'
+                else:
+                    relationType = None
+                self.updateForPilotRetryJEDI(jobSpec,self.cur,onlyHistory=True,relationType=relationType)
             # commit
             if useCommit:
                 if not self._commit():
@@ -15510,10 +15539,13 @@ class DBProxy:
                 retValue = 2,jobSpec.PandaID
             # record status change
             try:
-                self.recordStatusChange(jobSpec.PandaID,jobSpec.jobStatus,jobInfo=jobSpec,useCommit=useCommit)
+                if not noNewJob:
+                    self.recordStatusChange(jobSpec.PandaID,jobSpec.jobStatus,jobInfo=jobSpec,useCommit=useCommit)
             except:
                 _logger.error('recordStatusChange in ppEventServiceJob')
             _logger.debug('{0} done for doMergeing={1}'.format(methodName,doMerging))
+            if retValue[-1] == 'NULL':
+                retValue = retValue[0],None
             return retValue
         except:
             # roll back
@@ -20676,3 +20708,34 @@ class DBProxy:
         tmpLog.debug('Workers to submit: {0}'.format(new_workers))
         tmpLog.debug('done')
         return new_workers_per_harvester
+
+
+    # get active consumers
+    def getActiveConsumers(self, jediTaskID, jobsetID, myPandaID):
+        comment = ' /* DBProxy.getActiveConsumers */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " < jediTaskID={0} jobsetID={1} PandaID={2} >".format(jediTaskID, jobsetID, myPandaID)
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        try:
+            # sql to get sites where consumers are active
+            sqlA = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jediTaskID=:jediTaskID AND jobsetID=:jobsetID "
+            sqlA += "UNION "
+            sqlA += "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE jediTaskID=:jediTaskID AND jobsetID=:jobsetID "
+            # get IDs
+            ids = set()
+            varMap = dict()
+            varMap[':jediTaskID'] = jediTaskID
+            varMap[':jobsetID'] = jobsetID
+            self.cur.execute(sqlA+comment, varMap)
+            resA = self.cur.fetchall()
+            for pandaID, in resA:
+                if pandaID != myPandaID:
+                    ids.add(pandaID)
+            nIDs = len(ids)
+            tmpLog.debug('got {0} ids'.format(nIDs))
+            return nIDs
+        except:
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return 0
