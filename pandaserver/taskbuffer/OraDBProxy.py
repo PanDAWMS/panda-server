@@ -20597,7 +20597,6 @@ class DBProxy:
         method_name = comment.split(' ')[-2].split('.')[-1]
         tmpLog = LogWrapper(_logger, method_name)
         tmpLog.debug('start')
-        
         n_workers_running = 0
         workers_queued = {}
         n_workers_queued = 0
@@ -20613,21 +20612,23 @@ class DBProxy:
 
                 try:
                     workers_queued.setdefault(resource_type, 0)
-                    workers_queued[resource_type] = workers_queued[resource_type] + worker_stats[harvester_id][resource_type]['running']
+                    workers_queued[resource_type] = workers_queued[resource_type] + worker_stats[harvester_id][resource_type]['submitted']
                     n_workers_queued = n_workers_queued + worker_stats[harvester_id][resource_type]['submitted']
                 except KeyError:
                     pass
 
                 try:
                     workers_queued.setdefault(resource_type, 0)
-                    workers_queued[resource_type] = workers_queued[resource_type] + worker_stats[harvester_id][resource_type]['running']
+                    workers_queued[resource_type] = workers_queued[resource_type] + worker_stats[harvester_id][resource_type]['ready']
                     n_workers_queued = n_workers_queued + worker_stats[harvester_id][resource_type]['ready']
                 except KeyError:
                     pass
 
         # TODO: what is a good strategy??? how many jobs/cores should be queued compared to running
         # TODO: for the moment we'll target nqueued = nrunning for simplification
-        n_workers_to_submit = n_workers_running - n_workers_queued
+        # TODO: if there are no pilots queued or running, we should submit a configurable minimum, or set the minimum based 
+        #       on the number of activated jobs
+        n_workers_to_submit = max(n_workers_running - n_workers_queued, 5)
 
         # Get the sorted global shares
         sorted_shares = self.get_sorted_leaves()
@@ -20635,16 +20636,18 @@ class DBProxy:
         # Run over the activated jobs by gshare&priority and substract them from the queued
         # A negative value for queued will mean more pilots of that resource type are missing
         for share in sorted_shares:
-            var_map = {':queue': queue}
+            var_map = {':queue': queue, ':gshare': share.name}
             sql = """
                   SELECT gshare, resource_type FROM atlas_panda.jobsactive4
                   WHERE jobstatus = 'activated'
                      AND computingsite=:queue 
+                     AND gshare=:gshare 
                   ORDER BY currentpriority DESC
                   """
             self.cur.execute(sql + comment, var_map)
             activated_jobs = self.cur.fetchall()
             for gshare, resource_type in activated_jobs:
+                workers_queued.setdefault(resource_type, 0)
                 workers_queued[resource_type] = workers_queued[resource_type] - 1
                 n_workers_to_submit = n_workers_to_submit - 1
 
