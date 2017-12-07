@@ -1,5 +1,7 @@
 Release Notes
 
+* 12/6/2017
+  * changed to avoid reattempts of ES jobs when jobseed is std or status is not online or brokeroff
 
 * 11/29/2017
   * changed JD to allow xml=json

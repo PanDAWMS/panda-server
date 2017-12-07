@@ -69,6 +69,9 @@ EC_EventServiceNoEvent = 123
 # input files inconsitent with JEDI
 EC_EventServiceInconsistentIn = 124
 
+# No event service queues available for new consumers
+EC_EventServiceNoEsQueues = 125
+
 # failed to lock semaphore for job cloning
 EC_JobCloningUnlock = 200
 
