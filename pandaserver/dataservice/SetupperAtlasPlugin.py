@@ -1645,6 +1645,9 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             # use production or test jobs only
             if not tmpJob.prodSourceLabel in ['managed','test']:
                 continue
+            # skip for prefetcher
+            if tmpJob.usePrefetcher():
+                continue
             # ignore inappropriate status
             if tmpJob.jobStatus in ['failed','cancelled','waiting'] or tmpJob.isCancelled():
                 continue
