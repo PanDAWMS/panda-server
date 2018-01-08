@@ -4108,7 +4108,7 @@ class DBProxy:
                         # kill associated consumers for event service
                         if useEventService:
                             self.killEventServiceConsumers(job,True,False)
-                            self.killUnusedEventServiceConsumers(job,False)
+                            self.killUnusedEventServiceConsumers(job,False,killAll=True)
                             self.updateRelatedEventServiceJobs(job,True)
                             self.killUnusedEventRanges(job.jediTaskID,job.jobsetID)
                         elif useEventServiceMerge:

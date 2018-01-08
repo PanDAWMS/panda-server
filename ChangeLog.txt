@@ -1,5 +1,9 @@
 Release Notes
 
+*1/8/2018
+  * using keepUnmerged to reassign jobs
+  * to kill all consumers when a consumer is killed
+
 * 12/6/2017
   * changed to avoid reattempts of ES jobs when jobseed is std or status is not online or brokeroff
 

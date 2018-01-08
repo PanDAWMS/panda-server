@@ -711,7 +711,7 @@ for tmpSite, in resDS:
             iJob = 0
             while iJob < len(jediJobs):
                 _logger.debug('reassignJobs for JEDI at inactive site %s (%s)' % (tmpSite,jediJobs[iJob:iJob+nJob]))
-                Client.killJobs(jediJobs[iJob:iJob+nJob],51)
+                Client.killJobs(jediJobs[iJob:iJob+nJob],51,keepUnmerged=True)
                 iJob += nJob
 
 # reassign defined jobs in defined table
@@ -742,7 +742,7 @@ if len(jediJobs) != 0:
     iJob = 0
     while iJob < len(jediJobs):
         _logger.debug('reassignJobs for JEDI defined jobs (%s)' % jediJobs[iJob:iJob+nJob])
-        Client.killJobs(jediJobs[iJob:iJob+nJob],51)
+        Client.killJobs(jediJobs[iJob:iJob+nJob],51,keepUnmerged=True)
         iJob += nJob
 
 # reassign long-waiting jobs in defined table
@@ -772,7 +772,7 @@ if len(jediJobs) != 0:
     iJob = 0
     while iJob < len(jediJobs):
         _logger.debug('reassignJobs for long JEDI in defined table (%s)' % jediJobs[iJob:iJob+nJob])
-        Client.killJobs(jediJobs[iJob:iJob+nJob],51)
+        Client.killJobs(jediJobs[iJob:iJob+nJob],51,keepUnmerged=True)
         iJob += nJob
 
 
@@ -807,7 +807,7 @@ for tmpCloud in siteMapper.getCloudList():
         iJob = 0
         while iJob < len(jediJobs):
             _logger.debug('reassignJobs for Active T1 JEDI evgensimul (%s)' % jediJobs[iJob:iJob+nJob])
-            Client.killJobs(jediJobs[iJob:iJob+nJob],51)
+            Client.killJobs(jediJobs[iJob:iJob+nJob],51,keepUnmerged=True)
             iJob += nJob
 
 # reassign too long-standing evgen/simul jobs with active state at T2
@@ -873,7 +873,7 @@ try:
                     iJob = 0
                     while iJob < len(jediJobs):
                         _logger.debug('reassignJobs for Active T2 JEDI evgensimul (%s)' % jediJobs[iJob:iJob+nJob])
-                        Client.killJobs(jediJobs[iJob:iJob+nJob],51)
+                        Client.killJobs(jediJobs[iJob:iJob+nJob],51,keepUnmerged=True)
                         iJob += nJob
 except:
     errType,errValue = sys.exc_info()[:2]
@@ -912,7 +912,7 @@ if len(jediJobs) != 0:
     iJob = 0
     while iJob < len(jediJobs):
         _logger.debug('reassignJobs for long activated JEDI in active table (%s)' % jediJobs[iJob:iJob+nJob])
-        Client.killJobs(jediJobs[iJob:iJob+nJob],51)
+        Client.killJobs(jediJobs[iJob:iJob+nJob],51,keepUnmerged=True)
         iJob += nJob
 
 # reassign too long starting jobs in active table
@@ -944,7 +944,7 @@ if len(jediJobs) != 0:
     iJob = 0
     while iJob < len(jediJobs):
         _logger.debug('reassignJobs for long stating JEDI in active table (%s)' % jediJobs[iJob:iJob+nJob])
-        Client.killJobs(jediJobs[iJob:iJob+nJob],51)
+        Client.killJobs(jediJobs[iJob:iJob+nJob],51,keepUnmerged=True)
         iJob += nJob
         
 
@@ -1052,7 +1052,7 @@ if len(jediJobs) != 0:
     iJob = 0
     while iJob < len(jediJobs):
         _logger.debug('reassignJobs for JEDI Waiting (%s)' % jediJobs[iJob:iJob+nJob])
-        Client.killJobs(jediJobs[iJob:iJob+nJob],51)
+        Client.killJobs(jediJobs[iJob:iJob+nJob],51,keepUnmerged=True)
         iJob += nJob
 """
 
