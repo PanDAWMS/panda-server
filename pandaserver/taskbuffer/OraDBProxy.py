@@ -17213,7 +17213,6 @@ class DBProxy:
                     self.cur.execute(sqlLP+comment,varMap)
                     resLP = self.cur.fetchone()
                     if resLP != None:
-                        nDiff += 1
                         pandaID, = resLP
                         lostPandaIDs.add(pandaID)
                         # update the file and coproduced files to lost
@@ -17224,6 +17223,9 @@ class DBProxy:
                         varMap[':newStatus'] = 'lost'
                         varMap[':oldStatus'] = 'finished'
                         self.cur.execute(sqlUFO+comment,varMap)
+                        nRow = self.cur.rowcount
+                        if nRow > 0:
+                            nDiff += 1
                 # update output dataset statistics
                 sqlUDO  = 'UPDATE {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
                 sqlUDO += 'SET nFilesFinished=nFilesFinished-:nDiff '
