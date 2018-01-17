@@ -40,3 +40,30 @@ def getHS06sec(startTime, endTime, corePower, coreCount, baseWalltime=0, cpuEffi
     except:
         return None
     
+
+
+# parse string for number of standby jobs
+def parseNumStandby(catchall):
+    retMap = {}
+    if catchall is not None:
+        for tmpItem in catchall.split(','):
+            tmpMatch = re.search('^nStandby=(.+)', tmpItem)
+            if tmpMatch is None:
+                continue
+            for tmpSubStr in tmpMatch.group(1).split('|'):
+                if len(tmpSubStr.split(':')) != 3:
+                    continue
+                sw_id, resource_type, num = tmpSubStr.split(':')
+                try:
+                    sw_id = int(sw_id)
+                except:
+                    pass
+                if sw_id not in retMap:
+                    retMap[sw_id] = {}
+                if num == '':
+                    num = 0
+                else:
+                    num = int(num)
+                retMap[sw_id][resource_type] = num
+            break
+    return retMap

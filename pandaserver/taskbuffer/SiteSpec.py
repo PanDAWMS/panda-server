@@ -4,6 +4,8 @@ site specification
 """
 
 import re
+from . import JobUtils
+
 
 class SiteSpec(object):
     # attributes
@@ -149,3 +151,22 @@ class SiteSpec(object):
     # check if opportunistic
     def is_opportunistic(self):
         return self.pledgedCPU == -1
+
+
+
+    # get number of jobs for standby
+    def getNumStandby(self, sw_id, resource_type):
+        # only if in standby
+        if self.status != 'standby':
+            return None
+        numMap = JobUtils.parseNumStandby(self.catchall)
+        # neither gshare or workqueue is definied
+        if sw_id not in numMap:
+            return None
+        # give the total if resource type is undefined
+        if resource_type is None:
+            return sum(numMap[sw_id].values())
+        # give the number for the resource type
+        if resource_type in numMap[sw_id]:
+            return numMap[sw_id][resource_type]
+        return None

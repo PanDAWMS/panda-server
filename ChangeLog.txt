@@ -1,6 +1,9 @@
 Release Notes
 
-*1/8/2018
+* 1/15/2018
+  * added nStandby
+
+* 1/8/2018
   * using keepUnmerged to reassign jobs
   * to kill all consumers when a consumer is killed
 
