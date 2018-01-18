@@ -15455,7 +15455,10 @@ class DBProxy:
                 self.setSiteForEsMerge(jobSpec, isFakeCJ, methodName, comment)
                 jobSpec.coreCount = None
                 jobSpec.minRamCount = 0
-                jobSpec.resource_type = self.get_resource_type_job(jobSpec)
+            
+            # reset resource type
+            jobSpec.resource_type = self.get_resource_type_job(jobSpec)
+            
             # no new job since ES is disabled
             if noNewJob:
                 jobSpec.PandaID = None
