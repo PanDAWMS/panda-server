@@ -3542,6 +3542,18 @@ class TaskBuffer:
         return ret
 
 
+    # check event availability
+    def checkEventsAvailability(self, pandaID, jobsetID, jediTaskID):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.checkEventsAvailability(pandaID, jobsetID, jediTaskID)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 

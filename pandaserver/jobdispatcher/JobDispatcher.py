@@ -519,6 +519,28 @@ class JobDipatcher:
         return response.encode(acceptJson)
 
 
+    # check event availability
+    def checkEventsAvailability(self, pandaID, jobsetID, jediTaskID, timeout):
+        # peek jobs
+        tmpWrapper = _TimedMethod(self.taskBuffer.checkEventsAvailability,timeout)
+        tmpWrapper.run(pandaID, jobsetID, jediTaskID)
+        # make response
+        if tmpWrapper.result == Protocol.TimeOutToken:
+            # timeout
+            response=Protocol.Response(Protocol.SC_TimeOut)
+        else:
+            if tmpWrapper.result != None:
+                # succeed
+                response=Protocol.Response(Protocol.SC_Success)
+                # make return
+                response.appendNode('nEventRanges',tmpWrapper.result)
+            else:
+                # failed
+                response=Protocol.Response(Protocol.SC_Failed)
+        _logger.debug("checkEventsAvailability : %s ret -> %s" % (pandaID,response.encode(True)))
+        return response.encode(True)
+
+
     # get DN/token map
     def getDnTokenMap(self):
         # get current datetime
@@ -1086,6 +1108,18 @@ def updateEventRanges(req,eventRanges,timeout=120,version=0):
     except:
         version = 0
     return jobDispatcher.updateEventRanges(eventRanges,int(timeout),req.acceptJson(),version)
+
+
+
+# check event availability
+def checkEventsAvailability(req, pandaID, jobsetID, taskID, timeout=60):
+    tmpStr = "checkEventsAvailability(pandaID={0} jobsetID={1} taskID={2})".format(pandaID, jobsetID, taskID)
+    _logger.debug(tmpStr+' start')
+    tmpStat,tmpOut = checkPilotPermission(req)
+    if not tmpStat:
+        _logger.error(tmpStr+'failed with '+tmpOut)
+        #return tmpOut
+    return jobDispatcher.checkEventsAvailability(pandaID, jobsetID, taskID, timeout)
 
 
 
