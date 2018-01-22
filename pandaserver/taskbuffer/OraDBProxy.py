@@ -1728,13 +1728,31 @@ class DBProxy:
                     self.updateUnmergedJobs(job)
                 # overwrite job status
                 tmpJobStatus = job.jobStatus
+                sqlPRE = "SELECT pledgedCPU FROM ATLAS_PANDAMETA.schedconfig WHERE siteID=:siteID "
                 sqlOJS = "UPDATE ATLAS_PANDA.jobsArchived4 SET jobStatus=:jobStatus,jobSubStatus=:jobSubStatus WHERE PandaID=:PandaID "
                 if oldJobSubStatus in ['pilot_failed', 'es_heartbeat'] or \
                         oldJobSubStatus == 'pilot_killed' and job.jobSubStatus in ['es_noevent', 'es_inaction']:
+                    # check if preemptable
+                    isPreemptable = False
+                    varMap = {}
+                    varMap[':siteID'] = job.computingSite
+                    self.cur.execute(sqlPRE+comment,varMap)
+                    resPRE = self.cur.fetchone()
+                    if resPRE is not None:
+                        try:
+                            if int(resPRE[0]) == -1:
+                                isPreemptable = True
+                        except:
+                            pass
+                    # overwrite job status
                     varMap = {}
                     varMap[':PandaID'] = job.PandaID
-                    varMap[':jobStatus'] = 'failed'
-                    varMap[':jobSubStatus'] = oldJobSubStatus
+                    if isPreemptable and oldJobSubStatus not in ['pilot_failed']:
+                        varMap[':jobStatus'] = 'closed'
+                        varMap[':jobSubStatus'] = 'es_preempted'
+                    else:
+                        varMap[':jobStatus'] = 'failed'
+                        varMap[':jobSubStatus'] = oldJobSubStatus
                     self.cur.execute(sqlOJS+comment,varMap)
                     tmpJobStatus = varMap[':jobStatus']
                 # commit

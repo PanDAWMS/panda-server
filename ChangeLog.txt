@@ -1,5 +1,8 @@
 Release Notes
 
+* 1/22/2018
+  * added es_preempted
+
 * 1/18/2018
   * added checkEventsAvailability
 
