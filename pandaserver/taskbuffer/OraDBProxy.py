@@ -19841,6 +19841,7 @@ class DBProxy:
                     sqlJI += "VALUES (:harvesterID,:workerID,:PandaID,:lastUpdate) "
                     sqlJU  = "UPDATE ATLAS_PANDA.Harvester_Rel_Jobs_Workers SET lastUpdate=:lastUpdate "
                     sqlJU += "WHERE harvesterID=:harvesterID AND workerID=:workerID AND PandaID=:PandaID "
+                    sqlJA  = "UPDATE ATLAS_PANDA.jobsActive4 SET modificationTime=CURRENT_DATE WHERE PandaID=:PandaID AND jobStatus IN (:js1,:js2) "
                     for pandaID in workerData['pandaid_list']:
                         # check if exists
                         varMap = dict()
@@ -19860,6 +19861,15 @@ class DBProxy:
                         else:
                             # update
                             self.cur.execute(sqlJU+comment, varMap)
+                        # comprehensive heartbeat
+                        varMap = dict()
+                        varMap[':PandaID'] = pandaID
+                        varMap[':js1'] = 'running'
+                        varMap[':js2'] = 'starting'
+                        self.cur.execute(sqlJA+comment, varMap)
+                        nRowJA = self.cur.rowcount
+                        if nRowJA > 0:
+                            tmpLog.debug('PandaID={0} updated modificationTime'.format(pandaID))
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'

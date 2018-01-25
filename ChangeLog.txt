@@ -1,5 +1,8 @@
 Release Notes
 
+* 1/25/2018
+  * added comprehensive heartbeat
+
 * 1/22/2018
   * added es_preempted
 
