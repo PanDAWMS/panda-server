@@ -223,6 +223,7 @@ setup(
                              'templates/panda_server-configurator.exe.template',
                              'templates/panda_server-esPreemption.exe.template',
                              'templates/panda_server-harvesterCtl.exe.template',
+                             'templates/panda_server-pilot_streaming.exe.template'
                              ]
                  ),
 
