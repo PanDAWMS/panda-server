@@ -20572,6 +20572,7 @@ class DBProxy:
         sql = """
               SELECT siteid FROM atlas_pandameta.schedconfig
               WHERE catchall LIKE '%unifiedPandaQueue%'
+              AND catchall LIKE '%Pull%'
               """
 
         self.cur.execute(sql + comment)
@@ -20836,3 +20837,51 @@ class DBProxy:
             self.dumpErrorMessage(_logger,methodName)
             return None
 
+
+    def get_resource_types(self):
+        comment = ' /* DBProxy.get_resource_types */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+        try:
+            sql_select_rt = "SELECT eventService FROM {0}.jobsActive4 WHERE PandaID=:PandaID ".format(panda_config.schemaJEDI)
+            # start transaction
+            self.conn.begin()
+            # get job to check if a jumbo job
+            isJumbo = False
+            varMap = {}
+            varMap[':PandaID'] = pandaID
+            self.cur.execute(sqlJ + comment, varMap)
+            res = self.cur.fetchone()
+            if res is not None:
+                eventService, = res
+                if eventService == EventServiceUtils.jumboJobFlagNumber:
+                    isJumbo = True
+            # get number of event ranges
+            sqlE = 'SELECT COUNT(*) '
+            sqlE += "FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlE += "WHERE jediTaskID=:jediTaskID AND status=:eventStatus AND attemptNr>:minAttemptNr "
+            varMap = {}
+            varMap[':eventStatus'] = EventServiceUtils.ST_ready
+            varMap[':minAttemptNr'] = 0
+            varMap[':jediTaskID'] = jediTaskID
+            if not isJumbo:
+                varMap[':jobsetID'] = jobsetID
+                sqlE += "AND PandaID=:jobsetID "
+            self.cur.execute(sqlE + comment, varMap)
+            res = self.cur.fetchone()
+            if res is not None:
+                nEvents, = res
+            else:
+                nEvents = 0
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug("has {0} event ranges".format(nEvents))
+            return nEvents
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, methodName)
+            return None
