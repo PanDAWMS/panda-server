@@ -578,10 +578,22 @@ class DBProxy:
                     if file.fileID == 'NULL':
                         continue
                     # input for waiting co-jumbo jobs
-                    if file.type not in ['output','log'] and job.computingSite == EventServiceUtils.siteIdForWaitingCoJumboJobs:
-                        isFileForWaitingCoJumbo = True
-                    else:
-                        isFileForWaitingCoJumbo = False
+                    isWaiting = None
+                    isFileForWaitingCoJumbo = False
+                    if file.type not in ['output','log']:
+                        if job.computingSite == EventServiceUtils.siteIdForWaitingCoJumboJobs:
+                            isFileForWaitingCoJumbo = True
+                        # check is_waiting
+                        sqlJediFileIsW = "SELECT is_waiting FROM ATLAS_PANDA.JEDI_Dataset_Contents "
+                        sqlJediFileIsW += " WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+                        varMap = {}
+                        varMap[':fileID'] = file.fileID
+                        varMap[':jediTaskID'] = file.jediTaskID
+                        varMap[':datasetID']  = file.datasetID
+                        self.cur.execute(sqlJediFileIsW+comment, varMap)
+                        resJediFileIsW = self.cur.fetchone()
+                        if resJediFileIsW is not None:
+                            isWaiting, = resJediFileIsW
                     # update Dataset_Contents table
                     varMap = {}
                     varMap[':fileID'] = file.fileID
@@ -607,16 +619,19 @@ class DBProxy:
                         sqlJediFile += ",outPandaID=:PandaID"
                     if isFileForWaitingCoJumbo:
                         sqlJediFile += ",is_waiting=:is_waiting"
+                    else:
+                        sqlJediFile += ",is_waiting=NULL"
                     sqlJediFile += " WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                     sqlJediFile += "AND attemptNr=:attemptNr AND status IN (:oldStatusI,:oldStatusO) AND keepTrack=:keepTrack "
-                    if isFileForWaitingCoJumbo:
-                        sqlJediFile += "AND is_waiting is NULL "
                     self.cur.execute(sqlJediFile+comment, varMap)
                     # get number of inputs for waiting co-jumbo jobs
-                    if isFileForWaitingCoJumbo and self.cur.rowcount > 0:
+                    if (isFileForWaitingCoJumbo or isWaiting is not None) and self.cur.rowcount > 0:
                         if not file.datasetID in nFilesWaitingMap:
                             nFilesWaitingMap[file.datasetID] = 0
-                        nFilesWaitingMap[file.datasetID] += 1
+                        if isFileForWaitingCoJumbo and isWaiting is None:
+                            nFilesWaitingMap[file.datasetID] += 1
+                        elif not isFileForWaitingCoJumbo and isWaiting is not None:
+                            nFilesWaitingMap[file.datasetID] -= 1
                     # no insert for dynamic number of events
                     if toSkipInsert:
                         continue
