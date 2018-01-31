@@ -63,14 +63,19 @@ class RucioAPI:
             pass
         # add files
         if len(files) > 0:
-            try:
-                client.add_files_to_dataset(scope=scope,name=dsn,files=files, rse=None)
-            except FileAlreadyExists:
-                for f in files:
-                    try:
-                        client.add_files_to_dataset(scope=scope, name=dsn, files=[f], rse=None)
-                    except FileAlreadyExists:
-                        pass
+            iFiles = 0
+            nFiles = 1000
+            while iFiles < len(files):
+                tmpFiles = files[iFiles:iFiles+nFiles]
+                try:
+                    client.add_files_to_dataset(scope=scope,name=dsn,files=tmpFiles, rse=None)
+                except FileAlreadyExists:
+                    for f in tmpFiles:
+                        try:
+                            client.add_files_to_dataset(scope=scope, name=dsn, files=[f], rse=None)
+                        except FileAlreadyExists:
+                            pass
+                iFiles += nFiles
         vuid = hashlib.md5(scope+':'+dsn).hexdigest()
         vuid = '%s-%s-%s-%s-%s' % (vuid[0:8], vuid[8:12], vuid[12:16], vuid[16:20], vuid[20:32])
         duid = vuid

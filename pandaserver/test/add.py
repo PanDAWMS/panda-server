@@ -252,7 +252,7 @@ mailSender.start()
 # session for co-jumbo jobs
 tmpLog.debug("co-jumbo session")
 try:
-    ret = taskBuffer.getCoJumboJobsToBeFinished(10,0)
+    ret = taskBuffer.getCoJumboJobsToBeFinished(30,0,1000)
     if ret == None:
         tmpLog.debug("failed to get co-jumbo jobs to finish")
     else:

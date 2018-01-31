@@ -18688,13 +18688,14 @@ class DBProxy:
 
 
     # check if all events are done
-    def checkAllEventsDone(self,job,pandaID,useCommit=False):
+    def checkAllEventsDone(self,job,pandaID,useCommit=False,dumpLog=True):
         comment = ' /* DBProxy.checkAllEventsDone */'
         if job != None:
             pandaID = job.PandaID
         methodName = comment.split(' ')[-2].split('.')[-1]
         tmpLog = LogWrapper(_logger,methodName+" <PandaID={0}>".format(pandaID))
-        tmpLog.debug("start")
+        if dumpLog:
+            tmpLog.debug("start")
         try:
             # get files
             sqlF  = "SELECT type,jediTaskID,datasetID,fileID FROM {0}.filesTable4 ".format(panda_config.schemaPANDA)
@@ -18756,7 +18757,8 @@ class DBProxy:
                             tmpStr += "for jediTaskID={0} datasetID={1} fileID={2}".format(fileSpec.jediTaskID,
                                                                                            fileSpec.datasetID,
                                                                                            fileSpec.fileID)
-                            tmpLog.debug(tmpStr)
+                            if dumpLog:
+                                tmpLog.debug(tmpStr)
                             allDone = False
                             break
                         # check job
@@ -18770,14 +18772,16 @@ class DBProxy:
                             tmpStr += "for jediTaskID={0} datasetID={1} fileID={2}".format(fileSpec.jediTaskID,
                                                                                            fileSpec.datasetID,
                                                                                            fileSpec.fileID)
-                            tmpLog.debug(tmpStr)
+                            if dumpLog:
+                                tmpLog.debug(tmpStr)
                         else:
                             # still active
                             tmpStr  = "PandaID={0} is associated in {1} ".format(pandaID,resJAL[0])
                             tmpStr += "for jediTaskID={0} datasetID={1} fileID={2}".format(fileSpec.jediTaskID,
                                                                                            fileSpec.datasetID,
                                                                                            fileSpec.fileID)
-                            tmpLog.debug(tmpStr)
+                            if dumpLog:
+                                tmpLog.debug(tmpStr)
                             allDone = False
                             break
                         # escape
@@ -18790,7 +18794,8 @@ class DBProxy:
             if useCommit:
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
-            tmpLog.debug("done with {0}".format(allDone))
+            if dumpLog:
+                tmpLog.debug("done with {0}".format(allDone))
             return allDone
         except:
             # roll back
@@ -18803,20 +18808,21 @@ class DBProxy:
 
 
     # get co-jumbo jobs to be finished
-    def getCoJumboJobsToBeFinished(self,timeLimit,minPriority):
+    def getCoJumboJobsToBeFinished(self, timeLimit, minPriority, maxJobs):
         comment = ' /* DBProxy.getCoJumboJobsToBeFinished */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         tmpLog = LogWrapper(_logger,methodName)
-        tmpLog.debug("start for minPriority={0} timeLimit={1}")
+        tmpLog.debug("start for minPriority={0} timeLimit={1}".format(minPriority, timeLimit))
         try:
+            return []
             # get co-jumbo jobs
             sqlEOD  = "SELECT PandaID FROM ATLAS_PANDA.{0} "
-            sqlEOD += "WHERE eventService=:eventService AND (stateChangeTime IS NULL OR stateChangeTime<:timeLimit) "
+            sqlEOD += "WHERE eventService=:eventService AND (prodDBUpdateTime IS NULL OR prodDBUpdateTime<:timeLimit) "
             sqlEOD += "AND currentPriority>=:minPriority "
             # lock job
             sqlLK  = "UPDATE ATLAS_PANDA.{0} "
-            sqlLK += "SET stateChangeTime=CURRENT_DATE "
-            sqlLK += "WHERE PandaID=:PandaID AND (stateChangeTime IS NULL OR stateChangeTime<:timeLimit) "
+            sqlLK += "SET prodDBUpdateTime=CURRENT_DATE "
+            sqlLK += "WHERE PandaID=:PandaID AND (prodDBUpdateTime IS NULL OR prodDBUpdateTime<:timeLimit) "
             self.cur.arraysize = 1000000
             timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=timeLimit)
             retList = []
@@ -18833,13 +18839,9 @@ class DBProxy:
                     raise RuntimeError, 'Commit error'
                 tmpLog.debug('checking {0} co-jumbo jobs in {1}'.format(len(tmpRes),tableName))
                 checkedPandaIDs = set()
+                iJobs = 0
                 # scan all jobs
                 for pandaID, in tmpRes:
-                    # check if all events are done
-                    allDone = self.checkAllEventsDone(None,pandaID,True)
-                    if allDone != True:
-                        tmpLog.debug('skip co-jumbo PandaID={0} due to allDone={1}'.format(pandaID,allDone))
-                        continue
                     # lock job
                     self.conn.begin()
                     varMap = {}
@@ -18847,13 +18849,17 @@ class DBProxy:
                     varMap[':timeLimit']     = timeLimit
                     self.cur.execute(sqlLK.format(tableName)+comment, varMap)
                     nRow = self.cur.rowcount
+                    if nRow > 0:
+                        iJobs += 1
+                        # check if all events are done
+                        allDone = self.checkAllEventsDone(None, pandaID, False, False)
+                        if allDone is True:
+                            tmpLog.debug('locked co-jumbo PandaID={0} to finish in {1}'.format(pandaID,tableName))
+                            checkedPandaIDs.add(pandaID)
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
-                    if nRow > 0:
-                        checkedPandaIDs.add(pandaID)
-                        tmpLog.debug('locked co-jumbo PandaID={0} to finish in {1}'.format(pandaID,tableName))
-                retList.append(checkedPandaIDs)
-                tmpLog.debug('locked {0} co-jumbo jobs in {1}'.format(len(checkedPandaIDs),tableName))
+                    if iJobs >= maxJobs:
+                        break
             tmpLog.debug("done")
             return retList
         except:
@@ -18877,7 +18883,8 @@ class DBProxy:
             sqlF  = "SELECT 1 FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sqlF += "WHERE jediTaskID=:jediTaskID AND PandaID=:PandaID AND rownum<2 "
             # begin transaction
-            self.conn.begin()
+            if useCommit:
+                self.conn.begin()
             # check event
             varMap = {}
             varMap[':PandaID'] = pandaID
@@ -18885,17 +18892,15 @@ class DBProxy:
             self.cur.execute(sqlF+comment, varMap)
             resF = self.cur.fetchone()
             # commit
-            if useCommit:
-                if not self._commit():
-                    raise RuntimeError, 'Commit error'
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
             if resF != None:
                 retVal = True
             tmpLog.debug("done with {0}".format(retVal))
             return retVal
         except:
             # roll back
-            if useCommit:
-                self._rollback()
+            self._rollback()
             # error
             self.dumpErrorMessage(_logger,methodName)
             return retVal
@@ -20885,3 +20890,40 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger, methodName)
             return None
+
+
+    # get LNFs for jumbo job
+    def getLFNsForJumbo(self, jediTaskID):
+        comment = ' /* DBProxy.getLFNsForJumbo */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        method_name += '< jediTaskID={0} >'.format(jediTaskID)
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+        try:
+            sqlS = "SELECT lfn,scope FROM {0}.JEDI_Datasets d, {0}.JEDI_Dataset_Contents c ".format(panda_config.schemaJEDI)
+            sqlS += "WHERE d.jediTaskID=c.jediTaskID AND d.datasetID=c.datasetID AND d.jediTaskID=:jediTaskID "
+            sqlS += "AND d.type IN (:type1,:type2) AND d.masterID IS NULL "
+            retSet = set()
+            # start transaction
+            self.conn.begin()
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            varMap[':type1'] = 'input'
+            varMap[':type2'] = 'pseudo_input'
+            self.cur.execute(sqlS + comment, varMap)
+            res = self.cur.fetchall()
+            for tmpLFN, tmpScope in res:
+                name = '{0}:{1}'.format(tmpScope, tmpLFN)
+                retSet.add(name)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmp_log.debug("has {0} LFNs".format(len(retSet)))
+            return retSet
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, method_name)
+            return []
+

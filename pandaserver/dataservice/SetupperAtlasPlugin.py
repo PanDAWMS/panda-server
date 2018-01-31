@@ -2098,8 +2098,10 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             except:
                 # default
                 tmpDataType = 'GEN'
+            # files for jumbo job
+            lfnsForJumbo = self.taskBuffer.getLFNsForJumbo(jumboJobSpec.jediTaskID)
             # make dis dataset name 
-            dispatchDBlock = "panda.%s.%s.%s.%s_dis%s" % (jumboJobSpec.taskID,time.strftime('%m.%d'),tmpDataType,
+            dispatchDBlock = "panda.%s.%s.%s.%s_dis%s" % (jumboJobSpec.taskID,time.strftime('%m.%d.%H%M'),tmpDataType,
                                                           'jumbo',jumboJobSpec.PandaID)
             # collect file attributes
             lfns = []
@@ -2112,6 +2114,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     continue
                 for tmpLFN,tmpVar in dsLFNsMap[tmpFileSpec.dataset].iteritems():
                     tmpLFN = '{0}:{1}'.format(tmpVar['scope'],tmpLFN)
+                    if tmpLFN not in lfnsForJumbo:
+                        continue
                     lfns.append(tmpLFN)
                     guids.append(tmpVar['guid'])
                     sizes.append(tmpVar['fsize'])

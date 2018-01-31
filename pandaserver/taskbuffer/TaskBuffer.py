@@ -3065,11 +3065,11 @@ class TaskBuffer:
 
 
     # get co-jumbo jobs to be finished
-    def getCoJumboJobsToBeFinished(self,timeLimit,minPriority):
+    def getCoJumboJobsToBeFinished(self,timeLimit,minPriority,maxJobs):
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.getCoJumboJobsToBeFinished(timeLimit,minPriority)
+        ret = proxy.getCoJumboJobsToBeFinished(timeLimit,minPriority,maxJobs)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -3548,6 +3548,18 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # exec
         ret = proxy.checkEventsAvailability(pandaID, jobsetID, jediTaskID)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # get LNFs for jumbo job
+    def getLFNsForJumbo(self, jediTaskID):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getLFNsForJumbo(jediTaskID)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
