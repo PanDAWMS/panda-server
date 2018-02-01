@@ -16,7 +16,8 @@ import traceback
 import xml.dom.minidom
 import ErrorCode
 from rucio.common.exception import FileConsistencyMismatch,DataIdentifierNotFound,UnsupportedOperation,\
-    InvalidPath,RSENotFound,InsufficientAccountLimit,RSEProtocolNotSupported,InvalidRSEExpression
+    InvalidPath,RSENotFound,InsufficientAccountLimit,RSEProtocolNotSupported,InvalidRSEExpression,\
+    InvalidObject
 
 from DDM import rucioAPI
 
@@ -513,6 +514,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                     FileConsistencyMismatch,
                     UnsupportedOperation,
                     InvalidPath,
+                    InvalidObject,
                     RSENotFound,
                     RSEProtocolNotSupported,
                     InvalidRSEExpression,

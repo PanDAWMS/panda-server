@@ -15633,13 +15633,15 @@ class DBProxy:
             lookForMergeSite = False
         else:
             # get sites in the nucleus associated to the site to run merge jobs in the same nucleus
-            sqlSN  = "SELECT ps2.panda_site_name,ps2.default_ddm_endpoint "
-            sqlSN += "FROM ATLAS_PANDA.panda_site ps1,ATLAS_PANDA.panda_site ps2,ATLAS_PANDAMETA.schedconfig sc "
+            sqlSN  = "SELECT dr.panda_site_name,dr.ddm_endpoint_name "
+            sqlSN += "FROM ATLAS_PANDA.panda_site ps1,ATLAS_PANDA.panda_site ps2,ATLAS_PANDAMETA.schedconfig sc,ATLAS_PANDA.panda_ddm_relation dr "
             sqlSN += "WHERE ps1.panda_site_name=:site AND ps1.site_name=ps2.site_name AND sc.siteid=ps2.panda_site_name "
+            sqlSN += "AND dr.panda_site_name=ps2.panda_site_name "
             sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1 OR sc.catchall LIKE '%unifiedPandaQueue%') "
             sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
             sqlSN += "AND (sc.jobseed IS NULL OR sc.jobseed<>'es') "
             sqlSN += "AND sc.status=:siteStatus "
+            sqlSN += "AND dr.default_write ='Y' "
             sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity=:wc1) "
             varMap = {}
             varMap[':site'] = jobSpec.computingSite
@@ -15673,12 +15675,15 @@ class DBProxy:
                     tmpNucleus = jobSpec.destinationSE.split(':')[-1]
                 _logger.info('{0} look for merge sites in nucleus:{1}'.format(methodName,tmpNucleus))
                 # get sites in a nucleus
-                sqlSN  = "SELECT panda_site_name,default_ddm_endpoint FROM ATLAS_PANDA.panda_site ps,ATLAS_PANDAMETA.schedconfig sc "
+                sqlSN  = "SELECT dr.panda_site_name,dr.ddm_endpoint_name "
+                sqlSN += "FROM ATLAS_PANDA.panda_site ps,ATLAS_PANDAMETA.schedconfig sc,ATLAS_PANDA.panda_ddm_relation dr "
                 sqlSN += "WHERE site_name=:nucleus AND sc.siteid=ps.panda_site_name "
+                sqlSN += "AND dr.panda_site_name=ps.panda_site_name "
                 sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1 OR sc.catchall LIKE '%unifiedPandaQueue%') "
                 sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
                 sqlSN += "AND (sc.jobseed IS NULL OR sc.jobseed<>'es') "
                 sqlSN += "AND sc.status=:siteStatus "
+                sqlSN += "AND dr.default_write='Y' "
                 sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity=:wc1) "
                 varMap = {}
                 varMap[':nucleus'] = tmpNucleus
