@@ -298,6 +298,17 @@ class Response:
                 self.data['writeToFile'] = writeToFileStr
             except:
                 pass
+        # replace placeholder
+        if EventServiceUtils.isJumboJob(job) or EventServiceUtils.isCoJumboJob(job):
+            try:
+                for inDS,inputList in inDsLfnMap.iteritems():
+                    inDS = re.sub('/$','',inDS)
+                    inDS = inDS.split(':')[-1]
+                    srcStr = 'tmpin__cnt_{0}'.format(inDS)
+                    dstStr = ','.join(inputList)
+                    self.data['jobPars'] = self.data['jobPars'].replace(srcStr, dstStr)
+            except:
+                pass
         # no output
         if noOutput != []:
             self.data['allowNoOutput'] = ','.join(noOutput)
