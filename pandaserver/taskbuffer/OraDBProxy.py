@@ -13121,6 +13121,15 @@ class DBProxy:
         # add jobset info for job cloning
         if useJobCloning:
             self.recordRetryHistoryJEDI(jobSpec.jediTaskID,jobSpec.PandaID,[jobSpec.jobsetID],EventServiceUtils.relationTypeJS_ID)
+        # update jumbo flag
+        if jobSpec.eventService == EventServiceUtils.jumboJobFlagNumber:
+            varMap = {}
+            varMap[':jediTaskID'] = jobSpec.jediTaskID
+            varMap[':newJumbo'] = 'L'
+            sqlJumboF = "UPDATE {0}.JEDI_Tasks SET useJumbo=:newJumbo WHERE jediTaskID=:jediTaskID AND useJumbo IS NOT NULL ".format(panda_config.schemaJEDI)
+            cur.execute(sqlJumboF+comment,varMap)
+            nRow = cur.rowcount
+            tmpLog.debug('set task.useJumbo={0} with {1}'.format(varMap[':newJumbo'], nRow))
         # update t_task
         if jobSpec.jobStatus == 'finished' and not jobSpec.prodSourceLabel in ['panda']:
             varMap = {}
