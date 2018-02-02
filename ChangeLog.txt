@@ -1,5 +1,8 @@
 Release Notes
 
+* 2/2/2018
+  * fixed resurrect consumers for consumers killed in assigned
+
 * 1/25/2018
   * added comprehensive heartbeat
 

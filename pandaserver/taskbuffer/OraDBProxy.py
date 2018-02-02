@@ -15354,10 +15354,6 @@ class DBProxy:
                 if nRowCEF > 0:
                     hasFatalRange = True
             # reset job attributes
-            if currentJobStatus in ['defined','assigned','waiting','pending']:
-                jobSpec.jobStatus = currentJobStatus
-            else:
-                jobSpec.jobStatus = 'activated'
             jobSpec.startTime        = None
             jobSpec.creationTime     = datetime.datetime.utcnow()
             jobSpec.modificationTime = jobSpec.creationTime
@@ -15400,6 +15396,17 @@ class DBProxy:
                 # reset file status
                 if fileSpec.type in ['output','log']:
                     fileSpec.status = 'unknown'
+            # set current status if unspecified
+            if currentJobStatus is None:
+                currentJobStatus = 'activated'
+                for fileSpec in jobSpec.Files:
+                    if fileSpec.type == 'input' and fileSpec.status != 'ready':
+                        currentJobStatus = 'assigned'
+                        break
+            if currentJobStatus in ['defined','assigned','waiting','pending']:
+                jobSpec.jobStatus = currentJobStatus
+            else:
+                jobSpec.jobStatus = 'activated'
             # read job parameters
             sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
             varMap = {}
