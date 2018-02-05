@@ -1611,7 +1611,7 @@ class DBProxy:
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceNoEvent
                         job.taskBufferErrorDiag = "didn't process any events on WN and retry unprocessed even ranges in PandaID={0}".format(retNewPandaID)
                     # additional actions when retry
-                    codeListWithRetry = [0, 8]
+                    codeListWithRetry = [0, 5, 8]
                     if retEvS in codeListWithRetry:
                         # resurrect consumers at other sites
                         if EventServiceUtils.isResurrectConsumers(job.specialHandling):
