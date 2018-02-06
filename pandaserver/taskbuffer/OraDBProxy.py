@@ -1214,6 +1214,7 @@ class DBProxy:
             sql0 = "SELECT jobStatus FROM ATLAS_PANDA.jobsWaiting4 WHERE PandaID=:PandaID "
             sql1 = "DELETE FROM ATLAS_PANDA.jobsWaiting4 WHERE PandaID=:PandaID"
         else:
+            sql0 = "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID FOR UPDATE "
             sql1 = "DELETE FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID"            
         sql2 = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
         sql2+= JobSpec.bindValuesExpression()
@@ -1547,6 +1548,12 @@ class DBProxy:
                     res0 = self.cur.fetchone()
                     if res0 is not None:
                         currentJobStatus, = res0
+                else:
+                    # lock job so that events are not dispatched during the processing
+                    varMap = {}
+                    varMap[':PandaID'] = job.PandaID
+                    self.cur.execute(sql0+comment, varMap)
+                    res0 = self.cur.fetchone()
                 # actions for successful normal ES jobs
                 if useJEDI and EventServiceUtils.isEventServiceJob(job) \
                         and not EventServiceUtils.isJobCloningJob(job):
@@ -14504,7 +14511,7 @@ class DBProxy:
                 pass
             # sql to get job
             sqlJ  = "SELECT jobStatus,commandToPilot,eventService FROM {0}.jobsActive4 ".format(panda_config.schemaPANDA)
-            sqlJ += "WHERE PandaID=:pandaID "
+            sqlJ += "WHERE PandaID=:pandaID FOR UPDATE "
             # sql to find a file to lock
             sqlFF = "SELECT jediTaskID,datasetID,fileID FROM {0}.filesTable4 ".format(panda_config.schemaPANDA)
             sqlFF += "WHERE PandaID=:pandaID AND type IN (:type1,:type2) "

@@ -1,5 +1,8 @@
 Release Notes
 
+* 2/6/2018
+  * locking job in active4 when ppE and getEvents
+
 * 2/2/2018
   * fixed resurrect consumers for consumers killed in assigned
 
