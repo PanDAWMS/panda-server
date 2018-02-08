@@ -2146,7 +2146,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 try:
                     endPoint = self.siteMapper.getSite(jumboJobSpec.computingSite).ddm_input
                     self.logger.debug('subscribing jumbo dis dataset {0} to {1}'.format(dispatchDBlock,endPoint))
-                    rucioAPI.registerDatasetLocation(dispatchDBlock,[endPoint],lifetime=14,activity='Production Input')
+                    rucioAPI.registerDatasetSubscription(dispatchDBlock,[endPoint],lifetime=14,activity='Production Input')
                 except:
                     errType,errValue = sys.exc_info()[:2]
                     self.logger.debug('failed to subscribe jumbo dis dataset {0} to {1} with {2}:{3}'.format(dispatchDBlock,
