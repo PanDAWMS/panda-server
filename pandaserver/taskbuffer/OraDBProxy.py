@@ -15446,6 +15446,9 @@ class DBProxy:
                         noNewJob = True
                 if jobSpec.coreCount > 1 and minUnprocessed is not None and minUnprocessed > nRow:
                     self.setScoreSiteToEs(jobSpec, methodName, comment)
+                # not to repeat useless consumers
+                if currentJobStatus in ['defined', 'pending']:
+                    noNewJob = True
             else:
                 # extract parameters for merge
                 try:
@@ -15518,7 +15521,7 @@ class DBProxy:
             # no new job since ES is disabled
             if noNewJob:
                 jobSpec.PandaID = None
-                msgStr = '{0} No new job since event service is disabled or queue is offline'.format(methodName)
+                msgStr = '{0} No new job since event service is disabled or queue is offline or old job status {1} is not active'.format(methodName, currentJobStatus)
                 _logger.debug(msgStr)
             else:
                 # insert job with new PandaID
