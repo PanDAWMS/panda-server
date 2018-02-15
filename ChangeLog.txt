@@ -1,5 +1,8 @@
 Release Notes
 
+* 2/15/2018
+  * changed get/updateEvents to take local pilot owner into account
+
 * 2/6/2018
   * locking job in active4 when ppE and getEvents
 

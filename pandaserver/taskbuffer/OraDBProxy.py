@@ -20973,3 +20973,38 @@ class DBProxy:
             self.dumpErrorMessage(_logger, method_name)
             return []
 
+
+
+    # get active job attribute
+    def getActiveJobAttributes(self, pandaID, attrs):
+        comment = ' /* DBProxy.getActiveJobAttributes */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        method_name += '< PandaID={0} >'.format(pandaID)
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+        try:
+            sqlS = "SELECT {0} FROM ATLAS_PANDA.jobsActive4 ".format(','.join(attrs))
+            sqlS += "WHERE PandaID=:PandaID "
+            # start transaction
+            self.conn.begin()
+            varMap = {}
+            varMap[':PandaID'] = pandaID
+            self.cur.execute(sqlS + comment, varMap)
+            res = self.cur.fetchone()
+            if res is not None:
+                retMap = dict()
+                for idx, attr in enumerate(attrs):
+                    retMap[attr] = res[idx]
+            else:
+                retMap = None
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmp_log.debug("got {0}".format(str(retMap)))
+            return retMap
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, method_name)
+            return None

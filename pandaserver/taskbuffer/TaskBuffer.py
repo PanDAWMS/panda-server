@@ -3566,6 +3566,18 @@ class TaskBuffer:
         return ret
 
 
+    # get active job attribute
+    def getActiveJobAttributes(self, pandaID, attrs):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getActiveJobAttributes(pandaID, attrs)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 

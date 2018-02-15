@@ -715,6 +715,9 @@ class JobDipatcher:
         # return
         return response.encode(True)
 
+    # get active job attribute
+    def getActiveJobAttributes(self, pandaID, attrs):
+        return self.taskBuffer.getActiveJobAttributes(pandaID, attrs)
     
         
 # Singleton
@@ -1072,37 +1075,55 @@ def checkJobStatus(req,ids,timeout=60):
 def getEventRanges(req,pandaID,jobsetID,taskID=None,nRanges=10,timeout=60):
     tmpStr = "getEventRanges(PandaID=%s jobsetID=%s taskID=%s,nRanges=%s)" % (pandaID,jobsetID,taskID,nRanges)
     _logger.debug(tmpStr+' start')
-    tmpStat,tmpOut = checkPilotPermission(req)
+    # get site
+    tmpMap = jobDispatcher.getActiveJobAttributes(pandaID, ['computingSite'])
+    if tmpMap is None:
+        site = ''
+    else:
+        site = tmpMap['computingSite']
+    tmpStat,tmpOut = checkPilotPermission(req, site)
     if not tmpStat:
         _logger.error(tmpStr+'failed with '+tmpOut)
-        #return tmpOut
+        return tmpOut
     return jobDispatcher.getEventRanges(pandaID,jobsetID,taskID,nRanges,int(timeout),req.acceptJson())
 
 
 
 # update an event range
 def updateEventRange(req,eventRangeID,eventStatus,coreCount=None,cpuConsumptionTime=None,
-                     objstoreID=None,timeout=60):
+                     objstoreID=None,timeout=60,pandaID=None):
     tmpStr = "updateEventRange(%s status=%s coreCount=%s cpuConsumptionTime=%s osID=%s)" % \
         (eventRangeID,eventStatus,coreCount,cpuConsumptionTime,objstoreID)
     _logger.debug(tmpStr+' start')
-    tmpStat,tmpOut = checkPilotPermission(req)
+    # get site
+    site = ''
+    if pandaID is not None:
+        tmpMap = jobDispatcher.getActiveJobAttributes(pandaID, ['computingSite'])
+        if tmpMap is not None:
+            site = tmpMap['computingSite']
+    tmpStat,tmpOut = checkPilotPermission(req, site)
     if not tmpStat:
         _logger.error(tmpStr+'failed with '+tmpOut)
-        #return tmpOut
+        return tmpOut
     return jobDispatcher.updateEventRange(eventRangeID,eventStatus,coreCount,cpuConsumptionTime,
                                           objstoreID,int(timeout))
 
 
 
 # update an event ranges
-def updateEventRanges(req,eventRanges,timeout=120,version=0):
+def updateEventRanges(req,eventRanges,timeout=120,version=0,pandaID=None):
     tmpStr = "updateEventRanges(%s)" % eventRanges
     _logger.debug(tmpStr+' start')
-    tmpStat,tmpOut = checkPilotPermission(req)
+    # get site
+    site = ''
+    if pandaID is not None:
+        tmpMap = jobDispatcher.getActiveJobAttributes(pandaID, ['computingSite'])
+        if tmpMap is not None:
+            site = tmpMap['computingSite']
+    tmpStat,tmpOut = checkPilotPermission(req, site)
     if not tmpStat:
         _logger.error(tmpStr+'failed with '+tmpOut)
-        #return tmpOut
+        return tmpOut
     try:
         version = int(version)
     except:
@@ -1160,13 +1181,13 @@ def getProxy(req,role=None):
 
 
 # check pilot permission
-def checkPilotPermission(req):
+def checkPilotPermission(req, site=''):
     # get DN
     realDN = _getDN(req)
     # get FQANs
     fqans = _getFQAN(req)
     # check production role
-    prodManager = _checkRole(fqans,realDN,jobDispatcher,True)
+    prodManager = _checkRole(fqans,realDN,jobDispatcher,True,site)
     if not prodManager:
         return False,"production or pilot role is required"
     if realDN == None:
