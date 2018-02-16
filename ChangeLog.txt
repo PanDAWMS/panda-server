@@ -1,5 +1,8 @@
 Release Notes
 
+* 2/16/2018
+  * added more info when dispatchDBlock failed
+
 * 2/15/2018
   * changed get/updateEvents to take local pilot owner into account
 

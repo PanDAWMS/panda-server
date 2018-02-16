@@ -343,6 +343,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 self.logger.debug(tmpMsg.format(ds=dispatchDBlock,meta=str(metadata)))
                 nDDMTry = 3
                 isOK = False
+                errStr = ''
                 for iDDMTry in range(nDDMTry):
                     try:
                         out = rucioAPI.registerDataset(dispatchDBlock,disFiles['lfns'],disFiles['guids'],
@@ -352,13 +353,14 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         break
                     except:
                         errType,errValue = sys.exc_info()[:2]
-                        self.logger.error("registerDataset : failed with {0}:{1}".format(errType,errValue))
+                        errStr = "{0}:{1}".format(errType,errValue)
+                        self.logger.error("registerDataset : failed with {0}".format(errStr))
                         if iDDMTry+1 == nDDMTry:
                             break
                         self.logger.debug("sleep {0}/{1}".format(iDDMTry,nDDMTry))
                         time.sleep(10)
                 if not isOK:
-                    dispError[dispatchDBlock] = "Setupper._setupSource() could not register dispatchDBlock"
+                    dispError[dispatchDBlock] = "Setupper._setupSource() could not register dispatchDBlock with {0}".format(errStr.split('\n')[-1])
                     continue
                 self.logger.debug(out)
                 newOut = out
