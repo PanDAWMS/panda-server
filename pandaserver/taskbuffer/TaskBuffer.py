@@ -1244,10 +1244,14 @@ class TaskBuffer:
                         proxy.retryJob(id,{},getNewPandaID=True,attemptNr=tmpJobSpec.attemptNr,
                                        recoverableEsMerge=True)
                     elif EventServiceUtils.isEventServiceJob(tmpJobSpec):
-                        # trigger ppE for ES jobs to properly trigger subsequent procedures
-                        ret = proxy.archiveJob(tmpJobSpec, tmpJobSpec.jobStatus in ['defined','assigned'])
-                        toKill = False
-                        userInfo = {'prodSourceLabel': None}
+                        # get number of started events
+                        nEvt = proxy.getNumStartedEvents(tmpJobSpec)
+                        # not to kill jobset if there are started events
+                        if nEvt is not None and nEvt > 0:
+                            # trigger ppE for ES jobs to properly trigger subsequent procedures
+                            ret = proxy.archiveJob(tmpJobSpec, tmpJobSpec.jobStatus in ['defined','assigned'])
+                            toKill = False
+                            userInfo = {'prodSourceLabel': None}
             if toKill:
                 ret,userInfo = proxy.killJob(id,user,code,prodManager,True,wgProdRole,killOptions)
             rets.append(ret)

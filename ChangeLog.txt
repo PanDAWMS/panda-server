@@ -1,5 +1,8 @@
 Release Notes
 
+* 2/20/2018
+  * changed --keepUnmerged to kill jobsets if no events got started
+
 * 2/16/2018
   * added more info when dispatchDBlock failed
 

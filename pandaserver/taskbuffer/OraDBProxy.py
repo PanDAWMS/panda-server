@@ -21008,3 +21008,48 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger, method_name)
             return None
+
+
+
+    # get number of started events
+    def getNumStartedEvents(self, jobSpec):
+        comment = ' /* DBProxy.getNumStartedEvents */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        method_name += ' < PandaID={0} >'.format(jobSpec.PandaID)
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+        try:
+            # count the number of started ranges
+            sqlCDO  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+            sqlCDO += "COUNT(*) FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
+            sqlCDO += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+            sqlCDO += "AND status IN (:esSent,:esRunning,:esFinished,:esDone) "
+            # start transaction
+            self.conn.begin()
+            nEvt = 0
+            for fileSpec in jobSpec.Files:
+                if fileSpec.type != 'input':
+                    continue
+                varMap = {}
+                varMap[':jediTaskID'] = fileSpec.jediTaskID
+                varMap[':datasetID']   = fileSpec.datasetID
+                varMap[':fileID']      = fileSpec.fileID
+                varMap[':esSent']      = EventServiceUtils.ST_sent
+                varMap[':esRunning']   = EventServiceUtils.ST_running
+                varMap[':esFinished']  = EventServiceUtils.ST_finished
+                varMap[':esDone']      = EventServiceUtils.ST_done
+                self.cur.execute(sqlCDO + comment, varMap)
+                res = self.cur.fetchone()
+                if res is not None:
+                    nEvt += res[0]
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmp_log.debug("{0} events started".format(nEvt))
+            return nEvt
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, method_name)
+            return None
