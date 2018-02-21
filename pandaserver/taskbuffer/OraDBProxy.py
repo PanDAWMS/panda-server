@@ -3574,7 +3574,8 @@ class DBProxy:
                         job.jobParameters = str(clobJobP)
                     break
                 # remove or extract parameters for merge
-                if EventServiceUtils.isEventServiceJob(job):
+                if EventServiceUtils.isEventServiceJob(job) or EventServiceUtils.isJumboJob(job) or \
+                   EventServiceUtils.isCoJumboJob(job):
                     try:
                         job.jobParameters = re.sub('<PANDA_ESMERGE_.+>.*</PANDA_ESMERGE_.+>','',job.jobParameters)
                     except:
