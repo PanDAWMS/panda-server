@@ -1,5 +1,10 @@
 Release Notes
 
+* 2/23/2018
+  * added a protection against non-integer transExitCode
+  * added a protection not to close dis datasets if resurrected consumer could use them
+  * changed ppE not to resurrect consumers killed in defined
+
 * 2/20/2018
   * changed --keepUnmerged to kill jobsets if no events got started
 

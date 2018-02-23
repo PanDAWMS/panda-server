@@ -962,9 +962,17 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
     if node != None:
         param['modificationHost']=node[:128]
     if transExitCode != None:
-        param['transExitCode']=transExitCode
+        try:
+            int(transExitCode)
+            param['transExitCode'] = transExitCode
+        except:
+            pass
     if pilotErrorCode != None:
-        param['pilotErrorCode']=pilotErrorCode
+        try:
+            int(pilotErrorCode)
+            param['pilotErrorCode'] = pilotErrorCode
+        except:
+            pass
     if pilotErrorDiag != None:
         param['pilotErrorDiag']=pilotErrorDiag[:500]
     if jobMetrics != None:

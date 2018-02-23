@@ -3582,6 +3582,18 @@ class TaskBuffer:
         return ret
 
 
+    # get original consumers
+    def getOriginalConsumers(self, jediTaskID, jobsetID, pandaID):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getOriginalConsumers(jediTaskID, jobsetID, pandaID)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 

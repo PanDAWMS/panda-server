@@ -116,7 +116,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     # set new list
                     self.jobs = tmpJobList
                 # create dataset for outputs and assign destination
-                if self.jobs != [] and self.jobs[0].prodSourceLabel in ['managed','test'] and self.jobs[0].getCloud() in ['DE']:
+                if self.jobs != [] and self.jobs[0].prodSourceLabel in ['managed','test']:
                     # count the number of jobs per _dis 
                     iBunch = 0
                     prevDisDsName = None
@@ -2135,6 +2135,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     out = rucioAPI.registerDataset(dispatchDBlock,lfns,guids,sizes,
                                                    checksums,lifetime=14)
                     vuid = out['vuid']
+                    rucioAPI.closeDataset(dispatchDBlock)
                 except:
                     errType,errValue = sys.exc_info()[:2]
                     self.logger.debug('failed to register jumbo dis dataset {0} with {1}:{2}'.format(dispatchDBlock,

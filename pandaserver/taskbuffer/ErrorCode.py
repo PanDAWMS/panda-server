@@ -72,6 +72,9 @@ EC_EventServiceInconsistentIn = 124
 # No event service queues available for new consumers
 EC_EventServiceNoEsQueues = 125
 
+# Closed in bad job status
+EC_EventServiceBadStatus = 126
+
 # failed to lock semaphore for job cloning
 EC_JobCloningUnlock = 200
 

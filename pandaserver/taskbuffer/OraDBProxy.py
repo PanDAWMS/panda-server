@@ -1617,8 +1617,14 @@ class DBProxy:
                         job.jobSubStatus = 'es_noevent'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceNoEvent
                         job.taskBufferErrorDiag = "didn't process any events on WN and retry unprocessed even ranges in PandaID={0}".format(retNewPandaID)
+                    elif retEvS == 9:
+                        # closed in bad job status
+                        job.jobStatus = 'closed'
+                        job.jobSubStatus = 'es_badstatus'
+                        job.taskBufferErrorCode = ErrorCode.EC_EventServiceBadStatus
+                        job.taskBufferErrorDiag = "cloded in bad jobStatus like defined and pending"
                     # additional actions when retry
-                    codeListWithRetry = [0, 5, 8]
+                    codeListWithRetry = [0, 5, 8, 9]
                     if retEvS in codeListWithRetry:
                         # resurrect consumers at other sites
                         if EventServiceUtils.isResurrectConsumers(job.specialHandling):
@@ -15063,6 +15069,7 @@ class DBProxy:
             # 6 : didn't process any events on WN and fail since the last one
             # 7 : all event ranges failed
             # 8 : generated a retry job but no events were processed
+            # 9 : closed in bad job status
             # None : fatal error
             retValue = 1,None
             # begin transaction
@@ -15080,9 +15087,9 @@ class DBProxy:
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
                 return retValue
-            # check if already retried
+            # check if already retried or not good for retry
             if jobSpec.taskBufferErrorCode in [ErrorCode.EC_EventServiceRetried,ErrorCode.EC_EventServiceMerge,
-                                               ErrorCode.EC_EventServiceInconsistentIn]:
+                                               ErrorCode.EC_EventServiceInconsistentIn,ErrorCode.EC_EventServiceBadStatus]:
                 _logger.debug("{0} : already post-processed for event service with EC={1}".format(methodName,jobSpec.taskBufferErrorCode))
                 # commit
                 if useCommit:
@@ -15428,6 +15435,7 @@ class DBProxy:
                 break
             # changes some attributes
             noNewJob = False
+            closedInBadStatus = False
             if not doMerging:
                 minUnprocessed = self.getConfigValue('dbproxy', 'AES_MINEVENTSFORMCORE')
                 sqlCore = "SELECT coreCount,status,jobseed FROM ATLAS_PANDAMETA.schedconfig WHERE siteid=:siteid "
@@ -15450,6 +15458,7 @@ class DBProxy:
                 # not to repeat useless consumers
                 if currentJobStatus in ['defined', 'pending']:
                     noNewJob = True
+                    closedInBadStatus = True
             else:
                 # extract parameters for merge
                 try:
@@ -15592,7 +15601,10 @@ class DBProxy:
                     raise RuntimeError, 'Commit error'
             # set return
             if not doMerging:
-                if nRowDone == 0:
+                if closedInBadStatus:
+                    # closed in bad status
+                    retValue = 9,jobSpec.PandaID
+                elif nRowDone == 0:
                     # didn't process any events
                     retValue = 8,jobSpec.PandaID
                 else:

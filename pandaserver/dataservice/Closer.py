@@ -14,6 +14,7 @@ from pandalogger.PandaLogger import PandaLogger
 from taskbuffer.JobSpec import JobSpec
 from taskbuffer.FileSpec import FileSpec
 from taskbuffer.DatasetSpec import DatasetSpec
+from taskbuffer import EventServiceUtils
 from brokerage.SiteMapper import SiteMapper
 from config import panda_config
 
@@ -38,6 +39,7 @@ class Closer:
         self.pandaDDM = pandaDDM
         self.siteMapper = None
         self.datasetMap = datasetMap
+        self.allSubFinished = None
         
     # to keep backward compatibility
     def start(self):
@@ -116,7 +118,11 @@ class Closer:
                 else:
                     # set status to 'tobeclosed' to trigger DQ2 closing
                     finalStatus = 'tobeclosed'
-                if notFinish==0: 
+                if notFinish == 0 and EventServiceUtils.isEventServiceMerge(self.job):
+                    allInJobsetFinished = self.checkSubDatasetsInJobset()
+                else:
+                    allInJobsetFinished = True
+                if notFinish == 0 and allInJobsetFinished: 
                     _logger.debug('%s set %s to dataset : %s' % (self.pandaID,finalStatus,destinationDBlock))
                     # set status
                     dataset.status = finalStatus
@@ -261,3 +267,42 @@ class Closer:
             return True
         return False
 
+
+
+    # check sub datasets with the same jobset
+    def checkSubDatasetsInJobset(self):
+        # skip already checked
+        if self.allSubFinished is not None:
+            return self.allSubFinished
+        # get consumers in the jobset
+        jobs = self.taskBuffer.getOriginalConsumers(self.job.jediTaskID, self.job.jobsetID, self.job.PandaID)
+        checkedDS = set()
+        for jobSpec in jobs:
+            # collect all sub datasets
+            subDatasets = set()
+            for fileSpec in jobSpec.Files:
+                if fileSpec.type == 'output':
+                    subDatasets.add(fileSpec.destinationDBlock)
+            subDatasets = list(subDatasets)
+            subDatasets.sort()
+            if len(subDatasets) > 0:
+                # use the first sub dataset
+                subDataset = subDatasets[0]
+                # skip if already checked
+                if subDataset in checkedDS:
+                    continue
+                checkedDS.add(subDataset)
+                # count the number of unfinished
+                notFinish = self.taskBuffer.countFilesWithMap({'destinationDBlock':subDataset,
+                                                               'status':'unknown'})
+                if notFinish != 0:
+                    _logger.debug('{0} related sub dataset {1} from {2} has {3} unfinished files'.format(self.pandaID,
+                                                                                                         subDataset,
+                                                                                                         jobSpec.PandaID,
+                                                                                                         notFinish))
+                    self.allSubFinished = False
+                    break
+        if self.allSubFinished is None:
+            _logger.debug('{0} all related sub datasets are done'.format(self.pandaID))
+            self.allSubFinished = True
+        return self.allSubFinished
