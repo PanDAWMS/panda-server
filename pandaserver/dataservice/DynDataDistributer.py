@@ -440,6 +440,8 @@ class DynDataDistributer:
                     if tmpSiteSpec.cloud != cloud:
                         continue
                     # prefix of DQ2 ID
+                    if tmpSiteSpec.ddm_input is None:
+                        continue
                     prefixDQ2 = re.sub('[^_]+DISK$','',tmpSiteSpec.ddm_input) # TODO: Check with Tadashi
                     # skip T1
                     if prefixDQ2 == prefixDQ2T1:
