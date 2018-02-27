@@ -10,7 +10,7 @@ optP.add_option('--killOwnProdJobs',action='store_const',const=True,dest='killOw
 optP.add_option('--killUserJobs',action='store_const',const=True,dest='killUserJobs',
                 default=False,help='kill user jobs using a production role')
 optP.add_option('--keepUnmerged',action='store_const',const=True,dest='keepUnmerged',
-                default=False,help='kill user jobs using a production role')
+                default=False,help='generate a new job after kiliing, to keep unmerged events')
 options,args = optP.parse_args()
 
 
