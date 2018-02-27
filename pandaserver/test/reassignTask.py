@@ -20,7 +20,7 @@ optP.add_argument('-m',dest='limit',type=int,action='store', default=60,
                     metavar='MIMUTES',help='time limit in minute')
 optP.add_argument('-9',action='store_const',const=True,dest='forceKill',
                   default=False,help='kill jobs before next heartbeat is coming')
-optP.add_option('--keepUnmerged',action='store_const',const=True,dest='keepUnmerged',
+optP.add_argument('--keepUnmerged',action='store_const',const=True,dest='keepUnmerged',
                 default=False,help='generate new jobs after kiliing old jobs, to keep unmerged events')
 options = optP.parse_args()
 
@@ -93,7 +93,7 @@ if len(jediJobs) != 0:
     iJob = 0
     while iJob < len(jediJobs):
         print 'kill JEDI jobs %s' % str(jediJobs[iJob:iJob+nJob])
-        Client.killJobs(jediJobs[iJob:iJob+nJob],codeV,dependency_links.txt)
+        Client.killJobs(jediJobs[iJob:iJob+nJob],codeV,keepUnmerged=options.keepUnmerged)
         iJob += nJob
 
 print
