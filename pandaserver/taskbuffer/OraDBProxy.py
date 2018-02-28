@@ -13795,8 +13795,8 @@ class DBProxy:
                             varMap[':comm_owner']  = 'DEFT'
                             varMap[':comm_parameters'] = json.dumps(newTaskParams)
                             self.cur.execute(sqlIC+comment,varMap)
-                            _logger.debug('{0} {1} jediTaskID={2} with {3}'.format(methodName,varMap[':comm_cmd'],
-                                                                                       jediTaskID,str(newTaskParams)))
+                            _logger.info('{0} {1} jediTaskID={2} with {3}'.format(methodName,varMap[':comm_cmd'],
+                                                                                  jediTaskID,str(newTaskParams)))
                             retVal  = 'reactivation accepted. '
                             retVal += 'jediTaskID={0} (currently in {1} state) will be re-executed with old and/or new input'.format(jediTaskID,
                                                                                                                                     taskStatus) 
@@ -13883,7 +13883,7 @@ class DBProxy:
                              comQualifier=None):
         comment = ' /* JediDBProxy.sendCommandTaskPanda */'
         methodName = comment.split(' ')[-2].split('.')[-1]
-        methodName += ' <jediTaskID={0}>'.format(jediTaskID)
+        methodName += ' < jediTaskID={0} >'.format(jediTaskID)
         try:
             # get compact DN
             compactDN = self.cleanUserID(dn)
@@ -13978,8 +13978,8 @@ class DBProxy:
                 else:
                     varMap[':comm_comment'] = comComment
                 self.cur.execute(sqlC+comment,varMap)
-                _logger.debug('{0} done'.format(methodName))
-                retStr = 'command is registered. will be executed in a few minutes'
+                retStr = 'command={0} is registered. will be executed in a few minutes'.format(comStr)                
+                _logger.info('{0} {1}'.format(methodName, retStr))
             # commit
             if useCommit:
                 if not self._commit():

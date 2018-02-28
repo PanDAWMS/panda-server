@@ -1,5 +1,8 @@
 Release Notes
 
+* 2/28/2018
+  * changed command messages to INFO
+
 * 2/23/2018
   * added a protection against non-integer transExitCode
   * added a protection not to close dis datasets if resurrected consumer could use them
