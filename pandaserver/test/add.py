@@ -253,7 +253,7 @@ mailSender.start()
 tmpLog.debug("co-jumbo session")
 try:
     ret = taskBuffer.getCoJumboJobsToBeFinished(30,0,1000)
-    if ret == None:
+    if ret == None or not any(ret):
         tmpLog.debug("failed to get co-jumbo jobs to finish")
     else:
         coJumboA,coJumboD,coJumboW = ret
