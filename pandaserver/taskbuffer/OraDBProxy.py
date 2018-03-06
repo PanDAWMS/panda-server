@@ -9827,7 +9827,7 @@ class DBProxy:
         sql_panda_ddm = """
                SELECT pdr.panda_site_name, pdr.ddm_endpoint_name, pdr.is_local, de.ddm_spacetoken_name, 
                       de.is_tape, pdr.default_read, pdr.default_write, pdr.roles, pdr.order_read, pdr.order_write 
-               FROM atlas_panda.panda_ddm_relation pdr, atlas_panda.ddm_endpoint de
+               FROM ATLAS_PANDA.panda_ddm_relation pdr, ATLAS_PANDA.ddm_endpoint de
                WHERE pdr.ddm_endpoint_name = de.ddm_endpoint_name
                """
         self.cur.execute('{0}{1}'.format(sql_panda_ddm, comment))
@@ -19322,7 +19322,7 @@ class DBProxy:
                          WHEN jobstatus IN('sent', 'running') THEN 'executing'
                          ELSE 'ignore'
                      END jobstatus_grouped
-                 FROM ATLAS_PANDA.JOBS_SHARE_STATS JSS)
+                 FROM ATLAS_PANDA.JOBS_SHARE_STATS JSS) a
             GROUP BY gshare, jobstatus_grouped
             """
 
@@ -19749,13 +19749,23 @@ class DBProxy:
                        ':n_commands': n_commands,
                        ':status': 'new'}
 
-            sql = """
-                  SELECT command_id, command, params, ack_requested, creation_date FROM
-                      (SELECT command_id, command, params, ack_requested, creation_date FROM ATLAS_PANDA.HARVESTER_COMMANDS
-                          WHERE harvester_id=:harvester_id AND status=:status
-                          ORDER BY creation_date)
-                  WHERE ROWNUM <= :n_commands
-                  """
+            sql = None
+            if self.backend == 'oracle':
+                sql = """
+                      SELECT command_id, command, params, ack_requested, creation_date FROM
+                          (SELECT command_id, command, params, ack_requested, creation_date FROM ATLAS_PANDA.HARVESTER_COMMANDS
+                              WHERE harvester_id=:harvester_id AND status=:status
+                              ORDER BY creation_date) a
+                      WHERE ROWNUM <= :n_commands
+                      """
+            else:
+                sql = """
+                      SELECT command_id, command, params, ack_requested, creation_date FROM (SELECT (@rownum:=@rownum+1) AS ROWNUM, command_id, command, params, ack_requested, creation_date FROM
+                          (SELECT command_id, command, params, ack_requested, creation_date FROM ATLAS_PANDA.HARVESTER_COMMANDS
+                              WHERE harvester_id=:harvester_id AND status=:status
+                              ORDER BY creation_date) a, (SELECT @rownum:=0) r ) comm
+                      WHERE ROWNUM <= :n_commands
+                      """
             self.cur.execute(sql + comment, var_map)
             entries = self.cur.fetchall()
             tmp_log.debug('entries {0}'.format(entries))
