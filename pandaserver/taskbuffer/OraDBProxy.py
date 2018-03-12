@@ -15374,6 +15374,8 @@ class DBProxy:
             jobSpec.modificationTime = jobSpec.creationTime
             jobSpec.attemptNr       += 1
             jobSpec.batchID          = None
+            jobSpec.schedulerID = None
+            jobSpec.pilotID = None
             if doMerging:
                 jobSpec.maxAttempt = jobSpec.attemptNr+3
                 jobSpec.currentPriority = 5000
@@ -15392,8 +15394,10 @@ class DBProxy:
             if hasFatalRange:
                 jobSpec.jobSubStatus = 'partial'
             for attr in jobSpec._attributes:
-                if attr.endswith('ErrorCode') or attr.endswith('ErrorDiag'):
-                    setattr(jobSpec,attr,None)
+                for patt in ['ErrorCode', 'ErrorDiag', 'CHAR', 'BYTES', 'RSS', 'PSS', 'VMEM', 'SWAP']:
+                    if attr.endswith(patt):
+                        setattr(jobSpec,attr,None)
+                        break
             # read files
             varMap = {}
             varMap[':PandaID'] = pandaID
