@@ -600,15 +600,21 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                             name.startswith('panda.install.') or \
                                             name.startswith('user.gangarbt.'):
                                         repLifeTime = 7
+                                    # distributed datasets for es outputs
+                                    grouping = None
+                                    if name != originalName and re.search('_sub\d+$',name) is not None and EventServiceUtils.isEventServiceJob(job):
+                                        dq2IDList = ['type=DATADISK']
+                                        grouping = 'NONE'
                                     # register location
                                     isOK = True
                                     for dq2ID in dq2IDList:
                                         activity = DataServiceUtils.getActivityForOut(job.prodSourceLabel)
-                                        tmpStr = 'registerDatasetLocation {name} {dq2ID} lifetime={repLifeTime} activity={activity}'
+                                        tmpStr = 'registerDatasetLocation {name} {dq2ID} lifetime={repLifeTime} activity={activity} grouping={grouping}'
                                         self.logger.debug(tmpStr.format(name=name,
                                                                         dq2ID=dq2ID,
                                                                         repLifeTime=repLifeTime,
                                                                         activity=activity,
+                                                                        grouping=grouping
                                                                         ))
                                         status = False
                                         # invalid location
@@ -619,7 +625,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                         for iDDMTry in range(3):
                                             try:
                                                 out = rucioAPI.registerDatasetLocation(name,[dq2ID],lifetime=repLifeTime,
-                                                                                       activity=activity)
+                                                                                       activity=activity,
+                                                                                       grouping=grouping)
                                                 self.logger.debug(out)
                                                 status = True
                                                 break
