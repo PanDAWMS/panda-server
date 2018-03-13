@@ -1558,7 +1558,7 @@ class DBProxy:
                 # actions for jobs without tasks
                 if not useJEDI:
                     # update HS06sec for non-JEDI jobs (e.g. HC)
-                    hs06sec = self.setHS06sec(job.PandaID)
+                    hs06sec = self.setHS06sec(job.PandaID, inActive=True)
                     if hs06sec is not None:
                         job.hs06sec = hs06sec
                 # actions for successful normal ES jobs
