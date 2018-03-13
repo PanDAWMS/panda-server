@@ -1559,6 +1559,7 @@ class DBProxy:
                 if not useJEDI:
                     # update HS06sec for non-JEDI jobs (e.g. HC)
                     hs06sec = self.setHS06sec(job.PandaID, inActive=True)
+                    _logger.debug("archiveJob : calculated hs06sec {0} for pandaID {1}".format(hs06sec, job.PandaID))
                     if hs06sec is not None:
                         job.hs06sec = hs06sec
                 # actions for successful normal ES jobs
