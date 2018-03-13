@@ -1202,7 +1202,6 @@ class DBProxy:
                 _logger.error("keepJob : %s %s" % (type,value))
                 return False
 
-
     # archive job to jobArchived and remove the job from jobsActive or jobsDefined
     def archiveJob(self,job,fromJobsDefined,useCommit=True,extraInfo=None,fromJobsWaiting=False):
         comment = ' /* DBProxy.archiveJob */'                
@@ -1352,11 +1351,6 @@ class DBProxy:
                                     tmpDFile.pack(resDFile)
                                     dJob.addFile(tmpDFile)
                                 self.propagateResultToJEDI(dJob,self.cur)
-                            else:
-                                # update HS06sec for non-JEDI jobs (e.g. HC)
-                                hs06sec = self.setHs06sec(job.PandaID)
-                                if hs06sec is not None:
-                                    job.hs06sec = hs06sec
                             # set tobeclosed to sub datasets
                             if not toBeClosedSubList.has_key(dJob.jobDefinitionID):
                                 # init
@@ -1540,6 +1534,7 @@ class DBProxy:
                         fileOL.dataset           = file.dataset
                         fileOL.type              = file.type
                         newJob.addFile(fileOL)
+
                 # main job
                 if useCommit:
                     self.conn.begin()
@@ -1559,6 +1554,13 @@ class DBProxy:
                     varMap[':PandaID'] = job.PandaID
                     self.cur.execute(sql0+comment, varMap)
                     res0 = self.cur.fetchone()
+
+                # actions for jobs without tasks
+                if not useJEDI:
+                    # update HS06sec for non-JEDI jobs (e.g. HC)
+                    hs06sec = self.setHs06sec(job.PandaID)
+                    if hs06sec is not None:
+                        job.hs06sec = hs06sec
                 # actions for successful normal ES jobs
                 if useJEDI and EventServiceUtils.isEventServiceJob(job) \
                         and not EventServiceUtils.isJobCloningJob(job):
