@@ -1352,6 +1352,11 @@ class DBProxy:
                                     tmpDFile.pack(resDFile)
                                     dJob.addFile(tmpDFile)
                                 self.propagateResultToJEDI(dJob,self.cur)
+                            else:
+                                # update HS06sec for non-JEDI jobs (e.g. HC)
+                                hs06sec = self.setHs06sec(job.PandaID)
+                                if hs06sec is not None:
+                                    job.hs06sec = hs06sec
                             # set tobeclosed to sub datasets
                             if not toBeClosedSubList.has_key(dJob.jobDefinitionID):
                                 # init
