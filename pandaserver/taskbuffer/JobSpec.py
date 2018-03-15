@@ -377,7 +377,7 @@ class JobSpec(object):
     def getCloud(self):
         if self.specialHandling != None:
             for tmpItem in self.specialHandling.split(','):
-                if tmpItem.startswith('hc:'):
+                if tmpItem.startswith('hc:'): # hc: Home Cloud
                     return tmpItem.split(':')[-1]
         return self.cloud
 
