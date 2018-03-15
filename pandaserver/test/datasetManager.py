@@ -14,6 +14,7 @@ import userinterface.Client as Client
 from dataservice.DDM import rucioAPI
 from taskbuffer.OraDBProxy import DBProxy
 from taskbuffer.TaskBuffer import taskBuffer
+from taskbuffer import EventServiceUtils
 from pandalogger.PandaLogger import PandaLogger
 from jobdispatcher.Watcher import Watcher
 from brokerage.SiteMapper import SiteMapper
@@ -367,18 +368,35 @@ class Freezer (threading.Thread):
         self.lock.acquire()
         try:
             for vuid,name,modDate in self.datasets:
-                _logger.debug("start %s %s" % (modDate,name))
+                _logger.debug("Freezer start %s %s" % (modDate,name))
                 self.proxyLock.acquire()
-                retF,resF = taskBuffer.querySQLS("SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ lfn FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock AND NOT status IN (:status1,:status2,:status3,:status4,:status5)",
-                                             {':destinationDBlock':name,':status1':'ready',':status2':'failed',
-                                              ':status3':'skipped',':status4':'merging',
-                                              ':status5':'finished'})
+                retF,resF = taskBuffer.querySQLS("SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ PandaID,status FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock ",
+                                             {':destinationDBlock':name})
                 self.proxyLock.release()
-                if retF<0:
+                if retF < 0:
                     _logger.error("SQL error")
                 else:
+                    allFinished = True
+                    onePandaID = None
+                    for tmpPandaID,tmpFileStatus in resF:
+                        onePandaID = tmpPandaID
+                        if not tmpFileStatus in ['ready', 'failed', 'skipped', 'merging', 'finished']:
+                            allFinished = False
+                            break
+                    # check sub datasets in the jobset for event service job
+                    if allFinished:
+                        self.proxyLock.acquire()
+                        tmpJobs = taskBuffer.getFullJobStatus([onePandaID])
+                        self.proxyLock.release()
+                        if len(tmpJobs) > 0 and tmpJobs[0] is not None:
+                            if EventServiceUtils.isEventServiceMerge(tmpJobs[0]):
+                                self.proxyLock.acquire()
+                                cThr = Closer(taskBuffer, [], tmpJobs[0])
+                                allFinished = cThr.checkSubDatasetsInJobset()
+                                self.proxyLock.release()
+                                _logger.debug("closer checked sub datasets in the jobset for %s : %s" % (name, allFinished))
                     # no files in filesTable
-                    if len(resF) == 0:
+                    if allFinished:
                         _logger.debug("freeze %s " % name)
                         dsExists = True
                         if name.startswith('pandaddm_') or name.startswith('user.') or name.startswith('group.') \
@@ -475,7 +493,8 @@ class Freezer (threading.Thread):
                         self.proxyLock.release()                                                    
                 _logger.debug("end %s " % name)
         except:
-            pass
+            errStr = traceback.format_exc()
+            _logger.error(errStr)
         self.pool.remove(self)
         self.lock.release()
                             

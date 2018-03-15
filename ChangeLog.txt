@@ -1,5 +1,8 @@
 Release Notes
 
+* 3/15/2018
+  * fixed Freezer not to close sub datasets if resurrected consumer could use them
+
 * 3/12/2018
   * fixed ppE to reset more attributes
   * changed RSE for _sub of ES jobs
