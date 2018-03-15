@@ -195,7 +195,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                         zipFiles[file.lfn] = dict()
                 else:
                     isZipFile = False
-                # skip zip files wjen topOnly
+                # skip zip files when topOnly
                 if self.addToTopOnly and isZipFile:
                     continue
                 # check if zip content
@@ -438,6 +438,30 @@ class AdderAtlasPlugin (AdderPluginBase):
                     self.result.setFatal()
                     self.job.ddmErrorDiag = 'failed before adding files : ' + errStr
                     return 1
+        # zipping input files
+        if len(zipFileMap) > 0 and not self.addToTopOnly:
+            for fileSpec in self.job.Files:
+                if fileSpec.type != 'input':
+                    continue
+                zipFileName = None
+                for tmpZipFileName, tmpZipContents in zipFileMap.iteritems():
+                    for tmpZipContent in tmpZipContents:
+                            if re.search('^'+tmpZipContent+'$', fileSpec.lfn) is not None:
+                                zipFileName = tmpZipFileName
+                                break
+                    if zipFileName is not None:
+                        break
+                if zipFileName is not None:
+                    if zipFileName not in zipFiles:
+                        continue
+                    if not 'files' in zipFiles[zipFileName]:
+                        zipFiles[zipFileName]['files'] = []
+                    fileAttrs = {'guid'     : fileSpec.GUID,
+                                 'lfn'      : fileSpec.lfn,
+                                 'size'     : fileSpec.fsize,
+                                 'checksum' : fileSpec.checksum,
+                                 'ds'       : fileSpec.dataset}
+                    zipFiles[zipFileName]['files'].append(fileAttrs)
         # cleanup submap
         tmpKeys = subMap.keys()
         for tmpKey in tmpKeys:

@@ -14540,21 +14540,21 @@ class DBProxy:
             sql += 'SELECT jediTaskID,datasetID,fileID,attemptNr,job_processID,def_min_eventID,def_max_eventID,pandaID '
             sql += "FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sql += "WHERE PandaID=:jobsetID AND status=:eventStatus AND attemptNr>:minAttemptNr "
-            sql += "ORDER BY def_min_eventID "
+            sql += "ORDER BY fileID,def_min_eventID "
             sql += ") WHERE rownum<={0} ".format(nRanges+1)
             # sql to get ranges with jediTaskID
             sqlW  = 'SELECT * FROM ('
             sqlW += 'SELECT jediTaskID,datasetID,fileID,attemptNr,job_processID,def_min_eventID,def_max_eventID,pandaID '
             sqlW += "FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
             sqlW += "WHERE jediTaskID=:jediTaskID AND PandaID=:jobsetID AND status=:eventStatus AND attemptNr>:minAttemptNr "
-            sqlW += "ORDER BY def_min_eventID "
+            sqlW += "ORDER BY fileID,def_min_eventID "
             sqlW += ") WHERE rownum<={0} ".format(nRanges+1)
             # sql to get ranges for jumbo
             sqlJM  = 'SELECT * FROM ('
             sqlJM += 'SELECT jediTaskID,datasetID,fileID,attemptNr,job_processID,def_min_eventID,def_max_eventID,pandaID '
             sqlJM += "FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
             sqlJM += "WHERE jediTaskID=:jediTaskID AND status=:eventStatus AND attemptNr>:minAttemptNr "
-            sqlJM += "ORDER BY def_min_eventID "
+            sqlJM += "ORDER BY fileID,def_min_eventID "
             sqlJM += ") WHERE rownum<={0} ".format(nRanges+1)
             # sql to get files in the jobset
             sqlJS  = "SELECT tabC.jediTaskID,tabC.datasetID,tabC.fileID "

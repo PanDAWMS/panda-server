@@ -1,6 +1,10 @@
 Release Notes
 
 * 3/15/2018
+  * input files in ZIP_MAP
+  * changed ordering of event ranges
+
+* 3/15/2018
   * fixed Freezer not to close sub datasets if resurrected consumer could use them
   * moved from astorages0 to astorages (AGIS request)
 
