@@ -260,34 +260,28 @@ class Configurator(threading.Thread):
             cpu_site_name = self.schedconfig_dump[long_panda_site_name]['atlas_site']
             dict_ddm_endpoint = {}
 
-            # get the astorages0 field
-            if self.schedconfig_dump[long_panda_site_name]['astorages0']:
-                astorages = self.schedconfig_dump[long_panda_site_name]['astorages0']
+            # get the astorages field
+            if self.schedconfig_dump[long_panda_site_name]['astorages']:
+                astorages = self.schedconfig_dump[long_panda_site_name]['astorages']
 
                 # iterate the storages to establish their roles and orders
                 order_read = 1
                 order_write = 1
                 for role in astorages:
-                    for site in astorages[role]:
-                        if astorages[role][site]:
-                            for ddm_endpoint_name in astorages[role][site]:
-                                # initialize DDM endpoint if it does not exist
-                                dict_ddm_endpoint.setdefault(ddm_endpoint_name, {'order_write': None,
-                                                                                 'order_read': None,
-                                                                                 'role': []})
-                                # set the read/write order and increment the respective counter
-                                if role == WRITE_LAN:
-                                    dict_ddm_endpoint[ddm_endpoint_name]['order_write'] = order_write
-                                    order_write += 1
-                                elif role == READ_LAN:
-                                    dict_ddm_endpoint[ddm_endpoint_name]['order_read'] = order_read
-                                    order_read += 1
-                                # append the roles
-                                dict_ddm_endpoint[ddm_endpoint_name]['role'].append(role)
-                        else:  # an empty fields means we need to take all endpoints
-                            ddm_list_isempty = self.site_endpoint_dict[site]
-                            for ddm in ddm_list_isempty:
-                                dict_ddm_endpoint.setdefault(ddm, []).append(role)
+                    for ddm_endpoint_name in astorages[role]:
+                        # initialize DDM endpoint if it does not exist
+                        dict_ddm_endpoint.setdefault(ddm_endpoint_name, {'order_write': None,
+                                                                         'order_read': None,
+                                                                         'role': []})
+                        # set the read/write order and increment the respective counter
+                        if role == WRITE_LAN:
+                            dict_ddm_endpoint[ddm_endpoint_name]['order_write'] = order_write
+                            order_write += 1
+                        elif role == READ_LAN:
+                            dict_ddm_endpoint[ddm_endpoint_name]['order_read'] = order_read
+                            order_read += 1
+                        # append the roles
+                        dict_ddm_endpoint[ddm_endpoint_name]['role'].append(role)
 
                 for ddm_endpoint_name, ddm_endpoint_values in dict_ddm_endpoint.items():
 
