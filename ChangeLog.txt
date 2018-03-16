@@ -1,5 +1,9 @@
 Release Notes
 
+* 3/16/2018
+  * reset stateChangeTime for retried es merge
+  * to avoid himem for es merge
+
 * 3/15/2018
   * input files in ZIP_MAP
   * changed ordering of event ranges

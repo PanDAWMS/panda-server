@@ -15380,6 +15380,7 @@ class DBProxy:
             jobSpec.startTime        = None
             jobSpec.creationTime     = datetime.datetime.utcnow()
             jobSpec.modificationTime = jobSpec.creationTime
+            jobSpec.stateChangeTime  = jobSpec.creationTime
             jobSpec.attemptNr       += 1
             jobSpec.batchID          = None
             jobSpec.schedulerID = None
@@ -15535,7 +15536,7 @@ class DBProxy:
                 # set site
                 self.setSiteForEsMerge(jobSpec, isFakeCJ, methodName, comment)
                 jobSpec.coreCount = None
-                jobSpec.minRamCount = 0
+                jobSpec.minRamCount = 2000
             
             # reset resource type
             jobSpec.resource_type = self.get_resource_type_job(jobSpec)
@@ -15681,6 +15682,7 @@ class DBProxy:
             sqlSN += "AND dr.panda_site_name=ps2.panda_site_name "
             sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1 OR sc.catchall LIKE '%unifiedPandaQueue%') "
             sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
+            sqlSN += "AND (sc.maxrss IS NULL OR sc.minrss=0) "
             sqlSN += "AND (sc.jobseed IS NULL OR sc.jobseed<>'es') "
             sqlSN += "AND sc.status=:siteStatus "
             sqlSN += "AND dr.default_write ='Y' "
@@ -15723,6 +15725,7 @@ class DBProxy:
                 sqlSN += "AND dr.panda_site_name=ps.panda_site_name "
                 sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1 OR sc.catchall LIKE '%unifiedPandaQueue%') "
                 sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
+                sqlSN += "AND (sc.maxrss IS NULL OR sc.minrss=0) "
                 sqlSN += "AND (sc.jobseed IS NULL OR sc.jobseed<>'es') "
                 sqlSN += "AND sc.status=:siteStatus "
                 sqlSN += "AND dr.default_write='Y' "
