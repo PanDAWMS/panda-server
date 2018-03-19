@@ -224,8 +224,8 @@ class AdderAtlasPlugin (AdderPluginBase):
                             if not toSkip:
                                 errMsg = "nevents is missing in jobReport for {0}".format(file.lfn)
                                 self.logger.warning(errMsg)
-                                #self.job.ddmErrorCode = ErrorCode.EC_MissingNumEvents
-                                #raise ValueError, errMsg
+                                self.job.ddmErrorCode = ErrorCode.EC_MissingNumEvents
+                                raise ValueError, errMsg
                     # fsize
                     fsize = None
                     if not file.fsize in ['NULL','',0]:
