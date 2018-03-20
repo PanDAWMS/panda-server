@@ -54,6 +54,8 @@ class JobSpec(object):
                     }
     # tag for special handling
     _tagForSH = {'altStgOut'          : 'ao',
+                 'allOkEvents'        : 'at',
+                 'notDiscardEvents'   : 'de',
                  'dynamicNumEvents'   : 'dy',
                  'homeCloud'          : 'hc',
                  'inFilePosEvtNum'    : 'if',
@@ -618,4 +620,44 @@ class JobSpec(object):
             items = []
         if not self._tagForSH['usePrefetcher'] in items:
             items.append(self._tagForSH['usePrefetcher'])
+        self.specialHandling = ','.join(items)
+
+
+
+    # not discard events
+    def notDiscardEvents(self):
+        if self.specialHandling != None:
+            return self._tagForSH['notDiscardEvents'] in self.specialHandling.split(',')
+        return False
+
+
+
+    # set not to discard events
+    def setNotDiscardEvents(self):
+        if self.specialHandling != None:
+            items = self.specialHandling.split(',')
+        else:
+            items = []
+        if not self._tagForSH['notDiscardEvents'] in items:
+            items.append(self._tagForSH['notDiscardEvents'])
+        self.specialHandling = ','.join(items)
+
+
+
+    # all events are done
+    def allOkEvents(self):
+        if self.specialHandling != None:
+            return self._tagForSH['allOkEvents'] in self.specialHandling.split(',')
+        return False
+
+
+
+    # set all events are done
+    def setAllOkEvents(self):
+        if self.specialHandling != None:
+            items = self.specialHandling.split(',')
+        else:
+            items = []
+        if not self._tagForSH['allOkEvents'] in items:
+            items.append(self._tagForSH['allOkEvents'])
         self.specialHandling = ','.join(items)

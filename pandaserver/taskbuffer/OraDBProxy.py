@@ -531,6 +531,7 @@ class DBProxy:
             indexFileID = 0
             varMapsForFile = []
             nFilesWaitingMap = {}
+            nEventsToProcess = 0
             for file in job.Files:
                 file.row_ID = None
                 if not file.status in ['ready','cached']:
@@ -647,7 +648,10 @@ class DBProxy:
                         varMap[':jediTaskID']  = file.jediTaskID
                         varMap[':datasetID']   = file.datasetID
                         varMap[':fileID']      = file.fileID
-                        varMap[':newStatus']   = EventServiceUtils.ST_discarded
+                        if not job.notDiscardEvents():
+                            varMap[':newStatus']   = EventServiceUtils.ST_discarded
+                        else:
+                            varMap[':newStatus']   = EventServiceUtils.ST_done
                         varMap[':esDone']      = EventServiceUtils.ST_done
                         varMap[':esFinished']  = EventServiceUtils.ST_finished
                         _logger.debug(sqlJediOdEvt+comment+str(varMap))
@@ -682,6 +686,22 @@ class DBProxy:
                         withOffset = False
                         if 'offset' in eventServiceInfo[file.lfn] and eventServiceInfo[file.lfn]['offset'] != -1:
                             withOffset = True
+                        # get sucessful event ranges
+                        okRanges = set()
+                        if job.notDiscardEvents():
+                            sqlJediOks = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+                            sqlJediOks += "jediTaskID,fileID,job_processID FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
+                            sqlJediOks += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+                            sqlJediOks += "AND status=:esDone "
+                            varMap = {}
+                            varMap[':jediTaskID']  = file.jediTaskID
+                            varMap[':datasetID']   = file.datasetID
+                            varMap[':fileID']      = file.fileID
+                            varMap[':esDone']    = EventServiceUtils.ST_done
+                            self.cur.execute(sqlJediOks+comment, varMap)
+                            resOks = self.cur.fetchall()
+                            for tmpOk_jediTaskID,tmpOk_fileID,tmpOk_job_processID in resOks:
+                                okRanges.add('{0}-{1}-{2}'.format(tmpOk_jediTaskID,tmpOk_fileID,tmpOk_job_processID))
                         # insert new ranges
                         sqlJediEvent  = "INSERT INTO {0}.JEDI_Events ".format(panda_config.schemaJEDI)
                         sqlJediEvent += "(jediTaskID,datasetID,PandaID,fileID,attemptNr,status,"
@@ -715,13 +735,29 @@ class DBProxy:
                                 varMap[':lastEvent'] += totalInputEvents
                             # total offset
                             varMap[':eventOffset'] = eventServiceInfo[file.lfn]['nEvents']
+                            # skip if already succeeded
+                            tmpKey = '{0}-{1}-{2}'.format(varMap[':jediTaskID'], varMap[':fileID'], varMap[':startEvent'])
+                            if tmpKey in okRanges:
+                                continue
                             varMaps.append(varMap)
+                            nEventsToProcess += 1
                         _logger.debug("insertNewJob : %s insert %s event ranges jediTaskID:%s" % (job.PandaID,len(varMaps),
                                                                                                   job.jediTaskID))
                         self.cur.executemany(sqlJediEvent+comment, varMaps)
                         _logger.debug("insertNewJob : %s inserted %s event ranges jediTaskID:%s" % (job.PandaID,len(varMaps),
                                                                                                     job.jediTaskID))
                         totalInputEvents += eventServiceInfo[file.lfn]['nEvents']
+            if job.notDiscardEvents() and origEsJob and nEventsToProcess == 0:
+                job.setAllOkEvents()
+                if not toPending:
+                    sqlJediJSH = "UPDATE ATLAS_PANDA.jobsDefined4 "
+                else:
+                    sqlJediJSH = "UPDATE ATLAS_PANDA.jobsWaiting4 "
+                sqlJediJSH += "SET specialHandling=:specialHandling WHERE PandaID=:PandaID "
+                varMap = dict()
+                varMap[':specialHandling'] = job.specialHandling
+                varMap[':PandaID'] = job.PandaID
+                self.cur.execute(sqlJediJSH+comment, varMap)
             # bulk insert files
             if len(varMapsForFile) > 0:
                 _logger.debug("insertNewJob : {0} bulk insert {1} files for jediTaskID:{2}".format(job.PandaID,len(varMapsForFile),
@@ -15356,7 +15392,7 @@ class DBProxy:
                     retValue = 5,None
                 return retValue
             # no merging for inaction ES jobs
-            if doMerging and nRowDoneJumbo == 0 and nRowDone == 0:
+            if doMerging and nRowDoneJumbo == 0 and nRowDone == 0 and not job.allOkEvents():
                 _logger.debug("{0} : skip merge generation since nDone=0".format(methodName))
                 retValue = 5,None
                 return retValue
@@ -16294,16 +16330,17 @@ class DBProxy:
                 nRowsDis = 0
                 nRowsCan = 0
                 for jediTaskID,datasetID,fileID in killPandaIDs[pandaID]:
-                    varMap = {}
-                    varMap[':jediTaskID'] = jediTaskID
-                    varMap[':datasetID']  = datasetID
-                    varMap[':fileID']     = fileID
-                    varMap[':PandaID']    = pandaID
-                    varMap[':status']     = EventServiceUtils.ST_discarded
-                    varMap[':esFinished'] = EventServiceUtils.ST_finished
-                    varMap[':esDone']     = EventServiceUtils.ST_done
-                    self.cur.execute(sqlDE+comment, varMap)
-                    nRowsDis += self.cur.rowcount
+                    if not job.notDiscardEvents():
+                        varMap = {}
+                        varMap[':jediTaskID'] = jediTaskID
+                        varMap[':datasetID']  = datasetID
+                        varMap[':fileID']     = fileID
+                        varMap[':PandaID']    = pandaID
+                        varMap[':status']     = EventServiceUtils.ST_discarded
+                        varMap[':esFinished'] = EventServiceUtils.ST_finished
+                        varMap[':esDone']     = EventServiceUtils.ST_done
+                        self.cur.execute(sqlDE+comment, varMap)
+                        nRowsDis += self.cur.rowcount
                     varMap[':status']      = EventServiceUtils.ST_cancelled
                     varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
                     varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
@@ -16482,7 +16519,7 @@ class DBProxy:
 
 
     # kill used event ranges
-    def killUsedEventRanges(self,jediTaskID,pandaID):
+    def killUsedEventRanges(self, jediTaskID, pandaID, notDiscardEvents=False):
         comment = ' /* DBProxy.killUsedEventRanges */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <jediTaskID={0} pandaID={1}>".format(jediTaskID,pandaID)
@@ -16504,8 +16541,11 @@ class DBProxy:
         varMap[':status']     = EventServiceUtils.ST_discarded
         varMap[':esFinished'] = EventServiceUtils.ST_finished
         varMap[':esDone']     = EventServiceUtils.ST_done
-        self.cur.execute(sqlDE+comment, varMap)
-        nRowsDis = self.cur.rowcount
+        if not notDiscardEvents:
+            self.cur.execute(sqlDE+comment, varMap)
+            nRowsDis = self.cur.rowcount
+        else:
+            nRowsDis = 0
         varMap[':status']      = EventServiceUtils.ST_cancelled
         varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
         varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
@@ -18348,7 +18388,7 @@ class DBProxy:
                         isUpdated = True
                 # kill processed events if necessary
                 if killEvents and isUpdated:
-                    self.killUsedEventRanges(job.jediTaskID,tmpPandaID)
+                    self.killUsedEventRanges(job.jediTaskID, tmpPandaID, job.notDiscardEvents())
             tmpLog.debug("done")
             return True
         except:

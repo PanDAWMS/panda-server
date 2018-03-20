@@ -137,6 +137,7 @@ class Setupper (threading.Thread):
         failedJobs   = []
         activateJobs = []
         waitingJobs  = []
+        closeJobs  = []
         # sort out jobs
         for job in jobList:
             # failed jobs
@@ -145,6 +146,11 @@ class Setupper (threading.Thread):
             # waiting
             elif job.jobStatus == 'waiting':
                 waitingJobs.append(job)
+            # ES jobs and all events are done
+            elif job.notDiscardEvents() and job.allOkEvents():
+                # change status
+                job.jobStatus = "finished"
+                updateJobs.append(job)
             # no input jobs
             elif job.dispatchDBlock=='NULL':
                 activateJobs.append(job)

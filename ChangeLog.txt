@@ -1,5 +1,8 @@
 Release Notes
 
+* 3/20/2018
+  * not to discard events
+
 * 3/16/2018
   * reset stateChangeTime for retried es merge
   * to avoid himem for es merge
