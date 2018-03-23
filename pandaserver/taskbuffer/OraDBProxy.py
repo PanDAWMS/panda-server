@@ -20035,7 +20035,7 @@ class DBProxy:
             varMap[':harvesterID'] = harvesterID
             varMap[':owner'] = self.cleanUserID(user)
             varMap[':hostName'] = host
-            sqlC  = "UPDATE ATLAS_PANDA.Harvester_Instances SET owner=:owner,hostName=:hostName"
+            sqlC  = "UPDATE ATLAS_PANDA.Harvester_Instances SET owner=:owner,hostName=:hostName,lastUpdate=CURRENT_DATE"
             for tmpKey, tmpVal in data.iteritems():
                 if tmpKey == 'commands':
                     continue
