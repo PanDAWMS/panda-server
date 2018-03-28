@@ -3594,6 +3594,18 @@ class TaskBuffer:
         return ret
 
 
+    # add harvester dialog messages
+    def addHarvesterDialogs(self, harvesterID, dialogs):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.addHarvesterDialogs(harvesterID, dialogs)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 

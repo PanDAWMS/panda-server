@@ -977,6 +977,18 @@ class UserIF:
         # serialize 
         return json.dumps(retVal)
 
+
+    # add harvester dialog messages
+    def addHarvesterDialogs(self, user, harvesterID, dialogs):
+        ret = self.taskBuffer.addHarvesterDialogs(harvesterID, dialogs)
+        if not ret:
+            retVal = (False,'database error in the panda server')
+        else:
+            retVal = (True,'')
+        # serialize 
+        return json.dumps(retVal)
+
+
     # heartbeat for harvester
     def harvesterIsAlive(self,user,host,harvesterID,data):
         ret = self.taskBuffer.harvesterIsAlive(user,host,harvesterID,data)
@@ -2308,6 +2320,22 @@ def updateWorkers(req,harvesterID,workers):
         return json.dumps((False,"failed to load JSON"))
     # update
     return userIF.updateWorkers(user,host,harvesterID,data)
+
+
+# add harvester dialog messages
+def addHarvesterDialogs(req, harvesterID, dialogs):
+    # check security
+    if not isSecure(req):
+        return json.dump((False,"SSL is required"))
+    # get DN
+    user = _getDN(req)        
+    # convert
+    try:
+        data = json.loads(dialogs)
+    except:
+        return json.dumps((False,"failed to load JSON"))
+    # update
+    return userIF.addHarvesterDialogs(user,harvesterID,data)
 
 
 # heartbeat for harvester

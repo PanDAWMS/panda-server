@@ -21131,3 +21131,50 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger, method_name)
             return None
+
+
+
+    # add harvester dialog messages
+    def addHarvesterDialogs(self, harvesterID, dialogs):
+        comment = ' /* DBProxy.addHarvesterDialogs */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        method_name += ' < harvesterID={0} >'.format(harvesterID)
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+        try:
+            # sql to delete message
+            sqlC  = "DELETE FROM {0}.Harvester_Dialogs ".format(panda_config.schemaPANDA)
+            sqlC += "WHERE harvester_id=:harvester_id AND diagID=:diagID "
+            # sql to insert message
+            sqlI = "INSERT INTO {0}.Harvester_Dialogs ".format(panda_config.schemaPANDA)
+            sqlI += "(harvester_id,diagID,moduleName,identifier,creationTime,messageLevel,diagMessage) "
+            sqlI += "VALUES(:harvester_id,:diagID,:moduleName,:identifier,:creationTime,:messageLevel,:diagMessage) "
+            for diagDict in dialogs:
+                # start transaction
+                self.conn.begin()
+                # delete
+                varMap = dict()
+                varMap[':diagID'] = diagDict['diagID']
+                varMap[':harvester_id'] = harvesterID
+                self.cur.execute(sqlC+comment, varMap)
+                # insert
+                varMap = dict()
+                varMap[':diagID'] = diagDict['diagID']
+                varMap[':identifier'] = diagDict['identifier']
+                varMap[':moduleName'] = diagDict['moduleName']
+                varMap[':creationTime'] = datetime.datetime.strptime(diagDict['creationTime'], '%Y-%m-%d %H:%M:%S.%f')
+                varMap[':messageLevel'] = diagDict['messageLevel']
+                varMap[':diagMessage'] = diagDict['diagMessage']
+                varMap[':harvester_id'] = harvesterID
+                self.cur.execute(sqlI+comment, varMap)
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+            tmp_log.debug("added {0} messages".format(len(dialogs)))
+            return True
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, method_name)
+            return False

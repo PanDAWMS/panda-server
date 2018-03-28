@@ -1,5 +1,8 @@
 Release Notes
 
+* 3/28/2018
+  * added harvester_dialogs
+
 * 3/20/2018
   * not to discard events
 
