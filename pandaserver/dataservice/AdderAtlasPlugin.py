@@ -120,8 +120,9 @@ class AdderAtlasPlugin (AdderPluginBase):
                 # failed jobs
                 if self.job.prodSourceLabel in ['managed','test']:
                     self.logTransferring = True
-            elif self.job.jobStatus == 'finished' and EventServiceUtils.isEventServiceJob(self.job) \
-                    and not EventServiceUtils.isJobCloningJob(self.job):
+            elif self.job.jobStatus == 'finished' and \
+                    (EventServiceUtils.isEventServiceJob(self.job) or EventServiceUtils.isJumboJob(self.job)) and \
+                    not EventServiceUtils.isJobCloningJob(self.job):
                 # transfer only log file for normal ES jobs 
                 self.logTransferring = True
             elif not somethingToTranfer:
@@ -182,8 +183,9 @@ class AdderAtlasPlugin (AdderPluginBase):
                 if self.jobStatus == 'failed' and file.type != 'log':
                     continue
                 # add only log file for successful ES jobs
-                if self.job.jobStatus == 'finished' and EventServiceUtils.isEventServiceJob(self.job) \
-                        and not EventServiceUtils.isJobCloningJob(self.job) and file.type != 'log':
+                if self.job.jobStatus == 'finished' and \
+                        (EventServiceUtils.isEventServiceJob(self.job) or EventServiceUtils.isJumboJob(self.job)) and \
+                        not EventServiceUtils.isJobCloningJob(self.job) and file.type != 'log':
                     continue
                 # skip no output or failed
                 if file.status in ['nooutput','failed']:
@@ -682,8 +684,9 @@ class AdderAtlasPlugin (AdderPluginBase):
                 if tmpFile.type in ['log','output']:
                     if self.goToTransferring or (self.logTransferring and tmpFile.type == 'log'):
                         # don't go to tranferring for successful ES jobs 
-                        if self.job.jobStatus == 'finished' and EventServiceUtils.isEventServiceJob(self.job) \
-                                and not EventServiceUtils.isJobCloningJob(self.job):
+                        if self.job.jobStatus == 'finished' and \
+                                (EventServiceUtils.isEventServiceJob(self.job) and EventServiceUtils.isJumboJob(self.job)) and \
+                                not EventServiceUtils.isJobCloningJob(self.job):
                             continue
                         # skip distributed datasets
                         if tmpFile.destinationDBlock in distDSs:
@@ -763,7 +766,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                     if not tmpFile['lfn'] in self.result.mergingFiles:
                         self.result.mergingFiles.append(tmpFile['lfn'])
         # register ES files
-        if EventServiceUtils.isEventServiceJob(self.job) \
+        if (EventServiceUtils.isEventServiceJob(self.job) or EventServiceUtils.isJumboJob(self.job)) \
                 and not EventServiceUtils.isJobCloningJob(self.job):
             if self.job.registerEsFiles():
                 try:

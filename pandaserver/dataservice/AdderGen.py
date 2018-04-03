@@ -235,6 +235,7 @@ class AdderGen:
                     if addResult == None or not addResult.isSucceeded():
                         self.job.jobStatus = 'failed'
                 # set file status for failed jobs or failed transferring jobs
+                self.logger.debug("status after plugin call :job.jobStatus=%s jobStatus=%s" % (self.job.jobStatus, self.jobStatus))
                 if self.job.jobStatus == 'failed' or self.jobStatus == 'failed':
                     # First of all: check if job failed and in this case take first actions according to error table
                     source, error_code, error_diag = None, None, None
@@ -646,7 +647,8 @@ class AdderGen:
                     continue
                 # set failed if it is missing in XML
                 if not file.lfn in lfns:
-                    if self.job.jobStatus == 'finished' and EventServiceUtils.isEventServiceJob(self.job):
+                    if self.job.jobStatus == 'finished' and \
+                            (EventServiceUtils.isEventServiceJob(self.job) or EventServiceUtils.isJumboJob(self.job)):
                         # unset file status for ES jobs
                         pass
                     elif file.isAllowedNoOutput():

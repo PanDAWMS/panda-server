@@ -7,6 +7,7 @@ import time
 import datetime
 import ProcessGroups
 import EventServiceUtils
+import ErrorCode
 from threading import Lock
 from DBProxyPool import DBProxyPool
 from brokerage.SiteMapper import SiteMapper
@@ -543,6 +544,9 @@ class TaskBuffer:
                         job.jobStatus = 'finished'
                     else:
                         job.jobStatus = 'failed'
+                        if job.taskBufferErrorDiag in ['', 'NULL', None]:
+                            job.taskBufferErrorDiag = 'set failed since no successfull events'
+                            job.taskBufferErrorCode = ErrorCode.EC_EventServiceNoEvent
             if job.jobStatus == 'failed' and job.prodSourceLabel == 'user' and not inJobsDefined:
                 # keep failed analy jobs in Active4
                 ret = proxy.updateJob(job,inJobsDefined,oldJobStatus=oldJobStatus)

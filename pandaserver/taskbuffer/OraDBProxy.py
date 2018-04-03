@@ -1241,7 +1241,7 @@ class DBProxy:
     # archive job to jobArchived and remove the job from jobsActive or jobsDefined
     def archiveJob(self,job,fromJobsDefined,useCommit=True,extraInfo=None,fromJobsWaiting=False):
         comment = ' /* DBProxy.archiveJob */'                
-        _logger.debug("archiveJob : %s" % job.PandaID)                
+        _logger.debug("archiveJob : %s %s" % (job.PandaID, job.jobStatus))
         if fromJobsDefined:
             sql0 = "SELECT jobStatus FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID "
             sql1 = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2)"
