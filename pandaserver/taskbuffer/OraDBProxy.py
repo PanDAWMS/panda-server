@@ -733,8 +733,8 @@ class DBProxy:
                             if not job.inFilePosEvtNum():
                                 varMap[':startEvent'] += totalInputEvents
                                 varMap[':lastEvent'] += totalInputEvents
-                            # total offset
-                            varMap[':eventOffset'] = eventServiceInfo[file.lfn]['nEvents']
+                            # keep jobsetID
+                            varMap[':eventOffset'] = job.jobsetID
                             # skip if already succeeded
                             tmpKey = '{0}-{1}-{2}'.format(varMap[':jediTaskID'], varMap[':fileID'], varMap[':startEvent'])
                             if tmpKey in okRanges:
@@ -13181,9 +13181,26 @@ class DBProxy:
             self.recordRetryHistoryJEDI(jobSpec.jediTaskID,jobSpec.PandaID,[jobSpec.jobsetID],EventServiceUtils.relationTypeJS_ID)
         # update jumbo flag
         if jobSpec.eventService == EventServiceUtils.jumboJobFlagNumber:
+            # count number of events for jumbo
             varMap = {}
             varMap[':jediTaskID'] = jobSpec.jediTaskID
-            varMap[':newJumbo'] = 'L'
+            varMap[':eventStatus']  = EventServiceUtils.ST_ready
+            varMap[':minAttemptNr'] = 0
+            sqlJumboC = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlJumboC += "WHERE jediTaskID=:jediTaskID AND status=:eventStatus AND attemptNr>:minAttemptNr ".format(panda_config.schemaJEDI)
+            cur.execute(sqlJumboC+comment,varMap)
+            tmpResC = self.cur.fetchone()
+            newUseJumbo = 'L'
+            if tmpResC is not None:
+                nEventsJumbo, = tmpResC 
+                tmpLog.debug('{0} event ranges available for jumbo'.format(nEventsJumbo))
+                # no more events
+                if nEventsJumbo == 0:
+                    newUseJumbo = 'D'
+            # update flag
+            varMap = {}
+            varMap[':jediTaskID'] = jobSpec.jediTaskID
+            varMap[':newJumbo'] = newUseJumbo
             sqlJumboF = "UPDATE {0}.JEDI_Tasks SET useJumbo=:newJumbo WHERE jediTaskID=:jediTaskID AND useJumbo IS NOT NULL ".format(panda_config.schemaJEDI)
             cur.execute(sqlJumboF+comment,varMap)
             nRow = cur.rowcount
@@ -18928,9 +18945,8 @@ class DBProxy:
         tmpLog = LogWrapper(_logger,methodName)
         tmpLog.debug("start for minPriority={0} timeLimit={1}".format(minPriority, timeLimit))
         try:
-            return []
             # get co-jumbo jobs
-            sqlEOD  = "SELECT PandaID FROM ATLAS_PANDA.{0} "
+            sqlEOD  = "SELECT PandaID,jediTaskID FROM ATLAS_PANDA.{0} "
             sqlEOD += "WHERE eventService=:eventService AND (prodDBUpdateTime IS NULL OR prodDBUpdateTime<:timeLimit) "
             sqlEOD += "AND currentPriority>=:minPriority "
             # lock job
@@ -18955,12 +18971,12 @@ class DBProxy:
                 checkedPandaIDs = set()
                 iJobs = 0
                 # scan all jobs
-                for pandaID, in tmpRes:
+                for pandaID,jediTaskID in tmpRes:
                     # lock job
                     self.conn.begin()
                     varMap = {}
                     varMap[':PandaID'] = pandaID
-                    varMap[':timeLimit']     = timeLimit
+                    varMap[':timeLimit'] = timeLimit
                     self.cur.execute(sqlLK.format(tableName)+comment, varMap)
                     nRow = self.cur.rowcount
                     if nRow > 0:
@@ -18968,13 +18984,14 @@ class DBProxy:
                         # check if all events are done
                         allDone = self.checkAllEventsDone(None, pandaID, False, False)
                         if allDone is True:
-                            tmpLog.debug('locked co-jumbo PandaID={0} to finish in {1}'.format(pandaID,tableName))
+                            tmpLog.debug('locked co-jumbo PandaID={0} jediTaskID={1} to finish in {2}'.format(pandaID,jediTaskID,tableName))
                             checkedPandaIDs.add(pandaID)
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
                     if iJobs >= maxJobs:
                         break
-            tmpLog.debug("done")
+                retList.append(checkedPandaIDs)
+            tmpLog.debug("got {0} jobs".format(len(retList)))
             return retList
         except:
             # roll back
@@ -18993,30 +19010,50 @@ class DBProxy:
         tmpLog.debug("start")
         retVal = False
         try:
+            # sql to release events
+            sqlR  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlR += "SET status=:newStatus,attemptNr=attemptNr-1,pandaID=event_offset,is_jumbo=NULL "
+            sqlR += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND NOT status IN (:esDone,:esFinished) "
             # sql to check event
-            sqlF  = "SELECT 1 FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
-            sqlF += "WHERE jediTaskID=:jediTaskID AND PandaID=:PandaID AND rownum<2 "
+            sqlF  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlF += "WHERE jediTaskID=:jediTaskID AND PandaID=:pandaID AND status IN (:esDone,:esFinished) "
             # begin transaction
-            if useCommit:
-                self.conn.begin()
+            self.conn.begin()
+            # release events
+            varMap = {}
+            varMap[':pandaID'] = pandaID
+            varMap[':jediTaskID'] = jediTaskID
+            varMap[':esDone']      = EventServiceUtils.ST_done
+            varMap[':esFinished']  = EventServiceUtils.ST_finished
+            varMap[':newStatus']   = EventServiceUtils.ST_ready            
+            self.cur.execute(sqlR+comment, varMap)
+            resR = self.cur.rowcount
+            tmpLog.debug("released {0} event ranges".format(resR))
             # check event
             varMap = {}
-            varMap[':PandaID'] = pandaID
+            varMap[':pandaID'] = pandaID
             varMap[':jediTaskID'] = jediTaskID
+            varMap[':esDone']      = EventServiceUtils.ST_done
+            varMap[':esFinished']  = EventServiceUtils.ST_finished
             self.cur.execute(sqlF+comment, varMap)
             resF = self.cur.fetchone()
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
-            if resF != None:
+            nFinished = 0
+            if resF is not None:
+                nFinished, = resF
+            if nFinished > 0:
                 retVal = True
-            tmpLog.debug("done with {0}".format(retVal))
+            else:
+                retVal = False
+            tmpLog.debug("finished {0} event ranges. ret={1}".format(resR, retVal))
             return retVal
         except:
             # roll back
             self._rollback()
             # error
-            self.dumpErrorMessage(_logger,methodName)
+            self.dumpErrorMessage(tmpLog,methodName)
             return retVal
 
 
@@ -19210,7 +19247,7 @@ class DBProxy:
             # roll back
             self._rollback()
             # error
-            self.dumpErrorMessage(tmpLog)
+            self.dumpErrorMessage(tmpLog,methodName)
             return []
 
 
@@ -19242,7 +19279,7 @@ class DBProxy:
             # roll back
             self._rollback()
             # error
-            self.dumpErrorMessage(tmpLog)
+            self.dumpErrorMessage(tmpLog,methodName)
             return []
 
 
