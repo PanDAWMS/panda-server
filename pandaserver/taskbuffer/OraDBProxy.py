@@ -18947,12 +18947,14 @@ class DBProxy:
         try:
             # get co-jumbo jobs
             sqlEOD  = "SELECT PandaID,jediTaskID FROM ATLAS_PANDA.{0} "
-            sqlEOD += "WHERE eventService=:eventService AND (prodDBUpdateTime IS NULL OR prodDBUpdateTime<:timeLimit) "
+            sqlEOD += "WHERE eventService=:eventService "
+            sqlEOD += "AND (prodDBUpdateTime IS NULL OR prodDBUpdateTime<:timeLimit) "
             sqlEOD += "AND currentPriority>=:minPriority "
             # lock job
             sqlLK  = "UPDATE ATLAS_PANDA.{0} "
             sqlLK += "SET prodDBUpdateTime=CURRENT_DATE "
-            sqlLK += "WHERE PandaID=:PandaID AND (prodDBUpdateTime IS NULL OR prodDBUpdateTime<:timeLimit) "
+            sqlLK += "WHERE PandaID=:PandaID "
+            sqlLK += "AND (prodDBUpdateTime IS NULL OR prodDBUpdateTime<:timeLimit) "
             self.cur.arraysize = 1000000
             timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=timeLimit)
             retList = []
@@ -18982,7 +18984,7 @@ class DBProxy:
                     if nRow > 0:
                         iJobs += 1
                         # check if all events are done
-                        allDone = self.checkAllEventsDone(None, pandaID, False, False)
+                        allDone = self.checkAllEventsDone(None, pandaID, False, True)
                         if allDone is True:
                             tmpLog.debug('locked co-jumbo PandaID={0} jediTaskID={1} to finish in {2}'.format(pandaID,jediTaskID,tableName))
                             checkedPandaIDs.add(pandaID)
@@ -18991,7 +18993,10 @@ class DBProxy:
                     if iJobs >= maxJobs:
                         break
                 retList.append(checkedPandaIDs)
-            tmpLog.debug("got {0} jobs".format(len(retList)))
+            totJobs = 0
+            for tmpList in retList:
+                totJobs += len(tmpList)
+            tmpLog.debug("got {0} jobs".format(totJobs))
             return retList
         except:
             # roll back
