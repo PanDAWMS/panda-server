@@ -3298,7 +3298,6 @@ class DBProxy:
                                     specialHandlingMap[tmpPandaID] = tmpSpecialHandling
                                 # sort
                                 pandaIDs.sort()
-
                         if pandaIDs == []:
                             _logger.debug("getJobs : %s -> no PandaIDs" % strName)
                             retU = 0 # retU: return from update
@@ -3448,7 +3447,10 @@ class DBProxy:
                 sqlLBK += "SELECT jobMetrics FROM ATLAS_PANDAARCH.jobsArchived WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-30) "
                 # read files
                 sqlFile = "SELECT %s FROM ATLAS_PANDA.filesTable4 " % FileSpec.columnNames()
-                sqlFile+= "WHERE PandaID=:PandaID"
+                sqlFile+= "WHERE PandaID=:PandaID "
+                # read LFN and dataset name for output files
+                sqlFileOut = "SELECT lfn,dataset FROM ATLAS_PANDA.filesTable4 "
+                sqlFileOut+= "WHERE PandaID=:PandaID AND type=:type "
                 # read files from JEDI for jumbo jobs
                 sqlFileJEDI  = "SELECT lfn,GUID,fsize,checksum "
                 sqlFileJEDI += "FROM {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
@@ -3464,6 +3466,7 @@ class DBProxy:
                 esDonePandaIDs = []
                 esOutputZipMap = {}
                 esZipRow_IDs = set()
+                esOutputFileMap = {}
                 # use new file format for ES
                 useNewFileFormatForES = False
                 if job.AtlasRelease is not None:
@@ -3516,7 +3519,7 @@ class DBProxy:
                                     eventRangeIDs[file.fileID] = {}
                                 addFlag = False
                                 if not job_processID in eventRangeIDs[file.fileID]:
-                                    addFlag= True
+                                    addFlag = True
                                 else:
                                     oldEsPandaID = eventRangeIDs[file.fileID][job_processID]['pandaID']
                                     if esPandaID > oldEsPandaID:
@@ -3552,6 +3555,16 @@ class DBProxy:
                                                     esOutputZipMap[esPandaID] = []
                                                 esOutputZipMap[esPandaID].append({'name':outputZipName,
                                                                                   'osid':outputZipBucketID})
+                                    # output LFN and dataset
+                                    if esPandaID not in esOutputFileMap:
+                                        esOutputFileMap[esPandaID] = dict()
+                                        varMap = {}
+                                        varMap[':PandaID'] = esPandaID
+                                        varMap[':type'] = 'output'
+                                        self.cur.execute(sqlFileOut+comment, varMap)
+                                        resFileOut = self.cur.fetchall()
+                                        for tmpOutLFN, tmpOutDataset in resFileOut:
+                                             esOutputFileMap[esPandaID][tmpOutDataset] = tmpOutLFN
                                 # zip file in fileTable
                                 if zipRow_ID != None and not zipRow_ID in esZipRow_IDs:
                                     esZipRow_IDs.add(zipRow_ID)
@@ -3579,8 +3592,12 @@ class DBProxy:
                         for tmpFileSpec in job.Files:
                             if not tmpFileSpec.type in ['output']:
                                 continue
+                            esPandaID = tmpMapEventRangeID[jobProcessID]['pandaID']
                             tmpInputFileSpec = copy.copy(tmpFileSpec)
                             tmpInputFileSpec.type = 'input'
+                            # change LFN
+                            if esPandaID in esOutputFileMap and tmpInputFileSpec.dataset in esOutputFileMap[esPandaID]:
+                                tmpInputFileSpec.lfn = esOutputFileMap[esPandaID][tmpInputFileSpec.dataset]
                             # change attemptNr back to the original, which could have been changed by ES merge retry
                             if not useNewFileFormatForES:
                                 origLFN = re.sub('\.\d+$','.1',tmpInputFileSpec.lfn)
@@ -3588,7 +3605,6 @@ class DBProxy:
                                 origLFN = re.sub('\.\d+$','.1_000',tmpInputFileSpec.lfn)
                             # append eventRangeID as suffix
                             tmpInputFileSpec.lfn = origLFN + '.' + tmpMapEventRangeID[jobProcessID]['eventRangeID']
-                            esPandaID = tmpMapEventRangeID[jobProcessID]['pandaID']
                             # make input/output map
                             if not mergeInputOutputMap.has_key(origLFN):
                                 mergeInputOutputMap[origLFN] = []

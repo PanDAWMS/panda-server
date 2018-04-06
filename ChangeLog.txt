@@ -1,5 +1,8 @@
 Release Notes
 
+* 4/6/2018
+  * fixed getJobs for notDiscardEvents
+
 * 3/28/2018
   * added harvester_dialogs
 
