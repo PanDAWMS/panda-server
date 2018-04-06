@@ -69,6 +69,7 @@ class JobSpec(object):
                  'resurrectConsumers' : 'rs',
                  'requestType'        : 'rt',
                  'jobCloning'         : 'sc',
+                 'scoutJob'           : 'sj',
                  'usePrefetcher'      : 'up',
                  'writeInputToFile'   : 'wf',
                  }
@@ -662,4 +663,16 @@ class JobSpec(object):
             items = []
         if not self._tagForSH['allOkEvents'] in items:
             items.append(self._tagForSH['allOkEvents'])
+        self.specialHandling = ','.join(items)
+
+
+
+    # set scout job flag
+    def setScoutJobFlag(self):
+        if self.specialHandling is not None:
+            items = self.specialHandling.split(',')
+        else:
+            items = []
+        if self._tagForSH['scoutJob'] not in items:
+            items.append(self._tagForSH['scoutJob'])
         self.specialHandling = ','.join(items)
