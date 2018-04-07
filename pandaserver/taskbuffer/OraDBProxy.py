@@ -16363,15 +16363,15 @@ class DBProxy:
                 nRowsDis = 0
                 nRowsCan = 0
                 for jediTaskID,datasetID,fileID in killPandaIDs[pandaID]:
+                    varMap = {}
+                    varMap[':jediTaskID'] = jediTaskID
+                    varMap[':datasetID']  = datasetID
+                    varMap[':fileID']     = fileID
+                    varMap[':PandaID']    = pandaID
+                    varMap[':status']     = EventServiceUtils.ST_discarded
+                    varMap[':esFinished'] = EventServiceUtils.ST_finished
+                    varMap[':esDone']     = EventServiceUtils.ST_done
                     if not job.notDiscardEvents():
-                        varMap = {}
-                        varMap[':jediTaskID'] = jediTaskID
-                        varMap[':datasetID']  = datasetID
-                        varMap[':fileID']     = fileID
-                        varMap[':PandaID']    = pandaID
-                        varMap[':status']     = EventServiceUtils.ST_discarded
-                        varMap[':esFinished'] = EventServiceUtils.ST_finished
-                        varMap[':esDone']     = EventServiceUtils.ST_done
                         self.cur.execute(sqlDE+comment, varMap)
                         nRowsDis += self.cur.rowcount
                     varMap[':status']      = EventServiceUtils.ST_cancelled
