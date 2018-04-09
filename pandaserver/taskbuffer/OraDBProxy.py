@@ -20946,7 +20946,7 @@ class DBProxy:
         for harvester_id in harvester_ids:
             new_workers_per_harvester.setdefault(harvester_id, {})
             for resource_type in new_workers:
-                new_workers_per_harvester[harvester_id][resource_type] = math.ceil(new_workers[resource_type] * 1.0 / len(harvester_ids))
+                new_workers_per_harvester[harvester_id][resource_type] = int(math.ceil(new_workers[resource_type] * 1.0 / len(harvester_ids)))
 
         tmpLog.debug('Workers to submit: {0}'.format(new_workers))
         tmpLog.debug('done')
