@@ -123,7 +123,6 @@ def main(backGround=False):
         # check certificate
         certName = '%s/pandasv1_usercert.pem' %panda_config.certdir
         keyName = '%s/pandasv1_userkey.pem' %panda_config.certdir
-        #certName = '/etc/grid-security/hostcert.pem'
         _logger.debug('checking certificate {0}'.format(certName))
         certOK,certMsg = DataServiceUtils.checkCertificate(certName)
         if not certOK:

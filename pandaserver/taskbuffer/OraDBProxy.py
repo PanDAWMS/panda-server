@@ -3363,6 +3363,12 @@ class DBProxy:
                                             nSent, = resSent
                                     # insert job and worker mapping
                                     if harvester_id is not None and worker_id is not None:
+                                        # insert worker if missing
+                                        self.updateWorkers(harvester_id,
+                                                           [{'workerID': worker_id, 'nJobs': 1, 'status': 'running',
+                                                             'lastUpdate': datetime.datetime.utcnow()}],
+                                                           False)
+                                        # insert mapping
                                         sqlJWH = "SELECT 1 FROM ATLAS_PANDA.Harvester_Instances WHERE harvester_ID=:harvesterID "
                                         sqlJWC  = "SELECT PandaID FROM ATLAS_PANDA.Harvester_Rel_Jobs_Workers "
                                         sqlJWC += "WHERE harvesterID=:harvesterID AND workerID=:workerID AND PandaID=:PandaID "
@@ -19970,7 +19976,7 @@ class DBProxy:
 
 
     # update workers
-    def updateWorkers(self, harvesterID, data):
+    def updateWorkers(self, harvesterID, data, useCommit=True):
         """
         Update workers
         """
@@ -19985,7 +19991,8 @@ class DBProxy:
             retList = []
             for workerData in data:
                 timeNow = datetime.datetime.utcnow()
-                self.conn.begin()
+                if useCommit:
+                    self.conn.begin()
                 workerSpec = WorkerSpec()
                 workerSpec.harvesterID = harvesterID
                 workerSpec.workerID = workerData['workerID']
@@ -20010,12 +20017,14 @@ class DBProxy:
                 # insert or update
                 if toInsert:
                     # insert
+                    tmpLog.debug('insert workerID={0}'.format(workerSpec.workerID))
                     sqlI  = "INSERT INTO ATLAS_PANDA.Harvester_Workers ({0}) ".format(WorkerSpec.columnNames())
                     sqlI += WorkerSpec.bindValuesExpression()
                     varMap = workerSpec.valuesMap()
                     self.cur.execute(sqlI+comment, varMap)
                 else:
                     # update
+                    tmpLog.debug('update workerID={0}'.format(workerSpec.workerID))
                     sqlU  = "UPDATE ATLAS_PANDA.Harvester_Workers SET {0} ".format(workerSpec.bindUpdateChangesExpression())
                     sqlU += "WHERE harvesterID=:harvesterID AND workerID=:workerID "
                     varMap = workerSpec.valuesMap(onlyChanged=True)
@@ -20066,14 +20075,16 @@ class DBProxy:
                     if nRowJA > 0:
                         tmpLog.debug('PandaID={0} updated modificationTime'.format(pandaID))
                 # commit
-                if not self._commit():
-                    raise RuntimeError, 'Commit error'
+                if useCommit:
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
                 retList.append(True)
             tmpLog.debug('done')
             return retList
         except:
             # roll back
-            self._rollback()
+            if useCommit:
+                self._rollback()
             self.dumpErrorMessage(tmpLog,methodName)
             return None
 
