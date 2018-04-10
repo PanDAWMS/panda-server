@@ -49,11 +49,11 @@ allowedMethods += ['datasetCompleted', 'updateFileStatusInDisp']
 
 from jobdispatcher.JobDispatcher import getJob, updateJob, getStatus, genPilotToken,\
     getEventRanges, updateEventRange, getKeyPair, updateEventRanges, getDNsForS3, getProxy, getCommands, ackCommands,\
-    checkJobStatus, checkEventsAvailability
+    checkJobStatus, checkEventsAvailability, updateJobsInBulk
 allowedMethods += ['getJob', 'updateJob', 'getStatus', 'genPilotToken',
                    'getEventRanges', 'updateEventRange', 'getKeyPair',
                    'updateEventRanges', 'getDNsForS3', 'getProxy', 'getCommands', 'ackCommands',
-                   'checkJobStatus', 'checkEventsAvailability']
+                   'checkJobStatus', 'checkEventsAvailability', 'updateJobsInBulk']
 
 from userinterface.UserIF import submitJobs, getJobStatus, queryPandaIDs, killJobs, reassignJobs,\
      getJobStatistics, getJobStatisticsPerSite, resubmitJobs, queryLastFilesInDataset, getPandaIDsSite,\

@@ -1068,6 +1068,28 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
                                    attemptNr, stdout, acceptJson)
 
 
+# bulk update jobs
+def updateJobsInBulk(req, jobList):
+    retList = []
+    retVal = False
+    try:
+        jobList = json.loads(jobList)
+        for jobDict in jobList:
+            jobId = jobDict['jobId']
+            del jobDict['jobId']
+            state = jobDict['state']
+            del jobDict['state']
+            tmpRet = updateJob(req, jobId, state, **jobDict)
+            retList.append(tmpRet)
+        retVal = True
+    except:
+        errtype,errvalue = sys.exc_info()[:2]
+        tmpMsg = "updateJobsInBulk failed with {0} {1}".format(errtype.__name__,errvalue)
+        retList = tmpMsg
+        _logger.error(tmpMsg + '\n' + traceback.format_exc())
+    return json.dumps((retVal, retList))
+
+
 # get job status
 def getStatus(req,ids,timeout=60):
     _logger.debug("getStatus(%s)" % ids)
