@@ -1073,6 +1073,7 @@ def updateJobsInBulk(req, jobList):
     retList = []
     retVal = False
     _logger.debug("updateJobsInBulk start")
+    tStart = datetime.datetime.utcnow()
     try:
         jobList = json.loads(jobList)
         for jobDict in jobList:
@@ -1088,7 +1089,8 @@ def updateJobsInBulk(req, jobList):
         tmpMsg = "updateJobsInBulk failed with {0} {1}".format(errtype.__name__,errvalue)
         retList = tmpMsg
         _logger.error(tmpMsg + '\n' + traceback.format_exc())
-    _logger.debug("updateJobsInBulk done")
+    tDelta = datetime.datetime.utcnow() - tStart 
+    _logger.debug("updateJobsInBulk took %s.%03d sec" % (tDelta.seconds, tDelta.microseconds/1000))
     return json.dumps((retVal, retList))
 
 
