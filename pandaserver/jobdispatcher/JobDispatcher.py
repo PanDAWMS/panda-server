@@ -1072,6 +1072,7 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
 def updateJobsInBulk(req, jobList):
     retList = []
     retVal = False
+    _logger.debug("updateJobsInBulk start")
     try:
         jobList = json.loads(jobList)
         for jobDict in jobList:
@@ -1087,6 +1088,7 @@ def updateJobsInBulk(req, jobList):
         tmpMsg = "updateJobsInBulk failed with {0} {1}".format(errtype.__name__,errvalue)
         retList = tmpMsg
         _logger.error(tmpMsg + '\n' + traceback.format_exc())
+    _logger.debug("updateJobsInBulk done")
     return json.dumps((retVal, retList))
 
 
