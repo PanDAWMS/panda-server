@@ -20033,6 +20033,7 @@ class DBProxy:
                     self.cur.execute(sqlU+comment, varMap)
                 # job relation
                 if 'pandaid_list' in workerData:
+                    tmpLog.debug('update/insert job relation for workerID={0}'.format(workerSpec.workerID))
                     sqlJC  = "SELECT PandaID FROM ATLAS_PANDA.Harvester_Rel_Jobs_Workers "
                     sqlJC += "WHERE harvesterID=:harvesterID AND workerID=:workerID AND PandaID=:PandaID "
                     sqlJI  = "INSERT INTO ATLAS_PANDA.Harvester_Rel_Jobs_Workers (harvesterID,workerID,PandaID,lastUpdate) "
@@ -20059,6 +20060,7 @@ class DBProxy:
                             # update
                             self.cur.execute(sqlJU+comment, varMap)
                 # comprehensive heartbeat
+                tmpLog.debug('update jobs for workerID={0}'.format(workerSpec.workerID))
                 sqlCJ  = "SELECT PandaID FROM ATLAS_PANDA.Harvester_Rel_Jobs_Workers "
                 sqlCJ += "WHERE harvesterID=:harvesterID AND workerID=:workerID "
                 sqlJA  = "UPDATE ATLAS_PANDA.jobsActive4 SET modificationTime=CURRENT_DATE WHERE PandaID=:PandaID AND jobStatus IN (:js1,:js2) "
