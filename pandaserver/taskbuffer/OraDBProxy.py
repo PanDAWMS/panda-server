@@ -6215,8 +6215,6 @@ class DBProxy:
         regStart = datetime.datetime.utcnow()
         for iTry in range(nTry):
             try:
-                tmpLog.debug("{0} to {1}".format(pandaID, int(pandaID)))
-                pandaID = int(pandaID)
                 # autocommit on
                 self.conn.begin()
                 self.cur.arraysize = 10

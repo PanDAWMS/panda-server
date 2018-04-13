@@ -1081,6 +1081,8 @@ def updateJobsInBulk(req, jobList, harvester_id=None):
             del jobDict['jobId']
             state = jobDict['state']
             del jobDict['state']
+            if 'metaData' in jobDict:
+                jobDict['metaData'] = str(jobDict['metaData'])
             tmpRet = updateJob(req, jobId, state, **jobDict)
             retList.append(tmpRet)
         retVal = True
