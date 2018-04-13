@@ -1069,10 +1069,10 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
 
 
 # bulk update jobs
-def updateJobsInBulk(req, jobList):
+def updateJobsInBulk(req, jobList, harvester_id=None):
     retList = []
     retVal = False
-    _logger.debug("updateJobsInBulk start")
+    _logger.debug("updateJobsInBulk %s start" % harvester_id)
     tStart = datetime.datetime.utcnow()
     try:
         jobList = json.loads(jobList)
@@ -1086,11 +1086,11 @@ def updateJobsInBulk(req, jobList):
         retVal = True
     except:
         errtype,errvalue = sys.exc_info()[:2]
-        tmpMsg = "updateJobsInBulk failed with {0} {1}".format(errtype.__name__,errvalue)
+        tmpMsg = "updateJobsInBulk {0} failed with {1} {2}".format(harvester_id, errtype.__name__, errvalue)
         retList = tmpMsg
         _logger.error(tmpMsg + '\n' + traceback.format_exc())
     tDelta = datetime.datetime.utcnow() - tStart 
-    _logger.debug("updateJobsInBulk took %s.%03d sec" % (tDelta.seconds, tDelta.microseconds/1000))
+    _logger.debug("updateJobsInBulk %s took %s.%03d sec" % (harvester_id, tDelta.seconds, tDelta.microseconds/1000))
     return json.dumps((retVal, retList))
 
 

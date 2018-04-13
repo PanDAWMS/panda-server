@@ -2304,6 +2304,7 @@ def getTaskParamsMap(req,jediTaskID):
     ret = userIF.getTaskParamsMap(jediTaskID)
     return pickle.dumps(ret)
 
+
 # update workers
 def updateWorkers(req,harvesterID,workers):
     # check security
@@ -2313,13 +2314,19 @@ def updateWorkers(req,harvesterID,workers):
     user = _getDN(req)        
     # hostname
     host = req.get_remote_host()
+    retVal = None
+    tStart = datetime.datetime.utcnow()
     # convert
     try:
         data = json.loads(workers)
     except:
-        return json.dumps((False,"failed to load JSON"))
+        retVal = json.dumps((False,"failed to load JSON"))
     # update
-    return userIF.updateWorkers(user,host,harvesterID,data)
+    if retVal is None:
+        retVal = userIF.updateWorkers(user,host,harvesterID,data)
+    tDelta = datetime.datetime.utcnow() - tStart
+    _logger.debug("updateWorkers %s took %s.%03d sec" % (harvesterID, tDelta.seconds, tDelta.microseconds/1000))
+    return retVal
 
 
 # add harvester dialog messages

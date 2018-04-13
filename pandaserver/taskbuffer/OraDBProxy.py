@@ -6211,10 +6211,12 @@ class DBProxy:
         sqlJ += "SELECT jobStatus FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID "
         sql0 = "SELECT PandaID FROM ATLAS_PANDA.metaTable WHERE PandaID=:PandaID"        
         sql1 = "INSERT INTO ATLAS_PANDA.metaTable (PandaID,metaData) VALUES (:PandaID,:metaData)"
-        nTry=3
+        nTry=1
         regStart = datetime.datetime.utcnow()
         for iTry in range(nTry):
             try:
+                tmpLog.debug("{0} to {1}".format(pandaID, int(pandaID)))
+                pandaID = int(pandaID)
                 # autocommit on
                 self.conn.begin()
                 self.cur.arraysize = 10
