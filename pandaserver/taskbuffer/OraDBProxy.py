@@ -20768,7 +20768,7 @@ class DBProxy:
         tmpLog = LogWrapper(_logger, method_name)
         tmpLog.debug('start')
 
-        ups_queues = ['CERN-PROD-preprod']
+        ups_queues = []
         # TODO: the pilot manager column is not available in schedconfig and something needs to be implemented
         sql = """
               SELECT siteid FROM atlas_pandameta.schedconfig
