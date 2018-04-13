@@ -20060,7 +20060,7 @@ class DBProxy:
                             # update
                             self.cur.execute(sqlJU+comment, varMap)
                 # comprehensive heartbeat
-                tmpLog.debug('update jobs for workerID={0}'.format(workerSpec.workerID))
+                tmpLog.debug('get jobs for workerID={0}'.format(workerSpec.workerID))
                 sqlCJ  = "SELECT PandaID FROM ATLAS_PANDA.Harvester_Rel_Jobs_Workers "
                 sqlCJ += "WHERE harvesterID=:harvesterID AND workerID=:workerID "
                 sqlJA  = "UPDATE ATLAS_PANDA.jobsActive4 SET modificationTime=CURRENT_DATE WHERE PandaID=:PandaID AND jobStatus IN (:js1,:js2) "
@@ -20069,6 +20069,7 @@ class DBProxy:
                 varMap[':workerID'] = workerData['workerID']
                 self.cur.execute(sqlCJ+comment, varMap)
                 resCJ = self.cur.fetchall()
+                tmpLog.debug('update jobs for workerID={0}'.format(workerSpec.workerID))
                 for pandaID, in resCJ:
                     varMap = dict()
                     varMap[':PandaID'] = pandaID
