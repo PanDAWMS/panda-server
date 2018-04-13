@@ -41,7 +41,7 @@ class PilotStreaming:
                 continue
 
             new_workers_per_harvester = taskBuffer.ups_new_worker_distribution(ups_queue, tmp_worker_stats)
-            print 'queue: {0}, results: {1}'.format(ups_queue, new_workers_per_harvester)
+            self._logger.info('queue: {0}, results: {1}'.format(ups_queue, new_workers_per_harvester))
 
             # variables for the harvester command
             command = '{0}:{1}'.format('SET_N_WORKERS', ups_queue)
