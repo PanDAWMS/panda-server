@@ -242,7 +242,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                     else:
                         fileDestinationDBlock = re.sub('_sub\d+$','',file.destinationDBlock)
                     # append to map
-                    if not idMap.has_key(fileDestinationDBlock) and not isZipFile:
+                    if not idMap.has_key(fileDestinationDBlock):
                         idMap[fileDestinationDBlock] = []
                     fileAttrs = {'guid'     : file.GUID,
                                  'lfn'      : file.lfn,
@@ -332,21 +332,19 @@ class AdderAtlasPlugin (AdderPluginBase):
                                 del copiedFileAttrs['surl']
                                 osDsFileMap[pilotEndPoint][osFileDestinationDBlock].append(copiedFileAttrs)
                     if hasNormalURL:
-                        if not isZipFile:
-                            # add file to be added to dataset
-                            idMap[fileDestinationDBlock].append(fileAttrs)
-                            # add file to be added to zip
-                            if zipFileName is not None:
-                                if not 'files' in zipFiles[zipFileName]:
-                                    zipFiles[zipFileName]['files'] = []
-                                zipFiles[zipFileName]['files'].append(fileAttrs)
-                        else:
+                        # add file to be added to dataset
+                        idMap[fileDestinationDBlock].append(fileAttrs)
+                        # add file to be added to zip
+                        if not isZipFile and zipFileName is not None:
+                            if not 'files' in zipFiles[zipFileName]:
+                                zipFiles[zipFileName]['files'] = []
+                            zipFiles[zipFileName]['files'].append(fileAttrs)
+                        if isZipFile:
                             # copy file attribute for zip file registration
                             for tmpFileAttrName, tmpFileAttrVal in fileAttrs.iteritems():
                                 zipFiles[file.lfn][tmpFileAttrName] = tmpFileAttrVal
                             zipFiles[file.lfn]['scope'] = file.scope
                             zipFiles[file.lfn]['rse'] = dsDestMap[fileDestinationDBlock]
-                            continue
                     # for subscription
                     if self.job.prodSourceLabel in ['managed','test','software','rc_test','ptest','user','rucio_test'] and \
                            re.search('_sub\d+$',fileDestinationDBlock) != None and (not self.addToTopOnly) and \
@@ -563,7 +561,8 @@ class AdderAtlasPlugin (AdderPluginBase):
                 out = '%s : %s' % (errType,errValue)
                 out += traceback.format_exc()
                 if 'value too large for column' in out or \
-                        'unique constraint (ATLAS_RUCIO.DIDS_GUID_IDX) violate' in out:
+                        'unique constraint (ATLAS_RUCIO.DIDS_GUID_IDX) violate' in out or \
+                        'unique constraint (ATLAS_RUCIO.DIDS_PK) violated' in out:
                     isFatal = True
                 else:
                     isFatal = False
