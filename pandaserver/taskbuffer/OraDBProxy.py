@@ -17064,7 +17064,7 @@ class DBProxy:
                                                                                                                                               attemptNr))
                         allOK = False
                         break
-                    if not fileStatus in ['running']:
+                    if not fileStatus in ['running'] and jobSpec.computingSite != EventServiceUtils.siteIdForWaitingCoJumboJobs:
                         tmpLog.debug("jediTaskID={0} datasetID={1} fileID={2} attemptNr={3} is in wrong status ({4}) in JEDI".format(fileSpec.jediTaskID,
                                                                                                                                      fileSpec.datasetID,
                                                                                                                                      fileSpec.fileID,
