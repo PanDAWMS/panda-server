@@ -989,6 +989,31 @@ if len(jobs):
             iJob += nJob
 
 
+# kick waiting ES merge jobs which were generated from fake co-jumbo
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=10)
+varMap = {}
+varMap[':jobStatus']    = 'waiting'
+varMap[':creationTime'] = timeLimit
+varMap[':esMerge'] = EventServiceUtils.esMergeJobFlagNumber
+sql  = "SELECT PandaID,computingSite FROM ATLAS_PANDA.jobsWaiting4 WHERE jobStatus=:jobStatus AND creationTime<:creationTime "
+sql += "AND eventService=:esMerge ORDER BY jediTaskID "
+status,res = taskBuffer.querySQLS(sql, varMap)
+jobsMap = {}
+if res != None:
+    for id,site in res:
+        if site not in jobsMap:
+            jobsMap[site] = []
+        jobsMap[site].append(id)
+# kick
+if len(jobsMap):
+    for site, jobs in jobsMap.iteritems():
+        nJob = 100
+        iJob = 0
+        while iJob < len(jobs):
+            _logger.debug("kick waiting ES merge (%s)" % str(jobs[iJob:iJob+nJob]))
+            Client.reassignJobs(jobs[iJob:iJob+nJob], )
+            iJob += nJob
+
 # kill too long waiting jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
 varMap = {}
