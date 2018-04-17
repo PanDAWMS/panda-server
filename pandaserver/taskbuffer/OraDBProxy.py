@@ -20899,14 +20899,14 @@ class DBProxy:
                 except KeyError:
                     pass
 
-        tmpLog.debug('Queue {0} queued worker overview: {0}'.format(workers_queued))
+        tmpLog.debug('Queue {0} queued worker overview: {1}'.format(queue, workers_queued))
         
         # TODO: what is a good strategy??? how many jobs/cores should be queued compared to running
         # TODO: for the moment we'll target nqueued = nrunning for simplification
         # TODO: if there are no pilots queued or running, we should submit a configurable minimum, or set the minimum based 
         #       on the number of activated jobs
         n_workers_to_submit = max(n_workers_running - n_workers_queued, 5)
-        tmpLog.debug('Queue {0} has nrunning {0}, nqueued {1} and needs {0} more workers'
+        tmpLog.debug('Queue {0} has nrunning {0}, nqueued {1} and needs {2} more workers'
                      .format(n_workers_running, n_workers_queued, n_workers_to_submit))
 
         # Get the sorted global shares
