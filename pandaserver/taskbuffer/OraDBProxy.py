@@ -20899,11 +20899,15 @@ class DBProxy:
                 except KeyError:
                     pass
 
+        tmpLog.debug('Queue {0} queued worker overview: {0}'.format(workers_queued))
+        
         # TODO: what is a good strategy??? how many jobs/cores should be queued compared to running
         # TODO: for the moment we'll target nqueued = nrunning for simplification
         # TODO: if there are no pilots queued or running, we should submit a configurable minimum, or set the minimum based 
         #       on the number of activated jobs
         n_workers_to_submit = max(n_workers_running - n_workers_queued, 5)
+        tmpLog.debug('Queue {0} has nrunning {0}, nqueued {1} and needs {0} more workers'
+                     .format(n_workers_running, n_workers_queued, n_workers_to_submit))
 
         # Get the sorted global shares
         sorted_shares = self.get_sorted_leaves()
@@ -20936,7 +20940,7 @@ class DBProxy:
 
         new_workers = {}
         for resource_type in workers_queued:
-            if workers_queued[resource_type] > 0:
+            if workers_queued[resource_type] >= 0:
                 # we have too many workers queued already, don't submit more
                 new_workers[resource_type] = 0
             elif workers_queued[resource_type] < 0:
@@ -20951,7 +20955,7 @@ class DBProxy:
             for resource_type in new_workers:
                 new_workers_per_harvester[harvester_id][resource_type] = int(math.ceil(new_workers[resource_type] * 1.0 / len(harvester_ids)))
 
-        tmpLog.debug('Workers to submit: {0}'.format(new_workers))
+        tmpLog.debug('Workers to submit for {0}: {1}'.format(queue, new_workers_per_harvester))
         tmpLog.debug('done')
         return new_workers_per_harvester
 
