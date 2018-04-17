@@ -278,7 +278,7 @@ try:
                     jobSpec.taskBufferErrorCode = taskbuffer.ErrorCode.EC_EventServiceInconsistentIn
                 taskBuffer.archiveJobs([jobSpec],True)
         tmpLog.debug("finish {0} co-jumbo jobs in Waiting".format(len(coJumboW)))
-        if len(coJumboD) > 0:
+        if len(coJumboW) > 0:
             jobSpecs = taskBuffer.peekJobs(coJumboW,fromDefined=False,fromActive=False,fromArchived=False,fromWaiting=True)
             for jobSpec in jobSpecs:
                 fileCheckInJEDI = taskBuffer.checkInputFileStatusInJEDI(jobSpec)
