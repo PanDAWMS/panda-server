@@ -20017,48 +20017,62 @@ class DBProxy:
                 # insert or update
                 if toInsert:
                     # insert
-                    tmpLog.debug('insert workerID={0}'.format(workerSpec.workerID))
+                    tmpLog.debug('workerID={0} insert'.format(workerSpec.workerID))
                     sqlI  = "INSERT INTO ATLAS_PANDA.Harvester_Workers ({0}) ".format(WorkerSpec.columnNames())
                     sqlI += WorkerSpec.bindValuesExpression()
                     varMap = workerSpec.valuesMap()
                     self.cur.execute(sqlI+comment, varMap)
                 else:
                     # update
-                    tmpLog.debug('update workerID={0}'.format(workerSpec.workerID))
+                    tmpLog.debug('workerID={0} update'.format(workerSpec.workerID))
                     sqlU  = "UPDATE ATLAS_PANDA.Harvester_Workers SET {0} ".format(workerSpec.bindUpdateChangesExpression())
                     sqlU += "WHERE harvesterID=:harvesterID AND workerID=:workerID "
                     varMap = workerSpec.valuesMap(onlyChanged=True)
                     self.cur.execute(sqlU+comment, varMap)
                 # job relation
-                if 'pandaid_list' in workerData:
-                    tmpLog.debug('update/insert job relation for workerID={0}'.format(workerSpec.workerID))
+                if 'pandaid_list' in workerData and len(workerData['pandaid_list']) > 0:
+                    tmpLog.debug('workerID={0} update/insert job relation'.format(workerSpec.workerID))
                     sqlJC  = "SELECT PandaID FROM ATLAS_PANDA.Harvester_Rel_Jobs_Workers "
-                    sqlJC += "WHERE harvesterID=:harvesterID AND workerID=:workerID AND PandaID=:PandaID "
+                    sqlJC += "WHERE harvesterID=:harvesterID AND workerID=:workerID "
                     sqlJI  = "INSERT INTO ATLAS_PANDA.Harvester_Rel_Jobs_Workers (harvesterID,workerID,PandaID,lastUpdate) "
                     sqlJI += "VALUES (:harvesterID,:workerID,:PandaID,:lastUpdate) "
                     sqlJU  = "UPDATE ATLAS_PANDA.Harvester_Rel_Jobs_Workers SET lastUpdate=:lastUpdate "
                     sqlJU += "WHERE harvesterID=:harvesterID AND workerID=:workerID AND PandaID=:PandaID "
+                    # get jobs
+                    varMap = dict()
+                    varMap[':harvesterID'] = harvesterID
+                    varMap[':workerID'] = workerData['workerID']
+                    self.cur.execute(sqlJC+comment, varMap)
+                    resJC = self.cur.fetchall()
+                    exPandaIDs = set()
+                    for pandaID, in resJC:
+                        exPandaIDs.add(pandaID)
                     for pandaID in workerData['pandaid_list']:
-                        # check if exists
-                        varMap = dict()
-                        varMap[':harvesterID'] = harvesterID
-                        varMap[':workerID'] = workerData['workerID']
-                        varMap[':PandaID'] = pandaID
-                        self.cur.execute(sqlJC+comment, varMap)
-                        resJC = self.cur.fetchone()
+                        # update or insert
                         varMap = dict()
                         varMap[':harvesterID'] = harvesterID
                         varMap[':workerID'] = workerData['workerID']
                         varMap[':PandaID'] = pandaID
                         varMap[':lastUpdate'] = timeNow
-                        if resJC is None:
+                        if pandaID not in exPandaIDs:
                             # insert
                             self.cur.execute(sqlJI+comment, varMap)
                         else:
                             # update
                             self.cur.execute(sqlJU+comment, varMap)
+                            exPandaIDs.discard(pandaID)
+                    # delete redundant list
+                    sqlJD = "DELETE FROM ATLAS_PANDA.Harvester_Rel_Jobs_Workers "
+                    sqlJD += "WHERE harvesterID=:harvesterID AND workerID=:workerID AND PandaID=:PandaID "
+                    for pandaID in exPandaIDs:
+                        varMap = dict()
+                        varMap[':PandaID'] = pandaID
+                        varMap[':harvesterID'] = harvesterID
+                        varMap[':workerID'] = workerData['workerID']
+                        self.cur.execute(sqlJD+comment, varMap)
+                    tmpLog.debug('workerID={0} deleted {1} jobs'.format(workerSpec.workerID, len(exPandaIDs)))
                 # comprehensive heartbeat
-                tmpLog.debug('get jobs for workerID={0}'.format(workerSpec.workerID))
+                tmpLog.debug('workerID={0} get jobs'.format(workerSpec.workerID))
                 sqlCJ  = "SELECT PandaID FROM ATLAS_PANDA.Harvester_Rel_Jobs_Workers "
                 sqlCJ += "WHERE harvesterID=:harvesterID AND workerID=:workerID "
                 sqlJA  = "UPDATE ATLAS_PANDA.jobsActive4 SET modificationTime=CURRENT_DATE WHERE PandaID=:PandaID AND jobStatus IN (:js1,:js2) "
@@ -20067,7 +20081,7 @@ class DBProxy:
                 varMap[':workerID'] = workerData['workerID']
                 self.cur.execute(sqlCJ+comment, varMap)
                 resCJ = self.cur.fetchall()
-                tmpLog.debug('update jobs for workerID={0}'.format(workerSpec.workerID))
+                tmpLog.debug('workerID={0} update jobs'.format(workerSpec.workerID))
                 for pandaID, in resCJ:
                     varMap = dict()
                     varMap[':PandaID'] = pandaID
@@ -20076,7 +20090,7 @@ class DBProxy:
                     self.cur.execute(sqlJA+comment, varMap)
                     nRowJA = self.cur.rowcount
                     if nRowJA > 0:
-                        tmpLog.debug('PandaID={0} updated modificationTime'.format(pandaID))
+                        tmpLog.debug('workerID={0} PandaID={1} updated modificationTime'.format(workerSpec.workerID, pandaID))
                 # commit
                 if useCommit:
                     if not self._commit():
