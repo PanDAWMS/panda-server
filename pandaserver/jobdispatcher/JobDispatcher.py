@@ -184,7 +184,8 @@ class JobDipatcher:
     # get job
     def getJob(self,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
                atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry,
-               realDN,taskID,nJobs,acceptJson,background,resourceType,harvester_id,worker_id):
+               realDN,taskID,nJobs,acceptJson,background,resourceType,harvester_id,worker_id,
+               schedulerID):
 
         t_getJob_start = time.time()
         jobs = []
@@ -200,7 +201,7 @@ class JobDipatcher:
         tmpWrapper = _TimedMethod(self.taskBuffer.getJobs, timeout)
         tmpWrapper.run(tmpNumJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
                        atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry,
-                       taskID,background,resourceType,harvester_id,worker_id)
+                       taskID,background,resourceType,harvester_id,worker_id,schedulerID)
 
         if isinstance(tmpWrapper.result,types.ListType):
             jobs = jobs + tmpWrapper.result
@@ -838,7 +839,7 @@ web service interface
 def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,prodSourceLabel=None,node=None,
            computingElement=None,AtlasRelease=None,prodUserID=None,getProxyKey=None,countryGroup=None,
            workingGroup=None,allowOtherCountry=None,taskID=None,nJobs=None,background=None,resourceType=None,
-           harvester_id=None, worker_id=None):
+           harvester_id=None, worker_id=None, schedulerID=None):
     _logger.debug("getJob(%s)" % siteName)
     # get DN
     realDN = _getDN(req)
@@ -879,11 +880,11 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
     else:
         background = False
     _logger.debug("getJob(%s,nJobs=%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,taskID=%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s,json:%s,bg=%s,rt=%s," \
-                      "harvester_id=%s,worker_id=%s" \
+                      "harvester_id=%s,worker_id=%s,schedulerID=%s" \
                   % (siteName,nJobs,cpu,mem,diskSpace,prodSourceLabel,node,
                      computingElement,AtlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,
                      allowOtherCountry,taskID,realDN,prodManager,token,validToken,str(fqans),req.acceptJson(),
-                     background,resourceType,harvester_id,worker_id))
+                     background,resourceType,harvester_id,worker_id,schedulerID))
     _pilotReqLogger.info('method=getJob,site=%s,node=%s,type=%s' % (siteName,node,prodSourceLabel))    
     # invalid role
     if (not prodManager) and (not prodSourceLabel in ['user']):
@@ -901,7 +902,7 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
     return jobDispatcher.getJob(siteName,prodSourceLabel,cpu,mem,diskSpace,node,int(timeout),
                                 computingElement,AtlasRelease,prodUserID,getProxyKey,countryGroup,
                                 workingGroup,allowOtherCountry,realDN,taskID,nJobs,req.acceptJson(),
-                                background,resourceType,harvester_id,worker_id)
+                                background,resourceType,harvester_id,worker_id,schedulerID)
     
 
 # update job status

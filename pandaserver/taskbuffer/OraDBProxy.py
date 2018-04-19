@@ -2974,7 +2974,7 @@ class DBProxy:
     # get jobs
     def getJobs(self,nJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
                 atlasRelease,prodUserID,countryGroup,workingGroup,allowOtherCountry,taskID,background,
-                resourceType,harvester_id,worker_id):
+                resourceType,harvester_id,worker_id,schedulerID):
         """
         1. Construct where clause (sql1) based on applicable filters for request
         2. Select n jobs with the highest priorities and the lowest pandaids
@@ -3319,6 +3319,10 @@ class DBProxy:
                                 if computingElement != None:
                                     sqlJ+= ",computingElement=:computingElement"
                                     varMap[':computingElement'] =  computingElement
+                                # set schedulerID
+                                if schedulerID is not None:
+                                    sqlJ+= ",schedulerID=:schedulerID"
+                                    varMap[':schedulerID'] = schedulerID
                                 # set special handlng
                                 if specialHandled:
                                     sqlJ+= ",specialHandling=:specialHandling"
