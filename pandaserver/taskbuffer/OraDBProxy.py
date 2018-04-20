@@ -14610,6 +14610,10 @@ class DBProxy:
             sqlFF = "SELECT jediTaskID,datasetID,fileID FROM {0}.filesTable4 ".format(panda_config.schemaPANDA)
             sqlFF += "WHERE PandaID=:pandaID AND type IN (:type1,:type2) "
             sqlFF += "ORDER BY fileID "
+            # sql to use a dataset as lock
+            sqlLD = "SELECT status FROM {0}.JEDI_Datasets ".format(panda_config.schemaJEDI)
+            sqlLD += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            sqlLD += "FOR UPDATE "
             # sql to use a file as lock
             sqlLK = "SELECT status FROM {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
             sqlLK += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
@@ -14698,9 +14702,17 @@ class DBProxy:
                     varMap = dict()
                     varMap[':jediTaskID'] = ffJediTask
                     varMap[':datasetID'] = ffDatasetID
-                    varMap[':fileID'] = ffFileID
-                    self.cur.execute(sqlLK+comment, varMap)
-                    tmpLog.debug("locked fileID={0}".format(ffFileID))
+                    self.cur.execute(sqlLD+comment, varMap)
+                    tmpLog.debug("locked datasetID={0}".format(ffDatasetID))
+                    """
+                    if ffFileID is not None:
+                        varMap = dict()
+                        varMap[':jediTaskID'] = ffJediTask
+                        varMap[':datasetID'] = ffDatasetID
+                        varMap[':fileID'] = ffFileID
+                        self.cur.execute(sqlLK+comment, varMap)
+                        tmpLog.debug("locked fileID={0}".format(ffFileID))
+                    """
                 # get event ranges
                 varMap = {}
                 varMap[':eventStatus']  = EventServiceUtils.ST_ready
