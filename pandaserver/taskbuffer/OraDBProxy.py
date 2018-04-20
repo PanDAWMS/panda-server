@@ -14764,12 +14764,18 @@ class DBProxy:
                         varMap[':isJumbo'] = EventServiceUtils.eventTableIsJumbo
                     else:
                         varMap[':isJumbo'] = None
-                    self.cur.execute(sqlU+comment, varMap)
-                    nRow = self.cur.rowcount
+                    try:
+                        self.cur.execute(sqlU+comment, varMap)
+                        nRow = self.cur.rowcount
+                        errStr = "nRow={0}".format(nRow)
+                    except:
+                        errtype,errvalue = sys.exc_info()[:2]
+                        errStr = "{0} {1}".format(errtype.__name__, errvalue)
+                        nRow = 0
                     if nRow != 1:
                         # failed to lock
                         tmpLog.debug("failed to lock {0} with nRow={1}".format(tmpDict['eventRangeID'],
-                                                                               nRow))
+                                                                               errStr))
                     else:
                         # append
                         retRanges.append(tmpDict)
