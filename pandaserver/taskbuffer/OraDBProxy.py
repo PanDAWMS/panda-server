@@ -14918,6 +14918,7 @@ class DBProxy:
                         eventDictList.append(eventDict)
             # loop over all events
             zipRowIdMap = {}
+            nEventsMap = dict()
             for eventDict in eventDictList:
                 # get event range ID
                 if not 'eventRangeID' in eventDict:
@@ -15010,6 +15011,8 @@ class DBProxy:
                         retList.append(False)
                         isOK = False
                     else:
+                        if pandaID not in nEventsMap:
+                            nEventsMap[pandaID] = nEventsOld
                         # check event status
                         varMap = {}
                         varMap[':jediTaskID'] = jediTaskID
@@ -15117,13 +15120,16 @@ class DBProxy:
                                 if resC != None:
                                     minEventID,maxEventID,newStatus = resC
                                     nEvents = maxEventID-minEventID+1
-                                    if nEventsOld != None:
-                                        nEvents += nEventsOld
+                                    if nEventsMap[pandaID] is None:
+                                        nEventsMap[pandaID] = 0
+                                    nEventsMap[pandaID] += nEvents
                                     # update nevents
                                     varMap = {}
                                     varMap[':pandaID'] = pandaID
-                                    varMap[':nEvents'] = nEvents
+                                    varMap[':nEvents'] = nEventsMap[pandaID]
                                     self.cur.execute(sqlS+comment, varMap)
+                                    tmpLog.debug("<eventRangeID={0}> PandaID={1} nEvents={2}".format(eventRangeID,pandaID,
+                                                                                                     nEventsMap[pandaID]))
                             # update cpuConsumptionTime
                             if cpuConsumptionTime != None and eventStatus in ['finished','failed']:
                                 varMap = {}
