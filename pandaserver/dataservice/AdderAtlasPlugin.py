@@ -336,7 +336,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                             if not 'files' in zipFiles[zipFileName]:
                                 zipFiles[zipFileName]['files'] = []
                             zipFiles[zipFileName]['files'].append(fileAttrs)
-                        if isZipFile:
+                        if isZipFile and not self.addToTopOnly:
                             # copy file attribute for zip file registration
                             for tmpFileAttrName, tmpFileAttrVal in fileAttrs.iteritems():
                                 zipFiles[file.lfn][tmpFileAttrName] = tmpFileAttrVal
