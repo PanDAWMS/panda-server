@@ -197,9 +197,6 @@ class AdderAtlasPlugin (AdderPluginBase):
                         zipFiles[file.lfn] = dict()
                 else:
                     isZipFile = False
-                # skip zip files when topOnly
-                if self.addToTopOnly and isZipFile:
-                    continue
                 # check if zip content
                 zipFileName = None
                 if not isZipFile and not self.addToTopOnly:
