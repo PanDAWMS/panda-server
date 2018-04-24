@@ -146,11 +146,6 @@ class Setupper (threading.Thread):
             # waiting
             elif job.jobStatus == 'waiting':
                 waitingJobs.append(job)
-            # ES jobs and all events are done
-            elif job.notDiscardEvents() and job.allOkEvents():
-                # change status
-                job.jobStatus = "finished"
-                updateJobs.append(job)
             # no input jobs
             elif job.dispatchDBlock=='NULL':
                 activateJobs.append(job)
@@ -168,6 +163,23 @@ class Setupper (threading.Thread):
         self.taskBuffer.updateJobs(failedJobs,True)
         tmpLog.debug('# of waiting jobs : {0}'.format(len(waitingJobs)))
         self.taskBuffer.keepJobs(waitingJobs)
+        # to trigger merge generation if all events are done
+        finishedJobs = []
+        for job in activateJobs:
+            if job.notDiscardEvents() and job.allOkEvents():
+                # change status
+                job.jobStatus = "finished"
+                finishedJobs.append(job)
+        tmpLog.debug('# of finished jobs in activated : {0}'.format(len(finishedJobs)))
+        self.taskBuffer.updateJobs(finishedJobs, False)
+        finishedJobs = []
+        for job in updateJobs:
+            if job.notDiscardEvents() and job.allOkEvents():
+                # change status
+                job.jobStatus = "finished"
+                finishedJobs.append(job)
+        tmpLog.debug('# of finished jobs in defined : {0}'.format(len(finishedJobs)))
+        self.taskBuffer.updateJobs(finishedJobs, True)
         # delete local values
         del updateJobs
         del failedJobs

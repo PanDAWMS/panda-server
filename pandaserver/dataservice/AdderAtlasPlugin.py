@@ -696,9 +696,6 @@ class AdderAtlasPlugin (AdderPluginBase):
                         # skip alternative stage-out
                         if tmpFile.lfn in self.job.altStgOutFileList():
                             continue
-                        # skip zip files
-                        if tmpFile.lfn in zipFileMap:
-                            continue
                         self.result.transferringFiles.append(tmpFile.lfn)
         elif not "--mergeOutput" in self.job.jobParameters:
             # send request to DaTRI unless files will be merged
