@@ -2715,6 +2715,9 @@ class DBProxy:
                                 oldPatt = match[0]+oldName+match[-1]
                                 newPatt = match[0]+newName+match[-1]
                                 job.jobParameters = re.sub(oldPatt,newPatt,job.jobParameters)
+                            oldInputFor = "inputFor_" + oldName
+                            newInputFor = "inputFor_" + newName
+                            job.jobParameters = re.sub(oldInputFor,newInputFor,job.jobParameters)
                             if not changeJobInMem and not getNewPandaID:
                                 # reset file status
                                 if file.type in ['output','log']:
