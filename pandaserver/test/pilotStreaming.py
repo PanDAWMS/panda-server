@@ -23,7 +23,6 @@ class PilotStreaming:
 
         # get worker stats
         worker_stats = taskBuffer.ups_load_worker_stats()
-        self._logger.debug('worker_stats: {0}'.format(worker_stats))
 
         # get global share distribution
         # hs_distribution = proxyS.get_hs_distribution()
@@ -34,6 +33,7 @@ class PilotStreaming:
             # get the worker and job stats for the queue
             try:
                 tmp_worker_stats = worker_stats[ups_queue]
+                self._logger.debug('worker_stats for queue {0}: {1}'.format(ups_queue, tmp_worker_stats))
                 # tmp_job_stats = job_stats[ups_queue]
             except KeyError:
                 # skip queue if no data available
