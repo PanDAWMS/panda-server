@@ -298,7 +298,7 @@ def getDatasetType(dataset):
 def checkCertificate(certName):
     try:
         cert = crypto.load_certificate(crypto.FILETYPE_PEM,file(certName).read())
-        if cert.has_expired() == True:
+        if cert.has_expired() is True:
             return False,"{0} expired".format(certName)
         else:
             return True,None
@@ -324,7 +324,10 @@ def getSitesShareDDM(siteMapper,siteName):
         if tmpSiteSpec.status != 'online':
             continue
         # same endpoint
-        if siteSpec.ddm_input != tmpSiteSpec.ddm_input: # TODO: check with Tadashi
+        try:
+            if siteSpec.ddm_input != tmpSiteSpec.ddm_input and siteSpec.ddm_output not in tmpSiteSpec.ddm_endpoints_input.all.keys():
+                continue
+        except:
             continue
         # skip itself
         if siteName == tmpSiteSpec.sitename:

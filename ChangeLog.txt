@@ -1,5 +1,8 @@
 Release Notes
 
+* 4/25/2018
+  * improved getSitesShareDDM to reflect new endpoint association
+
 * 4/10/2018
   * added updateJobsInBulk
 
