@@ -105,6 +105,7 @@ class Response:
         noOutput = []
         siteSpec = None
         inDsLfnMap = {}
+        outputFile0 = None
         if siteMapperCache != None:
             siteMapper = siteMapperCache.getObj()
             siteSpec = siteMapper.getSite(job.computingSite)
@@ -146,6 +147,8 @@ class Response:
                 if not file.dataset in inDsLfnMap:
                     inDsLfnMap[file.dataset] = []
                 inDsLfnMap[file.dataset].append(file.lfn)
+            if file.type == 'output' and outputFile0 is None:
+                outputFile0 = file.lfn
             if file.type == 'output' or file.type == 'log':
                 if strOFiles != '':
                     strOFiles += ','
@@ -162,7 +165,7 @@ class Response:
                     logGUID = file.GUID
                     strScopeLog = file.scope
                 else:
-                    strScopeOut += '%s,' % file.scope                        
+                    strScopeOut += '%s,' % file.scope
                 if strDestToken != '':
                     strDestToken += ','
                 strDestToken += re.sub('^ddd:','dst:',file.destinationDBlockToken.split(',')[0])
@@ -272,14 +275,13 @@ class Response:
         if isEventServiceMerge:
             self.data['eventServiceMerge'] = 'True'
             # write to file for ES merge
-            writeToFileStr = ''
+            writeToFileStr = 'inputFor_{0}:'.format(outputFile0)
             try:
                 for outputName,inputList in job.metadata[0].iteritems():
-                    writeToFileStr += 'inputFor_{0}:'.format(outputName)
                     for tmpInput in inputList:
                         writeToFileStr += '{0},'.format(tmpInput)
                     writeToFileStr = writeToFileStr[:-1]
-                    writeToFileStr += '^'
+                writeToFileStr += '^'
                 writeToFileStr = writeToFileStr[:-1]
             except:
                 pass
