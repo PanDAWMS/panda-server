@@ -197,9 +197,6 @@ class AdderAtlasPlugin (AdderPluginBase):
                         zipFiles[file.lfn] = dict()
                 else:
                     isZipFile = False
-                # skip zip files when topOnly
-                if self.addToTopOnly and isZipFile:
-                    continue
                 # check if zip content
                 zipFileName = None
                 if not isZipFile and not self.addToTopOnly:
@@ -339,7 +336,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                             if not 'files' in zipFiles[zipFileName]:
                                 zipFiles[zipFileName]['files'] = []
                             zipFiles[zipFileName]['files'].append(fileAttrs)
-                        if isZipFile:
+                        if isZipFile and not self.addToTopOnly:
                             # copy file attribute for zip file registration
                             for tmpFileAttrName, tmpFileAttrVal in fileAttrs.iteritems():
                                 zipFiles[file.lfn][tmpFileAttrName] = tmpFileAttrVal
@@ -695,9 +692,6 @@ class AdderAtlasPlugin (AdderPluginBase):
                             continue
                         # skip alternative stage-out
                         if tmpFile.lfn in self.job.altStgOutFileList():
-                            continue
-                        # skip zip files
-                        if tmpFile.lfn in zipFileMap:
                             continue
                         self.result.transferringFiles.append(tmpFile.lfn)
         elif not "--mergeOutput" in self.job.jobParameters:
