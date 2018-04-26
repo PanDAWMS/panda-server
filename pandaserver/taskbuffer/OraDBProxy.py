@@ -2709,7 +2709,7 @@ class DBProxy:
                             if not recoverableEsMerge:
                                 sepPatt = "(\'|\"|%20|:)" + oldName + "(\'|\"|%20| )"
                             else:
-                                sepPatt = "(\'|\"| |:|=)" + oldName + "(\'|\"| |<|$)"
+                                sepPatt = "(\'|\"| |:|=|_)" + oldName + "(\'|\"| |<|$)"
                             matches = re.findall(sepPatt,job.jobParameters)
                             for match in matches:
                                 oldPatt = match[0]+oldName+match[-1]
@@ -3616,9 +3616,9 @@ class DBProxy:
                             # append eventRangeID as suffix
                             tmpInputFileSpec.lfn = origLFN + '.' + tmpMapEventRangeID[jobProcessID]['eventRangeID']
                             # make input/output map
-                            if not mergeInputOutputMap.has_key(origLFN):
-                                mergeInputOutputMap[origLFN] = []
-                            mergeInputOutputMap[origLFN].append(tmpInputFileSpec.lfn)
+                            if not mergeInputOutputMap.has_key(tmpFileSpec.lfn):
+                                mergeInputOutputMap[tmpFileSpec.lfn] = []
+                            mergeInputOutputMap[tmpFileSpec.lfn].append(tmpInputFileSpec.lfn)
                             # add file
                             if not esPandaID in esOutputZipMap:
                                 # no zip
