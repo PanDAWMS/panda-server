@@ -3605,20 +3605,23 @@ class DBProxy:
                             esPandaID = tmpMapEventRangeID[jobProcessID]['pandaID']
                             tmpInputFileSpec = copy.copy(tmpFileSpec)
                             tmpInputFileSpec.type = 'input'
+                            outLFN = tmpInputFileSpec.lfn
                             # change LFN
                             if esPandaID in esOutputFileMap and tmpInputFileSpec.dataset in esOutputFileMap[esPandaID]:
                                 tmpInputFileSpec.lfn = esOutputFileMap[esPandaID][tmpInputFileSpec.dataset]
                             # change attemptNr back to the original, which could have been changed by ES merge retry
                             if not useNewFileFormatForES:
                                 origLFN = re.sub('\.\d+$','.1',tmpInputFileSpec.lfn)
+                                outLFN  = re.sub('\.\d+$','.1',outLFN)
                             else:
                                 origLFN = re.sub('\.\d+$','.1_000',tmpInputFileSpec.lfn)
+                                outLFN  = re.sub('\.\d+$','.1_000',outLFN)
                             # append eventRangeID as suffix
                             tmpInputFileSpec.lfn = origLFN + '.' + tmpMapEventRangeID[jobProcessID]['eventRangeID']
                             # make input/output map
-                            if not mergeInputOutputMap.has_key(origLFN):
-                                mergeInputOutputMap[origLFN] = []
-                            mergeInputOutputMap[origLFN].append(tmpInputFileSpec.lfn)
+                            if not mergeInputOutputMap.has_key(outLFN):
+                                mergeInputOutputMap[outLFN] = []
+                            mergeInputOutputMap[outLFN].append(tmpInputFileSpec.lfn)
                             # add file
                             if not esPandaID in esOutputZipMap:
                                 # no zip
