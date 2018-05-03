@@ -75,6 +75,9 @@ EC_EventServiceNoEsQueues = 125
 # Closed in bad job status
 EC_EventServiceBadStatus = 126
 
+# There are fatal events in the jobset
+EC_EventServiceFatalEvent = 127
+
 # failed to lock semaphore for job cloning
 EC_JobCloningUnlock = 200
 
