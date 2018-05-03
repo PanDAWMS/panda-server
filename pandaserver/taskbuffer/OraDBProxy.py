@@ -15482,6 +15482,14 @@ class DBProxy:
                 _logger.debug("{0} : {1} fatal even ranges ".format(methodName,nRowCEF))
                 if nRowCEF > 0:
                     hasFatalRange = True
+            # increase consumer prio for every 3 hours
+            prioIncrByWaiting = 0
+            try:
+                consumerWaitingTime = datetime.datetime.utcnow() - jobSpec.creationTime
+                consumerWaitingTimeSeconds = consumerWaitingTime.seconds
+                prioIncrByWaiting = consumerWaitingTimeSeconds / 10800
+            except:
+                pass
             # reset job attributes
             jobSpec.startTime        = None
             jobSpec.creationTime     = datetime.datetime.utcnow()
@@ -15495,7 +15503,7 @@ class DBProxy:
                 jobSpec.maxAttempt = jobSpec.attemptNr+3
                 jobSpec.currentPriority = 5000
             else:
-                jobSpec.currentPriority += 1
+                jobSpec.currentPriority += 1 + prioIncrByWaiting
             jobSpec.endTime          = None
             jobSpec.transExitCode    = None
             jobSpec.jobMetrics       = None
