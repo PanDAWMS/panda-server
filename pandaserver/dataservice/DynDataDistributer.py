@@ -934,6 +934,7 @@ class DynDataDistributer:
                     if tmpDsName.startswith('panda') or \
                            tmpDsName.startswith('user') or \
                            tmpDsName.startswith('group') or \
+                           tmpDsName.startswith('archive') or \
                            re.search('_sub\d+$',tmpDsName) != None or \
                            re.search('_dis\d+$',tmpDsName) != None or \
                            re.search('_shadow$',tmpDsName) != None:
