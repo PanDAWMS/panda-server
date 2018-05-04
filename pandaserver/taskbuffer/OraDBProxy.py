@@ -1667,6 +1667,12 @@ class DBProxy:
                         job.jobSubStatus = 'es_badstatus'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceBadStatus
                         job.taskBufferErrorDiag = "cloded in bad jobStatus like defined and pending"
+                    elif retEvS == 10:
+                        # there are fatal events
+                        job.jobStatus = 'failed'
+                        job.jobSubStatus = 'es_fatalevent'
+                        job.taskBufferErrorCode = ErrorCode.EC_EventServiceFatalEvent
+                        job.taskBufferErrorDiag = "At least one fatal event failed."
                     # additional actions when retry
                     codeListWithRetry = [0, 5, 8, 9]
                     if retEvS in codeListWithRetry:
@@ -14895,11 +14901,6 @@ class DBProxy:
             sqlF  = "INSERT INTO ATLAS_PANDA.filesTable4 (%s) " % FileSpec.columnNames()
             sqlF += FileSpec.bindValuesExpression(useSeq=True)
             sqlF += " RETURNING row_ID INTO :newRowID"
-            # sql for fatal events
-            sqlFA  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
-            sqlFA += "SET attemptNr=:newAttemptNr "
-            sqlFA += " WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND fileID=:fileID "
-            sqlFA += "AND job_processID=:job_processID AND attemptNr=:oldAttemptNr "
             # params formatting with version
             if version == 0:
                 # format without zip
@@ -14957,7 +14958,7 @@ class DBProxy:
                 elif eventStatus == 'failed':
                     intEventStatus = EventServiceUtils.ST_failed
                 elif eventStatus == 'fatal':
-                    intEventStatus = EventServiceUtils.ST_failed
+                    intEventStatus = EventServiceUtils.ST_fatal
                     isFatal = True
                 else:
                     tmpLog.error("<eventRangeID={0}> unknown status {1}".format(eventRangeID,eventStatus))
@@ -15100,16 +15101,6 @@ class DBProxy:
                                 varMap[':zipRow_ID'] = zipRow_ID
                             self.cur.execute(sqlU+comment, varMap)
                             nRow = self.cur.rowcount
-                            # fatal event
-                            if isFatal:
-                                varMap = {}
-                                varMap[':jediTaskID'] = jediTaskID
-                                varMap[':pandaID'] = pandaID
-                                varMap[':fileID'] = fileID
-                                varMap[':job_processID'] = job_processID
-                                varMap[':oldAttemptNr'] = attemptNr
-                                varMap[':newAttemptNr'] = 1
-                                self.cur.execute(sqlFA+comment, varMap)
                             # finished event
                             if nRow == 1 and eventStatus in ['finished']:
                                 # get event range
@@ -15184,6 +15175,7 @@ class DBProxy:
             # 7 : all event ranges failed
             # 8 : generated a retry job but no events were processed
             # 9 : closed in bad job status
+            # 10: there are fatal events
             # None : fatal error
             retValue = 1,None
             # begin transaction
@@ -15301,19 +15293,63 @@ class DBProxy:
             self.cur.execute(sqlEF+comment, varMap)
             nRowCopied = self.cur.rowcount
             _logger.debug("{0} : copied {1} failed event ranges".format(methodName,nRowCopied))
-            # unset processed_upto for failed events
+            # copy fatal event ranges
+            varMap = {}
+            varMap[':jediTaskID']  = jobSpec.jediTaskID
+            varMap[':pandaID']     = pandaID
+            varMap[':jobsetID']    = jobSpec.jobsetID
+            varMap[':esFatal']     = EventServiceUtils.ST_fatal
+            varMap[':newStatus']   = EventServiceUtils.ST_ready
+            varMap[':noRetryAttemptNr']     = -100
+            sqlEFA  = "INSERT INTO {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlEFA += "(jediTaskID,datasetID,PandaID,fileID,attemptNr,status,"
+            sqlEFA += "job_processID,def_min_eventID,def_max_eventID,processed_upto_eventID) "
+            sqlEFA += "SELECT jediTaskID,datasetID,:jobsetID,fileID,attemptNr-3,:newStatus,"
+            sqlEFA += "job_processID,def_min_eventID,def_max_eventID,processed_upto_eventID "
+            sqlEFA += "FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlEFA += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND status=:esFatal "
+            self.cur.execute(sqlEFA+comment, varMap)
+            nRowCopied = self.cur.rowcount
+            _logger.debug("{0} : copied {1} fatal event ranges".format(methodName,nRowCopied))
+            # unset processed_upto for failed and fatal events
             sqlUP  = "UPDATE {0}.JEDI_Events SET processed_upto_eventID=NULL ".format(panda_config.schemaJEDI)
-            sqlUP += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND status=:esFailed "
+            sqlUP += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND status IN (:esFailed,:esFatal) "
             varMap = {}
             varMap[':jediTaskID']  = jobSpec.jediTaskID
             varMap[':pandaID']     = pandaID
             varMap[':esFailed']    = EventServiceUtils.ST_failed
+            varMap[':esFatal']     = EventServiceUtils.ST_fatal
             self.cur.execute(sqlUP+comment, varMap)
             nRowFailed = self.cur.rowcount
             _logger.info("{0} : failed n_er_failed={1} event ranges".format(methodName,nRowFailed))
+            # look for fatal event ranges (more than 3 fatal for the same event)
+            sqlEUF  = "SELECT job_processID,COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlEUF += "WHERE jediTaskID=:jediTaskID AND fileID=:fileID AND status=:esFatal group by job_processID "
+            varMap = {}
+            varMap[':jediTaskID'] = jobSpec.jediTaskID
+            varMap[':fileID']   = jobSpec.fileID
+            varMap[':esFatal']     = EventServiceUtils.ST_fatal
+            self.cur.execute(sqlEUF+comment, varMap)
+            resEUF = self.cur.fetchall()
+            hasFatalEvents = False
+            for rowEUF in resEUF:
+                _, fatalRetries = rowEUF
+                if fatalRetries > 2:
+                    hasFatalEvents = True
+                     break
+            if hasFatalEvents:
+                if not jobSpec.acceptPartialFinish():
+                    # fail immediately
+                    _logger.debug("{0} : no more retry since reached max number of reattempts for some event ranges".format(methodName))
+                    # commit
+                    if useCommit:
+                        if not self._commit():
+                            raise RuntimeError, 'Commit error'
+                    retValue = 10,None
+                    return retValue
             # look for hopeless event ranges
             sqlEU  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
-            sqlEU += "WHERE jediTaskID=:jediTaskID AND pandaID=:jobsetID AND attemptNr=:minAttempt AND rownum=1 "
+            sqlEU += "WHERE jediTaskID=:jediTaskID AND pandaID=:jobsetID AND attemptNr<=:minAttempt AND rownum=1 "
             varMap = {}
             varMap[':jediTaskID'] = jobSpec.jediTaskID
             varMap[':jobsetID']   = jobSpec.jobsetID
@@ -15332,16 +15368,6 @@ class DBProxy:
                             raise RuntimeError, 'Commit error'
                     retValue = 3,None
                     return retValue
-                else:
-                    # set fatal to hopeless event ranges
-                    sqlFH  = "UPDATE {0}.JEDI_Events SET status=:esFatal ".format(panda_config.schemaJEDI)
-                    sqlFH += "WHERE jediTaskID=:jediTaskID AND pandaID=:jobsetID AND attemptNr=:minAttempt AND status<>:esFatal "
-                    varMap = {}
-                    varMap[':jediTaskID']  = jobSpec.jediTaskID
-                    varMap[':jobsetID']    = jobSpec.jobsetID
-                    varMap[':esFatal']     = EventServiceUtils.ST_fatal
-                    varMap[':minAttempt']  = 0
-                    self.cur.execute(sqlFH+comment, varMap)
             # look for event ranges to process
             sqlERP  = "SELECT job_processID FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sqlERP += "WHERE jediTaskID=:jediTaskID AND pandaID=:jobsetID AND status=:esReady "
@@ -15471,11 +15497,11 @@ class DBProxy:
             if doMerging:
                 sqlCFE  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
                 sqlCFE += "WHERE jediTaskID=:jediTaskID AND pandaID=:jobsetID AND "
-                sqlCFE += "status=:esFatal AND rownum=1 "
+                sqlCFE += "attemptNr<=:minAttempt AND rownum=1 "
                 varMap = {}
                 varMap[':jediTaskID']  = jobSpec.jediTaskID
                 varMap[':jobsetID']    = jobSpec.jobsetID
-                varMap[':esFatal']     = EventServiceUtils.ST_fatal
+                varMap[':minAttempt']  = 0
                 self.cur.execute(sqlCFE+comment, varMap)
                 resCFE = self.cur.fetchone()
                 nRowCEF, = resCFE
