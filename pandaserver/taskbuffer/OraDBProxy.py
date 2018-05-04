@@ -20915,7 +20915,7 @@ class DBProxy:
 
         comment = ' /* DBProxy.ups_calculate_submit_distribution */'
         method_name = comment.split(' ')[-2].split('.')[-1]
-        tmpLog = LogWrapper(_logger, method_name)
+        tmpLog = LogWrapper(_logger, '{0}-{1}'.format(method_name, queue))
         tmpLog.debug('start')
         n_workers_running = 0
         workers_queued = {}
@@ -20951,7 +20951,7 @@ class DBProxy:
         # TODO: if there are no pilots queued or running, we should submit a configurable minimum, or set the minimum based 
         #       on the number of activated jobs
         n_workers_to_submit = max(n_workers_running - n_workers_queued, 5)
-        tmpLog.debug('Queue {0} has nrunning {0}, nqueued {1} and needs {2} more workers'
+        tmpLog.debug('nrunning {0}, nqueued {1} and needs {2} more workers'
                      .format(n_workers_running, n_workers_queued, n_workers_to_submit))
 
         # Get the sorted global shares
@@ -21000,7 +21000,7 @@ class DBProxy:
             for resource_type in new_workers:
                 new_workers_per_harvester[harvester_id][resource_type] = int(math.ceil(new_workers[resource_type] * 1.0 / len(harvester_ids)))
 
-        tmpLog.debug('Workers to submit for {0}: {1}'.format(queue, new_workers_per_harvester))
+        tmpLog.debug('Workers to submit: {0}'.format(new_workers_per_harvester))
         tmpLog.debug('done')
         return new_workers_per_harvester
 
