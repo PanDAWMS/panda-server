@@ -20,7 +20,7 @@ class SiteSpec(object):
                    'sitershare','cloudrshare','corepower','wnconnectivity','catchall',
                    'role','pandasite_state','ddm_endpoints_input','ddm_endpoints_output','maxrss','minrss',
                    'direct_access_lan','direct_access_wan','tier','objectstores','is_unified',
-                   'unified_name','jobseed')
+                   'unified_name','jobseed','capability')
 
     # constructor
     def __init__(self):

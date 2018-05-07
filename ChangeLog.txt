@@ -1,5 +1,8 @@
 Release Notes
 
+* 5/7/2018
+  * schedconfig.capability
+
 * 4/25/2018
   * improved getSitesShareDDM to reflect new endpoint association
 

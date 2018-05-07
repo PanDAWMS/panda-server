@@ -9604,7 +9604,7 @@ class DBProxy:
             sql+= "catchall,allowfax,wansourcelimit,wansinklimit,b.site_name,"
             sql+= "sitershare,cloudrshare,corepower,wnconnectivity,catchall,"
             sql+= "c.role,maxrss,minrss,direct_access_lan,direct_access_wan,tier, "
-            sql+= "objectstores,jobseed " 
+            sql+= "objectstores,jobseed,capability " 
             sql+= "FROM (ATLAS_PANDAMETA.schedconfig a "
             sql+= "LEFT JOIN ATLAS_PANDA.panda_site b ON a.siteid=b.panda_site_name) "
             sql+= "LEFT JOIN ATLAS_PANDA.site c ON b.site_name=c.site_name "
@@ -9635,7 +9635,7 @@ class DBProxy:
                        catchall,allowfax,wansourcelimit,wansinklimit,pandasite, \
                        sitershare,cloudrshare,corepower,wnconnectivity,catchall, \
                        role,maxrss,minrss,direct_access_lan,direct_access_wan,tier, \
-                       objectstores,jobseed \
+                       objectstores,jobseed,capability \
                        = resTmp
                     # skip invalid siteid
                     if siteid in [None,'']:
@@ -9671,6 +9671,7 @@ class DBProxy:
                     ret.role          = role
                     ret.tier          = tier
                     ret.jobseed       = jobseed
+                    ret.capability    = capability
                     ret.wnconnectivity = wnconnectivity
                     if ret.wnconnectivity == '':
                         ret.wnconnectivity = None
@@ -15786,7 +15787,7 @@ class DBProxy:
             sqlSN += "FROM ATLAS_PANDA.panda_site ps1,ATLAS_PANDA.panda_site ps2,ATLAS_PANDAMETA.schedconfig sc,ATLAS_PANDA.panda_ddm_relation dr "
             sqlSN += "WHERE ps1.panda_site_name=:site AND ps1.site_name=ps2.site_name AND sc.siteid=ps2.panda_site_name "
             sqlSN += "AND dr.panda_site_name=ps2.panda_site_name "
-            sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1 OR sc.catchall LIKE '%unifiedPandaQueue%') "
+            sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1 OR sc.catchall LIKE '%unifiedPandaQueue%' OR sc.capability=:capability) "
             sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
             sqlSN += "AND (sc.maxrss IS NULL OR sc.minrss=0) "
             sqlSN += "AND (sc.jobseed IS NULL OR sc.jobseed<>'es') "
@@ -15797,6 +15798,7 @@ class DBProxy:
             varMap[':site'] = jobSpec.computingSite
             varMap[':siteStatus'] = 'online'
             varMap[':wc1'] = 'full'
+            varMap[':capability'] = 'UCORE'
             # get sites
             self.cur.execute(sqlSN+comment,varMap)
             if 'localEsMerge' in catchAll:
@@ -15829,7 +15831,7 @@ class DBProxy:
                 sqlSN += "FROM ATLAS_PANDA.panda_site ps,ATLAS_PANDAMETA.schedconfig sc,ATLAS_PANDA.panda_ddm_relation dr "
                 sqlSN += "WHERE site_name=:nucleus AND sc.siteid=ps.panda_site_name "
                 sqlSN += "AND dr.panda_site_name=ps.panda_site_name "
-                sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1 OR sc.catchall LIKE '%unifiedPandaQueue%') "
+                sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1 OR sc.catchall LIKE '%unifiedPandaQueue%' OR sc.capability=:capability) "
                 sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
                 sqlSN += "AND (sc.maxrss IS NULL OR sc.minrss=0) "
                 sqlSN += "AND (sc.jobseed IS NULL OR sc.jobseed<>'es') "
@@ -15840,6 +15842,7 @@ class DBProxy:
                 varMap[':nucleus'] = tmpNucleus
                 varMap[':siteStatus'] = 'online'
                 varMap[':wc1'] = 'full'
+                varMap[':capability'] = 'UCORE'
                 # get sites
                 self.cur.execute(sqlSN+comment,varMap)
                 resSN = self.cur.fetchall()
@@ -15901,12 +15904,13 @@ class DBProxy:
         sqlSN  = "SELECT ps2.panda_site_name "
         sqlSN += "FROM ATLAS_PANDA.panda_site ps1,ATLAS_PANDA.panda_site ps2,ATLAS_PANDAMETA.schedconfig sc "
         sqlSN += "WHERE ps1.panda_site_name=:site AND ps1.site_name=ps2.site_name AND sc.siteid=ps2.panda_site_name "
-        sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1 OR sc.catchall LIKE '%unifiedPandaQueue%') "
+        sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1 OR sc.catchall LIKE '%unifiedPandaQueue%' OR sc.capability=:capability) "
         sqlSN += "AND (sc.jobseed IS NULL OR sc.jobseed='es') "
         sqlSN += "AND sc.status=:siteStatus "
         varMap = {}
         varMap[':site'] = jobSpec.computingSite
         varMap[':siteStatus'] = 'online'
+        varMap[':capability'] = 'UCORE'
         # get sites
         self.cur.execute(sqlSN+comment,varMap)
         resSN = self.cur.fetchall()
@@ -19105,7 +19109,7 @@ class DBProxy:
                 retVal = True
             else:
                 retVal = False
-            tmpLog.debug("finished {0} event ranges. ret={1}".format(resR, retVal))
+            tmpLog.debug("finished {0} event ranges. ret={1}".format(nFinished, retVal))
             return retVal
         except:
             # roll back
@@ -20817,7 +20821,7 @@ class DBProxy:
         # TODO: the pilot manager column is not available in schedconfig and something needs to be implemented
         sql = """
               SELECT siteid FROM atlas_pandameta.schedconfig
-              WHERE catchall LIKE '%unifiedPandaQueue%'
+              WHERE (catchall LIKE '%unifiedPandaQueue%' OR capability='UCORE')
               AND catchall LIKE '%Pull%'
               """
 
