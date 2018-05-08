@@ -21303,3 +21303,62 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger, method_name)
             return False
+
+
+    # get job statistics per site and resource
+    def getJobStatisticsPerSiteResource(self):
+        comment = ' /* DBProxy.getJobStatisticsPerSiteResource */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+        sql0  = "SELECT computingSite,jobStatus,resource_type,COUNT(*) FROM %s "
+        sql0 += "GROUP BY computingSite,jobStatus,resource_type "
+        sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ computingSite,jobStatus,resource_type,COUNT(*) "
+        sqlA += "FROM ATLAS_PANDA.jobsArchived4 tab WHERE modificationTime>:modificationTime "
+        sqlA += "GROUP BY computingSite,jobStatus,resource_type "
+        tables = ['ATLAS_PANDA.jobsActive4', 'ATLAS_PANDA.jobsDefined4', 'ATLAS_PANDA.jobsArchived4']
+        # sql for materialized view
+        sqlMV = re.sub('COUNT\(\*\)', 'SUM(njobs)', sql0)
+        sqlMV = re.sub('SELECT ', 'SELECT /*+ RESULT_CACHE */ ', sqlMV)
+        ret = dict()
+        timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
+        try:
+            for table in tables:
+                # start transaction
+                self.conn.begin()
+                self.cur.arraysize = 10000
+                # select
+                varMap = {}
+                if table == 'ATLAS_PANDA.jobsArchived4':
+                    varMap[':modificationTime'] = timeLimit
+                    sqlExe = sqlA + comment
+                elif table == 'ATLAS_PANDA.jobsActive4':
+                    sqlExe = (sqlMV + comment) % 'ATLAS_PANDA.JOBS_SHARE_STATS'
+                else:
+                    sqlExe = (sql0 + comment) % table
+                self.cur.execute(sqlExe, varMap)
+                res = self.cur.fetchall()
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                # create map
+                for computingSite, jobStatus, resource_type, nJobs in res:
+                    ret.setdefault(computingSite, dict())
+                    ret[computingSite].setdefault(resource_type, dict())
+                    ret[computingSite][resource_type].setdefault(jobStatus, 0)
+                    ret[computingSite][resource_type][jobStatus] += nJobs
+            # for zero
+            stateList = ['assigned', 'activated', 'running', 'finished', 'failed']
+            for computingSite in ret.keys():
+                for resource_type in ret[computingSite].keys():
+                    for jobStatus in stateList:
+                        ret[computingSite][resource_type].setdefault(jobStatus, 0)
+            # return
+            tmp_log.debug("%s" % str(ret))
+            return ret
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, method_name)
+            return dict()

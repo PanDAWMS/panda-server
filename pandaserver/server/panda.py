@@ -72,7 +72,7 @@ from userinterface.UserIF import submitJobs, getJobStatus, queryPandaIDs, killJo
      pauseTask, resumeTask, increaseAttemptNrPanda, killUnfinishedJobs, changeTaskSplitRulePanda,\
      changeTaskModTimePanda, avalancheTask, getPandaIDsWithTaskID, reactivateTask, getTaskStatus, \
      reassignShare, listTasksInShare, getTaskParamsMap, updateWorkers, harvesterIsAlive,\
-     reportWorkerStats,addHarvesterDialogs
+     reportWorkerStats,addHarvesterDialogs,getJobStatisticsPerSiteResource
 
 allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reassignJobs',
                    'getJobStatistics','getJobStatisticsPerSite','resubmitJobs','queryLastFilesInDataset','getPandaIDsSite',
@@ -91,7 +91,7 @@ allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reass
                    'pauseTask','resumeTask','increaseAttemptNrPanda','killUnfinishedJobs','changeTaskSplitRulePanda',
                    'changeTaskModTimePanda','avalancheTask','getPandaIDsWithTaskID', 'reactivateTask', 'getTaskStatus',
                    'reassignShare', 'listTasksInShare', 'getTaskParamsMap', 'updateWorkers', 'harvesterIsAlive',
-                   'reportWorkerStats', 'addHarvesterDialogs']
+                   'reportWorkerStats', 'addHarvesterDialogs', 'getJobStatisticsPerSiteResource']
 
 # import error
 import taskbuffer.ErrorCode

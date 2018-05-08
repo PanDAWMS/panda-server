@@ -359,6 +359,14 @@ class UserIF:
         return pickle.dumps(ret)
 
 
+    # get job statistics per site and resource
+    def getJobStatisticsPerSiteResource(self):
+        # get job statistics
+        ret = self.taskBuffer.getJobStatisticsPerSiteResource()
+        # serialize 
+        return json.dumps(ret)
+
+
     # get the number of waiting jobs per site and use
     def getJobStatisticsPerUserSite(self):
         # get job statistics
@@ -1286,6 +1294,11 @@ def getJobStatisticsForBamboo(req,useMorePG=None):
 # get the number of waiting jobs per site and user
 def getJobStatisticsPerUserSite(req):
     return userIF.getJobStatisticsPerUserSite()
+
+
+# get job statistics per site and resource
+def getJobStatisticsPerSiteResource(req):
+    return userIF.getJobStatisticsPerSiteResource()
 
 
 # get job statistics per site

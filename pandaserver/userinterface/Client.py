@@ -937,6 +937,36 @@ def getJobStatisticsPerUserSite():
         errStr = "ERROR getJobStatisticsPerUserSite : %s %s" % (type,value)
         print errStr
         return EC_Failed,output+'\n'+errStr
+
+
+
+# get job statistics per site and resource
+def getJobStatisticsPerSiteResource():
+    """Get job statistics with job attributes
+
+       args:
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           map of the number jobs per job status in each site and resource
+
+    """     
+    # instantiate curl
+    curl = _Curl()
+    # execute
+    url = baseURL + '/getJobStatisticsPerSiteResource'
+    data = {}
+    status,output = curl.get(url,data)
+    try:
+        return status,json.loads(output)
+    except:
+        print output
+        type, value, traceBack = sys.exc_info()
+        errStr = "ERROR getJobStatisticsPerSiteResource : %s %s" % (type,value)
+        print errStr
+        return EC_Failed,output+'\n'+errStr
+
                 
 
 # query last files in datasets

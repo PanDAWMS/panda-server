@@ -1,5 +1,8 @@
 Release Notes
 
+* 5/8/2018
+  * added getJobStatisticsPerSiteResource
+
 * 5/7/2018
   * schedconfig.capability
 

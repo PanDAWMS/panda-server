@@ -3610,6 +3610,18 @@ class TaskBuffer:
         return ret
 
 
+    # get job statistics per site and resource
+    def getJobStatisticsPerSiteResource(self):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getJobStatisticsPerSiteResource()
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 
