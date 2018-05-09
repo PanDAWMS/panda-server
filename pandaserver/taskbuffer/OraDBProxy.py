@@ -20954,6 +20954,11 @@ class DBProxy:
         # TODO: for the moment we'll target nqueued = nrunning for simplification
         # TODO: if there are no pilots queued or running, we should submit a configurable minimum, or set the minimum based 
         #       on the number of activated jobs
+
+        # Temporary workaround. CERN needs more pressure to start running
+        if queue == 'CERN-PROD_UCORE':
+            n_workers_running = max(n_workers_running, 1000)
+
         n_workers_to_submit = max(n_workers_running - n_workers_queued, 5)
         tmpLog.debug('nrunning {0}, nqueued {1} and needs {2} more workers'
                      .format(n_workers_running, n_workers_queued, n_workers_to_submit))
