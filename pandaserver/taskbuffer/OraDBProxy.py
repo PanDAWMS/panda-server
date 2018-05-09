@@ -20917,7 +20917,7 @@ class DBProxy:
         :return:
         """
 
-        comment = ' /* DBProxy.ups_calculate_submit_distribution */'
+        comment = ' /* DBProxy.ups_new_worker_distribution */'
         method_name = comment.split(' ')[-2].split('.')[-1]
         tmpLog = LogWrapper(_logger, '{0}-{1}'.format(method_name, queue))
         tmpLog.debug('start')
@@ -21002,7 +21002,6 @@ class DBProxy:
                 new_workers[resource_type] = - workers_queued[resource_type]
         
         # In case multiple harvester instances are serving a panda queue, split workers evenly between them
-        # TODO: think if there are better ways to split
         new_workers_per_harvester = {}
         for harvester_id in harvester_ids:
             new_workers_per_harvester.setdefault(harvester_id, {})
