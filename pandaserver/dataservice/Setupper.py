@@ -12,6 +12,7 @@ import threading
 from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
 from pandalogger.LogWrapper import LogWrapper
+from taskbuffer import EventServiceUtils
 
 # logger
 _logger = PandaLogger().getLogger('Setupper')
@@ -166,7 +167,7 @@ class Setupper (threading.Thread):
         # to trigger merge generation if all events are done
         finishedJobs = []
         for job in activateJobs:
-            if job.notDiscardEvents() and job.allOkEvents():
+            if job.notDiscardEvents() and job.allOkEvents() and not EventServiceUtils.isEventServiceMerge(job):
                 # change status
                 job.jobStatus = "finished"
                 finishedJobs.append(job)
@@ -174,7 +175,7 @@ class Setupper (threading.Thread):
         self.taskBuffer.updateJobs(finishedJobs, False)
         finishedJobs = []
         for job in updateJobs:
-            if job.notDiscardEvents() and job.allOkEvents():
+            if job.notDiscardEvents() and job.allOkEvents() and not EventServiceUtils.isEventServiceMerge(job):
                 # change status
                 job.jobStatus = "finished"
                 finishedJobs.append(job)
