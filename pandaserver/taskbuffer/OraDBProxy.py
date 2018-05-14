@@ -3994,7 +3994,7 @@ class DBProxy:
             if getUserInfo:
                 return False,{}                
             return False
-        sql0  = "SELECT prodUserID,prodSourceLabel,jobDefinitionID,jobsetID,workingGroup,specialHandling,jobStatus,taskBufferErrorCode FROM %s "
+        sql0  = "SELECT prodUserID,prodSourceLabel,jobDefinitionID,jobsetID,workingGroup,specialHandling,jobStatus,taskBufferErrorCode,eventService FROM %s "
         sql0 += "WHERE PandaID=:PandaID "
         sql0 += "FOR UPDATE NOWAIT "
         sql1  = "UPDATE %s SET commandToPilot=:commandToPilot,taskBufferErrorDiag=:taskBufferErrorDiag WHERE PandaID=:PandaID AND commandToPilot IS NULL"
@@ -4049,7 +4049,8 @@ class DBProxy:
                         distinguishedName = dn
                     return distinguishedName
                 # prevent prod proxy from killing analysis jobs
-                userProdUserID,userProdSourceLabel,userJobDefinitionID,userJobsetID,workingGroup,specialHandling,jobStatusInDB,taskBufferErrorCode = res
+                userProdUserID,userProdSourceLabel,userJobDefinitionID,userJobsetID,workingGroup,specialHandling,\
+                    jobStatusInDB,taskBufferErrorCode,eventService = res
                 # check group prod role
                 validGroupProdRole = False
                 if res[1] in ['managed','test'] and workingGroup != '':
@@ -4076,7 +4077,8 @@ class DBProxy:
                         tmpLog.debug("ignored  -> Owner != Requester")
                         break
                 # event service
-                useEventService =  EventServiceUtils.isEventServiceSH(specialHandling)
+                useEventService =  EventServiceUtils.isEventServiceSH(specialHandling) or \
+                    eventService in [EventServiceUtils.jumboJobFlagNumber, EventServiceUtils.coJumboJobFlagNumber]
                 useEventServiceMerge = EventServiceUtils.isEventServiceMergeSH(specialHandling)
                 # update
                 varMap = {}

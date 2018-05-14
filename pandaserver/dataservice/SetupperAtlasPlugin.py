@@ -901,7 +901,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                 except:
                                     status = False
                                     errType,errValue = sys.exc_info()[:2]
-                                    out = "%s %s" % (errType,errValue)
+                                    out = "%s %s ".format(errType, errValue) + traceback.format_exc()
                                     time.sleep(10)
                             if not status:
                                 self.logger.error(out)
