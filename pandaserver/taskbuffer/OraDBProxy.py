@@ -16307,6 +16307,8 @@ class DBProxy:
             for fileSpec in job.Files:
                 if fileSpec.type not in ['input', 'pseudo_input']:
                     continue
+                if fileSpec.fileID in ['NULL', None]:
+                    continue
                 # get PandaIDs
                 varMap = {}
                 varMap[':jediTaskID']  = fileSpec.jediTaskID
