@@ -1617,9 +1617,12 @@ class DBProxy:
                         job.jobSubStatus = 'es_retry'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceRetried
                         job.taskBufferErrorDiag = 'closed to retry unprocessed even ranges in PandaID={0}'.format(retNewPandaID)
-                    elif retEvS == 2:
+                    elif retEvS in [2, 10]:
                         # goes to merging
-                        job.jobStatus = 'merging'
+                        if retEvS == 2:
+                            job.jobStatus = 'merging'
+                        else:
+                            job.jobStatus = 'closed'
                         job.jobSubStatus = 'es_merge'
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceMerge
                         job.taskBufferErrorDiag = 'closed to merge pre-merged files in PandaID={0}'.format(retNewPandaID)
@@ -15187,6 +15190,7 @@ class DBProxy:
             # 7 : all event ranges failed
             # 8 : generated a retry job but no events were processed
             # 9 : closed in bad job status
+            # 10 : generated a merge job but didn't process any events by itself
             # None : fatal error
             retValue = 1,None
             # begin transaction
@@ -15733,7 +15737,10 @@ class DBProxy:
                     # processed some events
                     retValue = 0,jobSpec.PandaID
             else:
-                retValue = 2,jobSpec.PandaID
+                if nRowDone == 0:
+                    retValue = 10,jobSpec.PandaID
+                else:
+                    retValue = 2,jobSpec.PandaID
             # record status change
             try:
                 if not noNewJob:
