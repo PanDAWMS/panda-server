@@ -15152,7 +15152,7 @@ class DBProxy:
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
                 if isOK:
-                    tmpLog.debug("<eventRangeID={0}> done with nRow={1}".format(eventRangeID,nRow))
+                    tmpLog.debug("<eventRangeID={0}> eventStatus={1} done with nRow={2}".format(eventRangeID, eventStatus, nRow))
                     retList.append(True)
                 if not pandaID in commandMap:
                     commandMap[pandaID] = commandToPilot
@@ -19079,7 +19079,7 @@ class DBProxy:
             # sql to release events
             sqlR  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sqlR += "SET status=:newStatus,attemptNr=attemptNr-1,pandaID=event_offset,is_jumbo=NULL "
-            sqlR += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND NOT status IN (:esDone,:esFinished) "
+            sqlR += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND NOT status IN (:esDone,:esFinished,:esMerged) "
             # sql to check event
             sqlF  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sqlF += "WHERE jediTaskID=:jediTaskID AND PandaID=:pandaID AND status IN (:esDone,:esFinished) "
@@ -19091,6 +19091,7 @@ class DBProxy:
             varMap[':jediTaskID'] = jediTaskID
             varMap[':esDone']      = EventServiceUtils.ST_done
             varMap[':esFinished']  = EventServiceUtils.ST_finished
+            varMap[':esMerged']    = EventServiceUtils.ST_merged
             varMap[':newStatus']   = EventServiceUtils.ST_ready            
             self.cur.execute(sqlR+comment, varMap)
             resR = self.cur.rowcount
