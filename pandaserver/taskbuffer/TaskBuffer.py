@@ -3357,14 +3357,14 @@ class TaskBuffer:
 
 
     # update workers
-    def updateWorkers(self, harvesterID, data):
+    def updateWorkers(self, harvesterID, data, syncLevel=0):
         """
         Update workers
         """
         # get DB proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        res = proxy.updateWorkers(harvesterID, data)
+        res = proxy.updateWorkers(harvesterID, data, syncLevel=syncLevel)
         # release DB proxy
         self.proxyPool.putProxy(proxy)
         # return

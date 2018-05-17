@@ -3374,7 +3374,7 @@ class DBProxy:
                                         self.updateWorkers(harvester_id,
                                                            [{'workerID': worker_id, 'nJobs': 1, 'status': 'running',
                                                              'lastUpdate': datetime.datetime.utcnow()}],
-                                                           False)
+                                                           useCommit=False)
                                         # insert mapping
                                         sqlJWH = "SELECT 1 FROM ATLAS_PANDA.Harvester_Instances WHERE harvester_ID=:harvesterID "
                                         sqlJWC  = "SELECT PandaID FROM ATLAS_PANDA.Harvester_Rel_Jobs_Workers "
@@ -20023,7 +20023,7 @@ class DBProxy:
 
 
     # update workers
-    def updateWorkers(self, harvesterID, data, useCommit=True):
+    def updateWorkers(self, harvesterID, data, useCommit=True, syncLevel=0):
         """
         Update workers
         """
@@ -20064,14 +20064,14 @@ class DBProxy:
                 # insert or update
                 if toInsert:
                     # insert
-                    tmpLog.debug('workerID={0} insert'.format(workerSpec.workerID))
+                    tmpLog.debug('workerID={0} insert for status={1}'.format(workerSpec.workerID, workerSpec.status))
                     sqlI  = "INSERT INTO ATLAS_PANDA.Harvester_Workers ({0}) ".format(WorkerSpec.columnNames())
                     sqlI += WorkerSpec.bindValuesExpression()
                     varMap = workerSpec.valuesMap()
                     self.cur.execute(sqlI+comment, varMap)
                 else:
                     # update
-                    tmpLog.debug('workerID={0} update'.format(workerSpec.workerID))
+                    tmpLog.debug('workerID={0} update for status={1}'.format(workerSpec.workerID, workerSpec.status))
                     sqlU  = "UPDATE ATLAS_PANDA.Harvester_Workers SET {0} ".format(workerSpec.bindUpdateChangesExpression())
                     sqlU += "WHERE harvesterID=:harvesterID AND workerID=:workerID "
                     varMap = workerSpec.valuesMap(onlyChanged=True)
@@ -20122,7 +20122,8 @@ class DBProxy:
                 tmpLog.debug('workerID={0} get jobs'.format(workerSpec.workerID))
                 sqlCJ  = "SELECT PandaID FROM ATLAS_PANDA.Harvester_Rel_Jobs_Workers "
                 sqlCJ += "WHERE harvesterID=:harvesterID AND workerID=:workerID "
-                sqlJA  = "UPDATE ATLAS_PANDA.jobsActive4 SET modificationTime=CURRENT_DATE WHERE PandaID=:PandaID AND jobStatus IN (:js1,:js2) "
+                sqlJAC  = "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID  "
+                sqlJAA  = "UPDATE ATLAS_PANDA.jobsActive4 SET modificationTime=CURRENT_DATE WHERE PandaID=:PandaID AND jobStatus IN (:js1,:js2) "
                 varMap = dict()
                 varMap[':harvesterID'] = harvesterID
                 varMap[':workerID'] = workerData['workerID']
@@ -20130,11 +20131,19 @@ class DBProxy:
                 resCJ = self.cur.fetchall()
                 tmpLog.debug('workerID={0} update jobs'.format(workerSpec.workerID))
                 for pandaID, in resCJ:
+                    if workerSpec.status in ['finished', 'failed', 'cancelled', 'missed']:
+                        varMap = dict()
+                        varMap[':PandaID'] = pandaID
+                        self.cur.execute(sqlJAC+comment, varMap)
+                        resJAC = self.cur.fetchone()
+                        if resJAC is not None:
+                            jobStatus, = resJAC
+                            tmpLog.debug('workerID={0} in {1} PandaID={2} in {3}'.format(workerSpec.workerID, workerSpec.status, pandaID, jobStatus))
                     varMap = dict()
                     varMap[':PandaID'] = pandaID
                     varMap[':js1'] = 'running'
                     varMap[':js2'] = 'starting'
-                    self.cur.execute(sqlJA+comment, varMap)
+                    self.cur.execute(sqlJAA+comment, varMap)
                     nRowJA = self.cur.rowcount
                     if nRowJA > 0:
                         tmpLog.debug('workerID={0} PandaID={1} updated modificationTime'.format(workerSpec.workerID, pandaID))
