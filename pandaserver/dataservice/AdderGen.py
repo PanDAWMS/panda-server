@@ -575,6 +575,7 @@ class AdderGen:
                     self.job.jobStatus = 'failed'
                     # XML error happens when pilot got killed due to wall-time limit or failures in wrapper
                     if (self.job.pilotErrorCode in [0,'0','NULL']) and \
+                       (self.job.taskBufferErrorCode not in [taskbuffer.ErrorCode.EC_WorkerDone]) and \
                        (self.job.transExitCode  in [0,'0','NULL']):
                         self.job.ddmErrorCode = ErrorCode.EC_Adder
                         self.job.ddmErrorDiag = "Could not get GUID/LFN/MD5/FSIZE/SURL from pilot XML"

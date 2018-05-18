@@ -78,6 +78,8 @@ EC_EventServiceBadStatus = 126
 # failed to lock semaphore for job cloning
 EC_JobCloningUnlock = 200
 
+# worker is done before job is done
+EC_WorkerDone = 300
 
 
 

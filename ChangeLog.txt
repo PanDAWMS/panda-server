@@ -1,5 +1,8 @@
 Release Notes
 
+* 5/18/2018
+  * added EC_WorkerDone
+
 * 5/17/2018
   * added syncLevel to updateWorker
 

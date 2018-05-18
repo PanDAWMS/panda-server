@@ -20031,7 +20031,7 @@ class DBProxy:
         methodName = comment.split(' ')[-2].split('.')[-1]
         tmpLog = LogWrapper(_logger, methodName+' < HarvesterID={0} >'.format(harvesterID))
         try:
-            tmpLog.debug('start {0} workers'.format(len(data)))
+            tmpLog.debug('start {0} workers with syncLevel={1}'.format(len(data), syncLevel))
             sqlC  = "SELECT {0} FROM ATLAS_PANDA.Harvester_Workers ".format(WorkerSpec.columnNames())
             sqlC += "WHERE harvesterID=:harvesterID AND workerID=:workerID "
             # loop over all workers
@@ -20124,6 +20124,8 @@ class DBProxy:
                 sqlCJ += "WHERE harvesterID=:harvesterID AND workerID=:workerID "
                 sqlJAC  = "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID  "
                 sqlJAA  = "UPDATE ATLAS_PANDA.jobsActive4 SET modificationTime=CURRENT_DATE WHERE PandaID=:PandaID AND jobStatus IN (:js1,:js2) "
+                sqlJAE  = "UPDATE ATLAS_PANDA.jobsActive4 SET taskBufferErrorCode=:code,taskBufferErrorDiag=:diag "
+                sqlJAE += "WHERE PandaID=:PandaID "
                 varMap = dict()
                 varMap[':harvesterID'] = harvesterID
                 varMap[':workerID'] = workerData['workerID']
@@ -20131,6 +20133,7 @@ class DBProxy:
                 resCJ = self.cur.fetchall()
                 tmpLog.debug('workerID={0} update jobs'.format(workerSpec.workerID))
                 for pandaID, in resCJ:
+                    # check job status when worker is in a final state
                     if workerSpec.status in ['finished', 'failed', 'cancelled', 'missed']:
                         varMap = dict()
                         varMap[':PandaID'] = pandaID
@@ -20138,7 +20141,25 @@ class DBProxy:
                         resJAC = self.cur.fetchone()
                         if resJAC is not None:
                             jobStatus, = resJAC
-                            tmpLog.debug('workerID={0} in {1} PandaID={2} in {3}'.format(workerSpec.workerID, workerSpec.status, pandaID, jobStatus))
+                            tmpLog.debug('workerID={0} {1} while PandaID={2} {3}'.format(workerSpec.workerID, workerSpec.status, pandaID, jobStatus))
+                            # set failed if out of sync
+                            if syncLevel == 1 and jobStatus in ['running']:
+                                tmpLog.debug('workerID={0} set failed to PandaID={1} due to sync error'.format(workerSpec.workerID, pandaID))
+                                varMap = dict()
+                                varMap[':PandaID'] = pandaID
+                                varMap[':code'] = ErrorCode.EC_WorkerDone
+                                varMap[':diag'] = "The worker was {0} while the job was {1} : {2}".format(workerSpec.status, jobStatus,
+                                                                                                          workerSpec.diagMessage)
+                                varMap[':diag'] = JobSpec.truncateStringAttr('taskBufferErrorDiag', varMap[':diag'])
+                                self.cur.execute(sqlJAE+comment, varMap)
+                                # make an empty file to trigger registration for zip files in Adder
+                                tmpFileName = '{0}_{1}_{2}'.format(pandaID, 'failed',
+                                                                   uuid.uuid3(uuid.NAMESPACE_DNS,''))
+                                tmpFileName = os.path.join(panda_config.logdir, tmpFileName)
+                                try:
+                                    open(tmpFileName, 'w').close()
+                                except:
+                                    pass
                     varMap = dict()
                     varMap[':PandaID'] = pandaID
                     varMap[':js1'] = 'running'
