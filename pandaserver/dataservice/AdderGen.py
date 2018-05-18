@@ -43,7 +43,7 @@ class AdderGen:
         self.attemptNr = None
         self.xmlFile = xmlFile
         self.datasetMap = {}
-        self.extraInfo = {'surl':{},'nevents':{},'lbnr':{},'endpoint':{}}
+        self.extraInfo = {'surl':{},'nevents':{},'lbnr':{},'endpoint':{}, 'guid':{}}
         # exstract attemptNr
         try:
             tmpAttemptNr = self.xmlFile.split('/')[-1].split('_')[-1]
@@ -460,6 +460,7 @@ class AdderGen:
         surls   = []
         fullLfnMap = {}
         nEventsMap = {}
+        guidMap = dict()
         try:
             root  = xml.dom.minidom.parse(self.xmlFile)
             files = root.getElementsByTagName('File')
@@ -619,6 +620,11 @@ class AdderGen:
                         nEventsMap[lfn] = nevents
                     except:
                         pass
+                    try:
+                        guid = str(jsonSubFileItem['file_guid'])
+                        guidMap[lfn] = guid
+                    except:
+                        pass
         except:
             pass
         self.logger.debug('nEventsMapJson=%s' % str(nEventsMap))
@@ -689,6 +695,7 @@ class AdderGen:
                 # set lumi block number
                 if lumiBlockNr != None and file.status != 'failed':
                     self.extraInfo['lbnr'][file.lfn] = lumiBlockNr 
+        self.extraInfo['guid'] = guidMap
         # check consistency between XML and filesTable
         for lfn in lfns:
             if not lfn in fileList:

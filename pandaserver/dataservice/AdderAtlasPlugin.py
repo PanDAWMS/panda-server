@@ -225,6 +225,17 @@ class AdderAtlasPlugin (AdderPluginBase):
                                 self.logger.warning(errMsg)
                                 self.job.ddmErrorCode = ErrorCode.EC_MissingNumEvents
                                 raise ValueError, errMsg
+                        if file.lfn not in self.extraInfo['guid'] or file.GUID != self.extraInfo['guid'][file.lfn]:
+                            toSkip = False
+                            # exclude some formats
+                            for patt in ['TXT', 'NTUP', 'HIST']:
+                                if file.lfn.startswith(patt):
+                                    toSkip = True
+                            if not toSkip:
+                                errMsg = "GUID is inconsistent between jobReport and pilot report for {0}".format(file.lfn)
+                                self.logger.warning(errMsg)
+                                #self.job.ddmErrorCode = ErrorCode.EC_InconsistentGUID
+                                #raise ValueError, errMsg
                     # fsize
                     fsize = None
                     if not file.fsize in ['NULL','',0]:
