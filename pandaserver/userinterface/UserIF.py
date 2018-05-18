@@ -2086,7 +2086,7 @@ def changeTaskSplitRulePanda(req,jediTaskID,attrName,attrValue):
     except:
         return pickle.dumps((False,'jediTaskID must be an integer'))        
     # check attribute
-    if not attrName in ['TW','EC','ES','MF','NG','NI']:
+    if not attrName in ['TW','EC','ES','MF','NG','NI','NF']:
         return pickle.dumps((2,"disallowed to update {0}".format(attrName)))
     ret = userIF.changeTaskSplitRulePanda(jediTaskID,attrName,attrValue)
     return pickle.dumps((ret,None))
