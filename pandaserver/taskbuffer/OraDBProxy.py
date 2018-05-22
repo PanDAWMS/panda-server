@@ -8837,25 +8837,9 @@ class DBProxy:
                 newRes = []
                 usMap = {}
                 for jobStatus,count,cloud in res:
-                    if not cloud in ['US','NULL']:
-                        # append since no conversion is required
-                        newRes.append((jobStatus,count,cloud))
-                    else:
-                        # sum
-                        if not usMap.has_key(jobStatus):
-                            usMap[jobStatus] = 0
-                        usMap[jobStatus] += count
-                # append US counts
-                for jobStatus,count in usMap.iteritems():
-                    newRes.append((jobStatus,count,'US'))
-                # create map
-                for item in newRes:
-                    # add cloud
-                    if not ret.has_key(item[2]):
-                        ret[item[2]] = {}
-                    # this is needed for auto_increment of InnoDB
-                    if not ret[item[2]].has_key(item[0]):
-                        ret[item[2]][item[0]] = item[1]
+                    ret.setdefault(cloud, dict())
+                    ret[cloud].setdefault(jobStatus, 0)
+                    ret[cloud][jobStatus] += count
             # return
             _logger.debug("getJobStatisticsForExtIF -> %s" % str(ret))
             return ret
