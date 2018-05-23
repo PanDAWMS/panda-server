@@ -19700,8 +19700,8 @@ class DBProxy:
                 and re.match(share.processingtype, task.processingType) is None:
             return False
 
-        if share.transpath is not None and task.transpath is not None \
-                and re.match(share.transpath, task.transpath) is None:
+        if share.transpath is not None and task.transPath is not None \
+                and re.match(share.transpath, task.transPath) is None:
             return False
 
         return True
@@ -19739,7 +19739,7 @@ class DBProxy:
 
         if selected_share_name == 'Undefined':
             _logger.warning("No share matching jediTaskId={0} (prodSourceLabel={1} workingGroup={2} campaign={3} transpath={4})".
-                            format(task.jediTaskID, task.prodSourceLabel, task.workingGroup, task.campaign, task.transpath))
+                            format(task.jediTaskID, task.prodSourceLabel, task.workingGroup, task.campaign, task.transPath))
 
         return selected_share_name
 
