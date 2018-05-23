@@ -1,5 +1,8 @@
 Release Notes
 
+* 5/23/2018
+  * added transpath to global share
+
 * 5/22/2018
   * added guid check in Adder
 

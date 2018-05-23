@@ -19515,7 +19515,7 @@ class DBProxy:
         tmpLog.debug('start')
 
         sql = """
-               SELECT NAME, VALUE, PARENT, PRODSOURCELABEL, WORKINGGROUP, CAMPAIGN, PROCESSINGTYPE, VO, QUEUE_ID, THROTTLED
+               SELECT NAME, VALUE, PARENT, PRODSOURCELABEL, WORKINGGROUP, CAMPAIGN, PROCESSINGTYPE, TRANSPATH, VO, QUEUE_ID, THROTTLED
                FROM ATLAS_PANDA.GLOBAL_SHARES
                """
         var_map = None
@@ -19563,7 +19563,7 @@ class DBProxy:
 
         # Root dummy node
         t_before = time.time()
-        tree = GlobalShares.Share('root', 100, None, None, None, None, None, None, None, None)
+        tree = GlobalShares.Share('root', 100, None, None, None, None, None, None, None, None, None)
         t_after = time.time()
         total = t_after - t_before
         _logger.debug('Root dummy tree took {0}s'.format(total))
@@ -19577,10 +19577,10 @@ class DBProxy:
 
         # Load branches
         t_before = time.time()
-        for (name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype, vo, queue_id, throttled) \
-                in shares_top_level:
+        for (name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype,
+             transpath, vo, queue_id, throttled) in shares_top_level:
             share = GlobalShares.Share(name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype,
-                                       vo, queue_id, throttled)
+                                       transpath, vo, queue_id, throttled)
             tree.children.append(self.__load_branch(share))
         t_after = time.time()
         total = t_after - t_before
@@ -19664,15 +19664,17 @@ class DBProxy:
         Recursively load a branch
         """
         node = GlobalShares.Share(share.name, share.value, share.parent, share.prodsourcelabel, share.workinggroup,
-                                  share.campaign, share.processingtype, share.vo, share.queue_id, share.throttled)
+                                  share.campaign, share.processingtype, share.transpath, share.vo, share.queue_id,
+                                  share.throttled)
 
         children = self.get_shares(parents=share.name)
         if not children:
             return node
 
-        for (name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype, vo, queue_id, throttled) in children:
-            child = GlobalShares.Share(name, value, parent, prodsourcelabel,
-                                       workinggroup, campaign, processingtype, vo, queue_id, throttled)
+        for (name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype,
+             transpath, vo, queue_id, throttled) in children:
+            child = GlobalShares.Share(name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype,
+                                       transpath, vo, queue_id, throttled)
             node.children.append(self.__load_branch(child))
 
         return node
@@ -19696,6 +19698,10 @@ class DBProxy:
 
         if share.processingtype is not None and task.processingType is not None \
                 and re.match(share.processingtype, task.processingType) is None:
+            return False
+
+        if share.transpath is not None and task.transpath is not None \
+                and re.match(share.transpath, task.transpath) is None:
             return False
 
         return True
@@ -19732,8 +19738,8 @@ class DBProxy:
                 break
 
         if selected_share_name == 'Undefined':
-            _logger.warning("No share matching jediTaskId={0} (prodSourceLabel={1} workingGroup={2} campaign={3} )".
-                            format(task.jediTaskID, task.prodSourceLabel, task.workingGroup, task.campaign))
+            _logger.warning("No share matching jediTaskId={0} (prodSourceLabel={1} workingGroup={2} campaign={3} transpath={4})".
+                            format(task.jediTaskID, task.prodSourceLabel, task.workingGroup, task.campaign, task.transpath))
 
         return selected_share_name
 
