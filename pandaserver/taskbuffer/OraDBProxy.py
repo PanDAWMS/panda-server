@@ -14721,6 +14721,7 @@ class DBProxy:
                 else:
                     self.cur.execute(sql+comment, varMap)
                 resList = self.cur.fetchall()
+                tmpLog.debug("got events")
                 # check if more events are available
                 if len(resList) <= nRanges:
                     noMoreEvents = True
@@ -14789,6 +14790,7 @@ class DBProxy:
                         jobsetList[tmpJediTaskID].append(tmpJobsetID)
                 # lock files for jumbo jobs
                 if isJumbo and len(retRanges) > 0:
+                    tmpLog.debug("lock files for jumbo jobs")
                     for tmpJediTaskID, tmpJobsetIDs in jobsetList.iteritems():
                         tmpJobsetIDs.sort()
                         nFilesUsedMap = {}
@@ -14825,6 +14827,7 @@ class DBProxy:
                             varMap[':nDiff'] = nDiff
                             self.cur.execute(sqlUD+comment, varMap)
                 # kill unused consumers
+                tmpLog.debug("kill unused consumers")
                 if not isJumbo and not toSkip and (retRanges == [] or noMoreEvents) and jediTaskID != None:
                     tmpJobSpec = JobSpec()
                     tmpJobSpec.PandaID = pandaID
