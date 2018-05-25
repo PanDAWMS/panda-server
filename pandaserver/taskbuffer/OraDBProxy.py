@@ -14596,6 +14596,7 @@ class DBProxy:
                 jediTaskID = long(jediTaskID)
             except:
                 pass
+            iRanges = 0
             # sql to get job
             sqlJ  = "SELECT jobStatus,commandToPilot,eventService FROM {0}.jobsActive4 ".format(panda_config.schemaPANDA)
             sqlJ += "WHERE PandaID=:pandaID FOR UPDATE "
@@ -14638,8 +14639,8 @@ class DBProxy:
             # sql to update files in the jobset
             sqlJS  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
             sqlJS += "SET status=:newStatus "
-            sqlJS += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND PandaID=:PandaID "
-            sqlJS += "AND status=:oldStatus AND keepTrack=:keepTrack "
+            sqlJS += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            sqlJS += "AND status=:oldStatus AND keepTrack=:keepTrack AND PandaID IN ("
             # sql to update dataset
             sqlUD  = "UPDATE {0}.JEDI_Datasets ".format(panda_config.schemaJEDI)
             sqlUD += "SET nFilesUsed=nFilesUsed+:nDiff "
@@ -14782,6 +14783,7 @@ class DBProxy:
                     else:
                         # append
                         retRanges.append(tmpDict)
+                        iRanges += 1
                         if not tmpJediTaskID in jobsetList:
                             jobsetList[tmpJediTaskID] = []
                         jobsetList[tmpJediTaskID].append(tmpJobsetID)
@@ -14802,21 +14804,29 @@ class DBProxy:
                     for tmpJediTaskID, tmpJobsetIDs in jobsetList.iteritems():
                         tmpJobsetIDs.sort()
                         nFilesUsedMap = {}
-                        for tmpJobsetID in tmpJobsetIDs:
-                            # update files in the jobset
-                            for jsDatasetID in jsDatasetIDs:
+                        for jsDatasetID in jsDatasetIDs:
+                            iJobsetID = 0
+                            nJobsetID = 100
+                            while iJobsetID < len(tmpJobsetIDs):
                                 varMap = {}
                                 varMap[':jediTaskID'] = tmpJediTaskID
                                 varMap[':datasetID'] = jsDatasetID
-                                varMap[':PandaID'] = tmpJobsetID
                                 varMap[':oldStatus'] = 'ready'
                                 varMap[':newStatus'] = 'running'
                                 varMap[':keepTrack']  = 1
-                                self.cur.execute(sqlJS+comment, varMap)
+                                sqlJSx = sqlJS
+                                for tmpIdx, tmpJobsetID in enumerate(tmpJobsetIDs[iJobsetID:iJobsetID+nJobsetID]):
+                                    tmpKey = ':PandaID_{0}'.format(tmpIdx)
+                                    sqlJSx += '{0},'.format(tmpKey)
+                                    varMap[tmpKey] = tmpJobsetID
+                                sqlJSx = sqlJSx[:-1]
+                                sqlJSx += ') '
+                                self.cur.execute(sqlJSx+comment, varMap)
                                 nRow = self.cur.rowcount
                                 if nRow > 0:
                                     nFilesUsedMap.setdefault(jsDatasetID, 0)
                                     nFilesUsedMap[jsDatasetID] += nRow
+                                iJobsetID += nJobsetID
                         # update datasets
                         for jsDatasetID, nDiff in nFilesUsedMap.iteritems():
                             varMap = {}
@@ -14835,7 +14845,7 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
-            tmpLog.debug("done {0}".format(str(retRanges)))
+            tmpLog.debug("done with {0} event ranges".format(iRanges))
             if not acceptJson:
                 return json.dumps(retRanges)
             return retRanges
