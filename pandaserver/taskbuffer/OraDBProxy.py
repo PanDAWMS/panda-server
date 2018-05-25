@@ -14632,17 +14632,14 @@ class DBProxy:
             sqlJM += "WHERE jediTaskID=:jediTaskID AND status=:eventStatus AND attemptNr>:minAttemptNr "
             sqlJM += "ORDER BY fileID,def_min_eventID "
             sqlJM += ") WHERE rownum<={0} ".format(nRanges+1)
-            # sql to get files in the jobset
-            sqlJS  = "SELECT tabC.jediTaskID,tabC.datasetID,tabC.fileID "
-            sqlJS += "FROM {0}.JEDI_Datasets tabD, {0}.JEDI_Dataset_Contents tabC ".format(panda_config.schemaJEDI)
-            sqlJS += "WHERE tabD.jediTaskID=tabC.jediTaskID AND tabD.datasetID=tabC.datasetID "
-            sqlJS += "AND tabD.jediTaskID=:jediTaskID AND tabC.PandaID=:PandaID "
-            sqlJS += "AND tabD.type IN (:type1,:type2) "
-            # sql to lock files
-            sqlLF  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
-            sqlLF += "SET status=:newStatus "
-            sqlLF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-            sqlLF += "AND PandaID=:PandaID AND status=:oldStatus AND keepTrack=:keepTrack "
+            # sql to get datasets
+            sqlGD  = "SELECT datasetID FROM {0}.JEDI_Datasets ".format(panda_config.schemaJEDI)
+            sqlGD += "WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) "
+            # sql to update files in the jobset
+            sqlJS  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
+            sqlJS += "SET status=:newStatus "
+            sqlJS += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND PandaID=:PandaID "
+            sqlJS += "AND status=:oldStatus AND keepTrack=:keepTrack "
             # sql to update dataset
             sqlUD  = "UPDATE {0}.JEDI_Datasets ".format(panda_config.schemaJEDI)
             sqlUD += "SET nFilesUsed=nFilesUsed+:nDiff "
@@ -14791,33 +14788,34 @@ class DBProxy:
                 # lock files for jumbo jobs
                 if isJumbo and len(retRanges) > 0:
                     tmpLog.debug("lock files for jumbo jobs")
+                    # get datasets
+                    varMap = {}
+                    varMap[':jediTaskID'] = tmpJediTaskID
+                    varMap[':type1'] = 'input'
+                    varMap[':type2'] = 'pseudo_input'
+                    self.cur.execute(sqlGD+comment, varMap)
+                    resGD = self.cur.fetchall()
+                    jsDatasetIDs = []
+                    for jsDatasetID, in resGD:
+                        jsDatasetIDs.append(jsDatasetID)
+                    # loop over all jobsets
                     for tmpJediTaskID, tmpJobsetIDs in jobsetList.iteritems():
                         tmpJobsetIDs.sort()
                         nFilesUsedMap = {}
                         for tmpJobsetID in tmpJobsetIDs:
-                            # get files in the jobset
-                            varMap = {}
-                            varMap[':jediTaskID'] = tmpJediTaskID
-                            varMap[':PandaID'] = tmpJobsetID
-                            varMap[':type1'] = 'input'
-                            varMap[':type2'] = 'pseudo_input'
-                            self.cur.execute(sqlJS+comment, varMap)
-                            resJS = self.cur.fetchall()
-                            # lock files
-                            for jsJediTaskID,jsDatasetID,jsFileID in resJS:
+                            # update files in the jobset
+                            for jsDatasetID in jsDatasetIDs:
                                 varMap = {}
-                                varMap[':jediTaskID'] = jsJediTaskID
+                                varMap[':jediTaskID'] = tmpJediTaskID
                                 varMap[':datasetID'] = jsDatasetID
-                                varMap[':fileID'] = jsFileID
                                 varMap[':PandaID'] = tmpJobsetID
                                 varMap[':oldStatus'] = 'ready'
                                 varMap[':newStatus'] = 'running'
                                 varMap[':keepTrack']  = 1
-                                self.cur.execute(sqlLF+comment, varMap)
+                                self.cur.execute(sqlJS+comment, varMap)
                                 nRow = self.cur.rowcount
                                 if nRow > 0:
-                                    if not jsDatasetID in nFilesUsedMap:
-                                        nFilesUsedMap[jsDatasetID] = 0
+                                    nFilesUsedMap.setdefault(jsDatasetID, 0)
                                     nFilesUsedMap[jsDatasetID] += nRow
                         # update datasets
                         for jsDatasetID, nDiff in nFilesUsedMap.iteritems():
@@ -14854,6 +14852,7 @@ class DBProxy:
     def updateEventRanges(self,eventDictParam,version=0):
         comment = ' /* DBProxy.updateEventRanges */'
         methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += ' <{0}>'.format(datetime.datetime.utcnow().isoformat('/'))
         tmpLog = LogWrapper(_logger,methodName)
         try:
             retList = []
@@ -14875,7 +14874,7 @@ class DBProxy:
             sqlE += "WHERE PandaID=:pandaID "
             # sql to set nEvents
             sqlS  = "UPDATE ATLAS_PANDA.jobsActive4 "
-            sqlS += "SET nEvents=:nEvents "
+            sqlS += "SET nEvents=nEvents+:nEventsDiff "
             sqlS += "WHERE PandaID=:pandaID "
             # sql to set CPU consumption
             sqlT  = "UPDATE ATLAS_PANDA.jobsActive4 "
@@ -14913,6 +14912,7 @@ class DBProxy:
                         # append
                         eventDictList.append(eventDict)
             # loop over all events
+            tmpLog.debug('update {0} events'.format(len(eventDictList)))
             zipRowIdMap = {}
             nEventsMap = dict()
             for eventDict in eventDictList:
@@ -15122,7 +15122,7 @@ class DBProxy:
                                     # update nevents
                                     varMap = {}
                                     varMap[':pandaID'] = pandaID
-                                    varMap[':nEvents'] = nEventsMap[pandaID]
+                                    varMap[':nEventsDiff'] = nEvents
                                     self.cur.execute(sqlS+comment, varMap)
                                     tmpLog.debug("<eventRangeID={0}> PandaID={1} nEvents={2}".format(eventRangeID,pandaID,
                                                                                                      nEventsMap[pandaID]))
@@ -15146,6 +15146,7 @@ class DBProxy:
                     retList.append(True)
                 if not pandaID in commandMap:
                     commandMap[pandaID] = commandToPilot
+            tmpLog.debug('done')
             return retList,commandMap
         except:
             # roll back
