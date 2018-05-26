@@ -14926,7 +14926,13 @@ class DBProxy:
             zipRowIdMap = {}
             nEventsMap = dict()
             cpuConsumptionTimeMap = dict()
+            iEvents = 0
+            maxEvents = 10000
             for eventDict in eventDictList:
+                iEvents += 1
+                if iEvents > maxEvents:
+                    retList.append(None)
+                    continue
                 # get event range ID
                 if not 'eventRangeID' in eventDict:
                     tmpLog.error('eventRangeID is missing in {0}'.format(str(eventDict)))
