@@ -14925,6 +14925,7 @@ class DBProxy:
             tmpLog.debug('update {0} events'.format(len(eventDictList)))
             zipRowIdMap = {}
             nEventsMap = dict()
+            cpuConsumptionTimeMap = dict()
             for eventDict in eventDictList:
                 # get event range ID
                 if not 'eventRangeID' in eventDict:
@@ -15017,9 +15018,9 @@ class DBProxy:
                         retList.append(False)
                         isOK = False
                     else:
-                        if pandaID not in nEventsMap:
-                            nEventsMap[pandaID] = nEventsOld
                         # check event status
+                        minEventID = 0
+                        maxEventID = 0
                         varMap = {}
                         varMap[':jediTaskID'] = jediTaskID
                         varMap[':pandaID'] = pandaID
@@ -15028,7 +15029,7 @@ class DBProxy:
                         self.cur.execute(sqlC+comment, varMap)
                         resC = self.cur.fetchone()
                         if resC != None:
-                            oldStatus = resC[-1]
+                            minEventID, maxEventID, oldStatus = resC
                             if not oldStatus in [EventServiceUtils.ST_sent,
                                                  EventServiceUtils.ST_running]:
                                 tmpLog.error("<eventRangeID={0}> cannot update old eventStatus={1}".format(eventRangeID,
@@ -15113,38 +15114,20 @@ class DBProxy:
                                 varMap[':oldAttemptNr'] = attemptNr
                                 varMap[':newAttemptNr'] = 1
                                 self.cur.execute(sqlFA+comment, varMap)
-                            # finished event
+                            # nEvents of finished
                             if nRow == 1 and eventStatus in ['finished']:
-                                # get event range
-                                varMap = {}
-                                varMap[':jediTaskID'] = jediTaskID
-                                varMap[':pandaID'] = pandaID
-                                varMap[':fileID'] = fileID
-                                varMap[':job_processID'] = job_processID
-                                self.cur.execute(sqlC+comment, varMap)
-                                resC = self.cur.fetchone()
-                                if resC != None:
-                                    minEventID,maxEventID,newStatus = resC
-                                    nEvents = maxEventID-minEventID+1
-                                    if nEventsMap[pandaID] is None:
-                                        nEventsMap[pandaID] = 0
-                                    nEventsMap[pandaID] += nEvents
-                                    # update nevents
-                                    varMap = {}
-                                    varMap[':pandaID'] = pandaID
-                                    varMap[':nEventsDiff'] = nEvents
-                                    self.cur.execute(sqlS+comment, varMap)
-                                    tmpLog.debug("<eventRangeID={0}> PandaID={1} nEvents={2}".format(eventRangeID,pandaID,
-                                                                                                     nEventsMap[pandaID]))
-                            # update cpuConsumptionTime
-                            if cpuConsumptionTime != None and eventStatus in ['finished','failed']:
-                                varMap = {}
-                                varMap[':PandaID'] = pandaID
+                                # get nEvents
+                                nEventsMap.setdefault(pandaID, 0)
+                                nEvents = maxEventID - minEventID + 1
+                                nEventsMap[pandaID] += nEvents
+                            # cpuConsumptionTime of finished or failed
+                            if nRow == 1 and cpuConsumptionTime is not None and eventStatus in ['finished','failed']:
+                                cpuConsumptionTimeMap.setdefault(pandaID, 0)
                                 if coreCount == None:
-                                    varMap[':actualCpuTime'] = long(cpuConsumptionTime)
+                                    actualCpuTime = long(cpuConsumptionTime)
                                 else:
-                                    varMap[':actualCpuTime'] = long(coreCount) * long(cpuConsumptionTime)
-                                self.cur.execute(sqlT+comment, varMap)
+                                    actualCpuTime = long(coreCount) * long(cpuConsumptionTime)
+                                cpuConsumptionTimeMap[pandaID] += actualCpuTime
                     # soft kill
                     if not commandToPilot in [None,''] and supErrorCode in [ErrorCode.EC_EventServicePreemption]:
                             commandToPilot = 'softkill'
@@ -15156,6 +15139,28 @@ class DBProxy:
                     retList.append(True)
                 if not pandaID in commandMap:
                     commandMap[pandaID] = commandToPilot
+            # update nevents
+            for pandaID, nEvents in nEventsMap.iteritems():
+                if nEvents > 0:
+                    self.conn.begin()
+                    varMap = {}
+                    varMap[':pandaID'] = pandaID
+                    varMap[':nEventsDiff'] = nEvents
+                    self.cur.execute(sqlS+comment, varMap)
+                    tmpLog.debug("updated PandaID={0} nEvents+={1}".format(pandaID, nEvents))
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
+            # update cpuConsumptionTime
+            for pandaID, actualCpuTime in cpuConsumptionTimeMap.iteritems():
+                if actualCpuTime > 0:
+                    self.conn.begin()
+                    varMap = {}
+                    varMap[':pandaID'] = pandaID
+                    varMap[':actualCpuTime'] = actualCpuTime
+                    self.cur.execute(sqlT+comment, varMap)
+                    tmpLog.debug("updated PandaID={0} cpuConsumptionTime+={1}".format(pandaID, actualCpuTime))
+                    if not self._commit():
+                        raise RuntimeError, 'Commit error'
             tmpLog.debug('done')
             return retList,commandMap
         except:
