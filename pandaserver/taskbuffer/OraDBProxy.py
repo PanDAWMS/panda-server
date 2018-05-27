@@ -14928,10 +14928,13 @@ class DBProxy:
             cpuConsumptionTimeMap = dict()
             iEvents = 0
             maxEvents = 10000
+            iSkipped = 0
             for eventDict in eventDictList:
+                # avoid too many events
                 iEvents += 1
                 if iEvents > maxEvents:
                     retList.append(None)
+                    iSkipped += 1
                     continue
                 # get event range ID
                 if not 'eventRangeID' in eventDict:
@@ -14962,6 +14965,8 @@ class DBProxy:
                 isFatal = False
                 if eventStatus == 'running':
                     intEventStatus = EventServiceUtils.ST_running
+                elif eventStatus == 'transferring':
+                    intEventStatus = EventServiceUtils.ST_running
                 elif eventStatus == 'finished':
                     intEventStatus = EventServiceUtils.ST_finished
                 elif eventStatus == 'failed':
@@ -14972,6 +14977,12 @@ class DBProxy:
                 else:
                     tmpLog.error("<eventRangeID={0}> unknown status {1}".format(eventRangeID,eventStatus))
                     retList.append(False)
+                    continue
+                # only final status
+                if eventStatus not in ['finished', 'failed', 'fatal']:
+                    retList.append(None)
+                    iSkipped += 1
+                    tmpLog.debug("<eventRangeID={0}> eventStatus={1} skipped".format(eventRangeID, eventStatus))
                     continue
                 # core count
                 if 'coreCount' in eventDict:
@@ -15167,7 +15178,7 @@ class DBProxy:
                     tmpLog.debug("updated PandaID={0} cpuConsumptionTime+={1}".format(pandaID, actualCpuTime))
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
-            tmpLog.debug('done')
+            tmpLog.debug('done. {0} events skipped'.format(iSkipped))
             return retList,commandMap
         except:
             # roll back
