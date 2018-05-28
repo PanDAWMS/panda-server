@@ -225,7 +225,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                                 self.logger.warning(errMsg)
                                 self.job.ddmErrorCode = ErrorCode.EC_MissingNumEvents
                                 raise ValueError, errMsg
-                        if file.lfn in self.extraInfo['guid'] and file.GUID != self.extraInfo['guid'][file.lfn]:
+                        if file.lfn not in self.extraInfo['guid'] or file.GUID != self.extraInfo['guid'][file.lfn]:
                             self.logger.debug("extraInfo = %s" % str(self.extraInfo))
                             errMsg = "GUID is inconsistent between jobReport and pilot report for {0}".format(file.lfn)
                             self.logger.warning(errMsg)

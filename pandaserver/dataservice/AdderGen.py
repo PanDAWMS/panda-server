@@ -596,6 +596,7 @@ class AdderGen:
                 lfnNode  = logical.getElementsByTagName('lfn')[0]
                 # convert UTF8 to Raw
                 lfn = str(lfnNode.getAttribute('name'))
+                guidMap[lfn] = guid
                 # get metadata
                 nevents = None
                 for meta in file.getElementsByTagName('metadata'):
@@ -607,7 +608,6 @@ class AdderGen:
                         break
         except:
             pass
-        self.logger.debug('nEventsMap=%s' % str(nEventsMap))
         # parse json
         try:
             import json
@@ -627,7 +627,8 @@ class AdderGen:
                         pass
         except:
             pass
-        self.logger.debug('nEventsMapJson=%s' % str(nEventsMap))
+        self.logger.debug('nEventsMap=%s' % str(nEventsMap))
+        self.logger.debug('guidMap=%s' % str(guidMap))
         # get lumi block number
         lumiBlockNr = self.job.getLumiBlockNr()
         # copy files for variable number of outputs
