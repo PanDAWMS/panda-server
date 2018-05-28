@@ -20,3 +20,6 @@ EC_LostFile = 110
 
 # missing nEvents
 EC_MissingNumEvents = 204
+
+# inconsistent GUID
+EC_InconsistentGUID = 205
