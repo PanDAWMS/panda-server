@@ -2148,7 +2148,14 @@ class DBProxy:
                     elif oldJobStatus == 'merging':
                         # don't update merging
                         _logger.debug("updateJobStatus : PandaID=%s skip to change from merging" % pandaID)
+                    elif oldJobStatus == 'holding' and jobStatus == 'starting':
+                        # don't update holding
+                        _logger.debug("updateJobStatus : PandaID={0} skip to change {1} to {2} to avoid inconsistency".format(pandaID, oldJobStatus, jobStatus))
                     else:
+                        # change starting to running
+                        if oldJobStatus == 'running' and jobStatus == 'starting':
+                            _logger.debug("updateJobStatus : PandaID={0} changed {1} to {2} to avoid inconsistency".format(pandaID, oldJobStatus, jobStatus))
+                            jobStatus = oldJobStatus
                         # update stateChangeTime
                         if updateStateChange or (jobStatus != oldJobStatus):
                             sql1 += ",stateChangeTime=CURRENT_DATE"
