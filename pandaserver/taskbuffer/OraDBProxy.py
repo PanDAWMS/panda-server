@@ -20178,6 +20178,7 @@ class DBProxy:
                             # set failed if out of sync
                             if 'syncLevel' in workerData and workerData['syncLevel'] == 1 and jobStatus in ['running']:
                                 tmpLog.debug('workerID={0} set failed to PandaID={1} due to sync error'.format(workerSpec.workerID, pandaID))
+                                """
                                 varMap = dict()
                                 varMap[':PandaID'] = pandaID
                                 varMap[':code'] = ErrorCode.EC_WorkerDone
@@ -20193,6 +20194,7 @@ class DBProxy:
                                     open(tmpFileName, 'w').close()
                                 except:
                                     pass
+                                """
                     varMap = dict()
                     varMap[':PandaID'] = pandaID
                     varMap[':js1'] = 'running'
