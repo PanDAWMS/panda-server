@@ -20056,7 +20056,7 @@ class DBProxy:
 
 
     # update workers
-    def updateWorkers(self, harvesterID, data, useCommit=True, syncLevel=0):
+    def updateWorkers(self, harvesterID, data, useCommit=True):
         """
         Update workers
         """
@@ -20064,7 +20064,7 @@ class DBProxy:
         methodName = comment.split(' ')[-2].split('.')[-1]
         tmpLog = LogWrapper(_logger, methodName+' < HarvesterID={0} >'.format(harvesterID))
         try:
-            tmpLog.debug('start {0} workers with syncLevel={1}'.format(len(data), syncLevel))
+            tmpLog.debug('start {0} workers'.format(len(data)))
             sqlC  = "SELECT {0} FROM ATLAS_PANDA.Harvester_Workers ".format(WorkerSpec.columnNames())
             sqlC += "WHERE harvesterID=:harvesterID AND workerID=:workerID "
             # loop over all workers
@@ -20176,7 +20176,7 @@ class DBProxy:
                             jobStatus, = resJAC
                             tmpLog.debug('workerID={0} {1} while PandaID={2} {3}'.format(workerSpec.workerID, workerSpec.status, pandaID, jobStatus))
                             # set failed if out of sync
-                            if syncLevel == 1 and jobStatus in ['running']:
+                            if 'syncLevel' in workerData and workerData['syncLevel'] == 1 and jobStatus in ['running']:
                                 tmpLog.debug('workerID={0} set failed to PandaID={1} due to sync error'.format(workerSpec.workerID, pandaID))
                                 varMap = dict()
                                 varMap[':PandaID'] = pandaID

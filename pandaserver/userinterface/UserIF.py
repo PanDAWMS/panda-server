@@ -976,8 +976,8 @@ class UserIF:
         return ret
 
     # update workers
-    def updateWorkers(self,user,host,harvesterID,data,syncLevel):
-        ret = self.taskBuffer.updateWorkers(harvesterID, data, syncLevel=syncLevel)
+    def updateWorkers(self,user,host,harvesterID,data):
+        ret = self.taskBuffer.updateWorkers(harvesterID, data)
         if ret is None:
             retVal = (False,'database error in the panda server')
         else:
@@ -2319,7 +2319,7 @@ def getTaskParamsMap(req,jediTaskID):
 
 
 # update workers
-def updateWorkers(req,harvesterID,workers,syncLevel=0):
+def updateWorkers(req,harvesterID,workers):
     # check security
     if not isSecure(req):
         return json.dump((False,"SSL is required"))
@@ -2334,13 +2334,9 @@ def updateWorkers(req,harvesterID,workers,syncLevel=0):
         data = json.loads(workers)
     except:
         retVal = json.dumps((False,"failed to load JSON"))
-    try:
-        syncLevel = int(syncLevel)
-    except:
-        pass
     # update
     if retVal is None:
-        retVal = userIF.updateWorkers(user,host,harvesterID,data,syncLevel)
+        retVal = userIF.updateWorkers(user,host,harvesterID,data)
     tDelta = datetime.datetime.utcnow() - tStart
     _logger.debug("updateWorkers %s took %s.%03d sec" % (harvesterID, tDelta.seconds, tDelta.microseconds/1000))
     return retVal
