@@ -2148,7 +2148,7 @@ class DBProxy:
                     elif oldJobStatus == 'merging':
                         # don't update merging
                         _logger.debug("updateJobStatus : PandaID=%s skip to change from merging" % pandaID)
-                    elif oldJobStatus == 'holding' and jobStatus == 'starting':
+                    elif oldJobStatus in ['holding', 'transferring'] and jobStatus == 'starting':
                         # don't update holding
                         _logger.debug("updateJobStatus : PandaID={0} skip to change {1} to {2} to avoid inconsistency".format(pandaID, oldJobStatus, jobStatus))
                     else:
@@ -20178,7 +20178,6 @@ class DBProxy:
                             # set failed if out of sync
                             if 'syncLevel' in workerData and workerData['syncLevel'] == 1 and jobStatus in ['running']:
                                 tmpLog.debug('workerID={0} set failed to PandaID={1} due to sync error'.format(workerSpec.workerID, pandaID))
-                                """
                                 varMap = dict()
                                 varMap[':PandaID'] = pandaID
                                 varMap[':code'] = ErrorCode.EC_WorkerDone
@@ -20194,7 +20193,6 @@ class DBProxy:
                                     open(tmpFileName, 'w').close()
                                 except:
                                     pass
-                                """
                     varMap = dict()
                     varMap[':PandaID'] = pandaID
                     varMap[':js1'] = 'running'
