@@ -20176,7 +20176,7 @@ class DBProxy:
                             jobStatus, = resJAC
                             tmpLog.debug('workerID={0} {1} while PandaID={2} {3}'.format(workerSpec.workerID, workerSpec.status, pandaID, jobStatus))
                             # set failed if out of sync
-                            if 'syncLevel' in workerData and workerData['syncLevel'] == 1 and jobStatus in ['running']:
+                            if 'syncLevel' in workerData and workerData['syncLevel'] == 1 and jobStatus in ['running', 'starting']:
                                 tmpLog.debug('workerID={0} set failed to PandaID={1} due to sync error'.format(workerSpec.workerID, pandaID))
                                 varMap = dict()
                                 varMap[':PandaID'] = pandaID
