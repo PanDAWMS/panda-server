@@ -2195,7 +2195,7 @@ class DBProxy:
                             varMap[':jediTaskID'] = jediTaskID
                             varMap[':eventService'] = EventServiceUtils.coJumboJobFlagNumber
                             varMap[':jobStatus']  = 'waiting'
-                            self.cur.execute (sqlFI+comment,varMap)
+                            self.cur.execute (sqlIF+comment,varMap)
                             nUE = self.cur.rowcount
                             _logger.debug("updateJobStatus : PandaID=%s updated %s fake co-jumbo jobs" % (pandaID,nUE))
                         # update nFilesOnHold for JEDI RW calculation
