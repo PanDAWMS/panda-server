@@ -1696,7 +1696,8 @@ class DBProxy:
                                                                                           job.taskBufferErrorDiag))
                     # kill unused event ranges
                     if job.jobStatus == 'failed':
-                        self.killUnusedEventRanges(job.jediTaskID,job.jobsetID)
+                        if not job.notDiscardEvents():
+                            self.killUnusedEventRanges(job.jediTaskID,job.jobsetID)
                         self.updateRelatedEventServiceJobs(job,True)
                 elif useJEDI and EventServiceUtils.isEventServiceJob(job) \
                         and EventServiceUtils.isJobCloningJob(job):
@@ -2064,7 +2065,8 @@ class DBProxy:
     def updateJobStatus(self,pandaID,jobStatus,param,updateStateChange=False,attemptNr=None):
         comment = ' /* DBProxy.updateJobStatus */'        
         _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s status=%s" % (pandaID,attemptNr,jobStatus))
-        sql0  = "SELECT commandToPilot,endTime,specialHandling,jobStatus,computingSite,cloud,prodSourceLabel,lockedby,jediTaskID,jobsetID,jobDispatcherErrorDiag,supErrorCode "
+        sql0  = "SELECT commandToPilot,endTime,specialHandling,jobStatus,computingSite,cloud,prodSourceLabel,lockedby,jediTaskID,"
+        sql0 += "jobsetID,jobDispatcherErrorDiag,supErrorCode,eventService "
         sql0 += "FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
         varMap0 = {}
         varMap0[':PandaID'] = pandaID
@@ -2109,7 +2111,7 @@ class DBProxy:
                 if res != None:
                     ret = ''
                     commandToPilot,endTime,specialHandling,oldJobStatus,computingSite,cloud,prodSourceLabel,\
-                        lockedby,jediTaskID,jobsetID,jobDispatcherErrorDiag,supErrorCode = res
+                        lockedby,jediTaskID,jobsetID,jobDispatcherErrorDiag,supErrorCode,eventService = res
                     # debug mode
                     if not specialHandling in [None,''] and 'debug' in specialHandling:
                         ret += 'debug,'
@@ -2184,6 +2186,18 @@ class DBProxy:
                             self.cur.execute (sqlUE+comment,varMap)
                             nUE = self.cur.rowcount
                             _logger.debug("updateJobStatus : PandaID=%s updated %s ES jobs" % (pandaID,nUE))
+                        # update fake co-jumbo jobs
+                        if updatedFlag and eventService == EventServiceUtils.jumboJobFlagNumber:
+                            # sql to update fake co-jumbo
+                            sqlIF = "UPDATE ATLAS_PANDA.jobsWaiting4 SET modificationTime=CURRENT_DATE "
+                            sqlIF += "WHERE jediTaskID=:jediTaskID AND eventService=::eventService AND jobStatus=:jobStatus "
+                            varMap = {}
+                            varMap[':jediTaskID'] = jediTaskID
+                            varMap[':eventService'] = EventServiceUtils.coJumboJobFlagNumber
+                            varMap[':jobStatus']  = 'waiting'
+                            self.cur.execute (sqlFI+comment,varMap)
+                            nUE = self.cur.rowcount
+                            _logger.debug("updateJobStatus : PandaID=%s updated %s fake co-jumbo jobs" % (pandaID,nUE))
                         # update nFilesOnHold for JEDI RW calculation
                         if updatedFlag and jobStatus == 'transferring' and oldJobStatus == 'holding' and \
                                 hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and \
@@ -4242,7 +4256,8 @@ class DBProxy:
                             self.killEventServiceConsumers(job,True,False)
                             self.killUnusedEventServiceConsumers(job,False,killAll=True)
                             self.updateRelatedEventServiceJobs(job,True)
-                            self.killUnusedEventRanges(job.jediTaskID,job.jobsetID)
+                            if not job.notDiscardEvents():
+                                self.killUnusedEventRanges(job.jediTaskID,job.jobsetID)
                         elif useEventServiceMerge:
                             self.updateRelatedEventServiceJobs(job,True)
                     # disable reattempt

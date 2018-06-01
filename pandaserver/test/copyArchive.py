@@ -1039,8 +1039,12 @@ if len(jobs):
 
 # kill too long waiting jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=7)
-status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsWaiting4 WHERE creationTime<:creationTime",
-                              {':creationTime':timeLimit})
+sql = "SELECT PandaID FROM ATLAS_PANDA.jobsWaiting4 WHERE ((creationTime<:timeLimit AND (eventService IS NULL OR eventService<>:coJumbo)) "
+sql += "OR modificationTime<:timeLimit) "
+varMap = {}
+varMap[':timeLimit'] = timeLimit
+varMap[':coJumbo'] = EventServiceUtils.coJumboJobFlagNumber
+status,res = taskBuffer.querySQLS(sql, varMap)
 jobs = []
 if res != None:
     for (id,) in res:
