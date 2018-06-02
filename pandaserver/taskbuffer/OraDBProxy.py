@@ -2190,7 +2190,7 @@ class DBProxy:
                         if updatedFlag and eventService == EventServiceUtils.jumboJobFlagNumber:
                             # sql to update fake co-jumbo
                             sqlIF = "UPDATE ATLAS_PANDA.jobsWaiting4 SET modificationTime=CURRENT_DATE "
-                            sqlIF += "WHERE jediTaskID=:jediTaskID AND eventService=::eventService AND jobStatus=:jobStatus "
+                            sqlIF += "WHERE jediTaskID=:jediTaskID AND eventService=:eventService AND jobStatus=:jobStatus "
                             varMap = {}
                             varMap[':jediTaskID'] = jediTaskID
                             varMap[':eventService'] = EventServiceUtils.coJumboJobFlagNumber
