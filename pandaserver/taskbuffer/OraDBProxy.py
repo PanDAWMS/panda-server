@@ -19128,7 +19128,7 @@ class DBProxy:
             # sql to release events
             sqlR  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sqlR += "SET status=:newStatus,attemptNr=attemptNr-1,pandaID=event_offset,is_jumbo=NULL "
-            sqlR += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND NOT status IN (:esDone,:esFinished,:esMerged) "
+            sqlR += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND status IN (:esSent,:esRunning) "
             # sql to check event
             sqlF  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sqlF += "WHERE jediTaskID=:jediTaskID AND PandaID=:pandaID AND status IN (:esDone,:esFinished) "
@@ -19138,9 +19138,8 @@ class DBProxy:
             varMap = {}
             varMap[':pandaID'] = pandaID
             varMap[':jediTaskID'] = jediTaskID
-            varMap[':esDone']      = EventServiceUtils.ST_done
-            varMap[':esFinished']  = EventServiceUtils.ST_finished
-            varMap[':esMerged']    = EventServiceUtils.ST_merged
+            varMap[':esSent']      = EventServiceUtils.ST_sent
+            varMap[':esRunning']   = EventServiceUtils.ST_running
             varMap[':newStatus']   = EventServiceUtils.ST_ready            
             self.cur.execute(sqlR+comment, varMap)
             resR = self.cur.rowcount
