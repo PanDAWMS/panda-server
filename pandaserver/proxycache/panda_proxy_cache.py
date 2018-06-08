@@ -47,7 +47,7 @@ class MyProxyInterface(object):
             tmpExtension = self.getExtension(role)
             prodproxy_path = os.path.join(self.__target_path, str(hashlib.sha1(user_dn + tmpExtension).hexdigest()))
             _logger.debug(prodproxy_path)
-            prodcmd = "voms-proxy-init -valid 96:00 -cert %s -key %s -out %s -voms %s" % (proxy_path,proxy_path,
+            prodcmd = "voms-proxy-init -valid 96:00 -rfc -cert %s -key %s -out %s -voms %s" % (proxy_path,proxy_path,
                                                                                           prodproxy_path,role)
             stdout, stderr, status = execute(prodcmd)
             if stdout:
@@ -59,7 +59,7 @@ class MyProxyInterface(object):
 	    _logger.debug('production proxy needed - need to add voms attributes and store it in the cache')
 	    prodproxy_path = os.path.join(self.__target_path, str(hashlib.sha1(user_dn + '.prod').hexdigest()))
 	    _logger.debug(prodproxy_path)
-            prodcmd = "voms-proxy-init -valid 96:00 -cert %s -key %s -out %s -voms atlas:/atlas/Role=production" % (proxy_path, proxy_path, prodproxy_path)
+            prodcmd = "voms-proxy-init -valid 96:00 -rfc -cert %s -key %s -out %s -voms atlas:/atlas/Role=production" % (proxy_path, proxy_path, prodproxy_path)
 	    stdout, stderr, status = execute(prodcmd)
 	    if stdout:
 		_logger.debug('stdout is %s ' % stdout)
@@ -69,7 +69,7 @@ class MyProxyInterface(object):
         else:
 	    # Now we need to add atlas roles and store it
 	    atlasproxy_path = os.path.join(self.__target_path, hashlib.sha1(user_dn).hexdigest())
-            atlasrolescmd = "voms-proxy-init -valid 96:00 -cert %s -key %s -out %s -voms atlas" % (proxy_path, proxy_path, atlasproxy_path)
+            atlasrolescmd = "voms-proxy-init -valid 96:00 -rfc -cert %s -key %s -out %s -voms atlas" % (proxy_path, proxy_path, atlasproxy_path)
             stdout, stderr, status = execute(atlasrolescmd)
             if stdout:
                 _logger.debug('stdout is %s ' % stdout)
