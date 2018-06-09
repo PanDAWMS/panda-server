@@ -527,14 +527,8 @@ class TaskBuffer:
                 oldJobStatus = oldJobStatusList[idxJob]
             else:
                 oldJobStatus = None
-            # check for co-jumbo or jumbo jobs
-            if EventServiceUtils.isCoJumboJob(job):
-                # check if all events assiciated to the co-jumbo are done
-                allDone = proxy.checkAllEventsDone(job,None,True)
-                # keep until all events are done
-                if not allDone:
-                    job.jobStatus = 'holding'
-            elif EventServiceUtils.isJumboJob(job):
+            # check for jumbo jobs
+            if EventServiceUtils.isJumboJob(job):
                 if job.jobStatus in ['defined','assigned','activated']:
                     pass
                 else:

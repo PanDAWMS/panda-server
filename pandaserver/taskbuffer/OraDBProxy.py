@@ -13242,7 +13242,8 @@ class DBProxy:
             varMap = {}
             varMap[':jediTaskID'] = jobSpec.jediTaskID
             varMap[':newJumbo'] = newUseJumbo
-            sqlJumboF = "UPDATE {0}.JEDI_Tasks SET useJumbo=:newJumbo WHERE jediTaskID=:jediTaskID AND useJumbo IS NOT NULL ".format(panda_config.schemaJEDI)
+            sqlJumboF = "UPDATE {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+            sqlJumboF += "SET useJumbo=:newJumbo WHERE jediTaskID=:jediTaskID AND useJumbo IS NOT NULL AND site IS NULL "
             cur.execute(sqlJumboF+comment,varMap)
             nRow = cur.rowcount
             tmpLog.debug('set task.useJumbo={0} with {1}'.format(varMap[':newJumbo'], nRow))
