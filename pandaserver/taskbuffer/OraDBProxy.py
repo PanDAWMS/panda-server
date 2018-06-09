@@ -15843,12 +15843,19 @@ class DBProxy:
             sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
             sqlSN += "AND (sc.maxrss IS NULL OR sc.minrss=0) "
             sqlSN += "AND (sc.jobseed IS NULL OR sc.jobseed<>'es') "
-            sqlSN += "AND sc.status=:siteStatus "
+            if 'localEsMerge' in catchAll and 'useBrokerOff' in catchAll:
+                sqlSN += "AND sc.status IN (:siteStatus1,:siteStatus2) "
+            else:
+                sqlSN += "AND sc.status=:siteStatus "
             sqlSN += "AND dr.default_write ='Y' "
             sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity=:wc1) "
             varMap = {}
             varMap[':site'] = jobSpec.computingSite
-            varMap[':siteStatus'] = 'online'
+            if 'localEsMerge' in catchAll and 'useBrokerOff' in catchAll:
+                varMap[':siteStatus1'] = 'online'
+                varMap[':siteStatus2'] = 'brokeroff'
+            else:
+                varMap[':siteStatus'] = 'online'
             varMap[':wc1'] = 'full'
             varMap[':capability'] = 'UCORE'
             # get sites

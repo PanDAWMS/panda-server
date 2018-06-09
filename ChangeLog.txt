@@ -1,5 +1,8 @@
 Release Notes
 
+* 6/10/2018
+  * added useBrokerOff in catchall
+
 * 5/30/2018
   * enabled aggressive heartbeat check
 
