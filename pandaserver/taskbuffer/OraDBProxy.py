@@ -13222,6 +13222,13 @@ class DBProxy:
             self.recordRetryHistoryJEDI(jobSpec.jediTaskID,jobSpec.PandaID,[jobSpec.jobsetID],EventServiceUtils.relationTypeJS_ID)
         # update jumbo flag
         if jobSpec.eventService == EventServiceUtils.jumboJobFlagNumber:
+            # check site
+            varMap = {}
+            varMap[':jediTaskID'] = jobSpec.jediTaskID
+            sqlJumboS = "SELECT site FROM {0}.JEDI_Tasks WHERE jediTaskID=:jediTaskID ".format(panda_config.schemaJEDI)
+            cur.execute(sqlJumboS+comment,varMap)
+            tmpResS = self.cur.fetchone()
+            jumboSite, = tmpResS
             # count number of events for jumbo
             varMap = {}
             varMap[':jediTaskID'] = jobSpec.jediTaskID
@@ -13236,14 +13243,14 @@ class DBProxy:
                 nEventsJumbo, = tmpResC 
                 tmpLog.debug('{0} event ranges available for jumbo'.format(nEventsJumbo))
                 # no more events
-                if nEventsJumbo == 0:
+                if nEventsJumbo == 0 and jumboSite is None:
                     newUseJumbo = 'D'
             # update flag
             varMap = {}
             varMap[':jediTaskID'] = jobSpec.jediTaskID
             varMap[':newJumbo'] = newUseJumbo
             sqlJumboF = "UPDATE {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
-            sqlJumboF += "SET useJumbo=:newJumbo WHERE jediTaskID=:jediTaskID AND useJumbo IS NOT NULL AND site IS NULL "
+            sqlJumboF += "SET useJumbo=:newJumbo WHERE jediTaskID=:jediTaskID AND useJumbo IS NOT NULL "
             cur.execute(sqlJumboF+comment,varMap)
             nRow = cur.rowcount
             tmpLog.debug('set task.useJumbo={0} with {1}'.format(varMap[':newJumbo'], nRow))
