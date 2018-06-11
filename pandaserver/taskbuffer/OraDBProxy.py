@@ -20945,9 +20945,12 @@ class DBProxy:
         sql = """
               SELECT computingsite, harvester_id, resourcetype, status, n_workers 
               FROM atlas_panda.harvester_worker_stats
+              WHERE lastupdate > :time_limit 
               """
-        # TODO: query should probably consider an expiration date for the data!!!
-        self.cur.execute(sql + comment)
+        var_map = {}
+        var_map[':time_limit'] = datetime.datetime.utcnow() - datetime.timedelta(minutes=60)
+
+        self.cur.execute(sql + comment, var_map)
         worker_stats_rows = self.cur.fetchall()
         worker_stats_dict = {}
         for computing_site, harvester_id, resource_type, status, n_workers in worker_stats_rows:
