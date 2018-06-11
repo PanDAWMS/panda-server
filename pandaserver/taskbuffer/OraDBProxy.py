@@ -20909,7 +20909,7 @@ class DBProxy:
         Identify unified pilot streaming (ups) queues: served in pull (late binding) model
         :return: list of panda queues
         """
-        comment = ' /* DBProxy.get_ups_queues */'
+        comment = ' /* DBProxy.ups_get_queues */'
         method_name = comment.split(' ')[-2].split('.')[-1]
         tmpLog = LogWrapper(_logger, method_name)
         tmpLog.debug('start')
@@ -20936,7 +20936,7 @@ class DBProxy:
         Load the harvester worker stats
         :return: dictionary with worker statistics
         """
-        comment = ' /* DBProxy.load_worker_stats */'
+        comment = ' /* DBProxy.ups_load_worker_stats */'
         method_name = comment.split(' ')[-2].split('.')[-1]
         tmpLog = LogWrapper(_logger, method_name)
         tmpLog.debug('start')
@@ -20970,7 +20970,7 @@ class DBProxy:
         :ups_queues list with names of the queues served by pilot streaming model
         :return: dictionary with statistics on activated jobs
         """
-        comment = ' /* DBProxy.load_activated_job_stats */'
+        comment = ' /* DBProxy.ups_load_activated_job_stats */'
         method_name = comment.split(' ')[-2].split('.')[-1]
         tmpLog = LogWrapper(_logger, method_name)
         tmpLog.debug('start')
