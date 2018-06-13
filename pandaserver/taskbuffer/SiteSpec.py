@@ -20,7 +20,7 @@ class SiteSpec(object):
                    'sitershare','cloudrshare','corepower','wnconnectivity','catchall',
                    'role','pandasite_state','ddm_endpoints_input','ddm_endpoints_output','maxrss','minrss',
                    'direct_access_lan','direct_access_wan','tier','objectstores','is_unified',
-                   'unified_name','jobseed','capability')
+                   'unified_name','jobseed','capability','num_slots_map')
 
     # constructor
     def __init__(self):
@@ -159,11 +159,11 @@ class SiteSpec(object):
         # only if in standby
         if self.status not in ['standby', 'online']:
             return None
-        numMap = JobUtils.parseNumStandby(self.catchall)
+        numMap = self.num_slots_map
         # neither gshare or workqueue is definied
         if sw_id not in numMap:
-            if '' in numMap:
-                sw_id = ''
+            if None in numMap:
+                sw_id = None
             else:
                 return None
         # give the total if resource type is undefined
@@ -172,6 +172,6 @@ class SiteSpec(object):
         # give the number for the resource type
         if resource_type in numMap[sw_id]:
             return numMap[sw_id][resource_type]
-        elif '' in numMap[sw_id]:
-            return numMap[sw_id]['']
+        elif None in numMap[sw_id]:
+            return numMap[sw_id][None]
         return None

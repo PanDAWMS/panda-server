@@ -542,7 +542,8 @@ class UserIF:
                 # convert to map
                 tmpSpec = {}
                 for attr in spec._attributes:
-                    if attr in ['ddm_endpoints_input', 'ddm_endpoints_output', 'ddm_input', 'ddm_output', 'setokens_input']:
+                    if attr in ['ddm_endpoints_input', 'ddm_endpoints_output', 'ddm_input', 'ddm_output',
+                                'setokens_input', 'num_slots_map']:
                         continue
                     tmpSpec[attr] = getattr(spec,attr)
                 specList[id] = tmpSpec
@@ -1011,6 +1012,11 @@ class UserIF:
     def reportWorkerStats(self, harvesterID, siteName, paramsList):
         return self.taskBuffer.reportWorkerStats(harvesterID, siteName, paramsList)
 
+    # set num slots for workload provisioning
+    def setNumSlotsForWP(self, pandaQueueName, numSlots, gshare, resourceType, validPeriod):
+        retVal = self.taskBuffer.setNumSlotsForWP(pandaQueueName, numSlots, gshare, resourceType, validPeriod)
+        # serialize 
+        return json.dumps(retVal)
 
 
 # Singleton
@@ -2387,3 +2393,20 @@ def reportWorkerStats(req, harvesterID, siteName, paramsList):
     # update
     ret = userIF.reportWorkerStats(harvesterID, siteName, paramsList)
     return json.dumps(ret)
+
+
+# set num slots for workload provisioning
+def setNumSlotsForWP(req, pandaQueueName, numSlots, gshare=None, resourceType=None, validPeriod=None):
+    # check security
+    if not isSecure(req):
+        return json.dump((100, "SSL is required"))
+    # check role
+    if not _isProdRoleATLAS(req):
+        return json.dump((101, "production role is required"))
+    # convert
+    try:
+        numSlots = int(numSlots)
+    except:
+        return json.dumps((102, "numSlots must be int"))
+    # execute
+    return userIF.setNumSlotsForWP(pandaQueueName, numSlots, gshare, resourceType, validPeriod)

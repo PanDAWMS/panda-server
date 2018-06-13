@@ -9604,7 +9604,7 @@ class DBProxy:
                     cvmfsSites.append(tmpItem)
             # get DDM endpoints
             pandaEndpointMap = self.getDdmEndpoints()
-            # select
+            # sql to get site spec
             sql = "SELECT nickname,dq2url,cloud,ddm,lfchost,gatekeeper,releases,memory,"
             sql+= "maxtime,status,space,retry,cmtconfig,glexec,"
             sql+= "priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue,"
@@ -9620,6 +9620,10 @@ class DBProxy:
             sql+= "LEFT JOIN ATLAS_PANDA.panda_site b ON a.siteid=b.panda_site_name) "
             sql+= "LEFT JOIN ATLAS_PANDA.site c ON b.site_name=c.site_name "
             sql+= "WHERE siteid IS NOT NULL "
+            # sql to get num slots
+            sqlSL = "SELECT gshare,resourcetype,numslots FROM ATLAS_PANDA.Harvester_Slots "
+            sqlSL += "WHERE pandaQueueName=:pandaQueueName "
+            sqlSL += "AND (expirationTime IS NULL OR expirationTime>CURRENT_DATE) "
             self.cur.arraysize = 10000            
             self.cur.execute(sql+comment)
             resList = self.cur.fetchall()
@@ -9640,7 +9644,7 @@ class DBProxy:
                        maxtime,status,space,retry,cmtconfig,glexec,\
                        priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue,\
                        validatedreleases,accesscontrol,copysetup,maxinputsize,cachedse,\
-                       allowdirectaccess,comment,lastmod,multicloud,lfcregister, \
+                       allowdirectaccess,sc_comment,lastmod,multicloud,lfcregister, \
                        countryGroup,availableCPU,pledgedCPU,coreCount,transferringlimit, \
                        maxwdir,fairsharePolicy,minmemory,maxmemory,mintime, \
                        catchall,allowfax,wansourcelimit,wansinklimit,pandasite, \
@@ -9673,7 +9677,7 @@ class DBProxy:
                     ret.accesscontrol = accesscontrol
                     ret.copysetup     = copysetup
                     ret.maxinputsize  = maxinputsize
-                    ret.comment       = comment
+                    ret.comment       = sc_comment
                     ret.statusmodtime = lastmod
                     ret.lfcregister   = lfcregister
                     ret.pandasite     = pandasite
@@ -9851,11 +9855,9 @@ class DBProxy:
                     # mapping between token and endpoints
                     ret.setokens_input = ret.ddm_endpoints_input.getTokenMap('input')
                     ret.setokens_output = ret.ddm_endpoints_output.getTokenMap('output')
-
                     # set DDM to the default endpoint
                     ret.ddm_input = ret.ddm_endpoints_input.getDefaultRead()
                     ret.ddm_output = ret.ddm_endpoints_output.getDefaultWrite()
-
                     # object stores
                     try:
                         ret.objectstores = json.loads(objectstores)
@@ -9863,6 +9865,16 @@ class DBProxy:
                         ret.objectstores = []
                     # default unified flag
                     ret.is_unified = False
+                    # num slots
+                    ret.num_slots_map = dict()
+                    varMap = dict()
+                    varMap[':pandaQueueName'] = siteid
+                    self.cur.execute(sqlSL+comment, varMap)
+                    resSL = self.cur.fetchall()
+                    for sl_gshare, sl_resourcetype, sl_numslots in resSL:
+                        ret.num_slots_map.setdefault(sl_gshare, dict())
+                        ret.num_slots_map[sl_gshare].setdefault(sl_resourcetype, dict())
+                        ret.num_slots_map[sl_gshare][sl_resourcetype] = sl_numslots
                     # append
                     retList[ret.nickname] = ret
             _logger.debug("getSiteInfo done")
@@ -21473,3 +21485,84 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger, method_name)
             return dict()
+
+
+
+    # set num slots for workload provisioning
+    def setNumSlotsForWP(self, pandaQueueName, numSlots, gshare, resourceType, validPeriod):
+        comment = ' /* DBProxy.setNumSlotsForWP */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        method_name += ' < pq={0} >'.format(pandaQueueName)
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+        # sql to check
+        sqlC  = "SELECT 1 FROM ATLAS_PANDA.Harvester_Slots "
+        sqlC += "WHERE pandaQueueName=:pandaQueueName "
+        if gshare is None:
+            sqlC += "AND gshare IS NULL "
+        else:
+            sqlC += "AND gshare=:gshare "
+        if resourceType is None:
+            sqlC += "AND resourceType IS NULL "
+        else:
+            sqlC += "AND resourceType=:resourceType "
+        # sql to insert
+        sqlI  = "INSERT INTO ATLAS_PANDA.Harvester_Slots (pandaQueueName,gshare,resourceType,numSlots,modificationTime,expirationTime) "
+        sqlI += "VALUES (:pandaQueueName,:gshare,:resourceType,:numSlots,:modificationTime,:expirationTime) "
+        # sql to update
+        sqlU  = "UPDATE ATLAS_PANDA.Harvester_Slots SET "
+        sqlU += "numSlots=:numSlots,modificationTime=:modificationTime,expirationTime=:expirationTime "
+        sqlU += "WHERE pandaQueueName=:pandaQueueName "
+        if gshare is None:
+            sqlU += "AND gshare IS NULL "
+        else:
+            sqlU += "AND gshare=:gshare "
+        if resourceType is None:
+            sqlU += "AND resourceType IS NULL "
+        else:
+            sqlU += "AND resourceType=:resourceType "
+        try:
+            timeNow = datetime.datetime.utcnow()
+            # start transaction
+            self.conn.begin()
+            # check
+            varMap = dict()
+            varMap[':pandaQueueName'] = pandaQueueName
+            if gshare is not None:
+                varMap[':gshare'] = gshare
+            if resourceType is not None:
+                varMap[':resourceType'] = resourceType
+            self.cur.execute(sqlC, varMap)
+            resC = self.cur.fetchone()
+            # insert or update
+            varMap = dict()
+            varMap[':pandaQueueName'] = pandaQueueName
+            if resC is None or gshare is not None:
+                varMap[':gshare'] = gshare
+            if resC is None or resourceType is not None:
+                varMap[':resourceType'] = resourceType
+            varMap[':numSlots'] = numSlots
+            varMap[':modificationTime'] = timeNow
+            if validPeriod is None:
+                varMap[':expirationTime'] = None
+            else:
+                varMap[':expirationTime'] = timeNow + datetime.timedelta(days=validPeriod)
+            if resC is None:
+                # insert
+                self.cur.execute(sqlI, varMap)
+            else:
+                # update
+                self.cur.execute(sqlU, varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # return
+            tmp_log.debug("set nSlots={0}".format(numSlots))
+            return (0, 'set numSlots={0} for PQ={1} gshare={2} resource={3}'.format(numSlots, pandaQueueName,
+                                                                                    gshare, resourceType))
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, method_name)
+            return (1, 'database error in the panda server')

@@ -1,5 +1,8 @@
 Release Notes
 
+* 6/13/2018
+  * added harvester_slots
+
 * 6/10/2018
   * added useBrokerOff in catchall
 

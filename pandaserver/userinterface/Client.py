@@ -2209,3 +2209,47 @@ def getTaskParamsMap(jediTaskID):
         errStr = "ERROR getTaskParamsMap : %s %s" % (type,value)
         print errStr
         return EC_Failed,output+'\n'+errStr
+
+
+# et num slots for workload provisioning
+def setNumSlotsForWP(pandaQueueName, numSlots, gshare=None, resourceType=None, validPeriod=None):
+    """Kill a task
+
+       args:
+           pandaQueueName: Panda Queue name
+           numSlots: the number of slots. 0 to dynamically set based on the number of starting jobs
+           gshare: global share. None to set for any global share (default)
+           resourceType: resource type. None to set for any resource type (default) 
+           validPeriod: How long the rule is valid in days. None if no expiration (default)
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           tuple of return code and diagnostic message
+                 0: succeeded
+                 1: server error
+               100: non SSL connection
+               101: missing production role
+               102: type error for some parameters
+    """     
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+    # execute
+    url = baseURLSSL + '/setNumSlotsForWP'
+    data = {'pandaQueueName': pandaQueueName,
+            'numSlots': numSlots}
+    if gshare is not None:
+        data['gshare'] = gshare
+    if resourceType is not None:
+        data['resourceType'] = resourceType
+    if validPeriod is not None:
+        data['validPeriod'] = validPeriod
+    status,output = curl.post(url, data)
+    try:
+        return status, json.loads(output)
+    except:
+        errtype,errvalue = sys.exc_info()[:2]
+        errStr = "ERROR setNumSlotsForWP : %s %s" % (errtype,errvalue)
+        return EC_Failed, output+'\n'+errStr

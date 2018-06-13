@@ -3616,6 +3616,18 @@ class TaskBuffer:
         return ret
 
 
+    # set num slots for workload provisioning
+    def setNumSlotsForWP(self, pandaQueueName, numSlots, gshare, resourceType, validPeriod):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.setNumSlotsForWP(pandaQueueName, numSlots, gshare, resourceType, validPeriod)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 
