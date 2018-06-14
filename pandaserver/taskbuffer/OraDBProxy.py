@@ -9872,6 +9872,8 @@ class DBProxy:
                     self.cur.execute(sqlSL+comment, varMap)
                     resSL = self.cur.fetchall()
                     for sl_gshare, sl_resourcetype, sl_numslots in resSL:
+                        if sl_numslots < 0:
+                            continue
                         ret.num_slots_map.setdefault(sl_gshare, dict())
                         ret.num_slots_map[sl_gshare].setdefault(sl_resourcetype, dict())
                         ret.num_slots_map[sl_gshare][sl_resourcetype] = sl_numslots
