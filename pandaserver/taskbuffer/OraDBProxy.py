@@ -15878,7 +15878,7 @@ class DBProxy:
             else:
                 varMap[':siteStatus'] = 'online'
             varMap[':wc1'] = 'full'
-            varMap[':capability'] = 'UCORE'
+            varMap[':capability'] = 'ucore'
             # get sites
             self.cur.execute(sqlSN+comment,varMap)
             if 'localEsMerge' in catchAll:
@@ -15922,7 +15922,7 @@ class DBProxy:
                 varMap[':nucleus'] = tmpNucleus
                 varMap[':siteStatus'] = 'online'
                 varMap[':wc1'] = 'full'
-                varMap[':capability'] = 'UCORE'
+                varMap[':capability'] = 'ucore'
                 # get sites
                 self.cur.execute(sqlSN+comment,varMap)
                 resSN = self.cur.fetchall()
@@ -15990,7 +15990,7 @@ class DBProxy:
         varMap = {}
         varMap[':site'] = jobSpec.computingSite
         varMap[':siteStatus'] = 'online'
-        varMap[':capability'] = 'UCORE'
+        varMap[':capability'] = 'ucore'
         # get sites
         self.cur.execute(sqlSN+comment,varMap)
         resSN = self.cur.fetchall()
@@ -20939,7 +20939,7 @@ class DBProxy:
         # TODO: the pilot manager column is not available in schedconfig and something needs to be implemented
         sql = """
               SELECT siteid FROM atlas_pandameta.schedconfig
-              WHERE (catchall LIKE '%unifiedPandaQueue%' OR capability='UCORE')
+              WHERE (catchall LIKE '%unifiedPandaQueue%' OR capability='ucore')
               AND catchall LIKE '%Pull%'
               """
 
