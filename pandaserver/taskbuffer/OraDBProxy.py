@@ -19202,6 +19202,44 @@ class DBProxy:
 
 
 
+    # check if there are events to be processed
+    def hasReadyEvents(self, jediTaskID):
+        comment = ' /* DBProxy.hasReadyEvents */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger,methodName+" <jediTaskID={0}>".format(jediTaskID))
+        tmpLog.debug("start")
+        retVal = None
+        try:
+            # sql to check event
+            sqlF  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlF += "WHERE jediTaskID=:jediTaskID AND status=:esReady AND attemptNr>:minAttemptNr "
+            # check event
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            varMap[':esReady'] = EventServiceUtils.ST_ready
+            varMap[':minAttemptNr'] = 0
+            # begin transaction
+            self.conn.begin()
+            self.cur.execute(sqlF+comment, varMap)
+            resF = self.cur.fetchone()
+            nReady = None
+            if resF is not None:
+                nReady, = resF
+                retVal = (nReady > 0)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug("{0} ready events. ret={1}".format(nReady, retVal))
+            return retVal
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(tmpLog,methodName)
+            return None
+
+
+
     # check if task is applicable for jumbo jobs
     def isApplicableTaskForJumbo(self,jediTaskID):
         comment = ' /* DBProxy.isApplicableTaskForJumbo */'

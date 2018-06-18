@@ -1,5 +1,8 @@
 Release Notes
 
+* 6/18/2018
+  * added hasReadyEvents
+
 * 6/13/2018
   * added harvester_slots
 

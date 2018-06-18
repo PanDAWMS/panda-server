@@ -376,10 +376,19 @@ class TaskBuffer:
                     jobOldPandaIDs = oldPandaIDs[idxJob]
                 else:
                     jobOldPandaIDs = None
+                # check events for jumbo jobs
+                isOK = True
+                if EventServiceUtils.isJumboJob(job):
+                    hasReadyEvents = proxy.hasReadyEvents(job.jediTaskID)
+                    if hasReadyEvents is False:
+                        isOK = False
                 # insert job to DB
-                if not proxy.insertNewJob(job,user,serNum,weight,priorityOffset,userVO,groupJobSerialNum,
-                                          toPending,origEsJob,eventServiceInfo,oldPandaIDs=jobOldPandaIDs,
-                                          relationType=relationType,fileIDPool=fileIDPool):
+                if not isOK:
+                    # skip since there is no ready event
+                    job.PandaID = None
+                elif not proxy.insertNewJob(job,user,serNum,weight,priorityOffset,userVO,groupJobSerialNum,
+                                            toPending,origEsJob,eventServiceInfo,oldPandaIDs=jobOldPandaIDs,
+                                            relationType=relationType,fileIDPool=fileIDPool):
                     # reset if failed
                     job.PandaID = None
                 else:
