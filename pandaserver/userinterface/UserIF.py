@@ -832,7 +832,7 @@ class UserIF:
 
 
     # retry task
-    def retryTask(self,jediTaskID,user,prodRole,properErrorCode,newParams):
+    def retryTask(self,jediTaskID,user,prodRole,properErrorCode,newParams,noChildRetry):
         # retry with new params
         if newParams != None:
             try:
@@ -852,8 +852,13 @@ class UserIF:
                 errType,errValue = sys.exc_info()[:2]
                 ret = 1,'server error with {0}:{1}'.format(errType,errValue)
         else:
+            if noChildRetry:
+                comQualifier = 'sole'
+            else:
+                comQualifier = None
             # normal retry
-            ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'retry',properErrorCode=properErrorCode)
+            ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'retry',properErrorCode=properErrorCode,
+                                                       comQualifier=comQualifier)
         if properErrorCode == True and ret[0] == 5:
             # retry failed analysis jobs
             jobdefList = self.taskBuffer.getJobdefIDsForFailedJob(jediTaskID)
@@ -1863,11 +1868,15 @@ def killTask(req,jediTaskID=None,properErrorCode=None):
 
 
 # retry task
-def retryTask(req,jediTaskID,properErrorCode=None,newParams=None):
+def retryTask(req,jediTaskID,properErrorCode=None,newParams=None,noChildRetry=None):
     if properErrorCode == 'True':
         properErrorCode = True
     else:
         properErrorCode = False
+    if noChildRetry == 'True':
+        noChildRetry = True
+    else:
+        noChildRetry = False
     # check security
     if not isSecure(req):
         if properErrorCode:
@@ -1888,7 +1897,7 @@ def retryTask(req,jediTaskID,properErrorCode=None,newParams=None):
             return pickle.dumps((101,'jediTaskID must be an integer'))        
         else:
             return pickle.dumps((False,'jediTaskID must be an integer'))
-    ret = userIF.retryTask(jediTaskID,user,prodRole,properErrorCode,newParams)
+    ret = userIF.retryTask(jediTaskID,user,prodRole,properErrorCode,newParams,noChildRetry)
     return pickle.dumps(ret)
 
 

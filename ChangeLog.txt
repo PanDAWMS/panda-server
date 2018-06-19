@@ -1,5 +1,8 @@
 Release Notes
 
+* 6/19/2018
+  * added noChildRetry to recoverLostFiles
+
 * 6/18/2018
   * added hasReadyEvents
 
