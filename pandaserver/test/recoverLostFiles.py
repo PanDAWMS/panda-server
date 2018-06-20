@@ -32,12 +32,18 @@ if s:
                                      {':id': jediTaskID, ':t1': 'output', ':t2': 'log'})
         rc = RucioClient()
         for datasetName, in so:
-            try:
-                scope, name = rucioAPI.extract_scope(datasetName)
-                print rc.get_did(scope, name)
-            except DataIdentifierNotFound:
-                print 'resurrect {0}'.format(datasetName)
-                rc.resurrect([{'scope': scope, 'name': name}])
+            for i in range(3):
+                try:
+                    scope, name = rucioAPI.extract_scope(datasetName)
+                    rc.get_did(scope, name)
+                    break
+                except DataIdentifierNotFound:
+                    print 'resurrect {0}'.format(datasetName)
+                    rc.resurrect([{'scope': scope, 'name': name}])
+                    try:
+                        rc.set_metadata(scope, name, 'lifetime', None)
+                    except:
+                        pass
     print Client.retryTask(jediTaskID, noChildRetry=options.noChildRetry)[-1][-1]
     print 'done for jediTaskID={0}'.format(jediTaskID)
 else:
