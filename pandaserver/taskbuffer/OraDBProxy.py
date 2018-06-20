@@ -4258,6 +4258,8 @@ class DBProxy:
                             self.updateRelatedEventServiceJobs(job,True)
                             if not job.notDiscardEvents():
                                 self.killUnusedEventRanges(job.jediTaskID,job.jobsetID)
+                            if eventService == EventServiceUtils.jumboJobFlagNumber:
+                                self.hasDoneEvents(job.jediTaskID, job.PandaID, False) 
                         elif useEventServiceMerge:
                             self.updateRelatedEventServiceJobs(job,True)
                     # disable reattempt
@@ -19147,7 +19149,7 @@ class DBProxy:
 
 
     # check if there are done events
-    def hasDoneEvents(self,jediTaskID,pandaID):
+    def hasDoneEvents(self,jediTaskID,pandaID,useCommit=True):
         comment = ' /* DBProxy.hasDoneEvents */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         tmpLog = LogWrapper(_logger,methodName+" <PandaID={0} jediTaskID={1}>".format(pandaID,jediTaskID))
@@ -19162,7 +19164,8 @@ class DBProxy:
             sqlF  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sqlF += "WHERE jediTaskID=:jediTaskID AND PandaID=:pandaID AND status IN (:esDone,:esFinished) "
             # begin transaction
-            self.conn.begin()
+            if useCommit:
+                self.conn.begin()
             # release events
             varMap = {}
             varMap[':pandaID'] = pandaID
@@ -19182,8 +19185,9 @@ class DBProxy:
             self.cur.execute(sqlF+comment, varMap)
             resF = self.cur.fetchone()
             # commit
-            if not self._commit():
-                raise RuntimeError, 'Commit error'
+            if useCommit:
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
             nFinished = 0
             if resF is not None:
                 nFinished, = resF
@@ -19195,7 +19199,8 @@ class DBProxy:
             return retVal
         except:
             # roll back
-            self._rollback()
+            if useCommit:
+                self._rollback()
             # error
             self.dumpErrorMessage(tmpLog,methodName)
             return retVal
