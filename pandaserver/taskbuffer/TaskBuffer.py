@@ -3309,6 +3309,20 @@ class TaskBuffer:
         return res
 
 
+    def getResourceTypes(self):
+        """
+        Get resource types (SCORE, MCORE, SCORE_HIMEM, MCORE_HIMEM) and their definitions
+        """
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.load_resource_types(formatting='dict')
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
     # report stat of workers
     def reportWorkerStats(self, harvesterID, siteName, paramsList):
         # get DB proxy

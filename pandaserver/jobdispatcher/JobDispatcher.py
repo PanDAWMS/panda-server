@@ -679,6 +679,26 @@ class JobDipatcher:
         _logger.debug("ackCommands : ret -> %s" % (response.encode(accept_json)))
         return response.encode(accept_json)
 
+    def getResourceTypes(self, timeout, accept_json):
+        """
+        Get resource types (SCORE, MCORE, SCORE_HIMEM, MCORE_HIMEM) and their definitions
+        """
+        tmp_wrapper = _TimedMethod(self.taskBuffer.getResourceTypes, timeout)
+        tmp_wrapper.run()
+
+        # Make response
+        if tmp_wrapper.result == Protocol.TimeOutToken:
+            # timeout
+            response = Protocol.Response(Protocol.SC_TimeOut)
+        else:
+            # success
+            response = Protocol.Response(Protocol.SC_Success)
+            response.appendNode('Returns', tmp_wrapper.result[0])
+            response.appendNode('ResourceTypes', tmp_wrapper.result[1])
+
+        _logger.debug("getResourceTypes : ret -> %s" % (response.encode(accept_json)))
+        return response.encode(accept_json)
+
     # get proxy
     def getProxy(self,realDN,role):
         tmpMsg = "getProxy DN={0} role={1} : ".format(realDN,role)
