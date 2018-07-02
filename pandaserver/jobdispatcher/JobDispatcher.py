@@ -693,8 +693,8 @@ class JobDipatcher:
         else:
             # success
             response = Protocol.Response(Protocol.SC_Success)
-            response.appendNode('Returns', tmp_wrapper.result[0])
-            response.appendNode('ResourceTypes', tmp_wrapper.result[1])
+            response.appendNode('Returns', 0)
+            response.appendNode('ResourceTypes', tmp_wrapper.result)
 
         _logger.debug("getResourceTypes : ret -> %s" % (response.encode(accept_json)))
         return response.encode(accept_json)
