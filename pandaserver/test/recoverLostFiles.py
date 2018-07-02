@@ -12,8 +12,8 @@ taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
 parser = argparse.ArgumentParser()
 parser.add_argument('--ds',action='store',dest='ds',default=None,required=True,
                     help='dataset name')
-parser.add_argument('--files',action='store',dest='files',default=None,required=True,
-                    help='comma-separated list of lost file names')
+parser.add_argument('--files',action='store',dest='files',default=None,
+                    help='comma-separated list of lost file names. The list is dedeuced if this option is omitted')
 parser.add_argument('--noChildRetry',action='store_const',const=True,dest='noChildRetry',default=False,
                     help='not retry child tasks')
 parser.add_argument('--resurrectDS',action='store_const',const=True,dest='resurrectDS',default=False,
@@ -21,9 +21,25 @@ parser.add_argument('--resurrectDS',action='store_const',const=True,dest='resurr
 
 options = parser.parse_args()
 
-files = options.files.split(',')
-
-print 
+if options.files is not None:
+    files = options.files.split(',')
+else:
+    # get files from rucio
+    rc = RucioClient()
+    scope, name = rucioAPI.extract_scope(options.ds)
+    files_rucio = set()
+    for i in rc.list_files(scope, name):
+        files_rucio.add(i['name'])
+    # get files from panda
+    dsName = options.ds.split(':')[-1]
+    fd,fo = taskBuffer.querySQLS('SELECT c.lfn FROM ATLAS_PANDA.JEDI_Datasets d,ATLAS_PANDA.JEDI_Dataset_Contents c WHERE d.jediTaskID=c.jediTaskID AND d.datasetID=c.datasetID AND d.type IN (:t1,:t2) AND c.status=:s AND d.datasetName=:name ',
+                                     {':s': 'finished', ':t1': 'output', ':t2': 'log', ':name': dsName})
+    files = []
+    for tmpLFN, in fo:
+        if tmpLFN not in files_rucio:
+            files.append(tmpLFN)
+    print
+    print 'found {0} lost files -> {1}'.format(len(files), ','.join(files))
 
 s,jediTaskID = taskBuffer.resetFileStatusInJEDI('',True,options.ds,files,[])
 if s:
