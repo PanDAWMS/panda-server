@@ -2337,7 +2337,7 @@ def getTaskParamsMap(req,jediTaskID):
 def updateWorkers(req,harvesterID,workers):
     # check security
     if not isSecure(req):
-        return json.dump((False,"SSL is required"))
+        return json.dumps((False,"SSL is required"))
     # get DN
     user = _getDN(req)        
     # hostname
@@ -2361,7 +2361,7 @@ def updateWorkers(req,harvesterID,workers):
 def addHarvesterDialogs(req, harvesterID, dialogs):
     # check security
     if not isSecure(req):
-        return json.dump((False,"SSL is required"))
+        return json.dumps((False,"SSL is required"))
     # get DN
     user = _getDN(req)        
     # convert
@@ -2377,7 +2377,7 @@ def addHarvesterDialogs(req, harvesterID, dialogs):
 def harvesterIsAlive(req,harvesterID,data=None):
     # check security
     if not isSecure(req):
-        return json.dump((False,"SSL is required"))
+        return json.dumps((False,"SSL is required"))
     # get DN
     user = _getDN(req)        
     # hostname
@@ -2408,10 +2408,10 @@ def reportWorkerStats(req, harvesterID, siteName, paramsList):
 def setNumSlotsForWP(req, pandaQueueName, numSlots, gshare=None, resourceType=None, validPeriod=None):
     # check security
     if not isSecure(req):
-        return json.dump((100, "SSL is required"))
+        return json.dumps((100, "SSL is required"))
     # check role
     if not _isProdRoleATLAS(req):
-        return json.dump((101, "production role is required"))
+        return json.dumps((101, "production role is required in the certificate"))
     # convert
     try:
         numSlots = int(numSlots)
