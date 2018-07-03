@@ -157,7 +157,7 @@ class SiteSpec(object):
     # get number of jobs for standby
     def getNumStandby(self, sw_id, resource_type):
         # only if in standby
-        if self.status not in ['standby', 'online']:
+        if self.status not in ['standby', 'online', 'paused', 'brokeroff']:
             return None
         numMap = self.num_slots_map
         # neither gshare or workqueue is definied

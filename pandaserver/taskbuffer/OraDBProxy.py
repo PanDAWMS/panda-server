@@ -21591,7 +21591,7 @@ class DBProxy:
             if validPeriod is None:
                 varMap[':expirationTime'] = None
             else:
-                varMap[':expirationTime'] = timeNow + datetime.timedelta(days=validPeriod)
+                varMap[':expirationTime'] = timeNow + datetime.timedelta(days=int(validPeriod))
             if resC is None:
                 # insert
                 self.cur.execute(sqlI, varMap)
