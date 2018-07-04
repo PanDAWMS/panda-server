@@ -20279,6 +20279,7 @@ class DBProxy:
                                     open(tmpFileName, 'w').close()
                                 except:
                                     pass
+                    """
                     varMap = dict()
                     varMap[':PandaID'] = pandaID
                     varMap[':js1'] = 'running'
@@ -20287,6 +20288,7 @@ class DBProxy:
                     nRowJA = self.cur.rowcount
                     if nRowJA > 0:
                         tmpLog.debug('workerID={0} PandaID={1} updated modificationTime'.format(workerSpec.workerID, pandaID))
+                    """
                 # commit
                 if useCommit:
                     if not self._commit():
