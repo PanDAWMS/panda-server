@@ -679,6 +679,26 @@ class JobDipatcher:
         _logger.debug("ackCommands : ret -> %s" % (response.encode(accept_json)))
         return response.encode(accept_json)
 
+    def getResourceTypes(self, timeout, accept_json):
+        """
+        Get resource types (SCORE, MCORE, SCORE_HIMEM, MCORE_HIMEM) and their definitions
+        """
+        tmp_wrapper = _TimedMethod(self.taskBuffer.getResourceTypes, timeout)
+        tmp_wrapper.run()
+
+        # Make response
+        if tmp_wrapper.result == Protocol.TimeOutToken:
+            # timeout
+            response = Protocol.Response(Protocol.SC_TimeOut)
+        else:
+            # success
+            response = Protocol.Response(Protocol.SC_Success)
+            response.appendNode('Returns', 0)
+            response.appendNode('ResourceTypes', tmp_wrapper.result)
+
+        _logger.debug("getResourceTypes : ret -> %s" % (response.encode(accept_json)))
+        return response.encode(accept_json)
+
     # get proxy
     def getProxy(self,realDN,role):
         tmpMsg = "getProxy DN={0} role={1} : ".format(realDN,role)
@@ -1216,7 +1236,6 @@ def getProxy(req,role=None):
     return jobDispatcher.getProxy(realDN,role)
 
 
-
 # check pilot permission
 def checkPilotPermission(req, site=''):
     # get DN
@@ -1237,7 +1256,6 @@ def getDNsForS3(req):
     return jobDispatcher.getDNsForS3()
         
 
-
 def getCommands(req, harvester_id, n_commands, timeout=30):
     """
     Get n commands for a particular harvester instance
@@ -1252,7 +1270,6 @@ def getCommands(req, harvester_id, n_commands, timeout=30):
     accept_json = req.acceptJson()
     # retrieve the commands
     return jobDispatcher.getCommands(harvester_id, n_commands, timeout, accept_json)
-
 
 
 def ackCommands(req, command_ids, timeout=30):
@@ -1272,3 +1289,17 @@ def ackCommands(req, command_ids, timeout=30):
     return jobDispatcher.ackCommands(command_ids, timeout, accept_json)
 
 
+def getResourceTypes(req, timeout=30):
+    """
+    Get resource types (MCORE, SCORE, etc.)
+    """
+    tmp_str = "getResourceTypes"
+
+    # check permissions
+    tmp_stat, tmp_out = checkPilotPermission(req)
+    if not tmp_stat:
+        _logger.error('{0} failed with {1}'.format(tmp_str, tmp_out))
+
+    accept_json = req.acceptJson()
+    # retrieve the commands
+    return jobDispatcher.getResourceTypes(timeout, accept_json)

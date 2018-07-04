@@ -20398,8 +20398,7 @@ class DBProxy:
             _logger.error("{0}: {1} {2}".format(comment, type, value))
             return -1
 
-
-    def load_resource_types(self):
+    def load_resource_types(self, formatting='spec'):
         """
         Load the resource type table to memory
         """
@@ -20417,7 +20416,16 @@ class DBProxy:
             resource_spec_list = []
             for row in resource_list:
                 resource_name, mincore, maxcore, minrampercore, maxrampercore = row
-                resource_spec_list.append(ResourceSpec(resource_name, mincore, maxcore, minrampercore, maxrampercore))
+                if formatting == 'dict':
+                    resource_dict = {'resource_name': resource_name,
+                                     'mincore': mincore,
+                                     'maxcore': maxcore,
+                                     'minrampercore': minrampercore,
+                                     'maxrampercore': maxrampercore
+                                     }
+                    resource_spec_list.append(resource_dict)
+                else:
+                    resource_spec_list.append(ResourceSpec(resource_name, mincore, maxcore, minrampercore, maxrampercore))
 
             tmp_log.debug('done')
             return resource_spec_list
