@@ -17529,6 +17529,28 @@ class DBProxy:
                 varMap[':nDiff'] = nDiff
                 tmpLog.debug(sqlUDO+comment+str(varMap))
                 self.cur.execute(sqlUDO+comment,varMap)
+                # get nEvents
+                sqlGNE  = 'SELECT SUM(c.nEvents),c.datasetID '
+                sqlGNE += 'FROM {0}.JEDI_Datasets d,{0}.JEDI_Dataset_Contents c '.format(panda_config.schemaJEDI)
+                sqlGNE += 'WHERE c.jediTaskID=d.jediTaskID AND c.datasetID=d.datasetID '
+                sqlGNE += 'AND d.jediTaskID=:jediTaskID AND d.type=:type AND c.status=:status '
+                sqlGNE += 'GROUP BY c.datasetID '
+                varMap = {}
+                varMap[':jediTaskID'] = jediTaskID
+                varMap[':type'] = 'output'
+                varMap[':status'] = 'finished'
+                self.cur.execute(sqlGNE+comment,varMap)
+                resGNE = self.cur.fetchall()
+                # update nEvents
+                sqlUNE  = 'UPDATE {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
+                sqlUNE += 'SET nEvents=:nEvents '
+                sqlUNE += 'WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID '
+                for tmpCount,tmpDatasetID in resGNE:
+                    varMap = {}
+                    varMap[':jediTaskID'] = jediTaskID
+                    varMap[':datasetID'] = tmpDatasetID
+                    varMap[':nEvents'] = tmpCount
+                    self.cur.execute(sqlUNE+comment,varMap)
                 # get input datasets
                 sqlID  = 'SELECT datasetID,datasetName,masterID FROM {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
                 sqlID += 'WHERE jediTaskID=:jediTaskID AND type=:type '
@@ -17602,13 +17624,16 @@ class DBProxy:
                             datasetCountMap[tmpDatasetID] += 1
                 # update dataset statistics
                 sqlUDI  = 'UPDATE {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
-                sqlUDI += 'SET nFilesUsed=nFilesUsed-:nDiff,nFilesFinished=nFilesFinished-:nDiff '
+                sqlUDI += 'SET nFilesUsed=nFilesUsed-:nDiff,nFilesFinished=nFilesFinished-:nDiff,'
+                sqlUDI += 'nEventsUsed=(SELECT SUM(nEvents) FROM {0}.JEDI_Dataset_Contents '.format(panda_config.schemaJEDI)
+                sqlUDI += 'WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status) '
                 sqlUDI += 'WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID '
                 for tmpDatasetID,nDiff in datasetCountMap.iteritems():
                     varMap = {}
                     varMap[':jediTaskID'] = jediTaskID
                     varMap[':datasetID'] = tmpDatasetID
                     varMap[':nDiff'] = nDiff
+                    varMap[':status'] = 'finished'
                     tmpLog.debug(sqlUDI+comment+str(varMap))
                     self.cur.execute(sqlUDI+comment,varMap)
                 # update task status
