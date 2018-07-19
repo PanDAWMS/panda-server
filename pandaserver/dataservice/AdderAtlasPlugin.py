@@ -621,6 +621,13 @@ class AdderAtlasPlugin (AdderPluginBase):
                                                                               lifetime=repLifeTime)
                                 out = 'OK'
                                 break
+                            except InvalidRSEExpression:
+                                status = False
+                                errType,errValue = sys.exc_info()[:2]
+                                out = "%s %s" % (errType,errValue)
+                                isFailed = True
+                                self.job.ddmErrorCode = ErrorCode.EC_Subscription
+                                break
                             except:
                                 status = False
                                 errType,errValue = sys.exc_info()[:2]
