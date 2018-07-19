@@ -134,6 +134,7 @@ class AdderAtlasPlugin (AdderPluginBase):
             self.logger.debug('goToTransferring=%s' % self.goToTransferring)
             self.logger.debug('logTransferring=%s' % self.logTransferring)
             self.logger.debug('goToMerging=%s' % self.goToMerging)
+            self.logger.debug('addToTopOnly=%s' % self.addToTopOnly)
             retOut = self._updateOutputs()
             self.logger.debug('added outputs with %s' % retOut)
             if retOut != 0:
@@ -486,7 +487,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                 if (not self.goToTransferring) or (not self.addToTopOnly and destinationDBlock in distDSs):
                     idMap[origDBlock] = idMap[destinationDBlock]
             # add files to top-level datasets only 
-            if self.addToTopOnly or self.goToMerging or destinationDBlock in distDSs:
+            if self.addToTopOnly or self.goToMerging or (destinationDBlock in distDSs and origDBlock is not None):
                 del idMap[destinationDBlock]
             # skip sub unless getting transferred
             if origDBlock != None:
