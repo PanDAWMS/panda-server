@@ -1,11 +1,13 @@
 processGroups = [('others',       []),
-                 ('evgensimul',   ['evgen','simul']),
                  ('evgen',        ['evgen']),
+                 ('simul',        ['simul']),
                  ('reprocessing', ['reprocessing']),
                  ('test',         ['prod_test','rc_test','validation']),
                  ('mcore',        ['mcore']),
                  ('group',        ['group']),                 
                  ]
+
+# ('evgensimul',   ['evgen','simul']),
 
 # source labels used for panda internal purpose
 internalSourceLabels = ['ddm']
