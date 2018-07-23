@@ -1621,6 +1621,43 @@ def retryTask(jediTaskID,verbose=False,noChildRetry=False):
 
 
 
+# reload input
+def reloadInput(jediTaskID,verbose=False):
+    """Retry task
+
+       args:
+           jediTaskID: jediTaskID of the task to retry
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           tuple of return code and diagnostic message
+                 0: request is registered
+                 1: server error
+                 2: task not found
+                 3: permission denied
+                 4: irrelevant task status
+               100: non SSL connection
+               101: irrelevant taskID 
+    """     
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+    curl.verbose = verbose    
+    # execute
+    url = baseURLSSL + '/reloadInput'
+    data = {'jediTaskID':jediTaskID}
+    status,output = curl.post(url,data)
+    try:
+        return status,pickle.loads(output)
+    except:
+        errtype,errvalue = sys.exc_info()[:2]
+        errStr = "ERROR reloadInput : %s %s" % (errtype,errvalue)
+        return EC_Failed,output+'\n'+errStr
+
+
+
 # change task walltime
 def changeTaskWalltime(jediTaskID,wallTime):
     """Change task priority

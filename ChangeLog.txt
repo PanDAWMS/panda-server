@@ -1,5 +1,8 @@
 Release Notes
 
+* 7/23/2018
+  * added reloadInput
+
 * 7/16/2018
   * fixed recoverLostFiles to update nEvents in input and output datasets
 
