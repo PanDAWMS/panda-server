@@ -360,7 +360,7 @@ class DBProxy:
         # group job SN
         groupJobSN = "%05d" % groupJobSN
         # set attempt numbers
-        if job.prodSourceLabel in ['user','panda','ptest','rc_test']:
+        if job.prodSourceLabel in ['user','panda','ptest','rc_test','rc_test2']:
             if job.attemptNr in [None,'NULL','']:
                 job.attemptNr = 0
             if job.maxAttempt in [None,'NULL','']:
@@ -2594,7 +2594,7 @@ class DBProxy:
                     useJEDI = True
                 # check pilot retry
                 usePilotRetry = False
-                if job.prodSourceLabel in ['user','panda','ptest','rc_test'] and \
+                if job.prodSourceLabel in ['user','panda','ptest','rc_test','rc_test2'] and \
                    param.has_key('pilotErrorCode') and \
                    param['pilotErrorCode'].startswith('-') and \
                    job.maxAttempt > job.attemptNr and \
@@ -2719,7 +2719,7 @@ class DBProxy:
                                 file.GUID = commands.getoutput('uuidgen')
                             # don't change input or lib.tgz, or ES merge output/log since it causes a problem with input name construction
                             if file.type in ['input','pseudo_input'] or (file.type == 'output' and job.prodSourceLabel == 'panda') or \
-                                   (file.type == 'output' and file.lfn.endswith('.lib.tgz') and job.prodSourceLabel in ['rc_test','ptest']):
+                                   (file.type == 'output' and file.lfn.endswith('.lib.tgz') and job.prodSourceLabel in ['rc_test','rc_test2','ptest']):
                                 continue
                             # append attemptNr to LFN
                             oldName = file.lfn
@@ -6127,7 +6127,7 @@ class DBProxy:
         comment = ' /* DBProxy.getPandaIDsForProdDB */'                
         _logger.debug("getPandaIDsForProdDB %s" % limit)
         sql0 = "PandaID,jobStatus,stateChangeTime,attemptNr,jobDefinitionID,jobExecutionID FROM %s "
-        sqlW = "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND lockedby=:lockedby "
+        sqlW = "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3) AND lockedby=:lockedby "
         sqlX = "AND stateChangeTime>prodDBUpdateTime "
         sqlA = "AND (CASE WHEN stateChangeTime>prodDBUpdateTime THEN 1 ELSE null END) = 1 "
         sql1 = "AND rownum<=:limit "
@@ -6136,6 +6136,7 @@ class DBProxy:
         varMap[':limit'] = limit
         varMap[':prodSourceLabel1'] = 'managed'
         varMap[':prodSourceLabel2'] = 'rc_test'                
+        varMap[':prodSourceLabel3'] = 'rc_test2'
         try:
             retMap   = {}
             totalIDs = 0
@@ -8825,7 +8826,7 @@ class DBProxy:
             sql0  = "SELECT tab.jobStatus,COUNT(*),tabS.cloud FROM %s tab,ATLAS_PANDAMETA.schedconfig tabS "
             sql0 += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND tab.computingSite=tabS.siteid GROUP BY tab.jobStatus,tabS.cloud"
             sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*),tabS.cloud FROM %s tab,ATLAS_PANDAMETA.schedconfig tabS "
-            sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND tab.computingSite=tabS.siteid "
+            sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3) AND tab.computingSite=tabS.siteid "
         sqlA+= "AND modificationTime>:modificationTime GROUP BY tab.jobStatus,tabS.cloud"
         # sql for materialized view
         sqlMV = re.sub('COUNT\(\*\)','SUM(num_of_jobs)',sql0)
@@ -8840,9 +8841,11 @@ class DBProxy:
                 if sourcetype == 'analysis':
                     varMap[':prodSourceLabel1'] = 'user'
                     varMap[':prodSourceLabel2'] = 'panda'
+                    varMap[':prodSourceLabel3'] = 'dummy'
                 else:
                     varMap[':prodSourceLabel1'] = 'managed'
                     varMap[':prodSourceLabel2'] = 'rc_test'                    
+                    varMap[':prodSourceLabel3'] = 'rc_test2'
                 if table != 'ATLAS_PANDA.jobsArchived4':
                     self.cur.arraysize = 10000
                     if table == 'ATLAS_PANDA.jobsActive4':
@@ -8897,7 +8900,7 @@ class DBProxy:
             sqlN += "GROUP BY jobStatus,cloud,processingType,coreCount,workingGroup"
             sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ "
             sqlA += "jobStatus,COUNT(*),cloud,processingType,coreCount,workingGroup FROM %s tab "
-            sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND modificationTime>:modificationTime "
+            sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3) AND modificationTime>:modificationTime "
             sqlA += "GROUP BY jobStatus,cloud,processingType,coreCount,workingGroup"
         # sql for materialized view
         sqlMV = re.sub('COUNT\(\*\)','SUM(num_of_jobs)',sqlN)
@@ -8913,6 +8916,7 @@ class DBProxy:
                 varMap = {}
                 varMap[':prodSourceLabel1'] = 'managed'
                 varMap[':prodSourceLabel2'] = 'rc_test'
+                varMap[':prodSourceLabel3'] = 'rc_test2'
                 if table == 'ATLAS_PANDA.jobsArchived4':
                     varMap[':modificationTime'] = timeLimit
                     self.cur.execute((sqlA+comment) % table, varMap)

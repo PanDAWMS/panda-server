@@ -1,5 +1,8 @@
 Release Notes
 
+* 7/24/2018
+  * added rc_test2
+
 * 7/23/2018
   * added reloadInput
 

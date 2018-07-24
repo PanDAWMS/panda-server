@@ -350,7 +350,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                             zipFiles[file.lfn]['scope'] = file.scope
                             zipFiles[file.lfn]['rse'] = dsDestMap[fileDestinationDBlock]
                     # for subscription
-                    if self.job.prodSourceLabel in ['managed','test','software','rc_test','ptest','user','rucio_test'] and \
+                    if self.job.prodSourceLabel in ['managed','test','software','rc_test','rc_test2','ptest','user','rucio_test'] and \
                            re.search('_sub\d+$',fileDestinationDBlock) != None and (not self.addToTopOnly) and \
                            self.job.destinationSE != 'local':
                         if self.siteMapper == None:

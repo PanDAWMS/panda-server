@@ -139,7 +139,7 @@ class TaskBuffer:
                     _logger.debug("storeJobs : end for %s DN is blocked 1" % user)
                     return []
             # set parameters for user jobs
-            if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda','ptest','rc_test','ssc']) \
+            if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda','ptest','rc_test','rc_test2']) \
                    and (not jobs[0].processingType in ['merge','unmerge']):
                 # get DB proxy
                 proxy = self.proxyPool.getProxy()
@@ -303,7 +303,7 @@ class TaskBuffer:
                         and (not jobs[0].processingType in ['merge','unmerge']):
                     job.jobDefinitionID = userJobID
                 # set jobsetID
-                if job.prodSourceLabel in ['user','panda','ptest','rc_test']:
+                if job.prodSourceLabel in ['user','panda','ptest','rc_test','rc_test2']:
                     job.jobsetID = userJobsetID
                 # set specialHandling
                 if job.prodSourceLabel in ['user','panda']:
@@ -409,7 +409,7 @@ class TaskBuffer:
                     # mapping of jobsetID for event service
                     if origEsJob:
                         esJobsetMap[esIndex] = job.jobsetID
-                if job.prodSourceLabel in ['user','panda','ptest','rc_test']:                
+                if job.prodSourceLabel in ['user','panda','ptest','rc_test','rc_test']:                
                     ret.append((job.PandaID,job.jobDefinitionID,{'jobsetID':job.jobsetID}))
                 else:
                     ret.append((job.PandaID,job.jobDefinitionID,job.jobName))                
