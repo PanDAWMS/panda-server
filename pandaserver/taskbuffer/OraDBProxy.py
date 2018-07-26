@@ -8819,12 +8819,12 @@ class DBProxy:
         _logger.debug("getJobStatisticsForExtIF()")
         timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
         if sourcetype == 'analysis':
-            sql0 = "SELECT jobStatus,COUNT(*),cloud FROM %s WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) GROUP BY jobStatus,cloud"
+            sql0 = "SELECT jobStatus,COUNT(*),cloud FROM %s WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3) GROUP BY jobStatus,cloud"
             sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*),tabS.cloud FROM %s tab,ATLAS_PANDAMETA.schedconfig tabS "
-            sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND tab.computingSite=tabS.siteid "
+            sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3) AND tab.computingSite=tabS.siteid "
         else:
             sql0  = "SELECT tab.jobStatus,COUNT(*),tabS.cloud FROM %s tab,ATLAS_PANDAMETA.schedconfig tabS "
-            sql0 += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND tab.computingSite=tabS.siteid GROUP BY tab.jobStatus,tabS.cloud"
+            sql0 += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3) AND tab.computingSite=tabS.siteid GROUP BY tab.jobStatus,tabS.cloud"
             sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*),tabS.cloud FROM %s tab,ATLAS_PANDAMETA.schedconfig tabS "
             sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3) AND tab.computingSite=tabS.siteid "
         sqlA+= "AND modificationTime>:modificationTime GROUP BY tab.jobStatus,tabS.cloud"
@@ -8887,16 +8887,16 @@ class DBProxy:
         if useMorePG == False:
             sqlN  = "SELECT jobStatus,COUNT(*),tabS.cloud,processingType "
             sqlN += "FROM %s tab, ATLAS_PANDAMETA.schedconfig tabS "
-            sqlN += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND computingSite=tabS.siteid "
+            sqlN += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3) AND computingSite=tabS.siteid "
             sqlN += "GROUP BY jobStatus,tabS.cloud,processingType "
             sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*),tabS.cloud,processingType "
             sqlA += "FROM %s tab,ATLAS_PANDAMETA.schedconfig tabS "
-            sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND modificationTime>:modificationTime "
+            sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3) AND modificationTime>:modificationTime "
             sqlA += "AND computingSite=tabS.siteid "
             sqlA += "GROUP BY jobStatus,tabS.cloud,processingType"
         else:
             sqlN  = "SELECT jobStatus,COUNT(*),cloud,processingType,coreCount,workingGroup FROM %s "
-            sqlN += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
+            sqlN += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3) "
             sqlN += "GROUP BY jobStatus,cloud,processingType,coreCount,workingGroup"
             sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ "
             sqlA += "jobStatus,COUNT(*),cloud,processingType,coreCount,workingGroup FROM %s tab "
