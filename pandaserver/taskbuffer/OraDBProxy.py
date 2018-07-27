@@ -13127,7 +13127,10 @@ class DBProxy:
                         newAttemptNr,maxAttempt,failedAttempt,maxFailure = resAttNr
                         if maxAttempt != None:
                             if maxAttempt > newAttemptNr and (maxFailure == None or maxFailure > failedAttempt):
-                                if fileSpec.status != 'merging': 
+                                if oldFileStatus == 'ready':
+                                    # don't change nFilesUsed when fake co-jumbo is done
+                                    pass
+                                elif fileSpec.status != 'merging': 
                                     # decrement nUsed to trigger reattempt
                                     datasetContentsStat[datasetID]['nFilesUsed'] -= 1
                                 else:
