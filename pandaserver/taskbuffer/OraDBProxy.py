@@ -14688,12 +14688,12 @@ class DBProxy:
             sqlGD += "WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) "
             # sql to update files in the jobset
             sqlJS  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
-            sqlJS += "SET status=:newStatus "
+            sqlJS += "SET status=:newStatus,is_waiting=NULL "
             sqlJS += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
             sqlJS += "AND status=:oldStatus AND keepTrack=:keepTrack AND PandaID IN ("
             # sql to update dataset
             sqlUD  = "UPDATE {0}.JEDI_Datasets ".format(panda_config.schemaJEDI)
-            sqlUD += "SET nFilesUsed=nFilesUsed+:nDiff "
+            sqlUD += "SET nFilesUsed=nFilesUsed+:nDiff,nFilesWaiting=nFilesWaiting-:nDiff "
             sqlUD += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
             # sql to get file info
             sqlF  = "SELECT lfn,GUID,scope FROM {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
