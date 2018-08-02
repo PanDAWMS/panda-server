@@ -15353,13 +15353,15 @@ class DBProxy:
             _logger.info("{0} : set done to n_er_done={1} event ranges".format(methodName,nRowDone))
             # release unprocessed event ranges
             sqlEC  = "UPDATE {0}.JEDI_Events SET status=:newStatus,attemptNr=attemptNr-1,pandaID=:jobsetID ".format(panda_config.schemaJEDI)
-            sqlEC += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND NOT status IN (:esDone,:esFailed) "
+            sqlEC += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND NOT status IN (:esDone,:esFailed,:esDiscarded,:esCancelled) "
             varMap = {}
             varMap[':jediTaskID']  = jobSpec.jediTaskID
             varMap[':pandaID']     = pandaID
             varMap[':jobsetID']    = jobSpec.jobsetID
             varMap[':esDone']      = EventServiceUtils.ST_done
             varMap[':esFailed']    = EventServiceUtils.ST_failed
+            varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
+            varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
             varMap[':newStatus']   = EventServiceUtils.ST_ready
             self.cur.execute(sqlEC+comment, varMap)
             nRowReleased = self.cur.rowcount
