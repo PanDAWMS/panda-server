@@ -16851,7 +16851,7 @@ class DBProxy:
 
 
     # change split rule for task
-    def changeTaskSplitRulePanda(self,jediTaskID,attrName,attrValue):
+    def changeTaskSplitRulePanda(self,jediTaskID,attrName,attrValue,useCommit=True):
         comment = ' /* DBProxy.changeTaskSplitRulePanda */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <jediTaskID={0}>".format(jediTaskID)
@@ -16865,7 +16865,8 @@ class DBProxy:
             sqlT  = 'UPDATE {0}.JEDI_Tasks SET '.format(panda_config.schemaJEDI)
             sqlT += 'splitRule=:splitRule WHERE jediTaskID=:jediTaskID '
             # start transaction
-            self.conn.begin()
+            if useCommit:
+                self.conn.begin()
             # select
             self.cur.arraysize = 10
             varMap = {}
@@ -16896,14 +16897,16 @@ class DBProxy:
                 self.cur.execute(sqlT+comment, varMap)
                 retVal = 1
             # commit
-            if not self._commit():
-                raise RuntimeError, 'Commit error'
+            if useCommit:
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
             tmpLog.debug("done with {0}".format(retVal))
             tmpLog.sendMsg('set {0}={1} to splitRule'.format(attrName,attrValue),'jedi','pandasrv')
             return retVal
         except:
             # roll back
-            self._rollback()
+            if useCommit:
+                self._rollback()
             # error
             self.dumpErrorMessage(_logger,methodName)
             return None
@@ -21649,6 +21652,39 @@ class DBProxy:
             tmp_log.debug("set nSlots={0}".format(numSlots))
             return (0, 'set numSlots={0} for PQ={1} gshare={2} resource={3}'.format(numSlots, pandaQueueName,
                                                                                     gshare, resourceType))
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, method_name)
+            return (1, 'database error in the panda server')
+
+
+
+    # enable jumbo jobs
+    def enableJumboJobs(self, jediTaskID, nJumboJobs):
+        comment = ' /* DBProxy.enableJumboJobs */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        method_name += ' < jediTaskID={0} >'.format(jediTaskID)
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+        try:
+            # sql to set flag
+            sqlJumboF = "UPDATE {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+            sqlJumboF += "SET useJumbo=:newJumbo WHERE jediTaskID=:jediTaskID AND useJumbo IS NULL "
+            # start transaction
+            self.conn.begin()
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            varMap[':newJumbo'] = 'W'
+            self.cur.execute(sqlJumboF, varMap)
+            self.changeTaskSplitRulePanda(jediTaskID, 'NJ', nJumboJobs, useCommit=False)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # return
+            tmp_log.debug("set nJumboJobs={0}".format(nJumboJobs))
+            return (0, 'done')
         except:
             # roll back
             self._rollback()

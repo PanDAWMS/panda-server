@@ -1031,6 +1031,12 @@ class UserIF:
         # serialize 
         return json.dumps(retVal)
 
+    # enable jumbo jobs
+    def enableJumboJobs(self, jediTaskID, nJumboJobs):
+        retVal = self.taskBuffer.enableJumboJobs(jediTaskID, nJumboJobs)
+        # serialize 
+        return json.dumps(retVal)
+
 
 # Singleton
 userIF = UserIF()
@@ -2454,3 +2460,20 @@ def setNumSlotsForWP(req, pandaQueueName, numSlots, gshare=None, resourceType=No
         return json.dumps((102, "numSlots must be int"))
     # execute
     return userIF.setNumSlotsForWP(pandaQueueName, numSlots, gshare, resourceType, validPeriod)
+
+
+# enable jumbo jobs
+def enableJumboJobs(req, jediTaskID, nJumboJobs):
+    # check security
+    if not isSecure(req):
+        return json.dumps((100, "SSL is required"))
+    # check role
+    if not _isProdRoleATLAS(req):
+        return json.dumps((101, "production role is required in the certificate"))
+    # convert
+    try:
+        nJumboJobs = int(nJumboJobs)
+    except:
+        return json.dumps((102, "nJumboJobs must be int"))
+    # execute
+    return userIF.enableJumboJobs(jediTaskID, nJumboJobs)

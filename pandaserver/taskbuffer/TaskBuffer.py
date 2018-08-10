@@ -3651,6 +3651,18 @@ class TaskBuffer:
         return ret
 
 
+    # enable jumbo jobs
+    def enableJumboJobs(self, jediTaskID, nJumboJobs):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.enableJumboJobs(jediTaskID, nJumboJobs)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 

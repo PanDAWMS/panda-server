@@ -2251,9 +2251,9 @@ def getTaskParamsMap(jediTaskID):
         return EC_Failed,output+'\n'+errStr
 
 
-# et num slots for workload provisioning
+# set num slots for workload provisioning
 def setNumSlotsForWP(pandaQueueName, numSlots, gshare=None, resourceType=None, validPeriod=None):
-    """Kill a task
+    """Set num slots for workload provisioning
 
        args:
            pandaQueueName: Panda Queue name
@@ -2292,4 +2292,40 @@ def setNumSlotsForWP(pandaQueueName, numSlots, gshare=None, resourceType=None, v
     except:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR setNumSlotsForWP : %s %s" % (errtype,errvalue)
+        return EC_Failed, output+'\n'+errStr
+
+
+
+# enable jumbo jobs
+def enableJumboJobs(jediTaskID, nJumboJobs=1):
+    """Enable jumbo jobs
+
+       args:
+           jediTaskID: jediTaskID of the task
+           nJumboJobs: the number of jumbo jobs produced for the task
+       returns:
+           status code
+                 0: communication succeeded to the panda server 
+                 255: communication failure
+           tuple of return code and diagnostic message
+                 0: succeeded
+                 1: server error
+               100: non SSL connection
+               101: missing production role
+               102: type error for some parameters
+    """     
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+    # execute
+    url = baseURLSSL + '/enableJumboJobs'
+    data = {'jediTaskID': jediTaskID,
+            'nJumboJobs': nJumboJobs}
+    status,output = curl.post(url, data)
+    try:
+        return status, json.loads(output)
+    except:
+        errtype,errvalue = sys.exc_info()[:2]
+        errStr = "ERROR /enableJumboJobs : %s %s" % (errtype,errvalue)
         return EC_Failed, output+'\n'+errStr
