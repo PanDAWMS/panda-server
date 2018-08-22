@@ -18560,14 +18560,14 @@ class DBProxy:
                 sqlUE += ',jobSubStatus=:jobSubStatus '
             else:
                 updateSubStatus = False
-            sqlUE += "WHERE PandaID=:PandaID AND jobsetID=:jobsetID AND jobStatus in (:oldStatus1,:oldStatus2) AND modificationTime>(CURRENT_DATE-90) "
+            sqlUE += "WHERE PandaID=:PandaID AND jobStatus in (:oldStatus1,:oldStatus2,:oldStatus3) AND modificationTime>(CURRENT_DATE-90) "
             for tmpPandaID in esPandaIDs:
                 varMap = {}
                 varMap[':PandaID']   = tmpPandaID
-                varMap[':jobsetID']  = job.jobsetID
                 varMap[':newStatus'] = job.jobStatus
                 varMap[':oldStatus1'] = 'closed'
                 varMap[':oldStatus2'] = 'merging'
+                varMap[':oldStatus3'] = 'failed'
                 if updateSubStatus is True:
                     if EventServiceUtils.isEventServiceMerge(job):
                         varMap[':jobSubStatus'] = 'es_merge_{0}'.format(job.jobStatus)
