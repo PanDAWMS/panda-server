@@ -13107,6 +13107,7 @@ class DBProxy:
                             except:
                                 pass
                 # update file counts
+                isDone = False
                 if fileSpec.status == 'merging' and \
                         (finishPending or not jobSpec.prodSourceLabel in ['user','panda']):
                     # files to be merged for pending failed jobs
@@ -13139,6 +13140,7 @@ class DBProxy:
                             else:
                                 # no more reattempt
                                 datasetContentsStat[datasetID]['nFilesFailed'] += 1
+                                isDone = True
                                 # merge job failed
                                 if jobSpec.processingType == 'pmerge':
                                     # update unmerged file
@@ -13156,6 +13158,7 @@ class DBProxy:
                 elif fileStatus in ['finished','lost']:
                     # successfully used or produced, or lost
                     datasetContentsStat[datasetID]['nFilesFinished'] += 1
+                    isDone = True
                 else:
                     # failed to produce the file
                     datasetContentsStat[datasetID]['nFilesFailed'] += 1
@@ -13166,6 +13169,8 @@ class DBProxy:
                 # reset is_waiting
                 if oldIsWaiting is not None:
                     datasetContentsStat[datasetID]['nFilesWaiting'] -= 1
+                    if isDone:
+                        datasetContentsStat[datasetID]['nFilesUsed'] += 1
                 # killed during merging
                 if jobSpec.isCancelled() and oldJobStatus == 'merging' and fileSpec.isUnMergedOutput():
                     # get corresponding sub
