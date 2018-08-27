@@ -17161,7 +17161,7 @@ class DBProxy:
             if jobSpec.lockedby != 'jedi':
                 return True
             # sql to check file status
-            sqlFileStat  = "SELECT status,attemptNr,keepTrack FROM ATLAS_PANDA.JEDI_Dataset_Contents "
+            sqlFileStat  = "SELECT status,attemptNr,keepTrack,is_waiting FROM ATLAS_PANDA.JEDI_Dataset_Contents "
             sqlFileStat += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
             # begin transaction
             self.conn.begin()
@@ -17187,7 +17187,7 @@ class DBProxy:
                     allOK = False
                     break
                 else:
-                    fileStatus,attemptNr,keepTrack = resFileStat
+                    fileStatus,attemptNr,keepTrack,is_waiting = resFileStat
                     if attemptNr == None:
                         continue
                     if keepTrack != 1:
@@ -17200,7 +17200,7 @@ class DBProxy:
                                                                                                                                               attemptNr))
                         allOK = False
                         break
-                    if not fileStatus in ['running'] and jobSpec.computingSite != EventServiceUtils.siteIdForWaitingCoJumboJobs:
+                    if not fileStatus in ['running'] and jobSpec.computingSite != EventServiceUtils.siteIdForWaitingCoJumboJobs and is_waiting is None:
                         tmpLog.debug("jediTaskID={0} datasetID={1} fileID={2} attemptNr={3} is in wrong status ({4}) in JEDI".format(fileSpec.jediTaskID,
                                                                                                                                      fileSpec.datasetID,
                                                                                                                                      fileSpec.fileID,
