@@ -19019,6 +19019,7 @@ class DBProxy:
             sqlEOC += "distinct PandaID,status FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
             sqlEOC += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
             sqlEOC += "AND NOT status IN (:esDone,:esDiscarded,:esCancelled,:esFatal,:esFailed,:esFinished) "
+            sqlEOC += "AND NOT (status=:esReady AND attemptNr=0) "
             # check if job is still alive
             sqlJAL  = "SELECT jobStatus FROM {0}.jobsActive4 ".format(panda_config.schemaPANDA)
             sqlJAL += "WHERE PandaID=:PandaID "
@@ -19058,6 +19059,7 @@ class DBProxy:
                     varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
                     varMap[':esFatal']     = EventServiceUtils.ST_fatal
                     varMap[':esFailed']    = EventServiceUtils.ST_failed
+                    varMap[':esReady']     = EventServiceUtils.ST_ready
                     self.cur.execute(sqlEOC+comment, varMap)
                     resEOC = self.cur.fetchall()
                     for pandaID,esStatus in resEOC:
