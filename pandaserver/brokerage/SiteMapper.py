@@ -144,7 +144,7 @@ class SiteMapper:
             try:
                 for siteName in self.siteSpecList.keys():
                     siteSpec = self.siteSpecList[siteName]
-                    if siteSpec.hasValueInCatchall('unifiedPandaQueue') or siteSpec.capability == 'UCORE':
+                    if siteSpec.hasValueInCatchall('unifiedPandaQueue') or siteSpec.capability == 'ucore':
                         for resourceSpec in resourceTypes:
                             # make site spec for child
                             childSiteSpec = copy.copy(siteSpec)
