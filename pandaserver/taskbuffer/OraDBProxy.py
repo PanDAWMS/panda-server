@@ -21021,7 +21021,6 @@ class DBProxy:
             self.dumpErrorMessage(tmpLog,methodName)
             return None
 
-
     def ups_get_queues(self):
         """
         Identify unified pilot streaming (ups) queues: served in pull (late binding) model
@@ -21047,7 +21046,6 @@ class DBProxy:
 
         tmpLog.debug('done')
         return ups_queues
-
 
     def ups_load_worker_stats(self):
         """
@@ -21079,51 +21077,6 @@ class DBProxy:
 
         tmpLog.debug('done')
         return worker_stats_dict
-
-
-    def ups_load_activated_job_stats(self, ups_queues):
-        """
-        TODO: I'm not using the function finally, probably should be deleted
-        Load the job stats per queue
-        :ups_queues list with names of the queues served by pilot streaming model
-        :return: dictionary with statistics on activated jobs
-        """
-        comment = ' /* DBProxy.ups_load_activated_job_stats */'
-        method_name = comment.split(' ')[-2].split('.')[-1]
-        tmpLog = LogWrapper(_logger, method_name)
-        tmpLog.debug('start')
-
-        if not ups_queues:
-            tmpLog.debug('done - ups_queues was empty')
-            return {}
-
-        # bind the ups queues for the query
-        var_map = {':activated': 'activated'}
-        counter = 0
-        for ups_queue in ups_queues:
-            var_map[':ups{0}'.format(counter)] = ups_queue
-            counter += 1
-        ups_queue_bindings = ','.join(':ups{0}'.format(i) for i in xrange(len(ups_queues)))
-
-        # get currently queued job distribution per queue
-        sql = """
-              SELECT computingsite, gshare, resource_type, njobs, hs
-              FROM atlas_panda.jobs_share_stats
-              WHERE computingsite IN ({0})
-              AND jobstatus=:activated
-              """.format(ups_queue_bindings)
-
-        # TODO: query should probably consider an expiration date for the data!!!
-        self.cur.execute(sql + comment, var_map)
-        job_stats_rows = self.cur.fetchall()
-        job_stats_dict = {}
-        for computing_site, gshare, resource_type, njobs, hs06 in job_stats_rows:
-            job_stats_dict.setdefault(computing_site, {})
-            job_stats_dict[computing_site].setdefault(gshare, {})
-            job_stats_dict[computing_site][gshare][resource_type] = {'njobs': njobs, 'hs06': hs06}
-
-        tmpLog.debug('done')
-        return job_stats_dict
 
     def ups_new_worker_distribution(self, queue, worker_stats):
         """
@@ -21218,7 +21171,17 @@ class DBProxy:
             elif workers_queued[resource_type] < 0:
                 # we don't have enough workers for this resource type
                 new_workers[resource_type] = - workers_queued[resource_type]
-        
+                
+                
+        # We should still submit a SCORE worker, even if there are no activated jobs to avoid queue deactivation
+        workers = False
+        for resource_type in new_workers:
+            if new_workers[resource_type] > 0:
+                workers = True
+                break
+        if not workers:
+            new_workers['SCORE'] = 1
+
         # In case multiple harvester instances are serving a panda queue, split workers evenly between them
         new_workers_per_harvester = {}
         for harvester_id in harvester_ids:
