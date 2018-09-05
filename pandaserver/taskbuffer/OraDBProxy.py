@@ -21129,6 +21129,8 @@ class DBProxy:
         # Temporary workaround. CERN needs more pressure to start running
         if queue == 'CERN-PROD_UCORE':
             n_workers_running = max(n_workers_running, 1000)
+        else:
+            n_workers_running = max(n_workers_running, 75)
 
         n_workers_to_submit = max(n_workers_running - n_workers_queued, 5)
         tmpLog.debug('nrunning {0}, nqueued {1} and needs {2} more workers'
