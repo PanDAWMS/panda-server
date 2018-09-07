@@ -14630,12 +14630,12 @@ class DBProxy:
                          
 
     # get a list of even ranges for a PandaID
-    def getEventRanges(self,pandaID,jobsetID,jediTaskID,nRanges,acceptJson):
+    def getEventRanges(self,pandaID,jobsetID,jediTaskID,nRanges,acceptJson,scattered):
         comment = ' /* DBProxy.getEventRanges */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <PandaID={0} jobsetID={1} jediTaskID={2}>".format(pandaID,jobsetID,jediTaskID)
         tmpLog = LogWrapper(_logger,methodName)
-        tmpLog.debug("start nRanges={0}".format(nRanges))
+        tmpLog.debug("start nRanges={0} scattered={1}".format(nRanges, scattered))
         try:
             # convert to int
             try:
@@ -14689,7 +14689,10 @@ class DBProxy:
             sqlJM += 'SELECT jediTaskID,datasetID,fileID,attemptNr,job_processID,def_min_eventID,def_max_eventID,pandaID '
             sqlJM += "FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
             sqlJM += "WHERE jediTaskID=:jediTaskID AND status=:eventStatus AND attemptNr>:minAttemptNr "
-            sqlJM += "ORDER BY fileID,def_min_eventID "
+            if scattered:
+                sqlJM += "ORDER BY def_min_eventID,fileID "
+            else:
+                sqlJM += "ORDER BY fileID,def_min_eventID "
             sqlJM += ") WHERE rownum<={0} ".format(nRanges+1)
             # sql to get datasets
             sqlGD  = "SELECT datasetID FROM {0}.JEDI_Datasets ".format(panda_config.schemaJEDI)

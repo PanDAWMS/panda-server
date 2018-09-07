@@ -1,5 +1,8 @@
 Release Notes
 
+* 9/7/2018
+  * added scattered in getEventRanges
+
 * 7/24/2018
   * added rc_test2
 

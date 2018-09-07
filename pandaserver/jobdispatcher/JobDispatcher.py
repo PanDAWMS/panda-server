@@ -458,10 +458,10 @@ class JobDipatcher:
 
 
     # get a list of event ranges for a PandaID
-    def getEventRanges(self,pandaID,jobsetID,jediTaskID,nRanges,timeout,acceptJson):
+    def getEventRanges(self,pandaID,jobsetID,jediTaskID,nRanges,timeout,acceptJson,scattered):
         # peek jobs
         tmpWrapper = _TimedMethod(self.taskBuffer.getEventRanges,timeout)
-        tmpWrapper.run(pandaID,jobsetID,jediTaskID,nRanges,acceptJson)
+        tmpWrapper.run(pandaID,jobsetID,jediTaskID,nRanges,acceptJson,scattered)
         # make response
         if tmpWrapper.result == Protocol.TimeOutToken:
             # timeout
@@ -1129,7 +1129,7 @@ def checkJobStatus(req,ids,timeout=60):
 
 
 # get a list of even ranges for a PandaID
-def getEventRanges(req,pandaID,jobsetID,taskID=None,nRanges=10,timeout=60):
+def getEventRanges(req,pandaID,jobsetID,taskID=None,nRanges=10,timeout=60,scattered=None):
     tmpStr = "getEventRanges(PandaID=%s jobsetID=%s taskID=%s,nRanges=%s)" % (pandaID,jobsetID,taskID,nRanges)
     _logger.debug(tmpStr+' start')
     # get site
@@ -1142,7 +1142,11 @@ def getEventRanges(req,pandaID,jobsetID,taskID=None,nRanges=10,timeout=60):
     if not tmpStat:
         _logger.error(tmpStr+'failed with '+tmpOut)
         return tmpOut
-    return jobDispatcher.getEventRanges(pandaID,jobsetID,taskID,nRanges,int(timeout),req.acceptJson())
+    if scattered == 'True':
+        scattered = True
+    else:
+        scattered = False
+    return jobDispatcher.getEventRanges(pandaID,jobsetID,taskID,nRanges,int(timeout),req.acceptJson(),scattered)
 
 
 
