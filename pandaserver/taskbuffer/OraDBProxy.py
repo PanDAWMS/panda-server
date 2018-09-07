@@ -16856,7 +16856,7 @@ class DBProxy:
 
 
     # change split rule for task
-    def changeTaskSplitRulePanda(self,jediTaskID,attrName,attrValue,useCommit=True):
+    def changeTaskSplitRulePanda(self,jediTaskID,attrName,attrValue,useCommit=True,sendLog=True):
         comment = ' /* DBProxy.changeTaskSplitRulePanda */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <jediTaskID={0}>".format(jediTaskID)
@@ -16906,7 +16906,8 @@ class DBProxy:
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
             tmpLog.debug("done with {0}".format(retVal))
-            tmpLog.sendMsg('set {0}={1} to splitRule'.format(attrName,attrValue),'jedi','pandasrv')
+            if sendLog:
+                tmpLog.sendMsg('set {0}={1} to splitRule'.format(attrName,attrValue),'jedi','pandasrv')
             return retVal
         except:
             # roll back
@@ -21634,7 +21635,7 @@ class DBProxy:
 
 
     # enable jumbo jobs
-    def enableJumboJobs(self, jediTaskID, nJumboJobs):
+    def enableJumboJobs(self, jediTaskID, nJumboJobs, useCommit=True, sendLog=True):
         comment = ' /* DBProxy.enableJumboJobs */'
         method_name = comment.split(' ')[-2].split('.')[-1]
         method_name += ' < jediTaskID={0} >'.format(jediTaskID)
@@ -21645,21 +21646,24 @@ class DBProxy:
             sqlJumboF = "UPDATE {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
             sqlJumboF += "SET useJumbo=:newJumbo WHERE jediTaskID=:jediTaskID AND useJumbo IS NULL "
             # start transaction
-            self.conn.begin()
+            if useCommit:
+                self.conn.begin()
             varMap = {}
             varMap[':jediTaskID'] = jediTaskID
             varMap[':newJumbo'] = 'W'
             self.cur.execute(sqlJumboF, varMap)
-            self.changeTaskSplitRulePanda(jediTaskID, 'NJ', nJumboJobs, useCommit=False)
+            self.changeTaskSplitRulePanda(jediTaskID, 'NJ', nJumboJobs, useCommit=False, sendLog=sendLog)
             # commit
-            if not self._commit():
-                raise RuntimeError, 'Commit error'
+            if useCommit:
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
             # return
             tmp_log.debug("set nJumboJobs={0}".format(nJumboJobs))
             return (0, 'done')
         except:
             # roll back
-            self._rollback()
+            if useCommit:
+                self._rollback()
             # error
             self.dumpErrorMessage(_logger, method_name)
             return (1, 'database error in the panda server')
