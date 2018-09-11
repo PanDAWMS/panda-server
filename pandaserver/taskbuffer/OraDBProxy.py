@@ -21160,7 +21160,7 @@ class DBProxy:
             for gshare, resource_type in activated_jobs:
                 workers_queued.setdefault(resource_type, 0)
                 workers_queued[resource_type] = workers_queued[resource_type] - 1
-                if workers_queue[resource_type] <= 0:
+                if workers_queued[resource_type] <= 0:
                     # we've gone over the jobs that already have a queued worker, now we go for new workers
                     n_workers_to_submit = n_workers_to_submit - 1
 
