@@ -21172,6 +21172,8 @@ class DBProxy:
                 tmpLog.debug('Reached workers needed (outer)')
                 break
 
+        tmpLog.debug('workers_queued: {0}'.format(workers_queued))
+
         new_workers = {}
         for resource_type in workers_queued:
             if workers_queued[resource_type] >= 0:
