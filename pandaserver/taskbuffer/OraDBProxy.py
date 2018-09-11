@@ -21136,7 +21136,7 @@ class DBProxy:
         else:
             n_workers_running = max(n_workers_running, 75)
 
-        n_workers_to_submit = max(n_workers_running + n_workers_queued, 5)
+        n_workers_to_submit = max(n_workers_running - n_workers_queued, 5)
         tmpLog.debug('nrunning {0}, nqueued {1}. We need to process {2} workers'
                      .format(n_workers_running, n_workers_queued, n_workers_to_submit))
 
@@ -21160,7 +21160,9 @@ class DBProxy:
             for gshare, resource_type in activated_jobs:
                 workers_queued.setdefault(resource_type, 0)
                 workers_queued[resource_type] = workers_queued[resource_type] - 1
-                n_workers_to_submit = n_workers_to_submit - 1
+                if workers_queue[resource_type] <= 0:
+                    # we've gone over the jobs that already have a queued worker, now we go for new workers
+                    n_workers_to_submit = n_workers_to_submit - 1
 
                 # We reached the number of workers needed
                 if n_workers_to_submit <= 0:
