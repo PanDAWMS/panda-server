@@ -21156,6 +21156,7 @@ class DBProxy:
                   """
             self.cur.execute(sql + comment, var_map)
             activated_jobs = self.cur.fetchall()
+            tmpLog.debug('Processing share: {0}. Got {1} activated jobs'.format(share.name, len(activated_jobs)))
             for gshare, resource_type in activated_jobs:
                 workers_queued.setdefault(resource_type, 0)
                 workers_queued[resource_type] = workers_queued[resource_type] - 1
@@ -21163,10 +21164,12 @@ class DBProxy:
 
                 # We reached the number of workers needed
                 if n_workers_to_submit <= 0:
+                    tmpLog.debug('Reached workers needed (inner)')
                     break
 
             # We reached the number of workers needed
             if n_workers_to_submit <= 0:
+                tmpLog.debug('Reached workers needed (outer)')
                 break
 
         new_workers = {}
