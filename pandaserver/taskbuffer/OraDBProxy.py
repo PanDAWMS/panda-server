@@ -21183,7 +21183,7 @@ class DBProxy:
                 new_workers[resource_type] = 0
             elif workers_queued[resource_type] < 0:
                 # we don't have enough workers for this resource type
-                new_workers[resource_type] = - workers_queued[resource_type]
+                new_workers[resource_type] = - workers_queued[resource_type] + 1
                 
                 
         # We should still submit a SCORE worker, even if there are no activated jobs to avoid queue deactivation
