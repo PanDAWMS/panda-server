@@ -21136,8 +21136,8 @@ class DBProxy:
         else:
             n_workers_running = max(n_workers_running, 75)
 
-        n_workers_to_submit = max(n_workers_running - n_workers_queued, 5)
-        tmpLog.debug('nrunning {0}, nqueued {1} and needs {2} more workers'
+        n_workers_to_submit = max(n_workers_running + n_workers_queued, 5)
+        tmpLog.debug('nrunning {0}, nqueued {1}. We need to process {2} workers'
                      .format(n_workers_running, n_workers_queued, n_workers_to_submit))
 
         # Get the sorted global shares
