@@ -3491,7 +3491,7 @@ class DBProxy:
                 sqlFileJEDI += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
                 sqlFileJEDI += "ORDER BY lfn "
                 # read zip file
-                sqlZipFile  = "SELECT lfn,destinationSE FROM ATLAS_PANDA.filesTable4 "
+                sqlZipFile  = "SELECT lfn,destinationSE,fsize,checksum FROM ATLAS_PANDA.filesTable4 "
                 sqlZipFile += "WHERE row_ID=:row_ID "
                 self.cur.arraysize = 10000
                 self.cur.execute(sqlFile+comment, varMap)
@@ -3607,11 +3607,13 @@ class DBProxy:
                                     self.cur.execute(sqlZipFile+comment,varMap)
                                     resZip = self.cur.fetchone()
                                     if resZip != None:
-                                        outputZipName,outputZipBucketID = resZip
+                                        outputZipName,outputZipBucketID,outputZipFsize,outputZipChecksum = resZip
                                         if not esPandaID in esOutputZipMap:
                                             esOutputZipMap[esPandaID] = []
                                         esOutputZipMap[esPandaID].append({'name':outputZipName,
-                                                                          'osid':outputZipBucketID})
+                                                                          'osid':outputZipBucketID,
+                                                                          'fsize':outputZipFsize,
+                                                                          'checksum':outputZipChecksum})
                 # make input for event service output merging
                 mergeInputOutputMap = {}
                 mergeInputFiles = []
@@ -3660,6 +3662,10 @@ class DBProxy:
                                     tmpZipInputFileSpec = copy.copy(tmpInputFileSpec)
                                     # add prefix
                                     tmpZipInputFileSpec.lfn = 'zip://'+tmpEsOutZipFile['name']
+                                    if 'fsize' in tmpEsOutZipFile:
+                                        tmpZipInputFileSpec.fsize = tmpEsOutZipFile['fsize']
+                                    if 'checksum' in tmpEsOutZipFile:
+                                        tmpZipInputFileSpec.checksum = tmpEsOutZipFile['checksum']
                                     mergeInputFiles.append(tmpZipInputFileSpec)
                                     # mapping for ObjStore
                                     mergeFileObjStoreMap[tmpZipInputFileSpec.lfn] = tmpEsOutZipFile['osid']
