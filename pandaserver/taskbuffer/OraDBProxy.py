@@ -14983,11 +14983,14 @@ class DBProxy:
                     else:
                         zipFile = None
                     # collect all dicts
-                    for eventDict in eventDictChunk['eventRanges']:
-                        # add zip file
-                        eventDict['zipFile'] = zipFile
-                        # append
-                        eventDictList.append(eventDict)
+                    if 'eventRanges' in eventDictChunk:
+                        for eventDict in eventDictChunk['eventRanges']:
+                            # add zip file
+                            eventDict['zipFile'] = zipFile
+                            # append
+                            eventDictList.append(eventDict)
+                    else:
+                        eventDictList.append(eventDictChunk)
             # loop over all events
             tmpLog.debug('update {0} events'.format(len(eventDictList)))
             zipRowIdMap = {}
