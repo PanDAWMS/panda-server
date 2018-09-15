@@ -15892,6 +15892,7 @@ class DBProxy:
             sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
             sqlSN += "AND (sc.maxrss IS NULL OR sc.minrss=0) "
             sqlSN += "AND (sc.jobseed IS NULL OR sc.jobseed<>'es') "
+            sqlSN += "AND NOT sc.siteid LIKE 'ANALY_%' " 
             if 'localEsMerge' in catchAll and 'useBrokerOff' in catchAll:
                 sqlSN += "AND sc.status IN (:siteStatus1,:siteStatus2) "
             else:
@@ -15943,6 +15944,7 @@ class DBProxy:
                 sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
                 sqlSN += "AND (sc.maxrss IS NULL OR sc.minrss=0) "
                 sqlSN += "AND (sc.jobseed IS NULL OR sc.jobseed<>'es') "
+                sqlSN += "AND NOT sc.siteid LIKE 'ANALY_%' " 
                 sqlSN += "AND sc.status=:siteStatus "
                 sqlSN += "AND dr.default_write='Y' "
                 sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity=:wc1) "
@@ -15954,6 +15956,28 @@ class DBProxy:
                 # get sites
                 self.cur.execute(sqlSN+comment,varMap)
                 resSN = self.cur.fetchall()
+        # last resort for jumbo
+        resSN_all = []
+        if lookForMergeSite and (isFakeCJ or 'useJumboJobs' in catchAll):
+            sqlSN  = "SELECT dr.panda_site_name,dr.ddm_endpoint_name "
+            sqlSN += "FROM ATLAS_PANDA.panda_site ps,ATLAS_PANDAMETA.schedconfig sc,ATLAS_PANDA.panda_ddm_relation dr "
+            sqlSN += "WHERE sc.siteid=ps.panda_site_name "
+            sqlSN += "AND dr.panda_site_name=ps.panda_site_name "
+            sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1 OR sc.catchall LIKE '%unifiedPandaQueue%' OR sc.capability=:capability) "
+            sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
+            sqlSN += "AND (sc.maxrss IS NULL OR sc.minrss=0) "
+            sqlSN += "AND (sc.jobseed IS NULL OR sc.jobseed<>'es') "
+            sqlSN += "AND NOT sc.siteid LIKE 'ANALY_%' " 
+            sqlSN += "AND sc.status=:siteStatus "
+            sqlSN += "AND dr.default_write='Y' "
+            sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity=:wc1) "
+            varMap = {}
+            varMap[':siteStatus'] = 'online'
+            varMap[':wc1'] = 'full'
+            varMap[':capability'] = 'ucore'
+            # get sites
+            self.cur.execute(sqlSN+comment,varMap)
+            resSN_all = self.cur.fetchall()
         # look for a site for merging
         if lookForMergeSite:
             # compare number of pilot requests
@@ -15963,7 +15987,7 @@ class DBProxy:
             sqlRJ  = "SELECT SUM(num_of_jobs) FROM ATLAS_PANDA.MV_JOBSACTIVE4_STATS "
             sqlRJ += "WHERE computingSite=:panda_site AND jobStatus=:jobStatus "
             newSiteName = None
-            for resItem in [resSN, resSN_back]:
+            for resItem in [resSN, resSN_back, resSN_all]:
                 for tmp_panda_site_name,tmp_ddm_endpoint in resItem:
                     # get nPilot
                     varMap = {}
