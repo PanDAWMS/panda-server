@@ -1079,6 +1079,101 @@ for ii in range(1000):
 activatorThreadPool.join()
 
 
+# activator thread with rule
+class ActivatorWithRuleThr (threading.Thread):
+    def __init__(self,lock,proxyLock,ids,pool):
+        threading.Thread.__init__(self)
+        self.ids        = ids
+        self.lock       = lock
+        self.proxyLock  = proxyLock
+        self.pool       = pool
+        self.pool.add(self)
+                                        
+    def run(self):
+        self.lock.acquire()
+        try:
+            # get jobs from DB
+            ids = self.ids
+            self.proxyLock.acquire()
+            jobs = taskBuffer.peekJobs(ids,fromActive=False,fromArchived=False,fromWaiting=False)
+            self.proxyLock.release()
+            actJobs = []
+            replicaMap = dict()
+            for tmpJob in jobs:
+                if tmpJob == None or tmpJob.jobStatus == 'unknown':
+                    continue
+                # check if locally available
+                siteSpec = siteMapper.getSite(tmpJob.computingSite)
+                allOK = True
+                for tmpFile in tmpJob.Files:
+                    # only input files are checked
+                    if tmpFile.type == 'input' and tmpFile.status != 'ready':
+                        # get replicas
+                        if tmpFile.dispatchDBlock not in replicaMap:
+                            tmpStat, repMap = rucioAPI.listDatasetReplicas(tmpFile.dispatchDBlock)
+                            if not tmpStat:
+                                repMap = {}
+                            replicaMap[tmpFile.dispatchDBlock] = repMap
+                        # check RSEs
+                        for rse, repInfo in replicaMap[tmpFile.dispatchDBlock].iteritems():
+                            if siteSpec.ddm_endpoints_input.isAssociated(rse) and \
+                                    siteSpec.ddm_endpoints_input.getEndPoint(rse)['is_tape'] == 'N' and \
+                                    repInfo['total'] == ['found'] and repInfo['total'] is not None:
+                                tmpFile.status = 'ready'
+                                break
+                        # missing
+                        if tmpFile.status != 'ready':
+                            allOK = False
+                            _logger.debug("%s skip since %s:%s is missing with rule" % (tmpJob.PandaID,tmpFile.scope,tmpFile.lfn))
+                            break
+                if not allOK:
+                    continue
+                # append to run activator
+                _logger.debug("%s to activate with rule" % tmpJob.PandaID)
+                actJobs.append(tmpJob)
+            # update
+            _logger.debug("activating ...")
+            self.proxyLock.acquire()
+            taskBuffer.activateJobs(actJobs)
+            self.proxyLock.release()
+            _logger.debug("done")
+            time.sleep(1)
+        except:
+            errtype,errvalue = sys.exc_info()[:2]
+            _logger.error("ActivatorThr failed with %s %s" % (errtype,errvalue))
+        self.pool.remove(self)
+        self.lock.release()
+
+
+_memoryCheck("activator")
+
+# activate assigned jobs
+_logger.debug("==== activate assigned jobs with rule ====")
+activatorLock = threading.Semaphore(3)
+activatorProxyLock = threading.Lock()
+activatorThreadPool = ThreadPool()
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+# get jobs
+for ii in range(1000):
+    # lock
+    activatorLock.acquire()
+    activatorProxyLock.acquire()
+    ret,res = taskBuffer.lockJobsForActivator(timeLimit,100,0)
+    activatorProxyLock.release()
+    activatorLock.release()
+    if res == None:
+        _logger.debug("# of jobs to be activated with rule for %s " % res)
+    else:
+        _logger.debug("# of jobs to be activated with rule for %s " % len(res))
+    if res == None or len(res) == 0:
+        break
+    # run thread
+    actThr = ActivatorWithRuleThr(activatorLock,activatorProxyLock,res,activatorThreadPool)
+    actThr.start()
+# wait
+activatorThreadPool.join()
+
+
 # thread to delete sub datasets
 class SubDeleter (threading.Thread):
     def __init__(self,lock,proxyLock,datasets,pool):
