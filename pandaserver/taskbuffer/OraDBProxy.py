@@ -16565,12 +16565,14 @@ class DBProxy:
             # sql to get PandaIDs of consumers
             sqlCP  = "SELECT PandaID,specialHandling FROM ATLAS_PANDA.{0} "
             sqlCP += "WHERE jediTaskID=:jediTaskID AND jobsetID=:jobsetID "
+            sqlCP += "AND eventService<>:eventService "
             if not killAll:
                 sqlCP += "AND jobStatus IN (:st1,:st2,:st3,:st4) "
             # get PandaIDs
             varMap = {}
             varMap[':jediTaskID'] = job.jediTaskID
             varMap[':jobsetID']   = job.jobsetID
+            varMap[':eventService'] = EventServiceUtils.jumboJobFlagNumber
             if not killAll:
                 varMap[':st1'] = 'activated'
                 varMap[':st2'] = 'assigned'
@@ -18551,6 +18553,9 @@ class DBProxy:
         tmpLog = LogWrapper(_logger,methodName)
         tmpLog.debug("start killEvents={0}".format(killEvents))
         try:
+            if job.eventService == EventServiceUtils.jumboJobFlagNumber:
+                tmpLog.debug('skip for jumbo')
+                return True
             # sql to read range
             sqlRR  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
             sqlRR += "distinct PandaID "
