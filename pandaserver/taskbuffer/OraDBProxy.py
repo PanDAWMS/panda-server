@@ -662,11 +662,15 @@ class DBProxy:
                         sqlJediCEvt += "SET status=:newStatus "
                         sqlJediCEvt += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                         sqlJediCEvt += "AND NOT status IN (:esFinished,:esDone,:esDiscarded,:esCancelled,:esFailed,:esFatal) "
+                        sqlJediCEvt += "AND NOT (is_jumbo=:isJumbo AND status IN (:esSent,:esRunning)) "
                         varMap[':newStatus']   = EventServiceUtils.ST_cancelled
                         varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
                         varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
                         varMap[':esFatal']     = EventServiceUtils.ST_fatal
                         varMap[':esFailed']    = EventServiceUtils.ST_failed
+                        varMap[':esSent']      = EventServiceUtils.ST_sent
+                        varMap[':esRunning']   = EventServiceUtils.ST_running
+                        varMap[':isJumbo'] = EventServiceUtils.eventTableIsJumbo
                         _logger.debug(sqlJediCEvt+comment+str(varMap))
                         self.cur.execute(sqlJediCEvt+comment, varMap)
                         # unset processed_upto for old failed events
@@ -692,12 +696,15 @@ class DBProxy:
                             sqlJediOks = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
                             sqlJediOks += "jediTaskID,fileID,job_processID FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
                             sqlJediOks += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-                            sqlJediOks += "AND status=:esDone "
+                            sqlJediOks += "AND (status=:esDone OR (is_jumbo=:isJumbo AND status IN (:esSent,:esRunning))) "
                             varMap = {}
                             varMap[':jediTaskID']  = file.jediTaskID
                             varMap[':datasetID']   = file.datasetID
                             varMap[':fileID']      = file.fileID
-                            varMap[':esDone']    = EventServiceUtils.ST_done
+                            varMap[':esDone']      = EventServiceUtils.ST_done
+                            varMap[':esSent']      = EventServiceUtils.ST_sent
+                            varMap[':esRunning']   = EventServiceUtils.ST_running
+                            varMap[':isJumbo'] = EventServiceUtils.eventTableIsJumbo
                             self.cur.execute(sqlJediOks+comment, varMap)
                             resOks = self.cur.fetchall()
                             for tmpOk_jediTaskID,tmpOk_fileID,tmpOk_job_processID in resOks:
@@ -14902,8 +14909,8 @@ class DBProxy:
                             varMap[':nDiff'] = nDiff
                             self.cur.execute(sqlUD+comment, varMap)
                 # kill unused consumers
-                tmpLog.debug("kill unused consumers")
                 if not isJumbo and not toSkip and (retRanges == [] or noMoreEvents) and jediTaskID != None:
+                    tmpLog.debug("kill unused consumers")
                     tmpJobSpec = JobSpec()
                     tmpJobSpec.PandaID = pandaID
                     tmpJobSpec.jobsetID = jobsetID
@@ -16489,6 +16496,10 @@ class DBProxy:
                 # skip if jobset different
                 if dJob.jobsetID != job.jobsetID:
                     _logger.debug("{0} : skip consumer {1} since jobsetID is different".format(methodName,pandaID))
+                    continue
+                # skip jumbo
+                if dJob.eventService == EventServiceUtils.jumboJobFlagNumber:
+                    _logger.debug("{0} : skip jumbo {1}".format(methodName,pandaID))
                     continue
                 _logger.debug("{0} : kill associated consumer {1}".format(methodName,pandaID))
                 # delete
@@ -18577,9 +18588,6 @@ class DBProxy:
         tmpLog = LogWrapper(_logger,methodName)
         tmpLog.debug("start killEvents={0}".format(killEvents))
         try:
-            if job.eventService == EventServiceUtils.jumboJobFlagNumber:
-                tmpLog.debug('skip for jumbo')
-                return True
             # sql to read range
             sqlRR  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
             sqlRR += "distinct PandaID "
@@ -18609,6 +18617,7 @@ class DBProxy:
             else:
                 updateSubStatus = False
             sqlUE += "WHERE PandaID=:PandaID AND jobStatus in (:oldStatus1,:oldStatus2,:oldStatus3) AND modificationTime>(CURRENT_DATE-90) "
+            sqlUE += "AND NOT eventService IN (:esJumbo,:esCojumbo) " 
             for tmpPandaID in esPandaIDs:
                 varMap = {}
                 varMap[':PandaID']   = tmpPandaID
@@ -18616,6 +18625,8 @@ class DBProxy:
                 varMap[':oldStatus1'] = 'closed'
                 varMap[':oldStatus2'] = 'merging'
                 varMap[':oldStatus3'] = 'failed'
+                varMap[':esJumbo'] = EventServiceUtils.jumboJobFlagNumber
+                varMap[':esCojumbo'] = EventServiceUtils.coJumboJobFlagNumber
                 if updateSubStatus is True:
                     if EventServiceUtils.isEventServiceMerge(job):
                         varMap[':jobSubStatus'] = 'es_merge_{0}'.format(job.jobStatus)
