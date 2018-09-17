@@ -16498,7 +16498,7 @@ class DBProxy:
                     _logger.debug("{0} : skip consumer {1} since jobsetID is different".format(methodName,pandaID))
                     continue
                 # skip jumbo
-                if dJob.eventService == EventServiceUtils.jumboJobFlagNumber:
+                if EventServiceUtils.isJumboJob(dJob):
                     _logger.debug("{0} : skip jumbo {1}".format(methodName,pandaID))
                     continue
                 _logger.debug("{0} : kill associated consumer {1}".format(methodName,pandaID))
@@ -16597,39 +16597,25 @@ class DBProxy:
             # begin transaction
             if useCommit:
                 self.conn.begin()
-            # sql to get PandaIDs of consumers
-            sqlCP  = "SELECT PandaID,specialHandling FROM ATLAS_PANDA.{0} "
-            sqlCP += "WHERE jediTaskID=:jediTaskID AND jobsetID=:jobsetID "
-            sqlCP += "AND eventService<>:eventService "
-            if not killAll:
-                sqlCP += "AND jobStatus IN (:st1,:st2,:st3,:st4) "
             # get PandaIDs
-            varMap = {}
-            varMap[':jediTaskID'] = job.jediTaskID
-            varMap[':jobsetID']   = job.jobsetID
-            varMap[':eventService'] = EventServiceUtils.jumboJobFlagNumber
-            if not killAll:
-                varMap[':st1'] = 'activated'
-                varMap[':st2'] = 'assigned'
-                varMap[':st3'] = 'waiting'
-                varMap[':st4'] = 'throttled'
+            killPandaIDs = set()
+            sqlCP = "SELECT PandaID FROM ATLAS_PANDA.filesTable4 WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
             self.cur.arraysize = 100000
-            killPandaIDsMap = {}
-            for tableName in ['jobsActive4','jobsDefined4','jobsWaiting4']:
-                self.cur.execute(sqlCP.format(tableName)+comment, varMap)
-                resPs = self.cur.fetchall()
-                killPandaIDs = []
-                for esPandaID,specialHandling in resPs:
-                    # ignore original PandaID since it will be managed by caller
+            for fileSpec in job.Files:
+                if fileSpec.type not in ['input', 'pseudo_input']:
+                    continue
+                if fileSpec.fileID in ['NULL', None]:
+                    continue
+                varMap = {}
+                varMap[':jediTaskID']  = fileSpec.jediTaskID
+                varMap[':datasetID']   = fileSpec.datasetID
+                varMap[':fileID']      = fileSpec.fileID
+                self.cur.execute(sqlCP+comment, varMap)
+                resCP = self.cur.fetchall()
+                for esPandaID, in resCP:
                     if esPandaID == job.PandaID:
                         continue
-                    # skip merge
-                    if EventServiceUtils.isEventServiceMergeSH(specialHandling):
-                        continue
-                    # append
-                    killPandaIDs.append(esPandaID)
-                if killPandaIDs != []:
-                    killPandaIDsMap[tableName] = killPandaIDs
+                    killPandaIDs.add(esPandaID)
             # kill consumers
             nKilled = 0
             sqlDJS = "SELECT %s " % JobSpec.columnNames()
@@ -16642,63 +16628,76 @@ class DBProxy:
             sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
             sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
             sqlPMod = "UPDATE ATLAS_PANDA.jobParamsTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
-            for tableName,killPandaIDs in killPandaIDsMap.iteritems():
-                for pandaID in killPandaIDs:
-                    _logger.debug("{0} : kill unused consumer {1}".format(methodName,pandaID))
-                    # read job
-                    varMap = {}
-                    varMap[':PandaID'] = pandaID
-                    self.cur.arraysize = 10
-                    deletedFlag = False
-                    for tableName in ['jobsActive4','jobsDefined4','jobsWaiting4']:
-                        self.cur.execute(sqlDJS.format(tableName)+comment, varMap)
-                        resJob = self.cur.fetchall()
-                        if len(resJob) == 0:
-                            continue
-                        # instantiate JobSpec
-                        dJob = JobSpec()
-                        dJob.pack(resJob[0])
-                        # delete
-                        varMap = {}
-                        varMap[':PandaID'] = pandaID
-                        self.cur.execute(sqlDJD.format(tableName)+comment, varMap)                            
-                        retD = self.cur.rowcount
-                        if retD != 0:
-                            deletedFlag = True
-                            break
-                    # not found
-                    if not deletedFlag:
+            for pandaID in killPandaIDs:
+                # read job
+                varMap = {}
+                varMap[':PandaID'] = pandaID
+                self.cur.arraysize = 10
+                deletedFlag = False
+                for tableName in ['jobsActive4','jobsDefined4','jobsWaiting4']:
+                    self.cur.execute(sqlDJS.format(tableName)+comment, varMap)
+                    resJob = self.cur.fetchall()
+                    if len(resJob) == 0:
                         continue
-                    # set error code
-                    dJob.jobStatus = 'closed'
-                    dJob.endTime   = datetime.datetime.utcnow()
-                    if EventServiceUtils.isJobCloningJob(dJob):
-                        dJob.jobSubStatus = 'jc_unlock'
-                        dJob.taskBufferErrorCode = ErrorCode.EC_JobCloningUnlock
-                        dJob.taskBufferErrorDiag = 'closed since another clone PandaID={0} got semaphore while waiting in the queue'.format(job.PandaID)
-                    else:
-                        dJob.jobSubStatus = 'es_unused'
-                        dJob.taskBufferErrorCode = ErrorCode.EC_EventServiceUnused
-                        dJob.taskBufferErrorDiag = 'killed since all event ranges were processed by other consumers while waiting in the queue'
-                    dJob.modificationTime = dJob.endTime
-                    dJob.stateChangeTime  = dJob.endTime
-                    # insert
-                    self.cur.execute(sqlDJI+comment, dJob.valuesMap())
-                    # set file status
-                    varMap = {}
-                    varMap[':PandaID']   = pandaID
-                    varMap[':type1']     = 'output'
-                    varMap[':type2']     = 'log'
-                    varMap[':newStatus'] = 'failed'
-                    self.cur.execute(sqlFSF+comment,varMap)
-                    # update files,metadata,parametes
+                    # instantiate JobSpec
+                    dJob = JobSpec()
+                    dJob.pack(resJob[0])
+                    # not kill all status
+                    if not killAll:
+                        if dJob.jobStatus not in ['activated', 'assigned', 'waiting', 'throttled']:
+                            _logger.debug("{0} : skip to kill unused consumer {1} since status={2}".format(methodName, pandaID, dJob.jobStatus))
+                            break
+                    # skip merge
+                    if EventServiceUtils.isEventServiceMerge(dJob):
+                        _logger.debug("{0} : skip to kill merge {1}".format(methodName, pandaID))
+                        break
+                    # skip jumbo
+                    if EventServiceUtils.isJumboJob(dJob):
+                        _logger.debug("{0} : skip to kill jumbo {1}".format(methodName, pandaID))
+                        break
+                    # delete
                     varMap = {}
                     varMap[':PandaID'] = pandaID
-                    varMap[':modificationTime'] = dJob.modificationTime
-                    self.cur.execute(sqlFMod+comment,varMap)
-                    self.cur.execute(sqlMMod+comment,varMap)
-                    self.cur.execute(sqlPMod+comment,varMap)
-                    nKilled += 1
+                    self.cur.execute(sqlDJD.format(tableName)+comment, varMap)                            
+                    retD = self.cur.rowcount
+                    if retD != 0:
+                        deletedFlag = True
+                        break
+                # not found
+                if not deletedFlag:
+                    _logger.debug("{0} : skip to kill {1} as already deleted".format(methodName, pandaID))
+                    continue
+                _logger.debug("{0} : kill unused consumer {1}".format(methodName,pandaID))
+                # set error code
+                dJob.jobStatus = 'closed'
+                dJob.endTime   = datetime.datetime.utcnow()
+                if EventServiceUtils.isJobCloningJob(dJob):
+                    dJob.jobSubStatus = 'jc_unlock'
+                    dJob.taskBufferErrorCode = ErrorCode.EC_JobCloningUnlock
+                    dJob.taskBufferErrorDiag = 'closed since another clone PandaID={0} got semaphore while waiting in the queue'.format(job.PandaID)
+                else:
+                    dJob.jobSubStatus = 'es_unused'
+                    dJob.taskBufferErrorCode = ErrorCode.EC_EventServiceUnused
+                    dJob.taskBufferErrorDiag = 'killed since all event ranges were processed by other consumers while waiting in the queue'
+                dJob.modificationTime = dJob.endTime
+                dJob.stateChangeTime  = dJob.endTime
+                # insert
+                self.cur.execute(sqlDJI+comment, dJob.valuesMap())
+                # set file status
+                varMap = {}
+                varMap[':PandaID']   = pandaID
+                varMap[':type1']     = 'output'
+                varMap[':type2']     = 'log'
+                varMap[':newStatus'] = 'failed'
+                self.cur.execute(sqlFSF+comment,varMap)
+                # update files,metadata,parametes
+                varMap = {}
+                varMap[':PandaID'] = pandaID
+                varMap[':modificationTime'] = dJob.modificationTime
+                self.cur.execute(sqlFMod+comment,varMap)
+                self.cur.execute(sqlMMod+comment,varMap)
+                self.cur.execute(sqlPMod+comment,varMap)
+                nKilled += 1
             # commit
             if useCommit:
                 if not self._commit():
@@ -17250,7 +17249,8 @@ class DBProxy:
                                                                                                                                               attemptNr))
                         allOK = False
                         break
-                    if not fileStatus in ['running'] and jobSpec.computingSite != EventServiceUtils.siteIdForWaitingCoJumboJobs and is_waiting is None:
+                    if fileStatus in ['finished'] or \
+                            (not fileStatus in ['running'] and jobSpec.computingSite != EventServiceUtils.siteIdForWaitingCoJumboJobs and is_waiting is None):
                         tmpLog.debug("jediTaskID={0} datasetID={1} fileID={2} attemptNr={3} is in wrong status ({4}) in JEDI".format(fileSpec.jediTaskID,
                                                                                                                                      fileSpec.datasetID,
                                                                                                                                      fileSpec.fileID,
