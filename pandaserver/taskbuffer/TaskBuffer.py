@@ -2844,11 +2844,11 @@ class TaskBuffer:
 
 
     # reset files in JEDI
-    def resetFileStatusInJEDI(self,dn,prodManager,datasetName,lostFiles,lostInputDatasets):
+    def resetFileStatusInJEDI(self,dn,prodManager,datasetName,lostFiles,lostInputDatasets,simul=False):
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.resetFileStatusInJEDI(dn,prodManager,datasetName,lostFiles,lostInputDatasets)
+        ret = proxy.resetFileStatusInJEDI(dn,prodManager,datasetName,lostFiles,lostInputDatasets,simul)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

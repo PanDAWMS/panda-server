@@ -14669,7 +14669,7 @@ class DBProxy:
                 pass
             iRanges = 0
             # sql to get job
-            sqlJ  = "SELECT jobStatus,commandToPilot,eventService FROM {0}.jobsActive4 ".format(panda_config.schemaPANDA)
+            sqlJ  = "SELECT jobStatus,commandToPilot,eventService,jediTaskID FROM {0}.jobsActive4 ".format(panda_config.schemaPANDA)
             sqlJ += "WHERE PandaID=:pandaID FOR UPDATE "
             # sql to find a file to lock
             sqlFF = "SELECT jediTaskID,datasetID,fileID FROM {0}.filesTable4 ".format(panda_config.schemaPANDA)
@@ -14683,30 +14683,33 @@ class DBProxy:
             sqlLK = "SELECT status FROM {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
             sqlLK += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
             sqlLK += "FOR UPDATE "
-            # sql to get ranges
-            sql  = 'SELECT * FROM ('
-            sql += 'SELECT jediTaskID,datasetID,fileID,attemptNr,job_processID,def_min_eventID,def_max_eventID,pandaID '
-            sql += "FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
-            sql += "WHERE PandaID=:jobsetID AND status=:eventStatus AND attemptNr>:minAttemptNr "
-            sql += "ORDER BY fileID,def_min_eventID "
-            sql += ") WHERE rownum<={0} ".format(nRanges+1)
             # sql to get ranges with jediTaskID
-            sqlW  = 'SELECT * FROM ('
-            sqlW += 'SELECT jediTaskID,datasetID,fileID,attemptNr,job_processID,def_min_eventID,def_max_eventID,pandaID '
+            sqlW  = "UPDATE {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
+            sqlW += "SET PandaID=:pandaID,status=:newEventStatus "
+            sqlW += "WHERE rowid IN ("
+            sqlW += "SELECT rowid FROM ("
+            sqlW += 'SELECT jediTaskID,datasetID,fileID,attemptNr,job_processID,def_min_eventID,def_max_eventID,event_offset '
             sqlW += "FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
             sqlW += "WHERE jediTaskID=:jediTaskID AND PandaID=:jobsetID AND status=:eventStatus AND attemptNr>:minAttemptNr "
             sqlW += "ORDER BY fileID,def_min_eventID "
-            sqlW += ") WHERE rownum<={0} ".format(nRanges+1)
+            sqlW += ") WHERE rownum<={0}) ".format(nRanges+1)
             # sql to get ranges for jumbo
-            sqlJM  = 'SELECT * FROM ('
-            sqlJM += 'SELECT jediTaskID,datasetID,fileID,attemptNr,job_processID,def_min_eventID,def_max_eventID,pandaID '
+            sqlJM  = "UPDATE {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
+            sqlJM += "SET PandaID=:pandaID,status=:newEventStatus "
+            sqlJM += "WHERE rowid IN ("
+            sqlJM += "SELECT rowid FROM ("
+            sqlJM += 'SELECT jediTaskID,datasetID,fileID,attemptNr,job_processID,def_min_eventID,def_max_eventID,event_offset '
             sqlJM += "FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
             sqlJM += "WHERE jediTaskID=:jediTaskID AND status=:eventStatus AND attemptNr>:minAttemptNr "
             if scattered:
                 sqlJM += "ORDER BY def_min_eventID,fileID "
             else:
                 sqlJM += "ORDER BY fileID,def_min_eventID "
-            sqlJM += ") WHERE rownum<={0} ".format(nRanges+1)
+            sqlJM += ") WHERE rownum<={0}) ".format(nRanges+1)
+            # sql to get ranges
+            sqlRR = 'SELECT jediTaskID,datasetID,fileID,attemptNr,job_processID,def_min_eventID,def_max_eventID,event_offset '
+            sqlRR += "FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
+            sqlRR += "WHERE jediTaskID=:jediTaskID AND PandaID=:PandaID AND status=:eventStatus "
             # sql to get datasets
             sqlGD  = "SELECT datasetID FROM {0}.JEDI_Datasets ".format(panda_config.schemaJEDI)
             sqlGD += "WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) "
@@ -14724,10 +14727,15 @@ class DBProxy:
             sqlF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID " 
             # sql to lock range
             sqlU  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
-            sqlU += "SET PandaID=:pandaID,status=:eventStatus,is_jumbo=:isJumbo "
-            sqlU += "WHERE jediTaskID=:jediTaskID AND fileID=:fileID AND PandaID=:jobsetID "
-            sqlU += "AND job_processID=:job_processID AND attemptNr=:attemptNr "
+            sqlU += "SET status=:eventStatus,is_jumbo=:isJumbo "
+            sqlU += "WHERE jediTaskID=:jediTaskID AND PandaID=:pandaID "
             sqlU += "AND status=:oldEventStatus "
+            # sql to release range
+            sqlRS  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlRS += "SET PandaID=event_offset,status=:eventStatus "
+            sqlRS += "WHERE jediTaskID=:jediTaskID AND fileID=:fileID AND PandaID=:pandaID "
+            sqlRS += "AND job_processID=:job_processID AND attemptNr=:attemptNr "
+            sqlRS += "AND status=:oldEventStatus "
             # start transaction
             self.conn.begin()
             self.cur.arraysize = 100000
@@ -14755,6 +14763,9 @@ class DBProxy:
                     isJumbo = True
                 else:
                     isJumbo = False
+                # get jediTaskID
+                if jediTaskID is None:
+                    jediTaskID = resJ[3]
                 # find a file to lock
                 varMap = dict()
                 varMap[':pandaID'] = pandaID
@@ -14778,26 +14789,43 @@ class DBProxy:
                         self.cur.execute(sqlLK+comment, varMap)
                         tmpLog.debug("locked fileID={0}".format(ffFileID))
                     """
-                # get event ranges
+                # prelock event ranges
                 varMap = {}
                 varMap[':eventStatus']  = EventServiceUtils.ST_ready
                 varMap[':minAttemptNr'] = 0
-                if jediTaskID != None:
-                    varMap[':jediTaskID'] = jediTaskID
+                varMap[':jediTaskID'] = jediTaskID
+                varMap[':pandaID'] = pandaID
+                varMap[':eventStatus'] = EventServiceUtils.ST_ready
+                varMap[':newEventStatus'] = EventServiceUtils.ST_reserved
                 if not isJumbo:
                     varMap[':jobsetID'] = jobsetID
                 if isJumbo:
                     self.cur.execute(sqlJM+comment, varMap)
-                elif jediTaskID != None:
-                    self.cur.execute(sqlW+comment, varMap)
                 else:
-                    self.cur.execute(sql+comment, varMap)
+                    self.cur.execute(sqlW+comment, varMap)
+                nRow = self.cur.rowcount
+                # get event ranges
+                varMap = dict()
+                varMap[':jediTaskID'] = jediTaskID
+                varMap[':PandaID'] = pandaID
+                varMap[':eventStatus'] = EventServiceUtils.ST_reserved
+                self.cur.execute(sqlRR+comment, varMap)
                 resList = self.cur.fetchall()
-                tmpLog.debug("got events")
-                # check if more events are available
-                if len(resList) <= nRanges:
+                if len(resList) > nRanges:
+                    # release the last event range
+                    tmpJediTaskID,datasetID,fileID,attemptNr,job_processID,startEvent,lastEvent,tmpJobsetID = resList[-1]
+                    varMap = {}
+                    varMap[':jediTaskID'] = tmpJediTaskID
+                    varMap[':fileID'] = fileID
+                    varMap[':job_processID'] = job_processID
+                    varMap[':pandaID'] = pandaID
+                    varMap[':attemptNr'] = attemptNr
+                    varMap[':eventStatus'] = EventServiceUtils.ST_ready
+                    varMap[':oldEventStatus'] = EventServiceUtils.ST_reserved
+                    self.cur.execute(sqlRS+comment, varMap)                    
+                    resList = resList[:nRanges]
+                else:
                     noMoreEvents = True
-                resList = resList[:nRanges]
                 # make dict
                 fileInfo = {}
                 jobsetList = {}
@@ -14828,39 +14856,25 @@ class DBProxy:
                                'LFN':tmpLFN,
                                'GUID':tmpGUID,
                                'scope':tmpScope}
-                    # lock
-                    varMap = {}
-                    varMap[':jediTaskID'] = tmpJediTaskID
-                    varMap[':fileID'] = fileID
-                    varMap[':job_processID'] = job_processID
-                    varMap[':pandaID'] = pandaID
-                    varMap[':jobsetID'] = tmpJobsetID
-                    varMap[':attemptNr'] = attemptNr
-                    varMap[':eventStatus'] = EventServiceUtils.ST_sent
-                    varMap[':oldEventStatus'] = EventServiceUtils.ST_ready
-                    if isJumbo:
-                        varMap[':isJumbo'] = EventServiceUtils.eventTableIsJumbo
-                    else:
-                        varMap[':isJumbo'] = None
-                    try:
-                        self.cur.execute(sqlU+comment, varMap)
-                        nRow = self.cur.rowcount
-                        errStr = "nRow={0}".format(nRow)
-                    except:
-                        errtype,errvalue = sys.exc_info()[:2]
-                        errStr = "{0} {1}".format(errtype.__name__, errvalue)
-                        nRow = 0
-                    if nRow != 1:
-                        # failed to lock
-                        tmpLog.debug("failed to lock {0} with nRow={1}".format(tmpDict['eventRangeID'],
-                                                                               errStr))
-                    else:
-                        # append
-                        retRanges.append(tmpDict)
-                        iRanges += 1
-                        if not tmpJediTaskID in jobsetList:
-                            jobsetList[tmpJediTaskID] = []
-                        jobsetList[tmpJediTaskID].append(tmpJobsetID)
+                    # append
+                    retRanges.append(tmpDict)
+                    iRanges += 1
+                    if not tmpJediTaskID in jobsetList:
+                        jobsetList[tmpJediTaskID] = []
+                    jobsetList[tmpJediTaskID].append(tmpJobsetID)
+                # lock events
+                varMap = {}
+                varMap[':jediTaskID'] = jediTaskID
+                varMap[':pandaID'] = pandaID
+                varMap[':eventStatus'] = EventServiceUtils.ST_sent
+                varMap[':oldEventStatus'] = EventServiceUtils.ST_reserved
+                if isJumbo:
+                    varMap[':isJumbo'] = EventServiceUtils.eventTableIsJumbo
+                else:
+                    varMap[':isJumbo'] = None
+                self.cur.execute(sqlU+comment, varMap)
+                nRow = self.cur.rowcount
+                tmpLog.debug("got {0} events and locked {1} events".format(len(retRanges), nRow))
                 # lock files for jumbo jobs
                 if isJumbo and len(retRanges) > 0:
                     tmpLog.debug("lock files for jumbo jobs")
@@ -17501,7 +17515,7 @@ class DBProxy:
 
 
     # reset files in JEDI
-    def resetFileStatusInJEDI(self,dn,prodManager,datasetName,lostFiles,lostInputDatasets):
+    def resetFileStatusInJEDI(self,dn,prodManager,datasetName,lostFiles,lostInputDatasets,simul):
         comment = ' /* DBProxy.resetFileStatusInJEDI */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <datasetName={0}>".format(datasetName)
@@ -17545,11 +17559,11 @@ class DBProxy:
                 tmpLog.debug("jediTaskID={0} datasetID={1}".format(jediTaskID,datasetID))
                 varMap = {}
                 varMap[':jediTaskID'] = jediTaskID
-                sqlOW  = 'SELECT status,userName FROM {0}.JEDI_Tasks '.format(panda_config.schemaJEDI)
+                sqlOW  = 'SELECT status,userName,useJumbo FROM {0}.JEDI_Tasks '.format(panda_config.schemaJEDI)
                 sqlOW += 'WHERE jediTaskID=:jediTaskID '
                 self.cur.execute(sqlOW+comment,varMap)
                 resOW = self.cur.fetchone()
-                taskStatus,ownerName = resOW
+                taskStatus,ownerName,useJumbo = resOW
                 # check ownership
                 if not prodManager and ownerName != compactDN:
                     tmpLog.debug("not the owner = {0}".format(ownerName))
@@ -17562,6 +17576,12 @@ class DBProxy:
                 sqlUFO  = 'UPDATE {0}.JEDI_Dataset_Contents '.format(panda_config.schemaJEDI)
                 sqlUFO += 'SET status=:newStatus '
                 sqlUFO += 'WHERE jediTaskID=:jediTaskID AND type=:type AND status=:oldStatus AND PandaID=:PandaID '
+                # sql to cancel events
+                sqlCE  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+                sqlCE += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
+                sqlCE += "SET status=:status "
+                sqlCE += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+                sqlCE += "AND status IN (:esFinished,:esDone,:esMerged) "
                 # get affected PandaIDs
                 lostPandaIDs = set([])
                 nDiff = 0
@@ -17582,9 +17602,13 @@ class DBProxy:
                         varMap[':type'] = 'output'
                         varMap[':newStatus'] = 'lost'
                         varMap[':oldStatus'] = 'finished'
-                        self.cur.execute(sqlUFO+comment,varMap)
-                        nRow = self.cur.rowcount
-                        if nRow > 0:
+                        if not simul:
+                            self.cur.execute(sqlUFO+comment,varMap)
+                            nRow = self.cur.rowcount
+                            if nRow > 0:
+                                nDiff += 1
+                        else:
+                            tmpLog.debug(sqlUFO+comment+str(varMap))
                             nDiff += 1
                 # update output dataset statistics
                 sqlUDO  = 'UPDATE {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
@@ -17595,7 +17619,8 @@ class DBProxy:
                 varMap[':type'] = 'output'
                 varMap[':nDiff'] = nDiff
                 tmpLog.debug(sqlUDO+comment+str(varMap))
-                self.cur.execute(sqlUDO+comment,varMap)
+                if not simul:
+                    self.cur.execute(sqlUDO+comment,varMap)
                 # get nEvents
                 sqlGNE  = 'SELECT SUM(c.nEvents),c.datasetID '
                 sqlGNE += 'FROM {0}.JEDI_Datasets d,{0}.JEDI_Dataset_Contents c '.format(panda_config.schemaJEDI)
@@ -17617,7 +17642,9 @@ class DBProxy:
                     varMap[':jediTaskID'] = jediTaskID
                     varMap[':datasetID'] = tmpDatasetID
                     varMap[':nEvents'] = tmpCount
-                    self.cur.execute(sqlUNE+comment,varMap)
+                    if not simul:
+                        self.cur.execute(sqlUNE+comment,varMap)
+                        tmpLog.debug(sqlUNE+comment+str(varMap))
                 # get input datasets
                 sqlID  = 'SELECT datasetID,datasetName,masterID FROM {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
                 sqlID += 'WHERE jediTaskID=:jediTaskID AND type=:type '
@@ -17633,8 +17660,15 @@ class DBProxy:
                     if tmpMasterID == None:
                         masterID = tmpDatasetID
                 # sql to get affected inputs
-                sqlAI  = 'SELECT fileID,datasetID,lfn,outPandaID FROM {0}.JEDI_Dataset_Contents '.format(panda_config.schemaJEDI)
-                sqlAI += 'WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2,:type3) AND PandaID=:PandaID '
+                if useJumbo is None:
+                    sqlAI  = 'SELECT fileID,datasetID,lfn,outPandaID FROM {0}.JEDI_Dataset_Contents '.format(panda_config.schemaJEDI)
+                    sqlAI += 'WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2,:type3) AND PandaID=:PandaID '
+                else:
+                    sqlAI = "SELECT fileID,datasetID,lfn,NULL FROM {0}.filesTable4 ".format(panda_config.schemaPanda)
+                    sqlAI += "WHERE PandaID=:PandaID AND type IN (:type1,:type2) "
+                    sqlAI += "UNION "
+                    sqlAI = "SELECT fileID,datasetID,lfn,NULL FROM {0}.filesTable4 ".format(panda_config.schemaPanda)
+                    sqlAI += "WHERE PandaID=:PandaID AND type IN (:type1,:type2) AND modificationTime>CURRENT_TIMESTAMP-365 "
                 # sql to update input file status
                 sqlUFI  = 'UPDATE {0}.JEDI_Dataset_Contents '.format(panda_config.schemaJEDI)
                 sqlUFI += 'SET status=:newStatus,attemptNr=attemptNr+1 '
@@ -17643,11 +17677,16 @@ class DBProxy:
                 datasetCountMap = {}
                 for lostPandaID in lostPandaIDs:
                     varMap = {}
-                    varMap[':jediTaskID'] = jediTaskID
-                    varMap[':PandaID'] = lostPandaID
-                    varMap[':type1'] = 'input'
-                    varMap[':type2'] = 'pseudo_input'
-                    varMap[':type3'] = 'output'
+                    if useJumbo is None:
+                        varMap[':jediTaskID'] = jediTaskID
+                        varMap[':PandaID'] = lostPandaID
+                        varMap[':type1'] = 'input'
+                        varMap[':type2'] = 'pseudo_input'
+                        varMap[':type3'] = 'output'
+                    else:
+                        varMap[':PandaID'] = lostPandaID
+                        varMap[':type1'] = 'input'
+                        varMap[':type2'] = 'pseudo_input'
                     self.cur.execute(sqlAI+comment,varMap)
                     resAI = self.cur.fetchall()
                     newResAI = []
@@ -17685,10 +17724,28 @@ class DBProxy:
                         varMap[':fileID'] = tmpFileID
                         varMap[':newStatus'] = 'ready'
                         varMap[':oldStatus'] = 'finished'
-                        self.cur.execute(sqlUFI+comment,varMap)
-                        nRow = self.cur.rowcount
+                        if not simul:
+                            self.cur.execute(sqlUFI+comment,varMap)
+                            nRow = self.cur.rowcount
+                        else:
+                            tmpLog.debug(sqlUFI+comment+str(varMap))
+                            nRow = 1
                         if nRow > 0:
                             datasetCountMap[tmpDatasetID] += 1
+                            if useJumbo is not None:
+                                # cancel events
+                                varMap = {}
+                                varMap[':jediTaskID'] = jediTaskID
+                                varMap[':datasetID'] = tmpDatasetID
+                                varMap[':fileID'] = tmpFileID
+                                varMap[':status'] = EventServiceUtils.ST_cancelled
+                                varMap[':esFinished'] = EventServiceUtils.ST_finished
+                                varMap[':esDone'] = EventServiceUtils.ST_done
+                                varMap[':esMerged'] = EventServiceUtils.ST_merged
+                                if not simul:
+                                    self.cur.execute(sqlCE+comment, varMap)
+                                else:
+                                    mpLog.debug(sqlCE+comment+str(varMap))
                 # update dataset statistics
                 sqlUDI  = 'UPDATE {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
                 sqlUDI += 'SET nFilesUsed=nFilesUsed-:nDiff,nFilesFinished=nFilesFinished-:nDiff,'
@@ -17702,14 +17759,16 @@ class DBProxy:
                     varMap[':nDiff'] = nDiff
                     varMap[':status'] = 'finished'
                     tmpLog.debug(sqlUDI+comment+str(varMap))
-                    self.cur.execute(sqlUDI+comment,varMap)
+                    if not simul:
+                        self.cur.execute(sqlUDI+comment,varMap)
                 # update task status
                 if taskStatus == 'done':
                     sqlUT  = 'UPDATE {0}.JEDI_Tasks SET status=:newStatus WHERE jediTaskID=:jediTaskID '.format(panda_config.schemaJEDI)
                     varMap = {}
                     varMap[':jediTaskID'] = jediTaskID
                     varMap[':newStatus'] = 'finished'
-                    self.cur.execute(sqlUT+comment,varMap)
+                    if not simul:
+                        self.cur.execute(sqlUT+comment,varMap)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
