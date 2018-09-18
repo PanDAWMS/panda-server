@@ -17668,10 +17668,10 @@ class DBProxy:
                     sqlAI  = 'SELECT fileID,datasetID,lfn,outPandaID FROM {0}.JEDI_Dataset_Contents '.format(panda_config.schemaJEDI)
                     sqlAI += 'WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2,:type3) AND PandaID=:PandaID '
                 else:
-                    sqlAI = "SELECT fileID,datasetID,lfn,NULL FROM {0}.filesTable4 ".format(panda_config.schemaPanda)
+                    sqlAI = "SELECT fileID,datasetID,lfn,NULL FROM {0}.filesTable4 ".format(panda_config.schemaPANDA)
                     sqlAI += "WHERE PandaID=:PandaID AND type IN (:type1,:type2) "
                     sqlAI += "UNION "
-                    sqlAI = "SELECT fileID,datasetID,lfn,NULL FROM {0}.filesTable4 ".format(panda_config.schemaPanda)
+                    sqlAI = "SELECT fileID,datasetID,lfn,NULL FROM {0}.filesTable4 ".format(panda_config.schemaPANDA)
                     sqlAI += "WHERE PandaID=:PandaID AND type IN (:type1,:type2) AND modificationTime>CURRENT_TIMESTAMP-365 "
                 # sql to update input file status
                 sqlUFI  = 'UPDATE {0}.JEDI_Dataset_Contents '.format(panda_config.schemaJEDI)
@@ -17749,7 +17749,7 @@ class DBProxy:
                                 if not simul:
                                     self.cur.execute(sqlCE+comment, varMap)
                                 else:
-                                    mpLog.debug(sqlCE+comment+str(varMap))
+                                    tmpLog.debug(sqlCE+comment+str(varMap))
                 # update dataset statistics
                 sqlUDI  = 'UPDATE {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
                 sqlUDI += 'SET nFilesUsed=nFilesUsed-:nDiff,nFilesFinished=nFilesFinished-:nDiff,'

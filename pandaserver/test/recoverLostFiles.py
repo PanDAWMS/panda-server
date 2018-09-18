@@ -1,3 +1,4 @@
+import sys
 import argparse
 from taskbuffer.TaskBuffer import taskBuffer
 from config import panda_config
@@ -18,6 +19,8 @@ parser.add_argument('--noChildRetry',action='store_const',const=True,dest='noChi
                     help='not retry child tasks')
 parser.add_argument('--resurrectDS',action='store_const',const=True,dest='resurrectDS',default=False,
                     help='resurrect output and log datasets if they were already deleted')
+parser.add_argument('--dryRun',action='store_const',const=True,dest='dryRun',default=False,
+                    help='dry run')
 
 options = parser.parse_args()
 
@@ -41,7 +44,9 @@ else:
     print
     print 'found {0} lost files -> {1}'.format(len(files), ','.join(files))
 
-s,jediTaskID = taskBuffer.resetFileStatusInJEDI('',True,options.ds,files,[])
+s,jediTaskID = taskBuffer.resetFileStatusInJEDI('',True,options.ds,files,[],options.dryRun)
+if options.dryRun:
+    sys.exit(0)
 if s:
     if options.resurrectDS:
         sd,so = taskBuffer.querySQLS('SELECT datasetName FROM ATLAS_PANDA.JEDI_Datasets WHERE jediTaskID=:id AND type IN (:t1,:t2)',
