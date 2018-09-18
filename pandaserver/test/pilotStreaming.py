@@ -1,3 +1,5 @@
+import time
+
 from pandalogger.PandaLogger import PandaLogger
 from taskbuffer.TaskBuffer import taskBuffer
 from config import panda_config
@@ -17,17 +19,16 @@ class PilotStreaming:
         :return:
         """
 
+        # timing
+        time_start = time.time()
+        self._logger('Start.')
+
         # get unified pilot streaming (ups) queues
         ups_queues = taskBuffer.ups_get_queues()
         self._logger.debug('UPS queues: {0}'.format(ups_queues))
 
         # get worker stats
         worker_stats = taskBuffer.ups_load_worker_stats()
-
-        # get global share distribution
-        # hs_distribution = proxyS.get_hs_distribution()
-        # gs_tree = proxyS
-        # print(proxyS.tree.pretty_print_hs_distribution(proxyS._DBProxy__hs_distribution
 
         for ups_queue in ups_queues:
             # get the worker and job stats for the queue
@@ -52,10 +53,12 @@ class PilotStreaming:
 
             for harvester_id in new_workers_per_harvester:
                 params = new_workers_per_harvester[harvester_id]
-
-                # TODO: figure out if a command lock call is necessary or how that works
                 taskBuffer.commandToHarvester(harvester_id, command, ack_requested, status,
                                               lock_interval, com_interval, params)
+
+        # timing
+        time_stop = time.time()
+        self._logger('Done. Pilot streaming took: {0} s'.format(time_stop - time_start))
 
         return
 
