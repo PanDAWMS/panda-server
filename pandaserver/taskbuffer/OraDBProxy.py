@@ -14800,15 +14800,18 @@ class DBProxy:
                 if not isJumbo:
                     varMap[':jobsetID'] = jobsetID
                 if isJumbo:
+                    tmpLog.debug(sqlJM+comment+str(varMap))
                     self.cur.execute(sqlJM+comment, varMap)
                 else:
                     self.cur.execute(sqlW+comment, varMap)
                 nRow = self.cur.rowcount
+                tmpLog.debug("pre-locked {0} events".format(nRow))
                 # get event ranges
                 varMap = dict()
                 varMap[':jediTaskID'] = jediTaskID
                 varMap[':PandaID'] = pandaID
                 varMap[':eventStatus'] = EventServiceUtils.ST_reserved
+                tmpLog.debug(sqlRR+comment+str(varMap))
                 self.cur.execute(sqlRR+comment, varMap)
                 resList = self.cur.fetchall()
                 if len(resList) > nRanges:
@@ -14862,6 +14865,7 @@ class DBProxy:
                     if not tmpJediTaskID in jobsetList:
                         jobsetList[tmpJediTaskID] = []
                     jobsetList[tmpJediTaskID].append(tmpJobsetID)
+                tmpLog.debug("got {0} events".format(len(retRanges)))
                 # lock events
                 varMap = {}
                 varMap[':jediTaskID'] = jediTaskID
@@ -14874,7 +14878,7 @@ class DBProxy:
                     varMap[':isJumbo'] = None
                 self.cur.execute(sqlU+comment, varMap)
                 nRow = self.cur.rowcount
-                tmpLog.debug("got {0} events and locked {1} events".format(len(retRanges), nRow))
+                tmpLog.debug("locked {0} events".format(nRow))
                 # lock files for jumbo jobs
                 if isJumbo and len(retRanges) > 0:
                     tmpLog.debug("lock files for jumbo jobs")
