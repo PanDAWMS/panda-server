@@ -21,7 +21,7 @@ class PilotStreaming:
 
         # timing
         time_start = time.time()
-        self._logger('Start.')
+        self._logger.debug('Start.')
 
         # get unified pilot streaming (ups) queues
         ups_queues = taskBuffer.ups_get_queues()
@@ -58,7 +58,7 @@ class PilotStreaming:
 
         # timing
         time_stop = time.time()
-        self._logger('Done. Pilot streaming took: {0} s'.format(time_stop - time_start))
+        self._logger.debug('Done. Pilot streaming took: {0} s'.format(time_stop - time_start))
 
         return
 
