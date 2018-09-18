@@ -14688,23 +14688,23 @@ class DBProxy:
             sqlW += "SET PandaID=:pandaID,status=:newEventStatus "
             sqlW += "WHERE rowid IN ("
             sqlW += "SELECT rowid FROM ("
-            sqlW += 'SELECT jediTaskID,datasetID,fileID,attemptNr,job_processID,def_min_eventID,def_max_eventID,event_offset '
-            sqlW += "FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
+            sqlW += "SELECT rowid FROM /* sorted by JEDITASKID, PANDAID, FILEID to take advantage of the IOT table structure*/ "
+            sqlW += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
             sqlW += "WHERE jediTaskID=:jediTaskID AND PandaID=:jobsetID AND status=:eventStatus AND attemptNr>:minAttemptNr "
-            sqlW += "ORDER BY fileID,def_min_eventID "
+            sqlW += "ORDER BY jediTaskID,PandaID,fileID "
             sqlW += ") WHERE rownum<={0}) ".format(nRanges+1)
             # sql to get ranges for jumbo
             sqlJM  = "UPDATE {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
             sqlJM += "SET PandaID=:pandaID,status=:newEventStatus "
             sqlJM += "WHERE rowid IN ("
             sqlJM += "SELECT rowid FROM ("
-            sqlJM += 'SELECT jediTaskID,datasetID,fileID,attemptNr,job_processID,def_min_eventID,def_max_eventID,event_offset '
-            sqlJM += "FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
+            sqlJM += "SELECT rowid FROM /* sorted by JEDITASKID, PANDAID, FILEID to take advantage of the IOT table structure*/ "
+            sqlJM += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
             sqlJM += "WHERE jediTaskID=:jediTaskID AND status=:eventStatus AND attemptNr>:minAttemptNr "
             if scattered:
-                sqlJM += "ORDER BY def_min_eventID,fileID "
+                pass
             else:
-                sqlJM += "ORDER BY fileID,def_min_eventID "
+                sqlJM += "ORDER BY jediTaskID,PandaID,fileID "
             sqlJM += ") WHERE rownum<={0}) ".format(nRanges+1)
             # sql to get ranges
             sqlRR = 'SELECT jediTaskID,datasetID,fileID,attemptNr,job_processID,def_min_eventID,def_max_eventID,event_offset '
