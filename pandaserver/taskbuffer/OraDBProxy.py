@@ -17781,7 +17781,8 @@ class DBProxy:
                 # update dataset statistics
                 sqlUDI  = 'UPDATE {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
                 sqlUDI += 'SET nFilesUsed=nFilesUsed-:nDiff,nFilesFinished=nFilesFinished-:nDiff,'
-                sqlUDI += 'nEventsUsed=(SELECT SUM(nEvents) FROM {0}.JEDI_Dataset_Contents '.format(panda_config.schemaJEDI)
+                sqlUDI += 'nEventsUsed=(SELECT SUM(DECODE(startEvent,NULL,nEvents,endEvent-startEvent+1)) '
+                sqlUDI += 'FROM {0}.JEDI_Dataset_Contents '.format(panda_config.schemaJEDI)
                 sqlUDI += 'WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status) '
                 sqlUDI += 'WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID '
                 for tmpDatasetID,nDiff in datasetCountMap.iteritems():
