@@ -14714,9 +14714,10 @@ class DBProxy:
             # sql to get ranges with jediTaskID
             sqlW  = "UPDATE {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
             sqlW += "SET PandaID=:pandaID,status=:newEventStatus "
-            sqlW += "WHERE rowid IN ("
-            sqlW += "SELECT rowid FROM ("
-            sqlW += "SELECT rowid FROM /* sorted by JEDITASKID, PANDAID, FILEID to take advantage of the IOT table structure*/ "
+            sqlW += "WHERE (jediTaskID,PandaID,fileID,job_processID,attemptNr) IN ("
+            sqlW += "SELECT jediTaskID,PandaID,fileID,job_processID,attemptNr FROM ("
+            sqlW += "SELECT jediTaskID,PandaID,fileID,job_processID,attemptNr FROM "
+            sqlW += "/* sorted by JEDITASKID, PANDAID, FILEID to take advantage of the IOT table structure*/ "
             sqlW += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
             sqlW += "WHERE jediTaskID=:jediTaskID AND PandaID=:jobsetID AND status=:eventStatus AND attemptNr>:minAttemptNr "
             sqlW += "ORDER BY jediTaskID,PandaID,fileID "
@@ -14724,9 +14725,10 @@ class DBProxy:
             # sql to get ranges for jumbo
             sqlJM  = "UPDATE {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
             sqlJM += "SET PandaID=:pandaID,status=:newEventStatus "
-            sqlJM += "WHERE rowid IN ("
-            sqlJM += "SELECT rowid FROM ("
-            sqlJM += "SELECT rowid FROM /* sorted by JEDITASKID, PANDAID, FILEID to take advantage of the IOT table structure*/ "
+            sqlJM += "WHERE (jediTaskID,PandaID,fileID,job_processID,attemptNr) IN ("
+            sqlJM += "SELECT jediTaskID,PandaID,fileID,job_processID,attemptNr FROM ("
+            sqlJM += "SELECT jediTaskID,PandaID,fileID,job_processID,attemptNr FROM "
+            sqlJM += "/* sorted by JEDITASKID, PANDAID, FILEID to take advantage of the IOT table structure*/ "
             sqlJM += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
             sqlJM += "WHERE jediTaskID=:jediTaskID AND status=:eventStatus AND attemptNr>:minAttemptNr "
             if scattered:
