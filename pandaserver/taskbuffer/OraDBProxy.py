@@ -2184,27 +2184,55 @@ class DBProxy:
                         # update waiting ES jobs not to get reassigned
                         if updatedFlag and EventServiceUtils.isEventServiceSH(specialHandling):
                             # sql to update ES jobs
+                            sqlUEA = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
+                            sqlUEA += "WHERE jediTaskID=:jediTaskID AND jobsetID=:jobsetID AND jobStatus=:jobStatus "
+                            sqlUEL = "SELECT modificationTime FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
+                            sqlUEL += "FOR UPDATE NOWAIT "
                             sqlUE  = "UPDATE ATLAS_PANDA.jobsActive4 SET modificationTime=CURRENT_DATE "
-                            sqlUE += "WHERE jediTaskID=:jediTaskID AND jobsetID=:jobsetID AND jobStatus=:jobStatus "
+                            sqlUE += "WHERE PandaID=:PandaID "
                             varMap = {}
                             varMap[':jediTaskID'] = jediTaskID
                             varMap[':jobsetID']   = jobsetID
                             varMap[':jobStatus']  = 'activated'
-                            self.cur.execute (sqlUE+comment,varMap)
-                            nUE = self.cur.rowcount
+                            self.cur.execute(sqlUEA+comment,varMap)
+                            resUEA = self.cur.fetchall()
+                            nUE = 0
+                            for ueaPandaID, in resUEA:
+                                varMap = {}
+                                varMap[':PandaID'] = ueaPandaID
+                                try:
+                                    # lock with NOWAIT
+                                    self.cur.execute(sqlUEL+comment,varMap)
+                                    resUEL = self.cur.fetchone()
+                                    if resUEL is None:
+                                        continue
+                                except Exception:
+                                    _logger.debug("updateJobStatus : PandaID=%s skip to update associated ES=%s" % (pandaID, ueaPandaID))
+                                    continue
+                                self.cur.execute(sqlUE+comment,varMap)
+                                nUE += self.cur.rowcount
                             _logger.debug("updateJobStatus : PandaID=%s updated %s ES jobs" % (pandaID,nUE))
                         # update fake co-jumbo jobs
                         if updatedFlag and eventService == EventServiceUtils.jumboJobFlagNumber:
                             # sql to update fake co-jumbo
+                            sqlIFL = "SELECT PandaID FROM ATLAS_PANDA.jobsWaiting4 "
+                            sqlIFL += "WHERE jediTaskID=:jediTaskID AND eventService=:eventService AND jobStatus=:jobStatus "
+                            sqlIFL += "FOR UPDATE NOWAIT "
                             sqlIF = "UPDATE ATLAS_PANDA.jobsWaiting4 SET modificationTime=CURRENT_DATE "
                             sqlIF += "WHERE jediTaskID=:jediTaskID AND eventService=:eventService AND jobStatus=:jobStatus "
                             varMap = {}
                             varMap[':jediTaskID'] = jediTaskID
                             varMap[':eventService'] = EventServiceUtils.coJumboJobFlagNumber
                             varMap[':jobStatus']  = 'waiting'
-                            self.cur.execute (sqlIF+comment,varMap)
-                            nUE = self.cur.rowcount
-                            _logger.debug("updateJobStatus : PandaID=%s updated %s fake co-jumbo jobs" % (pandaID,nUE))
+                            try:
+                                # lock with NOWAIT
+                                self.cur.execute(sqlIFL+comment,varMap)
+                                resIFL = self.cur.fetchall()
+                                self.cur.execute (sqlIF+comment,varMap)
+                                nUE = self.cur.rowcount
+                                _logger.debug("updateJobStatus : PandaID=%s updated %s fake co-jumbo jobs" % (pandaID,nUE))
+                            except Exception:
+                                _logger.debug("updateJobStatus : PandaID=%s skip to update fake co-jumbo jobs" % pandaID)
                         # update nFilesOnHold for JEDI RW calculation
                         if updatedFlag and jobStatus == 'transferring' and oldJobStatus == 'holding' and \
                                 hasattr(panda_config,'useJEDI') and panda_config.useJEDI == True and \
@@ -2316,7 +2344,7 @@ class DBProxy:
                     time.sleep(random.randint(10,20))
                     continue
                 type, value, traceBack = sys.exc_info()
-                _logger.error("updateJobStatus : %s %s" % (type,value))
+                _logger.error("updateJobStatus : %s %s %s" % (type, value, traceback.format_exc()))
                 _logger.error("updateJobStatus : %s" % pandaID)            
                 return False
 
