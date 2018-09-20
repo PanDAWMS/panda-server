@@ -13024,6 +13024,7 @@ class DBProxy:
             # set file status
             if fileSpec.type in ['input','pseudo_input']:
                 hasInput = True
+                updateAttemptNr = True
                 if jobSpec.jobStatus == 'finished':
                     varMap[':status'] = 'finished'
                     if fileSpec.type in ['input','pseudo_input']:
@@ -13031,7 +13032,6 @@ class DBProxy:
                 else:
                     # set ready for next attempt
                     varMap[':status'] = 'ready'
-                    updateAttemptNr = True
                     if jobSpec.jobStatus == 'failed':
                         updateFailedAttempt = True
             else:
