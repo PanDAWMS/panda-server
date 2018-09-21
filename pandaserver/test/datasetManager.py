@@ -1111,14 +1111,14 @@ class ActivatorWithRuleThr (threading.Thread):
                         # get replicas
                         if tmpFile.dispatchDBlock not in replicaMap:
                             tmpStat, repMap = rucioAPI.listDatasetReplicas(tmpFile.dispatchDBlock)
-                            if not tmpStat:
+                            if tmpStat != 0:
                                 repMap = {}
                             replicaMap[tmpFile.dispatchDBlock] = repMap
                         # check RSEs
                         for rse, repInfo in replicaMap[tmpFile.dispatchDBlock].iteritems():
                             if siteSpec.ddm_endpoints_input.isAssociated(rse) and \
                                     siteSpec.ddm_endpoints_input.getEndPoint(rse)['is_tape'] == 'N' and \
-                                    repInfo['total'] == ['found'] and repInfo['total'] is not None:
+                                    repInfo[0]['total'] == repInfo[0]['found'] and repInfo[0]['total'] is not None:
                                 tmpFile.status = 'ready'
                                 break
                         # missing
