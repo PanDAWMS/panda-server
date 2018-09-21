@@ -17272,11 +17272,26 @@ class DBProxy:
             sqlFileStat += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
             # begin transaction
             self.conn.begin()
+            # get dataset
+            sqlPD = "SELECT datasetID FROM ATLAS_PANDA.JEDI_Datasets "
+            sqlPD += "WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) AND masterID IS NULL "
+            varMap = {}
+            varMap[':jediTaskID']  = jobSpec.jediTaskID
+            varMap[':type1'] = 'input'
+            varMap[':type2'] = 'pseudo_input'
+            self.cur.execute(sqlPD+comment, varMap)
+            resPD = self.cur.fetchone()
+            if resPD is not None:
+                datasetID, = resPD
+            else:
+                datasetID = None
             # loop over all input files
             allOK = True
             for fileSpec in jobSpec.Files:
+                if datasetID is None:
+                    continue
                 # only input file
-                if not fileSpec.type in ['input','pseudo_input']:
+                if fileSpec.datasetID != datasetID:
                     continue
                 # skip if not normal JEDI files
                 if fileSpec.fileID == 'NULL':
