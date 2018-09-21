@@ -16645,12 +16645,22 @@ class DBProxy:
             # begin transaction
             if useCommit:
                 self.conn.begin()
+            self.cur.arraysize = 100000
+            # get dataset
+            sqlPD = "SELECT datasetID FROM ATLAS_PANDA.JEDI_Datasets "
+            sqlPD += "WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) AND masterID IS NULL "
+            varMap = {}
+            varMap[':jediTaskID']  = job.jediTaskID
+            varMap[':type1'] = 'input'
+            varMap[':type2'] = 'pseudo_input'
+            self.cur.execute(sqlPD+comment, varMap)
+            resPD = self.cur.fetchone()
+            datasetID, = resPD
             # get PandaIDs
             killPandaIDs = set()
             sqlCP = "SELECT PandaID FROM ATLAS_PANDA.filesTable4 WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-            self.cur.arraysize = 100000
             for fileSpec in job.Files:
-                if fileSpec.type not in ['input', 'pseudo_input']:
+                if fileSpec.datasetID != datasetID:
                     continue
                 if fileSpec.fileID in ['NULL', None]:
                     continue
@@ -18692,7 +18702,9 @@ class DBProxy:
             for tmpFile in job.Files:
                 # only for input
                 if tmpFile.type in ['input','pseudo_input']:
-                    # get ranges 
+                    # get ranges
+                    if tmpFile.fileID is [None, 'NULL']:
+                        continue
                     varMap = {}
                     varMap[':jediTaskID']  = tmpFile.jediTaskID
                     varMap[':datasetID']   = tmpFile.datasetID
