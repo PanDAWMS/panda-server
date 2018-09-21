@@ -532,6 +532,10 @@ class DBProxy:
             varMapsForFile = []
             nFilesWaitingMap = {}
             nEventsToProcess = 0
+
+            # failed related ES jobs 
+            if origEsJob and eventServiceInfo != None and not job.notDiscardEvents():
+                self.updateRelatedEventServiceJobs(job, killEvents=False, forceFailed=True)
             for file in job.Files:
                 file.row_ID = None
                 if not file.status in ['ready','cached']:
@@ -18675,7 +18679,9 @@ class DBProxy:
 
 
     # update related ES jobs when ES-merge job is done
-    def updateRelatedEventServiceJobs(self,job,killEvents=False):
+    def updateRelatedEventServiceJobs(self,job,killEvents=False, forceFailed=False):
+        if not forceFailed and job.jobStatus not in ['finished'] and not (job.jobStatus in ['failed'] and killEvents and not job.notDiscardEvents()):
+            return False
         comment = ' /* DBProxy.updateRelatedEventServiceJobs */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <PandaID={0}>".format(job.PandaID)
@@ -18686,7 +18692,7 @@ class DBProxy:
             sqlRR  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
             sqlRR += "distinct PandaID "
             sqlRR += "FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
-            sqlRR += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND status IN (:es_done,:es_merged) "
+            sqlRR += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND status IN (:es_done,:es_finished) "
             # loop over all files
             esPandaIDs = set()
             for tmpFile in job.Files:
@@ -18698,7 +18704,7 @@ class DBProxy:
                     varMap[':datasetID']   = tmpFile.datasetID
                     varMap[':fileID']      = tmpFile.fileID
                     varMap[':es_done']   = EventServiceUtils.ST_done
-                    varMap[':es_merged'] = EventServiceUtils.ST_merged
+                    varMap[':es_finished'] = EventServiceUtils.ST_finished
                     self.cur.execute(sqlRR+comment,varMap)
                     resRR = self.cur.fetchall()
                     for tmpPandaID, in resRR:
@@ -18715,7 +18721,10 @@ class DBProxy:
             for tmpPandaID in esPandaIDs:
                 varMap = {}
                 varMap[':PandaID']   = tmpPandaID
-                varMap[':newStatus'] = job.jobStatus
+                if forceFailed:
+                    varMap[':newStatus'] = 'failed'
+                else:
+                    varMap[':newStatus'] = job.jobStatus
                 varMap[':oldStatus1'] = 'closed'
                 varMap[':oldStatus2'] = 'merging'
                 varMap[':oldStatus3'] = 'failed'
