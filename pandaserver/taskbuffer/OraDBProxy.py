@@ -18680,19 +18680,24 @@ class DBProxy:
 
     # update related ES jobs when ES-merge job is done
     def updateRelatedEventServiceJobs(self,job,killEvents=False, forceFailed=False):
-        if not forceFailed and job.jobStatus not in ['finished'] and not (job.jobStatus in ['failed'] and killEvents and not job.notDiscardEvents()):
-            return False
         comment = ' /* DBProxy.updateRelatedEventServiceJobs */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <PandaID={0}>".format(job.PandaID)
         tmpLog = LogWrapper(_logger,methodName)
-        tmpLog.debug("start killEvents={0}".format(killEvents))
+        if forceFailed:
+            jobStatus = 'failed'
+        else:
+            jobStatus = job.jobStatus
+        if not forceFailed and jobStatus not in ['finished'] and not (killEvents and not job.notDiscardEvents()):
+            tmpLog.debug("skip jobStatus={0} killEvents={1} discard={2}".format(jobStatus, killEvents, job.notDiscardEvents()))
+            return True
+        tmpLog.debug("start jobStatus={0} killEvents={1} discard={2}".format(jobStatus, killEvents, job.notDiscardEvents()))
         try:
             # sql to read range
             sqlRR  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
             sqlRR += "distinct PandaID "
             sqlRR += "FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
-            sqlRR += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND status IN (:es_done,:es_finished) "
+            sqlRR += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND status IN (:es_done,:es_finished,:es_merged) "
             # loop over all files
             esPandaIDs = set()
             for tmpFile in job.Files:
@@ -18705,13 +18710,14 @@ class DBProxy:
                     varMap[':fileID']      = tmpFile.fileID
                     varMap[':es_done']   = EventServiceUtils.ST_done
                     varMap[':es_finished'] = EventServiceUtils.ST_finished
+                    varMap[':es_merged'] = EventServiceUtils.ST_merged
                     self.cur.execute(sqlRR+comment,varMap)
                     resRR = self.cur.fetchall()
                     for tmpPandaID, in resRR:
                         esPandaIDs.add(tmpPandaID)
             # sql to update ES job
             sqlUE  = "UPDATE {0} SET jobStatus=:newStatus,stateChangeTime=CURRENT_DATE,taskBufferErrorDiag=:errDiag "
-            if job.jobStatus in ['failed']:
+            if jobStatus in ['failed']:
                 updateSubStatus = True
                 sqlUE += ',jobSubStatus=:jobSubStatus '
             else:
@@ -18721,27 +18727,29 @@ class DBProxy:
             for tmpPandaID in esPandaIDs:
                 varMap = {}
                 varMap[':PandaID']   = tmpPandaID
-                if forceFailed:
-                    varMap[':newStatus'] = 'failed'
-                else:
-                    varMap[':newStatus'] = job.jobStatus
+                varMap[':newStatus'] = jobStatus
                 varMap[':oldStatus1'] = 'closed'
                 varMap[':oldStatus2'] = 'merging'
                 varMap[':oldStatus3'] = 'failed'
                 varMap[':esJumbo'] = EventServiceUtils.jumboJobFlagNumber
                 varMap[':esCojumbo'] = EventServiceUtils.coJumboJobFlagNumber
                 if updateSubStatus is True:
-                    if EventServiceUtils.isEventServiceMerge(job):
-                        varMap[':jobSubStatus'] = 'es_merge_{0}'.format(job.jobStatus)
+                    if forceFailed:
+                        varMap[':jobSubStatus'] = 'es_discard'
+                    elif EventServiceUtils.isEventServiceMerge(job):
+                        varMap[':jobSubStatus'] = 'es_merge_{0}'.format(jobStatus)
                     else:
-                        varMap[':jobSubStatus'] = 'es_ass_{0}'.format(job.jobStatus)
-                varMap[':errDiag'] = '{0} since an associated ES or merge job PandaID={1} {2}'.format(job.jobStatus,job.PandaID,job.jobStatus)
+                        varMap[':jobSubStatus'] = 'es_ass_{0}'.format(jobStatus)
+                if forceFailed:
+                    varMap[':errDiag'] = '{0} to discard old events to rety in PandaID={1}'.format(jobStatus,job.PandaID)
+                else:
+                    varMap[':errDiag'] = '{0} since an associated ES or merge job PandaID={1} {2}'.format(jobStatus,job.PandaID,jobStatus)
                 isUpdated = False
                 for tableName in ['ATLAS_PANDA.jobsArchived4','ATLAS_PANDAARCH.jobsArchived']:
                     self.cur.execute(sqlUE.format(tableName)+comment,varMap)
                     nRow = self.cur.rowcount
                     if nRow > 0:
-                        tmpLog.debug('change PandaID={0} to {1}'.format(tmpPandaID,job.jobStatus))
+                        tmpLog.debug('change PandaID={0} to {1}'.format(tmpPandaID,jobStatus))
                         isUpdated = True
                 # kill processed events if necessary
                 if killEvents and isUpdated:
