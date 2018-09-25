@@ -1,5 +1,8 @@
 Release Notes
 
+* 9/25/2018
+  * moved file lock from getEvents to ppE
+
 * 9/7/2018
   * added scattered in getEventRanges
 
