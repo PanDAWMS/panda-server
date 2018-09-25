@@ -15519,7 +15519,7 @@ class DBProxy:
             if nRow == 0:
                 # check if other consumers finished
                 sqlEOC  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
-                sqlEOC += "job_processID,attemptNr,status,processed_upto_eventID FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
+                sqlEOC += "job_processID,attemptNr,status,processed_upto_eventID,PandaID FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
                 sqlEOC += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                 sqlEOC += "AND ((NOT status IN (:esDone,:esDiscarded,:esCancelled,:esFatal,:esFailed)) "
                 sqlEOC += "OR (status=:esFailed AND processed_upto_eventID IS NOT NULL)) "
@@ -15552,6 +15552,7 @@ class DBProxy:
                             eocDump['attemptNr'] = resEOC[1]
                             eocDump['status'] = resEOC[2]
                             eocDump['processed_upto_eventID'] = resEOC[3]
+                            eocDump['PandaID'] = resEOC[4]
                             _logger.debug("{0} : some event ranges still running like {1}".format(methodName,str(eocDump)))
                             break
                         # check if there are done ranges
