@@ -15415,7 +15415,7 @@ class DBProxy:
                         self.cur.execute(sqlJFR+comment, varMap)
                         nRowFailedJumbo += tmpNumRow
                 _logger.debug("{0} : set done for jumbo to {1} event ranges".format(methodName,nRowDoneJumbo))
-                _logger.debug("{0} : copied {1} failed event ranges in jumbo".format(methodName,nRowDoneJumbo))
+                _logger.debug("{0} : copied {1} failed event ranges in jumbo".format(methodName,nRowFailedJumbo))
             # change status to done
             sqlED  = "UPDATE {0}.JEDI_Events SET status=:newStatus ".format(panda_config.schemaJEDI)
             sqlED += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND status=:oldStatus "
