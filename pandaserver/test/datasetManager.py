@@ -1229,7 +1229,7 @@ class SubDeleter (threading.Thread):
                         if allDone:
                             _logger.debug("deleting sub %s" % name)
                             try:
-                                rucioAPI.eraseDataset(name)
+                                rucioAPI.eraseDataset(name, grace_period=4)
                                 status = True
                             except:
                                 errtype,errvalue = sys.exc_info()[:2]

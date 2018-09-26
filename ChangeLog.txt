@@ -1,5 +1,8 @@
 Release Notes
 
+* 9/26/2018
+  * added grace_period in eraseDataset
+
 * 9/25/2018
   * moved file lock from getEvents to ppE
 

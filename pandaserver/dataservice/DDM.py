@@ -427,7 +427,7 @@ class RucioAPI:
 
 
     # delete dataset
-    def eraseDataset(self,dsn,scope=None):
+    def eraseDataset(self,dsn,scope=None, grace_period=None):
         presetScope = scope
         # register dataset
         client = RucioClient()
@@ -435,7 +435,11 @@ class RucioAPI:
             scope,dsn = self.extract_scope(dsn)
             if presetScope is not None:
                 scope = presetScope
-            client.set_metadata(scope=scope, name=dsn, key='lifetime', value=0.0001)
+            if grace_period is not None:
+                value = grace_period * 60 * 60
+            else:
+                value = 0.0001
+            client.set_metadata(scope=scope, name=dsn, key='lifetime', value=value)
         except:
             errType,errVale = sys.exc_info()[:2]
             return False,'%s %s' % (errType,errVale)
