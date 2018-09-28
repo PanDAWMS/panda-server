@@ -5325,9 +5325,11 @@ class DBProxy:
             varMap[':currentPriority'] = 800
             varMap[':pLabel1'] = 'managed'
             varMap[':pLabel2'] = 'test'
+            varMap[':esJumbo'] = EventServiceUtils.jumboJobFlagNumber
             # make sql
             sql  = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
             sql += "WHERE jobStatus=:jobStatus AND modificationTime<:modificationTime AND prodSourceLabel IN (:pLabel1,:pLabel2) "
+            sql += "AND (eventService IS NULL OR eventService<>:esJumbo) " 
             if highPrio:
                 varMap[':modificationTime'] = timeNow - datetime.timedelta(hours=1)
                 sql += "AND currentPriority>=:currentPriority AND rownum<=%s " % rownum
