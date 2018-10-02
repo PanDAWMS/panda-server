@@ -1683,7 +1683,7 @@ class DBProxy:
                         job.taskBufferErrorDiag = "cloded in bad jobStatus like defined and pending"
                     # additional actions when retry
                     codeListWithRetry = [0, 5, 8, 9]
-                    if retEvS in codeListWithRetry and jobSpec.computingSite != EventServiceUtils.siteIdForWaitingCoJumboJobs:
+                    if retEvS in codeListWithRetry and job.computingSite != EventServiceUtils.siteIdForWaitingCoJumboJobs:
                         # resurrect consumers at other sites
                         if EventServiceUtils.isResurrectConsumers(job.specialHandling):
                             archivedConsumers = self.getOriginalConsumers(job.jediTaskID, job.jobsetID, job.PandaID)
