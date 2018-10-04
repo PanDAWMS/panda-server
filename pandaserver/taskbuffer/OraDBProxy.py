@@ -15634,7 +15634,7 @@ class DBProxy:
                 sqlUWF  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
                 sqlUWF += "SET status=:newStatus,is_waiting=NULL "
                 sqlUWF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-                sqlUWF += "AND status=:oldStatus AND keepTrack=:keepTrack "
+                sqlUWF += "AND attemptNr=:attemptNr AND status=:oldStatus AND keepTrack=:keepTrack "
                 # update dataset
                 sqlUWD  = "UPDATE {0}.JEDI_Datasets ".format(panda_config.schemaJEDI)
                 sqlUWD += "SET nFilesUsed=nFilesUsed+:nDiff,nFilesWaiting=nFilesWaiting-:nDiff "
@@ -15647,6 +15647,7 @@ class DBProxy:
                     varMap[':jediTaskID']  = fileSpec.jediTaskID
                     varMap[':datasetID']   = fileSpec.datasetID
                     varMap[':fileID']      = fileSpec.fileID
+                    varMap[':attemptNr']   = fileSpec.attemptNr
                     varMap[':newStatus']   = 'running'
                     varMap[':oldStatus']   = 'ready'
                     varMap[':keepTrack']   = 1
@@ -16733,6 +16734,7 @@ class DBProxy:
                 varMap[':PandaID'] = pandaID
                 self.cur.arraysize = 10
                 deletedFlag = False
+                notToDelete = False
                 for tableName in ['jobsActive4','jobsDefined4','jobsWaiting4']:
                     self.cur.execute(sqlDJS.format(tableName)+comment, varMap)
                     resJob = self.cur.fetchall()
@@ -16745,14 +16747,17 @@ class DBProxy:
                     if not killAll:
                         if dJob.jobStatus not in ['activated', 'assigned', 'waiting', 'throttled']:
                             _logger.debug("{0} : skip to kill unused consumer {1} since status={2}".format(methodName, pandaID, dJob.jobStatus))
+                            notToDelete = True
                             break
                     # skip merge
                     if EventServiceUtils.isEventServiceMerge(dJob):
                         _logger.debug("{0} : skip to kill merge {1}".format(methodName, pandaID))
+                        notToDelete = True
                         break
                     # skip jumbo
                     if EventServiceUtils.isJumboJob(dJob):
                         _logger.debug("{0} : skip to kill jumbo {1}".format(methodName, pandaID))
+                        notToDelete = True
                         break
                     # delete
                     varMap = {}
@@ -16762,6 +16767,9 @@ class DBProxy:
                     if retD != 0:
                         deletedFlag = True
                         break
+                # not to be deleted
+                if notToDelete:
+                    continue
                 # not found
                 if not deletedFlag:
                     _logger.debug("{0} : skip to kill {1} as already deleted".format(methodName, pandaID))
