@@ -1646,7 +1646,7 @@ class DBProxy:
                         job.taskBufferErrorDiag = 'maximum attempts reached for Event Service'
                         # kill other consumers
                         self.killEventServiceConsumers(job,False,False)
-                        self.killUnusedEventServiceConsumers(job,False)
+                        self.killUnusedEventServiceConsumers(job,False,killAll=True)
                     elif retEvS == 4:
                         # other consumers are running
                         job.jobStatus = 'merging'
