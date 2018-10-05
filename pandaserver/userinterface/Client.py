@@ -1581,12 +1581,13 @@ def setDebugMode(pandaID,modeOn):
 
 
 # retry task
-def retryTask(jediTaskID,verbose=False,noChildRetry=False):
+def retryTask(jediTaskID,verbose=False,noChildRetry=False,discardEvents=False):
     """Retry task
 
        args:
            jediTaskID: jediTaskID of the task to retry
            noChildRetry: True not to retry child tasks
+           discardEvents: discard events
        returns:
            status code
                  0: communication succeeded to the panda server 
@@ -1611,6 +1612,8 @@ def retryTask(jediTaskID,verbose=False,noChildRetry=False):
     data['properErrorCode'] = True
     if noChildRetry:
         data['noChildRetry'] = True
+    if discardEvents:
+        data['discardEvents'] = True
     status,output = curl.post(url,data)
     try:
         return status,pickle.loads(output)

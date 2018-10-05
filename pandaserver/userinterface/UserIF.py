@@ -840,7 +840,7 @@ class UserIF:
 
 
     # retry task
-    def retryTask(self,jediTaskID,user,prodRole,properErrorCode,newParams,noChildRetry):
+    def retryTask(self,jediTaskID,user,prodRole,properErrorCode,newParams,noChildRetry,discardEvents):
         # retry with new params
         if newParams != None:
             try:
@@ -864,6 +864,11 @@ class UserIF:
                 comQualifier = 'sole'
             else:
                 comQualifier = None
+            if discardEvents:
+                if comQualifier is None:
+                    comQualifier = 'discard'
+                else:
+                    comQualifier += ' discard'
             # normal retry
             ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'retry',properErrorCode=properErrorCode,
                                                        comQualifier=comQualifier)
@@ -1882,7 +1887,8 @@ def killTask(req,jediTaskID=None,properErrorCode=None):
 
 
 # retry task
-def retryTask(req,jediTaskID,properErrorCode=None,newParams=None,noChildRetry=None):
+def retryTask(req,jediTaskID,properErrorCode=None,newParams=None,noChildRetry=None,
+              discardEvents=None):
     if properErrorCode == 'True':
         properErrorCode = True
     else:
@@ -1891,6 +1897,10 @@ def retryTask(req,jediTaskID,properErrorCode=None,newParams=None,noChildRetry=No
         noChildRetry = True
     else:
         noChildRetry = False
+    if discardEvents == 'True':
+        discardEvents = True
+    else:
+        discardEvents = False
     # check security
     if not isSecure(req):
         if properErrorCode:
@@ -1911,7 +1921,8 @@ def retryTask(req,jediTaskID,properErrorCode=None,newParams=None,noChildRetry=No
             return pickle.dumps((101,'jediTaskID must be an integer'))        
         else:
             return pickle.dumps((False,'jediTaskID must be an integer'))
-    ret = userIF.retryTask(jediTaskID,user,prodRole,properErrorCode,newParams,noChildRetry)
+    ret = userIF.retryTask(jediTaskID,user,prodRole,properErrorCode,newParams,noChildRetry,
+                           discardEvents)
     return pickle.dumps(ret)
 
 
