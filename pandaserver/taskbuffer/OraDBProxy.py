@@ -18795,7 +18795,7 @@ class DBProxy:
             else:
                 updateSubStatus = False
             sqlUE += "WHERE PandaID=:PandaID AND jobStatus in (:oldStatus1,:oldStatus2,:oldStatus3) AND modificationTime>(CURRENT_DATE-90) "
-            sqlUE += "AND NOT eventService IN (:esJumbo,:esCojumbo) " 
+            sqlUE += "AND NOT eventService IN (:esJumbo) " 
             for tmpPandaID in esPandaIDs:
                 varMap = {}
                 varMap[':PandaID']   = tmpPandaID
@@ -18804,7 +18804,6 @@ class DBProxy:
                 varMap[':oldStatus2'] = 'merging'
                 varMap[':oldStatus3'] = 'failed'
                 varMap[':esJumbo'] = EventServiceUtils.jumboJobFlagNumber
-                varMap[':esCojumbo'] = EventServiceUtils.coJumboJobFlagNumber
                 if updateSubStatus is True:
                     if forceFailed:
                         varMap[':jobSubStatus'] = 'es_discard'
