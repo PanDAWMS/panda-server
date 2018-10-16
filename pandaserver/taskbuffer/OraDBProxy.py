@@ -4304,7 +4304,7 @@ class DBProxy:
                             if not job.notDiscardEvents():
                                 self.killUnusedEventRanges(job.jediTaskID,job.jobsetID)
                             if eventService == EventServiceUtils.jumboJobFlagNumber:
-                                self.hasDoneEvents(job.jediTaskID, job.PandaID, False) 
+                                self.hasDoneEvents(job.jediTaskID, job.PandaID, job, False) 
                         elif useEventServiceMerge:
                             self.updateRelatedEventServiceJobs(job,True)
                     # disable reattempt
@@ -15430,7 +15430,11 @@ class DBProxy:
             nRowDone = self.cur.rowcount
             _logger.info("{0} : set done to n_er_done={1} event ranges".format(methodName,nRowDone))
             # release unprocessed event ranges
-            sqlEC  = "UPDATE {0}.JEDI_Events SET status=:newStatus,attemptNr=attemptNr-1,pandaID=:jobsetID ".format(panda_config.schemaJEDI)
+            sqlEC  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            if jobSpec.decAttOnFailedES():
+                sqlEC += "SET status=:newStatus,pandaID=:jobsetID "
+            else:
+                sqlEC += "SET status=:newStatus,attemptNr=attemptNr-1,pandaID=:jobsetID "
             sqlEC += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND NOT status IN (:esDone,:esFailed,:esDiscarded,:esCancelled) "
             varMap = {}
             varMap[':jediTaskID']  = jobSpec.jediTaskID
@@ -19429,7 +19433,7 @@ class DBProxy:
 
 
     # check if there are done events
-    def hasDoneEvents(self,jediTaskID,pandaID,useCommit=True):
+    def hasDoneEvents(self, jediTaskID, pandaID, jobSpec, useCommit=True):
         comment = ' /* DBProxy.hasDoneEvents */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         tmpLog = LogWrapper(_logger,methodName+" <PandaID={0} jediTaskID={1}>".format(pandaID,jediTaskID))
@@ -19438,7 +19442,10 @@ class DBProxy:
         try:
             # sql to release events
             sqlR  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
-            sqlR += "SET status=:newStatus,attemptNr=attemptNr-1,pandaID=event_offset,is_jumbo=NULL "
+            if jobSpec.decAttOnFailedES():
+                sqlR += "SET status=:newStatus,pandaID=event_offset,is_jumbo=NULL "
+            else:
+                sqlR += "SET status=:newStatus,attemptNr=attemptNr-1,pandaID=event_offset,is_jumbo=NULL "
             sqlR += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND status IN (:esSent,:esRunning) "
             # sql to check event
             sqlF  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)

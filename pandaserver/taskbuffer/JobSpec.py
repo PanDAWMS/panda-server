@@ -58,6 +58,7 @@ class JobSpec(object):
     _tagForSH = {'altStgOut'          : 'ao',
                  'allOkEvents'        : 'at',
                  'notDiscardEvents'   : 'de',
+                 'decAttOnFailedES'   : 'df',
                  'dynamicNumEvents'   : 'dy',
                  'homeCloud'          : 'hc',
                  'inFilePosEvtNum'    : 'if',
@@ -675,4 +676,24 @@ class JobSpec(object):
             items = []
         if self._tagForSH['scoutJob'] not in items:
             items.append(self._tagForSH['scoutJob'])
+        self.specialHandling = ','.join(items)
+
+
+
+    # decrement attemptNr of events only when failed
+    def decAttOnFailedES(self):
+        if self.specialHandling is not None:
+            return self._tagForSH['decAttOnFailedES'] in self.specialHandling.split(',')
+        return False
+
+
+
+    # set to decrement attemptNr of events only when failed
+    def setDecAttOnFailedES(self):
+        if self.specialHandling is not None:
+            items = self.specialHandling.split(',')
+        else:
+            items = []
+        if self._tagForSH['decAttOnFailedES'] not in items:
+            items.append(self._tagForSH['decAttOnFailedES'])
         self.specialHandling = ','.join(items)

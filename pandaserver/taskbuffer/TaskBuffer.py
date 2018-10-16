@@ -542,7 +542,7 @@ class TaskBuffer:
                     pass
                 else:
                     # check if there are done events
-                    hasDone = proxy.hasDoneEvents(job.jediTaskID,job.PandaID)
+                    hasDone = proxy.hasDoneEvents(job.jediTaskID, job.PandaID, job)
                     if hasDone:
                         job.jobStatus = 'finished'
                     else:
