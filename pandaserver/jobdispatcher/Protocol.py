@@ -105,6 +105,7 @@ class Response:
         noOutput = []
         siteSpec = None
         inDsLfnMap = {}
+        inLFNset = set()
         if siteMapperCache != None:
             siteMapper = siteMapperCache.getObj()
             siteSpec = siteMapper.getSite(job.computingSite)
@@ -118,34 +119,38 @@ class Response:
             siteMapperCache.releaseObj()
         for file in job.Files:
             if file.type == 'input':
-                if strIFiles != '':
-                    strIFiles += ','
-                strIFiles += file.lfn
-                if strDispatch != '':
-                    strDispatch += ','
-                strDispatch += file.dispatchDBlock
-                if strDisToken != '':
-                    strDisToken += ','
-                strDisToken += file.dispatchDBlockToken
-                strProdDBlock += '%s,' % file.prodDBlock 
-                if not isEventServiceMerge:
-                    strProdToken += '%s,' % file.prodDBlockToken
+                if EventServiceUtils.isJumboJob(job) and file.lfn in inLFNset:
+                    pass
                 else:
-                    strProdToken += '%s,' % job.metadata[1][file.lfn]
-                if strGUID != '':
-                    strGUID += ','
-                strGUID += file.GUID
-                strRealDatasetIn += '%s,' % file.dataset
-                strFSize += '%s,' % file.fsize
-                if not file.checksum in ['','NULL',None]:
-                    strCheckSum += '%s,' % file.checksum
-                else:
-                    strCheckSum += '%s,' % file.md5sum
-                strScopeIn += '%s,' % file.scope
-                ddmEndPointIn.append(self.getDdmEndpoint(siteSpec,file.dispatchDBlockToken, 'input'))
-                if not file.dataset in inDsLfnMap:
-                    inDsLfnMap[file.dataset] = []
-                inDsLfnMap[file.dataset].append(file.lfn)
+                    inLFNset.add(file.lfn)
+                    if strIFiles != '':
+                        strIFiles += ','
+                    strIFiles += file.lfn
+                    if strDispatch != '':
+                        strDispatch += ','
+                    strDispatch += file.dispatchDBlock
+                    if strDisToken != '':
+                        strDisToken += ','
+                    strDisToken += file.dispatchDBlockToken
+                    strProdDBlock += '%s,' % file.prodDBlock 
+                    if not isEventServiceMerge:
+                        strProdToken += '%s,' % file.prodDBlockToken
+                    else:
+                        strProdToken += '%s,' % job.metadata[1][file.lfn]
+                    if strGUID != '':
+                        strGUID += ','
+                    strGUID += file.GUID
+                    strRealDatasetIn += '%s,' % file.dataset
+                    strFSize += '%s,' % file.fsize
+                    if not file.checksum in ['','NULL',None]:
+                        strCheckSum += '%s,' % file.checksum
+                    else:
+                        strCheckSum += '%s,' % file.md5sum
+                    strScopeIn += '%s,' % file.scope
+                    ddmEndPointIn.append(self.getDdmEndpoint(siteSpec,file.dispatchDBlockToken, 'input'))
+                    if not file.dataset in inDsLfnMap:
+                        inDsLfnMap[file.dataset] = []
+                    inDsLfnMap[file.dataset].append(file.lfn)
             if file.type == 'output' or file.type == 'log':
                 if strOFiles != '':
                     strOFiles += ','
