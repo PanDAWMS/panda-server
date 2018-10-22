@@ -22035,11 +22035,12 @@ class DBProxy:
                     tmp_log.error('{0} -> {1} is forbidden for fileID={2}'.format(oldStatus, newStatus, fileID))
                     continue
                 # conversion for failed
+                tmpNewStatus = newStatus
                 if newStatus == 'failed' and j_attemptNr < maxAttempt and (maxFailure is None or failedAttempt < maxFailure):
-                    newStatus = 'ready'
+                    tmpNewStatus = 'ready'
                 # no change
-                if newStatus == oldStatus:
-                    tmp_log.debug('skip to update fileID={0} due to no status change in {1}'.format(fileID, newStatus))
+                if tmpNewStatus == oldStatus:
+                    tmp_log.debug('skip to update fileID={0} due to no status change already in {1}'.format(fileID, tmpNewStatus))
                     continue
                 # update
                 varMap = {}
@@ -22047,10 +22048,10 @@ class DBProxy:
                 varMap[':datasetID'] = datasetID
                 varMap[':fileID'] = fileID
                 varMap[':attemptNr'] = f_attemptNr
-                varMap[':newStatus'] = newStatus
+                varMap[':newStatus'] = tmpNewStatus
                 self.cur.execute(sqlU, varMap)
                 nRow = self.cur.rowcount
-                tmp_log.debug('{0} -> {1} for fileID={2} with {3}'.format(oldStatus, newStatus, fileID, nRow))
+                tmp_log.debug('{0} -> {1} for fileID={2} with {3}'.format(oldStatus, tmpNewStatus, fileID, nRow))
             # return
             tmp_log.debug("done")
             return True
