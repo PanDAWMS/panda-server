@@ -17148,13 +17148,13 @@ class DBProxy:
                 # sql to increase attempt numbers
                 sqlAB  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
                 sqlAB += "SET maxAttempt=CASE WHEN maxAttempt > attemptNr THEN maxAttempt+:increasedNr ELSE attemptNr+:increasedNr END "
-                #sqlAB += ",proc_status=CASE WHEN maxAttempt > attemptNr THEN proc_status ELSE :proc_status END "
+                sqlAB += ",proc_status=CASE WHEN maxAttempt > attemptNr THEN proc_status ELSE :proc_status END "
                 sqlAB += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status AND keepTrack=:keepTrack "
                 # sql to increase attempt numbers and failure counts
                 sqlAF  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
                 sqlAF += "SET maxAttempt=CASE WHEN maxAttempt > attemptNr THEN maxAttempt+:increasedNr ELSE attemptNr+:increasedNr END "
                 sqlAF += ",maxFailure=maxFailure+:increasedNr "
-                #sqlAF += ",proc_status=CASE WHEN maxAttempt > attemptNr THEN proc_status ELSE :proc_status END "
+                sqlAF += ",proc_status=CASE WHEN maxAttempt > attemptNr THEN proc_status ELSE :proc_status END "
                 sqlAF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status AND keepTrack=:keepTrack "
                 # sql to update datasets
                 sqlD  = "UPDATE {0}.JEDI_Datasets ".format(panda_config.schemaJEDI)
@@ -17175,7 +17175,7 @@ class DBProxy:
                     varMap[':jediTaskID'] = jediTaskID
                     varMap[':datasetID'] = datasetID
                     varMap[':status'] = 'ready'
-                    #varMap[':proc_status'] = 'ready'
+                    varMap[':proc_status'] = 'ready'
                     varMap[':keepTrack']  = 1
                     varMap[':increasedNr'] = increasedNr
                     nFilesIncreased = 0
@@ -21966,7 +21966,6 @@ class DBProxy:
                      'finished': ['running', 'transferring', 'merging'],
                      'failed': ['running', 'transferring', 'merging'],
                      }
-        return True
         try:
             # change cancelled to failed
             if newStatus == 'cancelled':

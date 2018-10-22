@@ -1,6 +1,7 @@
 Release Notes
 
 * 10/22/2018
+  * added proc_status
   * sending ioIntensity
   * fixed ppE for maxAttempt
 
