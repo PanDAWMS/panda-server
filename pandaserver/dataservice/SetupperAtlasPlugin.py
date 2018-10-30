@@ -21,6 +21,7 @@ from taskbuffer.FileSpec import FileSpec
 from taskbuffer.DatasetSpec import DatasetSpec
 from taskbuffer import retryModule
 from taskbuffer import EventServiceUtils
+from taskbuffer import JobUtils
 from brokerage.SiteMapper import SiteMapper
 from brokerage.PandaSiteIDs import PandaMoverIDs
 import brokerage.broker
@@ -448,7 +449,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 if not destError.has_key(dest):
                     destError[dest] = ''
                     originalName = ''
-                    if (job.prodSourceLabel == 'panda') or (job.prodSourceLabel in ['ptest','rc_test','rc_test2'] and \
+                    if (job.prodSourceLabel == 'panda') or (job.prodSourceLabel in JobUtils.list_ptest_prod_sources and \
                                                             job.processingType in ['pathena','prun','gangarobot-rctest']):
                         # keep original name
                         nameList = [file.destinationDBlock]
@@ -585,7 +586,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                     # skip registerDatasetLocations
                                     status,out = True,''
                                 elif name == originalName or tmpSrcDDM != tmpDstDDM or \
-                                       job.prodSourceLabel == 'panda' or (job.prodSourceLabel in ['ptest','rc_test','rc_test2'] and \
+                                       job.prodSourceLabel == 'panda' or (job.prodSourceLabel in JobUtils.list_ptest_prod_sources and \
                                                                           job.processingType in ['pathena','prun','gangarobot-rctest']) \
                                        or len(tmpTokenList) > 1 or EventServiceUtils.isMergeAtOS(job.specialHandling):
                                     # set replica lifetime to _sub
@@ -1300,7 +1301,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         tmpJobList = tuple(jobsProcessed)
         for job in tmpJobList:
             # check only production/test jobs
-            if not job.prodSourceLabel in ['managed','test','software','rc_test','rc_test2','ptest']:
+            if not job.prodSourceLabel in ['managed','test','software'] + JobUtils.list_ptest_prod_sources:
                 continue
             # don't check if site is already set
             if job.prodSourceLabel in ['managed','test'] and not job.computingSite in ['NULL','',None]:
@@ -1378,7 +1379,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         for tmpJob in self.jobs:
             try:
                 # set only for production/analysis/test
-                if not tmpJob.prodSourceLabel in ['managed','test','rc_test','rc_test2','ptest','user','prod_test']:
+                if not tmpJob.prodSourceLabel in ['managed','test','user','prod_test'] + JobUtils.list_ptest_prod_sources:
                     continue
                 # loop over all files
                 tmpJob.nInputDataFiles = 0
