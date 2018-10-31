@@ -22009,8 +22009,8 @@ class DBProxy:
                      'failed': ['running', 'transferring', 'merging'],
                      }
         try:
-            # change cancelled to failed
-            if newStatus == 'cancelled':
+            # change cancelled/closed to failed
+            if newStatus in ['cancelled', 'closed']:
                 newStatus = 'failed'
             # check status
             if newStatus not in statusMap:
@@ -22073,7 +22073,7 @@ class DBProxy:
                                                                                                                          newStatus))
                     continue
                 # check status
-                if oldStatus is not None and oldStatus not in statusMap[newStatus]:
+                if oldStatus is not None and oldStatus not in statusMap[newStatus] and oldStatus != newStatus:
                     tmp_log.error('{0} -> {1} is forbidden for fileID={2}'.format(oldStatus, newStatus, fileID))
                     continue
                 # conversion for failed
