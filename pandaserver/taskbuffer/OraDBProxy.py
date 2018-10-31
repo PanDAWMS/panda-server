@@ -22006,7 +22006,7 @@ class DBProxy:
                      'merging': ['queued', 'running'],
                      'transferring': ['running', 'merging'],
                      'finished': ['running', 'transferring', 'merging'],
-                     'failed': ['running', 'transferring', 'merging'],
+                     'failed': ['running', 'transferring', 'merging', 'queued'],
                      }
         try:
             # change cancelled/closed to failed
