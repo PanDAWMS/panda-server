@@ -19316,7 +19316,7 @@ class DBProxy:
 
 
     # check if all events are done
-    def checkAllEventsDone(self,job,pandaID,useCommit=False,dumpLog=True):
+    def checkAllEventsDone(self,job,pandaID,useCommit=False,dumpLog=True,getProcStatus=False):
         comment = ' /* DBProxy.checkAllEventsDone */'
         if job != None:
             pandaID = job.PandaID
@@ -19334,8 +19334,13 @@ class DBProxy:
             sqlEOC += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
             sqlEOC += "AND NOT status IN (:esDone,:esDiscarded,:esCancelled,:esFatal,:esFailed,:esFinished) "
             sqlEOC += "AND NOT (status=:esReady AND attemptNr=0) "
+            # get jumbo jobs
+            sqlGJ  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+            sqlGJ += "distinct PandaID FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
+            sqlGJ += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+            sqlGJ += "AND status IN (:esRunning,:esSent,:esFinished,:esDone) "
             # check if job is still alive
-            sqlJAL  = "SELECT jobStatus FROM {0}.jobsActive4 ".format(panda_config.schemaPANDA)
+            sqlJAL  = "SELECT jobStatus,eventService FROM {0}.jobsActive4 ".format(panda_config.schemaPANDA)
             sqlJAL += "WHERE PandaID=:PandaID "
             # begin transaction
             if useCommit:
@@ -19360,7 +19365,9 @@ class DBProxy:
                     fileList.append(fileSpec)
             # check all inputs
             allDone = True
+            proc_status = None
             checkedPandaIDs = set()
+            jobStatusMap = dict()
             for fileSpec in fileList:
                 if fileSpec.type == 'input':
                     varMap = {}
@@ -19404,6 +19411,7 @@ class DBProxy:
                                                                                            fileSpec.fileID)
                             if dumpLog:
                                 tmpLog.debug(tmpStr)
+                            jobStatusMap[pandaID] = None
                         else:
                             # still active
                             tmpStr  = "PandaID={0} is associated in {1} ".format(pandaID,resJAL[0])
@@ -19413,6 +19421,10 @@ class DBProxy:
                             if dumpLog:
                                 tmpLog.debug(tmpStr)
                             allDone = False
+                            if resJAL[1] == EventServiceUtils.jumboJobFlagNumber:
+                                jobStatusMap[pandaID] = resJAL[0]
+                            else:
+                                jobStatusMap[pandaID] = None
                             break
                         # escape
                         if not allDone:
@@ -19420,12 +19432,51 @@ class DBProxy:
                 # escape
                 if not allDone:
                     break
+            # get proc_status
+            if not allDone and getProcStatus:
+                proc_status = 'queued'
+                to_escape = False
+                for fileSpec in fileList:
+                    if fileSpec.type == 'input':
+                        varMap = {}
+                        varMap[':jediTaskID']  = fileSpec.jediTaskID
+                        varMap[':datasetID']   = fileSpec.datasetID
+                        varMap[':fileID']      = fileSpec.fileID
+                        varMap[':esDone']      = EventServiceUtils.ST_done
+                        varMap[':esFinished']  = EventServiceUtils.ST_finished
+                        varMap[':esRunning']   = EventServiceUtils.ST_running
+                        varMap[':esSent']   = EventServiceUtils.ST_sent
+                        self.cur.execute(sqlGJ+comment, varMap)
+                        resGJ = self.cur.fetchall()
+                        for pandaID, in resGJ:
+                            if pandaID not in jobStatusMap:
+                                # get job
+                                varMap = {}
+                                varMap[':PandaID'] = pandaID
+                                self.cur.execute(sqlJAL+comment, varMap)
+                                resJAL = self.cur.fetchone()
+                                if resJAL is None:
+                                    jobStatusMap[pandaID] = None
+                                else:
+                                    if resJAL[1] == EventServiceUtils.jumboJobFlagNumber:
+                                        jobStatusMap[pandaID] = resJAL[0]
+                                    else:
+                                        jobStatusMap[pandaID] = None
+                            # check status
+                            if jobStatusMap[pandaID] == 'running':
+                                proc_status = 'running'
+                                to_escape = True
+                                break
+                        if to_escape:
+                            break
             # commit
             if useCommit:
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
             if dumpLog:
                 tmpLog.debug("done with {0}".format(allDone))
+            if getProcStatus:
+                return (allDone, proc_status)
             return allDone
         except:
             # roll back
@@ -19433,6 +19484,8 @@ class DBProxy:
                 self._rollback()
             # error
             self.dumpErrorMessage(_logger,methodName)
+            if getProcStatus:
+                return (None, None)
             return None
 
 
@@ -19483,10 +19536,12 @@ class DBProxy:
                     if nRow > 0:
                         iJobs += 1
                         # check if all events are done
-                        allDone = self.checkAllEventsDone(None, pandaID, False, True)
+                        allDone, proc_status = self.checkAllEventsDone(None, pandaID, False, True, True)
                         if allDone is True:
                             tmpLog.debug('locked co-jumbo PandaID={0} jediTaskID={1} to finish in {2}'.format(pandaID,jediTaskID,tableName))
                             checkedPandaIDs.add(pandaID)
+                        if proc_status is not None:
+                            self.updateInputStatusJedi(jediTaskID, pandaID, 'queued', checkOthers=True)
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
                     if iJobs >= maxJobs:
@@ -22002,7 +22057,7 @@ class DBProxy:
         tmp_log.debug("start newStatus={0}".format(newStatus))
         statusMap = {'ready': ['queued', 'running', 'merging', 'transferring'],
                      'queued': ['ready'],
-                     'running': ['queued'],
+                     'running': ['queued', 'ready'],
                      'merging': ['queued', 'running'],
                      'transferring': ['running', 'merging'],
                      'finished': ['running', 'transferring', 'merging'],
@@ -22056,7 +22111,7 @@ class DBProxy:
                     self.cur.execute(sqlC, varMap)
                     resC = self.cur.fetchall()
                     if len(resC) > 0:
-                        tmp_log.debug('skip to update fileID={0} since others like PandaID={1} is {2}'.format(fileID, recC[0][0], otherStatus))
+                        tmp_log.debug('skip to update fileID={0} to {1} since others like PandaID={2} is {3}'.format(fileID, newStatus, resC[0][0], otherStatus))
                         continue
                 # get data in JEDI
                 varMap = {}
