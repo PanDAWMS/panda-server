@@ -8984,7 +8984,7 @@ class DBProxy:
             sqlN += "GROUP BY jobStatus,tabS.cloud,processingType "
             sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*),tabS.cloud,processingType "
             sqlA += "FROM %s tab,ATLAS_PANDAMETA.schedconfig tabS "
-            sqlA += "WHERE prodSourceLabel IN ("
+            sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,"
             for tmpLabel in JobUtils.list_ptest_prod_sources:
                 tmpKey = ':prodSourceLabel_{0}'.format(tmpLabel)
                 sqlA += tmpKey
