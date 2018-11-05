@@ -21598,6 +21598,46 @@ class DBProxy:
                 if pandaID != myPandaID:
                     ids.add(pandaID)
             nIDs = len(ids)
+            if nIDs == 0:
+                # get dataset
+                sqlPD = "SELECT f.datasetID,f.fileID FROM ATLAS_PANDA.JEDI_Datasets d,ATLAS_PANDA.filesTable4 f "
+                sqlPD += "WHERE d.jediTaskID=:jediTaskID AND d.type IN (:type1,:type2) AND d.masterID IS NULL "
+                sqlPD += "AND f.PandaID=:PandaID AND f.jeditaskID=f.jediTaskID AND f.datasetID=d.datasetID "
+                varMap = {}
+                varMap[':jediTaskID']  = jediTaskID
+                varMap[':PandaID'] = myPandaID
+                varMap[':type1'] = 'input'
+                varMap[':type2'] = 'pseudo_input'
+                self.cur.execute(sqlPD+comment, varMap)
+                resPD = self.cur.fetchall()
+                # get PandaIDs
+                idAttrMap = dict()
+                sqlCP = "SELECT PandaID,attemptNr FROM ATLAS_PANDA.filesTable4 "
+                sqlCP += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+                sqlWP = "SELECT 1 FROM ATLAS_PANDA.jobsWaiting4 WHERE PandaID=:PandaID AND computingSite=:computingSite "
+                for datasetID, fileID in resPD:
+                    if fileID is None:
+                        continue
+                    varMap = {}
+                    varMap[':jediTaskID']  = jediTaskID
+                    varMap[':datasetID']   = datasetID
+                    varMap[':fileID']      = fileID
+                    self.cur.execute(sqlCP+comment, varMap)
+                    resCP = self.cur.fetchall()
+                    for pandaID, attemptNr in resCP:
+                        idAttrMap[pandaID] = attemptNr
+                # look for my attemptNr
+                if myPandaID in idAttrMap:
+                    myAttemptNr = idAttrMap[myPandaID]
+                    for pandaID, attemptNr in idAttrMap.iteritems():
+                        if attemptNr == myAttemptNr and pandaID != myPandaID and pandaID not in ids:
+                            varMap = {}
+                            varMap[':PandaID'] = pandaID
+                            varMap[':computingSite'] = EventServiceUtils.siteIdForWaitingCoJumboJobs
+                            self.cur.execute(sqlWP+comment, varMap)
+                            resWP = self.cur.fetchone()
+                            if resWP is not None:
+                                nIDs += 1
             tmpLog.debug('got {0} ids'.format(nIDs))
             return nIDs
         except:
