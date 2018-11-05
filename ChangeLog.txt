@@ -1,5 +1,13 @@
 Release Notes
 
+* 10/30/2018
+  * added list_ptest_prod_sources
+
+* 10/22/2018
+  * added proc_status
+  * sending ioIntensity
+  * fixed ppE for maxAttempt
+
 * 10/16/2018
   * added decAttOnFailedES
 

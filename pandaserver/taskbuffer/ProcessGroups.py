@@ -1,8 +1,11 @@
+from . import JobUtils
+
+
 processGroups = [('others',       []),
                  ('evgen',        ['evgen']),
                  ('simul',        ['simul']),
                  ('reprocessing', ['reprocessing']),
-                 ('test',         ['prod_test','rc_test','rc_test2','validation']),
+                 ('test',         ['prod_test', 'validation'] + JobUtils.list_ptest_prod_sources),
                  ('mcore',        ['mcore']),
                  ('group',        ['group']),                 
                  ]

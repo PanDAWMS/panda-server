@@ -6,6 +6,7 @@ job specification
 reserveChangedState = False
 
 import re
+import types
 import datetime
 
 
@@ -697,3 +698,22 @@ class JobSpec(object):
         if self._tagForSH['decAttOnFailedES'] not in items:
             items.append(self._tagForSH['decAttOnFailedES'])
         self.specialHandling = ','.join(items)
+
+
+
+    # set task attribute
+    def set_task_attribute(self, key, value):
+        if not isinstance(self.metadata, types.ListType):
+            self.metadata = [None, None]
+        if len(self.metadata) != 3:
+            self.metadata.append({})
+        self.metadata[2][key] = value
+
+
+
+    # get task attribute
+    def get_task_attribute(self, key):
+        try:
+            return self.metadata[2][key]
+        except:
+            return None

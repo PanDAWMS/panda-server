@@ -1,5 +1,9 @@
 import re
 
+# list of prod source label for pilot tests
+list_ptest_prod_sources = ['ptest', 'rc_test', 'rc_test2', 'rc_alrb']
+
+
 
 # get core count
 def getCoreCount(actualCoreCount, defCoreCount, jobMetrics):

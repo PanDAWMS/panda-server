@@ -22,6 +22,7 @@ from pandalogger.PandaLogger import PandaLogger
 from pandalogger.LogWrapper import LogWrapper
 from taskbuffer import EventServiceUtils
 from taskbuffer import retryModule
+from taskbuffer import JobUtils
 import taskbuffer.ErrorCode
 
 # logger
@@ -373,7 +374,7 @@ class AdderGen:
                             if not file.destinationDBlock in destDBList:
                                 destDBList.append(file.destinationDBlock)
                             # collect GUIDs
-                            if (self.job.prodSourceLabel=='panda' or (self.job.prodSourceLabel in ['ptest','rc_test','rc_test2','rucio_test'] and \
+                            if (self.job.prodSourceLabel=='panda' or (self.job.prodSourceLabel in ['rucio_test'] + JobUtils.list_ptest_prod_sources and \
                                                                       self.job.processingType in ['pathena','prun','gangarobot-rctest','hammercloud'])) \
                                                                       and file.type == 'output':
                                 # extract base LFN since LFN was changed to full LFN for CMS
@@ -645,7 +646,7 @@ class AdderGen:
                     if self.job.prodSourceLabel in ['user','panda']:
                         # skipped file
                         file.status = 'skipped'
-                    elif self.job.prodSourceLabel in ['managed','test','rc_test','rc_test2','ptest']:
+                    elif self.job.prodSourceLabel in ['managed','test'] + JobUtils.list_ptest_prod_sources:
                         # failed by pilot
                         file.status = 'failed'
             elif file.type == 'output' or file.type == 'log':
