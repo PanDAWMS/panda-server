@@ -473,7 +473,7 @@ class RucioAPI:
                 iGUID += 1
                 dids.append({'scope':scope,'name':lfn})
                 if len(dids) % nGUID == 0 or iGUID == len(lfns):
-                    for tmpDict in client.list_replicas(dids,['srm']):
+                    for tmpDict in client.list_replicas(dids):
                         tmpLFN = str(tmpDict['name'])
                         tmpRses = tmpDict['rses'].keys()
                         # RSE selection
