@@ -13395,7 +13395,8 @@ class DBProxy:
             nRow = cur.rowcount
             tmpLog.debug('set task.useJumbo={0} with {1}'.format(varMap[':newJumbo'], nRow))
         # update input
-        if not EventServiceUtils.isJumboJob(jobSpec) and jobSpec.computingSite != EventServiceUtils.siteIdForWaitingCoJumboJobs:
+        if not EventServiceUtils.isJumboJob(jobSpec) and jobSpec.computingSite != EventServiceUtils.siteIdForWaitingCoJumboJobs \
+                and jobSpec.taskBufferErrorCode not in [ErrorCode.EC_PilotRetried]:
             self.updateInputStatusJedi(jobSpec.jediTaskID, jobSpec.PandaID, jobSpec.jobStatus)
         # update t_task
         if jobSpec.jobStatus == 'finished' and not jobSpec.prodSourceLabel in ['panda']:
