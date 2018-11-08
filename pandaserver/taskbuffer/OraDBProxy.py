@@ -2337,6 +2337,8 @@ class DBProxy:
                         sqlJWU += "WHERE PandaID=:PandaID "
                         varMap = {':PandaID': pandaID, ':lastUpdate': datetime.datetime.utcnow()}
                         self.cur.execute(sqlJWU + comment, varMap)
+                        nRow = self.cur.rowcount
+                        _logger.debug("updateJobStatus : {0} workers updated for pandaID {1}".format(nRow, pandaID))
                 else:
                     _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s notFound" % (pandaID,attemptNr))
                     # already deleted or bad attempt number
