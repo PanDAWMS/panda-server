@@ -18099,7 +18099,7 @@ class DBProxy:
             # begin transaction
             self.conn.begin()
             # insert file in JEDI
-            if not updateOrig and not tmpFileSpec.jediTaskID in [None,'NULL']:
+            if not updateOrig and not tmpFileSpec.jediTaskID in [None,'NULL'] and tmpFileSpec.fileID not in ['', 'NULL', None]:
                 # get fileID
                 sqlFileID = "SELECT ATLAS_PANDA.JEDI_DATASET_CONT_FILEID_SEQ.nextval FROM dual "
                 self.cur.execute(sqlFileID+comment)
