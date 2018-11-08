@@ -2331,6 +2331,14 @@ class DBProxy:
                         # update input
                         if updatedFlag and jediTaskID is not None and jobStatus == 'running' and oldJobStatus != jobStatus:
                             self.updateInputStatusJedi(jediTaskID, pandaID, jobStatus)
+                        # try to update the lastupdate column in the harvester_rel_job_worker table to propagate
+                        # changes to Elastic Search
+                        sqlJWU = "UPDATE ATLAS_PANDA.Harvester_Rel_Jobs_Workers SET lastUpdate=:lastUpdate "
+                        sqlJWU += "WHERE PandaID=:PandaID "
+                        varMap = {':PandaID': pandaID, ':lastUpdate': datetime.datetime.utcnow()}
+                        self.cur.execute(sqlJWU + comment, varMap)
+                        nRow = self.cur.rowcount
+                        _logger.debug("updateJobStatus : {0} workers updated for pandaID {1}".format(nRow, pandaID))
                 else:
                     _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s notFound" % (pandaID,attemptNr))
                     # already deleted or bad attempt number
