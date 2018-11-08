@@ -18087,7 +18087,7 @@ class DBProxy:
     def copyFileRecord(self,newLFN,fileSpec,updateOrig):
         comment = ' /* DBProxy.copyFileRecord */'
         methodName = comment.split(' ')[-2].split('.')[-1]
-        methodName += " <oldLFN={0} newLFN={1} updateOrig={2}>".format(fileSpec.lfn,newLFN,updateOrig)
+        methodName += " <PandaID={0} oldLFN={1} newLFN={2} updateOrig={3}>".format(fileSpec.PandaID, fileSpec.lfn, newLFN, updateOrig)
         tmpLog = LogWrapper(_logger,methodName)
         tmpLog.debug("start")
         try:
