@@ -16829,7 +16829,7 @@ class DBProxy:
                     dJob.pack(resJob[0])
                     # not kill all status
                     if not killAll:
-                        if dJob.jobStatus not in ['activated', 'assigned', 'waiting', 'throttled']:
+                        if dJob.jobStatus not in ['activated', 'assigned', 'throttled']:
                             _logger.debug("{0} : skip to kill unused consumer {1} since status={2}".format(methodName, pandaID, dJob.jobStatus))
                             notToDelete = True
                             break
