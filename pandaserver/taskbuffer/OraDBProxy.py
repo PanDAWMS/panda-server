@@ -1623,6 +1623,7 @@ class DBProxy:
                     # post processing
                     oldJobSubStatus = job.jobSubStatus
                     retEvS,retNewPandaID = self.ppEventServiceJob(job,currentJobStatus,False)
+                    _logger.debug("archiveJob : {0} ppE -> {1}".format(job.PandaID, retEvS))
                     # DB error
                     if retEvS == None:
                         raise RuntimeError, 'Faied to retry for Event Service'
@@ -1703,6 +1704,10 @@ class DBProxy:
                         # no new jobs
                         if retNewPandaID is None:
                             nActiveConsumers = self.getActiveConsumers(job.jediTaskID, job.jobsetID, job.PandaID)
+                            # create a fake cojumbo
+                            if nActiveConsumers == 0 and retEvS == 5 and EventServiceUtils.isCoJumboJob(job) \
+                                    and job.computingSite != EventServiceUtils.siteIdForWaitingCoJumboJobs:
+                                nActiveConsumers = self.makeFakeCoJumbo(job)
                             # no ES queues for retry
                             if nActiveConsumers == 0:
                                 job.jobStatus = 'failed'
@@ -22205,3 +22210,115 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger, method_name)
             return False
+
+
+
+    # make fake co-jumbo
+    def makeFakeCoJumbo(self, oldJobSpec):
+        comment = ' /* DBProxy.self.makeFakeCoJumbo */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        method_name += ' < PandaID={0} >'.format(oldJobSpec.PandaID)
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+        try:
+            # make a new job
+            jobSpec = copy.copy(oldJobSpec)
+            jobSpec.Files = []
+            # reset job attributes
+            jobSpec.startTime        = None
+            jobSpec.creationTime     = datetime.datetime.utcnow()
+            jobSpec.modificationTime = jobSpec.creationTime
+            jobSpec.stateChangeTime  = jobSpec.creationTime
+            jobSpec.batchID          = None
+            jobSpec.schedulerID = None
+            jobSpec.pilotID = None
+            jobSpec.endTime          = None
+            jobSpec.transExitCode    = None
+            jobSpec.jobMetrics       = None
+            jobSpec.jobSubStatus     = None
+            jobSpec.actualCoreCount  = None
+            jobSpec.hs06sec          = None
+            jobSpec.nEvents          = None
+            jobSpec.cpuConsumptionTime = None
+            jobSpec.computingSite = EventServiceUtils.siteIdForWaitingCoJumboJobs
+            jobSpec.jobExecutionID = 0
+            jobSpec.jobStatus = 'waiting'
+            jobSpec.jobSubStatus = None
+            for attr in jobSpec._attributes:
+                for patt in ['ErrorCode', 'ErrorDiag', 'CHAR', 'BYTES', 'RSS', 'PSS', 'VMEM', 'SWAP']:
+                    if attr.endswith(patt):
+                        setattr(jobSpec, attr, None)
+                        break
+            # read files
+            varMap = {}
+            varMap[':PandaID'] = oldJobSpec.PandaID
+            sqlFile  = "SELECT {0} FROM ATLAS_PANDA.filesTable4 ".format(FileSpec.columnNames())
+            sqlFile += "WHERE PandaID=:PandaID "
+            self.cur.arraysize = 100000
+            self.cur.execute(sqlFile+comment, varMap)
+            resFs = self.cur.fetchall()
+            # loop over all files            
+            for resF in resFs:
+                # add
+                fileSpec = FileSpec()
+                fileSpec.pack(resF)
+                # skip zip
+                if fileSpec.type.startswith('zip'):
+                    continue
+                jobSpec.addFile(fileSpec)
+                # reset file status
+                if fileSpec.type in ['output','log']:
+                    fileSpec.status = 'unknown'
+            # read job parameters
+            sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID "
+            varMap = {}
+            varMap[':PandaID'] = oldJobSpec.PandaID
+            self.cur.execute(sqlJobP+comment, varMap)
+            for clobJobP, in self.cur:
+                try:
+                    jobSpec.jobParameters = clobJobP.read()
+                except AttributeError:
+                    jobSpec.jobParameters = str(clobJobP)
+                break
+            # insert job with new PandaID
+            sql1  = "INSERT INTO ATLAS_PANDA.jobsWaiting4 ({0}) ".format(JobSpec.columnNames())
+            sql1 += JobSpec.bindValuesExpression(useSeq=True)
+            sql1 += " RETURNING PandaID INTO :newPandaID"
+            varMap = jobSpec.valuesMap(useSeq=True)
+            varMap[':newPandaID'] = self.cur.var(varNUMBER)
+            # insert
+            retI = self.cur.execute(sql1+comment, varMap)
+            # set PandaID
+            jobSpec.PandaID = long(self.cur.getvalue(varMap[':newPandaID']))
+            msgStr = 'Generate a fake co-jumbo new PandaID={0} at {1} '.format(jobSpec.PandaID, jobSpec.computingSite)
+            tmp_log.debug(msgStr)
+            # insert files
+            sqlFile = "INSERT INTO ATLAS_PANDA.filesTable4 ({0}) ".format(FileSpec.columnNames())
+            sqlFile+= FileSpec.bindValuesExpression(useSeq=True)
+            sqlFile+= " RETURNING row_ID INTO :newRowID"
+            for fileSpec in jobSpec.Files:
+                # reset rowID
+                fileSpec.row_ID = None
+                # change GUID and LFN for log
+                if fileSpec.type == 'log':
+                    fileSpec.GUID = commands.getoutput('uuidgen')
+                    fileSpec.lfn = re.sub('\.{0}$'.format(oldJobSpec.PandaID), '', fileSpec.lfn)
+                # insert
+                varMap = fileSpec.valuesMap(useSeq=True)
+                varMap[':newRowID'] = self.cur.var(varNUMBER)
+                self.cur.execute(sqlFile+comment, varMap)
+                fileSpec.row_ID = long(self.cur.getvalue(varMap[':newRowID']))
+            # insert job parameters
+            sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters) VALUES (:PandaID,:param) "
+            varMap = {}
+            varMap[':PandaID'] = jobSpec.PandaID
+            varMap[':param']   = jobSpec.jobParameters
+            self.cur.execute(sqlJob+comment, varMap)
+            self.recordStatusChange(jobSpec.PandaID, jobSpec.jobStatus, jobInfo=jobSpec, useCommit=False)
+            # return
+            tmp_log.debug("done")
+            return 1
+        except:
+            # error
+            self.dumpErrorMessage(_logger, method_name)
+            return 0
