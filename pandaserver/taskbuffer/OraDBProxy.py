@@ -15019,6 +15019,7 @@ class DBProxy:
         methodName += ' <{0}>'.format(datetime.datetime.utcnow().isoformat('/'))
         tmpLog = LogWrapper(_logger,methodName)
         try:
+            regStart = datetime.datetime.utcnow()
             retList = []
             jobAttrs = {}
             commandMap = {}
@@ -15029,10 +15030,10 @@ class DBProxy:
                 sqlU += ",zipRow_ID=:zipRow_ID"
             sqlU += " WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND fileID=:fileID "
             sqlU += "AND job_processID=:job_processID AND attemptNr=:attemptNr "
+            sqlU += "AND status IN (:esSent, :esRunning) "
             # sql to get event range
-            sqlC  = "SELECT def_min_eventID,def_max_eventID,status FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
-            sqlC += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND fileID=:fileID "
-            sqlC += "AND job_processID=:job_processID "
+            sqlC  = "SELECT splitRule FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+            sqlC += "WHERE jediTaskID=:jediTaskID "
             # sql to get nEvents
             sqlE  = "SELECT jobStatus,nEvents,commandToPilot,supErrorCode,specialHandling FROM ATLAS_PANDA.jobsActive4 "
             sqlE += "WHERE PandaID=:pandaID "
@@ -15078,14 +15079,18 @@ class DBProxy:
                             eventDictList.append(eventDict)
                     else:
                         eventDictList.append(eventDictChunk)
-            # loop over all events
+            # update events
             tmpLog.debug('update {0} events'.format(len(eventDictList)))
             zipRowIdMap = {}
             nEventsMap = dict()
             cpuConsumptionTimeMap = dict()
             iEvents = 0
-            maxEvents = 10000
+            maxEvents = 100000
             iSkipped = 0
+            nEventsDef = None
+            # start transaction
+            self.conn.begin()
+            # loop over all events
             for eventDict in eventDictList:
                 # avoid too many events
                 iEvents += 1
@@ -15166,8 +15171,6 @@ class DBProxy:
                     pathConvention = eventDict['pathConvention']
                 else:
                     pathConvention = None
-                # start transaction
-                self.conn.begin()
                 nRow = 0
                 isOK = True
                 # get job attributes
@@ -15192,92 +15195,80 @@ class DBProxy:
                         retList.append(False)
                         isOK = False
                     else:
-                        # check event status
-                        minEventID = 0
-                        maxEventID = 0
+                        # insert zip
+                        zipRow_ID = None
+                        if 'zipFile' in eventDict and eventDict['zipFile'] != None:
+                            if eventDict['zipFile']['lfn'] in zipRowIdMap:
+                                zipRow_ID = zipRowIdMap[eventDict['zipFile']['lfn']]
+                            else:
+                                # check zip
+                                varMap = dict()
+                                varMap[':pandaID'] = pandaID
+                                varMap[':lfn'] = eventDict['zipFile']['lfn']
+                                self.cur.execute(sqlFC+comment, varMap)
+                                resFC = self.cur.fetchone()
+                                if resFC is not None:
+                                    zipRow_ID, = resFC
+                                else:
+                                    # insert new file
+                                    zipJobSpec = JobSpec()
+                                    zipJobSpec.PandaID = pandaID
+                                    zipJobSpec.specialHandling = specialHandling
+                                    zipFileSpec = FileSpec()
+                                    zipFileSpec.jediTaskID = jediTaskID
+                                    zipFileSpec.lfn = eventDict['zipFile']['lfn']
+                                    zipFileSpec.GUID = str(uuid.uuid4())
+                                    if 'fsize' in eventDict['zipFile']:
+                                        zipFileSpec.fsize = long(eventDict['zipFile']['fsize'])
+                                    else:
+                                        zipFileSpec.fsize = 0
+                                    if 'adler32' in eventDict['zipFile']:
+                                        zipFileSpec.checksum = 'ad:{0}'.format(eventDict['zipFile']['adler32'])
+                                    if 'numEvents' in eventDict['zipFile']:
+                                        zipFileSpec.dispatchDBlockToken = eventDict['zipFile']['numEvents']
+                                    zipFileSpec.type = 'zipoutput'
+                                    zipFileSpec.status = 'ready'
+                                    zipFileSpec.destinationSE = eventDict['zipFile']['objstoreID']
+                                    if 'pathConvention' in eventDict['zipFile']:
+                                        zipFileSpec.destinationSE = '{0}/{1}'.format(zipFileSpec.destinationSE,
+                                                                                     eventDict['zipFile']['pathConvention'])
+                                    zipJobSpec.addFile(zipFileSpec)
+                                    varMap = zipFileSpec.valuesMap(useSeq=True)
+                                    varMap[':newRowID'] = self.cur.var(varNUMBER)
+                                    self.cur.execute(sqlF+comment, varMap)
+                                    zipRow_ID = long(self.cur.getvalue(varMap[':newRowID']))
+                                    zipRowIdMap[eventDict['zipFile']['lfn']] = zipRow_ID
+                                    # make an empty file to trigger registration for zip files in Adder
+                                    if zipJobSpec.registerEsFiles():
+                                        tmpFileName = '{0}_{1}_{2}'.format(pandaID, EventServiceUtils.esRegStatus,
+                                                                           uuid.uuid3(uuid.NAMESPACE_DNS,''))
+                                        tmpFileName = os.path.join(panda_config.logdir, tmpFileName)
+                                        try:
+                                            open(tmpFileName, 'w').close()
+                                        except:
+                                            pass
+                        # update event
                         varMap = {}
                         varMap[':jediTaskID'] = jediTaskID
                         varMap[':pandaID'] = pandaID
                         varMap[':fileID'] = fileID
                         varMap[':job_processID'] = job_processID
-                        self.cur.execute(sqlC+comment, varMap)
-                        resC = self.cur.fetchone()
-                        if resC != None:
-                            minEventID, maxEventID, oldStatus = resC
-                            if not oldStatus in [EventServiceUtils.ST_sent,
-                                                 EventServiceUtils.ST_running]:
-                                tmpLog.error("<eventRangeID={0}> cannot update old eventStatus={1}".format(eventRangeID,
-                                                                                                           oldStatus))
-                                retList.append(False)
-                                isOK = False
-                        if isOK:
-                            # insert zip
-                            zipRow_ID = None
-                            if 'zipFile' in eventDict and eventDict['zipFile'] != None:
-                                if eventDict['zipFile']['lfn'] in zipRowIdMap:
-                                    zipRow_ID = zipRowIdMap[eventDict['zipFile']['lfn']]
-                                else:
-                                    # check zip
-                                    varMap = dict()
-                                    varMap[':pandaID'] = pandaID
-                                    varMap[':lfn'] = eventDict['zipFile']['lfn']
-                                    self.cur.execute(sqlFC+comment, varMap)
-                                    resFC = self.cur.fetchone()
-                                    if resFC is not None:
-                                        zipRow_ID, = resFC
-                                    else:
-                                        # insert new file
-                                        zipJobSpec = JobSpec()
-                                        zipJobSpec.PandaID = pandaID
-                                        zipJobSpec.specialHandling = specialHandling
-                                        zipFileSpec = FileSpec()
-                                        zipFileSpec.jediTaskID = jediTaskID
-                                        zipFileSpec.lfn = eventDict['zipFile']['lfn']
-                                        zipFileSpec.GUID = str(uuid.uuid4())
-                                        if 'fsize' in eventDict['zipFile']:
-                                            zipFileSpec.fsize = long(eventDict['zipFile']['fsize'])
-                                        else:
-                                            zipFileSpec.fsize = 0
-                                        if 'adler32' in eventDict['zipFile']:
-                                            zipFileSpec.checksum = 'ad:{0}'.format(eventDict['zipFile']['adler32'])
-                                        if 'numEvents' in eventDict['zipFile']:
-                                            zipFileSpec.dispatchDBlockToken = eventDict['zipFile']['numEvents']
-                                        zipFileSpec.type = 'zipoutput'
-                                        zipFileSpec.status = 'ready'
-                                        zipFileSpec.destinationSE = eventDict['zipFile']['objstoreID']
-                                        if 'pathConvention' in eventDict['zipFile']:
-                                            zipFileSpec.destinationSE = '{0}/{1}'.format(zipFileSpec.destinationSE,
-                                                                                         eventDict['zipFile']['pathConvention'])
-                                        zipJobSpec.addFile(zipFileSpec)
-                                        varMap = zipFileSpec.valuesMap(useSeq=True)
-                                        varMap[':newRowID'] = self.cur.var(varNUMBER)
-                                        self.cur.execute(sqlF+comment, varMap)
-                                        zipRow_ID = long(self.cur.getvalue(varMap[':newRowID']))
-                                        zipRowIdMap[eventDict['zipFile']['lfn']] = zipRow_ID
-                                        # make an empty file to trigger registration for zip files in Adder
-                                        if zipJobSpec.registerEsFiles():
-                                            tmpFileName = '{0}_{1}_{2}'.format(pandaID, EventServiceUtils.esRegStatus,
-                                                                               uuid.uuid3(uuid.NAMESPACE_DNS,''))
-                                            tmpFileName = os.path.join(panda_config.logdir, tmpFileName)
-                                            try:
-                                                open(tmpFileName, 'w').close()
-                                            except:
-                                                pass
-                            # update event
-                            varMap = {}
-                            varMap[':jediTaskID'] = jediTaskID
-                            varMap[':pandaID'] = pandaID
-                            varMap[':fileID'] = fileID
-                            varMap[':job_processID'] = job_processID
-                            varMap[':attemptNr'] = attemptNr
-                            varMap[':eventStatus'] = intEventStatus
-                            varMap[':objstoreID'] = objstoreID
-                            varMap[':errorCode'] = errorCode
-                            varMap[':pathConvention'] = pathConvention
-                            if version != 0:
-                                varMap[':zipRow_ID'] = zipRow_ID
-                            self.cur.execute(sqlU+comment, varMap)
-                            nRow = self.cur.rowcount
+                        varMap[':attemptNr'] = attemptNr
+                        varMap[':eventStatus'] = intEventStatus
+                        varMap[':objstoreID'] = objstoreID
+                        varMap[':errorCode'] = errorCode
+                        varMap[':pathConvention'] = pathConvention
+                        varMap[':esSent'] = EventServiceUtils.ST_sent
+                        varMap[':esRunning'] = EventServiceUtils.ST_running
+                        if version != 0:
+                            varMap[':zipRow_ID'] = zipRow_ID
+                        self.cur.execute(sqlU+comment, varMap)
+                        nRow = self.cur.rowcount
+                        if nRow != 1:
+                            tmpLog.error("<eventRangeID={0}> cannot update to {1}".format(eventRangeID, eventStatus)),
+                            retList.append(False)
+                            isOK = False
+                        else:
                             # fatal event
                             if isFatal:
                                 varMap = {}
@@ -15289,13 +15280,23 @@ class DBProxy:
                                 varMap[':newAttemptNr'] = 1
                                 self.cur.execute(sqlFA+comment, varMap)
                             # nEvents of finished
-                            if nRow == 1 and eventStatus in ['finished']:
+                            if eventStatus in ['finished']:
                                 # get nEvents
+                                if nEventsDef is None:
+                                    nEventsDef = 1
+                                    varMap = {}
+                                    varMap[':jediTaskID'] = jediTaskID
+                                    self.cur.execute(sqlC+comment, varMap)
+                                    resC = self.cur.fetchone()
+                                    if resC is not None:
+                                        splitRule, = resC
+                                        tmpM = re.search('ES=(\d+)', splitRule)
+                                        if tmpM is not None:
+                                            nEvents = int(tmpM.group(1))
                                 nEventsMap.setdefault(pandaID, 0)
-                                nEvents = maxEventID - minEventID + 1
-                                nEventsMap[pandaID] += nEvents
+                                nEventsMap[pandaID] += nEventsDef
                             # cpuConsumptionTime of finished or failed
-                            if nRow == 1 and cpuConsumptionTime is not None and eventStatus in ['finished','failed']:
+                            if cpuConsumptionTime is not None and eventStatus in ['finished','failed']:
                                 cpuConsumptionTimeMap.setdefault(pandaID, 0)
                                 if coreCount == None:
                                     actualCpuTime = long(cpuConsumptionTime)
@@ -15305,14 +15306,14 @@ class DBProxy:
                     # soft kill
                     if not commandToPilot in [None,''] and supErrorCode in [ErrorCode.EC_EventServicePreemption]:
                             commandToPilot = 'softkill'
-                # commit
-                if not self._commit():
-                    raise RuntimeError, 'Commit error'
                 if isOK:
                     tmpLog.debug("<eventRangeID={0}> eventStatus={1} done with nRow={2}".format(eventRangeID, eventStatus, nRow))
                     retList.append(True)
                 if not pandaID in commandMap:
                     commandMap[pandaID] = commandToPilot
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
             # update nevents
             for pandaID, nEvents in nEventsMap.iteritems():
                 if nEvents > 0:
@@ -15335,7 +15336,8 @@ class DBProxy:
                     tmpLog.debug("updated PandaID={0} cpuConsumptionTime+={1}".format(pandaID, actualCpuTime))
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
-            tmpLog.debug('done. {0} events skipped'.format(iSkipped))
+            regTime = datetime.datetime.utcnow() - regStart
+            tmpLog.debug('done. {0} events skipped. took {1} sec'.format(iSkipped, regTime.seconds))
             return retList,commandMap
         except:
             # roll back
