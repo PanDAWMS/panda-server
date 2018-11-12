@@ -15319,7 +15319,7 @@ class DBProxy:
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
             regTime = datetime.datetime.utcnow() - regStart
-            tmpLog.debug('done. {0} events skipped. took {1} sec'.format(iSkipped, regTime.seconds))
+            tmpLog.debug('done. {0}/{1} events skipped. took {2} sec'.format(iSkipped, len(eventDictList), regTime.seconds))
             return retList,commandMap
         except:
             # roll back
