@@ -15039,12 +15039,9 @@ class DBProxy:
             sqlE += "WHERE PandaID=:pandaID "
             # sql to set nEvents
             sqlS  = "UPDATE ATLAS_PANDA.jobsActive4 "
-            sqlS += "SET nEvents=nEvents+:nEventsDiff "
+            sqlS += "SET nEvents=(SELECT COUNT(1) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI) 
+            sqlS += "WHERE jediTaskID=:jediTaskID AND PandaID=:PandaID AND status IN (:esFinished,:esDone,:esMerged))*:nEvents "
             sqlS += "WHERE PandaID=:pandaID "
-            # sql to set CPU consumption
-            sqlT  = "UPDATE ATLAS_PANDA.jobsActive4 "
-            sqlT += "SET cpuConsumptionTime=cpuConsumptionTime+:actualCpuTime "
-            sqlT += "WHERE PandaID=:PandaID "
             # sql to check zip file
             sqlFC = "SELECT row_ID FROM ATLAS_PANDA.filesTable4 "
             sqlFC += "WHERE PandaID=:pandaID AND lfn=:lfn "
@@ -15057,6 +15054,7 @@ class DBProxy:
             sqlFA += "SET attemptNr=:newAttemptNr "
             sqlFA += " WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND fileID=:fileID "
             sqlFA += "AND job_processID=:job_processID AND attemptNr=:oldAttemptNr "
+            sqlFA += "AND status=:eventStatus "
             # params formatting with version
             if version == 0:
                 # format without zip
@@ -15080,17 +15078,18 @@ class DBProxy:
                     else:
                         eventDictList.append(eventDictChunk)
             # update events
-            tmpLog.debug('update {0} events'.format(len(eventDictList)))
+            tmpLog.debug('total {0} events'.format(len(eventDictList)))
             zipRowIdMap = {}
             nEventsMap = dict()
             cpuConsumptionTimeMap = dict()
             iEvents = 0
             maxEvents = 100000
             iSkipped = 0
-            nEventsDef = None
             # start transaction
             self.conn.begin()
             # loop over all events
+            varMapListU = []
+            varMapListFA = []
             for eventDict in eventDictList:
                 # avoid too many events
                 iEvents += 1
@@ -15171,7 +15170,6 @@ class DBProxy:
                     pathConvention = eventDict['pathConvention']
                 else:
                     pathConvention = None
-                nRow = 0
                 isOK = True
                 # get job attributes
                 if not pandaID in jobAttrs:
@@ -15180,6 +15178,7 @@ class DBProxy:
                     self.cur.execute(sqlE+comment, varMap)
                     resE = self.cur.fetchone()
                     jobAttrs[pandaID] = resE
+                    tmpLog.debug("PandaID={0}".format(pandaID))
                 resE = jobAttrs[pandaID]
                 if resE == None:
                     tmpLog.error("<eventRangeID={0}> unknown PandaID".format(eventRangeID))
@@ -15262,80 +15261,63 @@ class DBProxy:
                         varMap[':esRunning'] = EventServiceUtils.ST_running
                         if version != 0:
                             varMap[':zipRow_ID'] = zipRow_ID
-                        self.cur.execute(sqlU+comment, varMap)
-                        nRow = self.cur.rowcount
-                        if nRow != 1:
-                            tmpLog.error("<eventRangeID={0}> cannot update to {1}".format(eventRangeID, eventStatus)),
-                            retList.append(False)
-                            isOK = False
-                        else:
-                            # fatal event
-                            if isFatal:
+                        varMapListU.append(varMap)
+                        # fatal event
+                        if isFatal:
+                            varMap = {}
+                            varMap[':jediTaskID'] = jediTaskID
+                            varMap[':pandaID'] = pandaID
+                            varMap[':fileID'] = fileID
+                            varMap[':job_processID'] = job_processID
+                            varMap[':oldAttemptNr'] = attemptNr
+                            varMap[':newAttemptNr'] = 1
+                            varMap[':eventStatus'] = EventServiceUtils.ST_failed
+                            varMapListFA.append(varMap)
+                        # nEvents of finished
+                        if eventStatus in ['finished']:
+                            # get nEvents
+                            if pandaID not in nEventsMap:
+                                nEventsDef = 1
                                 varMap = {}
                                 varMap[':jediTaskID'] = jediTaskID
-                                varMap[':pandaID'] = pandaID
-                                varMap[':fileID'] = fileID
-                                varMap[':job_processID'] = job_processID
-                                varMap[':oldAttemptNr'] = attemptNr
-                                varMap[':newAttemptNr'] = 1
-                                self.cur.execute(sqlFA+comment, varMap)
-                            # nEvents of finished
-                            if eventStatus in ['finished']:
-                                # get nEvents
-                                if nEventsDef is None:
-                                    nEventsDef = 1
-                                    varMap = {}
-                                    varMap[':jediTaskID'] = jediTaskID
-                                    self.cur.execute(sqlC+comment, varMap)
-                                    resC = self.cur.fetchone()
-                                    if resC is not None:
-                                        splitRule, = resC
-                                        tmpM = re.search('ES=(\d+)', splitRule)
-                                        if tmpM is not None:
-                                            nEvents = int(tmpM.group(1))
-                                nEventsMap.setdefault(pandaID, 0)
-                                nEventsMap[pandaID] += nEventsDef
-                            # cpuConsumptionTime of finished or failed
-                            if cpuConsumptionTime is not None and eventStatus in ['finished','failed']:
-                                cpuConsumptionTimeMap.setdefault(pandaID, 0)
-                                if coreCount == None:
-                                    actualCpuTime = long(cpuConsumptionTime)
-                                else:
-                                    actualCpuTime = long(coreCount) * long(cpuConsumptionTime)
-                                cpuConsumptionTimeMap[pandaID] += actualCpuTime
+                                self.cur.execute(sqlC+comment, varMap)
+                                resC = self.cur.fetchone()
+                                if resC is not None:
+                                    splitRule, = resC
+                                    tmpM = re.search('ES=(\d+)', splitRule)
+                                    if tmpM is not None:
+                                        nEventsDef = int(tmpM.group(1))
+                                nEventsMap[pandaID] = {'jediTaskID': jediTaskID, 'nEvents': nEventsDef}
                     # soft kill
                     if not commandToPilot in [None,''] and supErrorCode in [ErrorCode.EC_EventServicePreemption]:
                             commandToPilot = 'softkill'
                 if isOK:
-                    tmpLog.debug("<eventRangeID={0}> eventStatus={1} done with nRow={2}".format(eventRangeID, eventStatus, nRow))
+                    #tmpLog.debug("<eventRangeID={0}> eventStatus={1}".format(eventRangeID, eventStatus))
                     retList.append(True)
                 if not pandaID in commandMap:
                     commandMap[pandaID] = commandToPilot
+            tmpLog.debug('update {0} events'.format(len(varMapListU)))
+            if len(varMapListU) > 0:
+                self.cur.executemany(sqlU+comment, varMapListU)
+            tmpLog.debug('fatal {0} events'.format(len(varMapListFA)))
+            if len(varMapListFA) > 0:
+                self.cur.executemany(sqlFA+comment, varMapListFA)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
             # update nevents
-            for pandaID, nEvents in nEventsMap.iteritems():
-                if nEvents > 0:
-                    self.conn.begin()
-                    varMap = {}
-                    varMap[':pandaID'] = pandaID
-                    varMap[':nEventsDiff'] = nEvents
-                    self.cur.execute(sqlS+comment, varMap)
-                    tmpLog.debug("updated PandaID={0} nEvents+={1}".format(pandaID, nEvents))
-                    if not self._commit():
-                        raise RuntimeError, 'Commit error'
-            # update cpuConsumptionTime
-            for pandaID, actualCpuTime in cpuConsumptionTimeMap.iteritems():
-                if actualCpuTime > 0:
-                    self.conn.begin()
-                    varMap = {}
-                    varMap[':pandaID'] = pandaID
-                    varMap[':actualCpuTime'] = actualCpuTime
-                    self.cur.execute(sqlT+comment, varMap)
-                    tmpLog.debug("updated PandaID={0} cpuConsumptionTime+={1}".format(pandaID, actualCpuTime))
-                    if not self._commit():
-                        raise RuntimeError, 'Commit error'
+            for pandaID, data in nEventsMap.iteritems():
+                self.conn.begin()
+                varMap = {}
+                varMap[':pandaID'] = pandaID
+                varMap[':jediTaskID'] = data['jediTaskID']
+                varMap[':nEvents'] = data['nEvents']
+                varMap[':esFinished'] = EventServiceUtils.ST_finished
+                varMap[':esDone'] = EventServiceUtils.ST_done
+                varMap[':esMerged'] = EventServiceUtils.ST_merged
+                self.cur.execute(sqlS+comment, varMap)
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
             regTime = datetime.datetime.utcnow() - regStart
             tmpLog.debug('done. {0} events skipped. took {1} sec'.format(iSkipped, regTime.seconds))
             return retList,commandMap
