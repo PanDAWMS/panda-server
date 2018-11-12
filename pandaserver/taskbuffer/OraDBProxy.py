@@ -1853,6 +1853,15 @@ class DBProxy:
                         varMap[':jobSubStatus'] = oldJobSubStatus
                     self.cur.execute(sqlOJS+comment,varMap)
                     tmpJobStatus = varMap[':jobStatus']
+                if EventServiceUtils.isEventServiceJob(job) and job.jobStatus == 'failed' and \
+                        job.taskBufferErrorCode in [ErrorCode.EC_EventServiceLastUnprocessed] and job.nEvents > 0:
+                    varMap = {}
+                    varMap[':PandaID'] = job.PandaID
+                    varMap[':jobStatus'] = 'merging'
+                    varMap[':jobSubStatus'] = 'es_wait'
+                    self.cur.execute(sqlOJS+comment,varMap)
+                    tmpJobStatus = varMap[':jobStatus']
+                    _logger.debug("archiveJob : %s change failed to merging" % job.PandaID)
                 # commit
                 if useCommit:
                     if not self._commit():
