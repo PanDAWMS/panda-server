@@ -1853,8 +1853,9 @@ class DBProxy:
                         varMap[':jobSubStatus'] = oldJobSubStatus
                     self.cur.execute(sqlOJS+comment,varMap)
                     tmpJobStatus = varMap[':jobStatus']
-                if EventServiceUtils.isEventServiceJob(job) and job.jobStatus == 'failed' and \
-                        job.taskBufferErrorCode in [ErrorCode.EC_EventServiceLastUnprocessed] and job.nEvents > 0:
+                if EventServiceUtils.isEventServiceJob(job) and job.jobStatus in ['failed', 'closed'] and \
+                        job.taskBufferErrorCode in [ErrorCode.EC_EventServiceLastUnprocessed, ErrorCode.EC_EventServiceUnprocessed] and \
+                        job.nEvents > 0:
                     varMap = {}
                     varMap[':PandaID'] = job.PandaID
                     varMap[':jobStatus'] = 'merging'
