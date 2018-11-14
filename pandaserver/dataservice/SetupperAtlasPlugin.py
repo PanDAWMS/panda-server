@@ -150,8 +150,13 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     if iBunch != 0:
                         self._setupDestination(startIdx=tmpIndexJob,nJobsInLoop=iBunch)                            
                 else:
-                    # at a burst
-                    self._setupDestination()
+                    # make one sub per job so that each job doesn't have to wait for others to be done
+                    if self.jobs != [] and self.jobs[0].prodSourceLabel in ['user','panda'] and self.jobs[-1].currentPriority > 6000:
+                        for iBunch in range(len(self.jobs)):
+                            self._setupDestination(startIdx=iBunch, nJobsInLoop=1)
+                    else:
+                        # at a burst
+                        self._setupDestination()
                 # make dis datasets for existing files
                 self._memoryCheck()
                 self._makeDisDatasetsForExistingfiles()

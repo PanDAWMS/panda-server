@@ -1,5 +1,8 @@
 Release Notes
 
+* 11/14/2018
+  * one sub per job for ART
+
 * 10/30/2018
   * added list_ptest_prod_sources
 
