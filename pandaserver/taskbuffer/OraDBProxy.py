@@ -1853,16 +1853,27 @@ class DBProxy:
                         varMap[':jobSubStatus'] = oldJobSubStatus
                     self.cur.execute(sqlOJS+comment,varMap)
                     tmpJobStatus = varMap[':jobStatus']
-                if EventServiceUtils.isEventServiceJob(job) and job.jobStatus in ['failed', 'closed'] and \
-                        job.taskBufferErrorCode in [ErrorCode.EC_EventServiceLastUnprocessed, ErrorCode.EC_EventServiceUnprocessed] and \
-                        job.nEvents > 0:
-                    varMap = {}
-                    varMap[':PandaID'] = job.PandaID
-                    varMap[':jobStatus'] = 'merging'
-                    varMap[':jobSubStatus'] = 'es_wait'
-                    self.cur.execute(sqlOJS+comment,varMap)
-                    tmpJobStatus = varMap[':jobStatus']
-                    _logger.debug("archiveJob : %s change failed to merging" % job.PandaID)
+                if EventServiceUtils.isEventServiceJob(job):
+                    if job.jobStatus in ['failed', 'closed'] and \
+                            job.taskBufferErrorCode in [ErrorCode.EC_EventServiceLastUnprocessed, ErrorCode.EC_EventServiceUnprocessed] and \
+                            job.nEvents > 0:
+                        varMap = {}
+                        varMap[':PandaID'] = job.PandaID
+                        varMap[':jobStatus'] = 'merging'
+                        varMap[':jobSubStatus'] = 'es_wait'
+                        self.cur.execute(sqlOJS+comment,varMap)
+                        tmpJobStatus = varMap[':jobStatus']
+                        _logger.debug("archiveJob : %s change failed to merging" % job.PandaID)
+                    elif job.jobStatus in ['failed'] and \
+                            job.taskBufferErrorCode in [ErrorCode.EC_EventServiceLastUnprocessed, ErrorCode.EC_EventServiceUnprocessed] and \
+                            oldJobSubStatus in ['pilot_noevents']:
+                        varMap = {}
+                        varMap[':PandaID'] = job.PandaID
+                        varMap[':jobStatus'] = 'closed'
+                        varMap[':jobSubStatus'] = oldJobSubStatus
+                        self.cur.execute(sqlOJS+comment,varMap)
+                        tmpJobStatus = varMap[':jobStatus']
+                        _logger.debug("archiveJob : {0} change failed to closed for {1}".format(job.PandaID, oldJobSubStatus))
                 # commit
                 if useCommit:
                     if not self._commit():
@@ -13412,8 +13423,10 @@ class DBProxy:
             varMap = {}
             varMap[':jediTaskID'] = jobSpec.jediTaskID
             varMap[':newJumbo'] = newUseJumbo
+            varMap[':notUseJumbo'] = 'D'
             sqlJumboF = "UPDATE {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
-            sqlJumboF += "SET useJumbo=:newJumbo WHERE jediTaskID=:jediTaskID AND useJumbo IS NOT NULL "
+            sqlJumboF += "SET useJumbo=:newJumbo WHERE jediTaskID=:jediTaskID "
+            sqlJumboF += "AND useJumbo IS NOT NULL AND useJumbo<>:notUseJumbo "
             cur.execute(sqlJumboF+comment,varMap)
             nRow = cur.rowcount
             tmpLog.debug('set task.useJumbo={0} with {1}'.format(varMap[':newJumbo'], nRow))
@@ -22079,7 +22092,7 @@ class DBProxy:
 
 
     # enable jumbo jobs
-    def enableJumboJobs(self, jediTaskID, nJumboJobs, useCommit=True, sendLog=True):
+    def enableJumboJobs(self, jediTaskID, nJumboJobs, nJumboPerSite, useCommit=True, sendLog=True):
         comment = ' /* DBProxy.enableJumboJobs */'
         method_name = comment.split(' ')[-2].split('.')[-1]
         method_name += ' < jediTaskID={0} >'.format(jediTaskID)
@@ -22094,15 +22107,19 @@ class DBProxy:
                 self.conn.begin()
             varMap = {}
             varMap[':jediTaskID'] = jediTaskID
-            varMap[':newJumbo'] = 'W'
+            if nJumboJobs == 0:
+                varMap[':newJumbo'] = 'D'
+            else:
+                varMap[':newJumbo'] = 'W'
             self.cur.execute(sqlJumboF, varMap)
             self.changeTaskSplitRulePanda(jediTaskID, 'NJ', nJumboJobs, useCommit=False, sendLog=sendLog)
+            self.changeTaskSplitRulePanda(jediTaskID, 'MJ', nJumboPerSite, useCommit=False, sendLog=sendLog)
             # commit
             if useCommit:
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
             # return
-            tmp_log.debug("set nJumboJobs={0}".format(nJumboJobs))
+            tmp_log.debug("set nJumboJobs={0} nJumboPerSite={1} useJumbo={2}".format(nJumboJobs, nJumboPerSite, varMap[':newJumbo']))
             return (0, 'done')
         except:
             # roll back

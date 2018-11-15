@@ -1037,8 +1037,8 @@ class UserIF:
         return json.dumps(retVal)
 
     # enable jumbo jobs
-    def enableJumboJobs(self, jediTaskID, nJumboJobs):
-        retVal = self.taskBuffer.enableJumboJobs(jediTaskID, nJumboJobs)
+    def enableJumboJobs(self, jediTaskID, totalJumboJobs, nJumboPerSite):
+        retVal = self.taskBuffer.enableJumboJobs(jediTaskID, totalJumboJobs, nJumboPerSite)
         # serialize 
         return json.dumps(retVal)
 
@@ -2474,7 +2474,7 @@ def setNumSlotsForWP(req, pandaQueueName, numSlots, gshare=None, resourceType=No
 
 
 # enable jumbo jobs
-def enableJumboJobs(req, jediTaskID, nJumboJobs):
+def enableJumboJobs(req, jediTaskID, nJumboJobs, nJumboPerSite=None):
     # check security
     if not isSecure(req):
         return json.dumps((100, "SSL is required"))
@@ -2486,5 +2486,9 @@ def enableJumboJobs(req, jediTaskID, nJumboJobs):
         nJumboJobs = int(nJumboJobs)
     except:
         return json.dumps((102, "nJumboJobs must be int"))
+    try:
+        nJumboPerSite = int(nJumboPerSite)
+    except:
+        nJumboPerSite = nJumboJobs
     # execute
-    return userIF.enableJumboJobs(jediTaskID, nJumboJobs)
+    return userIF.enableJumboJobs(jediTaskID, nJumboJobs, nJumboPerSite)

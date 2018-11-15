@@ -2300,12 +2300,13 @@ def setNumSlotsForWP(pandaQueueName, numSlots, gshare=None, resourceType=None, v
 
 
 # enable jumbo jobs
-def enableJumboJobs(jediTaskID, nJumboJobs=1):
+def enableJumboJobs(jediTaskID, totalJumboJobs=1, nJumboPerSite=1):
     """Enable jumbo jobs
 
        args:
            jediTaskID: jediTaskID of the task
-           nJumboJobs: the number of jumbo jobs produced for the task
+           totalJumboJobs: The total number of active jumbo jobs produced for the task. Use 0 to disable jumbo jobs for the task
+           nJumboPerSite: The number of active jumbo jobs per site
        returns:
            status code
                  0: communication succeeded to the panda server 
@@ -2324,7 +2325,8 @@ def enableJumboJobs(jediTaskID, nJumboJobs=1):
     # execute
     url = baseURLSSL + '/enableJumboJobs'
     data = {'jediTaskID': jediTaskID,
-            'nJumboJobs': nJumboJobs}
+            'nJumboJobs': totalJumboJobs,
+            'nJumboPerSite': nJumboPerSite}
     status,output = curl.post(url, data)
     try:
         return status, json.loads(output)

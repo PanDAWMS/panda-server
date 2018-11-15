@@ -3653,11 +3653,11 @@ class TaskBuffer:
 
 
     # enable jumbo jobs
-    def enableJumboJobs(self, jediTaskID, nJumboJobs):
+    def enableJumboJobs(self, jediTaskID, totalJumboJobs, nJumboPerSite):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.enableJumboJobs(jediTaskID, nJumboJobs)
+        ret = proxy.enableJumboJobs(jediTaskID, totalJumboJobs, nJumboPerSite)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
