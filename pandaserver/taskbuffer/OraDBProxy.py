@@ -19511,6 +19511,10 @@ class DBProxy:
             sqlEOD += "AND (prodDBUpdateTime IS NULL OR prodDBUpdateTime<:timeLimit) "
             sqlEOD += "AND currentPriority>=:minPriority "
             # lock job
+            sqlPL  = "SELECT 1 FROM ATLAS_PANDA.{0} "
+            sqlPL += "WHERE PandaID=:PandaID "
+            sqlPL += "AND (prodDBUpdateTime IS NULL OR prodDBUpdateTime<:timeLimit) "
+            sqlPL += "FOR UPDATE NOWAIT "
             sqlLK  = "UPDATE ATLAS_PANDA.{0} "
             sqlLK += "SET prodDBUpdateTime=CURRENT_DATE "
             sqlLK += "WHERE PandaID=:PandaID "
@@ -19539,17 +19543,31 @@ class DBProxy:
                     varMap = {}
                     varMap[':PandaID'] = pandaID
                     varMap[':timeLimit'] = timeLimit
-                    self.cur.execute(sqlLK.format(tableName)+comment, varMap)
-                    nRow = self.cur.rowcount
-                    if nRow > 0:
-                        iJobs += 1
-                        # check if all events are done
-                        allDone, proc_status = self.checkAllEventsDone(None, pandaID, False, True, True)
-                        if allDone is True:
-                            tmpLog.debug('locked co-jumbo PandaID={0} jediTaskID={1} to finish in {2}'.format(pandaID,jediTaskID,tableName))
-                            checkedPandaIDs.add(pandaID)
-                        if proc_status is not None:
-                            self.updateInputStatusJedi(jediTaskID, pandaID, 'queued', checkOthers=True)
+                    toSkip = False
+                    resPL = None
+                    try:
+                        # lock with NOWAIT
+                        self.cur.execute(sqlPL.format(tableName) + comment, varMap)
+                        resPL = self.cur.fetchone()
+                    except Exception:
+                        toSkip = True
+                    if resPL is None:
+                        toSkip = True
+                    if toSkip:
+                        tmpLog.debug('skipped PandaID={0} jediTaskID={1} in {2} since locked by another'.format(pandaID,jediTaskID,tableName))
+                    else:
+                        # lock
+                        self.cur.execute(sqlLK.format(tableName)+comment, varMap)
+                        nRow = self.cur.rowcount
+                        if nRow > 0:
+                            iJobs += 1
+                            # check if all events are done
+                            allDone, proc_status = self.checkAllEventsDone(None, pandaID, False, True, True)
+                            if allDone is True:
+                                tmpLog.debug('locked co-jumbo PandaID={0} jediTaskID={1} to finish in {2}'.format(pandaID,jediTaskID,tableName))
+                                checkedPandaIDs.add(pandaID)
+                            if proc_status is not None:
+                                self.updateInputStatusJedi(jediTaskID, pandaID, 'queued', checkOthers=True)
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
                     if iJobs >= maxJobs:
@@ -22104,7 +22122,7 @@ class DBProxy:
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug("start newStatus={0}".format(newStatus))
         statusMap = {'ready': ['queued', 'running', 'merging', 'transferring'],
-                     'queued': ['ready'],
+                     'queued': ['ready', 'running'],
                      'running': ['queued', 'ready'],
                      'merging': ['queued', 'running'],
                      'transferring': ['running', 'merging'],
