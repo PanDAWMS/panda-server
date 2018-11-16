@@ -22222,6 +22222,10 @@ class DBProxy:
                 if tmpNewStatus == oldStatus:
                     tmp_log.debug('skip to update fileID={0} due to no status change already in {1}'.format(fileID, tmpNewStatus))
                     continue
+                # ready
+                if tmpNewStatus in ['ready', 'failed'] and fileStatus != 'ready':
+                    tmp_log.debug('skip to update fileID={0} to {1} since the file status is {2}'.format(fileID, tmpNewStatus, fileStatus))
+                    continue
                 # update
                 varMap = {}
                 varMap[':jediTaskID'] = jediTaskID
