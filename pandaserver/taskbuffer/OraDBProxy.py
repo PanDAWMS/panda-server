@@ -15775,6 +15775,7 @@ class DBProxy:
             jobSpec.creationTime     = datetime.datetime.utcnow()
             jobSpec.modificationTime = jobSpec.creationTime
             jobSpec.stateChangeTime  = jobSpec.creationTime
+            jobSpec.prodDBUpdateTime = jobSpec.creationTime
             jobSpec.attemptNr       += 1
             jobSpec.batchID          = None
             jobSpec.schedulerID = None
