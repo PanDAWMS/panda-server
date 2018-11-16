@@ -1753,7 +1753,7 @@ class DBProxy:
                 n = self.cur.rowcount                
                 if n==0:
                     # already deleted
-                    _logger.debug("archiveJob : Not found %s" % job.PandaID)
+                    raise RuntimeError, 'PandaID={0} already deleted'.format(job.PandaID)
                 else:
                     # insert
                     job.modificationTime = datetime.datetime.utcnow()
@@ -1890,10 +1890,6 @@ class DBProxy:
                 # roll back
                 if useCommit:
                     self._rollback(True)
-                    if iTry+1 < nTry:
-                        _logger.debug("archiveJob : %s retry : %s" % (job.PandaID,iTry))                
-                        time.sleep(random.randint(10,20))
-                        continue
                 errtype,errvalue = sys.exc_info()[:2]
                 errStr = "archiveJob %s : %s %s" % (job.PandaID,errtype,errvalue) 
                 errStr.strip()
