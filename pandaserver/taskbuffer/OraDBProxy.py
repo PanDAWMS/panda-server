@@ -22098,7 +22098,7 @@ class DBProxy:
         try:
             # sql to set flag
             sqlJumboF = "UPDATE {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
-            sqlJumboF += "SET useJumbo=:newJumbo WHERE jediTaskID=:jediTaskID AND useJumbo IS NULL "
+            sqlJumboF += "SET useJumbo=:newJumbo WHERE jediTaskID=:jediTaskID "
             # start transaction
             if useCommit:
                 self.conn.begin()
