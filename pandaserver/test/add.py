@@ -10,6 +10,7 @@ import commands
 import traceback
 import threading
 import multiprocessing
+import userinterface.Client as Client
 from taskbuffer.TaskBuffer import taskBuffer
 import taskbuffer.ErrorCode
 import pandalogger.PandaLogger
@@ -256,7 +257,7 @@ try:
     if ret is None:
         tmpLog.debug("failed to get co-jumbo jobs to finish")
     else:
-        coJumboA,coJumboD,coJumboW = ret
+        coJumboA,coJumboD,coJumboW,coJumboTokill = ret
         tmpLog.debug("finish {0} co-jumbo jobs in Active".format(len(coJumboA)))
         if len(coJumboA) > 0:
             jobSpecs = taskBuffer.peekJobs(coJumboA,fromDefined=False,fromActive=True,fromArchived=False,fromWaiting=False)
@@ -287,6 +288,15 @@ try:
                     jobSpec.jobSubStatus = 'cojumbo_wrong'
                     jobSpec.taskBufferErrorCode = taskbuffer.ErrorCode.EC_EventServiceInconsistentIn
                 taskBuffer.archiveJobs([jobSpec],False,True)
+        tmpLog.debug("kill {0} co-jumbo jobs in Waiting".format(len(coJumboTokill)))
+        if len(coJumboTokill) > 0:
+            jediJobs = tuple(coJumboTokill)
+            nJob = 100
+            iJob = 0
+            while iJob < len(jediJobs):
+                tmpLog.debug(' killing %s' % str(jediJobs[iJob:iJob+nJob]))
+                Client.killJobs(jediJobs[iJob:iJob+nJob],51,keepUnmerged=True)
+                iJob += nJob
 except:
     errStr = traceback.format_exc()
     tmpLog.error(errStr)

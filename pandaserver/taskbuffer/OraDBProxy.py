@@ -19516,7 +19516,7 @@ class DBProxy:
         tmpLog.debug("start for minPriority={0} timeLimit={1}".format(minPriority, timeLimit))
         try:
             # get co-jumbo jobs
-            sqlEOD  = "SELECT PandaID,jediTaskID FROM ATLAS_PANDA.{0} "
+            sqlEOD  = "SELECT PandaID,jediTaskID,jobStatus,computingSite FROM ATLAS_PANDA.{0} "
             sqlEOD += "WHERE eventService=:eventService "
             sqlEOD += "AND (prodDBUpdateTime IS NULL OR prodDBUpdateTime<:timeLimit) "
             sqlEOD += "AND currentPriority>=:minPriority "
@@ -19529,10 +19529,27 @@ class DBProxy:
             sqlLK += "SET prodDBUpdateTime=CURRENT_DATE "
             sqlLK += "WHERE PandaID=:PandaID "
             sqlLK += "AND (prodDBUpdateTime IS NULL OR prodDBUpdateTime<:timeLimit) "
+            # get useJumbo
+            sqlJM = "SELECT useJumbo FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+            sqlJM += "WHERE jediTaskID=:jediTaskID "
+            # get datasetID and fileID of the primary input
+            sqlID = "SELECT f.datasetID,f.fileID,c.status,c.proc_status FROM {0}.JEDI_Datasets d,{0}.JEDI_Dataset_Contents c,{1}.filesTable4 f ".format(panda_config.schemaJEDI, panda_config.schemaPANDA)
+            sqlID += "WHERE d.jediTaskID=:jediTaskID AND d.type IN (:t1,:t2) AND d.masterID IS NULL "
+            sqlID += "AND f.jediTaskID=d.jediTaskID AND f.datasetID=d.datasetID AND f.PandaID=:PandaID "
+            sqlID += "AND c.jediTaskID=d.jediTaskID AND c.datasetID=d.datasetID AND c.fileID=f.fileID "
+            # get PandaIDs
+            sqlCP = "SELECT PandaID FROM ATLAS_PANDA.filesTable4 "
+            sqlCP += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+            # check jobs
+            sqlWP = "SELECT 1 FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID "
+            sqlWP += "UNION "
+            sqlWP += "SELECT 1 FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
             self.cur.arraysize = 1000000
             timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=timeLimit)
             retList = []
             # get jobs
+            coJumboTobeKilled = set()
+            useJumbos = dict()
             for tableName in ['jobsActive4','jobsDefined4','jobsWaiting4']:
                 self.conn.begin()
                 varMap = {}
@@ -19547,7 +19564,7 @@ class DBProxy:
                 checkedPandaIDs = set()
                 iJobs = 0
                 # scan all jobs
-                for pandaID,jediTaskID in tmpRes:
+                for pandaID, jediTaskID, jobStatus, computingSite in tmpRes:
                     # lock job
                     self.conn.begin()
                     varMap = {}
@@ -19576,6 +19593,45 @@ class DBProxy:
                             if allDone is True:
                                 tmpLog.debug('locked co-jumbo PandaID={0} jediTaskID={1} to finish in {2}'.format(pandaID,jediTaskID,tableName))
                                 checkedPandaIDs.add(pandaID)
+                            elif jobStatus == 'waiting' and computingSite == EventServiceUtils.siteIdForWaitingCoJumboJobs:
+                                # check if jumbo is disabled
+                                if jediTaskID not in useJumbos:
+                                    varMap = {}
+                                    varMap[':jediTaskID'] = jediTaskID
+                                    self.cur.execute(sqlJM+comment, varMap)
+                                    resJM = self.cur.fetchone()
+                                    useJumbos[jediTaskID], = resJM
+                                if useJumbos[jediTaskID] == 'D':
+                                    # get info of the primary input
+                                    varMap = {}
+                                    varMap[':jediTaskID'] = jediTaskID
+                                    varMap[':PandaID'] = pandaID
+                                    varMap[':t1'] = 'input'
+                                    varMap[':t2'] = 'pseudo_input'
+                                    self.cur.execute(sqlID+comment, varMap)
+                                    resID = self.cur.fetchone()
+                                    datasetID, fileID, fileStatus, fileProcStatus = resID
+                                    if fileStatus == 'running' and fileProcStatus == 'queued':
+                                        # count # of active consumers
+                                        nAct = 0
+                                        varMap = {}
+                                        varMap[':jediTaskID'] = jediTaskID
+                                        varMap[':datasetID']  = datasetID
+                                        varMap[':fileID']     = fileID
+                                        self.cur.execute(sqlCP+comment, varMap)
+                                        resCP = self.cur.fetchall()
+                                        for tmpPandaID, in resCP:
+                                            varMap = {}
+                                            varMap[':PandaID'] = tmpPandaID
+                                            self.cur.execute(sqlWP+comment, varMap)
+                                            resWP = self.cur.fetchone()
+                                            if resWP is not None:
+                                                nAct += 1
+                                        if nAct > 0:
+                                            tmpLog.debug('skip to kill PandaID={0} jediTaskID={1} due to {2} active consumers'.format(pandaID, jediTaskID, nAct))
+                                        else:
+                                            tmpLog.debug('locked co-jumbo PandaID={0} jediTaskID={1} to kill'.format(pandaID, jediTaskID))
+                                            coJumboTobeKilled.add(pandaID)
                             if proc_status is not None:
                                 self.updateInputStatusJedi(jediTaskID, pandaID, 'queued', checkOthers=True)
                     if not self._commit():
@@ -19586,7 +19642,8 @@ class DBProxy:
             totJobs = 0
             for tmpList in retList:
                 totJobs += len(tmpList)
-            tmpLog.debug("got {0} jobs".format(totJobs))
+            tmpLog.debug("got {0} jobs to finish and {1} co-jumbo jobs to kill".format(totJobs, len(coJumboTobeKilled)))
+            retList.append(coJumboTobeKilled)
             return retList
         except:
             # roll back
