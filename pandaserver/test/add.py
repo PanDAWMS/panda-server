@@ -290,7 +290,7 @@ try:
                 taskBuffer.archiveJobs([jobSpec],False,True)
         tmpLog.debug("kill {0} co-jumbo jobs in Waiting".format(len(coJumboTokill)))
         if len(coJumboTokill) > 0:
-            jediJobs = tuple(coJumboTokill)
+            jediJobs = list(coJumboTokill)
             nJob = 100
             iJob = 0
             while iJob < len(jediJobs):
