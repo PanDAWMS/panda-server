@@ -19455,6 +19455,7 @@ class DBProxy:
             if not allDone and getProcStatus:
                 proc_status = 'queued'
                 to_escape = False
+                is_starting = False
                 for fileSpec in fileList:
                     if fileSpec.type == 'input':
                         varMap = {}
@@ -19486,8 +19487,12 @@ class DBProxy:
                                 proc_status = 'running'
                                 to_escape = True
                                 break
+                            elif jobStatusMap[pandaID] == 'starting':
+                                is_starting = True
                         if to_escape:
                             break
+                if proc_status == 'queued' and is_starting:
+                    proc_status = 'starting'
             # commit
             if useCommit:
                 if not self._commit():
@@ -19594,7 +19599,8 @@ class DBProxy:
                             if allDone is True:
                                 tmpLog.debug('locked co-jumbo PandaID={0} jediTaskID={1} to finish in {2}'.format(pandaID,jediTaskID,tableName))
                                 checkedPandaIDs.add(pandaID)
-                            elif jobStatus == 'waiting' and computingSite == EventServiceUtils.siteIdForWaitingCoJumboJobs:
+                            elif jobStatus == 'waiting' and computingSite == EventServiceUtils.siteIdForWaitingCoJumboJobs and \
+                                    proc_status == 'queued':
                                 # check if jumbo is disabled
                                 if jediTaskID not in useJumbos:
                                     varMap = {}
@@ -22193,13 +22199,14 @@ class DBProxy:
         method_name += ' < jediTaskID={0} PandaID={1} >'.format(jediTaskID, pandaID)
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug("start newStatus={0}".format(newStatus))
-        statusMap = {'ready': ['queued', 'running', 'merging', 'transferring'],
-                     'queued': ['ready', 'running'],
-                     'running': ['queued', 'ready'],
+        statusMap = {'ready': ['queued', 'starting', 'running', 'merging', 'transferring'],
+                     'queued': ['ready', 'starting', 'running'],
+                     'starting': ['queued', 'running', 'ready'], 
+                     'running': ['starting', 'queued', 'ready'],
                      'merging': ['queued', 'running'],
                      'transferring': ['running', 'merging'],
                      'finished': ['running', 'transferring', 'merging'],
-                     'failed': ['running', 'transferring', 'merging', 'queued'],
+                     'failed': ['running', 'transferring', 'merging', 'queued', 'starting'],
                      }
         try:
             # change cancelled/closed to failed
