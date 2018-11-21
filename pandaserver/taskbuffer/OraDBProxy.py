@@ -1702,7 +1702,7 @@ class DBProxy:
                                 if tmpID is not None:
                                     retNewPandaID = tmpID
                         # no new jobs
-                        if retNewPandaID is None:
+                        if retNewPandaID is None and (retEvS != 4 or EventServiceUtils.isCoJumboJob(job)):
                             nActiveConsumers = self.getActiveConsumers(job.jediTaskID, job.jobsetID, job.PandaID)
                             # create a fake cojumbo
                             if nActiveConsumers == 0 and retEvS in [4, 5] and EventServiceUtils.isCoJumboJob(job) \
