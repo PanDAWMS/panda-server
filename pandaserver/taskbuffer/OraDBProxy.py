@@ -1687,10 +1687,10 @@ class DBProxy:
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceBadStatus
                         job.taskBufferErrorDiag = "cloded in bad jobStatus like defined and pending"
                     # additional actions when retry
-                    codeListWithRetry = [0, 5, 8, 9]
+                    codeListWithRetry = [0, 4, 5, 8, 9]
                     if retEvS in codeListWithRetry and job.computingSite != EventServiceUtils.siteIdForWaitingCoJumboJobs:
                         # resurrect consumers at other sites
-                        if EventServiceUtils.isResurrectConsumers(job.specialHandling):
+                        if retEvS != 4 and EventServiceUtils.isResurrectConsumers(job.specialHandling):
                             archivedConsumers = self.getOriginalConsumers(job.jediTaskID, job.jobsetID, job.PandaID)
                             for archivedConsumer in archivedConsumers:
                                 archivedConsumer.attemptNr = job.attemptNr
@@ -1705,7 +1705,7 @@ class DBProxy:
                         if retNewPandaID is None:
                             nActiveConsumers = self.getActiveConsumers(job.jediTaskID, job.jobsetID, job.PandaID)
                             # create a fake cojumbo
-                            if nActiveConsumers == 0 and retEvS == 5 and EventServiceUtils.isCoJumboJob(job) \
+                            if nActiveConsumers == 0 and retEvS in [4, 5] and EventServiceUtils.isCoJumboJob(job) \
                                     and job.computingSite != EventServiceUtils.siteIdForWaitingCoJumboJobs:
                                 nActiveConsumers = self.makeFakeCoJumbo(job)
                             # no ES queues for retry
