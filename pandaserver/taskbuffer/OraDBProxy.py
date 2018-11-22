@@ -15692,8 +15692,13 @@ class DBProxy:
             if jobSpec.attemptNr >= jobSpec.maxAttempt and not (doMerging and hasDoneRange):
                 _logger.debug("{0} : no more retry since not all events were done in the largest attemptNr".format(methodName))
                 # check if there is active consumer
-                sqlAC  = "SELECT COUNT(*) FROM ATLAS_PANDA.jobsActive4 "
+                sqlAC  = "SELECT COUNT(*) FROM ("
+                sqlAC += "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 "
                 sqlAC += "WHERE jediTaskID=:jediTaskID AND jobsetID=:jobsetID "
+                sqlAC += "UNION "
+                sqlAC += "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
+                sqlAC += "WHERE jediTaskID=:jediTaskID AND jobsetID=:jobsetID "
+                sqlAC += ") "
                 varMap = {}
                 varMap[':jediTaskID'] = jobSpec.jediTaskID
                 varMap[':jobsetID']   = jobSpec.jobsetID
