@@ -11,12 +11,10 @@ import math
 import copy
 import glob
 import uuid
-import fcntl
 import types
 import random
 import urllib
 import socket
-import inspect
 import logging
 import datetime
 import commands
@@ -37,6 +35,7 @@ from WorkerSpec import WorkerSpec
 from DatasetSpec import DatasetSpec
 from ResourceSpec import ResourceSpec
 from CloudTaskSpec import CloudTaskSpec
+from HarvesterMetricsSpec import HarvesterMetricsSpec
 from WrappedCursor import WrappedCursor
 from Utils import create_shards
 from pandalogger.PandaLogger import PandaLogger
@@ -20812,6 +20811,42 @@ class DBProxy:
             self.dumpErrorMessage(tmpLog,methodName)
             return None
 
+    # update workers
+    def updateServiceMetrics(self, harvesterID, data):
+        """
+        Update service metrics
+        """
+        comment = ' /* DBProxy.updateServiceMetrics */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, methodName+' < HarvesterID={0} >'.format(harvesterID))
+        try:    
+            # generate the SQL to insert metrics into the DB  
+            sql = "INSERT INTO ATLAS_PANDA.Harvester_Service_Metrics ({0}) ".format(HarvesterMetricsSpec.columnNames())
+            sql += HarvesterMetricsSpec.bindValuesExpression()
+
+            # generate the entries for the DB
+            var_maps = []
+            for entry in data:
+                tmpLog.debug()
+                metrics_spec = HarvesterMetricsSpec()
+                metrics_spec.harvesterID = harvesterID
+                metrics_spec.creationTime = entry[0]
+                metrics_spec.harvesterHost = entry[1]
+                metrics_spec.metrics = entry[2]
+
+                var_maps.append(metrics_spec.valuesMap())
+            
+            # run the SQL
+            self.cur.executemany(sql+comment, var_maps)
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug('done')
+            return [True]
+        except:
+            # roll back
+            self._rollback()
+            self.dumpErrorMessage(tmpLog, methodName)
+            return None
 
     # heartbeat for harvester
     def harvesterIsAlive(self, user, host, harvesterID, data):
