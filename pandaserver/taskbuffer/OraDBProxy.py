@@ -19527,7 +19527,7 @@ class DBProxy:
         tmpLog.debug("start for minPriority={0} timeLimit={1}".format(minPriority, timeLimit))
         try:
             # get co-jumbo jobs
-            sqlEOD  = "SELECT PandaID,jediTaskID,jobStatus,computingSite FROM ATLAS_PANDA.{0} "
+            sqlEOD  = "SELECT PandaID,jediTaskID,jobStatus,computingSite,creationTime FROM ATLAS_PANDA.{0} "
             sqlEOD += "WHERE eventService=:eventService "
             sqlEOD += "AND (prodDBUpdateTime IS NULL OR prodDBUpdateTime<:timeLimit) "
             sqlEOD += "AND currentPriority>=:minPriority "
@@ -19557,6 +19557,7 @@ class DBProxy:
             sqlWP += "SELECT 1 FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
             self.cur.arraysize = 1000000
             timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=timeLimit)
+            timeLimitWaiting = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
             retList = []
             # get jobs
             coJumboTobeKilled = set()
@@ -19575,7 +19576,7 @@ class DBProxy:
                 checkedPandaIDs = set()
                 iJobs = 0
                 # scan all jobs
-                for pandaID, jediTaskID, jobStatus, computingSite in tmpRes:
+                for pandaID, jediTaskID, jobStatus, computingSite, creationTime in tmpRes:
                     # lock job
                     self.conn.begin()
                     varMap = {}
@@ -19613,7 +19614,7 @@ class DBProxy:
                                     self.cur.execute(sqlJM+comment, varMap)
                                     resJM = self.cur.fetchone()
                                     useJumbos[jediTaskID], = resJM
-                                if useJumbos[jediTaskID] == 'D':
+                                if useJumbos[jediTaskID] == 'D' or creationTime < timeLimitWaiting:
                                     # get info of the primary input
                                     varMap = {}
                                     varMap[':jediTaskID'] = jediTaskID
