@@ -6,7 +6,7 @@ worker specification
 import datetime
 
 
-class WorkerSpec(object):
+class HarvesterMetricsSpec(object):
     # attributes
     _attributes = ('harvesterID', 'creationTime', 'harvesterHost', 'metrics')
     # slots
