@@ -8,7 +8,7 @@ import datetime
 
 class HarvesterMetricsSpec(object):
     # attributes
-    _attributes = ('harvesterID', 'creationTime', 'harvesterHost', 'metrics')
+    _attributes = ('harvester_ID', 'creation_time', 'harvester_host', 'metrics')
     # slots
     __slots__ = _attributes + ('_changedAttrs',)
     # attributes which have 0 by default
