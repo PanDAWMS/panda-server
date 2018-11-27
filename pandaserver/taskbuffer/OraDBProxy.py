@@ -20829,9 +20829,9 @@ class DBProxy:
             for entry in data:
                 tmpLog.debug('entry {0}'.format(entry))
                 metrics_spec = HarvesterMetricsSpec()
-                metrics_spec.harvesterID = harvesterID
-                metrics_spec.creationTime = datetime.datetime.strptime(entry[0], '%Y-%m-%d %H:%M:%S.%f')
-                metrics_spec.harvesterHost = entry[1]
+                metrics_spec.harvester_ID = harvesterID
+                metrics_spec.creation_time = datetime.datetime.strptime(entry[0], '%Y-%m-%d %H:%M:%S.%f')
+                metrics_spec.harvester_host = entry[1]
                 metrics_spec.metrics = entry[2]
 
                 var_maps.append(metrics_spec.valuesMap())
