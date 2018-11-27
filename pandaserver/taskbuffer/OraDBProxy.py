@@ -21537,7 +21537,7 @@ class DBProxy:
         sql = """
               SELECT siteid FROM atlas_pandameta.schedconfig
               WHERE (catchall LIKE '%unifiedPandaQueue%' OR capability='ucore')
-              AND catchall LIKE '%Pull%'
+              AND (catchall LIKE '%Pull%' OR workflow = 'pull_ups')
               """
 
         self.cur.execute(sql + comment)
