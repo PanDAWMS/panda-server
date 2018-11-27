@@ -16155,7 +16155,7 @@ class DBProxy:
                 resSN = self.cur.fetchall()
         # last resort for jumbo
         resSN_all = []
-        if lookForMergeSite and (isFakeCJ or 'useJumboJobs' in catchAll):
+        if lookForMergeSite and (isFakeCJ or 'useJumboJobs' in catchAll or len(resSN + resSN_back) == 0):
             sqlSN  = "SELECT dr.panda_site_name,dr.ddm_endpoint_name "
             sqlSN += "FROM ATLAS_PANDA.panda_site ps,ATLAS_PANDAMETA.schedconfig sc,ATLAS_PANDA.panda_ddm_relation dr "
             sqlSN += "WHERE sc.siteid=ps.panda_site_name "
