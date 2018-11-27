@@ -20821,16 +20821,16 @@ class DBProxy:
         tmpLog = LogWrapper(_logger, methodName+' < HarvesterID={0} >'.format(harvesterID))
         try:    
             # generate the SQL to insert metrics into the DB  
-            sql = "INSERT INTO ATLAS_PANDA.Harvester_Service_Metrics ({0}) ".format(HarvesterMetricsSpec.columnNames())
+            sql = "INSERT INTO ATLAS_PANDA.harvesterMetrics ({0}) ".format(HarvesterMetricsSpec.columnNames())
             sql += HarvesterMetricsSpec.bindValuesExpression()
 
             # generate the entries for the DB
             var_maps = []
             for entry in data:
-                tmpLog.debug()
+                tmpLog.debug('entry {0}'.format(entry))
                 metrics_spec = HarvesterMetricsSpec()
                 metrics_spec.harvesterID = harvesterID
-                metrics_spec.creationTime = entry[0]
+                metrics_spec.creationTime = datetime.datetime.strptime(entry[0], '%Y-%m-%d %H:%M:%S.%f')
                 metrics_spec.harvesterHost = entry[1]
                 metrics_spec.metrics = entry[2]
 
