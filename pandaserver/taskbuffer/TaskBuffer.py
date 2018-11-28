@@ -3389,6 +3389,21 @@ class TaskBuffer:
         return res
 
 
+    # update workers
+    def updateServiceMetrics(self, harvesterID, data):
+        """
+        Update workers
+        """
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.updateServiceMetrics(harvesterID, data)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
     # heartbeat for harvester
     def harvesterIsAlive(self, user, host, harvesterID, data):
         """

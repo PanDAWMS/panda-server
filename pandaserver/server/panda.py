@@ -72,8 +72,8 @@ from userinterface.UserIF import submitJobs, getJobStatus, queryPandaIDs, killJo
      pauseTask, resumeTask, increaseAttemptNrPanda, killUnfinishedJobs, changeTaskSplitRulePanda,\
      changeTaskModTimePanda, avalancheTask, getPandaIDsWithTaskID, reactivateTask, getTaskStatus, \
      reassignShare, listTasksInShare, getTaskParamsMap, updateWorkers, harvesterIsAlive,\
-     reportWorkerStats,addHarvesterDialogs,getJobStatisticsPerSiteResource, setNumSlotsForWP,\
-     reloadInput,enableJumboJobs
+     reportWorkerStats, addHarvesterDialogs, getJobStatisticsPerSiteResource, setNumSlotsForWP,\
+     reloadInput, enableJumboJobs, updateServiceMetrics
 
 allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reassignJobs',
                    'getJobStatistics','getJobStatisticsPerSite','resubmitJobs','queryLastFilesInDataset','getPandaIDsSite',
@@ -93,7 +93,7 @@ allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reass
                    'changeTaskModTimePanda','avalancheTask','getPandaIDsWithTaskID', 'reactivateTask', 'getTaskStatus',
                    'reassignShare', 'listTasksInShare', 'getTaskParamsMap', 'updateWorkers', 'harvesterIsAlive',
                    'reportWorkerStats', 'addHarvesterDialogs', 'getJobStatisticsPerSiteResource', 'setNumSlotsForWP',
-                   'reloadInput','enableJumboJobs']
+                   'reloadInput', 'enableJumboJobs', 'updateServiceMetrics']
 
 # import error
 import taskbuffer.ErrorCode

@@ -11,12 +11,10 @@ import math
 import copy
 import glob
 import uuid
-import fcntl
 import types
 import random
 import urllib
 import socket
-import inspect
 import logging
 import datetime
 import commands
@@ -37,6 +35,7 @@ from WorkerSpec import WorkerSpec
 from DatasetSpec import DatasetSpec
 from ResourceSpec import ResourceSpec
 from CloudTaskSpec import CloudTaskSpec
+from HarvesterMetricsSpec import HarvesterMetricsSpec
 from WrappedCursor import WrappedCursor
 from Utils import create_shards
 from pandalogger.PandaLogger import PandaLogger
@@ -9763,7 +9762,7 @@ class DBProxy:
             sql+= "catchall,allowfax,wansourcelimit,wansinklimit,b.site_name,"
             sql+= "sitershare,cloudrshare,corepower,wnconnectivity,catchall,"
             sql+= "c.role,maxrss,minrss,direct_access_lan,direct_access_wan,tier, "
-            sql+= "objectstores,jobseed,capability " 
+            sql+= "objectstores,jobseed,capability, workflow "
             sql+= "FROM (ATLAS_PANDAMETA.schedconfig a "
             sql+= "LEFT JOIN ATLAS_PANDA.panda_site b ON a.siteid=b.panda_site_name) "
             sql+= "LEFT JOIN ATLAS_PANDA.site c ON b.site_name=c.site_name "
@@ -9798,7 +9797,7 @@ class DBProxy:
                        catchall,allowfax,wansourcelimit,wansinklimit,pandasite, \
                        sitershare,cloudrshare,corepower,wnconnectivity,catchall, \
                        role,maxrss,minrss,direct_access_lan,direct_access_wan,tier, \
-                       objectstores,jobseed,capability \
+                       objectstores,jobseed,capability,workflow \
                        = resTmp
                     # skip invalid siteid
                     if siteid in [None,'']:
@@ -9835,6 +9834,7 @@ class DBProxy:
                     ret.tier          = tier
                     ret.jobseed       = jobseed
                     ret.capability    = capability
+                    ret.workflow = workflow
                     ret.wnconnectivity = wnconnectivity
                     if ret.wnconnectivity == '':
                         ret.wnconnectivity = None
@@ -20825,6 +20825,42 @@ class DBProxy:
             self.dumpErrorMessage(tmpLog,methodName)
             return None
 
+    # update workers
+    def updateServiceMetrics(self, harvesterID, data):
+        """
+        Update service metrics
+        """
+        comment = ' /* DBProxy.updateServiceMetrics */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, methodName+' < HarvesterID={0} >'.format(harvesterID))
+        try:    
+            # generate the SQL to insert metrics into the DB  
+            sql = "INSERT INTO ATLAS_PANDA.harvester_Metrics ({0}) ".format(HarvesterMetricsSpec.columnNames())
+            sql += HarvesterMetricsSpec.bindValuesExpression()
+
+            # generate the entries for the DB
+            var_maps = []
+            for entry in data:
+                tmpLog.debug('entry {0}'.format(entry))
+                metrics_spec = HarvesterMetricsSpec()
+                metrics_spec.harvester_ID = harvesterID
+                metrics_spec.creation_time = datetime.datetime.strptime(entry[0], '%Y-%m-%d %H:%M:%S.%f')
+                metrics_spec.harvester_host = entry[1]
+                metrics_spec.metrics = entry[2]
+
+                var_maps.append(metrics_spec.valuesMap())
+            
+            # run the SQL
+            self.cur.executemany(sql+comment, var_maps)
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug('done')
+            return [True]
+        except:
+            # roll back
+            self._rollback()
+            self.dumpErrorMessage(tmpLog, methodName)
+            return None
 
     # heartbeat for harvester
     def harvesterIsAlive(self, user, host, harvesterID, data):
@@ -21514,7 +21550,7 @@ class DBProxy:
         sql = """
               SELECT siteid FROM atlas_pandameta.schedconfig
               WHERE (catchall LIKE '%unifiedPandaQueue%' OR capability='ucore')
-              AND catchall LIKE '%Pull%'
+              AND (catchall LIKE '%Pull%' OR workflow = 'pull_ups')
               """
 
         self.cur.execute(sql + comment)

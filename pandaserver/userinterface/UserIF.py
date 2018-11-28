@@ -1004,6 +1004,15 @@ class UserIF:
         # serialize 
         return json.dumps(retVal)
 
+    # update workers
+    def updateServiceMetrics(self, user, host, harvesterID, data):
+        ret = self.taskBuffer.updateServiceMetrics(harvesterID, data)
+        if ret is None:
+            retVal = (False,'database error in the panda server')
+        else:
+            retVal = (True,ret)
+        # serialize
+        return json.dumps(retVal)
 
     # add harvester dialog messages
     def addHarvesterDialogs(self, user, harvesterID, dialogs):
@@ -2408,6 +2417,33 @@ def updateWorkers(req,harvesterID,workers):
     _logger.debug("updateWorkers %s took %s.%03d sec" % (harvesterID, tDelta.seconds, tDelta.microseconds/1000))
     return retVal
 
+
+# update workers
+def updateServiceMetrics(req, harvesterID, metrics):
+    # check security
+    if not isSecure(req):
+        return json.dumps((False,"SSL is required"))
+
+    user = _getDN(req)
+
+    host = req.get_remote_host()
+    retVal = None
+    tStart = datetime.datetime.utcnow()
+
+    # convert
+    try:
+        data = json.loads(metrics)
+    except:
+        retVal = json.dumps((False,"failed to load JSON"))
+
+    # update
+    if retVal is None:
+        retVal = userIF.updateServiceMetrics(user, host, harvesterID, data)
+
+    tDelta = datetime.datetime.utcnow() - tStart
+
+    _logger.debug("updateServiceMetrics %s took %s.%03d sec" % (harvesterID, tDelta.seconds, tDelta.microseconds/1000))
+    return retVal
 
 # add harvester dialog messages
 def addHarvesterDialogs(req, harvesterID, dialogs):
