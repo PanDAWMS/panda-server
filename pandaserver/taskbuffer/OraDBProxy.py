@@ -14786,6 +14786,7 @@ class DBProxy:
         tmpLog = LogWrapper(_logger,methodName)
         tmpLog.debug("start nRanges={0} scattered={1}".format(nRanges, scattered))
         try:
+            regStart = datetime.datetime.utcnow()
             # convert to int
             try:
                 nRanges = int(nRanges)
@@ -14916,8 +14917,9 @@ class DBProxy:
                     varMap = dict()
                     varMap[':jediTaskID'] = ffJediTask
                     varMap[':datasetID'] = ffDatasetID
-                    self.cur.execute(sqlLD+comment, varMap)
-                    tmpLog.debug("locked datasetID={0}".format(ffDatasetID))
+                    if isJumbo:
+                        self.cur.execute(sqlLD+comment, varMap)
+                        tmpLog.debug("locked datasetID={0}".format(ffDatasetID))
                 # prelock event ranges
                 varMap = {}
                 varMap[':eventStatus']  = EventServiceUtils.ST_ready
@@ -15019,7 +15021,8 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
-            tmpLog.debug("done with {0} event ranges".format(iRanges))
+            regTime = datetime.datetime.utcnow() - regStart
+            tmpLog.debug("done with {0} event ranges. took {1} sec".format(iRanges, regTime.seconds))
             if not acceptJson:
                 return json.dumps(retRanges)
             return retRanges
