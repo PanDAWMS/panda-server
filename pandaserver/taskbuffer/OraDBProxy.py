@@ -4351,7 +4351,8 @@ class DBProxy:
                         # kill associated consumers for event service
                         if useEventService:
                             self.killEventServiceConsumers(job,True,False)
-                            self.killUnusedEventServiceConsumers(job,False,killAll=True)
+                            if job.computingSite != EventServiceUtils.siteIdForWaitingCoJumboJobs:
+                                self.killUnusedEventServiceConsumers(job,False,killAll=True)
                             self.updateRelatedEventServiceJobs(job,True)
                             if not job.notDiscardEvents():
                                 self.killUnusedEventRanges(job.jediTaskID,job.jobsetID)
