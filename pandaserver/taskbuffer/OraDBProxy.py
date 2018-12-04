@@ -19510,7 +19510,7 @@ class DBProxy:
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
             if dumpLog:
-                tmpLog.debug("done with {0}".format(allDone))
+                tmpLog.debug("done with {0} {1}".format(allDone, proc_status))
             if getProcStatus:
                 return (allDone, proc_status)
             return allDone
