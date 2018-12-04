@@ -15714,7 +15714,7 @@ class DBProxy:
                 if useCommit:
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
-                if numActiveEC == 1:
+                if numActiveEC <= 1:
                     # last one
                     retValue = 6,None
                 else:
