@@ -15569,6 +15569,7 @@ class DBProxy:
             sqlEU  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
             sqlEU += "COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sqlEU += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND attemptNr=:minAttempt "
+            sqlEU += "AND NOT status IN (:esDiscarded,:esCancelled) "
             # look for hopeless event ranges
             nRowFatal = 0
             for fileSpec in job.Files:
@@ -15579,6 +15580,8 @@ class DBProxy:
                 varMap[':datasetID']  = fileSpec.datasetID
                 varMap[':fileID']     = fileSpec.fileID
                 varMap[':minAttempt'] = 0
+                varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
+                varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
                 self.cur.execute(sqlEU+comment, varMap)
                 resEU = self.cur.fetchone()
                 if resEU is not None:
