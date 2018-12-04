@@ -15566,28 +15566,27 @@ class DBProxy:
             self.cur.execute(sqlUP+comment, varMap)
             nRowFailed = self.cur.rowcount
             _logger.info("{0} : failed n_er_failed={1} event ranges".format(methodName,nRowFailed))
+            sqlEU  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+            sqlEU += "COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlEU += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND attemptNr=:minAttempt "
             # look for hopeless event ranges
-            sqlEU  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
-            sqlEU += "WHERE jediTaskID=:jediTaskID AND pandaID=:jobsetID AND attemptNr=:minAttempt AND rownum=1 "
-            varMap = {}
-            varMap[':jediTaskID'] = jobSpec.jediTaskID
-            varMap[':jobsetID']   = jobSpec.jobsetID
-            varMap[':minAttempt'] = 0
-            self.cur.execute(sqlEU+comment, varMap)
-            resEU = self.cur.fetchone()
-            nRowFatal, = resEU
+            nRowFatal = 0
+            for fileSpec in job.Files:
+                if fileSpec.type != 'input':
+                    continue
+                varMap = {}
+                varMap[':jediTaskID'] = fileSpec.jediTaskID
+                varMap[':datasetID']  = fileSpec.datasetID
+                varMap[':fileID']     = fileSpec.fileID
+                varMap[':minAttempt'] = 0
+                self.cur.execute(sqlEU+comment, varMap)
+                resEU = self.cur.fetchone()
+                if resEU is not None:
+                    nRowFatal += resEU[0]
             # there is hopeless event ranges
+            _logger.info("{0} : has n_hopeless={1} hopeless event ranges".format(methodName, nRowFatal))
             if nRowFatal != 0:
-                if not jobSpec.acceptPartialFinish():
-                    # fail immediately
-                    _logger.debug("{0} : no more retry since reached max number of reattempts for some event ranges".format(methodName))
-                    # commit
-                    if useCommit:
-                        if not self._commit():
-                            raise RuntimeError, 'Commit error'
-                    retValue = 3,None
-                    return retValue
-                else:
+                if jobSpec.acceptPartialFinish():
                     # set fatal to hopeless event ranges
                     sqlFH  = "UPDATE {0}.JEDI_Events SET status=:esFatal ".format(panda_config.schemaJEDI)
                     sqlFH += "WHERE jediTaskID=:jediTaskID AND pandaID=:jobsetID AND attemptNr=:minAttempt AND status<>:esFatal "
@@ -15617,7 +15616,7 @@ class DBProxy:
                 sqlEOC  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
                 sqlEOC += "job_processID,attemptNr,status,processed_upto_eventID,PandaID FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
                 sqlEOC += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-                sqlEOC += "AND ((NOT status IN (:esDone,:esDiscarded,:esCancelled,:esFatal,:esFailed)) "
+                sqlEOC += "AND ((NOT status IN (:esDone,:esDiscarded,:esCancelled,:esFatal,:esFailed) AND attemptNr>:minAttempt) "
                 sqlEOC += "OR (status=:esFailed AND processed_upto_eventID IS NOT NULL)) "
                 # count the number of done ranges
                 sqlCDO  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
@@ -15635,6 +15634,7 @@ class DBProxy:
                         varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
                         varMap[':esFatal']     = EventServiceUtils.ST_fatal
                         varMap[':esFailed']    = EventServiceUtils.ST_failed
+                        varMap[':minAttempt']  = 0
                         self.cur.execute(sqlEOC+comment, varMap)
                         resEOC = self.cur.fetchone()
                         if resEOC is not None:
@@ -15693,7 +15693,7 @@ class DBProxy:
                 retValue = 7,None
                 return retValue
             # fail immediately if not all events were done in the largest attemptNr
-            if jobSpec.attemptNr >= jobSpec.maxAttempt and not (doMerging and hasDoneRange):
+            if (jobSpec.attemptNr >= jobSpec.maxAttempt and not (doMerging and hasDoneRange)) or (doMerging and nRowFatal > 0):
                 _logger.debug("{0} : no more retry since not all events were done in the largest attemptNr".format(methodName))
                 # check if there is active consumer
                 sqlAC  = "SELECT COUNT(*) FROM ("
