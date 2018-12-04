@@ -665,7 +665,7 @@ class DBProxy:
                         sqlJediCEvt += "SET status=:newStatus "
                         sqlJediCEvt += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                         sqlJediCEvt += "AND NOT status IN (:esFinished,:esDone,:esDiscarded,:esCancelled,:esFailed,:esFatal) "
-                        sqlJediCEvt += "AND NOT (is_jumbo=:isJumbo AND status IN (:esSent,:esRunning)) "
+                        sqlJediCEvt += "AND (is_jumbo IS NULL OR (is_jumbo=:isJumbo AND status NOT IN (:esSent,:esRunning))) "
                         varMap[':newStatus']   = EventServiceUtils.ST_cancelled
                         varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
                         varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
