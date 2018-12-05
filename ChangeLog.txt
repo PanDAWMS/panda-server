@@ -1,5 +1,8 @@
 Release Notes
 
+* 12/5/2018
+  * to take into account objstoreIDs of zip files
+
 * 11/14/2018
   * one sub per job for ART
 

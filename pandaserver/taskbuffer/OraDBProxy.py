@@ -20,6 +20,7 @@ import datetime
 import commands
 import traceback
 import warnings
+import operator
 import ErrorCode
 import SiteSpec
 import CloudSpec
@@ -16077,9 +16078,54 @@ class DBProxy:
         if catchAll == None:
             catchAll = ''
         try:
-            objectstores = json.loads(objectstores)
+            if isFakeCJ:
+                objectstores = []
+            else:
+                objectstores = json.loads(objectstores)
         except:
             objectstores = []
+        # get objstoreIDs
+        sqlZIP = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+        sqlZIP += "DISTINCT zipRow_ID FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+        sqlZIP += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+        sqlZIP += "AND status=:esDone "
+        sqlOST = "SELECT fsize,destinationSE FROM {0}.filesTable4 ".format(panda_config.schemaPANDA)
+        sqlOST += "WHERE row_ID=:row_ID "
+        objStoreZipMap = dict()
+        zipRowIDs = set()
+        totalZipSize = 0
+        for tmpFileSpec in jobSpec.Files:
+            if tmpFileSpec.type in ['input', 'pseudo_input']:
+                varMap = dict()
+                varMap[':jediTaskID'] = tmpFileSpec.jediTaskID
+                varMap[':datasetID']  = tmpFileSpec.datasetID
+                varMap[':fileID']     = tmpFileSpec.fileID
+                varMap[':esDone']     = EventServiceUtils.ST_done
+                self.cur.execute(sqlZIP+comment,varMap)
+                resZIP = self.cur.fetchall()
+                for zipRowID, in resZIP:
+                    if zipRowID is None:
+                        continue
+                    if zipRowID in zipRowIDs:
+                        continue
+                    zipRowIDs.add(zipRowID)
+                    # get file info
+                    varMap = dict()
+                    varMap[':row_ID'] = zipRowID
+                    self.cur.execute(sqlOST+comment, varMap)
+                    resOST = self.cur.fetchone()
+                    tmpFsize, tmpDestSE = resOST
+                    totalZipSize += tmpFsize
+                    tmpRSE = self.convertObjIDtoEndPoint(panda_config.endpoint_mapfile, int(tmpDestSE.split('/')[0]))
+                    if tmpRSE is not None:
+                        objStoreZipMap.setdefault(tmpRSE['name'], 0)
+                        objStoreZipMap[tmpRSE['name']] += tmpFsize
+        sortedOST = sorted(objStoreZipMap.items(), key=operator.itemgetter(1))
+        sortedOST.reverse()
+        if len(sortedOST) > 0:
+            _logger.debug('{0} old objectstores {1}'.format(methodName, str(objectstores)))
+            objectstores = [{'ddmendpoint': sortedOST[0][0]}]
+            _logger.debug('{0} new objectstores {1}'.format(methodName, str(objectstores)))
         if isFakeCJ:
             # use nucleus for fake co-jumbo since they don't have sub datasets 
             pass
@@ -16126,7 +16172,7 @@ class DBProxy:
             else:
                 # use nucleus close to OS
                 tmpNucleus = None
-                if isMergeAtOS and len(objectstores) > 0 and not isFakeCJ:
+                if isMergeAtOS and len(objectstores) > 0:
                     osEndpoint = objectstores[0]['ddmendpoint']
                     sqlCO = "SELECT site_name FROM ATLAS_PANDA.ddm_endpoint WHERE ddm_endpoint_name=:osEndpoint "
                     varMap = dict()
@@ -16135,10 +16181,11 @@ class DBProxy:
                     resCO = self.cur.fetchone()
                     if resCO is not None:
                         tmpNucleus, = resCO
+                        _logger.info('{0} look for merge sites in nucleus:{1} close to pre-merged files'.format(methodName,tmpNucleus))
                 # use nucleus
                 if tmpNucleus is None:
                     tmpNucleus = jobSpec.destinationSE.split(':')[-1]
-                _logger.info('{0} look for merge sites in nucleus:{1}'.format(methodName,tmpNucleus))
+                    _logger.info('{0} look for merge sites in destination nucleus:{1}'.format(methodName,tmpNucleus))
                 # get sites in a nucleus
                 sqlSN  = "SELECT dr.panda_site_name,dr.ddm_endpoint_name "
                 sqlSN += "FROM ATLAS_PANDA.panda_site ps,ATLAS_PANDAMETA.schedconfig sc,ATLAS_PANDA.panda_ddm_relation dr "

@@ -878,7 +878,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                 # get endpoint ID
                 epID = int(fileSpec.destinationSE.split('/')[0])
                 # convert to DDM endpoint
-                rse = self.taskBuffer.convertObjIDtoEndPoint('/cvmfs/atlas.cern.ch/repo/sw/local/etc/agis_ddmendpoints.json',
+                rse = self.taskBuffer.convertObjIDtoEndPoint(panda_config.endpoint_mapfile,
                                                              epID)
                 if rse['is_deterministic']:
                     epName = rse['name']

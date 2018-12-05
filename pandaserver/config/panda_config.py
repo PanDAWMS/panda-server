@@ -53,6 +53,10 @@ if not tmpSelf.__dict__.has_key('dbtimeout'):
 if not tmpSelf.__dict__.has_key('certdir'):
     tmpSelf.__dict__['certdir'] = '/data/atlpan'
 
+# endpoint map file
+if not tmpSelf.__dict__.has_key('endpoint_mapfile'):
+    tmpSelf.__dict__['endpoint_mapfile'] = '/cvmfs/atlas.cern.ch/repo/sw/local/etc/agis_ddmendpoints.json'
+
 # schemas
 if not tmpSelf.__dict__.has_key('schemaPANDA'):
     tmpSelf.__dict__['schemaPANDA'] = 'ATLAS_PANDA'
