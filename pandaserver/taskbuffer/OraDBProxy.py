@@ -4367,7 +4367,7 @@ class DBProxy:
                         if useEventService:
                             self.killEventServiceConsumers(job,True,False)
                             if job.computingSite != EventServiceUtils.siteIdForWaitingCoJumboJobs:
-                                self.killUnusedEventServiceConsumers(job,False,killAll=True)
+                                self.killUnusedEventServiceConsumers(job, False, killAll=True, checkAttemptNr=True)
                             self.updateRelatedEventServiceJobs(job,True)
                             if not job.notDiscardEvents():
                                 self.killUnusedEventRanges(job.jediTaskID,job.jobsetID)
@@ -16846,7 +16846,7 @@ class DBProxy:
 
 
     # kill unused consumers related to an ES job
-    def killUnusedEventServiceConsumers(self,job,useCommit=True,killAll=False):
+    def killUnusedEventServiceConsumers(self,job,useCommit=True,killAll=False, checkAttemptNr=False):
         comment = ' /* DBProxy.killUnusedEventServiceConsumers */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <PandaID={0}>".format(job.PandaID)
@@ -16869,7 +16869,8 @@ class DBProxy:
             resPD = self.cur.fetchall()
             # get PandaIDs
             killPandaIDs = set()
-            sqlCP = "SELECT PandaID FROM ATLAS_PANDA.filesTable4 WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+            myAttemptNr = None
+            sqlCP = "SELECT PandaID,attemptNr FROM ATLAS_PANDA.filesTable4 WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
             for datasetID, fileID in resPD:
                 if fileID is None:
                     continue
@@ -16879,10 +16880,11 @@ class DBProxy:
                 varMap[':fileID']      = fileID
                 self.cur.execute(sqlCP+comment, varMap)
                 resCP = self.cur.fetchall()
-                for esPandaID, in resCP:
+                for esPandaID, esAttemptNr in resCP:
                     if esPandaID == job.PandaID:
+                        myAttemptNr = esAttemptNr
                         continue
-                    killPandaIDs.add(esPandaID)
+                    killPandaIDs.add((esPandaID, esAttemptNr))
             # kill consumers
             nKilled = 0
             sqlDJS = "SELECT %s " % JobSpec.columnNames()
@@ -16895,7 +16897,7 @@ class DBProxy:
             sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
             sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
             sqlPMod = "UPDATE ATLAS_PANDA.jobParamsTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
-            for pandaID in killPandaIDs:
+            for pandaID, attemptNr in killPandaIDs:
                 # read job
                 varMap = {}
                 varMap[':PandaID'] = pandaID
@@ -16903,6 +16905,11 @@ class DBProxy:
                 deletedFlag = False
                 notToDelete = False
                 for tableName in ['jobsActive4','jobsDefined4','jobsWaiting4']:
+                    # check attemptNr
+                    if checkAttemptNr and attemptNr != myAttemptNr:
+                        _logger.debug("{0} : skip to kill {1} since attemptNr:{2} is different from mine={3}".format(methodName, pandaID, attemptNr, myAttemptNr))
+                        notToDelete = True
+                        break
                     self.cur.execute(sqlDJS.format(tableName)+comment, varMap)
                     resJob = self.cur.fetchall()
                     if len(resJob) == 0:
