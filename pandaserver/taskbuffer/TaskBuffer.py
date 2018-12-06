@@ -363,6 +363,7 @@ class TaskBuffer:
                 if hostname != '':
                     job.creationHost = hostname
                 # extract file info, change specialHandling for event service
+                origSH = job.specialHandling
                 eventServiceInfo,job.specialHandling,esIndex = EventServiceUtils.decodeFileInfo(job.specialHandling)
                 origEsJob = False
                 if eventServiceInfo != {}:
@@ -389,7 +390,8 @@ class TaskBuffer:
                     job.PandaID = None
                 elif not proxy.insertNewJob(job,user,serNum,weight,priorityOffset,userVO,groupJobSerialNum,
                                             toPending,origEsJob,eventServiceInfo,oldPandaIDs=jobOldPandaIDs,
-                                            relationType=relationType,fileIDPool=fileIDPool):
+                                            relationType=relationType,fileIDPool=fileIDPool,
+                                            origSpecialHandling=origSH):
                     # reset if failed
                     job.PandaID = None
                 else:

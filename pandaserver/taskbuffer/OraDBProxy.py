@@ -298,7 +298,8 @@ class DBProxy:
 
     # insert job to jobsDefined
     def insertNewJob(self,job,user,serNum,weight=0.0,priorityOffset=0,userVO=None,groupJobSN=0,toPending=False,
-                     origEsJob=False,eventServiceInfo=None,oldPandaIDs=None,relationType=None,fileIDPool=[]):
+                     origEsJob=False,eventServiceInfo=None,oldPandaIDs=None,relationType=None,fileIDPool=[],
+                     origSpecialHandling=None):
         comment = ' /* DBProxy.insertNewJob */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += ' <JediTaskID={0} idPool={1}>'.format(job.jediTaskID,len(fileIDPool))
@@ -377,6 +378,7 @@ class DBProxy:
         if job.gshare in ('NULL', None, ''):
             job.gshare = self.get_share_for_job(job)
         _logger.debug('resource_type is set to {0}'.format(job.resource_type))
+        _logger.debug("insertNewJob : jediTaskID={0} SH={1}".format(job.jediTaskID, origSpecialHandling))
         if job.resource_type in ('NULL', None, ''):
             try:
                 job.resource_type = self.get_resource_type_job(job)
