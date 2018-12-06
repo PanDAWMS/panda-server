@@ -1703,11 +1703,23 @@ class DBProxy:
                                                                                                                             tmpS,tmpID))
                                 if tmpID is not None:
                                     retNewPandaID = tmpID
+                        # check jumbo flag
+                        sqlJumbo = "SELECT useJumbo FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+                        sqlJumbo += "WHERE jediTaskID=:jediTaskID "
+                        varMap = {}
+                        varMap[':jediTaskID'] = job.jediTaskID
+                        self.cur.execute(sqlJumbo+comment, varMap)
+                        resJumbo = self.cur.fetchone()
+                        if resJumbo is not None:
+                            useJumbo, = resJumbo
+                        else:
+                            useJumbo = None
+                        _logger.debug("archiveJob : {0} useJumbo={1}".format(job.PandaID, useJumbo))
                         # no new jobs
-                        if retNewPandaID is None and (retEvS != 4 or EventServiceUtils.isCoJumboJob(job)):
+                        if retNewPandaID is None and (retEvS != 4 or EventServiceUtils.isCoJumboJob(job) or useJumbo is not None):
                             nActiveConsumers = self.getActiveConsumers(job.jediTaskID, job.jobsetID, job.PandaID)
                             # create a fake cojumbo
-                            if nActiveConsumers == 0 and retEvS in [4, 5] and EventServiceUtils.isCoJumboJob(job) \
+                            if nActiveConsumers == 0 and retEvS in [4, 5] and (EventServiceUtils.isCoJumboJob(job) or useJumbo is not None) \
                                     and job.computingSite != EventServiceUtils.siteIdForWaitingCoJumboJobs:
                                 nActiveConsumers = self.makeFakeCoJumbo(job)
                             # no ES queues for retry
