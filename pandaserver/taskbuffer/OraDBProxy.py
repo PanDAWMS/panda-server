@@ -13417,6 +13417,8 @@ class DBProxy:
             tmpResS = self.cur.fetchone()
             jumboSite, = tmpResS
             # count number of events for jumbo
+            newUseJumbo = 'L'
+            """
             varMap = {}
             varMap[':jediTaskID'] = jobSpec.jediTaskID
             varMap[':eventStatus']  = EventServiceUtils.ST_ready
@@ -13425,13 +13427,13 @@ class DBProxy:
             sqlJumboC += "WHERE jediTaskID=:jediTaskID AND status=:eventStatus AND attemptNr>:minAttemptNr ".format(panda_config.schemaJEDI)
             cur.execute(sqlJumboC+comment,varMap)
             tmpResC = self.cur.fetchone()
-            newUseJumbo = 'L'
             if tmpResC is not None:
                 nEventsJumbo, = tmpResC 
                 tmpLog.debug('{0} event ranges available for jumbo'.format(nEventsJumbo))
                 # no more events
                 if nEventsJumbo == 0 and jumboSite is None:
                     newUseJumbo = 'D'
+            """
             # update flag
             varMap = {}
             varMap[':jediTaskID'] = jobSpec.jediTaskID
