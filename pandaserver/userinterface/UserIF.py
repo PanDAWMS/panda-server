@@ -1048,6 +1048,8 @@ class UserIF:
     # enable jumbo jobs
     def enableJumboJobs(self, jediTaskID, totalJumboJobs, nJumboPerSite):
         retVal = self.taskBuffer.enableJumboJobs(jediTaskID, totalJumboJobs, nJumboPerSite)
+        if totalJumboJobs > 0 and retVal[0] == 0:
+            self.avalancheTask(jediTaskID, 'panda', True)
         # serialize 
         return json.dumps(retVal)
 

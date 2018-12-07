@@ -22293,15 +22293,21 @@ class DBProxy:
             else:
                 varMap[':newJumbo'] = 'W'
             self.cur.execute(sqlJumboF, varMap)
-            self.changeTaskSplitRulePanda(jediTaskID, 'NJ', nJumboJobs, useCommit=False, sendLog=sendLog)
-            self.changeTaskSplitRulePanda(jediTaskID, 'MJ', nJumboPerSite, useCommit=False, sendLog=sendLog)
+            nRow = self.cur.rowcount
+            if nRow > 0:
+                self.changeTaskSplitRulePanda(jediTaskID, 'NJ', nJumboJobs, useCommit=False, sendLog=sendLog)
+                self.changeTaskSplitRulePanda(jediTaskID, 'MJ', nJumboPerSite, useCommit=False, sendLog=sendLog)
+                retVal = (0, 'done')
+                tmp_log.debug("set nJumboJobs={0} nJumboPerSite={1} useJumbo={2}".format(nJumboJobs, nJumboPerSite, varMap[':newJumbo']))
+            else:
+                retVal = (2, 'task not found')
+                tmp_log.debug("task not found")
             # commit
             if useCommit:
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
             # return
-            tmp_log.debug("set nJumboJobs={0} nJumboPerSite={1} useJumbo={2}".format(nJumboJobs, nJumboPerSite, varMap[':newJumbo']))
-            return (0, 'done')
+            return retVal
         except:
             # roll back
             if useCommit:
