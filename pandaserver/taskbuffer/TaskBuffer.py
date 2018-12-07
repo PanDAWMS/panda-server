@@ -114,7 +114,8 @@ class TaskBuffer:
     
     # store Jobs into DB
     def storeJobs(self,jobs,user,joinThr=False,forkSetupper=False,fqans=[],hostname='',resetLocInSetupper=False,
-                  checkSpecialHandling=True,toPending=False,oldPandaIDs=None,relationType=None,  userVO='atlas'):
+                  checkSpecialHandling=True,toPending=False,oldPandaIDs=None,relationType=None, userVO='atlas',
+                  esJobsetMap=None, getEsJobsetMap=False):
         try:
             _logger.debug("storeJobs : start for %s nJobs=%s" % (user,len(jobs)))
             # check quota for priority calculation
@@ -138,6 +139,8 @@ class TaskBuffer:
                 # return if DN is blocked
                 if not tmpStatus:
                     _logger.debug("storeJobs : end for %s DN is blocked 1" % user)
+                    if getEsJobsetMap:
+                        return ([], None)
                     return []
             # set parameters for user jobs
             if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda'] + JobUtils.list_ptest_prod_sources) \
@@ -227,6 +230,8 @@ class TaskBuffer:
             # return if DN is blocked
             if not userStatus:
                 _logger.debug("storeJobs : end for %s DN is blocked 2" % user)                
+                if getEsJobsetMap:
+                    return ([], None)
                 return []
             # extract VO
             for tmpFQAN in fqans:
@@ -294,7 +299,8 @@ class TaskBuffer:
             usePandaDDM = False
             firstLiveLog = True
             nRunJob = 0
-            esJobsetMap = {}
+            if esJobsetMap is None:
+                esJobsetMap = {}
             for idxJob,job in enumerate(jobs):
                 # set JobID. keep original JobID when retry
                 if userJobID != -1 and job.prodSourceLabel in ['user','panda'] \
@@ -434,11 +440,16 @@ class TaskBuffer:
                     Setupper(self,newJobs,pandaDDM=usePandaDDM,forkRun=forkSetupper,resetLocation=resetLocInSetupper).start()
             # return jobIDs
             _logger.debug("storeJobs : end for %s succeeded" % user)            
+            if getEsJobsetMap:
+                return (ret, esJobsetMap)
             return ret
         except:
             errType,errValue = sys.exc_info()[:2]
             _logger.error("storeJobs : %s %s" % (errType,errValue))
-            return "ERROR: ServerError with storeJobs"
+            errStr = "ERROR: ServerError with storeJobs"
+            if getEsJobsetMap:
+                return (errStr, None)
+            return errStr
            
 
     # lock jobs for reassign

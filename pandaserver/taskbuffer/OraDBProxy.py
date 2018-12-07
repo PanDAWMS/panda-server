@@ -378,7 +378,8 @@ class DBProxy:
         if job.gshare in ('NULL', None, ''):
             job.gshare = self.get_share_for_job(job)
         _logger.debug('resource_type is set to {0}'.format(job.resource_type))
-        _logger.debug("insertNewJob : jediTaskID={0} SH={1}".format(job.jediTaskID, origSpecialHandling))
+        _logger.debug("insertNewJob : jediTaskID={0} SH={1} origEsJob={2} eInfo={3}".format(job.jediTaskID, origSpecialHandling, origEsJob,
+                                                                                            eventServiceInfo))
         if job.resource_type in ('NULL', None, ''):
             try:
                 job.resource_type = self.get_resource_type_job(job)
