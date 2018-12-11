@@ -244,7 +244,12 @@ class RucioAPI:
                     attachmentList.append(attachment)
         # add files
         client = RucioClient()
-        return client.add_files_to_datasets(attachmentList,ignore_duplicate=True)
+        nFiles = 1000
+        iFiles = 0
+        while iFiles < len(attachmentList):
+            client.add_files_to_datasets(attachmentList[iFiles:iFiles+nFiles], ignore_duplicate=True)
+            iFiles += nFiles
+        return True
 
 
 

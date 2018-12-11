@@ -894,11 +894,12 @@ class AdderAtlasPlugin (AdderPluginBase):
                     rucioAPI.registerFilesInDataset(idMap)
                 except DataIdentifierNotFound:
                     self.logger.debug("ignored DataIdentifierNotFound")
-        except:
+        except Exception:
             errtype,errvalue = sys.exc_info()[:2]
             errStr = " : %s %s" % (errtype,errvalue)
             errStr += traceback.format_exc()
             self.logger.error(errStr)
+            raise
         self.logger.debug("done")
 
 
