@@ -232,23 +232,27 @@ class RucioAPI:
                         filesWoRSE.append(file)
                 # add attachment
                 if len(filesWithRSE) > 0:
-                    attachment = {'scope':scope,
-                                  'name':dsn,
-                                  'dids':filesWithRSE,
-                                  'rse':rse}
-                    attachmentList.append(attachment)
+                    nFiles = 100
+                    iFiles = 0
+                    while iFiles < len(filesWithRSE):
+                        attachment = {'scope':scope,
+                                      'name':dsn,
+                                      'dids':filesWithRSE[iFiles:iFiles+nFiles],
+                                      'rse':rse}
+                        attachmentList.append(attachment)
+                        iFiles += nFiles
                 if len(filesWoRSE) > 0:
-                    attachment = {'scope':scope,
-                                  'name':dsn,
-                                  'dids':filesWoRSE}
-                    attachmentList.append(attachment)
+                    nFiles = 100
+                    iFiles = 0
+                    while iFiles < len(filesWoRSE):
+                        attachment = {'scope':scope,
+                                      'name':dsn,
+                                      'dids':filesWoRSE[iFiles:iFiles+nFiles]}
+                        attachmentList.append(attachment)
+                        iFiles += nFiles
         # add files
         client = RucioClient()
-        nFiles = 1000
-        iFiles = 0
-        while iFiles < len(attachmentList):
-            client.add_files_to_datasets(attachmentList[iFiles:iFiles+nFiles], ignore_duplicate=True)
-            iFiles += nFiles
+        client.add_files_to_datasets(attachmentList, ignore_duplicate=True)
         return True
 
 
