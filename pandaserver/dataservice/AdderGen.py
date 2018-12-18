@@ -293,6 +293,7 @@ class AdderGen:
                             if file.lfn in addResult.transferringFiles:
                                 file.status = 'transferring'
                         self.job.jobStatus = 'transferring'
+                        self.job.jobSubStatus = None
                         # propagate transition to prodDB
                         self.job.stateChangeTime = time.strftime('%Y-%m-%d %H:%M:%S',time.gmtime())
                     else:
