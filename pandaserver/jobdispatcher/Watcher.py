@@ -44,13 +44,14 @@ class Watcher (threading.Thread):
                 # query job
                 job = self.taskBuffer.peekJobs([self.pandaID],fromDefined=False,
                                                fromArchived=False,fromWaiting=False)[0]
+                _logger.debug('%s in %s' % (self.pandaID, job.jobStatus))
                 # check job status
                 if job == None:
                     _logger.debug('%s escape : not found' % self.pandaID)
                     return
                 if not job.jobStatus in ['running','sent','starting','holding',
                                          'stagein','stageout']:
-                    if job.jobStatus == 'transferring' and job.prodSourceLabel in ['user','panda']:
+                    if job.jobStatus == 'transferring' and (job.prodSourceLabel in ['user','panda'] or job.jobSubStatus not in [None, 'NULL', '']):
                         pass
                     else:
                         _logger.debug('%s escape : %s' % (self.pandaID,job.jobStatus))

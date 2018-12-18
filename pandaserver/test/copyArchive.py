@@ -524,6 +524,24 @@ else:
         thr.start()
         thr.join()
 
+# check heartbeat for production jobs with internal stage-out
+timeOutVal = 4
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=timeOutVal)
+varMap = {}
+varMap[':modificationTime'] = timeLimit
+varMap[':jobStatus1'] = 'transferring'
+status,res = taskBuffer.querySQLS("SELECT PandaID,jobStatus,jobSubStatus FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus1 AND jobSubStatus IS NOT NULL AND modificationTime<:modificationTime",
+                              varMap)
+if res == None:
+    _logger.debug("# of Internal Staging Watcher : %s" % res)
+else:
+    _logger.debug("# of Internal Staging Watcher : %s" % len(res))    
+    for pandaID, jobStatus, jobSubStatus in res:
+        _logger.debug("Internal Staging  Watcher %s %s:%s" % (pandaID, jobStatus, jobSubStatus))
+        thr = Watcher(taskBuffer,pandaID,single=True,sleepTime=60*timeOutVal,sitemapper=siteMapper)
+        thr.start()
+        thr.join()
+
 # check heartbeat for production jobs
 timeOutVal = 2
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=timeOutVal)
