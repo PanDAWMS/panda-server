@@ -32,7 +32,7 @@ class Share(Node):
     Implement the share node
     """
     _attributes = ('name', 'value', 'parent', 'prodsourcelabel', 'workinggroup', 'campaign', 'processingtype',
-                   'transpath', 'vo', 'queue_id', 'throttled')
+                   'transpath', 'vo', 'rtype', 'queue_id', 'throttled')
 
     def __str__(self, level=0):
         """
@@ -60,7 +60,7 @@ class Share(Node):
         return self.__mul__
 
     def __init__(self, name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype,
-                 transpath, vo, queue_id, throttled):
+                 transpath, rtype, vo, queue_id, throttled):
 
         # Create default attributes
         for attr in self._attributes:
@@ -75,6 +75,7 @@ class Share(Node):
         self.campaign = campaign
         self.processingtype = processingtype
         self.transpath = transpath
+        self.rtype = rtype
         self.vo = vo
         self.queue_id = queue_id
         self.throttled = throttled
