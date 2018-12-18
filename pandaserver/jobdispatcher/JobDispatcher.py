@@ -946,7 +946,7 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
     validToken = _checkToken(token,jobDispatcher)
     # accept json
     acceptJson = req.acceptJson()
-    _logger.debug("updateJob(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,attemptNr:%s,jobSubStatus:%s,core:%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s,maxRSS=%s,maxVMEM=%s,maxSWAP=%s,maxPSS=%s,avgRSS=%s,avgVMEM=%s,avgSWAP=%s,avgPSS=%s,totRCHAR=%s,totWCHAR=%s,totRBYTES=%s,totWBYTES=%s,rateRCHAR=%s,rateWCHAR=%s,rateRBYTES=%s,rateWBYTES=%s\n==XML==\n%s\n==LOG==\n%s\n==Meta==\n%s\n==Metrics==\n%s\n==stdout==\n%s)" %
+    _logger.debug("updateJob(%s,%s,%s,%s,%s,%s,%s,cpuConsumptionTime=%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,attemptNr:%s,jobSubStatus:%s,core:%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s,maxRSS=%s,maxVMEM=%s,maxSWAP=%s,maxPSS=%s,avgRSS=%s,avgVMEM=%s,avgSWAP=%s,avgPSS=%s,totRCHAR=%s,totWCHAR=%s,totRBYTES=%s,totWBYTES=%s,rateRCHAR=%s,rateWCHAR=%s,rateRBYTES=%s,rateWBYTES=%s\n==XML==\n%s\n==LOG==\n%s\n==Meta==\n%s\n==Metrics==\n%s\n==stdout==\n%s)" %
                   (jobId,state,transExitCode,pilotErrorCode,pilotErrorDiag,node,workdir,cpuConsumptionTime,
                    cpuConsumptionUnit,remainingSpace,schedulerID,pilotID,siteName,messageLevel,nEvents,nInputFiles,
                    cpuConversionFactor,exeErrorCode,exeErrorDiag,pilotTiming,computingElement,startTime,endTime,
@@ -976,7 +976,7 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
         return Protocol.Response(Protocol.SC_Success).encode(acceptJson)        
     # create parameter map
     param = {}
-    if cpuConsumptionTime != None:
+    if cpuConsumptionTime not in [None, '']:
         param['cpuConsumptionTime']=cpuConsumptionTime
     if cpuConsumptionUnit != None:
         param['cpuConsumptionUnit']=cpuConsumptionUnit
