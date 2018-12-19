@@ -299,7 +299,7 @@ class DBProxy:
     # insert job to jobsDefined
     def insertNewJob(self,job,user,serNum,weight=0.0,priorityOffset=0,userVO=None,groupJobSN=0,toPending=False,
                      origEsJob=False,eventServiceInfo=None,oldPandaIDs=None,relationType=None,fileIDPool=[],
-                     origSpecialHandling=None):
+                     origSpecialHandling=None, unprocessedMap=None):
         comment = ' /* DBProxy.insertNewJob */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += ' <JediTaskID={0} idPool={1}>'.format(job.jediTaskID,len(fileIDPool))
@@ -461,6 +461,8 @@ class DBProxy:
                     # commit
                     if not self._commit():
                         raise RuntimeError, 'Commit error'
+                    if unprocessedMap is not None:
+                        return (False, unprocessedMap)
                     return False
             # insert job
             varMap = job.valuesMap(useSeq=True)
@@ -772,6 +774,16 @@ class DBProxy:
                 varMap[':specialHandling'] = job.specialHandling
                 varMap[':PandaID'] = job.PandaID
                 self.cur.execute(sqlJediJSH+comment, varMap)
+            # use score if not so many events are available
+            if origEsJob and unprocessedMap is not None:
+                unprocessedMap[job.jobsetID] = nEventsToProcess
+            if EventServiceUtils.isEventServiceJob(job) and not EventServiceUtils.isJobCloningJob(job) and unprocessedMap is not None:
+                if job.coreCount not in [None, '', 'NULL'] and job.coreCount > 1:
+                    minUnprocessed = self.getConfigValue('dbproxy', 'AES_MINEVENTSFORMCORE')
+                    if minUnprocessed is not None:
+                        minUnprocessed = max(minUnprocessed, job.coreCount)
+                        if unprocessedMap[job.jobsetID] < minUnprocessed and unprocessedMap[job.jobsetID] > 0:
+                            self.setScoreSiteToEs(job, "insertNewJob : {0}".format(job.PandaID), comment)
             # bulk insert files
             if len(varMapsForFile) > 0:
                 _logger.debug("insertNewJob : {0} bulk insert {1} files for jediTaskID:{2}".format(job.PandaID,len(varMapsForFile),
@@ -880,12 +892,16 @@ class DBProxy:
                 self.recordStatusChange(job.PandaID,job.jobStatus,jobInfo=job)
             except:
                 _logger.error('recordStatusChange in insertNewJob')
+            if unprocessedMap is not None:
+                return (True, unprocessedMap)
             return True
         except:
             # roll back
             self._rollback()
             # error
             self.dumpErrorMessage(_logger,methodName)
+            if unprocessedMap is not None:
+                return (False, unprocessedMap)
             return False
 
 
@@ -1654,7 +1670,7 @@ class DBProxy:
                         job.taskBufferErrorDiag = 'maximum event attempts reached'
                         # kill other consumers
                         self.killEventServiceConsumers(job,False,False)
-                        self.killUnusedEventServiceConsumers(job,False,killAll=True)
+                        self.killUnusedEventServiceConsumers(job, False, killAll=True, checkAttemptNr=True)
                     elif retEvS == 4:
                         # other consumers are running
                         job.jobStatus = 'merging'
@@ -15036,7 +15052,7 @@ class DBProxy:
                     tmpJobSpec.PandaID = pandaID
                     tmpJobSpec.jobsetID = jobsetID
                     tmpJobSpec.jediTaskID = jediTaskID
-                    self.killUnusedEventServiceConsumers(tmpJobSpec,False)
+                    self.killUnusedEventServiceConsumers(tmpJobSpec, False, checkAttemptNr=True)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -16300,12 +16316,12 @@ class DBProxy:
     # set score site to ES job
     def setScoreSiteToEs(self, jobSpec, methodName, comment):
         _logger.debug('{0} looking for SCORE site'.format(methodName))
-        # get score PQ in the nucleus associated to the site to run the smal ES job 
+        # get score PQ in the nucleus associated to the site to run the small ES job 
         sqlSN  = "SELECT ps2.panda_site_name "
         sqlSN += "FROM ATLAS_PANDA.panda_site ps1,ATLAS_PANDA.panda_site ps2,ATLAS_PANDAMETA.schedconfig sc "
         sqlSN += "WHERE ps1.panda_site_name=:site AND ps1.site_name=ps2.site_name AND sc.siteid=ps2.panda_site_name "
         sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1 OR sc.catchall LIKE '%unifiedPandaQueue%' OR sc.capability=:capability) "
-        sqlSN += "AND (sc.jobseed IS NULL OR sc.jobseed='es') "
+        sqlSN += "AND (sc.jobseed IS NULL OR sc.jobseed<>'std') "
         sqlSN += "AND sc.status=:siteStatus "
         varMap = {}
         varMap[':site'] = jobSpec.computingSite
@@ -16355,6 +16371,8 @@ class DBProxy:
                 newSiteName = jobSpec.computingSite
         if newSiteName is not None:
             _logger.info('{0} set SCORE site to {1}'.format(methodName, newSiteName))
+        else:
+            _logger.info('{0} no SCORE site for {1}'.format(methodName, jobSpec.computingSite))
         # return
         return
 

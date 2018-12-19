@@ -115,7 +115,7 @@ class TaskBuffer:
     # store Jobs into DB
     def storeJobs(self,jobs,user,joinThr=False,forkSetupper=False,fqans=[],hostname='',resetLocInSetupper=False,
                   checkSpecialHandling=True,toPending=False,oldPandaIDs=None,relationType=None, userVO='atlas',
-                  esJobsetMap=None, getEsJobsetMap=False):
+                  esJobsetMap=None, getEsJobsetMap=False, unprocessedMap=None):
         try:
             _logger.debug("storeJobs : start for %s nJobs=%s" % (user,len(jobs)))
             # check quota for priority calculation
@@ -140,7 +140,7 @@ class TaskBuffer:
                 if not tmpStatus:
                     _logger.debug("storeJobs : end for %s DN is blocked 1" % user)
                     if getEsJobsetMap:
-                        return ([], None)
+                        return ([], None, unprocessedMap)
                     return []
             # set parameters for user jobs
             if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda'] + JobUtils.list_ptest_prod_sources) \
@@ -231,7 +231,7 @@ class TaskBuffer:
             if not userStatus:
                 _logger.debug("storeJobs : end for %s DN is blocked 2" % user)                
                 if getEsJobsetMap:
-                    return ([], None)
+                    return ([], None, unprocessedMap)
                 return []
             # extract VO
             for tmpFQAN in fqans:
@@ -394,10 +394,13 @@ class TaskBuffer:
                 if not isOK:
                     # skip since there is no ready event
                     job.PandaID = None
-                elif not proxy.insertNewJob(job,user,serNum,weight,priorityOffset,userVO,groupJobSerialNum,
-                                            toPending,origEsJob,eventServiceInfo,oldPandaIDs=jobOldPandaIDs,
-                                            relationType=relationType,fileIDPool=fileIDPool,
-                                            origSpecialHandling=origSH):
+                tmpRetI = proxy.insertNewJob(job,user,serNum,weight,priorityOffset,userVO,groupJobSerialNum,
+                                             toPending,origEsJob,eventServiceInfo,oldPandaIDs=jobOldPandaIDs,
+                                             relationType=relationType,fileIDPool=fileIDPool,
+                                             origSpecialHandling=origSH, unprocessedMap=unprocessedMap)
+                if unprocessedMap is not None:
+                    tmpRetI, unprocessedMap = tmpRetI
+                if not tmpRetI:
                     # reset if failed
                     job.PandaID = None
                 else:
@@ -441,14 +444,14 @@ class TaskBuffer:
             # return jobIDs
             _logger.debug("storeJobs : end for %s succeeded" % user)            
             if getEsJobsetMap:
-                return (ret, esJobsetMap)
+                return (ret, esJobsetMap, unprocessedMap)
             return ret
         except:
             errType,errValue = sys.exc_info()[:2]
             _logger.error("storeJobs : %s %s" % (errType,errValue))
             errStr = "ERROR: ServerError with storeJobs"
             if getEsJobsetMap:
-                return (errStr, None)
+                return (errStr, None, unprocessedMap)
             return errStr
            
 

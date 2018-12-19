@@ -1,7 +1,10 @@
 Release Notes
 
+* 12/19/2018
+  * to change MCORE to SCORE for small ES jobs
+
 * 12/5/2018
-  * to take into account objstoreIDs of zip files
+  * to take into account objstoreIDs of zip files when making esmerge
 
 * 11/14/2018
   * one sub per job for ART
