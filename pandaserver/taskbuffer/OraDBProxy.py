@@ -15824,7 +15824,7 @@ class DBProxy:
             jobSpec.schedulerID = None
             jobSpec.pilotID = None
             if doMerging:
-                jobSpec.maxAttempt = jobSpec.attemptNr+3
+                jobSpec.maxAttempt = jobSpec.attemptNr
                 jobSpec.currentPriority = 5000
             else:
                 jobSpec.currentPriority += 1
@@ -16021,6 +16021,10 @@ class DBProxy:
                 sqlFile = "INSERT INTO ATLAS_PANDA.filesTable4 ({0}) ".format(FileSpec.columnNames())
                 sqlFile+= FileSpec.bindValuesExpression(useSeq=True)
                 sqlFile+= " RETURNING row_ID INTO :newRowID"
+                sqlMaxFail = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
+                sqlMaxFail += "SET maxFailure=failedAttempt+:increase "
+                sqlMaxFail += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+                sqlMaxFail += "AND keepTrack=:keepTrack "
                 for fileSpec in jobSpec.Files:
                     # skip zip
                     if fileSpec.type.startswith('zip'):
@@ -16039,6 +16043,15 @@ class DBProxy:
                     varMap[':newRowID'] = self.cur.var(varNUMBER)
                     self.cur.execute(sqlFile+comment, varMap)
                     fileSpec.row_ID = long(self.cur.getvalue(varMap[':newRowID']))
+                    # change max failure for esmerge
+                    if doMerging and fileSpec.type in ['input', 'pseudo_input']:
+                         varMap = {}
+                         varMap[':jediTaskID'] = fileSpec.jediTaskID
+                         varMap[':datasetID']  = fileSpec.datasetID
+                         varMap[':fileID']     = fileSpec.fileID
+                         varMap[':increase']   = 5
+                         varMap[':keepTrack']  = 1
+                         self.cur.execute(sqlMaxFail+comment, varMap)
                 # insert job parameters
                 sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters) VALUES (:PandaID,:param)"
                 varMap = {}

@@ -1,5 +1,8 @@
 Release Notes
 
+* 12/21/2018
+  * to reduce attempts for esmerge
+
 * 12/19/2018
   * to change MCORE to SCORE for small ES jobs
 
