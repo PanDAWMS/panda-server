@@ -301,6 +301,10 @@ class TaskBuffer:
             nRunJob = 0
             if esJobsetMap is None:
                 esJobsetMap = {}
+            try:
+                _logger.debug("storeJobs : jediTaskID={0} len(esJobsetMap)={1} nJobs={2}".format(jobs[0].jediTaskID, len(esJobsetMap), len(jobs)))
+            except Exception:
+                pass
             for idxJob,job in enumerate(jobs):
                 # set JobID. keep original JobID when retry
                 if userJobID != -1 and job.prodSourceLabel in ['user','panda'] \
