@@ -16024,7 +16024,11 @@ class DBProxy:
                 sqlFile+= FileSpec.bindValuesExpression(useSeq=True)
                 sqlFile+= " RETURNING row_ID INTO :newRowID"
                 sqlMaxFail = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
-                sqlMaxFail += "SET maxFailure=failedAttempt+:increase "
+                sqlMaxFail += "SET maxFailure=(CASE "
+                sqlMaxFail += "WHEN maxFailure IS NULL THEN failedAttempt+:increase "
+                sqlMaxFail += "WHEN maxFailure>failedAttempt+:increase THEN failedAttempt+:increase "
+                sqlMaxFail += "ELSE maxFailure "
+                sqlMaxFail += "END) "
                 sqlMaxFail += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                 sqlMaxFail += "AND keepTrack=:keepTrack "
                 for fileSpec in jobSpec.Files:
