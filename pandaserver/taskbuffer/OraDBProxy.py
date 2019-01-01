@@ -1709,6 +1709,7 @@ class DBProxy:
                     codeListWithRetry = [0, 4, 5, 8, 9]
                     if retEvS in codeListWithRetry and job.computingSite != EventServiceUtils.siteIdForWaitingCoJumboJobs:
                         # resurrect consumers at other sites
+                        """
                         if retEvS != 4 and EventServiceUtils.isResurrectConsumers(job.specialHandling):
                             archivedConsumers = self.getOriginalConsumers(job.jediTaskID, job.jobsetID, job.PandaID)
                             for archivedConsumer in archivedConsumers:
@@ -1720,6 +1721,7 @@ class DBProxy:
                                                                                                                             tmpS,tmpID))
                                 if tmpID is not None:
                                     retNewPandaID = tmpID
+                        """            
                         # check jumbo flag
                         sqlJumbo = "SELECT useJumbo FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
                         sqlJumbo += "WHERE jediTaskID=:jediTaskID "
