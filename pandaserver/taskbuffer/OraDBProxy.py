@@ -20281,7 +20281,8 @@ class DBProxy:
         tmpLog.debug('start')
 
         sql = """
-               SELECT NAME, VALUE, PARENT, PRODSOURCELABEL, WORKINGGROUP, CAMPAIGN, PROCESSINGTYPE, TRANSPATH, VO, QUEUE_ID, THROTTLED
+               SELECT NAME, VALUE, PARENT, PRODSOURCELABEL, WORKINGGROUP, CAMPAIGN, PROCESSINGTYPE, TRANSPATH, RTYPE, 
+               VO, QUEUE_ID, THROTTLED
                FROM ATLAS_PANDA.GLOBAL_SHARES
                """
         var_map = None
@@ -20329,7 +20330,7 @@ class DBProxy:
 
         # Root dummy node
         t_before = time.time()
-        tree = GlobalShares.Share('root', 100, None, None, None, None, None, None, None, None, None)
+        tree = GlobalShares.Share('root', 100, None, None, None, None, None, None, None, None, None, None)
         t_after = time.time()
         total = t_after - t_before
         _logger.debug('Root dummy tree took {0}s'.format(total))
@@ -20344,9 +20345,9 @@ class DBProxy:
         # Load branches
         t_before = time.time()
         for (name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype,
-             transpath, vo, queue_id, throttled) in shares_top_level:
+             transpath, rtype, vo, queue_id, throttled) in shares_top_level:
             share = GlobalShares.Share(name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype,
-                                       transpath, vo, queue_id, throttled)
+                                       transpath, rtype, vo, queue_id, throttled)
             tree.children.append(self.__load_branch(share))
         t_after = time.time()
         total = t_after - t_before
@@ -20430,21 +20431,48 @@ class DBProxy:
         Recursively load a branch
         """
         node = GlobalShares.Share(share.name, share.value, share.parent, share.prodsourcelabel, share.workinggroup,
-                                  share.campaign, share.processingtype, share.transpath, share.vo, share.queue_id,
-                                  share.throttled)
+                                  share.campaign, share.processingtype, share.transpath, share.rtype, share.vo,
+                                  share.queue_id, share.throttled)
 
         children = self.get_shares(parents=share.name)
         if not children:
             return node
 
         for (name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype,
-             transpath, vo, queue_id, throttled) in children:
+             transpath, rtype, vo, queue_id, throttled) in children:
             child = GlobalShares.Share(name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype,
-                                       transpath, vo, queue_id, throttled)
+                                       transpath, rtype, vo, queue_id, throttled)
             node.children.append(self.__load_branch(child))
 
         return node
 
+    # get the rtype of a site
+    def get_rtype_site(self, site):
+        comment = ' /* DBProxy.get_rtype_site */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger,methodName+' <site={0} >'.format(site))
+        tmpLog.debug('start')
+        try:
+            # sql to update input file status
+            var_map = {':site': site}
+            sql  = 'SELECT resource_type FROM ATLAS_PANDAMETA.schedconfig WHERE siteid=:site '
+
+            # start transaction
+            self.conn.begin()
+            self.cur.arraysize = 1
+            self.cur.execute(sql+comment, var_map)
+            rtype = self.cur.fetchone()[0]
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug('site {0} has rtype: {1} '.format(site, rtype))
+            return rtype
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(tmpLog,methodName)
+            return None
 
     def compare_share_task(self, share, task):
         """
@@ -20470,6 +20498,11 @@ class DBProxy:
                 and re.match(share.transpath, task.transPath) is None:
             return False
 
+        if share.rtype is not None and task.site is not None:
+            rtype_site = self.get_rtype_site(task.site)
+            if re.match(share.rtype, rtype_site) is None:
+                return False
+
         return True
 
 
@@ -20488,6 +20521,11 @@ class DBProxy:
         if share.processingtype is not None and re.match(share.processingtype, job.processingType) is None:
             return False
 
+        if share.rtype is not None and job.computingSite is not None:
+            rtype_site = self.get_rtype_site(job.computingSite)
+            if re.match(share.rtype, rtype_site) is None:
+                return False
+
         return True
 
 
@@ -20504,8 +20542,8 @@ class DBProxy:
                 break
 
         if selected_share_name == 'Undefined':
-            _logger.warning("No share matching jediTaskId={0} (prodSourceLabel={1} workingGroup={2} campaign={3} transpath={4})".
-                            format(task.jediTaskID, task.prodSourceLabel, task.workingGroup, task.campaign, task.transPath))
+            _logger.warning("No share matching jediTaskId={0} (prodSourceLabel={1} workingGroup={2} campaign={3} transpath={4} site={5})".
+                            format(task.jediTaskID, task.prodSourceLabel, task.workingGroup, task.campaign, task.transPath, task.site))
 
         return selected_share_name
 
