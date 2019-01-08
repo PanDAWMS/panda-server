@@ -20499,8 +20499,12 @@ class DBProxy:
             return False
 
         if share.rtype is not None and task.site is not None:
-            rtype_site = self.get_rtype_site(task.site)
-            if re.match(share.rtype, rtype_site) is None:
+            try:
+                site = task.site.split(',')[0] # if task assigned to more than one site, take the first one
+                rtype_site = self.get_rtype_site(site)
+                if rtype_site and re.match(share.rtype, rtype_site) is None:
+                    return False
+            except:
                 return False
 
         return True
@@ -20522,8 +20526,12 @@ class DBProxy:
             return False
 
         if share.rtype is not None and job.computingSite is not None:
-            rtype_site = self.get_rtype_site(job.computingSite)
-            if re.match(share.rtype, rtype_site) is None:
+            try:
+                site = job.computingSite.split(',')[0]
+                rtype_site = self.get_rtype_site(site)
+                if re.match(share.rtype, rtype_site) is None:
+                    return False
+            except:
                 return False
 
         return True
