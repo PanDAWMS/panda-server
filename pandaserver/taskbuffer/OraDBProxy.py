@@ -16144,6 +16144,7 @@ class DBProxy:
         sqlOST = "SELECT fsize,destinationSE FROM {0}.filesTable4 ".format(panda_config.schemaPANDA)
         sqlOST += "WHERE row_ID=:row_ID "
         objStoreZipMap = dict()
+        storageZipMap = dict()
         zipRowIDs = set()
         totalZipSize = 0
         for tmpFileSpec in jobSpec.Files:
@@ -16172,7 +16173,13 @@ class DBProxy:
                     if tmpRSE is not None:
                         objStoreZipMap.setdefault(tmpRSE['name'], 0)
                         objStoreZipMap[tmpRSE['name']] += tmpFsize
-        sortedOST = sorted(objStoreZipMap.items(), key=operator.itemgetter(1))
+                        if tmpRSE['type'].endswith('DISK'):
+                            storageZipMap.setdefault(tmpRSE['name'], 0)
+                            storageZipMap[tmpRSE['name']] += tmpFsize
+        if len(storageZipMap) > 0:
+            sortedOST = sorted(storageZipMap.items(), key=operator.itemgetter(1))
+        else:
+            sortedOST = sorted(objStoreZipMap.items(), key=operator.itemgetter(1))
         sortedOST.reverse()
         if len(sortedOST) > 0:
             _logger.debug('{0} old objectstores {1}'.format(methodName, str(objectstores)))
@@ -19997,7 +20004,10 @@ class DBProxy:
             data = json.load(f)
             for rseName,rseData in data.iteritems():
                 if rseData['id'] == objID:
-                    retMap = {'name':rseName, "is_deterministic":rseData['is_deterministic']}
+                    retMap = {'name': rseName,
+                              "is_deterministic": rseData['is_deterministic'],
+                              'type': rseData['type']
+                              }
                     tmpLog.debug("got {0}".format(str(retMap)))
                     return retMap
         except:
