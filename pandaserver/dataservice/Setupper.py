@@ -155,6 +155,33 @@ class Setupper (threading.Thread):
                 # change status
                 job.jobStatus = "assigned"
                 updateJobs.append(job)
+        # trigger merge generation if all events are done
+        newActivateJobs = []
+        nFinished = 0
+        for job in activateJobs:
+            if job.notDiscardEvents() and job.allOkEvents() and not EventServiceUtils.isEventServiceMerge(job):
+                self.taskBuffer.activateJobs([job])
+                # change status
+                job.jobStatus = "finished"
+                self.taskBuffer.updateJobs([job], False)
+                nFinished += 1
+            else:
+                newActivateJobs.append(job)
+        activateJobs = newActivateJobs
+        tmpLog.debug('# of finished jobs in activated : {0}'.format(nFinished))
+        newUpdateJobs = []
+        nFinished = 0
+        for job in updateJobs:
+            if job.notDiscardEvents() and job.allOkEvents() and not EventServiceUtils.isEventServiceMerge(job):
+                self.taskBuffer.updateJobs([job], True)
+                # change status
+                job.jobStatus = "finished"
+                self.taskBuffer.updateJobs([job], True)
+                nFinished += 1
+            else:
+                newUpdateJobs.append(job)
+        updateJobs = newUpdateJobs
+        tmpLog.debug('# of finished jobs in defined : {0}'.format(nFinished))
         # update DB
         tmpLog.debug('# of activated jobs : {0}'.format(len(activateJobs)))
         self.taskBuffer.activateJobs(activateJobs)
@@ -164,23 +191,6 @@ class Setupper (threading.Thread):
         self.taskBuffer.updateJobs(failedJobs,True)
         tmpLog.debug('# of waiting jobs : {0}'.format(len(waitingJobs)))
         self.taskBuffer.keepJobs(waitingJobs)
-        # to trigger merge generation if all events are done
-        finishedJobs = []
-        for job in activateJobs:
-            if job.notDiscardEvents() and job.allOkEvents() and not EventServiceUtils.isEventServiceMerge(job):
-                # change status
-                job.jobStatus = "finished"
-                finishedJobs.append(job)
-        tmpLog.debug('# of finished jobs in activated : {0}'.format(len(finishedJobs)))
-        self.taskBuffer.updateJobs(finishedJobs, False)
-        finishedJobs = []
-        for job in updateJobs:
-            if job.notDiscardEvents() and job.allOkEvents() and not EventServiceUtils.isEventServiceMerge(job):
-                # change status
-                job.jobStatus = "finished"
-                finishedJobs.append(job)
-        tmpLog.debug('# of finished jobs in defined : {0}'.format(len(finishedJobs)))
-        self.taskBuffer.updateJobs(finishedJobs, True)
         # delete local values
         del updateJobs
         del failedJobs
