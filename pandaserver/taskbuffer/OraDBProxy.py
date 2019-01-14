@@ -16143,6 +16143,9 @@ class DBProxy:
         sqlZIP += "AND status=:esDone "
         sqlOST = "SELECT fsize,destinationSE FROM {0}.filesTable4 ".format(panda_config.schemaPANDA)
         sqlOST += "WHERE row_ID=:row_ID "
+        sqlOST += "UNION "
+        sqlOST += "SELECT fsize,destinationSE FROM {0}.filesTable_ARCH ".format(panda_config.schemaPANDAARCH)
+        sqlOST += "WHERE row_ID=:row_ID "
         objStoreZipMap = dict()
         storageZipMap = dict()
         zipRowIDs = set()
