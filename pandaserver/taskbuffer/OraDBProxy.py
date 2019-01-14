@@ -3607,6 +3607,9 @@ class DBProxy:
                 # read zip file
                 sqlZipFile  = "SELECT lfn,destinationSE,fsize,checksum FROM ATLAS_PANDA.filesTable4 "
                 sqlZipFile += "WHERE row_ID=:row_ID "
+                sqlZipFile += "UNION "
+                sqlZipFile += "SELECT lfn,destinationSE,fsize,checksum FROM ATLAS_PANDAARCH.filesTable_ARCH "
+                sqlZipFile += "WHERE row_ID=:row_ID "
                 self.cur.arraysize = 10000
                 self.cur.execute(sqlFile+comment, varMap)
                 resFs = self.cur.fetchall()
