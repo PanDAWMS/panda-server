@@ -283,9 +283,13 @@ class RucioAPI:
             for rse in zipFileAttr['rse']:
                 client.add_replicas(rse=rse, files=[zipFile])
             # add files
-            client.add_files_to_archive(scope=zipFile['scope'],
-                                        name=zipFile['name'],
-                                        files=files)
+            nFiles = 100
+            iFiles = 0
+            while iFiles < len(files):
+                client.add_files_to_archive(scope=zipFile['scope'],
+                                            name=zipFile['name'],
+                                            files=files[iFiles:iFiles+nFiles])
+                iFiles += nFiles
 
 
 
