@@ -5466,15 +5466,15 @@ class DBProxy:
         try:
             varMap = {}
             varMap[':jobStatus'] = 'assigned'
-            varMap[':currentPriority'] = prio
-            varMap[':pLabel1'] = 'managed'
-            varMap[':pLabel2'] = 'test'
+            if prio > 0:
+                varMap[':currentPriority'] = prio
             varMap[':timeLimit'] = timeLimit
             # make sql
             sql  = "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 "
             sql += "WHERE jobStatus=:jobStatus AND (prodDBUpdateTime IS NULL OR prodDBUpdateTime<:timeLimit) "
-            sql += "AND prodSourceLabel IN (:pLabel1,:pLabel2) "
-            sql += "AND currentPriority>=:currentPriority AND rownum<=%s " % rownum
+            if prio > 0:
+                sql += "AND currentPriority>=:currentPriority "
+            sql += "AND rownum<=%s " % rownum
             sql += "FOR UPDATE "
             # sql for lock
             sqlLock = 'UPDATE ATLAS_PANDA.jobsDefined4 SET prodDBUpdateTime=CURRENT_DATE WHERE PandaID=:PandaID'
@@ -19886,6 +19886,43 @@ class DBProxy:
                 raise RuntimeError, 'Commit error'
             tmpLog.debug("{0} ready events. ret={1}".format(nReady, retVal))
             return retVal
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(tmpLog,methodName)
+            return None
+
+
+
+    # get number of events to be processed
+    def getNumReadyEvents(self, jediTaskID):
+        comment = ' /* DBProxy.getNumReadyEvents */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger,methodName+" <jediTaskID={0}>".format(jediTaskID))
+        tmpLog.debug("start")
+        nReady = None
+        try:
+            # sql to count event
+            sqlF  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlF += "WHERE jediTaskID=:jediTaskID AND status=:esReady AND attemptNr>:minAttemptNr "
+            # count event
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            varMap[':esReady'] = EventServiceUtils.ST_ready
+            varMap[':minAttemptNr'] = 0
+            # begin transaction
+            self.conn.begin()
+            self.cur.execute(sqlF+comment, varMap)
+            resF = self.cur.fetchone()
+            nReady = None
+            if resF is not None:
+                nReady, = resF
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug("{0} ready events".format(nReady))
+            return nReady
         except:
             # roll back
             self._rollback()

@@ -3109,6 +3109,19 @@ class TaskBuffer:
 
 
 
+    # get number of events to be processed
+    def getNumReadyEvents(self, jediTaskID):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getNumReadyEvents(jediTaskID)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+
     # check if task is applicable for jumbo jobs
     def isApplicableTaskForJumbo(self,jediTaskID):
         # get proxy
