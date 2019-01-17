@@ -19990,15 +19990,15 @@ class DBProxy:
         tmpLog.debug("start")
         try:
             # sql to get jumbo jobs
-            sql  = "SELECT PandaID,jediTaskID FROM ATLAS_PANDA.jobsDefined4 WHERE eventService=:eventService "
+            sql  = "SELECT PandaID,jediTaskID,jobStatus FROM ATLAS_PANDA.jobsDefined4 WHERE eventService=:eventService "
             if jediTaskID != None:
                 sql += "AND jediTaskID=:jediTaskID "
             sql += "UNION "
-            sql += "SELECT PandaID,jediTaskID FROM ATLAS_PANDA.jobsActive4 WHERE eventService=:eventService "
+            sql += "SELECT PandaID,jediTaskID,jobStatus FROM ATLAS_PANDA.jobsActive4 WHERE eventService=:eventService "
             if jediTaskID != None:
                 sql += "AND jediTaskID=:jediTaskID "
             sql += "UNION "
-            sql += "SELECT PandaID,jediTaskID FROM ATLAS_PANDA.jobsWaiting4 WHERE eventService=:eventService "
+            sql += "SELECT PandaID,jediTaskID,jobStatus FROM ATLAS_PANDA.jobsWaiting4 WHERE eventService=:eventService "
             if jediTaskID != None:
                 sql += "AND jediTaskID=:jediTaskID "
             # begin transaction
@@ -20013,14 +20013,31 @@ class DBProxy:
                 raise RuntimeError, 'Commit error'
             # get ID mapping
             idMap = {}
-            for pandaID,tmpJediTaskID in resF:
+            for pandaID, tmpJediTaskID, jobStatus in resF:
+                if jobStatus in ['transferring']:
+                    continue
                 if not tmpJediTaskID in idMap:
                     idMap[tmpJediTaskID] = set()
                 idMap[tmpJediTaskID].add(pandaID)
             tmpLog.debug("got {0} taks".format(len(idMap)))
+            # sql to check useJumbo
+            sqlJ = "SELECT useJumbo FROM ATLAS_PANDA.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
             # loop over all tasks
             for tmpJediTaskID,pandaIDs in idMap.iteritems():
-                if jediTaskID != None or not self.isApplicableTaskForJumbo(tmpJediTaskID):
+                # check useJumbo
+                self.conn.begin()
+                varMap = {}
+                varMap[':jediTaskID'] = tmpJediTaskID
+                self.cur.execute(sqlJ+comment, varMap)
+                resJ = self.cur.fetchone()
+                if resJ is not None and resJ[0] == 'D':
+                    disabledFlag = True
+                    tmpLog.debug("kill disabled jumbo jobs for jediTaskID={0}".format(tmpJediTaskID))
+                else:
+                    disabledFlag = False
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+                if jediTaskID != None or not self.isApplicableTaskForJumbo(tmpJediTaskID) or disabledFlag:
                     for pandaID in pandaIDs:
                         self.killJob(pandaID,'','55',True)
                     tmpLog.debug("killed {0} jobs for jediTaskID={1}".format(len(pandaIDs),tmpJediTaskID))
