@@ -148,6 +148,15 @@ class SiteSpec(object):
 
 
 
+    # get minimum of remainig events for jumbo jobs
+    def getMinEventsForJumbo(self):
+        tmpVal = self.getValueFromCatchall('minEventsForJumbo')
+        if tmpVal is None:
+            return None
+        return int(tmpVal)
+
+
+
     # check if opportunistic
     def is_opportunistic(self):
         return self.pledgedCPU == -1
