@@ -869,6 +869,14 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                 # use T1_PRODDISK
                                 if seTokens.has_key('ATLASPRODDISK'):
                                     dq2ID = seTokens['ATLASPRODDISK']
+                            elif job.prodSourceLabel in ['user','panda']:
+                                # use DATADISK
+                                tmpSiteSpec = self.siteMapper.getSite(job.computingSite)
+                                if 'ATLASDATADISK' in tmpSiteSpec.setokens_input:
+                                    tmpDq2ID = tmpSiteSpec.setokens_input['ATLASDATADISK']
+                                    if tmpDq2ID in tmpSiteSpec.ddm_endpoints_input.getLocalEndPoints():
+                                        self.logger.debug('use {0} instead of {1} for analysis input staging'.format(tmpDq2ID, dq2ID))
+                                        dq2ID = tmpDq2ID
                         # set share and activity
                         if job.prodSourceLabel in ['user','panda']:
                             optShare = "production"
