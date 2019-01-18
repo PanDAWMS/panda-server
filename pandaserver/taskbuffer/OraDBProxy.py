@@ -2138,7 +2138,7 @@ class DBProxy:
         comment = ' /* DBProxy.updateJobStatus */'        
         _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s status=%s" % (pandaID,attemptNr,jobStatus))
         sql0  = "SELECT commandToPilot,endTime,specialHandling,jobStatus,computingSite,cloud,prodSourceLabel,lockedby,jediTaskID,"
-        sql0 += "jobsetID,jobDispatcherErrorDiag,supErrorCode,eventService "
+        sql0 += "jobsetID,jobDispatcherErrorDiag,supErrorCode,eventService,batchID "
         sql0 += "FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
         varMap0 = {}
         varMap0[':PandaID'] = pandaID
@@ -2183,7 +2183,8 @@ class DBProxy:
                 if res != None:
                     ret = ''
                     commandToPilot,endTime,specialHandling,oldJobStatus,computingSite,cloud,prodSourceLabel,\
-                        lockedby,jediTaskID,jobsetID,jobDispatcherErrorDiag,supErrorCode,eventService = res
+                        lockedby,jediTaskID,jobsetID,jobDispatcherErrorDiag,supErrorCode,eventService,batchID \
+                        = res
                     # debug mode
                     if not specialHandling in [None,''] and 'debug' in specialHandling:
                         ret += 'debug,'
@@ -2226,9 +2227,18 @@ class DBProxy:
                         # don't update holding
                         _logger.debug("updateJobStatus : PandaID={0} skip to change {1} to {2} to avoid inconsistency".format(pandaID, oldJobStatus, jobStatus))
                     else:
+                        # check batchID
+                        if batchID not in ['', None] and 'batchID' in param and param['batchID'] not in ['', None]:
+                            if batchID != param['batchID'] and re.search('^\d+$', batchID) is None and re.search('^\d+$', param['batchID']) is None:
+                                _logger.debug("updateJobStatus : to be killed since PandaID={0} batchID mismatch old {1} in {2} vs new {3} in {4}".format(pandaID,
+                                                                                                                                                          batchID.replace('\n',''),
+                                                                                                                                                          oldJobStatus,
+                                                                                                                                                          param['batchID'].replace('\n',''),
+                                                                                                                                                          jobStatus))
+                                ret = 'tobekilled'
                         # change starting to running
                         if oldJobStatus == 'running' and jobStatus == 'starting':
-                            _logger.debug("updateJobStatus : PandaID={0} changed {1} to {2} to avoid inconsistency".format(pandaID, oldJobStatus, jobStatus))
+                            _logger.debug("updateJobStatus : PandaID={0} changed to {1} from {2} to avoid inconsistency".format(pandaID, oldJobStatus, jobStatus))
                             jobStatus = oldJobStatus
                         # update stateChangeTime
                         if updateStateChange or (jobStatus != oldJobStatus):
