@@ -11688,8 +11688,7 @@ class DBProxy:
                 if quota1 > 0:
                     weight = float(cpu1) / float(quota1)
                 # not exceeded the limit
-                if weight < 1.0:
-                    weight = 0.0
+                weight = 0.0
                 _logger.debug("checkQuota %s Weight:%s Quota:%s CPU:%s" % (dn,weight,quota1,cpu1))
             else:
                 _logger.debug("checkQuota cannot found %s" % dn)
