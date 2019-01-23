@@ -21849,7 +21849,14 @@ class DBProxy:
         n_workers_running = 0
         workers_queued = {}
         n_workers_queued = 0
-        harvester_ids = worker_stats.keys()
+        harvester_ids_temp = worker_stats.keys()
+
+        # Filter central harvester instances that support UPS model
+        harvester_ids = []
+        for harvester_id in harvester_ids_temp:
+            if 'ACT' not in harvester_id and 'test_fbarreir' not in harvester_id:
+                harvester_ids.append(harvester_id)
+        
         for harvester_id in harvester_ids:
             for resource_type in worker_stats[harvester_id]:
                 # TODO: this needs to be converted into cores, or we stay at worker level???
