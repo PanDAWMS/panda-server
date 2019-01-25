@@ -670,11 +670,12 @@ class DBProxy:
                         sqlJediCEvt += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
                         sqlJediCEvt += "SET status=:newStatus "
                         sqlJediCEvt += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-                        sqlJediCEvt += "AND NOT status IN (:esFinished,:esDone,:esDiscarded,:esCancelled,:esFailed,:esFatal) "
+                        sqlJediCEvt += "AND NOT status IN (:esFinished,:esDone,:esDiscarded,:esCancelled,:esFailed,:esFatal,:esCorrupted) "
                         sqlJediCEvt += "AND (is_jumbo IS NULL OR (is_jumbo=:isJumbo AND status NOT IN (:esSent,:esRunning))) "
                         varMap[':newStatus']   = EventServiceUtils.ST_cancelled
                         varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
                         varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
+                        varMap[':esCorrupted'] = EventServiceUtils.ST_corrupted
                         varMap[':esFatal']     = EventServiceUtils.ST_fatal
                         varMap[':esFailed']    = EventServiceUtils.ST_failed
                         varMap[':esSent']      = EventServiceUtils.ST_sent
@@ -2147,6 +2148,8 @@ class DBProxy:
         varMap[':jobStatus'] = jobStatus
         presetEndTime = False
         for key in param.keys():
+            if key in ['corruptedFiles']:
+                continue
             if param[key] != None or key in ['jobDispatcherErrorDiag']:
                 param[key] = JobSpec.truncateStringAttr(key,param[key])
                 sql1 += ',%s=:%s' % (key,key)
@@ -2396,6 +2399,35 @@ class DBProxy:
                         # update input
                         if updatedFlag and jediTaskID is not None and jobStatus == 'running' and oldJobStatus != jobStatus:
                             self.updateInputStatusJedi(jediTaskID, pandaID, jobStatus)
+                        # register corrupted zip files
+                        if updatedFlag and 'corruptedFiles' in param:
+                            # get exiting files
+                            sqlCorF = "SELECT lfn FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type=:type "
+                            varMap = {}
+                            varMap[':PandaID'] = pandaID
+                            varMap[':type'] = "zipinput"
+                            self.cur.execute(sqlCorF+comment, varMap)
+                            resCorF = self.cur.fetchall()
+                            exCorFiles = set()
+                            for tmpLFN, in resCorF:
+                                exCorFiles.add(tmpLFN)
+                            # register files
+                            tmpJobSpec = JobSpec()
+                            tmpJobSpec.PandaID = pandaID
+                            sqlCorIN = "INSERT INTO ATLAS_PANDA.filesTable4 ({0}) ".format(FileSpec.columnNames())
+                            sqlCorIN += FileSpec.bindValuesExpression(useSeq=True)
+                            for tmpLFN in param['corruptedFiles'].split(','):
+                                tmpLFN = tmpLFN.strip()
+                                if tmpLFN in exCorFiles or tmpLFN == '':
+                                    continue
+                                tmpFileSpec = FileSpec()
+                                tmpFileSpec.fsize = 0
+                                tmpFileSpec.lfn = tmpLFN
+                                tmpFileSpec.type = 'zipinput'
+                                tmpFileSpec.status = 'corrupted'
+                                tmpJobSpec.addFile(tmpFileSpec)
+                                varMap = tmpFileSpec.valuesMap(useSeq=True)
+                                self.cur.execute(sqlCorIN+comment, varMap)
                         # try to update the lastupdate column in the harvester_rel_job_worker table to propagate
                         # changes to Elastic Search
                         sqlJWU = "UPDATE ATLAS_PANDA.Harvester_Rel_Jobs_Workers SET lastUpdate=:lastUpdate "
@@ -13402,15 +13434,19 @@ class DBProxy:
             tmpDatasetIDs.sort()
             for tmpDatasetID in tmpDatasetIDs:
                 tmpContentsStat = datasetContentsStat[tmpDatasetID]
-                sqlJediDL = "SELECT nFilesUsed,nFilesFailed,nFilesTobeUsed,nFilesFinished,nFilesOnHold FROM ATLAS_PANDA.JEDI_Datasets "
+                sqlJediDL = "SELECT nFilesUsed,nFilesFailed,nFilesTobeUsed,nFilesFinished,nFilesOnHold,type,masterID FROM ATLAS_PANDA.JEDI_Datasets "
                 sqlJediDL += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID FOR UPDATE "
                 if not waitLock:
                     sqlJediDL += "NOWAIT "
                 varMap = {}
                 varMap[':jediTaskID'] = jobSpec.jediTaskID
                 varMap[':datasetID']  = tmpDatasetID
-                tmpLog.debug(sqlJediDL+comment+str(varMap))
                 cur.execute(sqlJediDL+comment,varMap)
+                tmpResJediDL = self.cur.fetchone()
+                t_nFilesUsed, t_nFilesFailed, t_nFilesTobeUsed, t_nFilesFinished, t_nFilesOnHold, t_type, t_masterID = tmpResJediDL
+                tmpLog.debug('datasetID={0} had nFilesTobeUsed={1} nFilesUsed={2} nFilesFinished={3} nFilesFailed={4}'.format(tmpDatasetID, t_nFilesTobeUsed,
+                                                                                                                              t_nFilesUsed, t_nFilesFinished,
+                                                                                                                              t_nFilesFailed))
                 # sql to update nFiles info
                 toUpdateFlag = False
                 eventsToRead = False
@@ -13434,6 +13470,12 @@ class DBProxy:
                 if toUpdateFlag:
                     tmpLog.debug(sqlJediDS+comment+str(varMap))                            
                     cur.execute(sqlJediDS+comment,varMap)
+                    # update events in corrupted input files
+                    if EventServiceUtils.isEventServiceMerge(jobSpec) and jobSpec.jobStatus == 'failed' \
+                            and jobSpec.pilotErrorCode == EventServiceUtils.PEC_corruptedInputFiles \
+                            and t_type in ['input', 'pseudo_input'] and t_masterID is None \
+                            and (tmpContentsStat['nFilesUsed'] < 0 or tmpContentsStat['nFilesFailed'] > 0):
+                        self.setCorruptedEventRanges(jobSpec.jediTaskID, jobSpec.PandaID)
         # add jobset info for job cloning
         if useJobCloning:
             self.recordRetryHistoryJEDI(jobSpec.jediTaskID,jobSpec.PandaID,[jobSpec.jobsetID],EventServiceUtils.relationTypeJS_ID)
@@ -15667,7 +15709,7 @@ class DBProxy:
                 sqlEOC  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
                 sqlEOC += "job_processID,attemptNr,status,processed_upto_eventID,PandaID FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
                 sqlEOC += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-                sqlEOC += "AND ((NOT status IN (:esDone,:esDiscarded,:esCancelled,:esFatal,:esFailed) AND attemptNr>:minAttempt) "
+                sqlEOC += "AND ((NOT status IN (:esDone,:esDiscarded,:esCancelled,:esFatal,:esFailed,:esCorrupted) AND attemptNr>:minAttempt) "
                 sqlEOC += "OR (status=:esFailed AND processed_upto_eventID IS NOT NULL)) "
                 # count the number of done ranges
                 sqlCDO  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
@@ -15683,6 +15725,7 @@ class DBProxy:
                         varMap[':esDone']      = EventServiceUtils.ST_done
                         varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
                         varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
+                        varMap[':esCorrupted'] = EventServiceUtils.ST_corrupted
                         varMap[':esFatal']     = EventServiceUtils.ST_fatal
                         varMap[':esFailed']    = EventServiceUtils.ST_failed
                         varMap[':minAttempt']  = 0
@@ -16758,7 +16801,7 @@ class DBProxy:
             sqlCE += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
             sqlCE += "SET status=:status "
             sqlCE += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND PandaID=:PandaID "
-            sqlCE += "AND NOT status IN (:esFinished,:esDone,:esDiscarded,:esCancelled,:esFailed,:esFatal) "
+            sqlCE += "AND NOT status IN (:esFinished,:esDone,:esDiscarded,:esCancelled,:esFailed,:esFatal,:esCorrupted) "
             # look for consumers for each input
             killPandaIDs = {}
             for fileSpec in job.Files:
@@ -16883,6 +16926,7 @@ class DBProxy:
                     varMap[':status']      = EventServiceUtils.ST_cancelled
                     varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
                     varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
+                    varMap[':esCorrupted'] = EventServiceUtils.ST_corrupted
                     varMap[':esFatal']     = EventServiceUtils.ST_fatal
                     varMap[':esFailed']    = EventServiceUtils.ST_failed
                     self.cur.execute(sqlCE+comment, varMap)
@@ -17097,7 +17141,7 @@ class DBProxy:
         sqlCE += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
         sqlCE += "SET status=:status "
         sqlCE += "WHERE jediTaskID=:jediTaskID AND PandaID=:PandaID "
-        sqlCE += "AND NOT status IN (:esFinished,:esDone,:esDiscarded,:esCancelled,:esFailed,:esFatal) "
+        sqlCE += "AND NOT status IN (:esFinished,:esDone,:esDiscarded,:esCancelled,:esFailed,:esFatal,:esCorrupted) "
         varMap = {}
         varMap[':jediTaskID'] = jediTaskID
         varMap[':PandaID']    = pandaID
@@ -17112,12 +17156,70 @@ class DBProxy:
         varMap[':status']      = EventServiceUtils.ST_cancelled
         varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
         varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
+        varMap[':esCorrupted'] = EventServiceUtils.ST_corrupted
         varMap[':esFatal']     = EventServiceUtils.ST_fatal
         varMap[':esFailed']    = EventServiceUtils.ST_failed
         self.cur.execute(sqlCE+comment, varMap)
         nRowsCan = self.cur.rowcount
         tmpLog.debug("discarded {0} events".format(nRowsDis))
         tmpLog.debug("cancelled {0} events".format(nRowsCan))
+
+
+
+    # set corrupted events
+    def setCorruptedEventRanges(self, jediTaskID, pandaID):
+        comment = ' /* DBProxy.setCorruptedEventRanges */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <jediTaskID={0} pandaID={1}>".format(jediTaskID, pandaID)
+        tmpLog = LogWrapper(_logger,methodName)
+        # sql to get bad files
+        sqlBD  = "SELECT lfn FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type=:type AND status=:status "
+        # sql to get PandaID produced the bad file
+        sqlPP  = "SELECT row_ID,PandaID FROM ATLAS_PANDA.filesTable4 WHERE lfn=:lfn AND type=:type "
+        # sql to get dataset and file IDs
+        sqlGI  = "SELECT datasetID,fileID FROM ATLAS_PANDA.filesTable4 "
+        sqlGI += "WHERE PandaID=:PandaID AND type IN (:t1,:t2) "
+        # sql to update event ranges
+        sqlCE  = "UPDATE "
+        sqlCE += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
+        sqlCE += "SET status=:esCorrupted "
+        sqlCE += "WHERE jediTaskID=:jediTaskID AND PandaID=:PandaID AND zipRow_ID=:row_ID "
+        sqlCE += "AND datasetID=:datasetID AND fileID=:fileID AND status=:esDone "
+        # get bad files
+        varMap = {}
+        varMap[':PandaID'] = pandaID
+        varMap[':status']  = 'corrupted'
+        varMap[':type']    = 'zipinput'
+        self.cur.execute(sqlBD+comment, varMap)
+        resBD = self.cur.fetchall()
+        for lfn, in resBD:
+            # get origon PandaID
+            nCor = 0
+            varMap = {}
+            varMap[':lfn'] = lfn
+            varMap[':type'] = 'zipoutput'
+            self.cur.execute(sqlPP+comment, varMap)
+            resPP = self.cur.fetchall()
+            for zipRow_ID, oPandaID in resPP:
+                # get dataset and file IDs
+                varMap = {}
+                varMap[':PandaID'] = oPandaID
+                varMap[':t1'] = 'input'
+                varMap[':t2'] = 'pseudo_input'
+                self.cur.execute(sqlGI+comment, varMap)
+                resGI = self.cur.fetchall()
+                for datasetID, fileID in resGI:
+                    varMap = {}
+                    varMap[':PandaID'] = oPandaID
+                    varMap[':row_ID'] = zipRow_ID
+                    varMap[':jediTaskID'] = jediTaskID
+                    varMap[':datasetID'] = datasetID
+                    varMap[':fileID'] = fileID
+                    varMap[':esDone'] = EventServiceUtils.ST_done
+                    varMap[':esCorrupted'] = EventServiceUtils.ST_corrupted
+                    self.cur.execute(sqlCE+comment, varMap)
+                    nCor += self.cur.rowcount
+            tmpLog.debug("{0} corrupted events in {1}".format(nCor, lfn))
 
 
 
@@ -19493,7 +19595,7 @@ class DBProxy:
             sqlEOC  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
             sqlEOC += "distinct PandaID,status FROM {0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
             sqlEOC += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-            sqlEOC += "AND NOT status IN (:esDone,:esDiscarded,:esCancelled,:esFatal,:esFailed,:esFinished) "
+            sqlEOC += "AND NOT status IN (:esDone,:esDiscarded,:esCancelled,:esFatal,:esCorrupted,:esFailed,:esFinished) "
             sqlEOC += "AND NOT (status=:esReady AND attemptNr=0) "
             # get jumbo jobs
             sqlGJ  = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
@@ -19539,6 +19641,7 @@ class DBProxy:
                     varMap[':esFinished']  = EventServiceUtils.ST_finished
                     varMap[':esDiscarded'] = EventServiceUtils.ST_discarded
                     varMap[':esCancelled'] = EventServiceUtils.ST_cancelled
+                    varMap[':esCorrupted'] = EventServiceUtils.ST_corrupted
                     varMap[':esFatal']     = EventServiceUtils.ST_fatal
                     varMap[':esFailed']    = EventServiceUtils.ST_failed
                     varMap[':esReady']     = EventServiceUtils.ST_ready

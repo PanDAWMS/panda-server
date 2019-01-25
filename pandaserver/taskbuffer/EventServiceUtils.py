@@ -13,6 +13,7 @@ ST_done      = 6
 ST_failed    = 7
 ST_fatal     = 8
 ST_merged    = 9
+ST_corrupted     = 10
 ST_reserved_fail = 98
 ST_reserved_get  = 99
 
@@ -62,6 +63,10 @@ esRegStatus = 'esregister'
 
 # default max number of ES job attempt
 defMaxAttemptEsJob = 3
+
+
+# pilot error code
+PEC_corruptedInputFiles = 12345
 
 
 # encode file info
