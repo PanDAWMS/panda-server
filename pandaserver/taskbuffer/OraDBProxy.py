@@ -13472,7 +13472,7 @@ class DBProxy:
                     cur.execute(sqlJediDS+comment,varMap)
                     # update events in corrupted input files
                     if EventServiceUtils.isEventServiceMerge(jobSpec) and jobSpec.jobStatus == 'failed' \
-                            and jobSpec.pilotErrorCode == EventServiceUtils.PEC_corruptedInputFiles \
+                            and jobSpec.pilotErrorCode in EventServiceUtils.PEC_corruptedInputFiles \
                             and t_type in ['input', 'pseudo_input'] and t_masterID is None \
                             and (tmpContentsStat['nFilesUsed'] < 0 or tmpContentsStat['nFilesFailed'] > 0):
                         self.setCorruptedEventRanges(jobSpec.jediTaskID, jobSpec.PandaID)
