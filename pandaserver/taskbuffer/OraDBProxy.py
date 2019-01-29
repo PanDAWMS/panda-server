@@ -2145,7 +2145,6 @@ class DBProxy:
         varMap0[':PandaID'] = pandaID
         sql1 = "UPDATE ATLAS_PANDA.jobsActive4 SET jobStatus=:jobStatus"
         varMap = {}
-        varMap[':jobStatus'] = jobStatus
         presetEndTime = False
         for key in param.keys():
             if key in ['corruptedFiles']:
@@ -2252,6 +2251,7 @@ class DBProxy:
                         # update modification time
                         sql1 += ",modificationTime=CURRENT_DATE"
                         # update
+                        varMap[':jobStatus'] = jobStatus
                         self.cur.execute (sql1+sql1W+comment,varMap)
                         nUp = self.cur.rowcount
                         _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s nUp=%s" % (pandaID,attemptNr,nUp))
