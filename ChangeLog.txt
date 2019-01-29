@@ -1,5 +1,8 @@
 Release Notes
 
+* 1/29/2019
+  * added es_toolong
+
 * 1/25/2019
   * added corrupted events
 

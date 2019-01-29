@@ -1055,6 +1055,53 @@ if len(jobs):
             Client.killJobs(jobs[iJob:iJob+nJob],4)
             iJob += nJob
 
+# kill too long running ES jobs
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
+varMap = {}
+varMap[':jobStatus1']  = 'running'
+varMap[':jobStatus2']  = 'starting'
+varMap[':timeLimit'] = timeLimit
+varMap[':esJob'] = EventServiceUtils.esJobFlagNumber
+varMap[':coJumbo'] = EventServiceUtils.coJumboJobFlagNumber
+sql  = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus IN (:jobStatus1,:jobStatus2) AND stateChangeTime<:timeLimit "
+sql += "AND eventService IN (:esJob,:coJumbo) AND currentPriority>=900 "
+status,res = taskBuffer.querySQLS(sql, varMap)
+jobs = []
+if res != None:
+    for (id,) in res:
+        jobs.append(id)
+# kill
+if len(jobs):
+    nJob = 100
+    iJob = 0
+    while iJob < len(jobs):
+        _logger.debug("killJobs for long running ES jobs (%s)" % str(jobs[iJob:iJob+nJob]))
+        Client.killJobs(jobs[iJob:iJob+nJob], 2, keepUnmerged=True, jobSubStatus='es_toolong')
+        iJob += nJob
+
+# kill too long running ES merge jobs
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
+varMap = {}
+varMap[':jobStatus1']  = 'running'
+varMap[':jobStatus2']  = 'starting'
+varMap[':timeLimit'] = timeLimit
+varMap[':esMergeJob'] = EventServiceUtils.esMergeJobFlagNumber
+sql  = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus IN (:jobStatus1,:jobStatus2) AND stateChangeTime<:timeLimit "
+sql += "AND eventService=:esMergeJob "
+status,res = taskBuffer.querySQLS(sql, varMap)
+jobs = []
+if res != None:
+    for (id,) in res:
+        jobs.append(id)
+# kill
+if len(jobs):
+    nJob = 100
+    iJob = 0
+    while iJob < len(jobs):
+        _logger.debug("killJobs for long running ES merge jobs (%s)" % str(jobs[iJob:iJob+nJob]))
+        Client.killJobs(jobs[iJob:iJob+nJob], 2)
+        iJob += nJob
+
 # kill too long waiting jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=7)
 sql = "SELECT PandaID FROM ATLAS_PANDA.jobsWaiting4 WHERE ((creationTime<:timeLimit AND (eventService IS NULL OR eventService<>:coJumbo)) "
