@@ -463,7 +463,7 @@ def seeCloudTask(ids):
 
 
 # kill jobs
-def killJobs(ids,code=None,verbose=False,srvID=None,useMailAsID=False,keepUnmerged=False):
+def killJobs(ids,code=None,verbose=False,srvID=None,useMailAsID=False,keepUnmerged=False, jobSubStatus=None):
     """Kill jobs. Normal users can kill only their own jobs.
     People with production VOMS role can kill any jobs.
     Running jobs are killed when next heartbeat comes from the pilot.
@@ -484,6 +484,7 @@ def killJobs(ids,code=None,verbose=False,srvID=None,useMailAsID=False,keepUnmerg
            srvID: obsolete
            useMailAsID: obsolete
            keepUnmerged: set True not to cancel unmerged jobs when pmerge is killed.
+           jobSubStatus: set job sub status if any
        returns:
            status code
                  0: communication succeeded to the panda server 
@@ -503,6 +504,8 @@ def killJobs(ids,code=None,verbose=False,srvID=None,useMailAsID=False,keepUnmerg
     killOpts = ''
     if keepUnmerged:
         killOpts += 'keepUnmerged,'
+    if jobSubStatus is not None:
+        killOpts += 'jobSubStatus={0},'.format(jobSubStatus)
     data['killOpts'] = killOpts[:-1]
     status,output = curl.post(url,data)
     try:

@@ -1894,7 +1894,10 @@ class DBProxy:
                         varMap = {}
                         varMap[':PandaID'] = job.PandaID
                         varMap[':jobStatus'] = 'merging'
-                        varMap[':jobSubStatus'] = 'es_wait'
+                        if oldJobSubStatus in ['es_toolong']:
+                            varMap[':jobSubStatus'] = oldJobSubStatus
+                        else:
+                            varMap[':jobSubStatus'] = 'es_wait'
                         self.cur.execute(sqlOJS+comment,varMap)
                         tmpJobStatus = varMap[':jobStatus']
                         _logger.debug("archiveJob : %s change failed to merging" % job.PandaID)

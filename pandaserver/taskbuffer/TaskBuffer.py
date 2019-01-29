@@ -1276,6 +1276,11 @@ class TaskBuffer:
                         nEvt = proxy.getNumStartedEvents(tmpJobSpec)
                         # not to kill jobset if there are started events
                         if nEvt is not None and nEvt > 0:
+                            # set sub status if any
+                            for killOpt in killOptions:
+                                if killOpt.startswith('jobSubStatus'):
+                                    tmpJobSpec.jobSubStatus = killOpt.split('=')[-1]
+                                    break
                             # trigger ppE for ES jobs to properly trigger subsequent procedures
                             ret = proxy.archiveJob(tmpJobSpec, tmpJobSpec.jobStatus in ['defined','assigned'])
                             toKill = False
