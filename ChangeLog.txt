@@ -1,5 +1,8 @@
 Release Notes
 
+* 2/1/2019
+  * added checkFailureCountWithCorruptedFiles
+
 * 1/29/2019
   * added es_toolong
 

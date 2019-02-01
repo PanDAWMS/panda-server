@@ -67,7 +67,7 @@ defMaxAttemptEsJob = 3
 
 # pilot error code
 PEC_corruptedInputFiles = [1171, 1145, 1175, 1103]
-
+PEC_corruptedInputFilesTmp = [1099]
 
 # encode file info
 def encodeFileInfo(lfn,startEvent,endEvent,nEventsPerWorker,
