@@ -2403,7 +2403,7 @@ class DBProxy:
                         if updatedFlag and jediTaskID is not None and jobStatus == 'running' and oldJobStatus != jobStatus:
                             self.updateInputStatusJedi(jediTaskID, pandaID, jobStatus)
                         # register corrupted zip files
-                        if updatedFlag and 'corruptedFiles' in param:
+                        if updatedFlag and 'corruptedFiles' in param and eventService == EventServiceUtils.esMergeJobFlagNumber:
                             # get exiting files
                             sqlCorF = "SELECT lfn FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type=:type "
                             varMap = {}
@@ -2424,6 +2424,7 @@ class DBProxy:
                                 if tmpLFN in exCorFiles or tmpLFN == '':
                                     continue
                                 tmpFileSpec = FileSpec()
+                                tmpFileSpec.jediTaskID = jediTaskID 
                                 tmpFileSpec.fsize = 0
                                 tmpFileSpec.lfn = tmpLFN
                                 tmpFileSpec.type = 'zipinput'
@@ -13475,10 +13476,16 @@ class DBProxy:
                     cur.execute(sqlJediDS+comment,varMap)
                     # update events in corrupted input files
                     if EventServiceUtils.isEventServiceMerge(jobSpec) and jobSpec.jobStatus == 'failed' \
-                            and jobSpec.pilotErrorCode in EventServiceUtils.PEC_corruptedInputFiles \
+                            and jobSpec.pilotErrorCode in \
+                            EventServiceUtils.PEC_corruptedInputFiles+EventServiceUtils.PEC_corruptedInputFilesTmp \
                             and t_type in ['input', 'pseudo_input'] and t_masterID is None \
                             and (tmpContentsStat['nFilesUsed'] < 0 or tmpContentsStat['nFilesFailed'] > 0):
-                        self.setCorruptedEventRanges(jobSpec.jediTaskID, jobSpec.PandaID)
+                        toSet = True
+                        if jobSpec.pilotErrorCode in EventServiceUtils.PEC_corruptedInputFilesTmp:
+                            # check failure count for temporary errors
+                            toSet = self.checkFailureCountWithCorruptedFiles(jobSpec.jediTaskID, jobSpec.PandaID)
+                        if toSet:
+                            self.setCorruptedEventRanges(jobSpec.jediTaskID, jobSpec.PandaID)
         # add jobset info for job cloning
         if useJobCloning:
             self.recordRetryHistoryJEDI(jobSpec.jediTaskID,jobSpec.PandaID,[jobSpec.jobsetID],EventServiceUtils.relationTypeJS_ID)
@@ -17223,6 +17230,34 @@ class DBProxy:
                     self.cur.execute(sqlCE+comment, varMap)
                     nCor += self.cur.rowcount
             tmpLog.debug("{0} corrupted events in {1}".format(nCor, lfn))
+
+
+
+    # check failure count due to corrupted files
+    def checkFailureCountWithCorruptedFiles(self, jediTaskID, pandaID):
+        comment = ' /* DBProxy.checkFailureCountWithCorruptedFiles */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <jediTaskID={0} pandaID={1}>".format(jediTaskID, pandaID)
+        tmpLog = LogWrapper(_logger,methodName)
+        # sql to failure counts
+        sqlBD  = "SELECT f2.lfn,COUNT(*) FROM ATLAS_PANDA.filesTable4 f1, ATLAS_PANDA.filesTable4 f2 "
+        sqlBD += "WHERE f1.PandaID=:PandaID AND f1.type=:type AND f1.status=:status "
+        sqlBD += "AND f2.lfn=f1.lfn AND f2.type=:type AND f2.status=:status AND f2.jediTaskID=:jediTaskID "
+        sqlBD += "GROUP BY f2.lfn "
+        varMap = {}
+        varMap[':jediTaskID'] = jediTaskID
+        varMap[':PandaID'] = pandaID
+        varMap[':status']  = 'corrupted'
+        varMap[':type']    = 'zipinput'
+        self.cur.execute(sqlBD+comment, varMap)
+        resBD = self.cur.fetchall()
+        tooMany = False
+        for lfn, nFailed in resBD:
+            tmpLog.debug("{0} failures with {1}".format(nFailed, lfn))
+            if nFailed >= 3:
+                tooMany = True
+        tmpLog.debug("too many failures : {0}".format(tooMany))
+        return tooMany
 
 
 
