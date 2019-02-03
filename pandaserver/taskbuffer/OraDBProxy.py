@@ -21995,7 +21995,7 @@ class DBProxy:
         # Filter central harvester instances that support UPS model
         harvester_ids = []
         for harvester_id in harvester_ids_temp:
-            if 'ACT' not in harvester_id and 'test_fbarreir' not in harvester_id:
+            if 'ACT' not in harvester_id and 'test_fbarreir' not in harvester_id and 'cern_cloud' not in harvester_id:
                 harvester_ids.append(harvester_id)
         
         for harvester_id in harvester_ids:
