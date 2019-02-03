@@ -20164,7 +20164,7 @@ class DBProxy:
             # get ID mapping
             idMap = {}
             for pandaID, tmpJediTaskID, jobStatus in resF:
-                if jobStatus in ['transferring']:
+                if jobStatus in ['transferring', 'running', 'holding']:
                     continue
                 if not tmpJediTaskID in idMap:
                     idMap[tmpJediTaskID] = set()
