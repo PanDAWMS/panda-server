@@ -19332,8 +19332,9 @@ class DBProxy:
                 varMap = {}
                 varMap[':vo'] = vo
                 varMap[':label'] = prodSourceLabel
-                sqlJ  = "SELECT distinct prodUserName,dispatchDBlock,jediTaskID "
-                sqlJ += "FROM {0}.{1} ".format(panda_config.schemaPANDA,tableName)
+                varMap[':dType'] = 'dispatch'
+                sqlJ  = "SELECT distinct prodUserName,dispatchDBlock,jediTaskID,currentFiles "
+                sqlJ += "FROM {0}.{1} j, {0}.Datasets d ".format(panda_config.schemaPANDA,tableName)
                 sqlJ += "WHERE vo=:vo AND prodSourceLabel=:label "
                 if statusList != None:
                     sqlJ += "AND jobStatus IN ("
@@ -19344,6 +19345,8 @@ class DBProxy:
                     sqlJ = sqlJ[:-1]
                     sqlJ += ") "
                 sqlJ += "AND dispatchDBlock IS NOT NULL "
+                sqlJ += "AND d.name=j.dispatchDBlock AND d.modificationDate>CURRENT_DATE-14 "
+                sqlJ += 'AND d.type=:dType '
                 # begin transaction
                 self.conn.begin()
                 # get dispatch datasets
@@ -19352,32 +19355,15 @@ class DBProxy:
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
                 # make map
-                for prodUserName,dispatchDBlock,jediTaskID in resJ:
+                for prodUserName,dispatchDBlock,jediTaskID,dsSize in resJ:
                     if not prodUserName in userDispMap:
                         userDispMap[prodUserName] = {'datasets':set(),
                                                      'size':0,
                                                      'tasks':set()}
-                    userDispMap[prodUserName]['datasets'].add(dispatchDBlock)
-                    userDispMap[prodUserName]['tasks'].add(jediTaskID)
-            # get size
-            if withSize:
-                # sql to get size
-                sqlDisSize  = 'SELECT currentFiles FROM {0}.Datasets '.format(panda_config.schemaPANDA)
-                sqlDisSize += 'WHERE name=:dsName AND type=:dsType '
-                for prodUserName,userDict in userDispMap.iteritems():
-                    # begin transaction
-                    self.conn.begin()
-                    # loop over all datasets
-                    for dispatchDB in userDispMap[prodUserName]['datasets']:
-                        varMap = {}
-                        varMap[':dsName'] = dispatchDB
-                        varMap[':dsType'] = 'dispatch'
-                        self.cur.execute(sqlDisSize+comment,varMap)
-                        resC = self.cur.fetchone()
-                        if resC != None:
-                            userDispMap[prodUserName]['size'] += resC[0]
-                    if not self._commit():
-                        raise RuntimeError, 'Commit error'
+                    if dispatchDBlock not in userDispMap[prodUserName]['datasets']:
+                        userDispMap[prodUserName]['datasets'].add(dispatchDBlock)
+                        userDispMap[prodUserName]['tasks'].add(jediTaskID)
+                        userDispMap[prodUserName]['size'] += dsSize
             tmpLog.debug("done")
             return userDispMap
         except:
