@@ -19320,9 +19320,7 @@ class DBProxy:
         tmpLog.debug("start")
         # mapping for table and job status
         tableStatMap = {'jobsDefined4':['defined','assigned']}
-        if onlyActive:
-            tableStatMap['jobsActive4'] = ['activated','running','starting']
-        else:
+        if not onlyActive:
             tableStatMap['jobsActive4'] = None
             tableStatMap['jobsArchived4'] = None
         try:
