@@ -1,5 +1,9 @@
 Release Notes
 
+* 2/5/2019
+  * not to reassign throttled jobs
+  * not to throttle short jobs
+
 * 2/1/2019
   * added checkFailureCountWithCorruptedFiles
 

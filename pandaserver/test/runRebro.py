@@ -127,7 +127,7 @@ try:
     varMap[':modificationTime'] = sortTimeLimit
     varMap[':lockedBy']         = 'jedi'
     varMap[':jobStatus1']       = 'activated'
-    varMap[':jobStatus2']       = 'throttled'
+    varMap[':jobStatus2']       = 'dummy'
     varMap[':jobStatus3']       = 'starting'
     # get jobs older than threshold
     ret,res = taskBuffer.querySQLS(sql, varMap)
@@ -236,7 +236,7 @@ try:
                     varMap[':jobS1'] = 'defined'
                     varMap[':jobS2'] = 'assigned'
                     varMap[':jobS3'] = 'activated'
-                    varMap[':jobS4'] = 'throttled'
+                    varMap[':jobS4'] = 'dummy'
                     varMap[':jobS5'] = 'starting'
                     for tableName in ['ATLAS_PANDA.jobsDefined4','ATLAS_PANDA.jobsActive4']:
                         retJJ,resJJ = taskBuffer.querySQLS(sqlJJ % tableName, varMap)

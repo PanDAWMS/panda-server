@@ -16640,6 +16640,7 @@ class DBProxy:
             sqlT += 'ATLAS_PANDA.jobsActive4 tab SET jobStatus=:newJobStatus,relocationFlag=:newRelFlag '
             sqlT += 'WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName '
             sqlT += 'AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag '
+            sqlT += 'AND maxCpuCount>:maxTime '
             # start transaction
             self.conn.begin()
             # select
@@ -16651,6 +16652,7 @@ class DBProxy:
             varMap[':prodUserName'] = prodUserName
             varMap[':newJobStatus'] = 'throttled'
             varMap[':oldJobStatus'] = 'activated'
+            varMap[':maxTime'] = 6 * 60 * 60
             # get datasets
             self.cur.execute(sqlT+comment, varMap)
             nRow = self.cur.rowcount

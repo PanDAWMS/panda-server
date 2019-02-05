@@ -33,12 +33,13 @@ workingGroupList = []
 for table in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsArchived4']:
 	varMap = {}
 	varMap[':prodSourceLabel'] = 'user'
+	varMap[':pmerge'] = 'pmerge'
 	if table == 'ATLAS_PANDA.jobsActive4':
-		sql = "SELECT COUNT(*),prodUserName,jobStatus,workingGroup,computingSite FROM %s WHERE prodSourceLabel=:prodSourceLabel GROUP BY prodUserName,jobStatus,workingGroup,computingSite" % table
+		sql = "SELECT COUNT(*),prodUserName,jobStatus,workingGroup,computingSite FROM %s WHERE prodSourceLabel=:prodSourceLabel AND processingType<>:pmerge GROUP BY prodUserName,jobStatus,workingGroup,computingSite" % table
 	else:
 		# with time range for archived table
 		varMap[':modificationTime'] = datetime.datetime.utcnow() - datetime.timedelta(minutes=60)
-		sql = "SELECT COUNT(*),prodUserName,jobStatus,workingGroup,computingSite FROM %s WHERE prodSourceLabel=:prodSourceLabel AND modificationTime>:modificationTime GROUP BY prodUserName,jobStatus,workingGroup,computingSite" % table
+		sql = "SELECT COUNT(*),prodUserName,jobStatus,workingGroup,computingSite FROM %s WHERE prodSourceLabel=:prodSourceLabel AND processingType<>:pmerge AND modificationTime>:modificationTime GROUP BY prodUserName,jobStatus,workingGroup,computingSite" % table
 	# exec 	
 	status,res = taskBuffer.querySQLS(sql,varMap,arraySize=10000)
 	if res == None:
@@ -103,6 +104,7 @@ if totalUsers == 0:
 
 
 # cap num of running jobs
+tmpLog.debug("=== cap running jobs")
 maxNumRunPerUser = taskBuffer.getConfigValue('prio_mgr','CAP_RUNNING_USER_JOBS')
 if maxNumRunPerUser is None:
 	maxNumRunPerUser = 10000
@@ -248,10 +250,12 @@ for prodUserName,wgValMap in usageBreakDownPerUser.iteritems():
 		varMap = {}
 		varMap[':jobStatus'] = 'activated'
 		varMap[':prodSourceLabel'] = 'user'
+		varMap[':pmerge'] = 'pmerge'
 		varMap[':prodUserName'] = prodUserName
 		varMap[':computingSite'] = computingSite
 		sql  = "SELECT MAX(currentPriority) FROM ATLAS_PANDA.jobsActive4 "
 		sql += "WHERE prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus AND computingSite=:computingSite "
+		sql += "AND processingType<>:pmerge "
 		if prodUserName in workingGroupList:
 			sql += "AND workingGroup=:prodUserName "
 		else:
