@@ -17427,7 +17427,8 @@ class DBProxy:
                         continue
                     newItems.append(tmpItem)
                 # add new
-                newItems.append('{0}={1}'.format(attrName,attrValue))
+                if attrValue not in [None, '', 'None']:
+                    newItems.append('{0}={1}'.format(attrName,attrValue))
                 # update
                 varMap = {}
                 varMap[':jediTaskID']  = jediTaskID
@@ -22839,3 +22840,62 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger, method_name)
             return 0
+
+
+
+    # enable event service
+    def enableEventService(self, jediTaskID):
+        comment = ' /* DBProxy.enableEventService */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        method_name += ' < jediTaskID={0} >'.format(jediTaskID)
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+        try:
+            # get default values
+            nEsConsumers = self.getConfigValue('taskrefiner', 'AES_NESCONSUMERS', 'jedi', 'atlas')
+            if nEsConsumers is None:
+                nEsConsumers = 1
+            nSitesPerJob = self.getConfigValue('taskrefiner', 'AES_NSITESPERJOB', 'jedi', 'atlas')
+            # sql to set flag
+            sqlES = "UPDATE {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+            sqlES += "SET eventService=:newEventService,coreCount=0 "
+            sqlES += "WHERE jediTaskID=:jediTaskID AND lockedBy IS NULL "
+            # start transaction
+            self.conn.begin()
+            # update ES flag
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            varMap[':newEventService'] = 1
+            self.cur.execute(sqlES, varMap)
+            nRow = self.cur.rowcount
+            if nRow > 0:
+                # update splitrule
+                self.changeTaskSplitRulePanda(jediTaskID, 'EC', nEsConsumers, useCommit=False, sendLog=sendLog)
+                if nSitesPerJob is not None:
+                    self.changeTaskSplitRulePanda(jediTaskID, 'NS', nSitesPerJob, useCommit=False, sendLog=sendLog)
+                self.changeTaskSplitRulePanda(jediTaskID, 'ES', 1, useCommit=False, sendLog=sendLog)
+                self.changeTaskSplitRulePanda(jediTaskID, 'RE', 1, useCommit=False, sendLog=sendLog)
+                self.changeTaskSplitRulePanda(jediTaskID, 'ME', 1, useCommit=False, sendLog=sendLog)
+                self.changeTaskSplitRulePanda(jediTaskID, 'XA', 1, useCommit=False, sendLog=sendLog)
+                self.changeTaskSplitRulePanda(jediTaskID, 'XJ', 0, useCommit=False, sendLog=sendLog)
+                self.changeTaskSplitRulePanda(jediTaskID, 'ND', 1, useCommit=False, sendLog=sendLog)
+                self.changeTaskSplitRulePanda(jediTaskID, 'XF', 1, useCommit=False, sendLog=sendLog)
+                self.changeTaskSplitRulePanda(jediTaskID, 'SC', None, useCommit=False, sendLog=sendLog)
+                retVal = (0, 'done')
+                tmp_log.debug("done")
+            else:
+                retVal = (2, 'task not found or locked')
+                tmp_log.debug("failed to update the flag")
+            # commit
+            if useCommit:
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+            # return
+            return retVal
+        except:
+            # roll back
+            if useCommit:
+                self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, method_name)
+            return (1, 'database error in the panda server')
