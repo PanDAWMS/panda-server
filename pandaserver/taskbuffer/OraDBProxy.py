@@ -9912,6 +9912,8 @@ class DBProxy:
                     ret.statusmodtime = lastmod
                     ret.lfcregister   = lfcregister
                     ret.pandasite     = pandasite
+                    if corepower is None:
+                        corepower = 0
                     ret.corepower     = corepower
                     ret.catchall      = catchall
                     ret.role          = role
