@@ -190,7 +190,7 @@ class UserIF:
         try:
             _logger.debug("retryFailedJobsInActive %s JobID:%s" % (dn,jobID))
             cUID = self.taskBuffer.cleanUserID(dn)            
-            tmpRet = self.taskBuffer.retryJobsInActive(cUID,jobID)
+            tmpRet = self.taskBuffer.finalizePendingJobs(cUID,jobID)
             returnVal = True
         except:
             errType,errValue = sys.exc_info()[:2]

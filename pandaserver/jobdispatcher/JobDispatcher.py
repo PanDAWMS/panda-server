@@ -328,30 +328,6 @@ class JobDipatcher:
                 _logger.debug('saving pilot log DONE')
             except:
                 _logger.debug('saving pilot log FAILED')
-
-        # recoverable error for ES merge
-        recoverableEsMerge = False
-        if 'pilotErrorCode' in param and param['pilotErrorCode'] in ['1008','1099','1137','1151','1152','1221','1224','1225']:
-            recoverableEsMerge = True
-        # retry failed analysis job and ddm job
-        if jobStatus=='failed' \
-                and ((param.has_key('pilotErrorCode') and (param['pilotErrorCode'] in ['1200','1201'] \
-                                                               or param['pilotErrorCode'].startswith('-') \
-                                                               or recoverableEsMerge)) \
-                         or (siteName != None and siteName.find('DDM') != -1)):
-            # retry
-            if param.has_key('pilotErrorCode') and (param['pilotErrorCode'].startswith('-') or \
-                                                        recoverableEsMerge):
-                # pilot retry with new PandaID. Negative codes or ESMERGERECOVERABLE
-                ret = self.taskBuffer.retryJob(jobID,param,getNewPandaID=True,attemptNr=attemptNr,
-                                               recoverableEsMerge=recoverableEsMerge)
-            else:
-                # old style
-                ret = self.taskBuffer.retryJob(jobID,param,attemptNr=attemptNr)                
-            if ret:
-                # return succeed
-                response=Protocol.Response(Protocol.SC_Success)
-                return response.encode(acceptJson)
         # add metadata
         if metadata != '':
             ret = self.taskBuffer.addMetadata([jobID],[metadata],[jobStatus])
