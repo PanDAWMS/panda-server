@@ -1903,7 +1903,7 @@ class DBProxy:
                         _logger.debug("archiveJob : %s change failed to merging" % job.PandaID)
                     elif job.jobStatus in ['failed'] and \
                             job.taskBufferErrorCode in [ErrorCode.EC_EventServiceLastUnprocessed, ErrorCode.EC_EventServiceUnprocessed] and \
-                            oldJobSubStatus in ['pilot_noevents']:
+                            (oldJobSubStatus in ['pilot_noevents'] or (job.pilotErrorCode == 0 and job.ddmErrorCode == 0 and job.supErrorCode == 0)):
                         varMap = {}
                         varMap[':PandaID'] = job.PandaID
                         varMap[':jobStatus'] = 'closed'
