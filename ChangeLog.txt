@@ -1,5 +1,8 @@
 Release Notes
 
+* 2/12/2019
+  * enhanced getOfflineRunning for analy
+
 * 2/5/2019
   * not to reassign throttled jobs
   * not to throttle short jobs

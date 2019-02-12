@@ -1191,13 +1191,19 @@ class TaskBuffer:
                 return errStr
             tmpJob = tmpJobs[0]
             # check prodSourceLabel
-            if not tmpJob.prodSourceLabel in ['managed','test']:
+            if tmpJob.prodSourceLabel in ['managed','test']:
+                # release and trf
+                tmpAtls = tmpJob.AtlasRelease.split("\n") 
+                tmpRels = tmpJob.homepackage.split("\n")
+                tmpPars = tmpJob.jobParameters.split("\n")
+                tmpTrfs = tmpJob.transformation.split("\n")
+            elif tmpJob.prodSourceLabel == 'user':
+                tmpAtls = [tmpJob.AtlasRelease] 
+                tmpRels = [re.sub('^AnalysisTransforms-*', '', tmpJob.homepackage)]
+                tmpPars = [tmpJob.jobParameters]
+                tmpTrfs = [tmpJob.transformation]
+            else:
                 return "ERROR: Non production job : prodSourceLabel=%s. This method is only for production jobs" % tmpJob.prodSourceLabel
-            # release and trf
-            tmpAtls = tmpJob.AtlasRelease.split("\n") 
-            tmpRels = tmpJob.homepackage.split("\n")
-            tmpPars = tmpJob.jobParameters.split("\n")
-            tmpTrfs = tmpJob.transformation.split("\n")
             if not (len(tmpRels) == len(tmpPars) == len(tmpTrfs)):
                 return "ERROR: The number of releases or parameters or trfs is inconsitent with others"
             # construct script
@@ -1218,14 +1224,18 @@ class TaskBuffer:
                     # ln
                     tmpScope,tmpBareLFN = tmpLFN.split(':')
                     scrStr += "ln -fs %s/%s ./%s\n" % (tmpScope,tmpBareLFN,tmpBareLFN)
+            if tmpJob.prodSourceLabel == 'user':
+                scrStr += "\n#get trf\n"
+                scrStr += "wget %s\n" % tmpTrfs[0]
+                scrStr += "chmod +x %s\n" % tmpTrfs[0].split('/')[-1]
             scrStr += "\n#transform commands\n\n"
             for tmpIdx,tmpRel in enumerate(tmpRels):
                 # asetup
                 atlRel = re.sub('Atlas-', '', tmpAtls[tmpIdx])
-                atlTags = tmpRel.split("/")
+                atlTags = re.split("/|_", tmpRel)
                 if atlRel != '' and atlRel not in atlTags and re.search('^\d+\.\d+\.\d+$', atlRel) is None:
                     atlTags.append(atlRel)
-                scrStr += "asetup --cmtconfig=%s %s\n" % (tmpJob.cmtConfig, ','.join(atlTags))
+                scrStr += "asetup --platform=%s %s\n" % (tmpJob.cmtConfig, ','.join(atlTags))
                 # athenaMP
                 if not tmpJob.coreCount in ['NULL',None] and tmpJob.coreCount > 1:
                     scrStr += "export ATHENA_PROC_NUMBER=%s\n" % tmpJob.coreCount
@@ -1246,7 +1256,9 @@ class TaskBuffer:
                             tmpParamStr = tmpParamStr.replace(tmpMatch.group(0),
                                                               tmpArgName+'"'+tmpArgVal+'"')
                 # run trf
-                scrStr += "%s %s\n\n" % (tmpTrfs[tmpIdx],tmpParamStr)
+                if tmpJob.prodSourceLabel == 'user':
+                    scrStr += './'
+                scrStr += "%s %s\n\n" % (tmpTrfs[tmpIdx].split('/')[-1], tmpParamStr)
             return scrStr
         except:
             errType,errValue = sys.exc_info()[:2]
