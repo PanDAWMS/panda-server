@@ -1642,6 +1642,8 @@ class DBProxy:
                         job.hs06sec = hs06sec
                     # post processing
                     oldJobSubStatus = job.jobSubStatus
+                    if oldJobSubStatus == 'NULL':
+                        oldJobSubStatus = None
                     retEvS,retNewPandaID = self.ppEventServiceJob(job,currentJobStatus,False)
                     _logger.debug("archiveJob : {0} ppE -> {1}".format(job.PandaID, retEvS))
                     # DB error
