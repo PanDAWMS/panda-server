@@ -14339,7 +14339,7 @@ class DBProxy:
                     if taskStatus in ['finished','failed','done','aborted','broken','paused']:
                         goForward = False
                 if comStr == 'resume':
-                    if not taskStatus in ['paused','throttled']:
+                    if not taskStatus in ['paused','throttled', 'staging']:
                         goForward = False
                 if comStr == 'avalanche':
                     if not taskStatus in ['scouting']:
