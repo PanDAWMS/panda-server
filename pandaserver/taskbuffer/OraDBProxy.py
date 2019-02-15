@@ -22861,6 +22861,41 @@ class DBProxy:
             if nEsConsumers is None:
                 nEsConsumers = 1
             nSitesPerJob = self.getConfigValue('taskrefiner', 'AES_NSITESPERJOB', 'jedi', 'atlas')
+            # get task params
+            sqlTP = "SELECT taskParams FROM {0}.JEDI_TaskParams WHERE jediTaskID=:jediTaskID ".format(panda_config.schemaJEDI)
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            tmpV, taskParams = self.getClobObj(sqlTP, varMap)
+            if taskParams is None:
+                errStr = 'task parameter is not found'
+                tmp_log.error(errStr)
+                return (3, errStr)
+            try:
+                taskParamMap = json.loads(taskParams[0][0])
+            except Exception:
+                errStr = "cannot load task parameter"
+                tmp_log.error(errStr)
+                return (4, errStr)
+            # extract parameters
+            transPath = 'UnDefined'
+            jobParameters = 'UnDefined'
+            if taskParamMap.has_key('esmergeSpec'):
+                if taskParamMap['esmergeSpec'].has_key('transPath'):
+                    transPath = taskParamMap['esmergeSpec']['transPath']
+                if taskParamMap['esmergeSpec'].has_key('jobParameters'):
+                    jobParameters = taskParamMap['esmergeSpec']['jobParameters']
+            esJobParameters = '<PANDA_ESMERGE_TRF>' + transPath + '</PANDA_ESMERGE_TRF>' + '<PANDA_ESMERGE_JOBP>' + jobParameters + '</PANDA_ESMERGE_JOBP>'
+            esJobParameters = str(esJobParameters)
+            # get job params template
+            sqlJT = "SELECT jobParamsTemplate FROM {0}.JEDI_JobParams_Template WHERE jediTaskID=:jediTaskID ".format(panda_config.schemaJEDI)
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            tmpV, jobParamsTemplate = self.getClobObj(sqlJT, varMap)
+            if jobParamsTemplate is None:
+                errStr = 'job params template is not found'
+                tmp_log.error(errStr)
+                return (5, errStr)
+            jobParamsTemplate = jobParamsTemplate[0][0]
             # sql to set flag
             sqlES = "UPDATE {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
             sqlES += "SET eventService=:newEventService,coreCount=0,"
@@ -22888,6 +22923,13 @@ class DBProxy:
                 self.changeTaskSplitRulePanda(jediTaskID, 'ND', 1, useCommit=False, sendLog=True)
                 self.changeTaskSplitRulePanda(jediTaskID, 'XF', 1, useCommit=False, sendLog=True)
                 self.changeTaskSplitRulePanda(jediTaskID, 'SC', None, useCommit=False, sendLog=True)
+                if esJobParameters not in jobParamsTemplate:
+                    # update job params template
+                    sqlUJ = "UPDATE {0}.JEDI_JobParams_Template SET jobParamsTemplate=:new WHERE jediTaskID=:jediTaskID ".format(panda_config.schemaJEDI)
+                    varMap = {}
+                    varMap[':jediTaskID'] = jediTaskID
+                    varMap[':new'] = jobParamsTemplate + esJobParameters
+                    self.cur.execute(sqlUJ, varMap)
                 retVal = (0, 'done')
                 tmp_log.debug("done")
             else:
