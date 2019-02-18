@@ -160,14 +160,28 @@ class AdderAtlasPlugin (AdderPluginBase):
         # return if non-DQ2
         if self.pandaDDM or self.job.destinationSE == 'local':
             return 0
+        # zip file map
+        zipFileMap = self.job.getZipFileMap()
         # get campaign
         campaign = None
+        nEventsInput = dict()
         if not self.job.jediTaskID in [0,None,'NULL']:
             tmpRet = self.taskBuffer.getTaskAttributesPanda(self.job.jediTaskID,['campaign'])
             if 'campaign' in tmpRet:
                 campaign = tmpRet['campaign']
-        # zip file map
-        zipFileMap = self.job.getZipFileMap()
+            for fileSpec in self.job.Files:
+                if fileSpec.type == 'input':
+                    tmpDict = self.taskBuffer.getJediFileAttributes(fileSpec.PandaID, fileSpec.jediTaskID, fileSpec.datasetID, fileSpec.fileID, ['nEvents'])
+                    if 'nEvents' in tmpDict:
+                        nEventsInput[fileSpec.lfn] = tmpDict['nEvents']
+        # add nEvents info for zip files
+        for tmpZipFileName, tmpZipContents in zipFileMap.iteritems():
+            if tmpZipFileName not in self.extraInfo['nevents']:
+                self.extraInfo['nevents'][tmpZipFileName] = 0
+                for tmpZipContent in tmpZipContents:
+                    for tmpLFN in nEventsInput.keys():
+                        if re.search('^' + tmpZipContent + '$', tmpLFN) is not None:
+                            self.extraInfo['nevents'][tmpZipFileName] += nEventsInput[tmpLFN]
         # check files
         idMap = {}
         fileList = []

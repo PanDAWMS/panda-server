@@ -22946,3 +22946,44 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger, method_name)
             return (1, 'database error in the panda server')
+
+
+
+    # get JEDI file attributes
+    def getJediFileAttributes(self, PandaID, jediTaskID, datasetID, fileID, attrs):
+        comment = ' /* DBProxy.getJediFileAttributes */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " < PandaID={0} >".format(PandaID)
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start for jediTaskID={0} datasetId={1} fileID={2}".format(jediTaskID, datasetID, fileID))
+        try:
+            # sql to get task attributes
+            sqlRR  = "SELECT "
+            for attr in attrs:
+                sqlRR += '{0},'.format(attr)
+            sqlRR = sqlRR[:-1]
+            sqlRR += ' FROM {0}.JEDI_Dataset_Contents '.format(panda_config.schemaJEDI)
+            sqlRR += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            varMap[':datasetID'] = datasetID
+            varMap[':fileID'] = fileID
+            # start transaction
+            self.conn.begin()
+            self.cur.execute(sqlRR+comment,varMap)
+            resRR = self.cur.fetchone()
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            retVal = {}
+            if resRR != None:
+                for idx, attr in enumerate(attrs):
+                    retVal[attr] = resRR[idx]
+            tmpLog.debug("done {0}".format(str(retVal)))
+            return retVal
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return {}

@@ -1,5 +1,8 @@
 Release Notes
 
+* 2/18/2019
+  * to set nEvents to zip
+
 * 2/12/2019
   * enhanced getOfflineRunning for analy
 

@@ -3741,6 +3741,18 @@ class TaskBuffer:
         return ret
 
 
+    # get JEDI file attributes
+    def getJediFileAttributes(self, PandaID, jediTaskID, datasetID, fileID, attrs):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getJediFileAttributes(PandaID, jediTaskID, datasetID, fileID, attrs)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 
