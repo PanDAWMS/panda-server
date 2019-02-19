@@ -17193,6 +17193,15 @@ class DBProxy:
         sqlBD  = "SELECT lfn FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type=:type AND status=:status "
         # sql to get PandaID produced the bad file
         sqlPP  = "SELECT row_ID,PandaID FROM ATLAS_PANDA.filesTable4 WHERE lfn=:lfn AND type=:type "
+        # sql to get PandaIDs with jobMetrics
+        sqlJJ = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
+        sqlJJ += "DISTINCT e.PandaID FROM ATLAS_PANDA.filesTable4 f,ATLAS_PANDA.JEDI_Events e "
+        sqlJJ += "WHERE f.PandaID=:PandaID AND f.type IN (:type1,:type2) "
+        sqlJJ += "AND e.jediTaskID=f.jediTaskID AND e.datasetID=f.datasetID AND e.fileID=f.fileID "
+        # sql to get jobMetrics
+        sqlJM = "SELECT jobMetrics FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID "
+        sqlJM += "UNION "
+        sqlJM += "SELECT jobMetrics FROM ATLAS_PANDAARCH.jobsArchived WHERE PandaID=:PandaID AND modificationTime=CURRENT_DATE-90 "
         # sql to get dataset and file IDs
         sqlGI  = "SELECT datasetID,fileID FROM ATLAS_PANDA.filesTable4 "
         sqlGI += "WHERE PandaID=:PandaID AND type IN (:t1,:t2) "
@@ -17202,6 +17211,12 @@ class DBProxy:
         sqlCE += "SET status=:esCorrupted "
         sqlCE += "WHERE jediTaskID=:jediTaskID AND PandaID=:PandaID AND zipRow_ID=:row_ID "
         sqlCE += "AND datasetID=:datasetID AND fileID=:fileID AND status=:esDone "
+        # sql to update event ranges with jobMetrics
+        sqlJE  = "UPDATE "
+        sqlJE += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
+        sqlJE += "SET status=:esCorrupted "
+        sqlJE += "WHERE jediTaskID=:jediTaskID AND PandaID=:PandaID "
+        sqlJE += "AND datasetID=:datasetID AND fileID=:fileID AND status=:esDone "
         # get bad files
         varMap = {}
         varMap[':PandaID'] = pandaID
@@ -17217,25 +17232,64 @@ class DBProxy:
             varMap[':type'] = 'zipoutput'
             self.cur.execute(sqlPP+comment, varMap)
             resPP = self.cur.fetchall()
-            for zipRow_ID, oPandaID in resPP:
-                # get dataset and file IDs
-                varMap = {}
-                varMap[':PandaID'] = oPandaID
-                varMap[':t1'] = 'input'
-                varMap[':t2'] = 'pseudo_input'
-                self.cur.execute(sqlGI+comment, varMap)
-                resGI = self.cur.fetchall()
-                for datasetID, fileID in resGI:
+            if len(resPP) > 0:
+                # with zipoutput
+                for zipRow_ID, oPandaID in resPP:
+                    # get dataset and file IDs
                     varMap = {}
                     varMap[':PandaID'] = oPandaID
-                    varMap[':row_ID'] = zipRow_ID
-                    varMap[':jediTaskID'] = jediTaskID
-                    varMap[':datasetID'] = datasetID
-                    varMap[':fileID'] = fileID
-                    varMap[':esDone'] = EventServiceUtils.ST_done
-                    varMap[':esCorrupted'] = EventServiceUtils.ST_corrupted
-                    self.cur.execute(sqlCE+comment, varMap)
-                    nCor += self.cur.rowcount
+                    varMap[':t1'] = 'input'
+                    varMap[':t2'] = 'pseudo_input'
+                    self.cur.execute(sqlGI+comment, varMap)
+                    resGI = self.cur.fetchall()
+                    # set corrupted
+                    for datasetID, fileID in resGI:
+                        varMap = {}
+                        varMap[':PandaID'] = oPandaID
+                        varMap[':row_ID'] = zipRow_ID
+                        varMap[':jediTaskID'] = jediTaskID
+                        varMap[':datasetID'] = datasetID
+                        varMap[':fileID'] = fileID
+                        varMap[':esDone'] = EventServiceUtils.ST_done
+                        varMap[':esCorrupted'] = EventServiceUtils.ST_corrupted
+                        self.cur.execute(sqlCE+comment, varMap)
+                        nCor += self.cur.rowcount
+            else:
+                # check jobMetrics
+                varMap = dict()
+                varMap[':PandaID'] = pandaID
+                varMap[':type1'] = 'input'
+                varMap[':type2'] = 'pseudo_input'
+                self.cur.execute(sqlJJ + comment, varMap)
+                resJJ = self.cur.fetchall()
+                # get jobMetrics
+                for oPandaID, in resJJ:
+                    varMap = dict()
+                    varMap[':PandaID'] = oPandaID
+                    self.cur.execute(sqlJM + comment, varMap)
+                    resJM = self.cur.fetchone()
+                    if resJM is not None:
+                        jobMetrics, = resJM
+                        if jobMetrics is not None and 'outputZipName={0}'.format(lfn) in jobMetrics:
+                            # get dataset and file IDs
+                            varMap = {}
+                            varMap[':PandaID'] = oPandaID
+                            varMap[':t1'] = 'input'
+                            varMap[':t2'] = 'pseudo_input'
+                            self.cur.execute(sqlGI+comment, varMap)
+                            resGI = self.cur.fetchall()
+                            # set corrupted
+                            for datasetID, fileID in resGI:
+                                varMap = {}
+                                varMap[':PandaID'] = oPandaID
+                                varMap[':jediTaskID'] = jediTaskID
+                                varMap[':datasetID'] = datasetID
+                                varMap[':fileID'] = fileID
+                                varMap[':esDone'] = EventServiceUtils.ST_done
+                                varMap[':esCorrupted'] = EventServiceUtils.ST_corrupted
+                                self.cur.execute(sqlJE+comment, varMap)
+                                nCor += self.cur.rowcount
+                            break
             tmpLog.debug("{0} corrupted events in {1}".format(nCor, lfn))
 
 
