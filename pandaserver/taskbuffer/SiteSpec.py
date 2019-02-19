@@ -128,6 +128,12 @@ class SiteSpec(object):
     # use jumbo jobs
     def useJumboJobs(self):
         return self.hasValueInCatchall('useJumboJobs')
+
+
+
+    # GPU
+    def isGPU(self):
+        return self.hasValueInCatchall('gpu')
         
 
 
