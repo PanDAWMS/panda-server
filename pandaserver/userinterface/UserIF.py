@@ -877,7 +877,7 @@ class UserIF:
             jobdefList = self.taskBuffer.getJobdefIDsForFailedJob(jediTaskID)
             cUID = self.taskBuffer.cleanUserID(user)
             for jobID in jobdefList:
-                self.taskBuffer.retryJobsInActive(cUID,jobID,True)
+                self.taskBuffer.finalizePendingJobs(cUID, jobID)
             self.taskBuffer.increaseAttemptNrPanda(jediTaskID,5)
             retStr  = 'retry has been triggered for failed jobs '
             retStr += 'while the task is still {0}'.format(ret[1])
