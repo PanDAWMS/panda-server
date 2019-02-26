@@ -28,7 +28,7 @@ class eventLookupClientEI:
         if ei_api:
             command += '-api {0} '.format(ei_api)
         command += r"""-details richtype """
-        p = subprocess.Popen(command, stdout=subprocess.PIPE,shell=True)
+        p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         tmpOut,tmpErr = p.communicate()
         tempEvtFile.close()
         guids = {}
