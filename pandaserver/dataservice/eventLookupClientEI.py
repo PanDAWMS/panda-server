@@ -11,7 +11,7 @@ class eventLookupClientEI:
 
     def doLookup(self,runEvtList,stream=None,tokens=None,amitag=None,user=None,ei_api=None):
         command = 'java -jar ' + \
-            os.getenv('EIDIR', '/afs/cern.ch/sw/lcg/external/Java/TagConvertor/head/share') + \
+            os.getenv('EIDIR', '/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase/x86_64/EIClient/1.24.0') + \
             '/lib/EIHadoopEL.exe.jar '
         tempEvtFile = tempfile.NamedTemporaryFile()
         command += "-f {0} ".format(tempEvtFile.name)
