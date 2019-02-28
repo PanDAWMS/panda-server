@@ -73,6 +73,7 @@ class JobSpec(object):
                  'jobCloning'         : 'sc',
                  'scoutJob'           : 'sj',
                  'usePrefetcher'      : 'up',
+                 'useZipToPin'        : 'uz',
                  'writeInputToFile'   : 'wf',
                  }
 
@@ -625,6 +626,26 @@ class JobSpec(object):
             items = []
         if not self._tagForSH['usePrefetcher'] in items:
             items.append(self._tagForSH['usePrefetcher'])
+        self.specialHandling = ','.join(items)
+
+
+
+    # use zip to pin
+    def useZipToPin(self):
+        if self.specialHandling != None:
+            return self._tagForSH['useZipToPin'] in self.specialHandling.split(',')
+        return False
+
+
+
+    # set to use zip to pin
+    def setUseZipToPin(self):
+        if self.specialHandling != None:
+            items = self.specialHandling.split(',')
+        else:
+            items = []
+        if not self._tagForSH['useZipToPin'] in items:
+            items.append(self._tagForSH['useZipToPin'])
         self.specialHandling = ','.join(items)
 
 

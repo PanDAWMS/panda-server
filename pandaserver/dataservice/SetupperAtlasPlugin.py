@@ -188,9 +188,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 # dynamic data placement for analysis jobs
                 self._memoryCheck()
                 self._dynamicDataPlacement()
-                # pin input datasets
-                self._memoryCheck()
-                self._pinInputDatasets()
                 # make subscription for missing
                 self._memoryCheck()
                 self._makeSubscriptionForMissing()
@@ -1674,12 +1671,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             # check cloud
             if (tmpJob.getCloud() == 'ND' and self.siteMapper.getSite(tmpJob.computingSite).cloud == 'ND'):
                 continue
-            # check SE to use T2 only
-            tmpSrcID = self.siteMapper.getCloud(tmpJob.getCloud())['source']
-            srcSiteSpec = self.siteMapper.getSite(tmpSrcID)
-            dstSiteSpec = self.siteMapper.getSite(tmpJob.computingSite)
-            if dstSiteSpec.ddm_endpoints_input.isAssociated(srcSiteSpec.ddm_input):
-                continue
             # look for log _sub dataset to be used as a key
             logSubDsName = ''
             for tmpFile in tmpJob.Files:
@@ -1761,11 +1752,26 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         guids   = []
                         fsizes  = []
                         chksums = []
+                        if tmpJob.useZipToPin():
+                            dids = [tmpFileList[tmpSubFileName]['lfn'] for tmpSubFileName in subFileNames]
+                            tmpZipStat, tmpZipOut = rucioAPI.getZipFiles(dids, [tmpLocation])
+                            if not tmpZipStat:
+                                self.logger.debug('failed to get zip files : {0}'.format(tmpZipOut))
+                                tmpZipOut = {}
                         for tmpSubFileName in subFileNames:
-                            lfns.append(tmpFileList[tmpSubFileName]['lfn'])
-                            guids.append(tmpFileList[tmpSubFileName]['guid'])
-                            fsizes.append(long(tmpFileList[tmpSubFileName]['fileSpecs'][0].fsize))
-                            chksums.append(tmpFileList[tmpSubFileName]['fileSpecs'][0].checksum)
+                            tmpLFN = tmpFileList[tmpSubFileName]['lfn']
+                            if tmpLFN in tmpZipOut:
+                                tmpZipFileName = "{0}:{1}".format(tmpZipOut[tmpLFN]['scope'], tmpZipOut[tmpLFN]['name'])
+                                if tmpZipFileName not in lfns:
+                                    lfns.append(tmpZipFileName)
+                                    guids.append(tmpZipOut[tmpLFN]['guid'])
+                                    fsizes.append(tmpZipOut[tmpLFN]['bytes'])
+                                    chksums.append(tmpZipOut[tmpLFN]['adler32'])
+                            else:
+                                lfns.append(tmpLFN)
+                                guids.append(tmpFileList[tmpSubFileName]['guid'])
+                                fsizes.append(long(tmpFileList[tmpSubFileName]['fileSpecs'][0].fsize))
+                                chksums.append(tmpFileList[tmpSubFileName]['fileSpecs'][0].checksum)
                             # set dis name
                             for tmpFileSpec in tmpFileList[tmpSubFileName]['fileSpecs']:
                                 if tmpFileSpec.status in ['ready'] and tmpFileSpec.dispatchDBlock == 'NULL':

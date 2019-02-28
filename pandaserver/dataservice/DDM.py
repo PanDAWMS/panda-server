@@ -505,6 +505,37 @@ class RucioAPI:
             return False,'%s %s' % (errType,errVale)
 
 
+
+    # get zip files
+    def getZipFiles(self, dids, rses):
+        try:
+            client = RucioClient()
+            data = []
+            iGUID = 0
+            nGUID = 1000
+            retVal = {}
+            for did in dids:
+                iGUID += 1
+                scope, lfn = did.split(':')
+                data.append({'scope':scope,'name':lfn})
+                if len(data) % nGUID == 0 or iGUID == len(dids):
+                    for tmpDict in client.list_replicas(data):
+                        tmpScope = str(tmpDict['scope'])
+                        tmpLFN = str(tmpDict['name'])
+                        tmpDID = '{0}:{1}'.format(tmpScope, tmpLFN)
+                        tmpRses = tmpDict['rses'].keys()
+                        # RSE selection
+                        if rses is not None:
+                            for pfn, pfnData in tmpDict['pfns'].iteritems():
+                                if pfnData['rse'] in rses and pfnData['domain'] == 'zip':
+                                    retVal[tmpDID] = client.get_metadata(tmpScope, pfn.split('/')[-1])
+                    data = []
+            return True, retVal
+        except:
+            errType, errVale = sys.exc_info()[:2]
+            return False, '%s %s' % (errType,errVale)
+
+
     
     # list files in dataset
     def listFilesInDataset(self,datasetName,long=False,fileList=None):
