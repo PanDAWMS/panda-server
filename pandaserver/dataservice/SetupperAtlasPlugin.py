@@ -208,6 +208,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         dispError   = {}
         backEndMap  = {}
         dsTaskMap = dict()
+        useZipToPinMap = dict()
         # extract prodDBlock
         for job in self.jobs:
             # ignore failed jobs
@@ -254,6 +255,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     continue
             # dispatch datablock
             if job.dispatchDBlock != 'NULL':
+                # useZipToPin mapping
+                useZipToPinMap[job.dispatchDBlock] = job.useZipToPin()
                 # src/dst sites
                 tmpSrcID = 'BNL_ATLAS_1'
                 if self.siteMapper.checkCloud(job.getCloud()):
@@ -334,7 +337,34 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             if (not self.pandaDDM) and job.prodSourceLabel != 'ddm':
                 # register dispatch dataset
                 self.dispFileList[dispatchDBlock] = fileList[dispatchDBlock]
-                disFiles = fileList[dispatchDBlock]
+                if not useZipToPinMap[dispatchDBlock]: 
+                    disFiles = fileList[dispatchDBlock]
+                else:
+                    dids = fileList[dispatchDBlock]['lfns']
+                    tmpZipStat, tmpZipOut = rucioAPI.getZipFiles(dids, None)
+                    if not tmpZipStat:
+                        self.logger.debug('failed to get zip files : {0}'.format(tmpZipOut))
+                        tmpZipOut = {}
+                    disFiles = {'lfns': [],
+                                'guids': [],
+                                'fsizes': [],
+                                'chksums': []}
+                    for tmpLFN, tmpGUID, tmpFSize, tmpChksum  in zip(fileList[dispatchDBlock]['lfns'],
+                                                                     fileList[dispatchDBlock]['guids'],
+                                                                     fileList[dispatchDBlock]['fsizes'],
+                                                                     fileList[dispatchDBlock]['chksums']):
+                        if tmpLFN in tmpZipOut:
+                            tmpZipFileName = "{0}:{1}".format(tmpZipOut[tmpLFN]['scope'], tmpZipOut[tmpLFN]['name'])
+                            if tmpZipFileName not in disFiles['lfns']:
+                                disFiles['lfns'].append(tmpZipFileName)
+                                disFiles['guids'].append(tmpZipOut[tmpLFN]['guid'])
+                                disFiles['fsizes'].append(tmpZipOut[tmpLFN]['bytes'])
+                                disFiles['chksums'].append(tmpZipOut[tmpLFN]['adler32'])
+                        else:
+                            disFiles['lfns'].append(tmpLFN)
+                            disFiles['guids'].append(tmpGUID)
+                            disFiles['fsizes'].append(tmpFSize)
+                            disFiles['chksums'].append(tmpChksum)
                 ddmBackEnd = backEndMap[dispatchDBlock]
                 if ddmBackEnd == None:
                     ddmBackEnd = 'rucio'

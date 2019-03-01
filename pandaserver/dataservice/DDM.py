@@ -525,10 +525,10 @@ class RucioAPI:
                         tmpDID = '{0}:{1}'.format(tmpScope, tmpLFN)
                         tmpRses = tmpDict['rses'].keys()
                         # RSE selection
-                        if rses is not None:
-                            for pfn, pfnData in tmpDict['pfns'].iteritems():
-                                if pfnData['rse'] in rses and pfnData['domain'] == 'zip':
-                                    retVal[tmpDID] = client.get_metadata(tmpScope, pfn.split('/')[-1])
+                        for pfn, pfnData in tmpDict['pfns'].iteritems():
+                            if (rses is None or pfnData['rse'] in rses) and pfnData['domain'] == 'zip':
+                                retVal[tmpDID] = client.get_metadata(tmpScope, pfn.split('/')[-1])
+                                break
                     data = []
             return True, retVal
         except:
