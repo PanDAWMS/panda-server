@@ -1782,6 +1782,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         guids   = []
                         fsizes  = []
                         chksums = []
+                        tmpZipOut = {}
                         if tmpJob.useZipToPin():
                             dids = [tmpFileList[tmpSubFileName]['lfn'] for tmpSubFileName in subFileNames]
                             tmpZipStat, tmpZipOut = rucioAPI.getZipFiles(dids, [tmpLocation])
