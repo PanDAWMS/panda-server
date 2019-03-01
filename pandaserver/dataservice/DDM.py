@@ -527,7 +527,9 @@ class RucioAPI:
                         # RSE selection
                         for pfn, pfnData in tmpDict['pfns'].iteritems():
                             if (rses is None or pfnData['rse'] in rses) and pfnData['domain'] == 'zip':
-                                retVal[tmpDID] = client.get_metadata(tmpScope, pfn.split('/')[-1])
+                                zipFileName = pfn.split('/')[-1]
+                                zipFileName = re.sub('\?.+$', '', zipFileName)
+                                retVal[tmpDID] = client.get_metadata(tmpScope, zipFileName)
                                 break
                     data = []
             return True, retVal
