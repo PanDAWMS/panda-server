@@ -15941,7 +15941,10 @@ class DBProxy:
                     if fileSpec.type == 'input' and fileSpec.status != 'ready':
                         currentJobStatus = 'assigned'
                         break
-            if currentJobStatus in ['defined','assigned','waiting','pending']:
+            if doMerging and currentJobStatus == 'assigned':
+                # send merge jobs to activated since input data don't have to move
+                jobSpec.jobStatus = 'activated'
+            elif currentJobStatus in ['defined','assigned','waiting','pending']:
                 jobSpec.jobStatus = currentJobStatus
             else:
                 jobSpec.jobStatus = 'activated'
