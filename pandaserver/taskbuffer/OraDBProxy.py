@@ -16066,9 +16066,9 @@ class DBProxy:
                 else:
                     self.updateInputStatusJedi(jobSpec.jediTaskID, jobSpec.PandaID, 'queued', checkOthers=True)
                 # insert job with new PandaID
-                if currentJobStatus in ['defined','assigned']:
+                if jobSpec.jobStatus in ['defined','assigned']:
                     sql1  = "INSERT INTO ATLAS_PANDA.jobsDefined4 ({0}) ".format(JobSpec.columnNames())
-                elif currentJobStatus in ['waiting','pending']:
+                elif jobSpec.jobStatus in ['waiting','pending']:
                     sql1  = "INSERT INTO ATLAS_PANDA.jobsWaiting4 ({0}) ".format(JobSpec.columnNames())
                 else:
                     sql1  = "INSERT INTO ATLAS_PANDA.jobsActive4 ({0}) ".format(JobSpec.columnNames())
