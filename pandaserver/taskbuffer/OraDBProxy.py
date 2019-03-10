@@ -20909,13 +20909,14 @@ class DBProxy:
                 sql_jobs = """
                        UPDATE ATLAS_PANDA.{0} set gshare=:gshare
                        WHERE jeditaskid IN ({1})
-                       AND jobstatus IN (:pending, :defined, :assigned, :waiting, :activated)
+                       AND jobstatus IN (:pending, :defined, :assigned, :waiting, :activated, :running)
                        """
                 var_map[':pending'] = 'pending'
                 var_map[':defined'] = 'defined'
                 var_map[':assigned'] = 'assigned'
                 var_map[':waiting'] = 'waiting'
                 var_map[':activated'] = 'activated'
+                var_map[':running'] = 'running'
 
                 for table in ['jobsactive4', 'jobswaiting4', 'jobsdefined4']:
                     self.cur.execute(sql_jobs.format(table, jtid_bindings) + comment, var_map)
