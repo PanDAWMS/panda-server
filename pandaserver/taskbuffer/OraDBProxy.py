@@ -15943,6 +15943,7 @@ class DBProxy:
                         break
             if doMerging and currentJobStatus == 'assigned':
                 # send merge jobs to activated since input data don't have to move
+                _logger.debug("{0} : sending to activated".format(methodName))
                 jobSpec.jobStatus = 'activated'
             elif currentJobStatus in ['defined','assigned','waiting','pending']:
                 jobSpec.jobStatus = currentJobStatus
