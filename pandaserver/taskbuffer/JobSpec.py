@@ -734,6 +734,17 @@ class JobSpec(object):
         self.specialHandling = ','.join(items)
 
 
+    # remove fake flag to ignore in monigoring
+    def removeFakeJobToIgnore(self):
+        if self.specialHandling is not None:
+            items = self.specialHandling.split(',')
+        else:
+            items = []
+        if self._tagForSH['fakeJobToIgnore'] in items:
+            items.remove(self._tagForSH['fakeJobToIgnore'])
+        self.specialHandling = ','.join(items)
+
+
 
     # set task attribute
     def set_task_attribute(self, key, value):
