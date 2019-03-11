@@ -1,5 +1,8 @@
 Release Notes
 
+* 3/11/2019
+  * added fake
+
 * 2/28/2019
   * added useZipToPin
 

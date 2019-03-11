@@ -61,6 +61,7 @@ class JobSpec(object):
                  'notDiscardEvents'   : 'de',
                  'decAttOnFailedES'   : 'df',
                  'dynamicNumEvents'   : 'dy',
+                 'fakeJobToIgnore'    : 'fake',
                  'homeCloud'          : 'hc',
                  'inFilePosEvtNum'    : 'if',
                  'lumiBlock'          : 'lb',
@@ -718,6 +719,18 @@ class JobSpec(object):
             items = []
         if self._tagForSH['decAttOnFailedES'] not in items:
             items.append(self._tagForSH['decAttOnFailedES'])
+        self.specialHandling = ','.join(items)
+
+
+
+    # set fake flag to ignore in monigoring
+    def setFakeJobToIgnore(self):
+        if self.specialHandling is not None:
+            items = self.specialHandling.split(',')
+        else:
+            items = []
+        if self._tagForSH['fakeJobToIgnore'] not in items:
+            items.append(self._tagForSH['fakeJobToIgnore'])
         self.specialHandling = ','.join(items)
 
 
