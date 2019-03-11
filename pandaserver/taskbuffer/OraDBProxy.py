@@ -20909,12 +20909,12 @@ class DBProxy:
                 var_map[':assigned'] = 'assigned'
                 var_map[':waiting'] = 'waiting'
                 var_map[':activated'] = 'activated'
+                jobstatus = ':pending, :defined, :assigned, :waiting, :activated'
 
+                # add running status in case these jobs also need to be reassigned
                 if reassign_running:
-                    jobstatus = '(:pending, :defined, :assigned, :waiting, :activated, :running)'
+                    jobstatus = '{0}, :running'.format(jobstatus)
                     var_map[':running'] = 'running'
-                else:
-                    jobstatus = '(:pending, :defined, :assigned, :waiting, :activated)'
 
                 # update the jobs
                 sql_jobs = """
