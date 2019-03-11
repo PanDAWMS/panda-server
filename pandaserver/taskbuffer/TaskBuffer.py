@@ -3241,11 +3241,11 @@ class TaskBuffer:
 
 
     # reassign share
-    def reassignShare(self, jedi_task_ids, share_dest):
+    def reassignShare(self, jedi_task_ids, share_dest, reassign_running):
         # get DB proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        res = proxy.reassignShare(jedi_task_ids, share_dest)
+        res = proxy.reassignShare(jedi_task_ids, share_dest, reassign_running)
         # release DB proxy
         self.proxyPool.putProxy(proxy)
         # return
