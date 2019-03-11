@@ -2179,11 +2179,12 @@ def reassignShare(jedi_task_ids, share, change_running=False):
     curl.sslKey  = _x509()
 
     jedi_task_ids_pickle = pickle.dumps(jedi_task_ids)
+    change_running_pickle = pickle.dumps(change_running)
     # execute
     url = baseURLSSL + '/reassignShare'
     data = {'jedi_task_ids_pickle': jedi_task_ids_pickle,
             'share': share,
-            'change_running': change_running}
+            'change_running': change_running_pickle}
     status, output = curl.post(url, data)
 
     try:
