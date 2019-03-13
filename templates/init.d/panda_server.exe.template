@@ -136,8 +136,18 @@ start|stop)
         start)
             check_pidfile
     esac
-    $HTTPD $OPTIONS -k $ARGV
-    ERROR=$?
+    for itry in `seq 1 20`
+    do
+	echo trying $ARGV $itry
+	$HTTPD $OPTIONS -k $ARGV
+	ERROR=$?
+	if [ $ERROR = 0 ]; then
+	    echo done
+	    break
+	else
+	    sleep 10
+	fi
+    done
     ;;
 startssl|sslstart|start-SSL)
     check13
