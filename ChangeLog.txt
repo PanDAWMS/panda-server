@@ -1,7 +1,10 @@
 Release Notes
 
+* 3/15/2019
+  * added express for task.currentprio>=1500
+
 * 3/11/2019
-  * added fake
+  * added fake in specialHandling
 
 * 2/28/2019
   * added useZipToPin
