@@ -14173,7 +14173,10 @@ class DBProxy:
                             if tmpKey.startswith('dsFor') \
                                     or tmpKey in ['site','cloud','includedSite','excludedSite',
                                                   'cliParams','nFilesPerJob','nFiles','nEvents',
-                                                  'nGBPerJob','fixedSandbox','ignoreMissingInDS']:
+                                                  'nGBPerJob','fixedSandbox','ignoreMissingInDS',
+                                                  'currentPriority', 'priority']:
+                                if tmpKey == 'priority':
+                                    tmpKey = 'currentPriority'
                                 newTaskParams[tmpKey] = tmpVal
                                 if tmpKey == 'fixedSandbox' and 'sourceURL' in taskParamsJson:
                                     newTaskParams['sourceURL'] = taskParamsJson['sourceURL']
