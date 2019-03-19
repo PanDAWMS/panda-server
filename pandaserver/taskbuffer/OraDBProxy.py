@@ -8968,9 +8968,10 @@ class DBProxy:
         if compactDN in ['','NULL',None]:
             compactDN = dn
         if workingGroup != None:    
-            sql0 = "SELECT COUNT(*) FROM %s WHERE prodUserName=:prodUserName AND prodSourceLabel=:prodSourceLabel AND workingGroup=:workingGroup"
+            sql0 = "SELECT COUNT(*) FROM %s WHERE prodUserName=:prodUserName AND prodSourceLabel=:prodSourceLabel AND workingGroup=:workingGroup "
         else:
-            sql0 = "SELECT COUNT(*) FROM %s WHERE prodUserName=:prodUserName AND prodSourceLabel=:prodSourceLabel AND workingGroup IS NULL"
+            sql0 = "SELECT COUNT(*) FROM %s WHERE prodUserName=:prodUserName AND prodSourceLabel=:prodSourceLabel AND workingGroup IS NULL "
+        sql0 += "AND NOT jobStatus IN (:failed,:merging) "
         nTry = 1
         nJob = 0
         for iTry in range(nTry):
@@ -8982,6 +8983,8 @@ class DBProxy:
                     varMap = {}
                     varMap[':prodUserName'] = compactDN
                     varMap[':prodSourceLabel'] = 'user'
+                    varMap[':failed'] = 'failed'
+                    varMap[':merging'] = 'merging'
                     if workingGroup != None:
                         varMap[':workingGroup'] = workingGroup
                     self.cur.arraysize = 10
