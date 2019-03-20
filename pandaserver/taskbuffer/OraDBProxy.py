@@ -2240,7 +2240,8 @@ class DBProxy:
                     else:
                         # check batchID
                         if batchID not in ['', None] and 'batchID' in param and param['batchID'] not in ['', None]:
-                            if batchID != param['batchID'] and re.search('^\d+$', batchID) is None and re.search('^\d+$', param['batchID']) is None:
+                            if batchID != param['batchID'] and re.search('^\d+\.*\d+$', batchID) is None \
+                                    and re.search('^\d+\.*\d+$', param['batchID']) is None:
                                 _logger.debug("updateJobStatus : to be killed since PandaID={0} batchID mismatch old {1} in {2} vs new {3} in {4}".format(pandaID,
                                                                                                                                                           batchID.replace('\n',''),
                                                                                                                                                           oldJobStatus,
