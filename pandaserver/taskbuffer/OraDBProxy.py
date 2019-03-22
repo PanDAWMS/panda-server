@@ -348,7 +348,7 @@ class DBProxy:
                 # avoid prio reduction for merge jobs 
                 pass
             else:
-                if job.currentPriority not in ['NULL',None] and job.currentPriority >= 1500:
+                if job.currentPriority not in ['NULL',None] and job.currentPriority >= JobUtils.priorityTasksToJumpOver:
                     pass
                 else:
                     job.currentPriority = PrioUtil.calculatePriority(priorityOffset,serNum,weight)
