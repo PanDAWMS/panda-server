@@ -11579,11 +11579,11 @@ class DBProxy:
                 raise RuntimeError, 'Commit error'
             for compactDN,gridpref in resList:
                 # users authorized for proxy retrieval
-                if 'p' in gridpref:
+                if PrioUtil.PERMISSION_PROXY in gridpref:
                     if not compactDN in allowProxy:
                         allowProxy.append(compactDN)
                 # users authorized for key-pair retrieval 
-                if 'k' in gridpref:
+                if PrioUtil.PERMISSION_KEY in gridpref:
                     if not compactDN in allowKey:
                         allowKey.append(compactDN)
             retMap['allowKey'] = allowKey
@@ -11757,7 +11757,8 @@ class DBProxy:
         tmpLog = LogWrapper(_logger,methodName+" <{0}>".format(userName))
         tmpLog.debug("start")
         try:
-            retVal = False
+            isSU = False
+            isSG = False
             # start transaction
             self.conn.begin()
             # check gridpref
@@ -11775,16 +11776,18 @@ class DBProxy:
             if res != None:
                 gridpref, = res
                 if gridpref != None:
-                    if 's' in gridpref:
-                        retVal = True
-            tmpLog.debug("done with {0}".format(retVal))
-            return retVal
+                    if PrioUtil.PERMISSION_SUPER_USER in gridpref:
+                        isSU = True
+                    if PrioUtil.PERMISSION_SUPER_GROUP in gridpref:
+                        isSG = True
+            tmpLog.debug("done with superUser={0} superGroup={1}".format(isSU, isSG))
+            return isSU, isSG
         except:
             # roll back
             self._rollback()
             # error
             self.dumpErrorMessage(_logger,methodName)
-            return False
+            return False, False
 
 
 

@@ -96,7 +96,7 @@ class TaskBuffer:
                 serNum = proxy.getNumberJobsUser(user,workingGroup=userDefinedWG)
             elif userDefinedWG and validWorkingGroup:
                 # check if group privileged
-                isSU =  proxy.isSuperUser(jobs[0].workingGroup)
+                isSU, isGU =  proxy.isSuperUser(jobs[0].workingGroup)
                 if not isSU:
                     serNum = proxy.getNumberJobsUser(user,workingGroup=jobs[0].workingGroup)
                 else:
@@ -3747,6 +3747,18 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # exec
         ret = proxy.getJediFileAttributes(PandaID, jediTaskID, datasetID, fileID, attrs)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # check if super user
+    def isSuperUser(self, userName):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.isSuperUser(userName)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

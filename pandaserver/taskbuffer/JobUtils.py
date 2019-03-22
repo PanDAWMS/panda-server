@@ -3,6 +3,9 @@ import re
 # list of prod source label for pilot tests
 list_ptest_prod_sources = ['ptest', 'rc_test', 'rc_test2', 'rc_alrb']
 
+# priority of tasks to jumbo over others
+priorityTasksToJumpOver = 1500
+
 
 
 # get core count
