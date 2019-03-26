@@ -1,6 +1,7 @@
 Release Notes
 
 * 3/26/2019
+  * using supError* for invalid batchID
   * using supError* for worker's error reporting
 
 * 3/15/2019

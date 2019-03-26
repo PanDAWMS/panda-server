@@ -43,6 +43,7 @@ from pandalogger.PandaLogger import PandaLogger
 from pandalogger.LogWrapper import LogWrapper
 from config import panda_config
 from brokerage.PandaSiteIDs import PandaSiteIDs
+from SupErrors import SupErrors
 from __builtin__ import True
 
 if panda_config.backend == 'oracle':
@@ -2237,17 +2238,26 @@ class DBProxy:
                     elif oldJobStatus in ['holding', 'transferring'] and jobStatus == 'starting':
                         # don't update holding
                         _logger.debug("updateJobStatus : PandaID={0} skip to change {1} to {2} to avoid inconsistency".format(pandaID, oldJobStatus, jobStatus))
+                    elif batchID not in ['', None] and 'batchID' in param and param['batchID'] not in ['', None] \
+                            and batchID != param['batchID'] and re.search('^\d+\.*\d+$', batchID) is None \
+                            and re.search('^\d+\.*\d+$', param['batchID']) is None:
+                        # invalid batchID
+                        _logger.debug("updateJobStatus : to be killed since PandaID={0} batchID mismatch old {1} in {2} vs new {3} in {4}".format(pandaID,
+                                                                                                                                                  batchID.replace('\n',''),
+                                                                                                                                                  oldJobStatus,
+                                                                                                                                                  param['batchID'].replace('\n',''),
+                                                                                                                                                  jobStatus))
+                        ret = 'tobekilled'
+                        # set supErrorCode and supErrorDiag
+                        varMap = {}
+                        varMap[':PandaID'] = pandaID
+                        varMap[':code'] = SupErrors.error_codes['INVALID_BATCH_ID']
+                        varMap[':diag'] = 'got a update request with invalid batchID={0}'.format(param['batchID'].replace('\n',''))
+                        varMap[':diag'] = JobSpec.truncateStringAttr('supErrorDiag', varMap[':diag'])
+                        sqlSUP = "UPDATE ATLAS_PANDA.jobsActive4 SET supErrorCode=:code,supErrorDiag=:diag "
+                        sqlSUP += "WHERE PandaID=:PandaID "
+                        self.cur.execute (sqlSUP+comment, varMap)
                     else:
-                        # check batchID
-                        if batchID not in ['', None] and 'batchID' in param and param['batchID'] not in ['', None]:
-                            if batchID != param['batchID'] and re.search('^\d+\.*\d+$', batchID) is None \
-                                    and re.search('^\d+\.*\d+$', param['batchID']) is None:
-                                _logger.debug("updateJobStatus : to be killed since PandaID={0} batchID mismatch old {1} in {2} vs new {3} in {4}".format(pandaID,
-                                                                                                                                                          batchID.replace('\n',''),
-                                                                                                                                                          oldJobStatus,
-                                                                                                                                                          param['batchID'].replace('\n',''),
-                                                                                                                                                          jobStatus))
-                                ret = 'tobekilled'
                         # change starting to running
                         if oldJobStatus == 'running' and jobStatus == 'starting':
                             _logger.debug("updateJobStatus : PandaID={0} changed to {1} from {2} to avoid inconsistency".format(pandaID, oldJobStatus, jobStatus))
