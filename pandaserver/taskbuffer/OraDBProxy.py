@@ -21211,6 +21211,8 @@ class DBProxy:
                 sqlJAA  = "UPDATE ATLAS_PANDA.jobsActive4 SET modificationTime=CURRENT_DATE WHERE PandaID=:PandaID AND jobStatus IN (:js1,:js2) "
                 sqlJAE  = "UPDATE ATLAS_PANDA.jobsActive4 SET taskBufferErrorCode=:code,taskBufferErrorDiag=:diag "
                 sqlJAE += "WHERE PandaID=:PandaID "
+                sqlJSE  = "UPDATE {0} SET supErrorCode=:code,supErrorDiag=:diag,stateChangeTime=CURRENT_DATE "
+                sqlJSE += "WHERE PandaID=:PandaID AND modificationTime>CURRENT_DATE-30"
                 varMap = dict()
                 varMap[':harvesterID'] = harvesterID
                 varMap[':workerID'] = workerData['workerID']
@@ -21245,6 +21247,13 @@ class DBProxy:
                                     open(tmpFileName, 'w').close()
                                 except:
                                     pass
+                        if workerSpec.errorCode not in [None, 0]:
+                            for tableName in ['ATLAS_PANDA.jobsActive4', 'ATLAS_PANDA.jobsArchived4', 'ATLAS_PANDAARCH.jobsArchived']:
+                                varMap[':PandaID'] = pandaID
+                                varMap[':code'] = workerSpec.errorCode
+                                varMap[':diag'] = "Diag from worker : {0}".format(workerSpec.diagMessage)
+                                varMap[':diag'] = JobSpec.truncateStringAttr('supErrorDiag', varMap[':diag'])
+                                self.cur.execute(sqlJSE.format(tableName)+comment, varMap)
                     """
                     varMap = dict()
                     varMap[':PandaID'] = pandaID

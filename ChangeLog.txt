@@ -1,5 +1,8 @@
 Release Notes
 
+* 3/26/2019
+  * using supError* for worker's error reporting
+
 * 3/15/2019
   * added express for task.currentprio>=1500
 
