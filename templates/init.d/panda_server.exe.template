@@ -149,17 +149,26 @@ start|stop)
 	echo $ARGV tring $itry
 	$HTTPD $OPTIONS -k $ARGV
 	ERROR=$?
+	sleep 1
 	if [ $ERROR = 0 ]; then
+	    check_pidfile
+	    retval=$?
 	    case $ARGV in
+		start)
+		    if [ "$retval" == 1 ]
+		    then
+			echo $ARGV done
+			break
+		    fi
+		    ;;
 		stop)
-		    check_pidfile
-		    retval=$?
+		    if [ "$retval" == 0 ]
+		    then
+			echo $ARGV done
+			break
+		    fi
+		    ;;
 	    esac
-	    if [ "$retval" == 0 ]
-	    then
-		echo $ARGV done
-		break
-	    fi
 	fi
 	sleep 10
     done
