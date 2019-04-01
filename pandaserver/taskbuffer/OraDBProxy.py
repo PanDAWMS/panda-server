@@ -3264,11 +3264,48 @@ class DBProxy:
                 compactDN = prodUserID
             sql1+= "AND prodUserName=:prodUserName " 
             getValMap[':prodUserName'] = compactDN
+        
         # taskID
         if not taskID in [None,'NULL']:
             sql1+= "AND jediTaskID=:taskID "
             getValMap[':taskID'] = taskID
 
+        # country group
+         specialHandled = False
+        if prodSourceLabel == 'user':
+            # update pledge resource ratio
+            self.getPledgeResourceRatio()
+            # other country is allowed to use the pilot
+            if allowOtherCountry=='True' and self.beyondPledgeRatio.has_key(siteName) and self.beyondPledgeRatio[siteName] > 0:
+                # check if countryGroup needs to be used for beyond-pledge
+                if self.checkCountryGroupForBeyondPledge(siteName):
+                    countryGroup = self.beyondPledgeRatio[siteName]['countryGroup']
+                    specialHandled = True
+                else:
+                    countryGroup = ''
+            # countryGroup
+            if not countryGroup in ['',None]:
+                sql1+= "AND countryGroup IN ("
+                idxCountry = 1
+                for tmpCountry in countryGroup.split(','):
+                    tmpKey = ":countryGroup%s" % idxCountry
+                    sql1+= "%s," % tmpKey
+                    getValMap[tmpKey] = tmpCountry
+                    idxCountry += 1
+                sql1 = sql1[:-1]
+                sql1+= ") "
+            # workingGroup
+            if not workingGroup in ['',None]:
+                sql1+= "AND workingGroup IN ("
+                idxWorking = 1
+                for tmpWorking in workingGroup.split(','):
+                    tmpKey = ":workingGroup%s" % idxWorking
+                    sql1+= "%s," % tmpKey
+                    getValMap[tmpKey] = tmpWorking
+                    idxWorking += 1
+                sql1 = sql1[:-1]
+                sql1+= ") "
+                
         # production share
         if prodSourceLabel in ['managed', None, 'sharetest']:
             aggSitesForFairshare = []
