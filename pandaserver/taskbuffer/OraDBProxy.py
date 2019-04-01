@@ -3271,7 +3271,7 @@ class DBProxy:
             getValMap[':taskID'] = taskID
 
         # country group
-         specialHandled = False
+        specialHandled = False
         if prodSourceLabel == 'user':
             # update pledge resource ratio
             self.getPledgeResourceRatio()
