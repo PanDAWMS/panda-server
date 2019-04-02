@@ -349,7 +349,7 @@ class DBProxy:
                 # avoid prio reduction for merge jobs 
                 pass
             else:
-                if job.currentPriority not in ['NULL',None] and job.currentPriority >= JobUtils.priorityTasksToJumpOver:
+                if job.currentPriority not in ['NULL',None] and (job.isScoutJob() or job.currentPriority >= JobUtils.priorityTasksToJumpOver):
                     pass
                 else:
                     job.currentPriority = PrioUtil.calculatePriority(priorityOffset,serNum,weight)
@@ -14665,10 +14665,10 @@ class DBProxy:
 
 
     # get active JediTasks in a time range
-    def getJediTasksInTimeRange(self,dn,timeRange):
+    def getJediTasksInTimeRange(self, dn, timeRange, fullFlag=False):
         comment = ' /* DBProxy.getJediTasksInTimeRange */'
         methodName = comment.split(' ')[-2].split('.')[-1]
-        _logger.debug("{0} : DN={1} range={2}".format(methodName,dn,timeRange.strftime('%Y-%m-%d %H:%M:%S')))
+        _logger.debug("{0} : DN={1} range={2} full={3}".format(methodName, dn, timeRange.strftime('%Y-%m-%d %H:%M:%S'), fullFlag))
         try:
             # get compact DN
             compactDN = self.cleanUserID(dn)
@@ -14704,6 +14704,11 @@ class DBProxy:
                 tmpDict = {}
                 for tmpIdx,tmpAttr in enumerate(attrList):
                     tmpDict[tmpAttr] = tmpRes[tmpIdx]
+                if fullFlag:
+                    # additional info
+                    addInfo = self.getJediTaskDigest(tmpDict['jediTaskID'])
+                    for k, v in addInfo.iteritems():
+                        tmpDict[k] = v
                 retTasks[tmpDict['reqID']] = tmpDict
             _logger.debug("{0} : {1}".format(methodName,str(retTasks)))
             return retTasks
@@ -14889,6 +14894,98 @@ class DBProxy:
             retDict['PandaID'] = list(retDict['PandaID'])
             retDict['mergePandaID'] = list(retDict['mergePandaID'])
             _logger.debug("{0} : {1}".format(methodName,str(retDict)))
+            return retDict
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return {}
+
+
+
+    # get JediTask digest
+    def getJediTaskDigest(self, jediTaskID):
+        comment = ' /* DBProxy.getJediTaskDigest */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " < jediTaskID={0} >".format(jediTaskID)
+        tmpLog = LogWrapper(_logger,methodName)
+        try:
+            retDict = {'inDS':'','outDS':'','statistics':'','PandaID':set(),
+                       'mergeStatus':None,'mergePandaID':set()}
+            # sql to get datasets
+            sqlD  = 'SELECT datasetName,containerName,type '
+            sqlD += 'FROM {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
+            sqlD += "WHERE jediTaskID=:jediTaskID AND ((type IN (:in1,:in2) AND masterID IS NULL) OR type=:out) "
+            sqlD += "GROUP BY datasetName,containerName,type "
+            # sql to get job status
+            sqlJS  = "SELECT proc_status,COUNT(*) FROM {0}.JEDI_Datasets d,{0}.JEDI_Dataset_Contents c ".format(panda_config.schemaJEDI)
+            sqlJS += "WHERE c.jediTaskID=d.jediTaskID AND c.datasetID=d.datasetID AND d.jediTaskID=:jediTaskID "
+            sqlJS += "AND d.type IN (:in1,:in2) AND d.masterID IS NULL "
+            sqlJS += "GROUP BY proc_status "
+            # sql to read task params
+            sqlTP = "SELECT taskParams FROM {0}.JEDI_TaskParams WHERE jediTaskID=:jediTaskID ".format(panda_config.schemaJEDI)
+            # start transaction
+            self.conn.begin()
+            self.cur.arraysize = 100000 
+            # get datasets
+            inDSs = set()
+            outDSs = set()
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            varMap[':in1'] = 'input'
+            varMap[':in2'] = 'pseudo_input'
+            varMap[':out'] = 'output'
+            self.cur.execute(sqlD+comment, varMap)
+            resList = self.cur.fetchall()
+            for datasetName, containerName, datasetType in resList:
+                # use container name if not empty
+                if containerName not in [None,'']:
+                    targetName = containerName
+                else:
+                    targetName = datasetName
+                if datasetType == 'output':
+                    outDSs.add(targetName)
+                else:
+                    inDSs.add(targetName)
+            inDSs = list(inDSs)
+            inDSs.sort()
+            outDSs = list(outDSs)
+            outDSs.sort()
+            # get job status
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            varMap[':in1'] = 'input'
+            varMap[':in2'] = 'pseudo_input'
+            self.cur.execute(sqlJS+comment, varMap)
+            resJS = self.cur.fetchall()
+            jobStatMap = dict()
+            for proc_status, ninputs in resJS:
+                jobStatMap[proc_status] = ninputs
+            psList = jobStatMap.keys()
+            psList.sort()
+            retDict['statistics'] = ','.join(['{0}*{1}'.format(j, jobStatMap[j]) for j in psList])
+            # command line parameters
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            self.cur.execute(sqlTP+comment, varMap)
+            retStr = ''
+            for tmpItem, in self.cur:
+                try:
+                    retStr = tmpItem.read()
+                except AttributeError:
+                    retStr = str(tmpItem)
+                break
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # decode json
+            taskParamsJson = json.loads(retStr)
+            if 'cliParams' in taskParamsJson:
+                retDict['cliParams'] = taskParamsJson['cliParams']
+            else:
+                retDict['cliParams'] = ''
+            tmpLog.debug("{0}".format(str(retDict)))
             return retDict
         except:
             # roll back

@@ -704,6 +704,16 @@ class JobSpec(object):
 
 
 
+    # check if scout job
+    def isScoutJob(self):
+        if self.specialHandling is not None:
+            items = self.specialHandling.split(',')
+        else:
+            items = []
+        return self._tagForSH['scoutJob'] in items
+
+
+
     # decrement attemptNr of events only when failed
     def decAttOnFailedES(self):
         if self.specialHandling is not None:

@@ -1,5 +1,8 @@
 Release Notes
 
+* 4/2/2019
+  * added fullFlag in getJediTasksInTimeRange
+
 * 3/26/2019
   * using supError* for invalid batchID
   * using supError* for worker's error reporting
