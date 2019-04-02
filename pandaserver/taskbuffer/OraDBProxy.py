@@ -14918,8 +14918,8 @@ class DBProxy:
         methodName += " < jediTaskID={0} >".format(jediTaskID)
         tmpLog = LogWrapper(_logger,methodName)
         try:
-            retDict = {'inDS':'','outDS':'','statistics':'','PandaID':set(),
-                       'mergeStatus':None,'mergePandaID':set()}
+            retDict = {'inDS':'','outDS':'','statistics':'','PandaID': [],
+                       'mergeStatus':None,'mergePandaID': []}
             # sql to get datasets
             sqlD  = 'SELECT datasetName,containerName,type '
             sqlD += 'FROM {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
