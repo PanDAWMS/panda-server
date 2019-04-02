@@ -14665,7 +14665,7 @@ class DBProxy:
 
 
     # get active JediTasks in a time range
-    def getJediTasksInTimeRange(self, dn, timeRange, fullFlag=False):
+    def getJediTasksInTimeRange(self, dn, timeRange, fullFlag=False, minTaskID=None):
         comment = ' /* DBProxy.getJediTasksInTimeRange */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         _logger.debug("{0} : DN={1} range={2} full={3}".format(methodName, dn, timeRange.strftime('%Y-%m-%d %H:%M:%S'), fullFlag))
@@ -14679,6 +14679,8 @@ class DBProxy:
                         'transUses','transHome','architecture','reqID','creationDate',
                         'site','cloud','taskName']
             sql  = 'SELECT '
+            if fullFlag:
+                sql += '* FROM (SELECT '
             for tmpAttr in attrList:
                 sql += '{0},'.format(tmpAttr)
             sql  = sql[:-1]
@@ -14688,6 +14690,11 @@ class DBProxy:
             varMap[':userName'] = compactDN
             varMap[':prodSourceLabel']  = 'user'
             varMap[':modificationTime'] = timeRange
+            if minTaskID is not None:
+                sql += "AND jediTaskID>:minTaskID "
+                varMap[':minTaskID'] = minTaskID
+            if fullFlag:
+                sql += "ORDER BY jediTaskID) WHERE rownum<=500 "
             # start transaction
             self.conn.begin()
             # select
@@ -14950,8 +14957,10 @@ class DBProxy:
                     inDSs.add(targetName)
             inDSs = list(inDSs)
             inDSs.sort()
+            retDict['inDS'] = ','.join(inDSs)
             outDSs = list(outDSs)
             outDSs.sort()
+            retDict['outDS'] = ','.join(outDSs)
             # get job status
             varMap = {}
             varMap[':jediTaskID'] = jediTaskID
