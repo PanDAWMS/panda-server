@@ -330,7 +330,11 @@ class TaskBuffer:
                         ddmBackEnd = job.getDdmBackEnd()
                         # reset specialHandling
                         specialHandling = specialHandling[:-1]
+                        # scouts
+                        isScout = job.isScoutJob()
                         job.specialHandling = specialHandling
+                        if isScout:
+                            job.setScoutJobFlag()
                         # set DDM backend
                         if ddmBackEnd != None:
                             job.setDdmBackEnd(ddmBackEnd)
