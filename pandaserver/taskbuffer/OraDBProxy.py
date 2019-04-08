@@ -6432,7 +6432,11 @@ class DBProxy:
         comment = ' /* DBProxy.addMetaData */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         tmpLog = LogWrapper(_logger,methodName+" <PandaID={0}>".format(pandaID))
-        tmpLog.debug("start")
+        tmpLog.debug("start {0}".format(newStatus))
+        # discard metadata for failed jobs
+        if newStatus == 'failed':
+            tmpLog.debug('skip')
+            return True
         sqlJ  = "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
         sqlJ += "UNION "
         sqlJ += "SELECT jobStatus FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID "
