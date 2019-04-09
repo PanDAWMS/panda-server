@@ -13612,7 +13612,7 @@ class DBProxy:
                                     or tmpKey in ['site','cloud','includedSite','excludedSite',
                                                   'cliParams','nFilesPerJob','nFiles','nEvents',
                                                   'nGBPerJob','fixedSandbox','ignoreMissingInDS',
-                                                  'currentPriority', 'priority']:
+                                                  'currentPriority', 'priority', 'nMaxFilesPerJob']:
                                 if tmpKey == 'priority':
                                     tmpKey = 'currentPriority'
                                 newTaskParams[tmpKey] = tmpVal
