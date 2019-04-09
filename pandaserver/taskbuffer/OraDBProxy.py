@@ -3284,42 +3284,6 @@ class DBProxy:
             sql1+= "AND jediTaskID=:taskID "
             getValMap[':taskID'] = taskID
 
-        # country group
-        specialHandled = False
-        if prodSourceLabel == 'user':
-            # update pledge resource ratio
-            self.getPledgeResourceRatio()
-            # other country is allowed to use the pilot
-            if allowOtherCountry=='True' and self.beyondPledgeRatio.has_key(siteName) and self.beyondPledgeRatio[siteName] > 0:
-                # check if countryGroup needs to be used for beyond-pledge
-                if self.checkCountryGroupForBeyondPledge(siteName):
-                    countryGroup = self.beyondPledgeRatio[siteName]['countryGroup']
-                    specialHandled = True
-                else:
-                    countryGroup = ''
-            # countryGroup
-            if not countryGroup in ['',None]:
-                sql1+= "AND countryGroup IN ("
-                idxCountry = 1
-                for tmpCountry in countryGroup.split(','):
-                    tmpKey = ":countryGroup%s" % idxCountry
-                    sql1+= "%s," % tmpKey
-                    getValMap[tmpKey] = tmpCountry
-                    idxCountry += 1
-                sql1 = sql1[:-1]
-                sql1+= ") "
-            # workingGroup
-            if not workingGroup in ['',None]:
-                sql1+= "AND workingGroup IN ("
-                idxWorking = 1
-                for tmpWorking in workingGroup.split(','):
-                    tmpKey = ":workingGroup%s" % idxWorking
-                    sql1+= "%s," % tmpKey
-                    getValMap[tmpKey] = tmpWorking
-                    idxWorking += 1
-                sql1 = sql1[:-1]
-                sql1+= ") "
-                
         # production share
         if prodSourceLabel in ['managed', None, 'sharetest']:
             aggSitesForFairshare = []
@@ -3429,38 +3393,11 @@ class DBProxy:
                         toGetPandaIDs = True
                         pandaIDs = []
                         specialHandlingMap = {}
-                        # get max priority for analysis jobs
-                        if prodSourceLabel in ['panda','user']:
-                            sqlMX = "SELECT /*+ INDEX_RS_ASC(tab JOBSACTIVE4_COMPSITESTATUS_IDX) */ MAX(currentPriority) FROM ATLAS_PANDA.jobsActive4 tab "
-                            sqlMX += sql1
-                            if global_share_sql:
-                                sqlMX = 'SELECT * FROM (' + sqlMX
-                                sqlMX += global_share_sql
-
-                            _logger.debug(sqlMX+comment+str(getValMap))
-
-                            # start transaction
-                            self.conn.begin()
-                            # select
-                            self.cur.arraysize = 10                            
-                            self.cur.execute(sqlMX+comment, getValMap)
-                            tmpPriority, = self.cur.fetchone()
-                            # commit
-                            if not self._commit():
-                                raise RuntimeError, 'Commit error'
-                            # no jobs
-                            if tmpPriority == None:
-                                toGetPandaIDs = False
-                            else:
-                                # set priority
-                                getValMap[':currentPriority'] = tmpPriority
 
                         if toGetPandaIDs:
                             # get PandaIDs
                             sqlP = "SELECT /*+ INDEX_RS_ASC(tab (PRODSOURCELABEL COMPUTINGSITE JOBSTATUS) ) */ PandaID,currentPriority,specialHandling FROM ATLAS_PANDA.jobsActive4 tab "
                             sqlP += sql1
-                            if ':currentPriority' in getValMap:
-                                sqlP += "AND currentPriority=:currentPriority "
 
                             if global_share_sql:
                                 sqlP = 'SELECT * FROM (' + sqlP
@@ -3476,7 +3413,6 @@ class DBProxy:
                             # commit
                             if not self._commit():
                                 raise RuntimeError, 'Commit error'
-                            maxCurrentPriority = None
 
                             for tmpPandaID, tmpCurrentPriority, tmpSpecialHandling in resIDs:
                                 pandaIDs.append(tmpPandaID)
@@ -3509,17 +3445,7 @@ class DBProxy:
                                 if schedulerID is not None:
                                     sqlJ+= ",schedulerID=:schedulerID"
                                     varMap[':schedulerID'] = schedulerID
-                                # set special handlng
-                                if specialHandled:
-                                    sqlJ+= ",specialHandling=:specialHandling"
-                                    spString = 'localpool'
-                                    if specialHandlingMap.has_key(tmpPandaID) and isinstance(specialHandlingMap[tmpPandaID],types.StringType):
-                                        if not spString in specialHandlingMap[tmpPandaID]:
-                                            varMap[':specialHandling'] = specialHandlingMap[tmpPandaID]+','+spString
-                                        else:
-                                            varMap[':specialHandling'] = specialHandlingMap[tmpPandaID]
-                                    else:
-                                        varMap[':specialHandling'] = spString
+
                                 # background flag
                                 if background != True:
                                     sqlJ+= ",jobExecutionID=0"
