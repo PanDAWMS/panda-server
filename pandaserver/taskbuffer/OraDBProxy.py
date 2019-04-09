@@ -20307,9 +20307,8 @@ class DBProxy:
                 and re.match(share.prodsourcelabel, task.prodSourceLabel) is None:
             return False
 
-        if (share.workinggroup is not None and task.workingGroup is not None \
-                and re.match(share.workinggroup, task.workingGroup) is None)\
-                or (share.workinggroup is not None and task.workingGroup is None):
+        if share.workinggroup is not None and task.workingGroup is not None \
+                and re.match(share.workinggroup, task.workingGroup) is None:
             return False
 
         if share.campaign is not None and task.campaign \
