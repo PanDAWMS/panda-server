@@ -3329,12 +3329,12 @@ class DBProxy:
             # update fareshare policy
             self.getFaresharePolicy()
 
-            # and not using_site_capability:
-            global_share_sql, global_share_varmap = self.getCriteriaForGlobalShares(siteName, maxAttemptIDx)
+        # generate the global share sorting
+        global_share_sql, global_share_varmap = self.getCriteriaForGlobalShares(siteName, maxAttemptIDx)
 
-            if global_share_varmap:  # copy the var map, but not the sql, since it has to be at the very end
-                for tmpShareKey in global_share_varmap.keys():
-                    getValMap[tmpShareKey] = global_share_varmap[tmpShareKey]
+        if global_share_varmap:  # copy the var map, but not the sql, since it has to be at the very end
+            for tmpShareKey in global_share_varmap.keys():
+                getValMap[tmpShareKey] = global_share_varmap[tmpShareKey]
 
         # sql2 is query to get the DB entry for a specific PanDA ID
         sql2 = "SELECT %s FROM ATLAS_PANDA.jobsActive4 " % JobSpec.columnNames()
