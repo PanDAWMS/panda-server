@@ -33,7 +33,7 @@ class JobSpec(object):
                    'avgRSS','avgVMEM','avgSWAP','avgPSS','maxWalltime','nucleus','eventService',
                    'failedAttempt','hs06sec', 'gshare', 'hs06','totRCHAR','totWCHAR','totRBYTES',
                    'totWBYTES','rateRCHAR','rateWCHAR','rateRBYTES','rateWBYTES','resource_type',
-                   'diskIO'
+                   'diskIO', 'memory_leak'
                    )
     # slots
     __slots__ = _attributes+('Files','_changedAttrs')

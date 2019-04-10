@@ -1,5 +1,8 @@
 Release Notes
 
+* 4/10/2019
+  * added memory_leak to jobs
+
 * 4/2/2019
   * added fullFlag in getJediTasksInTimeRange
 

@@ -2183,6 +2183,16 @@ class DBProxy:
                         varMap[':%s' % key] = param[key][1:]
                 except:
                     pass
+            if key == 'jobMetrics':
+                try:
+                    tmpM = re.search('leak=(\d+\.*\d+)', param[key])
+                    if tmpM is not None:
+                        memoryLeak = long(float(tmpM.group(1)))
+                        tmpKey = 'memory_leak'
+                        sql1 += ',{0}=:{0}'.format(tmpKey)
+                        varMap[':{0}'.format(tmpKey)] = memoryLeak
+                except Exception:
+                    pass
         sql1W = " WHERE PandaID=:PandaID "
         varMap[':PandaID'] = pandaID
         if attemptNr != None:
