@@ -3284,15 +3284,6 @@ class DBProxy:
             sql1+= "AND jediTaskID=:taskID "
             getValMap[':taskID'] = taskID
 
-        # production share
-        if prodSourceLabel in ['managed', None, 'sharetest']:
-            aggSitesForFairshare = []
-            if aggSiteMap.has_key(siteName):
-                aggSitesForFairshare = aggSiteMap[siteName].keys()
-
-            # update fareshare policy
-            self.getFaresharePolicy()
-
         # generate the global share sorting
         global_share_sql, global_share_varmap = self.getCriteriaForGlobalShares(siteName, maxAttemptIDx)
 
