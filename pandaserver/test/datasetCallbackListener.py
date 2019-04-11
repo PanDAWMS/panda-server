@@ -11,7 +11,6 @@ import datetime
 import cPickle as pickle
 import stomp
 
-from dq2.common import log as logging
 from config import panda_config
 from brokerage.SiteMapper import SiteMapper
 from dataservice import DataServiceUtils
