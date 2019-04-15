@@ -20913,8 +20913,9 @@ class DBProxy:
 
                 # add running status in case these jobs also need to be reassigned
                 if reassign_running:
-                    jobstatus = '{0}, :running'.format(jobstatus)
+                    jobstatus = '{0}, :running, :starting'.format(jobstatus)
                     var_map[':running'] = 'running'
+                    var_map[':starting'] = 'starting'
 
                 # update the jobs
                 sql_jobs = """
