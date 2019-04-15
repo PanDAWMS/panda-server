@@ -979,8 +979,8 @@ class UserIF:
 
 
     # reassign share
-    def reassignShare(self, jedi_task_ids, share_dest):
-        return self.taskBuffer.reassignShare(jedi_task_ids, share_dest)
+    def reassignShare(self, jedi_task_ids, share_dest, reassign_running):
+        return self.taskBuffer.reassignShare(jedi_task_ids, share_dest, reassign_running)
 
 
     # list tasks in share
@@ -2349,7 +2349,7 @@ def getTaskStatus(req,jediTaskID):
 
 
 # reassign share
-def reassignShare(req, jedi_task_ids_pickle, share):
+def reassignShare(req, jedi_task_ids_pickle, share, reassign_running):
     # check security
     if not isSecure(req):
         return pickle.dumps((False,'secure connection is required'))
@@ -2363,12 +2363,14 @@ def reassignShare(req, jedi_task_ids_pickle, share):
         return pickle.dumps((False,"production or pilot role required"))
 
     jedi_task_ids = WrappedPickle.loads(jedi_task_ids_pickle)
-    _logger.debug('reassignShare: jedi_task_ids: {0}, share: {1}'.format(jedi_task_ids, share))
+    _logger.debug('reassignShare: jedi_task_ids: {0}, share: {1}, reassign_running: {2}'.format(jedi_task_ids,
+                                                                                                share,
+                                                                                                reassign_running))
 
     if not ((isinstance(jedi_task_ids, list) or (isinstance(jedi_task_ids, tuple)) and isinstance(share, str))):
         return pickle.dumps((False, 'jedi_task_ids must be tuple/list and share must be string'))
 
-    ret = userIF.reassignShare(jedi_task_ids, share)
+    ret = userIF.reassignShare(jedi_task_ids, share, reassign_running)
     return pickle.dumps(ret)
 
 

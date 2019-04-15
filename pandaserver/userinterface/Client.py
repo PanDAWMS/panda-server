@@ -2159,7 +2159,7 @@ def getTaskStatus(jediTaskID):
 
 
 # reassign specified tasks (and their jobs) to a new share
-def reassignShare(jedi_task_ids, share):
+def reassignShare(jedi_task_ids, share, reassign_running=False):
     """
        args:
            jedi_task_ids: task ids to act on
@@ -2179,10 +2179,12 @@ def reassignShare(jedi_task_ids, share):
     curl.sslKey  = _x509()
 
     jedi_task_ids_pickle = pickle.dumps(jedi_task_ids)
+    change_running_pickle = pickle.dumps(reassign_running)
     # execute
     url = baseURLSSL + '/reassignShare'
     data = {'jedi_task_ids_pickle': jedi_task_ids_pickle,
-            'share': share}
+            'share': share,
+            'reassign_running': change_running_pickle}
     status, output = curl.post(url, data)
 
     try:

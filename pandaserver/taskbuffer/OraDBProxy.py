@@ -20344,8 +20344,7 @@ class DBProxy:
         # Share not found
         return False
 
-
-    def reassignShare(self, jedi_task_ids, gshare):
+    def reassignShare(self, jedi_task_ids, gshare, reassign_running):
         """
         Will reassign all tasks and their jobs that have not yet completed to specified share
         @param jedi_task_ids: task ids
@@ -20387,20 +20386,28 @@ class DBProxy:
 
                 self.cur.execute(sql_task + comment, var_map)
 
-                # update the jobs
-                sql_jobs = """
-                       UPDATE ATLAS_PANDA.{0} set gshare=:gshare
-                       WHERE jeditaskid IN ({1})
-                       AND jobstatus IN (:pending, :defined, :assigned, :waiting, :activated)
-                       """
                 var_map[':pending'] = 'pending'
                 var_map[':defined'] = 'defined'
                 var_map[':assigned'] = 'assigned'
                 var_map[':waiting'] = 'waiting'
                 var_map[':activated'] = 'activated'
+                jobstatus = ':pending, :defined, :assigned, :waiting, :activated'
+
+                # add running status in case these jobs also need to be reassigned
+                if reassign_running:
+                    jobstatus = '{0}, :running, :starting'.format(jobstatus)
+                    var_map[':running'] = 'running'
+                    var_map[':starting'] = 'starting'
+
+                # update the jobs
+                sql_jobs = """
+                       UPDATE ATLAS_PANDA.{0} set gshare=:gshare
+                       WHERE jeditaskid IN ({1})
+                       AND jobstatus IN ({2})
+                       """
 
                 for table in ['jobsactive4', 'jobswaiting4', 'jobsdefined4']:
-                    self.cur.execute(sql_jobs.format(table, jtid_bindings) + comment, var_map)
+                    self.cur.execute(sql_jobs.format(table, jtid_bindings, jobstatus) + comment, var_map)
 
             # commit
             if not self._commit():
