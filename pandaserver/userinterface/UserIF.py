@@ -728,9 +728,9 @@ class UserIF:
 
 
     # get active JediTasks in a time range
-    def getJediTasksInTimeRange(self,dn,timeRange):
+    def getJediTasksInTimeRange(self, dn, timeRange, fullFlag, minTaskID):
         # get IDs
-        ret = self.taskBuffer.getJediTasksInTimeRange(dn,timeRange)
+        ret = self.taskBuffer.getJediTasksInTimeRange(dn, timeRange, fullFlag, minTaskID)
         # serialize 
         return pickle.dumps(ret)
 
@@ -1674,7 +1674,7 @@ def getJobIDsInTimeRange(req,timeRange,dn=None):
 
 
 # get active JediTasks in a time range
-def getJediTasksInTimeRange(req,timeRange,dn=None):
+def getJediTasksInTimeRange(req, timeRange, dn=None, fullFlag=None, minTaskID=None):
     # check security
     if not isSecure(req):
         return False
@@ -1683,9 +1683,17 @@ def getJediTasksInTimeRange(req,timeRange,dn=None):
         return False
     if dn == None:
         dn = _getDN(req)
+    if fullFlag == 'True':
+        fullFlag = True
+    else:
+        fullFlag = False
+    try:
+        minTaskID = long(minTaskID)
+    except Exception:
+        minTaskID = None
     _logger.debug("getJediTasksInTimeRange %s %s" % (dn,timeRange))
     # execute
-    return userIF.getJediTasksInTimeRange(dn,timeRange)
+    return userIF.getJediTasksInTimeRange(dn, timeRange, fullFlag, minTaskID)
 
 
 # get details of JediTask

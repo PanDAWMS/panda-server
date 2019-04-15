@@ -257,7 +257,7 @@ try:
                                                                                      computingSite))
             sqlC  = "SELECT COUNT(*) FROM ATLAS_PANDA.jobsActive4 "
             sqlC += "WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName "
-            sqlC += "AND jobDefinitionID=:jobDefinitionID AND jediTaskID=:jediTaskID "
+            sqlC += "AND jediTaskID=:jediTaskID "
             sqlC += "AND computingSite=:computingSite "
             sqlC += "AND NOT jobStatus IN (:jobStatus1,:jobStatus2) "
             varMap = {}
@@ -266,7 +266,6 @@ try:
             varMap[':prodSourceLabel'] = 'user'
             varMap[':jediTaskID']      = jediTaskID
             varMap[':computingSite']   = computingSite
-            varMap[':jobDefinitionID'] = jobDefinitionID
             varMap[':prodUserName']    = prodUserName
             statC,resC = taskBuffer.querySQLS(sqlC,varMap)
             # finalize if there is no non-failed jobs

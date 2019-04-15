@@ -204,6 +204,8 @@ def setEventServiceMerge(job):
                 newSpecialHandling += ','
             newSpecialHandling += esMergeToken
             job.specialHandling = newSpecialHandling
+        # remove fake flag
+        job.removeFakeJobToIgnore()
     except:
         pass
 

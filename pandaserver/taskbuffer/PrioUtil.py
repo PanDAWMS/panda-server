@@ -2,6 +2,14 @@ import re
 import json
 
 
+# special permission
+PERMISSION_KEY = 'k'
+PERMISSION_PROXY = 'p'
+PERMISSION_SUPER_USER = 's'
+PERMISSION_SUPER_GROUP = 'g'
+
+
+
 # convert UTF-8 to ASCII in json dumps
 def unicodeConvert(input):
     if isinstance(input,dict):

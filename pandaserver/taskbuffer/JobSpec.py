@@ -33,7 +33,7 @@ class JobSpec(object):
                    'avgRSS','avgVMEM','avgSWAP','avgPSS','maxWalltime','nucleus','eventService',
                    'failedAttempt','hs06sec', 'gshare', 'hs06','totRCHAR','totWCHAR','totRBYTES',
                    'totWBYTES','rateRCHAR','rateWCHAR','rateRBYTES','rateWBYTES','resource_type',
-                   'diskIO'
+                   'diskIO', 'memory_leak'
                    )
     # slots
     __slots__ = _attributes+('Files','_changedAttrs')
@@ -54,6 +54,7 @@ class JobSpec(object):
                     'pilotErrorDiag'         : 500,
                     'exeErrorDiag'           : 500,
                     'jobSubStatus'           : 80,
+                    'supErrorDiag'           : 250,
                     }
     # tag for special handling
     _tagForSH = {'altStgOut'          : 'ao',
@@ -61,6 +62,7 @@ class JobSpec(object):
                  'notDiscardEvents'   : 'de',
                  'decAttOnFailedES'   : 'df',
                  'dynamicNumEvents'   : 'dy',
+                 'fakeJobToIgnore'    : 'fake',
                  'homeCloud'          : 'hc',
                  'inFilePosEvtNum'    : 'if',
                  'lumiBlock'          : 'lb',
@@ -702,6 +704,16 @@ class JobSpec(object):
 
 
 
+    # check if scout job
+    def isScoutJob(self):
+        if self.specialHandling is not None:
+            items = self.specialHandling.split(',')
+        else:
+            items = []
+        return self._tagForSH['scoutJob'] in items
+
+
+
     # decrement attemptNr of events only when failed
     def decAttOnFailedES(self):
         if self.specialHandling is not None:
@@ -718,6 +730,29 @@ class JobSpec(object):
             items = []
         if self._tagForSH['decAttOnFailedES'] not in items:
             items.append(self._tagForSH['decAttOnFailedES'])
+        self.specialHandling = ','.join(items)
+
+
+
+    # set fake flag to ignore in monigoring
+    def setFakeJobToIgnore(self):
+        if self.specialHandling is not None:
+            items = self.specialHandling.split(',')
+        else:
+            items = []
+        if self._tagForSH['fakeJobToIgnore'] not in items:
+            items.append(self._tagForSH['fakeJobToIgnore'])
+        self.specialHandling = ','.join(items)
+
+
+    # remove fake flag to ignore in monigoring
+    def removeFakeJobToIgnore(self):
+        if self.specialHandling is not None:
+            items = self.specialHandling.split(',')
+        else:
+            items = []
+        if self._tagForSH['fakeJobToIgnore'] in items:
+            items.remove(self._tagForSH['fakeJobToIgnore'])
         self.specialHandling = ','.join(items)
 
 

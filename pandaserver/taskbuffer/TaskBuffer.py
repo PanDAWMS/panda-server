@@ -96,7 +96,7 @@ class TaskBuffer:
                 serNum = proxy.getNumberJobsUser(user,workingGroup=userDefinedWG)
             elif userDefinedWG and validWorkingGroup:
                 # check if group privileged
-                isSU =  proxy.isSuperUser(jobs[0].workingGroup)
+                isSU, isGU =  proxy.isSuperUser(jobs[0].workingGroup)
                 if not isSU:
                     serNum = proxy.getNumberJobsUser(user,workingGroup=jobs[0].workingGroup)
                 else:
@@ -330,7 +330,11 @@ class TaskBuffer:
                         ddmBackEnd = job.getDdmBackEnd()
                         # reset specialHandling
                         specialHandling = specialHandling[:-1]
+                        # scouts
+                        isScout = job.isScoutJob()
                         job.specialHandling = specialHandling
+                        if isScout:
+                            job.setScoutJobFlag()
                         # set DDM backend
                         if ddmBackEnd != None:
                             job.setDdmBackEnd(ddmBackEnd)
@@ -2548,7 +2552,7 @@ class TaskBuffer:
 
 
     # get active JediTasks in a time range
-    def getJediTasksInTimeRange(self,dn,timeRangeStr):
+    def getJediTasksInTimeRange(self, dn, timeRangeStr, fullFlag=False, minTaskID=None):
         # check DN
         if dn in ['NULL','','None',None]:
             return {}
@@ -2569,7 +2573,7 @@ class TaskBuffer:
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.getJediTasksInTimeRange(dn,timeRange)
+        ret = proxy.getJediTasksInTimeRange(dn, timeRange, fullFlag, minTaskID)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -3747,6 +3751,18 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # exec
         ret = proxy.getJediFileAttributes(PandaID, jediTaskID, datasetID, fileID, attrs)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # check if super user
+    def isSuperUser(self, userName):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.isSuperUser(userName)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

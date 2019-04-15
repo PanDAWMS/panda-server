@@ -43,6 +43,7 @@ from pandalogger.PandaLogger import PandaLogger
 from pandalogger.LogWrapper import LogWrapper
 from config import panda_config
 from brokerage.PandaSiteIDs import PandaSiteIDs
+from SupErrors import SupErrors
 from __builtin__ import True
 
 if panda_config.backend == 'oracle':
@@ -150,6 +151,16 @@ class DBProxy:
             type, value, traceBack = sys.exc_info()
             _logger.error("connect : %s %s" % (type,value))
             return False
+
+    def getvalue_corrector(self, value):
+        """
+        Needed to support old and new versions of cx_Oracle
+        :return:
+        """
+        if isinstance(value, list): # cx_Oracle version >= 6.3
+            return value[0]
+        else: # cx_Oracle version < 6.3
+            return value
 
     # Internal caching of a result. Use only for information with low update frequency and low memory footprint
     def memoize(f):
@@ -348,9 +359,12 @@ class DBProxy:
                 # avoid prio reduction for merge jobs 
                 pass
             else:
-                job.currentPriority = PrioUtil.calculatePriority(priorityOffset,serNum,weight)
-                if 'express' in job.specialHandling:
-                    job.currentPriority = 6000
+                if job.currentPriority not in ['NULL',None] and (job.isScoutJob() or job.currentPriority >= JobUtils.priorityTasksToJumpOver):
+                    pass
+                else:
+                    job.currentPriority = PrioUtil.calculatePriority(priorityOffset,serNum,weight)
+                    if 'express' in job.specialHandling:
+                        job.currentPriority = 6000
         elif job.prodSourceLabel == 'panda':
             job.currentPriority = 2000 + priorityOffset
             if 'express' in job.specialHandling:
@@ -469,7 +483,8 @@ class DBProxy:
             varMap[':newPandaID'] = self.cur.var(varNUMBER)
             retI = self.cur.execute(sql1+comment, varMap)
             # set PandaID
-            job.PandaID = long(self.cur.getvalue(varMap[':newPandaID']))
+            val = self.getvalue_corrector(self.cur.getvalue(varMap[':newPandaID']))
+            job.PandaID = long(val)
             # get jobsetID
             if job.jobsetID in [None,'NULL',-1]:
                 jobsetID = 0
@@ -578,7 +593,8 @@ class DBProxy:
                         varMap[':newRowID'] = self.cur.var(varNUMBER)
                         self.cur.execute(sqlFile+comment, varMap)
                         # get rowID
-                        file.row_ID = long(self.cur.getvalue(varMap[':newRowID']))
+                        val = self.getvalue_correct(self.cur.getvalue(varMap[':newRowID']))
+                        file.row_ID = long(val)
                     dynLfnIdMap[file.lfn] = file.row_ID
                     # reset changed attribute list
                     file.resetChangedList()
@@ -2167,6 +2183,16 @@ class DBProxy:
                         varMap[':%s' % key] = param[key][1:]
                 except:
                     pass
+            if key == 'jobMetrics':
+                try:
+                    tmpM = re.search('leak=(\d+\.*\d+)', param[key])
+                    if tmpM is not None:
+                        memoryLeak = long(float(tmpM.group(1)))
+                        tmpKey = 'memory_leak'
+                        sql1 += ',{0}=:{0}'.format(tmpKey)
+                        varMap[':{0}'.format(tmpKey)] = memoryLeak
+                except Exception:
+                    pass
         sql1W = " WHERE PandaID=:PandaID "
         varMap[':PandaID'] = pandaID
         if attemptNr != None:
@@ -2234,16 +2260,26 @@ class DBProxy:
                     elif oldJobStatus in ['holding', 'transferring'] and jobStatus == 'starting':
                         # don't update holding
                         _logger.debug("updateJobStatus : PandaID={0} skip to change {1} to {2} to avoid inconsistency".format(pandaID, oldJobStatus, jobStatus))
+                    elif batchID not in ['', None] and 'batchID' in param and param['batchID'] not in ['', None] \
+                            and batchID != param['batchID'] and re.search('^\d+\.*\d+$', batchID) is None \
+                            and re.search('^\d+\.*\d+$', param['batchID']) is None:
+                        # invalid batchID
+                        _logger.debug("updateJobStatus : to be killed since PandaID={0} batchID mismatch old {1} in {2} vs new {3} in {4}".format(pandaID,
+                                                                                                                                                  batchID.replace('\n',''),
+                                                                                                                                                  oldJobStatus,
+                                                                                                                                                  param['batchID'].replace('\n',''),
+                                                                                                                                                  jobStatus))
+                        ret = 'tobekilled'
+                        # set supErrorCode and supErrorDiag
+                        varMap = {}
+                        varMap[':PandaID'] = pandaID
+                        varMap[':code'] = SupErrors.error_codes['INVALID_BATCH_ID']
+                        varMap[':diag'] = 'got a update request with invalid batchID={0}'.format(param['batchID'].replace('\n',''))
+                        varMap[':diag'] = JobSpec.truncateStringAttr('supErrorDiag', varMap[':diag'])
+                        sqlSUP = "UPDATE ATLAS_PANDA.jobsActive4 SET supErrorCode=:code,supErrorDiag=:diag "
+                        sqlSUP += "WHERE PandaID=:PandaID "
+                        self.cur.execute (sqlSUP+comment, varMap)
                     else:
-                        # check batchID
-                        if batchID not in ['', None] and 'batchID' in param and param['batchID'] not in ['', None]:
-                            if batchID != param['batchID'] and re.search('^\d+$', batchID) is None and re.search('^\d+$', param['batchID']) is None:
-                                _logger.debug("updateJobStatus : to be killed since PandaID={0} batchID mismatch old {1} in {2} vs new {3} in {4}".format(pandaID,
-                                                                                                                                                          batchID.replace('\n',''),
-                                                                                                                                                          oldJobStatus,
-                                                                                                                                                          param['batchID'].replace('\n',''),
-                                                                                                                                                          jobStatus))
-                                ret = 'tobekilled'
                         # change starting to running
                         if oldJobStatus == 'running' and jobStatus == 'starting':
                             _logger.debug("updateJobStatus : PandaID={0} changed to {1} from {2} to avoid inconsistency".format(pandaID, oldJobStatus, jobStatus))
@@ -2956,7 +2992,8 @@ class DBProxy:
                                 # insert
                                 retI = self.cur.execute(sql1+comment, varMap)
                                 # set PandaID
-                                job.PandaID = long(self.cur.getvalue(varMap[':newPandaID']))
+                                val = self.getvalue_corrector(self.cur.getvalue(varMap[':newPandaID']))
+                                job.PandaID = long(val)
                                 tmpLog.debug('Generate new PandaID %s -> %s #%s' % (job.parentID,job.PandaID,job.attemptNr))
                                 # insert files
                                 sqlFile = "INSERT INTO ATLAS_PANDA.filesTable4 (%s) " % FileSpec.columnNames()
@@ -2969,7 +3006,8 @@ class DBProxy:
                                     varMap = file.valuesMap(useSeq=True)
                                     varMap[':newRowID'] = self.cur.var(varNUMBER)
                                     self.cur.execute(sqlFile+comment, varMap)
-                                    file.row_ID = long(self.cur.getvalue(varMap[':newRowID']))
+                                    val = self.getvalue_corrector(self.cur.getvalue(varMap[':newRowID']))
+                                    file.row_ID = long(val)
                                 # job parameters
                                 sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters) VALUES (:PandaID,:param)"
                                 varMap = {}
@@ -3177,8 +3215,6 @@ class DBProxy:
                                    },
                       }
 
-        # Flag to indicate that global share clauses are being used
-        global_share_used = False
         # Global share clauses and varmap
         global_share_sql, global_share_varmap = None, {}
         # Number of PanDAIDs that will be tried
@@ -3252,79 +3288,18 @@ class DBProxy:
                 compactDN = prodUserID
             sql1+= "AND prodUserName=:prodUserName " 
             getValMap[':prodUserName'] = compactDN
+        
         # taskID
         if not taskID in [None,'NULL']:
             sql1+= "AND jediTaskID=:taskID "
             getValMap[':taskID'] = taskID
-        # country group
-        specialHandled = False
-        if prodSourceLabel == 'user':
-            # update pledge resource ratio
-            self.getPledgeResourceRatio()
-            # other country is allowed to use the pilot
-            if allowOtherCountry=='True' and self.beyondPledgeRatio.has_key(siteName) and self.beyondPledgeRatio[siteName] > 0:
-                # check if countryGroup needs to be used for beyond-pledge
-                if self.checkCountryGroupForBeyondPledge(siteName):
-                    countryGroup = self.beyondPledgeRatio[siteName]['countryGroup']
-                    specialHandled = True
-                else:
-                    countryGroup = ''
-            # countryGroup
-            if not countryGroup in ['',None]:
-                sql1+= "AND countryGroup IN ("
-                idxCountry = 1
-                for tmpCountry in countryGroup.split(','):
-                    tmpKey = ":countryGroup%s" % idxCountry
-                    sql1+= "%s," % tmpKey
-                    getValMap[tmpKey] = tmpCountry
-                    idxCountry += 1
-                sql1 = sql1[:-1]
-                sql1+= ") "
-            # workingGroup    
-            if not workingGroup in ['',None]:
-                sql1+= "AND workingGroup IN ("
-                idxWorking = 1
-                for tmpWorking in workingGroup.split(','):
-                    tmpKey = ":workingGroup%s" % idxWorking
-                    sql1+= "%s," % tmpKey
-                    getValMap[tmpKey] = tmpWorking
-                    idxWorking += 1
-                sql1 = sql1[:-1]
-                sql1+= ") "
-        # production share
-        if prodSourceLabel in ['managed', None, 'sharetest']:
-            aggSitesForFairshare = []
-            if aggSiteMap.has_key(siteName):
-                aggSitesForFairshare = aggSiteMap[siteName].keys()
 
-            # update fareshare policy
-            self.getFaresharePolicy()
+        # generate the global share sorting
+        global_share_sql, global_share_varmap = self.getCriteriaForGlobalShares(siteName, maxAttemptIDx)
 
-            # there is a site capability defined - use the old fairshare mechanisms
-            using_site_capability = False
-
-            if self.faresharePolicy.has_key(siteName) and self.faresharePolicy[siteName]['usingCloud'] == '':
-                using_site_capability = True
-
-            # if global shares are active and there is no site capability defined
-            if hasattr(panda_config, 'global_shares') and panda_config.global_shares == True:
-                global_share_used = True
-
-            if global_share_used:
-                # and not using_site_capability:
-                global_share_sql, global_share_varmap = self.getCriteriaForGlobalShares(siteName, maxAttemptIDx)
-
-                if global_share_varmap:  # copy the var map, but not the sql, since it has to be at the very end
-                    for tmpShareKey in global_share_varmap.keys():
-                        getValMap[tmpShareKey] = global_share_varmap[tmpShareKey]
-            else:
-                shareSQL, shareVarMap = self.getCriteriaForProdShare(siteName, aggSitesForFairshare)
-
-                if shareVarMap != {}:
-                    sql1 += shareSQL
-                    for tmpShareKey in shareVarMap.keys():
-                        getValMap[tmpShareKey] = shareVarMap[tmpShareKey]
-
+        if global_share_varmap:  # copy the var map, but not the sql, since it has to be at the very end
+            for tmpShareKey in global_share_varmap.keys():
+                getValMap[tmpShareKey] = global_share_varmap[tmpShareKey]
 
         # sql2 is query to get the DB entry for a specific PanDA ID
         sql2 = "SELECT %s FROM ATLAS_PANDA.jobsActive4 " % JobSpec.columnNames()
@@ -3413,46 +3388,17 @@ class DBProxy:
                 for iTry in range(nTry):
                     # set siteID
                     tmpSiteID = siteName
-                    if siteName.startswith('ANALY_BNL_ATLAS'):
-                        tmpSiteID = 'ANALY_BNL_ATLAS_1'
                     # get file lock
                     _logger.debug("getJobs : %s -> lock" % strName)
                     if (datetime.datetime.utcnow() - timeStart) < timeLimit:
                         toGetPandaIDs = True
                         pandaIDs = []
                         specialHandlingMap = {}
-                        # get max priority for analysis jobs
-                        if prodSourceLabel in ['panda','user']:
-                            sqlMX = "SELECT /*+ INDEX_RS_ASC(tab JOBSACTIVE4_COMPSITESTATUS_IDX) */ MAX(currentPriority) FROM ATLAS_PANDA.jobsActive4 tab "
-                            sqlMX += sql1
-                            if global_share_sql:
-                                sqlMX = 'SELECT * FROM (' + sqlMX
-                                sqlMX += global_share_sql
-
-                            _logger.debug(sqlMX+comment+str(getValMap))
-
-                            # start transaction
-                            self.conn.begin()
-                            # select
-                            self.cur.arraysize = 10                            
-                            self.cur.execute(sqlMX+comment, getValMap)
-                            tmpPriority, = self.cur.fetchone()
-                            # commit
-                            if not self._commit():
-                                raise RuntimeError, 'Commit error'
-                            # no jobs
-                            if tmpPriority == None:
-                                toGetPandaIDs = False
-                            else:
-                                # set priority
-                                getValMap[':currentPriority'] = tmpPriority
 
                         if toGetPandaIDs:
                             # get PandaIDs
                             sqlP = "SELECT /*+ INDEX_RS_ASC(tab (PRODSOURCELABEL COMPUTINGSITE JOBSTATUS) ) */ PandaID,currentPriority,specialHandling FROM ATLAS_PANDA.jobsActive4 tab "
                             sqlP += sql1
-                            if ':currentPriority' in getValMap:
-                                sqlP += "AND currentPriority=:currentPriority "
 
                             if global_share_sql:
                                 sqlP = 'SELECT * FROM (' + sqlP
@@ -3468,21 +3414,11 @@ class DBProxy:
                             # commit
                             if not self._commit():
                                 raise RuntimeError, 'Commit error'
-                            maxCurrentPriority = None
 
-                            # If global share was used, the result is coming pre-sorted
-                            if global_share_used:
-                                for tmpPandaID, tmpCurrentPriority, tmpSpecialHandling in resIDs:
-                                    pandaIDs.append(tmpPandaID)
-                                    specialHandlingMap[tmpPandaID] = tmpSpecialHandling
-                            else:  # If global share was not used, get max priority and min PandaID
-                                for tmpPandaID, tmpCurrentPriority, tmpSpecialHandling in resIDs:
-                                    if maxCurrentPriority == None or maxCurrentPriority < tmpCurrentPriority:
-                                        maxCurrentPriority = tmpCurrentPriority
-                                        pandaIDs = [tmpPandaID]
-                                    elif maxCurrentPriority == tmpCurrentPriority:
-                                        pandaIDs.append(tmpPandaID)
-                                    specialHandlingMap[tmpPandaID] = tmpSpecialHandling
+                            for tmpPandaID, tmpCurrentPriority, tmpSpecialHandling in resIDs:
+                                pandaIDs.append(tmpPandaID)
+                                specialHandlingMap[tmpPandaID] = tmpSpecialHandling
+
                                 # sort
                                 pandaIDs.sort()
                         if pandaIDs == []:
@@ -3510,17 +3446,7 @@ class DBProxy:
                                 if schedulerID is not None:
                                     sqlJ+= ",schedulerID=:schedulerID"
                                     varMap[':schedulerID'] = schedulerID
-                                # set special handlng
-                                if specialHandled:
-                                    sqlJ+= ",specialHandling=:specialHandling"
-                                    spString = 'localpool'
-                                    if specialHandlingMap.has_key(tmpPandaID) and isinstance(specialHandlingMap[tmpPandaID],types.StringType):
-                                        if not spString in specialHandlingMap[tmpPandaID]:
-                                            varMap[':specialHandling'] = specialHandlingMap[tmpPandaID]+','+spString
-                                        else:
-                                            varMap[':specialHandling'] = specialHandlingMap[tmpPandaID]
-                                    else:
-                                        varMap[':specialHandling'] = spString
+
                                 # background flag
                                 if background != True:
                                     sqlJ+= ",jobExecutionID=0"
@@ -6433,7 +6359,11 @@ class DBProxy:
         comment = ' /* DBProxy.addMetaData */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         tmpLog = LogWrapper(_logger,methodName+" <PandaID={0}>".format(pandaID))
-        tmpLog.debug("start")
+        tmpLog.debug("start {0}".format(newStatus))
+        # discard metadata for failed jobs
+        if newStatus == 'failed':
+            tmpLog.debug('skip')
+            return True
         sqlJ  = "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
         sqlJ += "UNION "
         sqlJ += "SELECT jobStatus FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID "
@@ -7098,7 +7028,8 @@ class DBProxy:
             varMap[':newID']  = self.cur.var(varNUMBER)                       
             self.cur.execute(sql+comment, varMap)
             # get id
-            cloudTask.id = long(self.cur.getvalue(varMap[':newID']))
+            val = self.getvalue_corrector(self.cur.getvalue(varMap[':newID']))
+            cloudTask.id = long(val)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -8965,9 +8896,10 @@ class DBProxy:
         if compactDN in ['','NULL',None]:
             compactDN = dn
         if workingGroup != None:    
-            sql0 = "SELECT COUNT(*) FROM %s WHERE prodUserName=:prodUserName AND prodSourceLabel=:prodSourceLabel AND workingGroup=:workingGroup"
+            sql0 = "SELECT COUNT(*) FROM %s WHERE prodUserName=:prodUserName AND prodSourceLabel=:prodSourceLabel AND workingGroup=:workingGroup "
         else:
-            sql0 = "SELECT COUNT(*) FROM %s WHERE prodUserName=:prodUserName AND prodSourceLabel=:prodSourceLabel AND workingGroup IS NULL"
+            sql0 = "SELECT COUNT(*) FROM %s WHERE prodUserName=:prodUserName AND prodSourceLabel=:prodSourceLabel AND workingGroup IS NULL "
+        sql0 += "AND NOT jobStatus IN (:failed,:merging) "
         nTry = 1
         nJob = 0
         for iTry in range(nTry):
@@ -8979,6 +8911,8 @@ class DBProxy:
                     varMap = {}
                     varMap[':prodUserName'] = compactDN
                     varMap[':prodSourceLabel'] = 'user'
+                    varMap[':failed'] = 'failed'
+                    varMap[':merging'] = 'merging'
                     if workingGroup != None:
                         varMap[':workingGroup'] = workingGroup
                     self.cur.arraysize = 10
@@ -10331,575 +10265,6 @@ class DBProxy:
             return ret_empty
 
 
-    # get selection criteria for share of production activities
-    def getCriteriaForProdShare(self,siteName,aggSites=[]):
-        comment = ' /* DBProxy.getCriteriaForProdShare */'        
-        # return for no criteria
-        retForNone = '',{}
-        # don't update fareshare policy, it was just updated  within getJobs
-        # self.getFaresharePolicy()
-        # not defined
-        if not self.faresharePolicy.has_key(siteName):
-            return retForNone
-        _logger.debug("getCriteriaForProdShare %s %s" % (siteName,str(aggSites)))
-        try:
-            # definition for fareshare
-            usingGroup = self.faresharePolicy[siteName]['usingGroup'] 
-            usingType  = self.faresharePolicy[siteName]['usingType'] 
-            usingID    = self.faresharePolicy[siteName]['usingID']
-            usingPrio  = self.faresharePolicy[siteName]['usingPrio']
-            usingCloud = self.faresharePolicy[siteName]['usingCloud']
-            shareDefList   = []
-            for tmpDefItem in self.faresharePolicy[siteName]['policyList']:
-                shareDefList.append({'policy':tmpDefItem,'count':{},'maxprio':{},'hs06':{}})
-            # check if countryGroup has activated jobs
-            varMapAll = {}
-            varMapAll[':prodSourceLabel'] = 'managed'
-            sqlH  = "SELECT /*+ RESULT_CACHE */ jobStatus,"
-            if usingGroup:
-                sqlH += 'workingGroup,'
-            if usingType:
-                sqlH += 'processingType,'
-            if usingID:
-                sqlH += 'workqueue_id,'
-            if usingPrio:
-                sqlH += 'currentPriority,'
-            sqlH += "SUM(num_of_jobs),MAX(currentPriority),SUM(num_of_jobs*coreCount*corePower) FROM ("
-            sqlH += "SELECT num_of_jobs,jobStatus,workingGroup,processingType,workqueue_id,currentPriority,tabS.corePower,"
-            sqlH += "CASE WHEN tabS.coreCount IS NULL THEN 1 ELSE tabS.corecount END coreCount "
-            sqlH += "FROM ATLAS_PANDA.MV_JOBSACTIVE4_STATS tabJ,ATLAS_PANDAMETA.schedconfig tabS "
-            varMapSite = {}
-            sqlSite = "WHERE computingSite=tabS.siteid AND computingSite IN ("
-            tmpIdx = 0
-            for tmpSiteName in [siteName]+aggSites:
-                tmpKey = ':computingSite%s' % tmpIdx
-                varMapSite[tmpKey] = tmpSiteName
-                sqlSite += '%s,' % tmpKey
-                tmpIdx += 1
-            sqlSite = sqlSite[:-1]
-            sqlSite += ") "
-            if usingCloud != '':
-                varMapCloud = {}
-                if usingCloud == 'WORLD':
-                    sqlCloud = "WHERE computingSite=tabS.siteid "
-                else:
-                    sqlCloud = "WHERE computingSite=tabS.siteid AND tabS.cloud=:cloud "
-                    varMapCloud[':cloud'] = usingCloud
-            sqlT = "AND prodSourceLabel=:prodSourceLabel) "
-            sqlT += "GROUP BY jobStatus"
-            if usingGroup:
-                sqlT += ',workingGroup'
-            if usingType:
-                sqlT += ',processingType'
-            if usingID:
-                sqlT += ',workqueue_id'
-            if usingPrio:
-                sqlT += ',currentPriority'
-            # set autocommit on
-            self.conn.begin()
-            self.cur.arraysize = 100000
-            # get site info
-            varMap = {}
-            for tmpKey,tmpVal in varMapAll.iteritems():
-                varMap[tmpKey] = tmpVal
-            for tmpKey,tmpVal in varMapSite.iteritems():
-                varMap[tmpKey] = tmpVal
-            sql = sqlH + sqlSite + sqlT
-            self.cur.execute(sql+comment,varMap)
-            res = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError, 'Commit error'
-            # no info about the site
-            if res == None or len(res) == 0:
-                _logger.debug("getCriteriaForProdShare %s : ret=None - no jobs" % siteName)
-                return retForNone
-            nSiteRow = len(res)
-            # get cloud info
-            if usingCloud != '':
-                # set autocommit on
-                self.conn.begin()
-                self.cur.arraysize = 100000
-                # get site info
-                varMap = {}
-                for tmpKey,tmpVal in varMapAll.iteritems():
-                    varMap[tmpKey] = tmpVal
-                for tmpKey,tmpVal in varMapCloud.iteritems():
-                    varMap[tmpKey] = tmpVal
-                sql = sqlH + sqlCloud + sqlT
-                self.cur.execute(sql+comment,varMap)
-                resC = self.cur.fetchall()
-                # commit
-                if not self._commit():
-                    raise RuntimeError, 'Commit error'
-                if resC != None:
-                    res += resC
-            # loop over all rows
-            workingGroupInQueueMap = {}
-            processGroupInQueueMap = {} 
-            for indexRow,tmpItem in enumerate(res):
-                tmpIdx = 0
-                # map some job status to running
-                jobStatus = tmpItem[tmpIdx]
-                if jobStatus in ['sent','starting']:
-                    jobStatus = 'running'
-                # use cloud info for running jobs if cloud share is used
-                if usingCloud != '':
-                    if jobStatus == 'running' and indexRow < nSiteRow:
-                        continue
-                    if jobStatus != 'running' and indexRow >= nSiteRow:
-                        continue
-                tmpIdx += 1
-                if usingGroup:
-                    workingGroup = tmpItem[tmpIdx]
-                    tmpIdx += 1
-                else:
-                    workingGroup = None
-                if usingType:
-                    processingType = tmpItem[tmpIdx]
-                    tmpIdx += 1
-                    # get process group
-                    processGroup = ProcessGroups.getProcessGroup(processingType)
-                else:
-                    processingType = None
-                    processGroup = None
-                if usingID:
-                    workqueue_id = tmpItem[tmpIdx]
-                    tmpIdx += 1
-                if usingPrio:
-                    currentPriority = tmpItem[tmpIdx]
-                    tmpIdx += 1
-                else:
-                    currentPriority = None
-                cnt = tmpItem[tmpIdx]
-                tmpIdx += 1
-                maxPriority = tmpItem[tmpIdx]
-                tmpIdx += 1
-                hs06 = tmpItem[tmpIdx]
-                # append processingType list    
-                if not processGroupInQueueMap.has_key(processGroup):
-                    processGroupInQueueMap[processGroup] = []
-                if not processingType in processGroupInQueueMap[processGroup]:
-                    processGroupInQueueMap[processGroup].append(processingType)
-                # count the number of jobs for each policy
-                for tmpShareDef in shareDefList:
-                    policyName = tmpShareDef['policy']['name']                    
-                    # use different list based on usage of priority
-                    if tmpShareDef['policy']['priority'] == None:
-                        groupInDefList = self.faresharePolicy[siteName]['groupList']
-                        typeInDefList  = self.faresharePolicy[siteName]['typeList'][tmpShareDef['policy']['group']]
-                        idInDefList    = self.faresharePolicy[siteName]['idList']
-                    else:
-                        groupInDefList = self.faresharePolicy[siteName]['groupListWithPrio']
-                        typeInDefList  = self.faresharePolicy[siteName]['typeListWithPrio'][tmpShareDef['policy']['group']]
-                        idInDefList    = self.faresharePolicy[siteName]['idListWithPrio']
-                    # check working group
-                    if usingGroup and not usingID:
-                        if tmpShareDef['policy']['group'] == None:
-                            # catchall doesn't contain WGs used by other policies
-                            if workingGroup != None and workingGroup in groupInDefList:
-                                continue
-                            # check for wildcard
-                            toBeSkippedFlag = False
-                            for tmpPattern in groupInDefList:
-                                if '*' in tmpPattern:
-                                    tmpPattern = '^' + tmpPattern.replace('*','.*') + '$'
-                                else:
-                                    tmpPattern = '^' + tmpPattern + '$'
-                                # don't use WG if it is included in other policies
-                                if workingGroup != None and re.search(tmpPattern,workingGroup) != None:
-                                    toBeSkippedFlag = True
-                                    break
-                            if toBeSkippedFlag:
-                                continue
-                        else:
-                            # needs to be matched if it is specified in the policy
-                            if '*' in tmpShareDef['policy']['group']:
-                                # using wild card
-                                tmpPattern = '^' + tmpShareDef['policy']['group'].replace('*','.*') + '$'
-                            else:
-                                tmpPattern = '^' + tmpShareDef['policy']['group'] + '$'
-                            if workingGroup == None or re.search(tmpPattern,workingGroup) == None:
-                                continue
-                            # collect real WGs per defined WG mainly for wildcard
-                            if not workingGroupInQueueMap.has_key(tmpShareDef['policy']['group']):
-                                workingGroupInQueueMap[tmpShareDef['policy']['group']] = []
-                            if not workingGroup in workingGroupInQueueMap[tmpShareDef['policy']['group']]:
-                                workingGroupInQueueMap[tmpShareDef['policy']['group']].append(workingGroup)
-                    # check processingType
-                    if usingType and not usingID:
-                        if tmpShareDef['policy']['type'] == None:
-                            # catchall doesn't contain processGroups used by other policies
-                            if processGroup != None and processGroup in typeInDefList:
-                                continue
-                        else:
-                            # needs to be matched if it is specified in the policy
-                            if tmpShareDef['policy']['type'] != processGroup:
-                                continue
-                    # check workqueue_id
-                    if usingID:
-                        if tmpShareDef['policy']['id'] == None:
-                            if workqueue_id != None and workqueue_id in idInDefList:
-                                continue
-                        else:
-                            if tmpShareDef['policy']['id'] != workqueue_id:
-                                continue
-                    # check priority    
-                    if usingPrio:
-                        if currentPriority != None and tmpShareDef['policy']['priority'] != None:
-                            if tmpShareDef['policy']['prioCondition'] == '>':
-                                if currentPriority <= tmpShareDef['policy']['priority']:
-                                    continue
-                            elif tmpShareDef['policy']['prioCondition'] == '>=':
-                                if currentPriority < tmpShareDef['policy']['priority']:
-                                    continue
-                            elif tmpShareDef['policy']['prioCondition'] == '<=':
-                                if currentPriority > tmpShareDef['policy']['priority']:
-                                    continue
-                            elif tmpShareDef['policy']['prioCondition'] == '<':    
-                                if currentPriority >= tmpShareDef['policy']['priority']:
-                                    continue
-                    # append job status
-                    if not tmpShareDef['count'].has_key(jobStatus):
-                        tmpShareDef['count'][jobStatus] = 0
-                    # sum
-                    tmpShareDef['count'][jobStatus] += cnt
-                    if not tmpShareDef['hs06'].has_key(jobStatus):
-                        tmpShareDef['hs06'][jobStatus] = 0
-                    tmpShareDef['hs06'][jobStatus] += hs06
-                    # max priority
-                    if not tmpShareDef['maxprio'].has_key(jobStatus):
-                        tmpShareDef['maxprio'][jobStatus] = maxPriority
-                    elif tmpShareDef['maxprio'][jobStatus] < maxPriority:
-                        tmpShareDef['maxprio'][jobStatus] = maxPriority
-            # loop over all policies to calcurate total number of running jobs and total share
-            totalRunning = 0
-            totalRunHS06 = 0
-            shareMap     = {}
-            msgShare     = 'share->'
-            msgShareMap  = {}
-            totalShareNonGP       = 0
-            totalRunningNonGP     = 0
-            totalActiveShareNonGP = 0
-            for tmpShareDef in shareDefList:
-                tmpNumMap = tmpShareDef['count']
-                policyName = tmpShareDef['policy']['name']
-                # policies with priorities are used only to limit the numer of jobs
-                if tmpShareDef['policy']['priority'] != None:
-                    continue
-                # the number of activated jobs
-                if not tmpNumMap.has_key('activated') or tmpNumMap['activated'] == 0:
-                    tmpNumActivated = 0
-                else:
-                    tmpNumActivated = tmpNumMap['activated']
-                # get share, removing % 
-                tmpShareValue = tmpShareDef['policy']['share'][:-1]
-                tmpShareValue = int(tmpShareValue)
-                # get the number of runnig                
-                if not tmpNumMap.has_key('running'):
-                    tmpNumRunning = 0
-                else:
-                    tmpNumRunning = tmpNumMap['running']
-                # get HS06
-                if 'running' in tmpShareDef['hs06']:
-                    tmpNumRunHS06 = tmpShareDef['hs06']['running']
-                else:
-                    tmpNumRunHS06 = 0
-                # debug message for share
-                msgShareMap[policyName] = '%s:activated=%s:running=%s:hs06=%s' % (policyName,tmpNumActivated,
-                                                                                  tmpNumRunning,tmpNumRunHS06)
-                # get total share and total number of running jobs for non-GP
-                if tmpShareDef['policy']['group'] == None:
-                    totalShareNonGP += tmpShareValue
-                    totalRunningNonGP += tmpNumRunning
-                    # get total share for active non-GP
-                    if tmpNumActivated != 0:
-                        totalActiveShareNonGP += tmpShareValue
-                # sum
-                totalRunning += tmpNumRunning
-                totalRunHS06 += tmpNumRunHS06
-                # not use the policy if no activated jobs
-                if tmpNumActivated == 0:
-                    continue
-                # max priority
-                maxPriority = 0
-                if tmpShareDef['maxprio'].has_key('activated'):
-                    maxPriority = tmpShareDef['maxprio']['activated']
-                # append
-                shareMap[policyName] = {
-                    'share':tmpShareValue,
-                    'running':tmpNumRunning,
-                    'policy':tmpShareDef['policy'],
-                    'maxprio':maxPriority,
-                    'runHS06':tmpNumRunHS06,
-                    }
-            # re-normalize when some non-GP policies are inactive
-            if totalShareNonGP != totalActiveShareNonGP and totalActiveShareNonGP != 0:
-                for policyName,tmpVarMap in shareMap.iteritems():
-                    # essentially non-GP share is multiplied by totalShareNonGP/totalActiveShareNonGP
-                    if tmpVarMap['policy']['group'] == None:
-                        tmpVarMap['share'] *= totalShareNonGP
-                    else:
-                        tmpVarMap['share'] *= totalActiveShareNonGP
-            # make message with share info    
-            for policyName in msgShareMap.keys():
-                if shareMap.has_key(policyName):
-                    msgShare += '%s:share=%s,' % (msgShareMap[policyName],shareMap[policyName]['share'])
-                else:
-                    msgShare += '%s:share=0,' % msgShareMap[policyName]
-            # get total share
-            totalShare = 0
-            for policyName,tmpVarMap in shareMap.iteritems():
-                totalShare += tmpVarMap['share']
-            msgShare = msgShare[:-1]
-            # loop over all policies to check if the priority constraint should be activated
-            prioToBeImposed = []
-            msgPrio = ''
-            if usingPrio:            
-                msgPrio += 'prio->'
-                for tmpShareDef in shareDefList:
-                    tmpNumMap = tmpShareDef['count']
-                    policyName = tmpShareDef['policy']['name']
-                    # only policies with priorities are used to limit the numer of jobs
-                    if tmpShareDef['policy']['priority'] == None:
-                        continue
-                    # get the number of runnig                
-                    if not tmpNumMap.has_key('running'):
-                        tmpNumRunning = 0
-                    else:
-                        tmpNumRunning = tmpNumMap['running']
-                    # the number of activated jobs
-                    if not tmpNumMap.has_key('activated') or tmpNumMap['activated'] == 0:
-                        tmpNumActivated = 0
-                    else:
-                        tmpNumActivated = tmpNumMap['activated']
-                    # get limit
-                    tmpLimitValue = tmpShareDef['policy']['share']
-                    # check if more jobs are running than the limit
-                    toBeImposed = False
-                    if tmpLimitValue.endswith('%'):
-                        # get HS06 for running jobs
-                        if 'running' in tmpShareDef['hs06']:
-                            tmpNumRunHS06 = tmpShareDef['hs06']['running']
-                        else:
-                            tmpNumRunHS06 = 0
-                        # percentage based
-                        tmpLimitValue = tmpLimitValue[:-1]
-                        if float(tmpNumRunHS06) > float(totalRunHS06) * float(tmpLimitValue) / 100.0:
-                            toBeImposed = True
-                        # debug message for prio
-                        msgPrio += '%s:total=%s:running=%s:impose=%s,' % (policyName,totalRunning,tmpNumRunning,toBeImposed)
-                    else:
-                        # number based
-                        if tmpNumRunning > int(tmpLimitValue):
-                            toBeImposed = True
-                        # debug message for prio
-                        msgPrio += '%s:running=%s:impose=%s,' % (policyName,tmpNumRunning,toBeImposed)
-                    # append
-                    if toBeImposed:
-                        prioToBeImposed.append(tmpShareDef['policy'])
-                msgPrio = msgPrio[:-1]
-            # no activated
-            if shareMap == {}:
-                _logger.debug("getCriteriaForProdShare %s : ret=None - no activated" % siteName)
-                return retForNone
-            # no running
-            if totalRunning == 0 or totalRunHS06 == 0:
-                _logger.debug("getCriteriaForProdShare %s : ret=None - no running" % siteName)
-                return retForNone
-            # zero share
-            if totalShare == 0:
-                _logger.debug("getCriteriaForProdShare %s : ret=None - zero share" % siteName)
-                return retForNone
-            # select the group where share most diverges from the definition
-            lowestShareRatio  = None
-            lowestSharePolicy = None
-            for policyName,tmpVarMap in shareMap.iteritems():
-                # ignore zero share
-                if tmpVarMap['share'] == 0:
-                    continue
-                tmpShareDef = float(tmpVarMap['share']) / float(totalShare)
-                tmpShareNow = float(tmpVarMap['runHS06']) / float(totalRunHS06) 
-                tmpShareRatio = tmpShareNow / tmpShareDef
-                # take max priority into account for cloud share
-                if usingCloud != '':
-                    # skip over share
-                    if tmpShareNow > tmpShareDef:
-                        continue
-                    tmpShareRatio /= float(1000 + tmpVarMap['maxprio'])
-                if lowestShareRatio == None or lowestShareRatio > tmpShareRatio:
-                    lowestShareRatio  = tmpShareRatio
-                    lowestSharePolicy = policyName
-            # make criteria
-            retVarMap = {}
-            retStr = ''
-            if lowestSharePolicy != None:
-                tmpShareDef = shareMap[lowestSharePolicy]['policy']
-                # working group
-                if tmpShareDef['group'] == None:
-                    groupInDefList = self.faresharePolicy[siteName]['groupList']
-                    # catch all except WGs used by other policies
-                    if groupInDefList != []:
-                        groupUsedInClause = []
-                        tmpIdx = 0
-                        # use real name of workingGroup
-                        for tmpGroupIdx in groupInDefList:
-                            if not workingGroupInQueueMap.has_key(tmpGroupIdx):
-                                continue
-                            for tmpGroup in workingGroupInQueueMap[tmpGroupIdx]:
-                                if tmpGroup in groupUsedInClause:
-                                    continue
-                                if tmpGroup == None:
-                                    continue
-                                # add AND at the first WG
-                                if groupUsedInClause == []:
-                                    retStr += 'AND workingGroup NOT IN ('
-                                # add WG
-                                tmpKey = ':shareWG%s' % tmpIdx
-                                retVarMap[tmpKey] = tmpGroup
-                                retStr += '%s,' % tmpKey
-                                tmpIdx += 1
-                                # append
-                                groupUsedInClause.append(tmpGroup)
-                        if groupUsedInClause != []:        
-                            retStr = retStr[:-1]
-                            retStr += ') '
-                else:
-                    # match with one WG
-                    if workingGroupInQueueMap.has_key(tmpShareDef['group']):
-                        groupUsedInClause = []
-                        tmpIdx = 0
-                        # use real name of workingGroup
-                        for tmpGroup in workingGroupInQueueMap[tmpShareDef['group']]:
-                            if tmpGroup in groupUsedInClause:
-                                continue
-                            # add AND at the first WG
-                            if groupUsedInClause == []:
-                                retStr += 'AND workingGroup IN ('
-                            # add WG
-                            tmpKey = ':shareWG%s' % tmpIdx
-                            retVarMap[tmpKey] = tmpGroup
-                            retStr += '%s,' % tmpKey
-                            tmpIdx += 1
-                            # append
-                            groupUsedInClause.append(tmpGroup)
-                        if groupUsedInClause != []:        
-                            retStr = retStr[:-1]
-                            retStr += ') '
-                # processing type
-                if tmpShareDef['type'] == None:
-                    typeInDefList  = self.faresharePolicy[siteName]['typeList'][tmpShareDef['group']]
-                    # catch all except WGs used by other policies
-                    if typeInDefList != []:
-                        # get the list of processingTypes from the list of processGroups
-                        retVarMapP = {}
-                        retStrP = 'AND processingType NOT IN ('
-                        tmpIdx  = 0
-                        for tmpTypeGroup in typeInDefList:
-                            if processGroupInQueueMap.has_key(tmpTypeGroup):
-                                for tmpType in processGroupInQueueMap[tmpTypeGroup]:
-                                    tmpKey = ':sharePT%s' % tmpIdx
-                                    retVarMapP[tmpKey] = tmpType
-                                    retStrP += '%s,' % tmpKey
-                                    tmpIdx += 1
-                        retStrP = retStrP[:-1]
-                        retStrP += ') '
-                        # copy
-                        if retVarMapP != {}:
-                            retStr += retStrP
-                            for tmpKey,tmpType in retVarMapP.iteritems():
-                                retVarMap[tmpKey] = tmpType
-                else:
-                    # match with one processingGroup
-                    if processGroupInQueueMap.has_key(tmpShareDef['type']) and processGroupInQueueMap[tmpShareDef['type']] != []:
-                        retStr += 'AND processingType IN ('
-                        tmpIdx = 0
-                        for tmpType in processGroupInQueueMap[tmpShareDef['type']]:
-                            tmpKey = ':sharePT%s' % tmpIdx
-                            retVarMap[tmpKey] = tmpType
-                            retStr += '%s,' % tmpKey
-                            tmpIdx += 1
-                        retStr = retStr[:-1]
-                        retStr += ') '
-                # workqueue_id
-                if tmpShareDef['id'] == None:
-                    idInDefList  = self.faresharePolicy[siteName]['idList']
-                    # catch all except IDs used by other policies
-                    if idInDefList != []:
-                        # get the list of processingTypes from the list of processGroups
-                        retVarMapP = {}
-                        retStrP = 'AND workqueue_id NOT IN ('
-                        tmpIdx  = 0
-                        for tmpID in idInDefList:
-                            tmpKey = ':shareID%s' % tmpIdx
-                            retVarMapP[tmpKey] = tmpID
-                            retStrP += '%s,' % tmpKey
-                            tmpIdx += 1
-                        retStrP = retStrP[:-1]
-                        retStrP += ') '
-                        # copy
-                        if retVarMapP != {}:
-                            retStr += retStrP
-                            for tmpKey,tmpType in retVarMapP.iteritems():
-                                retVarMap[tmpKey] = tmpType
-                else:
-                    # match with one ID
-                    retStr += 'AND workqueue_id IN ('
-                    tmpIdx = 0
-                    tmpKey = ':shareID%s' % tmpIdx
-                    retVarMap[tmpKey] = tmpShareDef['id']
-                    retStr += '%s,' % tmpKey
-                    tmpIdx += 1
-                    retStr = retStr[:-1]
-                    retStr += ') '
-            # priority
-            tmpIdx = 0
-            for tmpDefItem in prioToBeImposed:
-                if tmpDefItem['group'] in [None,tmpShareDef['group']] and \
-                   tmpDefItem['type'] in [None,tmpShareDef['type']] and \
-                   tmpDefItem['id'] in [None,tmpShareDef['id']]:
-                    if tmpDefItem['prioCondition'] == '>':
-                        retStrP = '<='
-                    elif tmpDefItem['prioCondition'] == '>=':
-                        retStrP = '<'
-                    elif tmpDefItem['prioCondition'] == '<=':
-                        retStrP = '>'                        
-                    elif tmpDefItem['prioCondition'] == '<':
-                        retStrP = '>='
-                    else:
-                        continue
-                    tmpKey = ':sharePrio%s' % tmpIdx
-                    retVarMap[tmpKey] = tmpDefItem['priority']
-                    retStr += ('AND currentPriority%s%s ' % (retStrP,tmpKey)) 
-                    tmpIdx += 1
-            _logger.debug("getCriteriaForProdShare %s : sql='%s' var=%s cloud=%s %s %s" % \
-                          (siteName,retStr,str(retVarMap),usingCloud,msgShare,msgPrio))
-            # append criteria for test jobs
-            if retStr != '':
-                retVarMap[':shareLabel1'] = 'managed'
-                retVarMap[':shareLabel2'] = 'test'
-                retVarMap[':shareLabel3'] = 'prod_test'
-                retVarMap[':shareLabel4'] = 'install'
-                retVarMap[':shareLabel5'] = 'pmerge'
-                retVarMap[':shareLabel6'] = 'urgent'
-                retVarMap[':esMerge'] = 2
-                newRetStr  = 'AND (prodSourceLabel IN (:shareLabel2,:shareLabel3,:shareLabel4) '
-                newRetStr += 'OR (processingType IN (:shareLabel5,:shareLabel6)) '
-                newRetStr += 'OR eventService=:esMerge '
-                newRetStr += 'OR (prodSourceLabel=:shareLabel1 ' + retStr + '))'
-                retStr = newRetStr
-            return retStr,retVarMap
-        except:
-            errtype,errvalue = sys.exc_info()[:2]
-            errStr = "getCriteriaForProdShare %s : %s %s" % (siteName,errtype,errvalue)
-            errStr.strip()
-            errStr += traceback.format_exc()
-            _logger.error(errStr)
-            # roll back
-            self._rollback()
-            return retForNone
-
-
     # get beyond pledge resource ratio
     def getPledgeResourceRatio(self):
         comment = ' /* DBProxy.getPledgeResourceRatio */'
@@ -11572,11 +10937,11 @@ class DBProxy:
                 raise RuntimeError, 'Commit error'
             for compactDN,gridpref in resList:
                 # users authorized for proxy retrieval
-                if 'p' in gridpref:
+                if PrioUtil.PERMISSION_PROXY in gridpref:
                     if not compactDN in allowProxy:
                         allowProxy.append(compactDN)
                 # users authorized for key-pair retrieval 
-                if 'k' in gridpref:
+                if PrioUtil.PERMISSION_KEY in gridpref:
                     if not compactDN in allowKey:
                         allowKey.append(compactDN)
             retMap['allowKey'] = allowKey
@@ -11750,7 +11115,8 @@ class DBProxy:
         tmpLog = LogWrapper(_logger,methodName+" <{0}>".format(userName))
         tmpLog.debug("start")
         try:
-            retVal = False
+            isSU = False
+            isSG = False
             # start transaction
             self.conn.begin()
             # check gridpref
@@ -11768,16 +11134,18 @@ class DBProxy:
             if res != None:
                 gridpref, = res
                 if gridpref != None:
-                    if 's' in gridpref:
-                        retVal = True
-            tmpLog.debug("done with {0}".format(retVal))
-            return retVal
+                    if PrioUtil.PERMISSION_SUPER_USER in gridpref:
+                        isSU = True
+                    if PrioUtil.PERMISSION_SUPER_GROUP in gridpref:
+                        isSG = True
+            tmpLog.debug("done with superUser={0} superGroup={1}".format(isSU, isSG))
+            return isSU, isSG
         except:
             # roll back
             self._rollback()
             # error
             self.dumpErrorMessage(_logger,methodName)
-            return False
+            return False, False
 
 
 
@@ -14170,7 +13538,10 @@ class DBProxy:
                             if tmpKey.startswith('dsFor') \
                                     or tmpKey in ['site','cloud','includedSite','excludedSite',
                                                   'cliParams','nFilesPerJob','nFiles','nEvents',
-                                                  'nGBPerJob','fixedSandbox','ignoreMissingInDS']:
+                                                  'nGBPerJob','fixedSandbox','ignoreMissingInDS',
+                                                  'currentPriority', 'priority', 'nMaxFilesPerJob']:
+                                if tmpKey == 'priority':
+                                    tmpKey = 'currentPriority'
                                 newTaskParams[tmpKey] = tmpVal
                                 if tmpKey == 'fixedSandbox' and 'sourceURL' in taskParamsJson:
                                     newTaskParams['sourceURL'] = taskParamsJson['sourceURL']
@@ -14244,7 +13615,8 @@ class DBProxy:
                     varMap[':priority'] = 100
                 varMap[':current_priority'] = varMap[':priority']
                 self.cur.execute(sqlT+comment,varMap)
-                jediTaskID = long(self.cur.getvalue(varMap[':jediTaskID']))
+                val = self.getvalue_corrector(self.cur.getvalue(varMap[':jediTaskID']))
+                jediTaskID = long(val)
                 if properErrorCode:
                     retVal = "succeeded. new jediTaskID={0}".format(jediTaskID)
                 else:
@@ -14642,10 +14014,10 @@ class DBProxy:
 
 
     # get active JediTasks in a time range
-    def getJediTasksInTimeRange(self,dn,timeRange):
+    def getJediTasksInTimeRange(self, dn, timeRange, fullFlag=False, minTaskID=None):
         comment = ' /* DBProxy.getJediTasksInTimeRange */'
         methodName = comment.split(' ')[-2].split('.')[-1]
-        _logger.debug("{0} : DN={1} range={2}".format(methodName,dn,timeRange.strftime('%Y-%m-%d %H:%M:%S')))
+        _logger.debug("{0} : DN={1} range={2} full={3}".format(methodName, dn, timeRange.strftime('%Y-%m-%d %H:%M:%S'), fullFlag))
         try:
             # get compact DN
             compactDN = self.cleanUserID(dn)
@@ -14656,6 +14028,8 @@ class DBProxy:
                         'transUses','transHome','architecture','reqID','creationDate',
                         'site','cloud','taskName']
             sql  = 'SELECT '
+            if fullFlag:
+                sql += '* FROM (SELECT '
             for tmpAttr in attrList:
                 sql += '{0},'.format(tmpAttr)
             sql  = sql[:-1]
@@ -14665,6 +14039,11 @@ class DBProxy:
             varMap[':userName'] = compactDN
             varMap[':prodSourceLabel']  = 'user'
             varMap[':modificationTime'] = timeRange
+            if minTaskID is not None:
+                sql += "AND jediTaskID>:minTaskID "
+                varMap[':minTaskID'] = minTaskID
+            if fullFlag:
+                sql += "ORDER BY jediTaskID) WHERE rownum<=500 "
             # start transaction
             self.conn.begin()
             # select
@@ -14681,6 +14060,11 @@ class DBProxy:
                 tmpDict = {}
                 for tmpIdx,tmpAttr in enumerate(attrList):
                     tmpDict[tmpAttr] = tmpRes[tmpIdx]
+                if fullFlag:
+                    # additional info
+                    addInfo = self.getJediTaskDigest(tmpDict['jediTaskID'])
+                    for k, v in addInfo.iteritems():
+                        tmpDict[k] = v
                 retTasks[tmpDict['reqID']] = tmpDict
             _logger.debug("{0} : {1}".format(methodName,str(retTasks)))
             return retTasks
@@ -14866,6 +14250,100 @@ class DBProxy:
             retDict['PandaID'] = list(retDict['PandaID'])
             retDict['mergePandaID'] = list(retDict['mergePandaID'])
             _logger.debug("{0} : {1}".format(methodName,str(retDict)))
+            return retDict
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return {}
+
+
+
+    # get JediTask digest
+    def getJediTaskDigest(self, jediTaskID):
+        comment = ' /* DBProxy.getJediTaskDigest */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " < jediTaskID={0} >".format(jediTaskID)
+        tmpLog = LogWrapper(_logger,methodName)
+        try:
+            retDict = {'inDS':'','outDS':'','statistics':'','PandaID': [],
+                       'mergeStatus':None,'mergePandaID': []}
+            # sql to get datasets
+            sqlD  = 'SELECT datasetName,containerName,type '
+            sqlD += 'FROM {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
+            sqlD += "WHERE jediTaskID=:jediTaskID AND ((type IN (:in1,:in2) AND masterID IS NULL) OR type=:out) "
+            sqlD += "GROUP BY datasetName,containerName,type "
+            # sql to get job status
+            sqlJS  = "SELECT proc_status,COUNT(*) FROM {0}.JEDI_Datasets d,{0}.JEDI_Dataset_Contents c ".format(panda_config.schemaJEDI)
+            sqlJS += "WHERE c.jediTaskID=d.jediTaskID AND c.datasetID=d.datasetID AND d.jediTaskID=:jediTaskID "
+            sqlJS += "AND d.type IN (:in1,:in2) AND d.masterID IS NULL "
+            sqlJS += "GROUP BY proc_status "
+            # sql to read task params
+            sqlTP = "SELECT taskParams FROM {0}.JEDI_TaskParams WHERE jediTaskID=:jediTaskID ".format(panda_config.schemaJEDI)
+            # start transaction
+            self.conn.begin()
+            self.cur.arraysize = 100000 
+            # get datasets
+            inDSs = set()
+            outDSs = set()
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            varMap[':in1'] = 'input'
+            varMap[':in2'] = 'pseudo_input'
+            varMap[':out'] = 'output'
+            self.cur.execute(sqlD+comment, varMap)
+            resList = self.cur.fetchall()
+            for datasetName, containerName, datasetType in resList:
+                # use container name if not empty
+                if containerName not in [None,'']:
+                    targetName = containerName
+                else:
+                    targetName = datasetName
+                if datasetType == 'output':
+                    outDSs.add(targetName)
+                else:
+                    inDSs.add(targetName)
+            inDSs = list(inDSs)
+            inDSs.sort()
+            retDict['inDS'] = ','.join(inDSs)
+            outDSs = list(outDSs)
+            outDSs.sort()
+            retDict['outDS'] = ','.join(outDSs)
+            # get job status
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            varMap[':in1'] = 'input'
+            varMap[':in2'] = 'pseudo_input'
+            self.cur.execute(sqlJS+comment, varMap)
+            resJS = self.cur.fetchall()
+            jobStatMap = dict()
+            for proc_status, ninputs in resJS:
+                jobStatMap[proc_status] = ninputs
+            psList = jobStatMap.keys()
+            psList.sort()
+            retDict['statistics'] = ','.join(['{0}*{1}'.format(j, jobStatMap[j]) for j in psList])
+            # command line parameters
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            self.cur.execute(sqlTP+comment, varMap)
+            retStr = ''
+            for tmpItem, in self.cur:
+                try:
+                    retStr = tmpItem.read()
+                except AttributeError:
+                    retStr = str(tmpItem)
+                break
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # decode json
+            taskParamsJson = json.loads(retStr)
+            if 'cliParams' in taskParamsJson:
+                retDict['cliParams'] = taskParamsJson['cliParams']
+            else:
+                retDict['cliParams'] = ''
+            tmpLog.debug("{0}".format(str(retDict)))
             return retDict
         except:
             # roll back
@@ -15364,7 +14842,8 @@ class DBProxy:
                                     varMap = zipFileSpec.valuesMap(useSeq=True)
                                     varMap[':newRowID'] = self.cur.var(varNUMBER)
                                     self.cur.execute(sqlF+comment, varMap)
-                                    zipRow_ID = long(self.cur.getvalue(varMap[':newRowID']))
+                                    val = self.getvalue_corrector(self.cur.getvalue(varMap[':newRowID']))
+                                    zipRow_ID = long(val)
                                     zipRowIdMap[eventDict['zipFile']['lfn']] = zipRow_ID
                                     # make an empty file to trigger registration for zip files in Adder
                                     if zipJobSpec.registerEsFiles():
@@ -16083,7 +15562,8 @@ class DBProxy:
                 if not noNewJob:
                     retI = self.cur.execute(sql1+comment, varMap)
                     # set PandaID
-                    jobSpec.PandaID = long(self.cur.getvalue(varMap[':newPandaID']))
+                    val = self.getvalue_corrector(self.cur.getvalue(varMap[':newPandaID']))
+                    jobSpec.PandaID = long(val)
                 else:
                     jobSpec.PandaID = None
                 msgStr = '{0} Generate new PandaID -> {1}#{2} at {3} '.format(methodName,jobSpec.PandaID,jobSpec.attemptNr,
@@ -16122,7 +15602,8 @@ class DBProxy:
                     varMap = fileSpec.valuesMap(useSeq=True)
                     varMap[':newRowID'] = self.cur.var(varNUMBER)
                     self.cur.execute(sqlFile+comment, varMap)
-                    fileSpec.row_ID = long(self.cur.getvalue(varMap[':newRowID']))
+                    val = self.getvalue_corrector(self.cur.getvalue(varMap[':newRowID']))
+                    fileSpec.row_ID = long(val)
                     # change max failure for esmerge
                     if doMerging and fileSpec.type in ['input', 'pseudo_input']:
                          varMap = {}
@@ -20522,6 +20003,7 @@ class DBProxy:
         hs_ignore_total = 0
         for hs_entry in hs_distribution_raw:
             gshare, status_group, hs = hs_entry
+            hs = float(hs)
             hs_distribution_dict.setdefault(gshare, {GlobalShares.PLEDGED: 0, GlobalShares.QUEUED: 0, GlobalShares.EXECUTING: 0})
             hs_distribution_dict[gshare][status_group] = hs
             # calculate totals
@@ -21205,6 +20687,8 @@ class DBProxy:
                 sqlJAA  = "UPDATE ATLAS_PANDA.jobsActive4 SET modificationTime=CURRENT_DATE WHERE PandaID=:PandaID AND jobStatus IN (:js1,:js2) "
                 sqlJAE  = "UPDATE ATLAS_PANDA.jobsActive4 SET taskBufferErrorCode=:code,taskBufferErrorDiag=:diag "
                 sqlJAE += "WHERE PandaID=:PandaID "
+                sqlJSE  = "UPDATE {0} SET supErrorCode=:code,supErrorDiag=:diag,stateChangeTime=CURRENT_DATE "
+                sqlJSE += "WHERE PandaID=:PandaID AND modificationTime>CURRENT_DATE-30"
                 varMap = dict()
                 varMap[':harvesterID'] = harvesterID
                 varMap[':workerID'] = workerData['workerID']
@@ -21239,6 +20723,13 @@ class DBProxy:
                                     open(tmpFileName, 'w').close()
                                 except:
                                     pass
+                        if workerSpec.errorCode not in [None, 0]:
+                            for tableName in ['ATLAS_PANDA.jobsActive4', 'ATLAS_PANDA.jobsArchived4', 'ATLAS_PANDAARCH.jobsArchived']:
+                                varMap[':PandaID'] = pandaID
+                                varMap[':code'] = workerSpec.errorCode
+                                varMap[':diag'] = "Diag from worker : {0}".format(workerSpec.diagMessage)
+                                varMap[':diag'] = JobSpec.truncateStringAttr('supErrorDiag', varMap[':diag'])
+                                self.cur.execute(sqlJSE.format(tableName)+comment, varMap)
                     """
                     varMap = dict()
                     varMap[':PandaID'] = pandaID
@@ -22877,7 +22368,8 @@ class DBProxy:
             # insert
             retI = self.cur.execute(sql1+comment, varMap)
             # set PandaID
-            jobSpec.PandaID = long(self.cur.getvalue(varMap[':newPandaID']))
+            val = self.getvalue_corrector(self.cur.getvalue(varMap[':newPandaID']))
+            jobSpec.PandaID = long(val)
             msgStr = 'Generate a fake co-jumbo new PandaID={0} at {1} '.format(jobSpec.PandaID, jobSpec.computingSite)
             tmp_log.debug(msgStr)
             # insert files
@@ -22895,7 +22387,8 @@ class DBProxy:
                 varMap = fileSpec.valuesMap(useSeq=True)
                 varMap[':newRowID'] = self.cur.var(varNUMBER)
                 self.cur.execute(sqlFile+comment, varMap)
-                fileSpec.row_ID = long(self.cur.getvalue(varMap[':newRowID']))
+                val = self.getvalue_correct(self.cur.getvalue(varMap[':newRowID']))
+                fileSpec.row_ID = long(val)
             # insert job parameters
             sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters) VALUES (:PandaID,:param) "
             varMap = {}
