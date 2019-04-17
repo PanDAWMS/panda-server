@@ -21033,7 +21033,7 @@ class DBProxy:
 
     # update stat of workers
     def reportWorkerStats(self, harvesterID, siteName, paramsList):
-        comment = ' /* DBProxy.reportWorkerStat */'
+        comment = ' /* DBProxy.reportWorkerStats */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         tmpLog = LogWrapper(_logger, methodName+' < harvesterID={0} siteName={1} >'.format(harvesterID, siteName))
         tmpLog.debug('start')
@@ -21054,6 +21054,8 @@ class DBProxy:
             sqlI = 'INSERT INTO ATLAS_PANDA.Harvester_Worker_Stats (harvester_ID,computingSite,resourceType,status,n_workers,lastUpdate) '
             sqlI += 'VALUES (:harvester_ID,:siteName,:resourceType,:status,:n_workers,CURRENT_DATE) '
             for resourceType, params in paramsList.iteritems():
+                if resourceType == 'Undefined':
+                    continue
                 for status, n_workers in params.iteritems():
                     varMap = dict()
                     varMap[':harvester_ID'] = harvesterID
