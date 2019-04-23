@@ -3769,6 +3769,18 @@ class TaskBuffer:
         return ret
 
 
+    # get workers for a job
+    def getWorkersForJob(self, PandaID):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getWorkersForJob(PandaID)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 

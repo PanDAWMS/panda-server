@@ -2274,7 +2274,7 @@ class DBProxy:
                         varMap = {}
                         varMap[':PandaID'] = pandaID
                         varMap[':code'] = SupErrors.error_codes['INVALID_BATCH_ID']
-                        varMap[':diag'] = 'got a update request with invalid batchID={0}'.format(param['batchID'].replace('\n',''))
+                        varMap[':diag'] = 'got an update request with invalid batchID={0}'.format(param['batchID'].replace('\n',''))
                         varMap[':diag'] = JobSpec.truncateStringAttr('supErrorDiag', varMap[':diag'])
                         sqlSUP = "UPDATE ATLAS_PANDA.jobsActive4 SET supErrorCode=:code,supErrorDiag=:diag "
                         sqlSUP += "WHERE PandaID=:PandaID "
@@ -22551,3 +22551,39 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return {}
+
+
+
+    # get workers for a job
+    def getWorkersForJob(self, PandaID):
+        comment = ' /* DBProxy.getWorkersForJob */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " < PandaID={0} >".format(PandaID)
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        try:
+            # sql to get workers
+            sqlC  = "SELECT {0} FROM ATLAS_PANDA.Harvester_Workers w, ATLAS_PANDA.Harvester_Rel_Jobs_Workers r ".format(WorkerSpec.columnNames(prefix='w'))
+            sqlC += "WHERE w.harvesterID=r.harvesterID AND w.workerID=r.workerID AND r.PandaID=:PandaID "
+            varMap = {}
+            varMap[':PandaID'] = PandaID
+            # start transaction
+            self.conn.begin()
+            self.cur.execute(sqlC+comment, varMap)
+            resCs = self.cur.fetchall()
+            retList = []
+            for resC in resCs:
+                workerSpec = WorkerSpec()
+                workerSpec.pack(resC)
+                retList.append(workerSpec)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug("got {0} workers".format(len(retList)))
+            return retList
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return []

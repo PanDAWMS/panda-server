@@ -71,9 +71,11 @@ class WorkerSpec(object):
 
         
     # return column names for INSERT
-    def columnNames(cls):
+    def columnNames(cls, prefix=None):
         ret = ""
         for attr in cls._attributes:
+            if prefix is not None:
+                ret += '{0}.'.format(prefix)
             ret += '{0},'.format(attr)
         ret  = ret[:-1]
         return ret
