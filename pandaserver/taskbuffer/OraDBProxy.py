@@ -20618,10 +20618,14 @@ class DBProxy:
                     toInsert = False
                     workerSpec.pack(resC)
                 # set new values
+                oldStatus = workerSpec.status
                 for key,val in workerData.iteritems():
                     if hasattr(workerSpec, key):
                         setattr(workerSpec, key, val)
                 workerSpec.lastUpdate = timeNow
+                if oldStatus in ['finished', 'failed', 'cancelled', 'missed']:
+                    tmpLog.debug('workerID={0} keep old status={1} instead of new {2}'.format(workerSpec.workerID, oldStatus, workerSpec.status))
+                    workerSpec.status = oldStatus
                 # insert or update
                 if toInsert:
                     # insert
