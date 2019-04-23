@@ -13,6 +13,7 @@ import traceback
 import ErrorCode
 
 import taskbuffer.ErrorCode
+from taskbuffer.JobSpec import JobSpec
 from taskbuffer.SupErrors import SupErrors
 
 from taskbuffer import EventServiceUtils
@@ -86,7 +87,9 @@ class Watcher (threading.Thread):
                                 workerSpec = workerSpecs[0]
                                 if workerSpec.status in ['finished', 'failed', 'cancelled', 'missed']:
                                     job.supErrorCode = SupErrors.error_codes['WORKER_ALREADY_DONE']
-                                    job.supErrorDiag = 'worker already {0} at {1}'.format(workerSpec.status, str(workerSpec.endTime))
+                                    job.supErrorDiag = 'worker already {0} at {1} with {2}'.format(workerSpec.status, str(workerSpec.endTime),
+                                                                                                   workerSpec.diagMessage)
+                                    job.supErrorDiag = JobSpec.truncateStringAttr('supErrorDiag', job.supErrorDiag)
                     else:
                         # job recovery failed
                         job.jobDispatcherErrorCode = ErrorCode.EC_Recovery
