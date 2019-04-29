@@ -557,7 +557,7 @@ if res == None:
 else:
     _logger.debug("# of General Watcher : %s" % len(res))    
     for pandaID,jobStatus,computingSite in res:
-        if computingSite in sitesToSkipTO and jobStatus in ['starting']:
+        if computingSite in sitesToSkipTO:
             _logger.debug("skip General Watcher for PandaID={0} at {1} since timeout is disabled for {2}".format(pandaID,computingSite,jobStatus))
             continue
         _logger.debug("General Watcher %s" % pandaID)

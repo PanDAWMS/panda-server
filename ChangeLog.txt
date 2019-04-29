@@ -1,5 +1,8 @@
 Release Notes
 
+* 4/23/2019
+  * supplemental error for lost-heartbeat jobs
+
 * 4/10/2019
   * added memory_leak to jobs
 

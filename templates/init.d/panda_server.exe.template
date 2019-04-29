@@ -149,7 +149,7 @@ start|stop)
 	echo $ARGV trying $itry
 	$HTTPD $OPTIONS -k $ARGV
 	ERROR=$?
-	sleep 1
+	sleep 5
 	if [ $ERROR = 0 ]; then
 	    check_pidfile
 	    retval=$?
