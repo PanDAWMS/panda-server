@@ -3419,8 +3419,6 @@ class DBProxy:
                                 pandaIDs.append(tmpPandaID)
                                 specialHandlingMap[tmpPandaID] = tmpSpecialHandling
 
-                                # sort
-                                pandaIDs.sort()
                         if pandaIDs == []:
                             _logger.debug("getJobs : %s -> no PandaIDs" % strName)
                             retU = 0 # retU: return from update
