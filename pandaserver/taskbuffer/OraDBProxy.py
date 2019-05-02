@@ -21598,7 +21598,7 @@ class DBProxy:
         for share in sorted_shares:
             var_map = {':queue': queue, ':gshare': share.name}
             sql = """
-                  SELECT gshare, resource_type FROM atlas_panda.jobsactive4
+                  SELECT gshare, resource_type, prodsourcelabel FROM atlas_panda.jobsactive4
                   WHERE jobstatus = 'activated'
                      AND computingsite=:queue 
                      AND gshare=:gshare 
@@ -21607,10 +21607,10 @@ class DBProxy:
             self.cur.execute(sql + comment, var_map)
             activated_jobs = self.cur.fetchall()
             tmpLog.debug('Processing share: {0}. Got {1} activated jobs'.format(share.name, len(activated_jobs)))
-            for gshare, resource_type in activated_jobs:
-                workers_queued.setdefault(resource_type, 0)
-                workers_queued[resource_type] = workers_queued[resource_type] - 1
-                if workers_queued[resource_type] <= 0:
+            for gshare, resource_type, prodsourcelabel in activated_jobs:
+                workers_queued.setdefault(prodsourcelabel, {resource_type: 0})
+                workers_queued[prodsourcelabel][resource_type] = workers_queued[resource_type] - 1
+                if workers_queued[prodsourcelabel][resource_type] <= 0:
                     # we've gone over the jobs that already have a queued worker, now we go for new workers
                     n_workers_to_submit = n_workers_to_submit - 1
 
@@ -21627,30 +21627,34 @@ class DBProxy:
         tmpLog.debug('workers_queued: {0}'.format(workers_queued))
 
         new_workers = {}
-        for resource_type in workers_queued:
-            if workers_queued[resource_type] >= 0:
-                # we have too many workers queued already, don't submit more
-                new_workers[resource_type] = 0
-            elif workers_queued[resource_type] < 0:
-                # we don't have enough workers for this resource type
-                new_workers[resource_type] = - workers_queued[resource_type] + 1
-                
-                
+        for prodsourcelabel in workers_queued:
+            new_workers.setdefault(prodsourcelabel, {})
+            for resource_type in workers_queued[prodsourcelabel]:
+                if workers_queued[prodsourcelabel][resource_type] >= 0:
+                    # we have too many workers queued already, don't submit more
+                    new_workers[prodsourcelabel][resource_type] = 0
+                elif workers_queued[prodsourcelabel][resource_type] < 0:
+                    # we don't have enough workers for this resource type
+                    new_workers[prodsourcelabel][resource_type] = - workers_queued[prodsourcelabel][resource_type] + 1
+
         # We should still submit a SCORE worker, even if there are no activated jobs to avoid queue deactivation
         workers = False
-        for resource_type in new_workers:
-            if new_workers[resource_type] > 0:
-                workers = True
-                break
+        for prodsourcelabel in new_workers:
+            for resource_type in new_workers[prodsourcelabel]:
+                if new_workers[prodsourcelabel][resource_type] > 0:
+                    workers = True
+                    break
         if not workers:
-            new_workers['SCORE'] = 1
+            new_workers['managed']['SCORE'] = 1
 
         # In case multiple harvester instances are serving a panda queue, split workers evenly between them
         new_workers_per_harvester = {}
         for harvester_id in harvester_ids:
             new_workers_per_harvester.setdefault(harvester_id, {})
-            for resource_type in new_workers:
-                new_workers_per_harvester[harvester_id][resource_type] = int(math.ceil(new_workers[resource_type] * 1.0 / len(harvester_ids)))
+            for prodsourcelabel in new_workers:
+                new_workers_per_harvester[harvester_id].setdefault(prodsourcelabel, {})
+                for resource_type in new_workers[prodsourcelabel]:
+                    new_workers_per_harvester[harvester_id][prodsourcelabel][resource_type] = int(math.ceil(new_workers[prodsourcelabel][resource_type] * 1.0 / len(harvester_ids)))
 
         tmpLog.debug('Workers to submit: {0}'.format(new_workers_per_harvester))
         tmpLog.debug('done')
