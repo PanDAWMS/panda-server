@@ -190,3 +190,14 @@ class SiteSpec(object):
         elif None in numMap[sw_id]:
             return numMap[sw_id][None]
         return None
+
+
+
+    # get max disk per core
+    def get_max_disk_per_core(self):
+        tmpVal = self.getValueFromCatchall('maxDiskPerCore')
+        try:
+            return int(tmpVal)
+        except Exception:
+            pass
+        return None
