@@ -16116,10 +16116,10 @@ class DBProxy:
 
 
     # throttle user jobs
-    def throttleUserJobs(self,prodUserName):
+    def throttleUserJobs(self, prodUserName, workingGroup):
         comment = ' /* DBProxy.throttleUserJobs */'
         methodName = comment.split(' ')[-2].split('.')[-1]
-        methodName += " <user={0}>".format(prodUserName)
+        methodName += " <user={0} group={1}>".format(prodUserName, workingGroup)
         tmpLog = LogWrapper(_logger,methodName)
         tmpLog.debug("start")
         try:
@@ -16129,6 +16129,10 @@ class DBProxy:
             sqlT += 'WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName '
             sqlT += 'AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag '
             sqlT += 'AND maxCpuCount>:maxTime '
+            if workingGroup is not None:
+                'AND workingGroup=:workingGroup '
+            else:
+                'AND workingGroup IS NULL '
             # start transaction
             self.conn.begin()
             # select
@@ -16141,6 +16145,8 @@ class DBProxy:
             varMap[':newJobStatus'] = 'throttled'
             varMap[':oldJobStatus'] = 'activated'
             varMap[':maxTime'] = 6 * 60 * 60
+            if workingGroup is not None:
+                varMap[':workingGroup'] = workingGroup
             # get datasets
             self.cur.execute(sqlT+comment, varMap)
             nRow = self.cur.rowcount
@@ -16198,10 +16204,10 @@ class DBProxy:
 
 
     # unthrottle user jobs
-    def unThrottleUserJobs(self,prodUserName):
+    def unThrottleUserJobs(self, prodUserName, workingGroup):
         comment = ' /* DBProxy.unThrottleUserJobs */'
         methodName = comment.split(' ')[-2].split('.')[-1]
-        methodName += " <user={0}>".format(prodUserName)
+        methodName += " <user={0} group={1}>".format(prodUserName, workingGroup)
         tmpLog = LogWrapper(_logger,methodName)
         tmpLog.debug("start")
         try:
@@ -16210,6 +16216,10 @@ class DBProxy:
             sqlT += 'ATLAS_PANDA.jobsActive4 tab SET jobStatus=:newJobStatus,relocationFlag=:newRelFlag '
             sqlT += 'WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName '
             sqlT += 'AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag '
+            if workingGroup is not None:
+                'AND workingGroup=:workingGroup '
+            else:
+                'AND workingGroup IS NULL '
             # start transaction
             self.conn.begin()
             # select
@@ -16221,6 +16231,8 @@ class DBProxy:
             varMap[':prodUserName'] = prodUserName
             varMap[':oldJobStatus'] = 'throttled'
             varMap[':newJobStatus'] = 'activated'
+            if workingGroup is not None:
+                varMap[':workingGroup'] = workingGroup
             # get datasets
             self.cur.execute(sqlT+comment, varMap)
             nRow = self.cur.rowcount
@@ -16247,7 +16259,7 @@ class DBProxy:
         retVal = set()
         try:
             # sql to get users
-            sqlT  = 'SELECT distinct prodUserName FROM ATLAS_PANDA.jobsActive4 '
+            sqlT  = 'SELECT distinct prodUserName,workingGroup FROM ATLAS_PANDA.jobsActive4 '
             sqlT += 'WHERE prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus AND relocationFlag=:relocationFlag '
             # start transaction
             self.conn.begin()
@@ -16260,8 +16272,8 @@ class DBProxy:
             # get datasets
             self.cur.execute(sqlT+comment, varMap)
             resPs = self.cur.fetchall()
-            for prodUserName, in resPs:
-                retVal.add(prodUserName)
+            for prodUserName, workingGroup in resPs:
+                retVal.add((prodUserName, workingGroup))
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'

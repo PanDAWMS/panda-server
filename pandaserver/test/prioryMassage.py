@@ -48,12 +48,6 @@ for table in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsArchived4']:
 		tmpLog.debug("total %s " % len(res))
 		# make map
 		for cnt,prodUserName,jobStatus,workingGroup,computingSite in res:
-			# use workingGroup name as prodUserName
-			if workingGroup != None:
-				if not workingGroup in workingGroupList:
-					workingGroupList.append(workingGroup)
-				prodUserName = workingGroup
-				workingGroup = None
 			# append to PerUser map
 			if not usageBreakDownPerUser.has_key(prodUserName):
 				usageBreakDownPerUser[prodUserName] = {}
@@ -86,15 +80,12 @@ totalRunDone = 0
 usersTotalJobs = {}
 for prodUserName,wgValMap in usageBreakDownPerUser.iteritems():
 	for workingGroup,siteValMap in wgValMap.iteritems():
-		# ignore group production
-		if workingGroup != None:
-			continue
 		totalUsers += 1
 		for computingSite,statValMap in siteValMap.iteritems():
 			totalRunDone += statValMap['rundone']
-			if not prodUserName in usersTotalJobs:
-				usersTotalJobs[prodUserName] = 0 
-			usersTotalJobs[prodUserName] += statValMap['running']
+                        usersTotalJobs.setdefault(prodUserName, {})
+                        usersTotalJobs[prodUserName].setdefault(workingGroup, 0)
+			usersTotalJobs[prodUserName][workingGroup] += statValMap['running']
 
 tmpLog.debug("total users    : %s" % totalUsers)
 tmpLog.debug("total RunDone  : %s" % totalRunDone)
@@ -106,29 +97,39 @@ if totalUsers == 0:
 # cap num of running jobs
 tmpLog.debug("=== cap running jobs")
 maxNumRunPerUser = taskBuffer.getConfigValue('prio_mgr','CAP_RUNNING_USER_JOBS')
+maxNumRunPerGroup = taskBuffer.getConfigValue('prio_mgr','CAP_RUNNING_GROUP_JOBS')
 if maxNumRunPerUser is None:
 	maxNumRunPerUser = 10000
+if maxNumRunPerGroup is None:
+        maxNumRunPerGroup = 10000
 try:
-	tmpLog.debug("cap running jobs : max={0}".format(maxNumRunPerUser))
 	throttledUsers = taskBuffer.getThrottledUsers()
-	for prodUserName,tmpNumTotal in usersTotalJobs.iteritems():
-		if tmpNumTotal >= maxNumRunPerUser:
-			# throttle user
-			tmpNumJobs = taskBuffer.throttleUserJobs(prodUserName)
-			if tmpNumJobs != None and tmpNumJobs > 0:
-				msg = 'throttled {0} jobs for user="{1}" since too many ({2}) running jobs'.format(tmpNumJobs,
-														   prodUserName,
-														   maxNumRunPerUser)
-				tmpLog.debug(msg)
-				tmpLog.sendMsg(msg,panda_config.loggername,'userCap','warning')
-		elif tmpNumTotal < maxNumRunPerUser*0.9 and prodUserName in throttledUsers:
-			# throttle user
-			tmpNumJobs = taskBuffer.unThrottleUserJobs(prodUserName)
-			if tmpNumJobs != None and tmpNumJobs > 0:
-				msg = 'released jobs for user="{0}" since number of running jobs is less than {1}'.format(prodUserName,
-															  maxNumRunPerUser)
-				tmpLog.debug(msg)
-				tmpLog.sendMsg(msg,panda_config.loggername,'userCap')
+        for prodUserName, wgDict in usersTotalJobs.iteritems():
+                for workingGroup, tmpNumTotal in wgDict.iteritems():
+			print prodUserName,workingGroup,tmpNumTotal
+                        if workingGroup is None:
+                                maxNumRun = maxNumRunPerUser
+                        else:
+                                maxNumRun = maxNumRunPerGroup
+                        if tmpNumTotal >= maxNumRun:
+                                # throttle user
+                                tmpNumJobs = taskBuffer.throttleUserJobs(prodUserName, workingGroup)
+                                if tmpNumJobs != None and tmpNumJobs > 0:
+                                        msg = 'throttled {0} jobs for user="{1}" group={2} since too many ({3}) running jobs'.format(tmpNumJobs,
+                                                                                                                                     prodUserName,
+                                                                                                                                     workingGroup,
+                                                                                                                                     maxNumRun)
+                                        tmpLog.debug(msg)
+                                        tmpLog.sendMsg(msg,panda_config.loggername,'userCap','warning')
+                        elif tmpNumTotal < maxNumRun*0.9 and (prodUserName, workingGroup) in throttledUsers:
+                                # throttle user
+                                tmpNumJobs = taskBuffer.unThrottleUserJobs(prodUserName, workingGroup)
+                                if tmpNumJobs != None and tmpNumJobs > 0:
+                                        msg = 'released jobs for user="{0}" group={1} since number of running jobs is less than {2}'.format(prodUserName,
+                                                                                                                                            workingGroup,
+                                                                                                                                            maxNumRun)
+                                        tmpLog.debug(msg)
+                                        tmpLog.sendMsg(msg,panda_config.loggername,'userCap')
 except:
 	errtype,errvalue = sys.exc_info()[:2]
 	errStr = "cap failed: %s %s" % (job.PandaID,errtype,errvalue)
@@ -138,6 +139,7 @@ except:
 	
 
 # global average 
+tmpLog.debug("=== boost jobs")
 globalAverageRunDone = float(totalRunDone)/float(totalUsers)
 
 tmpLog.debug("global average : %s" % globalAverageRunDone)
@@ -148,9 +150,6 @@ siteUsers = {}
 for computingSite,userValMap in usageBreakDownPerSite.iteritems():
 	for prodUserName,wgValMap in userValMap.iteritems():
 		for workingGroup,statValMap in wgValMap.iteritems():
-			# ignore group production
-			if workingGroup != None:
-				continue
 			# count the number of users and running/done jobs
 			if not siteUsers.has_key(computingSite):
 				siteUsers[computingSite] = 0
@@ -168,137 +167,133 @@ for computingSite,nRunDone in siteRunDone.iteritems():
 	
 # check if the number of user's jobs is lower than the average 
 for prodUserName,wgValMap in usageBreakDownPerUser.iteritems():
-	tmpLog.debug("---> %s" % prodUserName)
-	# no private jobs
-	if not wgValMap.has_key(None):
-		tmpLog.debug("no private jobs")
-		continue
-	# count the number of running/done jobs 
-	userTotalRunDone = 0
-	for workingGroup,siteValMap in wgValMap.iteritems():
-		if workingGroup != None:
-			continue
-		for computingSite,statValMap in siteValMap.iteritems():
+	for workingGroup in wgValMap.keys():
+		tmpLog.debug("---> %s group=%s" % (prodUserName, workingGroup))
+		# count the number of running/done jobs 
+		userTotalRunDone = 0
+		for computingSite,statValMap in wgValMap[workingGroup].iteritems():
 			userTotalRunDone += statValMap['rundone']
-	# no priority boost when the number of jobs is higher than the average			
-	if userTotalRunDone >= globalAverageRunDone:
-		tmpLog.debug("enough running %s > %s (global average)" % (userTotalRunDone,globalAverageRunDone))
-		continue
-	tmpLog.debug("user total:%s global average:%s" % (userTotalRunDone,globalAverageRunDone))
-	# check with site average
-	toBeBoostedSites = [] 
-	for computingSite,statValMap in wgValMap[None].iteritems():
-		# the number of running/done jobs is lower than the average and activated jobs are waiting
-		if statValMap['rundone'] >= siteAverageRunDone[computingSite]:
-			tmpLog.debug("enough running %s > %s (site average) at %s" % \
-						  (statValMap['rundone'],siteAverageRunDone[computingSite],computingSite))
-		elif statValMap['activated'] == 0:
-			tmpLog.debug("no activated jobs at %s" % computingSite)
-		else:
-			toBeBoostedSites.append(computingSite)
-	# no boost is required
-	if toBeBoostedSites == []:
-		tmpLog.debug("no sites to be boosted")
-		continue
-	# check special prioritized site 
-	siteAccessForUser = {}
-	varMap = {}
-	varMap[':dn'] = prodUserName
-	sql = "SELECT pandaSite,pOffset,status,workingGroups FROM ATLAS_PANDAMETA.siteAccess WHERE dn=:dn"
-	status,res = taskBuffer.querySQLS(sql,varMap,arraySize=10000)
-	if res != None:
-		for pandaSite,pOffset,pStatus,workingGroups in res:
-			# ignore special working group for now
-			if not workingGroups in ['',None]:
-				continue
-			# only approved sites
-			if pStatus != 'approved':
-				continue
-			# no priority boost
-			if pOffset == 0:
-				continue
-			# append
-			siteAccessForUser[pandaSite] = pOffset
-	# set weight
-	totalW = 0
-	defaultW = 100
-	for computingSite in toBeBoostedSites:
-		totalW += defaultW
-		if siteAccessForUser.has_key(computingSite):
-			totalW += siteAccessForUser[computingSite]
-	totalW = float(totalW)		
-	# the total number of jobs to be boosted
-	numBoostedJobs = globalAverageRunDone - float(userTotalRunDone)
-	# get quota
-	quotaFactor = 1.0 + taskBuffer.checkQuota(prodUserName)
-	tmpLog.debug("quota factor:%s" % quotaFactor)	
-	# make priority boost
-	nJobsPerPrioUnit = 5
-	highestPrio = 1000
-	for computingSite in toBeBoostedSites:
-		weight = float(defaultW)
-		if siteAccessForUser.has_key(computingSite):
-			weight += float(siteAccessForUser[computingSite])
-		weight /= totalW
-		# the number of boosted jobs at the site
-		numBoostedJobsSite = int(numBoostedJobs * weight / quotaFactor)
-		tmpLog.debug("nSite:%s nAll:%s W:%s Q:%s at %s" % (numBoostedJobsSite,numBoostedJobs,weight,quotaFactor,computingSite))
-		if numBoostedJobsSite/nJobsPerPrioUnit == 0:
-			tmpLog.debug("too small number of jobs %s to be boosted at %s" % (numBoostedJobsSite,computingSite))
+		# no priority boost when the number of jobs is higher than the average			
+		if userTotalRunDone >= globalAverageRunDone:
+			tmpLog.debug("enough running %s > %s (global average)" % (userTotalRunDone,globalAverageRunDone))
 			continue
-		# get the highest prio of activated jobs at the site
+		tmpLog.debug("user total:%s global average:%s" % (userTotalRunDone,globalAverageRunDone))
+		# check with site average
+		toBeBoostedSites = [] 
+		for computingSite,statValMap in wgValMap[workingGroup].iteritems():
+			# the number of running/done jobs is lower than the average and activated jobs are waiting
+			if statValMap['rundone'] >= siteAverageRunDone[computingSite]:
+				tmpLog.debug("enough running %s > %s (site average) at %s" % \
+							  (statValMap['rundone'],siteAverageRunDone[computingSite],computingSite))
+			elif statValMap['activated'] == 0:
+				tmpLog.debug("no activated jobs at %s" % computingSite)
+			else:
+				toBeBoostedSites.append(computingSite)
+		# no boost is required
+		if toBeBoostedSites == []:
+			tmpLog.debug("no sites to be boosted")
+			continue
+		# check special prioritized site 
+		siteAccessForUser = {}
 		varMap = {}
-		varMap[':jobStatus'] = 'activated'
-		varMap[':prodSourceLabel'] = 'user'
-		varMap[':pmerge'] = 'pmerge'
-		varMap[':prodUserName'] = prodUserName
-		varMap[':computingSite'] = computingSite
-		sql  = "SELECT MAX(currentPriority) FROM ATLAS_PANDA.jobsActive4 "
-		sql += "WHERE prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus AND computingSite=:computingSite "
-		sql += "AND processingType<>:pmerge "
-		if prodUserName in workingGroupList:
-			sql += "AND workingGroup=:prodUserName "
-		else:
-			sql += "AND prodUserName=:prodUserName AND workingGroup IS NULL "
-		status,res = taskBuffer.querySQLS(sql,varMap,arraySize=10)
-		maxPrio = None
+		varMap[':dn'] = prodUserName
+		sql = "SELECT pandaSite,pOffset,status,workingGroups FROM ATLAS_PANDAMETA.siteAccess WHERE dn=:dn"
+		status,res = taskBuffer.querySQLS(sql,varMap,arraySize=10000)
 		if res != None:
-			try:
-				maxPrio = res[0][0]
-			except:
-				pass
-		if maxPrio == None:
-			tmpLog.debug("cannot get the highest prio at %s" % computingSite)
-			continue
-		# delta for priority boost
-		prioDelta = highestPrio - maxPrio
-		# already boosted
-		if prioDelta <= 0:
-			tmpLog.debug("already boosted (prio=%s) at %s" % (maxPrio,computingSite))
-			continue
-		# lower limit
-		minPrio = maxPrio - numBoostedJobsSite/nJobsPerPrioUnit
-		# SQL for priority boost
-		varMap = {}
-		varMap[':jobStatus'] = 'activated'
-		varMap[':prodSourceLabel'] = 'user'
-		varMap[':prodUserName'] = prodUserName
-		varMap[':computingSite'] = computingSite
-		varMap[':prioDelta'] = prioDelta
-		varMap[':maxPrio'] = maxPrio
-		varMap[':minPrio'] = minPrio
-		varMap[':rlimit'] = numBoostedJobsSite
-		sql  = "UPDATE ATLAS_PANDA.jobsActive4 SET currentPriority=currentPriority+:prioDelta "
-		sql += "WHERE prodSourceLabel=:prodSourceLabel "
-		if prodUserName in workingGroupList:
-			sql += "AND workingGroup=:prodUserName "
-		else:
-			sql += "AND prodUserName=:prodUserName AND workingGroup IS NULL "
-		sql += "AND jobStatus=:jobStatus AND computingSite=:computingSite AND currentPriority>:minPrio "
-		sql += "AND currentPriority<=:maxPrio AND rownum<=:rlimit"
-		tmpLog.debug("boost %s" % str(varMap))
-		status,res = taskBuffer.querySQLS(sql,varMap,arraySize=10)	
-		tmpLog.debug("   database return : %s" % res)
+			for pandaSite,pOffset,pStatus,workingGroups in res:
+				# ignore special working group for now
+				if not workingGroups in ['',None]:
+					continue
+				# only approved sites
+				if pStatus != 'approved':
+					continue
+				# no priority boost
+				if pOffset == 0:
+					continue
+				# append
+				siteAccessForUser[pandaSite] = pOffset
+		 # set weight
+		totalW = 0
+		defaultW = 100
+		for computingSite in toBeBoostedSites:
+			totalW += defaultW
+			if siteAccessForUser.has_key(computingSite):
+				totalW += siteAccessForUser[computingSite]
+		totalW = float(totalW)		
+		# the total number of jobs to be boosted
+		numBoostedJobs = globalAverageRunDone - float(userTotalRunDone)
+		# get quota
+		quotaFactor = 1.0 + taskBuffer.checkQuota(prodUserName)
+		tmpLog.debug("quota factor:%s" % quotaFactor)	
+		# make priority boost
+		nJobsPerPrioUnit = 5
+		highestPrio = 1000
+		for computingSite in toBeBoostedSites:
+			weight = float(defaultW)
+			if siteAccessForUser.has_key(computingSite):
+				weight += float(siteAccessForUser[computingSite])
+			weight /= totalW
+			# the number of boosted jobs at the site
+			numBoostedJobsSite = int(numBoostedJobs * weight / quotaFactor)
+			tmpLog.debug("nSite:%s nAll:%s W:%s Q:%s at %s" % (numBoostedJobsSite,numBoostedJobs,weight,quotaFactor,computingSite))
+			if numBoostedJobsSite/nJobsPerPrioUnit == 0:
+				tmpLog.debug("too small number of jobs %s to be boosted at %s" % (numBoostedJobsSite,computingSite))
+				continue
+			# get the highest prio of activated jobs at the site
+			varMap = {}
+			varMap[':jobStatus'] = 'activated'
+			varMap[':prodSourceLabel'] = 'user'
+			varMap[':pmerge'] = 'pmerge'
+			varMap[':prodUserName'] = prodUserName
+			varMap[':computingSite'] = computingSite
+			sql  = "SELECT MAX(currentPriority) FROM ATLAS_PANDA.jobsActive4 "
+			sql += "WHERE prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus AND computingSite=:computingSite "
+			sql += "AND processingType<>:pmerge AND prodUserName=:prodUserName "
+			if workingGroup is not None:
+				varMap[':workingGroup'] = workingGroup
+				sql += "AND workingGroup=:workingGroup "
+			else:
+				sql += "AND workingGroup IS NULL "
+			status,res = taskBuffer.querySQLS(sql,varMap,arraySize=10)
+			maxPrio = None
+			if res != None:
+				try:
+					maxPrio = res[0][0]
+				except:
+					pass
+			if maxPrio == None:
+				tmpLog.debug("cannot get the highest prio at %s" % computingSite)
+				continue
+			# delta for priority boost
+			prioDelta = highestPrio - maxPrio
+			# already boosted
+			if prioDelta <= 0:
+				tmpLog.debug("already boosted (prio=%s) at %s" % (maxPrio,computingSite))
+				continue
+			# lower limit
+			minPrio = maxPrio - numBoostedJobsSite/nJobsPerPrioUnit
+			# SQL for priority boost
+			varMap = {}
+			varMap[':jobStatus'] = 'activated'
+			varMap[':prodSourceLabel'] = 'user'
+			varMap[':prodUserName'] = prodUserName
+			varMap[':computingSite'] = computingSite
+			varMap[':prioDelta'] = prioDelta
+			varMap[':maxPrio'] = maxPrio
+			varMap[':minPrio'] = minPrio
+			varMap[':rlimit'] = numBoostedJobsSite
+			sql  = "UPDATE ATLAS_PANDA.jobsActive4 SET currentPriority=currentPriority+:prioDelta "
+			sql += "WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName "
+			if workingGroup is not None:
+				varMap[':workingGroup'] = workingGroup
+				sql += "AND workingGroup=:workingGroup "
+			else:
+				sql += "AND workingGroup IS NULL "
+			sql += "AND jobStatus=:jobStatus AND computingSite=:computingSite AND currentPriority>:minPrio "
+			sql += "AND currentPriority<=:maxPrio AND rownum<=:rlimit"
+			tmpLog.debug("boost %s" % str(varMap))
+			status,res = taskBuffer.querySQLS(sql,varMap,arraySize=10)	
+			tmpLog.debug("   database return : %s" % res)
 
 
 # redo stalled analysis jobs
