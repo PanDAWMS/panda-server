@@ -21053,19 +21053,22 @@ class DBProxy:
             varMap[':siteName'] = siteName
             self.cur.execute(sqlDel+comment, varMap)
             # insert new site data
-            sqlI = 'INSERT INTO ATLAS_PANDA.Harvester_Worker_Stats (harvester_ID,computingSite,resourceType,status,n_workers,lastUpdate) '
-            sqlI += 'VALUES (:harvester_ID,:siteName,:resourceType,:status,:n_workers,CURRENT_DATE) '
-            for resourceType, params in paramsList.iteritems():
-                if resourceType == 'Undefined':
-                    continue
-                for status, n_workers in params.iteritems():
-                    varMap = dict()
-                    varMap[':harvester_ID'] = harvesterID
-                    varMap[':siteName'] = siteName
-                    varMap[':status'] = status
-                    varMap[':resourceType'] = resourceType
-                    varMap[':n_workers'] = n_workers
-                    self.cur.execute(sqlI+comment, varMap)
+            sqlI = 'INSERT INTO ATLAS_PANDA.Harvester_Worker_Stats (harvester_ID, computingSite, jobType, resourceType, status, n_workers, lastUpdate) '
+            sqlI += 'VALUES (:harvester_ID, :siteName, :jobType, :resourceType, :status, :n_workers, CURRENT_DATE) '
+            
+            for jobType, jt_params in paramsList.iteritems():
+                for resourceType, params in jt_params.iteritems():
+                    if resourceType == 'Undefined':
+                        continue
+                    for status, n_workers in params.iteritems():
+                        varMap = dict()
+                        varMap[':harvester_ID'] = harvesterID
+                        varMap[':siteName'] = siteName
+                        varMap[':status'] = status
+                        varMap[':jobType'] = jobType
+                        varMap[':resourceType'] = resourceType
+                        varMap[':n_workers'] = n_workers
+                        self.cur.execute(sqlI+comment, varMap)
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -21103,7 +21106,7 @@ class DBProxy:
             else:
                 nPilot = 0
             # sql to get stat
-            sqlG = "SELECT SUM(n_workers),COUNT(harvester_ID),resourceType,status FROM ATLAS_PANDA.Harvester_Worker_Stats "
+            sqlG = "SELECT SUM(n_workers), COUNT(harvester_ID), jobType, resourceType, status FROM ATLAS_PANDA.Harvester_Worker_Stats "
             sqlG += "WHERE computingSite=:siteName "
             sqlG += "GROUP BY resourceType,status "
             varMap = dict()
@@ -21111,12 +21114,13 @@ class DBProxy:
             self.cur.execute(sqlG+comment, varMap)
             res = self.cur.fetchall()
             retMap = {}
-            for cnt, nInstances, resourceType, status in res:
-                if resourceType not in retMap:
-                    retMap[resourceType] = {'stats':dict(), 'nInstances':0}
-                retMap[resourceType]['stats'][status] = cnt
-                if nInstances > retMap[resourceType]['nInstances']:
-                    retMap[resourceType]['nInstances'] = nInstances
+            for cnt, nInstances, jobType, resourceType, status in res:
+                retMap.setdefault(jobType, {})
+                if resourceType not in retMap[jobType]:
+                    retMap[jobType][resourceType] = {'stats':dict(), 'nInstances':0}
+                retMap[jobType][resourceType]['stats'][status] = cnt
+                if nInstances > retMap[jobType][resourceType]['nInstances']:
+                    retMap[jobType][resourceType]['nInstances'] = nInstances
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -21506,7 +21510,7 @@ class DBProxy:
 
         # get current pilot distribution in harvester for the queue
         sql = """
-              SELECT computingsite, harvester_id, resourcetype, status, n_workers 
+              SELECT computingsite, harvester_id, jobType, resourceType, status, n_workers 
               FROM atlas_panda.harvester_worker_stats
               WHERE lastupdate > :time_limit 
               """
@@ -21516,11 +21520,12 @@ class DBProxy:
         self.cur.execute(sql + comment, var_map)
         worker_stats_rows = self.cur.fetchall()
         worker_stats_dict = {}
-        for computing_site, harvester_id, resource_type, status, n_workers in worker_stats_rows:
+        for computing_site, harvester_id, job_type, resource_type, status, n_workers in worker_stats_rows:
             worker_stats_dict.setdefault(computing_site, {})
             worker_stats_dict[computing_site].setdefault(harvester_id, {})
-            worker_stats_dict[computing_site][harvester_id].setdefault(resource_type, {})
-            worker_stats_dict[computing_site][harvester_id][resource_type][status] = n_workers
+            worker_stats_dict[computing_site][harvester_id].setdefault(job_type, {})
+            worker_stats_dict[computing_site][harvester_id][job_type].setdefault(resource_type, {})
+            worker_stats_dict[computing_site][harvester_id][job_type][resource_type][status] = n_workers
 
         tmpLog.debug('done')
         return worker_stats_dict
@@ -21551,27 +21556,28 @@ class DBProxy:
                 harvester_ids.append(harvester_id)
         
         for harvester_id in harvester_ids:
-            for resource_type in worker_stats[harvester_id]:
-                # TODO: this needs to be converted into cores, or we stay at worker level???
-                # how do I know ncores from only the resource_type???
-                try:
-                    n_workers_running = n_workers_running + worker_stats[harvester_id][resource_type]['running']
-                except KeyError:
-                    pass
+            for job_type in worker_stats[harvester_id]:
+                for resource_type in worker_stats[harvester_id][job_type]:
+                    # TODO: this needs to be converted into cores, or we stay at worker level???
+                    # how do I know ncores from only the resource_type???
+                    try:
+                        n_workers_running = n_workers_running + worker_stats[harvester_id][job_type][resource_type]['running']
+                    except KeyError:
+                        pass
 
-                try:
-                    workers_queued.setdefault(resource_type, 0)
-                    workers_queued[resource_type] = workers_queued[resource_type] + worker_stats[harvester_id][resource_type]['submitted']
-                    n_workers_queued = n_workers_queued + worker_stats[harvester_id][resource_type]['submitted']
-                except KeyError:
-                    pass
+                    try:
+                        workers_queued.setdefault(resource_type, 0)
+                        workers_queued[resource_type] = workers_queued[resource_type] + worker_stats[harvester_id][job_type][resource_type]['submitted']
+                        n_workers_queued = n_workers_queued + worker_stats[harvester_id][job_type][resource_type]['submitted']
+                    except KeyError:
+                        pass
 
-                try:
-                    workers_queued.setdefault(resource_type, 0)
-                    workers_queued[resource_type] = workers_queued[resource_type] + worker_stats[harvester_id][resource_type]['ready']
-                    n_workers_queued = n_workers_queued + worker_stats[harvester_id][resource_type]['ready']
-                except KeyError:
-                    pass
+                    try:
+                        workers_queued.setdefault(resource_type, 0)
+                        workers_queued[resource_type] = workers_queued[resource_type] + worker_stats[harvester_id][job_type][resource_type]['ready']
+                        n_workers_queued = n_workers_queued + worker_stats[harvester_id][job_type][resource_type]['ready']
+                    except KeyError:
+                        pass
 
         tmpLog.debug('Queue {0} queued worker overview: {1}'.format(queue, workers_queued))
         
@@ -21598,7 +21604,7 @@ class DBProxy:
         for share in sorted_shares:
             var_map = {':queue': queue, ':gshare': share.name}
             sql = """
-                  SELECT gshare, resource_type, prodsourcelabel FROM atlas_panda.jobsactive4
+                  SELECT gshare, prodsourcelabel, resource_type FROM atlas_panda.jobsactive4
                   WHERE jobstatus = 'activated'
                      AND computingsite=:queue 
                      AND gshare=:gshare 
@@ -21607,10 +21613,10 @@ class DBProxy:
             self.cur.execute(sql + comment, var_map)
             activated_jobs = self.cur.fetchall()
             tmpLog.debug('Processing share: {0}. Got {1} activated jobs'.format(share.name, len(activated_jobs)))
-            for gshare, resource_type, prodsourcelabel in activated_jobs:
-                workers_queued.setdefault(prodsourcelabel, {resource_type: 0})
-                workers_queued[prodsourcelabel][resource_type] = workers_queued[resource_type] - 1
-                if workers_queued[prodsourcelabel][resource_type] <= 0:
+            for gshare, job_type, resource_type in activated_jobs:
+                workers_queued.setdefault(job_type, {resource_type: 0})
+                workers_queued[job_type][resource_type] = workers_queued[resource_type] - 1
+                if workers_queued[job_type][resource_type] <= 0:
                     # we've gone over the jobs that already have a queued worker, now we go for new workers
                     n_workers_to_submit = n_workers_to_submit - 1
 
@@ -21627,21 +21633,21 @@ class DBProxy:
         tmpLog.debug('workers_queued: {0}'.format(workers_queued))
 
         new_workers = {}
-        for prodsourcelabel in workers_queued:
-            new_workers.setdefault(prodsourcelabel, {})
+        for job_type in workers_queued:
+            new_workers.setdefault(job_type, {})
             for resource_type in workers_queued[prodsourcelabel]:
-                if workers_queued[prodsourcelabel][resource_type] >= 0:
+                if workers_queued[job_type][resource_type] >= 0:
                     # we have too many workers queued already, don't submit more
-                    new_workers[prodsourcelabel][resource_type] = 0
-                elif workers_queued[prodsourcelabel][resource_type] < 0:
+                    new_workers[job_type][resource_type] = 0
+                elif workers_queued[job_type][resource_type] < 0:
                     # we don't have enough workers for this resource type
-                    new_workers[prodsourcelabel][resource_type] = - workers_queued[prodsourcelabel][resource_type] + 1
+                    new_workers[job_type][resource_type] = - workers_queued[job_type][resource_type] + 1
 
         # We should still submit a SCORE worker, even if there are no activated jobs to avoid queue deactivation
         workers = False
-        for prodsourcelabel in new_workers:
-            for resource_type in new_workers[prodsourcelabel]:
-                if new_workers[prodsourcelabel][resource_type] > 0:
+        for job_type in new_workers:
+            for resource_type in new_workers[job_type]:
+                if new_workers[job_type][resource_type] > 0:
                     workers = True
                     break
         if not workers:
@@ -21651,10 +21657,10 @@ class DBProxy:
         new_workers_per_harvester = {}
         for harvester_id in harvester_ids:
             new_workers_per_harvester.setdefault(harvester_id, {})
-            for prodsourcelabel in new_workers:
-                new_workers_per_harvester[harvester_id].setdefault(prodsourcelabel, {})
+            for job_type in new_workers:
+                new_workers_per_harvester[harvester_id].setdefault(job_type, {})
                 for resource_type in new_workers[prodsourcelabel]:
-                    new_workers_per_harvester[harvester_id][prodsourcelabel][resource_type] = int(math.ceil(new_workers[prodsourcelabel][resource_type] * 1.0 / len(harvester_ids)))
+                    new_workers_per_harvester[harvester_id][job_type][resource_type] = int(math.ceil(new_workers[job_type][resource_type] * 1.0 / len(harvester_ids)))
 
         tmpLog.debug('Workers to submit: {0}'.format(new_workers_per_harvester))
         tmpLog.debug('done')
