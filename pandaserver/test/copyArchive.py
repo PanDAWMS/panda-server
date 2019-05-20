@@ -255,11 +255,19 @@ try:
             _logger.debug("check finalization for %s task=%s jobdefID=%s site=%s" % (prodUserName,jediTaskID,
                                                                                      jobDefinitionID,
                                                                                      computingSite))
-            sqlC  = "SELECT COUNT(*) FROM ATLAS_PANDA.jobsActive4 "
+            sqlC  = "SELECT COUNT(*) FROM ("
+            sqlC += "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
             sqlC += "WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName "
             sqlC += "AND jediTaskID=:jediTaskID "
             sqlC += "AND computingSite=:computingSite "
             sqlC += "AND NOT jobStatus IN (:jobStatus1,:jobStatus2) "
+            sqlC += "UNION "
+            sqlC += "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 "
+            sqlC += "WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName "
+            sqlC += "AND jediTaskID=:jediTaskID "
+            sqlC += "AND computingSite=:computingSite "
+            sqlC += "AND NOT jobStatus IN (:jobStatus1,:jobStatus2) "
+            sqlC += ") "
             varMap = {}
             varMap[':jobStatus1']      = 'failed'
             varMap[':jobStatus2']      = 'merging'
