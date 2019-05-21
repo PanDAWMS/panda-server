@@ -14270,7 +14270,7 @@ class DBProxy:
             # sql to get datasets
             sqlD  = 'SELECT datasetName,containerName,type '
             sqlD += 'FROM {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
-            sqlD += "WHERE jediTaskID=:jediTaskID AND ((type IN (:in1,:in2) AND masterID IS NULL) OR type=:out) "
+            sqlD += "WHERE jediTaskID=:jediTaskID AND ((type IN (:in1,:in2) AND masterID IS NULL) OR type IN (:out1,:out2)) "
             sqlD += "GROUP BY datasetName,containerName,type "
             # sql to get job status
             sqlJS  = "SELECT proc_status,COUNT(*) FROM {0}.JEDI_Datasets d,{0}.JEDI_Dataset_Contents c ".format(panda_config.schemaJEDI)
@@ -14289,7 +14289,8 @@ class DBProxy:
             varMap[':jediTaskID'] = jediTaskID
             varMap[':in1'] = 'input'
             varMap[':in2'] = 'pseudo_input'
-            varMap[':out'] = 'output'
+            varMap[':out1'] = 'output'
+            varMap[':out2'] = 'tmpl_output'
             self.cur.execute(sqlD+comment, varMap)
             resList = self.cur.fetchall()
             for datasetName, containerName, datasetType in resList:
@@ -14298,7 +14299,7 @@ class DBProxy:
                     targetName = containerName
                 else:
                     targetName = datasetName
-                if datasetType == 'output':
+                if 'output' in datasetType:
                     outDSs.add(targetName)
                 else:
                     inDSs.add(targetName)
