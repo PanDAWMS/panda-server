@@ -9,6 +9,8 @@ will not be reassigned are:
 """
 
 import datetime
+import sys
+
 
 from elasticsearch import Elasticsearch
 
@@ -121,18 +123,28 @@ def filter_tasks(failure_count_by_task):
     return tasks_to_retag
 
 
-def retag_tasks(task_id_list):
+def retag_tasks(task_id_list, dry_run):
     """
     change the share for the selected tasks
     """
-    destination_gshare = 'FILL'
+    destination_gshare = 'Frontier'
     reassign_running = True
     taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
-    return_code, return_message = taskBuffer.reassignShare(task_id_list, destination_gshare, reassign_running)
+    _logger.debug('Reassigning tasks (dry_run: {0}): {1}'.format(dry_run, task_id_list))
+    if not dry_run:
+        return_code, return_message = taskBuffer.reassignShare(task_id_list, destination_gshare, reassign_running)
     return return_code, return_message
 
 
 if __name__ == "__main__":
+
+    try:
+        dry_run = sys.argv[1]
+    except IndexError:
+        dry_run = True
+
+    dry_run = True # for initial debugging
+
     # 1. get tasks with frontier failures
     failure_count_by_task = get_frontier_failure_count_by_task()
 
@@ -140,4 +152,4 @@ if __name__ == "__main__":
     tasks_filtered = filter_tasks(failure_count_by_task)
 
     # 3. retag the tasks
-    return_code, return_message = retag_tasks(tasks_filtered)
+    return_code, return_message = retag_tasks(tasks_filtered, dry_run)
