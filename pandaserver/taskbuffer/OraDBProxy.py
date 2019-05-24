@@ -22598,3 +22598,48 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return []
+
+
+
+    # get user job metadata
+    def getUserJobMetadata(self, jediTaskID):
+        comment = ' /* DBProxy.getUserJobMetadata */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " < jediTaskID={0} >".format(jediTaskID)
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        try:
+            # sql to get workers
+            sqlC  = "SELECT j.PandaID,m.metaData FROM {0} j,{1} m "
+            sqlC += "WHERE j.jediTaskID=:jediTaskID AND j.jobStatus=:jobStatus AND m.PandaID=j.PandaID AND j.prodSourceLabel=:label "
+            retMap = dict()
+            for a, m in [('ATLAS_PANDA.jobsArchived4', 'ATLAS_PANDA.metaTable'), ('ATLAS_PANDAARCH.jobsArchived', 'ATLAS_PANDAARCH.metaTable_ARCH')]:
+                sql = sqlC.format(a, m)
+                varMap = {}
+                varMap[':jediTaskID'] = jediTaskID
+                varMap[':label'] = 'user'
+                varMap[':jobStatus'] = 'finished'
+                # start transaction
+                self.conn.begin()
+                self.cur.execute(sql+comment, varMap)
+                resCs = self.cur.fetchall()
+                for pandaID, clobMeta in resCs:
+                    try:
+                        metadata = clobMeta.read()
+                    except AttributeError:
+                        metadata = str(clobMeta)
+                    try:
+                        retMap[pandaID] = json.loads(metadata)
+                    except Exception:
+                        pass
+                # commit
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
+            tmpLog.debug("got {0} data blocks".format(len(retMap)))
+            return retMap
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return {}

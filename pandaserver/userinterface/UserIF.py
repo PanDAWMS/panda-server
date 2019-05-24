@@ -1053,6 +1053,12 @@ class UserIF:
         # serialize 
         return json.dumps(retVal)
 
+    # get user job metadata
+    def getUserJobMetadata(self, jediTaskID):
+        retVal = self.taskBuffer.getUserJobMetadata(jediTaskID)
+        # serialize 
+        return json.dumps(retVal)
+
 
 # Singleton
 userIF = UserIF()
@@ -2540,3 +2546,12 @@ def enableJumboJobs(req, jediTaskID, nJumboJobs, nJumboPerSite=None):
         nJumboPerSite = nJumboJobs
     # execute
     return userIF.enableJumboJobs(jediTaskID, nJumboJobs, nJumboPerSite)
+
+
+# get user job metadata
+def getUserJobMetadata(req, jediTaskID):
+    try:
+        jediTaskID = long(jediTaskID)
+    except:
+        return pickle.dumps((False,'jediTaskID must be an integer'))
+    return userIF.getUserJobMetadata(jediTaskID)
