@@ -62,8 +62,8 @@ def get_frontier_failure_count_by_task():
     failure_count_by_task = {}
     results = results['aggregations']['unserved']['buckets']
     for reason in results:
-        _logger.debug (reason)
         results_clean = results[reason]['taskid']['buckets']
+        _logger.debug ('Processing tasks with frontier status {0}: {1} tasks'.format(reason, len(results_clean)))
         for entry in results_clean:
             jedi_task_id = entry['key']
             error_count = entry['doc_count']
