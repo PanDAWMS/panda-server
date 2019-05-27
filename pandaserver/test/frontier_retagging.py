@@ -19,6 +19,7 @@ _logger = PandaLogger().getLogger('frontier_retagging')
 
 from config import panda_config
 from taskbuffer.TaskBuffer import taskBuffer
+taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
 
 def get_frontier_failure_count_by_task():
     """
@@ -129,7 +130,6 @@ def retag_tasks(task_id_list, dry_run):
     """
     destination_gshare = 'Frontier'
     reassign_running = True
-    taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
     _logger.debug('Reassigning tasks (dry_run: {0}): {1}'.format(dry_run, task_id_list))
     if not dry_run:
         return_code, return_message = taskBuffer.reassignShare(task_id_list, destination_gshare, reassign_running)
