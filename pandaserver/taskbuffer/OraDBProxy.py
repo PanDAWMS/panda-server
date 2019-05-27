@@ -20239,7 +20239,8 @@ class DBProxy:
 
     def compare_share_task(self, share, task):
         """
-        Logic to compare the relevant fields of share and task
+        Logic to compare the relevant fields of share and task.
+        Return: False if some condition does NOT match. True if all conditions match.
         """
         if share.prodsourcelabel is not None and task.prodSourceLabel is not None \
                 and re.match(share.prodsourcelabel, task.prodSourceLabel) is None:
