@@ -117,7 +117,10 @@ def filter_tasks(failure_count_by_task):
             tasks_filtered_pslabel.append(jedi_task_id)
 
     # remove jeditaskid=0
-    tasks_filtered_pslabel.remove(0)
+    try:
+        tasks_filtered_pslabel.remove(0)
+    except ValueError: # jeditaskid not in list, not an issue
+        pass
 
     tasks_to_retag = tasks_filtered_pslabel
 
