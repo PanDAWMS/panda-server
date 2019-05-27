@@ -81,14 +81,19 @@ def get_task_attribute_map(task_id_list):
     task_id_bindings = ','.join(':task_id{0}'.format(i) for i in xrange(len(task_id_list)))
 
     sql = """
-          SELECT jeditaskid, prodsourcelabel, gshare FROM ATLAS_PANDA.jobsDefined4 
+          SELECT jeditaskid, prodsourcelabel, gshare FROM ATLAS_PANDA.jedi_tasks 
           WHERE jeditaskid IN({0})
           """.format(task_id_bindings)
+
+    _logger.debug('sql: {0}'.format(sql))
+    _logger.debug('task_id_bindings: {0}'.format(task_id_bindings))
+    var_map
 
     status, ret_sel = taskBuffer.querySQLS(sql, var_map)
     task_pslabel_map = {}
     task_gshare_map = {}
     if ret_sel:
+        _logger.debug('ret_sel: {0}'.format(ret_sel))
         for jeditaskid, prodsourcelabel, gshare in ret_sel:
             task_pslabel_map[jeditaskid] = prodsourcelabel
             task_gshare_map[jeditaskid] = gshare
@@ -102,12 +107,15 @@ def filter_tasks(failure_count_by_task):
         - only production tasks
         - get rid of jobs without task (jeditaskid=0)
     """
+
     # failure threshold
     min_failure_threshold = 100
     tasks_filtered_threshold = []
     for jedi_task_id in failure_count_by_task:
+        _logger.debug('min_failure_threshold: checking task {0}'.format(jedi_task_id))
         if failure_count_by_task[jedi_task_id] > min_failure_threshold:
             tasks_filtered_threshold.append(jedi_task_id)
+            _logger.debug('min_failure_threshold: task {0} over threshold!'.format(jedi_task_id))
 
     # production-analysis filter
     task_pslabel_map, task_gshare_map = get_task_attribute_map(tasks_filtered_threshold)
@@ -115,10 +123,12 @@ def filter_tasks(failure_count_by_task):
     for jedi_task_id in tasks_filtered_threshold:
         pslabel = task_pslabel_map.get(jedi_task_id, '')
         gshare = task_gshare_map.get(jedi_task_id, '')
-
+        _logger.debug('tasks_param_check: checking task {0} with prodsourcelabel {1} and gshare {2}'.
+                      format(jedi_task_id, pslabel, gshare))
         # Don't reassign analysis or overlay tasks
         if pslabel!= '' and pslabel != 'user' and gshare != 'Overlay':
             tasks_filtered_pslabel.append(jedi_task_id)
+            _logger.debug('tasks_param_check: task {0} not analysis or overlay!'.format(jedi_task_id))
 
     # remove jeditaskid=0
     try:
@@ -150,9 +160,7 @@ if __name__ == "__main__":
     try:
         dry_run = sys.argv[1]
     except IndexError:
-        dry_run = True
-
-    dry_run = True  # for initial debugging
+        dry_run = False
 
     # 1. get tasks with frontier failures
     failure_count_by_task = get_frontier_failure_count_by_task()
@@ -161,4 +169,5 @@ if __name__ == "__main__":
     tasks_filtered = filter_tasks(failure_count_by_task)
 
     # 3. retag the tasks
-    return_code, return_message = retag_tasks(tasks_filtered, dry_run)
+    if tasks_filtered:
+        return_code, return_message = retag_tasks(tasks_filtered, dry_run)
