@@ -20401,6 +20401,7 @@ class DBProxy:
                        """.format(jtid_bindings)
 
                 self.cur.execute(sql_task + comment, var_map)
+                tmp_log.debug("task sql executed")
 
                 var_map[':pending'] = 'pending'
                 var_map[':defined'] = 'defined'
@@ -20425,6 +20426,8 @@ class DBProxy:
                 for table in ['jobsactive4', 'jobswaiting4', 'jobsdefined4']:
                     self.cur.execute(sql_jobs.format(table, jtid_bindings, jobstatus) + comment, var_map)
 
+                tmp_log.debug("job sql executed")
+
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -20436,8 +20439,7 @@ class DBProxy:
             # roll back
             self._rollback()
             type, value, traceBack = sys.exc_info()
-            _logger.error("reassignShare : %s %s" % (sql, str(varMap)))
-            _logger.error("reassignShare : %s %s" % (type, value))
+            tmp_log.error("reassignShare : %s %s" % (type, value))
             return -1, None
 
 
