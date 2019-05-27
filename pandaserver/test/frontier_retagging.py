@@ -136,6 +136,8 @@ def retag_tasks(task_id_list, dry_run):
     _logger.debug('Reassigning tasks (dry_run: {0}): {1}'.format(dry_run, task_id_list))
     if not dry_run:
         return_code, return_message = taskBuffer.reassignShare(task_id_list, destination_gshare, reassign_running)
+    else:
+        return_code, return_message = 0, 'DRY RUN'
     return return_code, return_message
 
 
