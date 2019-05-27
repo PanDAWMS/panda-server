@@ -74,24 +74,25 @@ def get_frontier_failure_count_by_task():
     return failure_count_by_task
 
 
-def get_task_pslabel_map(task_id_list):
+def get_task_attribute_map(task_id_list):
     var_map = {}
     for i, task_id in enumerate(task_id_list):
         var_map[':task_id{0}'.format(i)] = task_id
     task_id_bindings = ','.join(':task_id{0}'.format(i) for i in xrange(len(task_id_list)))
 
     sql = """
-          SELECT jeditaskid, prodsourcelabel FROM ATLAS_PANDA.jobsDefined4 
+          SELECT jeditaskid, prodsourcelabel, gshare FROM ATLAS_PANDA.jobsDefined4 
           WHERE jeditaskid IN({0})
           """.format(task_id_bindings)
 
     status, ret_sel = taskBuffer.querySQLS(sql, var_map)
     task_pslabel_map = {}
+    task_gshare_map = {}
     if ret_sel:
-        for jeditaskid, prodsourcelabel in ret_sel:
+        for jeditaskid, prodsourcelabel, gshare in ret_sel:
             task_pslabel_map[jeditaskid] = prodsourcelabel
-
-    return task_pslabel_map
+            task_gshare_map[jeditaskid] = gshare
+    return task_pslabel_map, task_gshare_map
 
 
 def filter_tasks(failure_count_by_task):
@@ -109,11 +110,14 @@ def filter_tasks(failure_count_by_task):
             tasks_filtered_threshold.append(jedi_task_id)
 
     # production-analysis filter
-    task_pslabel_map = get_task_pslabel_map(tasks_filtered_threshold)
+    task_pslabel_map, task_gshare_map = get_task_attribute_map(tasks_filtered_threshold)
     tasks_filtered_pslabel = []
     for jedi_task_id in tasks_filtered_threshold:
         pslabel = task_pslabel_map.get(jedi_task_id, '')
-        if pslabel != 'user':
+        gshare = task_gshare_map.get(jedi_task_id, '')
+
+        # Don't reassign analysis or overlay tasks
+        if pslabel!= '' and pslabel != 'user' and gshare != 'Overlay':
             tasks_filtered_pslabel.append(jedi_task_id)
 
     # remove jeditaskid=0
@@ -148,7 +152,7 @@ if __name__ == "__main__":
     except IndexError:
         dry_run = True
 
-    dry_run = True # for initial debugging
+    dry_run = True  # for initial debugging
 
     # 1. get tasks with frontier failures
     failure_count_by_task = get_frontier_failure_count_by_task()
