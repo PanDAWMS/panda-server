@@ -116,6 +116,8 @@ def filter_tasks(failure_count_by_task):
         if failure_count_by_task[jedi_task_id] > min_failure_threshold:
             tasks_filtered_threshold.append(jedi_task_id)
             _logger.debug('min_failure_threshold: task {0} over threshold!'.format(jedi_task_id))
+        else:
+            _logger.debug('min_failure_threshold: ignoring task {0} because under threshold!'.format(jedi_task_id))
 
     # production-analysis filter
     task_pslabel_map, task_gshare_map = get_task_attribute_map(tasks_filtered_threshold)
@@ -129,6 +131,8 @@ def filter_tasks(failure_count_by_task):
         if pslabel!= '' and pslabel != 'user' and gshare != 'Overlay':
             tasks_filtered_pslabel.append(jedi_task_id)
             _logger.debug('tasks_param_check: task {0} not analysis or overlay!'.format(jedi_task_id))
+        else:
+            _logger.debug('tasks_param_check: ignoring task {0} because analysis or overlay'.format(jedi_task_id))
 
     # remove jeditaskid=0
     try:
@@ -141,26 +145,19 @@ def filter_tasks(failure_count_by_task):
     return tasks_to_retag
 
 
-def retag_tasks(task_id_list, dry_run):
+def retag_tasks(task_id_list):
     """
     change the share for the selected tasks
     """
     destination_gshare = 'Frontier'
     reassign_running = True
-    _logger.debug('Reassigning tasks (dry_run: {0}): {1}'.format(dry_run, task_id_list))
-    if not dry_run:
-        return_code, return_message = taskBuffer.reassignShare(task_id_list, destination_gshare, reassign_running)
-    else:
-        return_code, return_message = 0, 'DRY RUN'
+    _logger.debug('Reassigning tasks: {0}'.format(task_id_list))
+    return_code, return_message = taskBuffer.reassignShare(task_id_list, destination_gshare, reassign_running)
+
     return return_code, return_message
 
 
 if __name__ == "__main__":
-
-    try:
-        dry_run = sys.argv[1]
-    except IndexError:
-        dry_run = False
 
     # 1. get tasks with frontier failures
     failure_count_by_task = get_frontier_failure_count_by_task()
@@ -170,4 +167,5 @@ if __name__ == "__main__":
 
     # 3. retag the tasks
     if tasks_filtered:
-        return_code, return_message = retag_tasks(tasks_filtered, dry_run)
+        return_code, return_message = retag_tasks(tasks_filtered)
+        _logger.debug('tasks {0} reassigned with: {1}; {2}'.format(tasks_filtered, return_code, return_message))
