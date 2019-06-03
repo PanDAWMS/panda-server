@@ -9,9 +9,6 @@ will not be reassigned are:
 """
 
 import datetime
-import sys
-
-
 from elasticsearch import Elasticsearch
 
 from pandalogger.PandaLogger import PandaLogger
