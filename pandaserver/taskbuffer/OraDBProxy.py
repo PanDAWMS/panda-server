@@ -9781,7 +9781,7 @@ class DBProxy:
             sql+= "catchall,allowfax,wansourcelimit,wansinklimit,b.site_name,"
             sql+= "sitershare,cloudrshare,corepower,wnconnectivity,catchall,"
             sql+= "c.role,maxrss,minrss,direct_access_lan,direct_access_wan,tier, "
-            sql+= "objectstores,jobseed,capability, workflow "
+            sql+= "objectstores,jobseed,capability, workflow, maxDiskio "
             sql+= "FROM (ATLAS_PANDAMETA.schedconfig a "
             sql+= "LEFT JOIN ATLAS_PANDA.panda_site b ON a.siteid=b.panda_site_name) "
             sql+= "LEFT JOIN ATLAS_PANDA.site c ON b.site_name=c.site_name "
@@ -9816,7 +9816,7 @@ class DBProxy:
                        catchall,allowfax,wansourcelimit,wansinklimit,pandasite, \
                        sitershare,cloudrshare,corepower,wnconnectivity,catchall, \
                        role,maxrss,minrss,direct_access_lan,direct_access_wan,tier, \
-                       objectstores,jobseed,capability,workflow \
+                       objectstores,jobseed,capability,workflow, maxDiskio \
                        = resTmp
                     # skip invalid siteid
                     if siteid in [None,'']:
@@ -9856,6 +9856,7 @@ class DBProxy:
                     ret.jobseed       = jobseed
                     ret.capability    = capability
                     ret.workflow = workflow
+                    ret.maxDiskio = maxDiskio
                     ret.wnconnectivity = wnconnectivity
                     if ret.wnconnectivity == '':
                         ret.wnconnectivity = None
