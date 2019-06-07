@@ -22651,3 +22651,40 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return {}
+
+
+    # get jumbo job datasets
+    def getJumboJobDatasets(self, n_days):
+        comment = ' /* DBProxy.getUserJobMetadata */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " < nDays={0} >".format(n_days)
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        try:
+            # sql to get workers
+            sqlC  = "SELECT t.jediTaskID,d.datasetName FROM ATLAS_PANDA.JEDI_Tasks t,ATLAS_PANDA.JEDI_Datasets d "
+            sqlC += "WHERE t.prodSourceLabel='managed' AND t.useJumbo IS NOT NULL AND t.modificationTime>CURRENT_DATE-:days AND t.status IN ('finished','done') "
+            sqlC += "AND d.jediTaskID=t.jediTaskID AND d.type='output' "
+            varMap = {}
+            varMap[':days'] = n_days
+            # start transaction
+            self.conn.begin()
+            self.cur.execute(sqlC+comment, varMap)
+            resCs = self.cur.fetchall()
+            retMap = dict()
+            nDS = 0
+            for jediTaskID, datasetName in resCs:
+                retMap.setdefault(jediTaskID, [])
+                retMap[jediTaskID].append(datasetName)
+                nDS += 1
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug("got {0} datasets".format(nDS))
+            return retMap
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return {}

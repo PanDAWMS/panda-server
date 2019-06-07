@@ -3793,6 +3793,18 @@ class TaskBuffer:
         return ret
 
 
+    # get jumbo job datasets
+    def getJumboJobDatasets(self, n_days):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getJumboJobDatasets(n_days)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 
