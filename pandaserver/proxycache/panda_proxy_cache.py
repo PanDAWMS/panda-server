@@ -41,6 +41,8 @@ class MyProxyInterface(object):
         if stderr:
             _logger.debug('stderr is %s ' % stderr)
         _logger.debug('test the status of plain... %s' %status)
+        if status == 1:
+            continue
         #proxyValidity = checkValidity(proxy_path)
         if role != None:
             _logger.debug('proxy needs {0} - need to add voms attributes and store it in the cache'.format(role))
