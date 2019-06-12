@@ -1059,6 +1059,12 @@ class UserIF:
         # serialize 
         return json.dumps(retVal)
 
+    # get jumbo job datasets
+    def getJumboJobDatasets(self, n_days):
+        retVal = self.taskBuffer.getJumboJobDatasets(n_days)
+        # serialize 
+        return json.dumps(retVal)
+
 
 # Singleton
 userIF = UserIF()
@@ -2555,3 +2561,13 @@ def getUserJobMetadata(req, jediTaskID):
     except:
         return pickle.dumps((False,'jediTaskID must be an integer'))
     return userIF.getUserJobMetadata(jediTaskID)
+
+
+
+# get jumbo job datasets
+def getJumboJobDatasets(req, n_days):
+    try:
+        n_days = long(n_days)
+    except:
+        return pickle.dumps((False,'n_days'))
+    return userIF.getJumboJobDatasets(n_days)
