@@ -1194,20 +1194,26 @@ class TaskBuffer:
                     errStr += "for the last {0} days. You may change &days=N in the URL".format(days)
                 return errStr
             tmpJob = tmpJobs[0]
+            # user job
+            isUser = False
+            for trf in ['runAthena', 'runGen', 'runcontainer', 'runMerge', 'buildJob', 'buildGen']:
+                if trf in tmpJob.transformation:
+                    isUser = True
+                    break
             # check prodSourceLabel
-            if tmpJob.prodSourceLabel in ['managed','test']:
-                # release and trf
-                tmpAtls = tmpJob.AtlasRelease.split("\n") 
-                tmpRels = tmpJob.homepackage.split("\n")
-                tmpPars = tmpJob.jobParameters.split("\n")
-                tmpTrfs = tmpJob.transformation.split("\n")
-            elif tmpJob.prodSourceLabel == 'user':
+            if tmpJob.prodSourceLabel == 'user':
+                isUser = True
+            if isUser:
                 tmpAtls = [tmpJob.AtlasRelease] 
                 tmpRels = [re.sub('^AnalysisTransforms-*', '', tmpJob.homepackage)]
                 tmpPars = [tmpJob.jobParameters]
                 tmpTrfs = [tmpJob.transformation]
             else:
-                return "ERROR: Non production job : prodSourceLabel=%s. This method is only for production jobs" % tmpJob.prodSourceLabel
+                # release and trf
+                tmpAtls = tmpJob.AtlasRelease.split("\n") 
+                tmpRels = tmpJob.homepackage.split("\n")
+                tmpPars = tmpJob.jobParameters.split("\n")
+                tmpTrfs = tmpJob.transformation.split("\n")
             if not (len(tmpRels) == len(tmpPars) == len(tmpTrfs)):
                 return "ERROR: The number of releases or parameters or trfs is inconsitent with others"
             # construct script
@@ -1228,7 +1234,7 @@ class TaskBuffer:
                     # ln
                     tmpScope,tmpBareLFN = tmpLFN.split(':')
                     scrStr += "ln -fs %s/%s ./%s\n" % (tmpScope,tmpBareLFN,tmpBareLFN)
-            if tmpJob.prodSourceLabel == 'user':
+            if isUser:
                 scrStr += "\n#get trf\n"
                 scrStr += "wget %s\n" % tmpTrfs[0]
                 scrStr += "chmod +x %s\n" % tmpTrfs[0].split('/')[-1]
@@ -1237,7 +1243,9 @@ class TaskBuffer:
                 # asetup
                 atlRel = re.sub('Atlas-', '', tmpAtls[tmpIdx])
                 atlTags = re.split("/|_", tmpRel)
-                if atlRel != '' and atlRel not in atlTags and re.search('^\d+\.\d+\.\d+$', atlRel) is None:
+                if '' in atlTags:
+                    atlTags.remove('')
+                if atlRel != '' and atlRel not in atlTags and (re.search('^\d+\.\d+\.\d+$', atlRel) is None or isUser):
                     atlTags.append(atlRel)
                 scrStr += "asetup --platform=%s %s\n" % (tmpJob.cmtConfig, ','.join(atlTags))
                 # athenaMP
@@ -1260,7 +1268,7 @@ class TaskBuffer:
                             tmpParamStr = tmpParamStr.replace(tmpMatch.group(0),
                                                               tmpArgName+'"'+tmpArgVal+'"')
                 # run trf
-                if tmpJob.prodSourceLabel == 'user':
+                if isUser:
                     scrStr += './'
                 scrStr += "%s %s\n\n" % (tmpTrfs[tmpIdx].split('/')[-1], tmpParamStr)
             return scrStr

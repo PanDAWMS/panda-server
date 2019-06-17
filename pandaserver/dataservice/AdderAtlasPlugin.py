@@ -765,11 +765,11 @@ class AdderAtlasPlugin (AdderPluginBase):
                     # set dataset status
                     for tmpName,tmpVal in subMap.iteritems():
                         self.datasetMap[tmpName].status = 'running'
-                except InsufficientAccountLimit as (errType,errValue):
-                    tmpMsg = "Rucio failed to make subscriptions at {0} since {1}".format(','.join(userEPs),errType[0])
+                except InsufficientAccountLimit as errType:
+                    tmpMsg = "Rucio failed to make subscriptions at {0} since {1}".format(','.join(userEPs),errType)
                     self.logger.error(tmpMsg)
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
-                    self.job.ddmErrorDiag = "Rucio failed with {0}".format(errType[0])
+                    self.job.ddmErrorDiag = "Rucio failed with {0}".format(errType)
                     # set dataset status
                     for tmpName,tmpVal in subMap.iteritems():
                         self.datasetMap[tmpName].status = 'running'
