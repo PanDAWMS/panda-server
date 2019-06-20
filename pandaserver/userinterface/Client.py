@@ -2363,7 +2363,7 @@ def getGShareStatus():
     # execute
     url = baseURLSSL + '/getGShareStatus'
 
-    status, output = curl.post(url)
+    status, output = curl.post(url, {})
     try:
         return status, json.loads(output)
     except:
