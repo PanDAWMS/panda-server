@@ -982,6 +982,9 @@ class UserIF:
     def reassignShare(self, jedi_task_ids, share_dest, reassign_running):
         return self.taskBuffer.reassignShare(jedi_task_ids, share_dest, reassign_running)
 
+    # get global share status overview of the grid
+    def getGShareStatus(self):
+        return self.taskBuffer.getGShareStatus()
 
     # list tasks in share
     def listTasksInShare(self, gshare, status):
@@ -2571,3 +2574,12 @@ def getJumboJobDatasets(req, n_days):
     except:
         return pickle.dumps((False,'n_days'))
     return userIF.getJumboJobDatasets(n_days)
+
+
+# get Global Share overview
+def getGShareStatus(req, data):
+    # check security
+    if not isSecure(req):
+        return json.dumps((False,"SSL is required"))
+    ret = userIF.getGShareStatus()
+    return json.dumps(ret)

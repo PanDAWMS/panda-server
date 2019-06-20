@@ -3813,6 +3813,18 @@ class TaskBuffer:
         return ret
 
 
+    # get global shares status
+    def getGShareStatus(self):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getGShareStatus()
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 
