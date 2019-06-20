@@ -22688,3 +22688,25 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return {}
+
+
+    def getGShareStatus(self):
+        """
+        Generates a list with sorted leave branches 
+        """
+
+        comment = ' /* DBProxy.getGShareStatus */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+        
+        self.__reload_shares()
+        self.__reload_hs_distribution()
+        sorted_shares = self.tree.sort_branch_by_current_hs_distribution(self.__hs_distribution)
+
+        sorted_shares_export = []
+        for share in sorted_shares:
+            sorted_shares_export.append({'name': share.name,
+                                         'running': self.__hs_distribution[share.name]['executing'],
+                                         'target': self.__hs_distribution[share.name]['pledged']})
+        return sorted_shares_export

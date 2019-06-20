@@ -2339,3 +2339,34 @@ def enableJumboJobs(jediTaskID, totalJumboJobs=1, nJumboPerSite=1):
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR /enableJumboJobs : %s %s" % (errtype,errvalue)
         return EC_Failed, output+'\n'+errStr
+
+
+# get Global Share status
+def getGShareStatus():
+    """
+
+       returns:
+           status code
+                 0: communication succeeded to the panda server
+                 255: communication failure
+           tuple of return code and diagnostic message
+                 0: succeeded
+                 1: server error
+               100: non SSL connection
+               101: missing production role
+               102: type error for some parameters
+    """
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey  = _x509()
+    # execute
+    url = baseURLSSL + '/getGShareStatus'
+
+    status, output = curl.post(url)
+    try:
+        return status, json.loads(output)
+    except:
+        err_type,err_value = sys.exc_info()[:2]
+        err_str = "ERROR /getGShareStatus : %s %s" % (err_type, err_value)
+        return EC_Failed, output+'\n' + err_str

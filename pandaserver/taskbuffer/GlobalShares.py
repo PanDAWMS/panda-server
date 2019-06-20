@@ -142,7 +142,7 @@ class Share(Node):
             try:
                 child1_under_pledge = hs_distribution[child1.name][EXECUTING] * 1.0 / hs_distribution[child1.name][PLEDGED]
             except ZeroDivisionError:
-                child1_under_pledge = 10**6 # Initialize to a large default number
+                child1_under_pledge = 10**6  # Initialize to a large default number
 
             for child2 in children_sorted:
                 try:
