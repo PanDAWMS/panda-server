@@ -18,6 +18,10 @@ from config import panda_config
 from taskbuffer.TaskBuffer import taskBuffer
 taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
 
+import json
+with open('/etc/panda/es_config.json') as json_data:
+    config = json.load(json_data,)
+
 def get_frontier_failure_count_by_task():
     """
     retrieve failure count by task from Elastic Search
@@ -52,7 +56,9 @@ def get_frontier_failure_count_by_task():
                 }
             }
 
-    es = Elasticsearch(hosts=[{'host': es_host, 'port': es_port}], timeout=60)
+    es = Elasticsearch(hosts=[{'host': es_host, 'port': es_port}],
+                       http_auth=(config['ES_USER'], config['ES_PASS']),
+                       timeout=60)
     results = es.search(index=es_index, body=es_query, request_timeout=600)
 
     # parse the results received from ES
