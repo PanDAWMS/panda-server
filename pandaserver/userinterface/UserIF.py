@@ -2577,7 +2577,7 @@ def getJumboJobDatasets(req, n_days):
 
 
 # get Global Share overview
-def getGShareStatus(req, data):
+def getGShareStatus(req):
     # check security
     if not isSecure(req):
         return json.dumps((False,"SSL is required"))
