@@ -1,6 +1,7 @@
 import subprocess
 import hashlib
 import os
+import datetime
 
 from pandalogger.PandaLogger import PandaLogger
 # logger
@@ -30,9 +31,14 @@ class MyProxyInterface(object):
         if not os.path.exists(self.__target_path):
             os.makedirs(self.__target_path)
 
-    def store(self, user_dn, cred_name, production=False, server_name='myproxy.cern.ch',role=None):
+    def store(self, user_dn, cred_name, production=False, server_name='myproxy.cern.ch', role=None, force=False):
         """Retrieve proxy from myproxy."""
         proxy_path = os.path.join(self.__target_path, hashlib.sha1(user_dn + '.plain').hexdigest())
+        # check if empty dummy file
+        if os.path.exists(proxy_path) and os.stat(proxy_path).st_size == 0:
+            if datetime.datetime.utcnow() - datetime.datetime.utcfromtimestamp(os.path.getctime(proxy_path)) < datetime.timedelta(hours=1):
+                _logger.debug('skip too eary to try again')
+                return 2
         cmd = "myproxy-logon -s %s --no_passphrase --out %s -l '%s' -k %s -t 0" % (server_name, proxy_path, user_dn, cred_name)
         # if myproxy.cern.ch fails, try myproxy on bnl as well
         stdout, stderr, status = execute(cmd)
@@ -40,6 +46,8 @@ class MyProxyInterface(object):
             _logger.debug('stdout is %s ' % stdout)
         if stderr:
             _logger.debug('stderr is %s ' % stderr)
+            # make a dummy to avoid too early reattempt
+            open(proxy_path, 'w').close()
         _logger.debug('test the status of plain... %s' %status)
         if status == 1:
             return status
