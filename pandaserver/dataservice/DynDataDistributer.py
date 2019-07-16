@@ -902,7 +902,7 @@ class DynDataDistributer:
         # get size of datasets
         nTry = 3
         for iDDMTry in range(nTry):
-            self.putLog('%s/%s listDatasetsByGUIDs' % (iDDMTry,nTry))
+            self.putLog('%s/%s listDatasetsByGUIDs GUIDs=%s' % (iDDMTry, nTry, str(guids)))
             try:
                 out = rucioAPI.listDatasetsByGUIDs(guids)
                 status = True
@@ -914,8 +914,8 @@ class DynDataDistributer:
                 time.sleep(10)
         if not status:
             self.putLog(out,'error')
-            self.putLog('bad DQ2 response to list datasets by GUIDs','error')
-            if 'DQUnknownDatasetException' in out:
+            self.putLog('bad response to list datasets by GUIDs','error')
+            if 'DataIdentifierNotFound' in out:
                 return resForFatal
             return resForFailure
         self.putLog(out)
@@ -1028,7 +1028,7 @@ class DynDataDistributer:
                         self.putLog(errStr)
                     """
                     # not found
-                    if not tmpRunEvtKey in guidListELSSI:
+                    if not tmpRunEvtKey in guidListELSSI or len(guidListELSSI[tmpRunEvtKey]) == 0:
                         self.putLog(tmpCom)
                         self.putLog(tmpOut)
                         self.putLog(tmpErr)
