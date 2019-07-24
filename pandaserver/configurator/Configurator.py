@@ -15,6 +15,7 @@ _session = dbif.get_session()
 # Definitions of roles
 WRITE_LAN = 'write_lan'
 READ_LAN = 'read_lan'
+DEFAULT = 'default'
 
 class Configurator(threading.Thread):
 
@@ -128,7 +129,7 @@ class Configurator(threading.Thread):
         # Used for atlas_panda.panda_site.default_ddm_endpoint and atlas_panda.panda_site.storage_site_name
         relationship_dict = self.process_schedconfig_dump()
 
-        # New relationship information based on astorage0 field in AGIS.
+        # New relationship information based on astorages field in AGIS.
         # Used to fill atlas_panda.panda_ddm_relation table
         try:
             panda_ddm_relation_dict = self.get_panda_ddm_relation()
@@ -248,9 +249,25 @@ class Configurator(threading.Thread):
         
         return sites_list, panda_sites_list, ddm_endpoints_list, panda_ddm_relation_dict
 
+    def parse_role(self, role):
+        """
+        Traditionally roles have been "read_lan" or "write_lan". We will consider them the default roles.
+        If you want to overwrite the role for specific jobs in AGIS, you can define e.g. "read_lan_analysis". Here we
+        want to strip the role to the "analysis" tag
+        """
+        # default roles: "read_lan" or "write_lan"
+        if role == READ_LAN or role == WRITE_LAN:
+            return DEFAULT
+        # special read_lan roles, e.g. "read_lan_analysis"
+        if role.startswith(READ_LAN):
+            return role.replace("{0}_".format(READ_LAN), '')
+        # special write_lan roles, e.g. "write_lan_analysis"
+        if role.startswith(WRITE_LAN):
+            return role.replace("{0}_".format(WRITE_LAN), '')
+
     def get_panda_ddm_relation(self):
         """
-        Gets the DDM endpoints assigned to a panda queue, based on the AGIS astorage0 field of the panda queue definition
+        Gets the DDM endpoints assigned to a panda queue, based on the AGIS astorages field of the panda queue definition
         """
         relation_list = []
 
@@ -265,8 +282,8 @@ class Configurator(threading.Thread):
                 astorages = self.schedconfig_dump[long_panda_site_name]['astorages']
 
                 # iterate the storages to establish their roles and orders
-                order_read = 1
-                order_write = 1
+                order_read = {DEFAULT: 1}
+                order_write = {DEFAULT: 1}
                 for role in astorages:
                     for ddm_endpoint_name in astorages[role]:
                         # initialize DDM endpoint if it does not exist
@@ -274,12 +291,13 @@ class Configurator(threading.Thread):
                                                                          'order_read': None,
                                                                          'role': []})
                         # set the read/write order and increment the respective counter
-                        if role == WRITE_LAN:
-                            dict_ddm_endpoint[ddm_endpoint_name]['order_write'] = order_write
-                            order_write += 1
-                        elif role == READ_LAN:
-                            dict_ddm_endpoint[ddm_endpoint_name]['order_read'] = order_read
-                            order_read += 1
+                        tag = self.parse_role(role)
+                        if role.startswith(WRITE_LAN):
+                            dict_ddm_endpoint[ddm_endpoint_name]['order_write'] = order_write[tag]
+                            order_write[tag] += 1
+                        elif role.startswith(READ_LAN):
+                            dict_ddm_endpoint[ddm_endpoint_name]['order_read'] = order_read[tag]
+                            order_read[tag] += 1
                         # append the roles
                         dict_ddm_endpoint[ddm_endpoint_name]['role'].append(role)
 
