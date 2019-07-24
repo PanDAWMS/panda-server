@@ -125,10 +125,6 @@ class Configurator(threading.Thread):
         ddm_endpoints_list = []
         panda_sites_list = []
 
-        # Old relationship information based on DDM field in AGIS.
-        # Used for atlas_panda.panda_site.default_ddm_endpoint and atlas_panda.panda_site.storage_site_name
-        relationship_dict = self.process_schedconfig_dump()
-
         # New relationship information based on astorages field in AGIS.
         # Used to fill atlas_panda.panda_ddm_relation table
         try:
@@ -226,26 +222,10 @@ class Configurator(threading.Thread):
                     for panda_queue in site['presources'][panda_resource][panda_site]['pandaqueues']:
                         panda_queue_name = panda_queue['name']
 
-                    # Get information regarding relationship to storage
-                    try:
-                        relationship_info = relationship_dict[panda_site_name]
-                        default_ddm_endpoint = relationship_info['default_ddm_endpoint']
-                        storage_site_name = relationship_info['storage_site_name']
-                        is_local = relationship_info['is_local']
-                    except KeyError:
-                        _logger.warning('process_site_dumps: Investigate why panda_site_name {0} not in relationship_info dictionary'
-                                      .format(panda_site_name))
-                        default_ddm_endpoint = None
-                        storage_site_name = None
-                        is_local = None
-
                     panda_sites_list.append({'panda_site_name': panda_site_name,
                                              'panda_queue_name': panda_queue_name,
                                              'site_name': site_name,
-                                             'state': panda_site_state,
-                                             'default_ddm_endpoint': default_ddm_endpoint,
-                                             'storage_site_name': storage_site_name,
-                                             'is_local': is_local})
+                                             'state': panda_site_state})
         
         return sites_list, panda_sites_list, ddm_endpoints_list, panda_ddm_relation_dict
 
@@ -346,41 +326,6 @@ class Configurator(threading.Thread):
                                               })
 
         return relation_list
-
-    def process_schedconfig_dump(self):
-        """
-        Gets PanDA site to DDM endpoint relationships from Schedconfig 
-        and prepares a format loadable to the DB
-        """
-
-        relationships_dict = {}  # data to be loaded to configurator DB
-        
-        for long_panda_site_name in self.schedconfig_dump:
-            
-            panda_site_name = self.schedconfig_dump[long_panda_site_name]['panda_resource']
-            
-            default_ddm_endpoint = [ddm_endpoint.strip() for ddm_endpoint in self.schedconfig_dump[long_panda_site_name]['ddm'].split(',')][0]
-            try:
-                storage_site_name = self.endpoint_token_dict[default_ddm_endpoint]['site_name']
-            except KeyError:
-                _logger.warning("Skipped {0}, because primary associated DDM endpoint {1} not found (e.g. DISABLED)"
-                                .format(long_panda_site_name, default_ddm_endpoint))
-                continue
-
-            # Check if the ddm_endpoint and the panda_site belong to the same site
-            cpu_site = self.schedconfig_dump[long_panda_site_name]['atlas_site']
-            if storage_site_name == cpu_site:
-                is_local = 'Y'
-            else:
-                is_local = 'N'
-            
-            _logger.debug("process_schedconfig_dump: long_panda_site_name {0}, panda_site_name {1}, default_ddm_endpoint {2}, storage_site_name {3}, is_local {4}"
-                          .format(long_panda_site_name, panda_site_name, default_ddm_endpoint, storage_site_name, is_local))
-            relationships_dict[panda_site_name] = {'default_ddm_endpoint': default_ddm_endpoint,
-                                                   'storage_site_name': storage_site_name,
-                                                   'is_local': is_local}
-
-        return relationships_dict
 
     def consistency_check(self):
         """
