@@ -272,6 +272,8 @@ class Configurator(threading.Thread):
                                                                          'role': []})
                         # set the read/write order and increment the respective counter
                         tag = self.parse_role(role)
+                        order_read.setdefault(tag, 1)
+                        order_write.setdefault(tag, 1)
                         if role.startswith(WRITE_LAN):
                             dict_ddm_endpoint[ddm_endpoint_name]['order_write'] = order_write[tag]
                             order_write[tag] += 1
