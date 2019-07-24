@@ -265,15 +265,26 @@ class Configurator(threading.Thread):
                 order_read = {DEFAULT: 1}
                 order_write = {DEFAULT: 1}
                 for role in astorages:
+
+                    # ignore old roles (pr, pw) that we are not supposed to use
+                    if role not in [READ_LAN, WRITE_LAN]:
+                        continue
+
                     for ddm_endpoint_name in astorages[role]:
-                        # initialize DDM endpoint if it does not exist
-                        dict_ddm_endpoint.setdefault(ddm_endpoint_name, {'order_write': None,
-                                                                         'order_read': None,
-                                                                         'role': []})
                         # set the read/write order and increment the respective counter
                         tag = self.parse_role(role)
                         order_read.setdefault(tag, 1)
                         order_write.setdefault(tag, 1)
+
+                        # initialize DDM endpoint if it does not exist
+                        dict_ddm_endpoint.setdefault(ddm_endpoint_name, {tag:
+                                                                             {
+                                                                                 'order_write': None,
+                                                                                 'order_read': None,
+                                                                                 'role': []
+                                                                             }
+                                                                         })
+
                         if role.startswith(WRITE_LAN):
                             dict_ddm_endpoint[ddm_endpoint_name]['order_write'] = order_write[tag]
                             order_write[tag] += 1
@@ -281,51 +292,51 @@ class Configurator(threading.Thread):
                             dict_ddm_endpoint[ddm_endpoint_name]['order_read'] = order_read[tag]
                             order_read[tag] += 1
                         # append the roles
-                        dict_ddm_endpoint[ddm_endpoint_name]['role'].append(role)
+                        dict_ddm_endpoint[ddm_endpoint_name][tag]['role'].append(role)
 
                 for ddm_endpoint_name, ddm_endpoint_values in dict_ddm_endpoint.items():
+                    for tag, tag_values in ddm_endpoint_values.items():
+                        # unpack the values
+                        roles = ddm_endpoint_values['role']
+                        order_write = ddm_endpoint_values['order_write']
+                        order_read = ddm_endpoint_values['order_read']
 
-                    # unpack the values
-                    roles = ddm_endpoint_values['role']
-                    order_write = ddm_endpoint_values['order_write']
-                    order_read = ddm_endpoint_values['order_read']
+                        # figure out the ATLAS site the DDM endpoint belongs to
+                        try:
+                            storage_site_name = self.endpoint_token_dict[ddm_endpoint_name]['site_name']
+                        except KeyError:
+                            _logger.warning("Skipped {0}, because primary associated DDM endpoint {1} not found (e.g.DISABLED)"
+                                            .format(long_panda_site_name, ddm_endpoint_name))
+                            continue
 
-                    # figure out the ATLAS site the DDM endpoint belongs to
-                    try:
-                        storage_site_name = self.endpoint_token_dict[ddm_endpoint_name]['site_name']
-                    except KeyError:
-                        _logger.warning("Skipped {0}, because primary associated DDM endpoint {1} not found (e.g.DISABLED)"
-                                        .format(long_panda_site_name, ddm_endpoint_name))
-                        continue
+                        # figure out if the storage is local to the cpu
+                        if storage_site_name == cpu_site_name:
+                            is_local = 'Y'
+                        else:
+                            is_local = 'N'
 
-                    # figure out if the storage is local to the cpu
-                    if storage_site_name == cpu_site_name:
-                        is_local = 'Y'
-                    else:
-                        is_local = 'N'
+                        # endpoints with order 1 will be considered default
+                        if order_read == 1:
+                            default_read = 'Y'
+                        else:
+                            default_read = 'N'
+                        if order_write == 1:
+                            default_write = 'Y'
+                        else:
+                            default_write = 'N'
 
-                    # endpoints with order 1 will be considered default
-                    if order_read == 1:
-                        default_read = 'Y'
-                    else:
-                        default_read = 'N'
-                    if order_write == 1:
-                        default_write = 'Y'
-                    else:
-                        default_write = 'N'
-
-                    # add the values to the list of relations if the ddm endpoint is valid
-                    if ddm_endpoint_name in self.endpoint_token_dict:
-                        relation_list.append({'long_panda_site_name': long_panda_site_name,
-                                              'panda_site_name': panda_site_name,
-                                              'ddm_site': ddm_endpoint_name,
-                                              'roles': ','.join(roles),
-                                              'default_read': default_read,
-                                              'default_write': default_write,
-                                              'is_local': is_local,
-                                              'order_read': order_read,
-                                              'order_write': order_write
-                                              })
+                        # add the values to the list of relations if the ddm endpoint is valid
+                        if ddm_endpoint_name in self.endpoint_token_dict:
+                            relation_list.append({'long_panda_site_name': long_panda_site_name,
+                                                  'panda_site_name': panda_site_name,
+                                                  'ddm_site': ddm_endpoint_name,
+                                                  'roles': ','.join(roles),
+                                                  'default_read': default_read,
+                                                  'default_write': default_write,
+                                                  'is_local': is_local,
+                                                  'order_read': order_read,
+                                                  'order_write': order_write
+                                                  })
 
         return relation_list
 
