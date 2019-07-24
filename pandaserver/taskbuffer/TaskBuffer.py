@@ -1247,7 +1247,7 @@ class TaskBuffer:
                     atlTags.remove('')
                 if atlRel != '' and atlRel not in atlTags and (re.search('^\d+\.\d+\.\d+$', atlRel) is None or isUser):
                     atlTags.append(atlRel)
-                scrStr += "asetup --platform=%s %s\n" % (tmpJob.cmtConfig, ','.join(atlTags))
+                scrStr += "asetup --platform=%s %s\n" % (tmpJob.cmtConfig.split('@')[0], ','.join(atlTags))
                 # athenaMP
                 if not tmpJob.coreCount in ['NULL',None] and tmpJob.coreCount > 1:
                     scrStr += "export ATHENA_PROC_NUMBER=%s\n" % tmpJob.coreCount
