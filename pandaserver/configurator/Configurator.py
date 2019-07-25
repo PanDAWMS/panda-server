@@ -267,7 +267,7 @@ class Configurator(threading.Thread):
                 for role in astorages:
 
                     # ignore old roles (pr, pw) that we are not supposed to use
-                    if role not in [READ_LAN, WRITE_LAN]:
+                    if not role.startswith(READ_LAN) and not role.startswith(WRITE_LAN):
                         continue
 
                     for ddm_endpoint_name in astorages[role]:
