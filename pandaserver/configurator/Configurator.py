@@ -262,8 +262,8 @@ class Configurator(threading.Thread):
                 astorages = self.schedconfig_dump[long_panda_site_name]['astorages']
 
                 # iterate the storages to establish their roles and orders
-                # order_read = {DEFAULT: 1}
-                # order_write = {DEFAULT: 1}
+                order_read = {DEFAULT: 1}
+                order_write = {DEFAULT: 1}
                 for role in astorages:
 
                     # ignore old roles (pr, pw) that we are not supposed to use
