@@ -286,10 +286,10 @@ class Configurator(threading.Thread):
                                                                          })
 
                         if role.startswith(WRITE_LAN):
-                            dict_ddm_endpoint[ddm_endpoint_name]['order_write'] = order_write[tag]
+                            dict_ddm_endpoint[ddm_endpoint_name][tag]['order_write'] = order_write[tag]
                             order_write[tag] += 1
                         elif role.startswith(READ_LAN):
-                            dict_ddm_endpoint[ddm_endpoint_name]['order_read'] = order_read[tag]
+                            dict_ddm_endpoint[ddm_endpoint_name][tag]['order_read'] = order_read[tag]
                             order_read[tag] += 1
                         # append the roles
                         dict_ddm_endpoint[ddm_endpoint_name][tag]['role'].append(role)
