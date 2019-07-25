@@ -1063,8 +1063,8 @@ class UserIF:
         return json.dumps(retVal)
 
     # get jumbo job datasets
-    def getJumboJobDatasets(self, n_days):
-        retVal = self.taskBuffer.getJumboJobDatasets(n_days)
+    def getJumboJobDatasets(self, n_days, grace_period):
+        retVal = self.taskBuffer.getJumboJobDatasets(n_days, grace_period)
         # serialize 
         return json.dumps(retVal)
 
@@ -2568,12 +2568,16 @@ def getUserJobMetadata(req, jediTaskID):
 
 
 # get jumbo job datasets
-def getJumboJobDatasets(req, n_days):
+def getJumboJobDatasets(req, n_days, grace_period=0):
     try:
         n_days = long(n_days)
     except:
-        return pickle.dumps((False,'n_days'))
-    return userIF.getJumboJobDatasets(n_days)
+        return pickle.dumps((False,'wrong n_days'))
+    try:
+        grace_period = long(grace_period)
+    except:
+        return pickle.dumps((False,'wrong grace_period'))
+    return userIF.getJumboJobDatasets(n_days, grace_period)
 
 
 # get Global Share overview

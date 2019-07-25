@@ -3802,11 +3802,11 @@ class TaskBuffer:
 
 
     # get jumbo job datasets
-    def getJumboJobDatasets(self, n_days):
+    def getJumboJobDatasets(self, n_days, grace_period):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.getJumboJobDatasets(n_days)
+        ret = proxy.getJumboJobDatasets(n_days, grace_period)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

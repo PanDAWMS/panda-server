@@ -22656,7 +22656,7 @@ class DBProxy:
 
 
     # get jumbo job datasets
-    def getJumboJobDatasets(self, n_days):
+    def getJumboJobDatasets(self, n_days, grace_period):
         comment = ' /* DBProxy.getUserJobMetadata */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " < nDays={0} >".format(n_days)
@@ -22664,20 +22664,23 @@ class DBProxy:
         tmpLog.debug("start")
         try:
             # sql to get workers
-            sqlC  = "SELECT t.jediTaskID,d.datasetName FROM ATLAS_PANDA.JEDI_Tasks t,ATLAS_PANDA.JEDI_Datasets d "
-            sqlC += "WHERE t.prodSourceLabel='managed' AND t.useJumbo IS NOT NULL AND t.modificationTime>CURRENT_DATE-:days AND t.status IN ('finished','done') "
+            sqlC  = "SELECT t.jediTaskID,d.datasetName,t.status FROM ATLAS_PANDA.JEDI_Tasks t,ATLAS_PANDA.JEDI_Datasets d "
+            sqlC += "WHERE t.prodSourceLabel='managed' AND t.useJumbo IS NOT NULL "
+            sqlC += "AND t.modificationTime>CURRENT_DATE-:days AND t.modificationTime<CURRENT_DATE-:grace_period "
+            sqlC += "AND t.status IN ('finished','done') "
             sqlC += "AND d.jediTaskID=t.jediTaskID AND d.type='output' "
             varMap = {}
             varMap[':days'] = n_days
+            varMap[':grace_period'] = grace_period
             # start transaction
             self.conn.begin()
             self.cur.execute(sqlC+comment, varMap)
             resCs = self.cur.fetchall()
             retMap = dict()
             nDS = 0
-            for jediTaskID, datasetName in resCs:
-                retMap.setdefault(jediTaskID, [])
-                retMap[jediTaskID].append(datasetName)
+            for jediTaskID, datasetName, status in resCs:
+                retMap.setdefault(jediTaskID, {'status': status, 'datasets': []})
+                retMap[jediTaskID]['datasets'].append(datasetName)
                 nDS += 1
             # commit
             if not self._commit():
