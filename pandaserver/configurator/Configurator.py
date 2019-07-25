@@ -262,8 +262,8 @@ class Configurator(threading.Thread):
                 astorages = self.schedconfig_dump[long_panda_site_name]['astorages']
 
                 # iterate the storages to establish their roles and orders
-                order_read = {DEFAULT: 1}
-                order_write = {DEFAULT: 1}
+                # order_read = {DEFAULT: 1}
+                # order_write = {DEFAULT: 1}
                 for role in astorages:
 
                     # ignore old roles (pr, pw) that we are not supposed to use
@@ -276,14 +276,12 @@ class Configurator(threading.Thread):
                         order_read.setdefault(tag, 1)
                         order_write.setdefault(tag, 1)
 
-                        # initialize DDM endpoint if it does not exist
-                        dict_ddm_endpoint.setdefault(ddm_endpoint_name, {tag:
-                                                                             {
-                                                                                 'order_write': None,
-                                                                                 'order_read': None,
-                                                                                 'role': []
-                                                                             }
-                                                                         })
+                        # initialize DDM endpoint and tag if it does not exist
+                        dict_ddm_endpoint.setdefault(ddm_endpoint_name, {})
+                        dict_ddm_endpoint[ddm_endpoint_name].setdefault(tag, {'order_write': None,
+                                                                              'order_read': None,
+                                                                              'role': []
+                                                                              })
 
                         if role.startswith(WRITE_LAN):
                             dict_ddm_endpoint[ddm_endpoint_name][tag]['order_write'] = order_write[tag]
