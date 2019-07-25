@@ -297,9 +297,9 @@ class Configurator(threading.Thread):
                 for ddm_endpoint_name, ddm_endpoint_values in dict_ddm_endpoint.items():
                     for tag, tag_values in ddm_endpoint_values.items():
                         # unpack the values
-                        roles = ddm_endpoint_values['role']
-                        order_write = ddm_endpoint_values['order_write']
-                        order_read = ddm_endpoint_values['order_read']
+                        roles = tag_values['role']
+                        order_write = tag_values['order_write']
+                        order_read = tag_values['order_read']
 
                         # figure out the ATLAS site the DDM endpoint belongs to
                         try:
