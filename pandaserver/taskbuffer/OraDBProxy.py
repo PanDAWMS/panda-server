@@ -13528,6 +13528,7 @@ class DBProxy:
                     else:
                         # extract several params for incremental execution
                         newTaskParams = {}
+                        newRamCount = None
                         for tmpKey,tmpVal in taskParamsJson.iteritems():
                             # dataset names
                             # site limitation
@@ -13538,15 +13539,34 @@ class DBProxy:
                                     or tmpKey in ['site','cloud','includedSite','excludedSite',
                                                   'cliParams','nFilesPerJob','nFiles','nEvents',
                                                   'nGBPerJob','fixedSandbox','ignoreMissingInDS',
-                                                  'currentPriority', 'priority', 'nMaxFilesPerJob']:
+                                                  'currentPriority', 'priority', 'nMaxFilesPerJob',
+                                                  'ramCount']:
                                 if tmpKey == 'priority':
                                     tmpKey = 'currentPriority'
                                 newTaskParams[tmpKey] = tmpVal
                                 if tmpKey == 'fixedSandbox' and 'sourceURL' in taskParamsJson:
                                     newTaskParams['sourceURL'] = taskParamsJson['sourceURL']
-                                continue
+                                elif tmpKey == 'ramCount':
+                                    newRamCount = tmpVal
                         # send command to reactivate the task
                         if not allowActiveTask or taskStatus in ['finished','failed','aborted','done','exhausted']:
+                            # set new RAM count
+                            if newRamCount is not None:
+                                sqlRAM = "UPDATE {0}.JEDI_Dataset_Contents SET ramCount=:ramCount ".format(panda_config.schemaJEDI)
+                                sqlRAM += "WHERE jediTaskID=:jediTaskID AND (ramCount IS NOT NULL AND ramCount>:ramCount) "
+                                sqlRAM += "AND datasetID IN (SELECT datasetID FROM {0}.JEDI_Datasets ".format(panda_config.schemaJEDI)
+                                sqlRAM += "WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2)) "
+                                varMap = {}
+                                varMap[':jediTaskID'] = jediTaskID
+                                varMap[':type1'] = 'input'
+                                varMap[':type2'] = 'pseudo_input'
+                                varMap[':ramCount'] = newRamCount
+                                self.cur.execute(sqlRAM+comment, varMap)
+                                sqlRAMT = "UPDATE {0}.JEDI_Tasks SET ramCount=:ramCount WHERE jediTaskID=:jediTaskID ".format(panda_config.schemaJEDI)
+                                varMap = {}
+                                varMap[':jediTaskID'] = jediTaskID
+                                varMap[':ramCount'] = newRamCount
+                                self.cur.execute(sqlRAMT+comment, varMap)
                             # delete command just in case
                             varMap = {}
                             varMap[':jediTaskID'] = jediTaskID
