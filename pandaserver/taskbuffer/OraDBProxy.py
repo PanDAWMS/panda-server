@@ -15763,6 +15763,7 @@ class DBProxy:
             else:
                 sqlSN += "AND sc.status=:siteStatus "
             sqlSN += "AND dr.default_write ='Y' "
+            sqlSN += "AND REGEXP_LIKE (roles, 'write_lan(,|$| )') " # skip endpoints with analysis roles
             sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity=:wc1) "
             varMap = {}
             varMap[':site'] = jobSpec.computingSite
@@ -15813,6 +15814,7 @@ class DBProxy:
                 sqlSN += "AND NOT sc.siteid LIKE 'ANALY_%' " 
                 sqlSN += "AND sc.status=:siteStatus "
                 sqlSN += "AND dr.default_write='Y' "
+                sqlSN += "AND REGEXP_LIKE (roles, 'write_lan(,|$| )') " # skip endpoints with analysis roles
                 sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity=:wc1) "
                 varMap = {}
                 varMap[':nucleus'] = tmpNucleus
@@ -15836,6 +15838,7 @@ class DBProxy:
             sqlSN += "AND NOT sc.siteid LIKE 'ANALY_%' " 
             sqlSN += "AND sc.status=:siteStatus "
             sqlSN += "AND dr.default_write='Y' "
+            sqlSN += "AND REGEXP_LIKE (roles, 'write_lan(,|$| )') " # skip endpoints with analysis roles
             sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity=:wc1) "
             varMap = {}
             varMap[':siteStatus'] = 'online'

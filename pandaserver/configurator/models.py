@@ -80,6 +80,7 @@ class PandaDdmRelation(Base):
     is_local = Column(String(1))
     default_read = Column(String(1))
     default_write = Column(String(1))
+    scope = Column(String(60))
 
 
 class Schedconfig(Base):

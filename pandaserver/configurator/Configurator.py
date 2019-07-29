@@ -233,17 +233,31 @@ class Configurator(threading.Thread):
         """
         Traditionally roles have been "read_lan" or "write_lan". We will consider them the default roles.
         If you want to overwrite the role for specific jobs in AGIS, you can define e.g. "read_lan_analysis". Here we
-        want to strip the role to the "analysis" tag
+        want to strip the role to the "analysis" tag and return role "read_lan" and scope "analysis"
+
+        Examples:
+            "read_lan_analysis" --> "read_lan" and "analysis"
+            "read_lan" --> "read_lan" and "default"
         """
         # default roles: "read_lan" or "write_lan"
         if role == READ_LAN or role == WRITE_LAN:
-            return DEFAULT
+            return role, DEFAULT
+
         # special read_lan roles, e.g. "read_lan_analysis"
-        if role.startswith(READ_LAN):
-            return role.replace("{0}_".format(READ_LAN), '')
+        elif role.startswith(READ_LAN):
+            role_clean = READ_LAN
+            scope = role.replace("{0}_".format(READ_LAN), '')
+            return role_clean, scope
+
         # special write_lan roles, e.g. "write_lan_analysis"
-        if role.startswith(WRITE_LAN):
-            return role.replace("{0}_".format(WRITE_LAN), '')
+        elif role.startswith(WRITE_LAN):
+            role_clean = WRITE_LAN
+            scope = role.replace("{0}_".format(WRITE_LAN), '')
+            return role_clean, scope
+
+        # roles we are currently not expecting
+        else:
+            return role, DEFAULT
 
     def get_panda_ddm_relation(self):
         """
@@ -272,32 +286,32 @@ class Configurator(threading.Thread):
 
                     for ddm_endpoint_name in astorages[role]:
                         # set the read/write order and increment the respective counter
-                        tag = self.parse_role(role)
-                        order_read.setdefault(tag, 1)
-                        order_write.setdefault(tag, 1)
+                        role_clean, scope = self.parse_role(role)
+                        order_read.setdefault(scope, 1)
+                        order_write.setdefault(scope, 1)
 
-                        # initialize DDM endpoint and tag if it does not exist
+                        # initialize DDM endpoint and scope if it does not exist
                         dict_ddm_endpoint.setdefault(ddm_endpoint_name, {})
-                        dict_ddm_endpoint[ddm_endpoint_name].setdefault(tag, {'order_write': None,
-                                                                              'order_read': None,
-                                                                              'role': []
-                                                                              })
+                        dict_ddm_endpoint[ddm_endpoint_name].setdefault(scope, {'order_write': None,
+                                                                                'order_read': None,
+                                                                                'role': []
+                                                                               })
 
                         if role.startswith(WRITE_LAN):
-                            dict_ddm_endpoint[ddm_endpoint_name][tag]['order_write'] = order_write[tag]
-                            order_write[tag] += 1
+                            dict_ddm_endpoint[ddm_endpoint_name][scope]['order_write'] = order_write[scope]
+                            order_write[scope] += 1
                         elif role.startswith(READ_LAN):
-                            dict_ddm_endpoint[ddm_endpoint_name][tag]['order_read'] = order_read[tag]
-                            order_read[tag] += 1
+                            dict_ddm_endpoint[ddm_endpoint_name][scope]['order_read'] = order_read[scope]
+                            order_read[scope] += 1
                         # append the roles
-                        dict_ddm_endpoint[ddm_endpoint_name][tag]['role'].append(role)
+                        dict_ddm_endpoint[ddm_endpoint_name][scope]['role'].append(role_clean)
 
                 for ddm_endpoint_name, ddm_endpoint_values in dict_ddm_endpoint.items():
-                    for tag, tag_values in ddm_endpoint_values.items():
+                    for scope, scope_values in ddm_endpoint_values.items():
                         # unpack the values
-                        roles = tag_values['role']
-                        order_write = tag_values['order_write']
-                        order_read = tag_values['order_read']
+                        roles = scope_values['role']
+                        order_write = scope_values['order_write']
+                        order_read = scope_values['order_read']
 
                         # figure out the ATLAS site the DDM endpoint belongs to
                         try:
@@ -333,7 +347,8 @@ class Configurator(threading.Thread):
                                                   'default_write': default_write,
                                                   'is_local': is_local,
                                                   'order_read': order_read,
-                                                  'order_write': order_write
+                                                  'order_write': order_write,
+                                                  'scope': scope,
                                                   })
 
         return relation_list

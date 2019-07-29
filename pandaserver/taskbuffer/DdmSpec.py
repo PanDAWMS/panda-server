@@ -11,8 +11,8 @@ class DdmSpec(object):
     def __init__(self):
         self.all = {}
         self.local = set()
-        self.default_read = None
-        self.default_write = None
+        self.default_read = {}
+        self.default_write = {}
         self.tape = set()
 
     # add endpoint
