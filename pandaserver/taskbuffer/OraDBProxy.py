@@ -10015,6 +10015,8 @@ class DBProxy:
                         ret.wansinklimit = wansinklimit
 
                     # DDM endpoints
+                    ret.ddm_endpoints_input = {}
+                    ret.ddm_endpoints_output = {}
                     if siteid in pandaEndpointMap:
                         for scope in pandaEndpointMap[siteid]:
                             ret.ddm_endpoints_input[scope] = pandaEndpointMap[siteid][scope]['input']
@@ -10023,7 +10025,9 @@ class DBProxy:
                         # empty
                         ret.ddm_endpoints_input["default"] = DdmSpec()
                         ret.ddm_endpoints_output["default"] = DdmSpec()
-                    
+
+                    ret.setokens_input = {}
+                    ret.setokens_output = {}
                     for scope in ret.ddm_endpoints_input:
                         # mapping between token and endpoints
                         ret.setokens_input[scope] = ret.ddm_endpoints_input[scope].getTokenMap('input')
