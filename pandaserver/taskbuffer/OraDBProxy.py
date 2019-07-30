@@ -10013,27 +10013,35 @@ class DBProxy:
                     ret.wansinklimit = 0
                     if not wansinklimit in [None,'']:
                         ret.wansinklimit = wansinklimit
+
                     # DDM endpoints
                     if siteid in pandaEndpointMap:
-                        ret.ddm_endpoints_input = pandaEndpointMap[siteid]['input']
-                        ret.ddm_endpoints_output = pandaEndpointMap[siteid]['output']
+                        for scope in pandaEndpointMap[siteid]
+                            ret.ddm_endpoints_input[scope] = pandaEndpointMap[siteid][scope]['input']
+                            ret.ddm_endpoints_output[scope] = pandaEndpointMap[siteid][scope]['output']
                     else:
                         # empty
-                        ret.ddm_endpoints_input = DdmSpec()
-                        ret.ddm_endpoints_output = DdmSpec()
-                    # mapping between token and endpoints
-                    ret.setokens_input = ret.ddm_endpoints_input.getTokenMap('input')
-                    ret.setokens_output = ret.ddm_endpoints_output.getTokenMap('output')
-                    # set DDM to the default endpoint
-                    ret.ddm_input = ret.ddm_endpoints_input.getDefaultRead()
-                    ret.ddm_output = ret.ddm_endpoints_output.getDefaultWrite()
+                        ret.ddm_endpoints_input["default"] = DdmSpec()
+                        ret.ddm_endpoints_output["default"] = DdmSpec()
+                    
+                    for scope in ret.ddm_endpoints_input:
+                        # mapping between token and endpoints
+                        ret.setokens_input[scope] = ret.ddm_endpoints_input[scope].getTokenMap('input')
+                        ret.setokens_output[scope] = ret.ddm_endpoints_output[scope].getTokenMap('output')
+                    
+                        # set DDM to the default endpoint
+                        ret.ddm_input = ret.ddm_endpoints_input.getDefaultRead()
+                        ret.ddm_output = ret.ddm_endpoints_output.getDefaultWrite()
+                    
                     # object stores
                     try:
                         ret.objectstores = json.loads(objectstores)
                     except:
                         ret.objectstores = []
+                    
                     # default unified flag
                     ret.is_unified = False
+                    
                     # num slots
                     ret.num_slots_map = dict()
                     varMap = dict()
@@ -10094,7 +10102,8 @@ class DBProxy:
         # get relationship between panda sites and ddm endpoints
         sql_panda_ddm = """
                SELECT pdr.panda_site_name, pdr.ddm_endpoint_name, pdr.is_local, de.ddm_spacetoken_name, 
-                      de.is_tape, pdr.default_read, pdr.default_write, pdr.roles, pdr.order_read, pdr.order_write 
+                      de.is_tape, pdr.default_read, pdr.default_write, pdr.roles, pdr.order_read, pdr.order_write, 
+                      pdr.scope 
                FROM ATLAS_PANDA.panda_ddm_relation pdr, ATLAS_PANDA.ddm_endpoint de
                WHERE pdr.ddm_endpoint_name = de.ddm_endpoint_name
                """
@@ -10114,12 +10123,14 @@ class DBProxy:
             
             # add the relations to the panda endpoint map
             panda_site_name = tmp_relation['panda_site_name']
-            if panda_site_name not in panda_endpoint_map:
-                panda_endpoint_map[panda_site_name] = {'input': DdmSpec(), 'output': DdmSpec()}
+            scope = tmp_relation['scope']
+            panda_endpoint_map.setdefault(panda_site_name, {})
+            panda_endpoint_map[panda_site_name].setdefault(scope, {'input': DdmSpec(), 'output': DdmSpec()})
+
             if 'read_lan' in tmp_relation['roles']:
-                panda_endpoint_map[panda_site_name]['input'].add(tmp_relation, endpoint_dict)
+                panda_endpoint_map[panda_site_name][scope]['input'].add(tmp_relation, endpoint_dict)
             if 'write_lan' in tmp_relation['roles']:
-                panda_endpoint_map[panda_site_name]['output'].add(tmp_relation, endpoint_dict)
+                panda_endpoint_map[panda_site_name][scope]['output'].add(tmp_relation, endpoint_dict)
         
         _logger.debug("{0} done".format(methodName))
         return panda_endpoint_map
@@ -15763,7 +15774,7 @@ class DBProxy:
             else:
                 sqlSN += "AND sc.status=:siteStatus "
             sqlSN += "AND dr.default_write ='Y' "
-            sqlSN += "AND REGEXP_LIKE (roles, 'write_lan(,|$| )') " # skip endpoints with analysis roles
+            sqlSN += "AND scope = 'default' " # skip endpoints with analysis roles
             sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity=:wc1) "
             varMap = {}
             varMap[':site'] = jobSpec.computingSite
@@ -15814,7 +15825,7 @@ class DBProxy:
                 sqlSN += "AND NOT sc.siteid LIKE 'ANALY_%' " 
                 sqlSN += "AND sc.status=:siteStatus "
                 sqlSN += "AND dr.default_write='Y' "
-                sqlSN += "AND REGEXP_LIKE (roles, 'write_lan(,|$| )') " # skip endpoints with analysis roles
+                sqlSN += "AND scope = 'default' "  # skip endpoints with analysis roles
                 sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity=:wc1) "
                 varMap = {}
                 varMap[':nucleus'] = tmpNucleus
@@ -15838,7 +15849,7 @@ class DBProxy:
             sqlSN += "AND NOT sc.siteid LIKE 'ANALY_%' " 
             sqlSN += "AND sc.status=:siteStatus "
             sqlSN += "AND dr.default_write='Y' "
-            sqlSN += "AND REGEXP_LIKE (roles, 'write_lan(,|$| )') " # skip endpoints with analysis roles
+            sqlSN += "AND scope = 'default' " # skip endpoints with analysis roles
             sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity=:wc1) "
             varMap = {}
             varMap[':siteStatus'] = 'online'
