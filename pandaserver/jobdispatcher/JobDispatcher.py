@@ -881,7 +881,15 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
                      computingElement,AtlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,
                      allowOtherCountry,taskID,realDN,prodManager,token,validToken,str(fqans),req.acceptJson(),
                      background,resourceType,harvester_id,worker_id,schedulerID))
-    _pilotReqLogger.info('method=getJob,site=%s,node=%s,type=%s' % (siteName,node,prodSourceLabel))    
+    try:
+        dummyNumSlots = int(nJobs)
+    except Exception:
+        dummyNumSlots = 1
+    if dummyNumSlots > 1:
+        for iSlots in range(dummyNumSlots):
+            _pilotReqLogger.info('method=getJob,site=%s,node=%s_%s,type=%s' % (siteName, node, iSlots, prodSourceLabel))            
+    else:
+        _pilotReqLogger.info('method=getJob,site=%s,node=%s,type=%s' % (siteName,node,prodSourceLabel))    
     # invalid role
     if (not prodManager) and (not prodSourceLabel in ['user']):
         _logger.warning("getJob(%s) : invalid role" % siteName)
