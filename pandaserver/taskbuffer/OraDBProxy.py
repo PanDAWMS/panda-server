@@ -10016,7 +10016,7 @@ class DBProxy:
 
                     # DDM endpoints
                     if siteid in pandaEndpointMap:
-                        for scope in pandaEndpointMap[siteid]
+                        for scope in pandaEndpointMap[siteid]:
                             ret.ddm_endpoints_input[scope] = pandaEndpointMap[siteid][scope]['input']
                             ret.ddm_endpoints_output[scope] = pandaEndpointMap[siteid][scope]['output']
                     else:
